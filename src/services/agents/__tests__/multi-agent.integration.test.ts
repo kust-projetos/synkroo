@@ -268,10 +268,10 @@ describe('Multi-Agent Flow (Mocked)', () => {
         },
       }
 
-      expect(context.session.routedFrom).toBe('orchestrator')
-      expect(context.session.intent).toBe('SCHEDULING')
-      expect(context.session.routedTo).toBe('router')
-      expect(context.session.appointment).toBeTruthy()
+      expect((context.session as any).routedFrom).toBe('orchestrator')
+      expect((context.session as any).intent).toBe('SCHEDULING')
+      expect((context.session as any).routedTo).toBe('router')
+      expect((context.session as any).appointment).toBeTruthy()
     })
   })
 })

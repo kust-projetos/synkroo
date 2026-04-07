@@ -197,7 +197,7 @@ export async function createBudgetTool(
         quantity: item.quantity,
         unit_price: item.unit_price,
         discount_percent: item.discount_percent || 0,
-      })),
+      })) as any,
       discount_percent,
       discount_value: totals.discount_value,
       valid_until: valid_until,
@@ -305,7 +305,7 @@ export async function sendPromotionTool(
 /**
  * Registry mapping sales tool names to their implementations
  */
-export const SALES_TOOL_IMPLEMENTATIONS: Record<string, (...args: unknown[]) => Promise<unknown>> = {
+export const SALES_TOOL_IMPLEMENTATIONS: Record<string, any> = {
   get_lead_info: async (args: { leadId: string }) =>
     getLeadInfoTool(args.leadId),
 

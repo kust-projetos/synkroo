@@ -186,7 +186,7 @@ export async function answerFaqTool(
 /**
  * Registry mapping generalist tool names to their implementations
  */
-export const GENERALIST_TOOL_IMPLEMENTATIONS: Record<string, (...args: unknown[]) => Promise<unknown>> = {
+export const GENERALIST_TOOL_IMPLEMENTATIONS: Record<string, any> = {
   search_knowledge: async (args: {
     query: string
     clinicId: string

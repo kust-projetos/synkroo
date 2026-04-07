@@ -335,7 +335,7 @@ export async function rescheduleAppointmentTool(
 /**
  * Registry mapping scheduler tool names to their implementations
  */
-export const SCHEDULER_TOOL_IMPLEMENTATIONS: Record<string, (...args: unknown[]) => Promise<unknown>> = {
+export const SCHEDULER_TOOL_IMPLEMENTATIONS: Record<string, any> = {
   check_availability: async (args: {
     dentistId?: string
     date: string
