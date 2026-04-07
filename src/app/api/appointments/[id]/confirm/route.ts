@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import { confirmAppointment } from '@/services/appointments/appointment-actions.service'
 
 interface RouteParams {
@@ -53,7 +53,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    dbLogger.error('Error in POST /api/appointments/[id]/confirm', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

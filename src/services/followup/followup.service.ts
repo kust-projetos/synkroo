@@ -81,7 +81,7 @@ export async function getProcedureGuidelines(
     .from('procedure_guidelines')
     .select('*')
     .eq('clinic_id', clinicId)
-    .ilike('procedure_name', `%${procedureName}%`)
+    .ilike('procedure_name', `%${procedureName.replace(/[%_\\]/g, '\\$&')}%`)
     .eq('is_active', true)
     .single() as any
 
@@ -119,7 +119,7 @@ export async function getFollowUpConfig(
     .eq('is_active', true)
 
   if (procedureName) {
-    query = query.ilike('procedure_name', `%${procedureName}%`)
+    query = query.ilike('procedure_name', `%${procedureName.replace(/[%_\\]/g, '\\$&')}%`)
   }
 
   const { data: initialData, error } = await query.single()

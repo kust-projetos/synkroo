@@ -8,7 +8,7 @@ import {
 import { getInactivityStats } from '@/services/followup/inactive-patient.service'
 import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
 import { createCampaignSchema } from '@/lib/validations'
-import { apiLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * GET /api/campaigns
@@ -36,11 +36,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ campaigns })
   } catch (error) {
-    apiLogger.error('Error fetching campaigns', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch campaigns' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -115,15 +111,8 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    apiLogger.error('Error creating campaign', error)
-    return NextResponse.json(
-      { error: 'Failed to create campaign' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

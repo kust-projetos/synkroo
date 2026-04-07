@@ -34,10 +34,10 @@ export async function GET(request: NextRequest) {
       .order('name', { ascending: true })
       .range(offset, offset + limit - 1)
 
-    // Search filter (sanitized — special chars in search won't break filter)
+    // Search filter (escape special chars to prevent ILIKE injection)
     if (search) {
-      const sanitized = search.replace(/[%,()]/g, '')
-      query = query.or(`name.ilike.%${sanitized}%,phone.ilike.%${sanitized}%,email.ilike.%${sanitized}%`)
+      const escaped = search.replace(/[%_\\]/g, '\\$&')
+      query = query.or(`name.ilike.%${escaped}%,phone.ilike.%${escaped}%,email.ilike.%${escaped}%`)
     }
 
     const { data: patients, error, count } = await query

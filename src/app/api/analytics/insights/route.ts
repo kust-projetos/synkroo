@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import { getClinicInsights } from '@/services/analytics/analytics.service'
 
 /**
@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(insights)
   } catch (error) {
-    dbLogger.error('Error fetching analytics insights', error)
-    return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 })
+    return handleApiError(error)
   }
 }

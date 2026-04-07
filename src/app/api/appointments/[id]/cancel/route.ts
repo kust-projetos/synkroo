@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 import { cancelAppointment } from '@/services/appointments/appointment-actions.service'
 
 interface RouteParams {
@@ -57,7 +57,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       waitlistNotified: result.waitlistNotified,
     })
   } catch (error) {
-    dbLogger.error('Error in POST /api/appointments/[id]/cancel', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

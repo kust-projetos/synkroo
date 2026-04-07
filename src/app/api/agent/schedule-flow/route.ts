@@ -248,7 +248,7 @@ async function handleSchedulingIntent(
       .from('procedures')
       .select('id, name')
       .eq('clinic_id', clinicId)
-      .ilike('name', `%${entities.procedimento}%`)
+      .ilike('name', `%${entities.procedimento.replace(/[%_\\]/g, '\\$&')}%`)
       .single() as { data: { id: string; name: string } | null }
 
     if (procedure) {

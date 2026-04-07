@@ -371,7 +371,7 @@ export async function createAppointmentFromContext(
         .from('procedures')
         .select('id')
         .eq('clinic_id', context.clinicId)
-        .ilike('name', `%${context.appointmentRequest.procedure}%`)
+        .ilike('name', `%${context.appointmentRequest.procedure.replace(/[%_\\]/g, '\\$&')}%`)
         .single() as any
       procedureId = procedure?.id || null
     }
@@ -383,7 +383,7 @@ export async function createAppointmentFromContext(
         .from('dentists')
         .select('id')
         .eq('clinic_id', context.clinicId)
-        .ilike('name', `%${context.appointmentRequest.dentist}%`)
+        .ilike('name', `%${context.appointmentRequest.dentist.replace(/[%_\\]/g, '\\$&')}%`)
         .single() as any
       dentistId = dentist?.id || null
     }

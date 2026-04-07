@@ -5,6 +5,7 @@ import {
   sendWhatsAppReminder,
   recordReminderSent,
 } from '@/services/reminders/reminder.service'
+import { handleApiError } from '@/lib/errors'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -110,7 +111,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       messageId: result.messageId,
     })
   } catch (error) {
-    console.error('Error sending manual reminder:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

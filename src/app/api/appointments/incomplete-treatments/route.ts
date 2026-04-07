@@ -4,6 +4,7 @@ import {
   detectIncompleteTreatments,
   getIncompleteTreatmentAlerts,
 } from '@/services/appointments/incomplete-treatment.service'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/appointments/incomplete-treatments
@@ -31,7 +32,6 @@ export async function GET(request: NextRequest) {
     const treatments = await detectIncompleteTreatments(clinicId)
     return NextResponse.json({ treatments })
   } catch (error) {
-    console.error('Error detecting incomplete treatments:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

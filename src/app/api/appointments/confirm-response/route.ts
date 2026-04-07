@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { processConfirmationResponse } from '@/services/appointments/confirmation-handler.service'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * POST /api/appointments/confirm-response
@@ -25,17 +26,13 @@ export async function POST(request: NextRequest) {
     }
 
     if (!clinicId || !patientPhone || !message) {
-      return NextResponse.json(
-        { error: 'Missing required fields: clinicId, patientPhone, message' },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Missing required fields: clinicId, patientPhone, message'))
     }
 
     const result = await processConfirmationResponse(clinicId, patientPhone, message)
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error processing confirmation response:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

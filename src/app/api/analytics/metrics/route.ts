@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { getAttendanceMetrics } from '@/services/analytics/attendance-metrics.service'
-import { apiLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/analytics/metrics
@@ -54,7 +54,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(metrics)
   } catch (error) {
-    apiLogger.error('Error fetching attendance metrics', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

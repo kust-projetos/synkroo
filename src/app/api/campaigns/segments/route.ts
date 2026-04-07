@@ -7,6 +7,7 @@ import {
   listSegments,
   type SegmentCriteria,
 } from '@/services/followup/segmentation.service'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * GET /api/campaigns/segments
@@ -29,7 +30,7 @@ export async function GET(request: NextRequest) {
     if (preview) {
       const criteriaJson = searchParams.get('criteria')
       if (!criteriaJson) {
-        return NextResponse.json({ error: 'criteria parameter required for preview' }, { status: 400 })
+        return handleApiError(new ValidationError('criteria parameter required for preview'))
       }
 
       const criteria: SegmentCriteria = JSON.parse(criteriaJson)
@@ -40,8 +41,7 @@ export async function GET(request: NextRequest) {
     const segments = await listSegments(clinicId)
     return NextResponse.json({ segments })
   } catch (error) {
-    console.error('Error fetching segments:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -68,10 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!name || !criteria) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, criteria' },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Missing required fields: name, criteria'))
     }
 
     const segment = await createSegment({
@@ -88,7 +85,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ segment })
   } catch (error) {
-    console.error('Error creating segment:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
