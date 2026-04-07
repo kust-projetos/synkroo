@@ -256,7 +256,7 @@ export async function extractEntitiesTool(
 /**
  * Registry mapping router tool names to their implementations
  */
-export const ROUTER_TOOL_IMPLEMENTATIONS: Record<string, (...args: unknown[]) => Promise<unknown>> = {
+export const ROUTER_TOOL_IMPLEMENTATIONS: Record<string, any> = {
   classify_intent: async (args: { message: string; context?: string }) =>
     classifyIntentTool(args.message, args.context),
 

@@ -17,7 +17,6 @@ export { GENERALIST_TOOLS } from './generalist.tools'
 
 // Export tool implementations
 export {
-  BASE_TOOL_IMPLEMENTATIONS,
   searchPatientTool,
   getClinicInfoTool,
   sendMessageTool,
@@ -25,13 +24,11 @@ export {
 } from './base.tools'
 
 export {
-  ROUTER_TOOL_IMPLEMENTATIONS,
   classifyIntentTool,
   extractEntitiesTool,
 } from './router.tools'
 
 export {
-  SCHEDULER_TOOL_IMPLEMENTATIONS,
   checkAvailabilityTool,
   bookAppointmentTool,
   cancelAppointmentTool,
@@ -39,17 +36,22 @@ export {
 } from './scheduler.tools'
 
 export {
-  SALES_TOOL_IMPLEMENTATIONS,
   getLeadInfoTool,
   createBudgetTool,
   sendPromotionTool,
 } from './sales.tools'
 
 export {
-  GENERALIST_TOOL_IMPLEMENTATIONS,
   searchKnowledgeTool,
   answerFaqTool,
 } from './generalist.tools'
+
+// Import implementations for registry
+import { BASE_TOOL_IMPLEMENTATIONS } from './base.tools'
+import { ROUTER_TOOL_IMPLEMENTATIONS } from './router.tools'
+import { SCHEDULER_TOOL_IMPLEMENTATIONS } from './scheduler.tools'
+import { SALES_TOOL_IMPLEMENTATIONS } from './sales.tools'
+import { GENERALIST_TOOL_IMPLEMENTATIONS } from './generalist.tools'
 
 // ============================================================================
 // Agent Tool Configurations
