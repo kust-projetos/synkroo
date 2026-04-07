@@ -1537,6 +1537,228 @@ export interface Database {
           created_at?: string
         }
       }
+      agent_logs: {
+        Row: {
+          id: string
+          clinic_id: string
+          conversation_id: string | null
+          intent: string | null
+          confidence: number | null
+          response_time_ms: number | null
+          action_taken: string | null
+          escalation: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          conversation_id?: string | null
+          intent?: string | null
+          confidence?: number | null
+          response_time_ms?: number | null
+          action_taken?: string | null
+          escalation?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          conversation_id?: string | null
+          intent?: string | null
+          confidence?: number | null
+          response_time_ms?: number | null
+          action_taken?: string | null
+          escalation?: boolean
+          created_at?: string
+        }
+      }
+      appointment_reminders: {
+        Row: {
+          id: string
+          appointment_id: string
+          reminder_type: string
+          channel: string
+          status: string
+          message_id: string | null
+          error_message: string | null
+          sent_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          appointment_id: string
+          reminder_type: string
+          channel: string
+          status: string
+          message_id?: string | null
+          error_message?: string | null
+          sent_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          appointment_id?: string
+          reminder_type?: string
+          channel?: string
+          status?: string
+          message_id?: string | null
+          error_message?: string | null
+          sent_at?: string
+          created_at?: string
+        }
+      }
+      campaign_segments: {
+        Row: {
+          id: string
+          clinic_id: string
+          name: string
+          description: string | null
+          criteria: Json
+          patient_count: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          name: string
+          description?: string | null
+          criteria: Json
+          patient_count?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          name?: string
+          description?: string | null
+          criteria?: Json
+          patient_count?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      lead_notifications: {
+        Row: {
+          id: string
+          lead_id: string
+          clinic_id: string
+          type: string
+          channel: string
+          sent_at: string
+          acknowledged: boolean
+          acknowledged_at: string | null
+          lead_name: string | null
+          lead_phone: string | null
+          lead_score: number | null
+          lead_source: string | null
+          lead_interest: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lead_id: string
+          clinic_id: string
+          type: string
+          channel: string
+          sent_at?: string
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          lead_name?: string | null
+          lead_phone?: string | null
+          lead_score?: number | null
+          lead_source?: string | null
+          lead_interest?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          lead_id?: string
+          clinic_id?: string
+          type?: string
+          channel?: string
+          sent_at?: string
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          lead_name?: string | null
+          lead_phone?: string | null
+          lead_score?: number | null
+          lead_source?: string | null
+          lead_interest?: string | null
+          created_at?: string
+        }
+      }
+      patient_observations: {
+        Row: {
+          id: string
+          patient_id: string
+          clinic_id: string
+          author_id: string
+          author_name: string | null
+          content: string
+          visibility: string
+          created_at: string
+          updated_at: string
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          clinic_id: string
+          author_id: string
+          author_name?: string | null
+          content: string
+          visibility?: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          clinic_id?: string
+          author_id?: string
+          author_name?: string | null
+          content?: string
+          visibility?: string
+          created_at?: string
+          updated_at?: string
+          deleted_at?: string | null
+        }
+      }
+      patient_preferences: {
+        Row: {
+          patient_id: string
+          key: string
+          value: string | null
+          category: string | null
+          clinic_id: string
+          updated_at: string
+        }
+        Insert: {
+          patient_id: string
+          key: string
+          value?: string | null
+          category?: string | null
+          clinic_id: string
+          updated_at?: string
+        }
+        Update: {
+          patient_id?: string
+          key?: string
+          value?: string | null
+          category?: string | null
+          clinic_id?: string
+          updated_at?: string
+        }
+      }
     }
     Functions: {
       get_availability: {
