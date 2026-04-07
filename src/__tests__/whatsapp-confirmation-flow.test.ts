@@ -3,6 +3,7 @@
  * Tests the complete flow from intent classification to appointment confirmation
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 import { confirmAppointment, cancelAppointment, rescheduleAppointment } from '@/services/appointments/appointment-actions.service'
 
 // Mock Supabase
