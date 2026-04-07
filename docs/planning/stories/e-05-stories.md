@@ -57,11 +57,11 @@ Scenario: Lead já existe
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela de leads
-- [ ] Detectar intenção de compra
-- [ ] Associar ao paciente existente
-- [ ] Registrar fonte e canal
-- [ ] Implementar deduplicação
+- [x] Criar tabela de leads
+- [x] Detectar intenção de compra
+- [x] Associar ao paciente existente
+- [x] Registrar fonte e canal
+- [x] Implementar deduplicação
 
 ### Schema de Lead
 
@@ -117,11 +117,11 @@ Scenario: Atualizar scoring
 
 ### Tarefas Técnicas
 
-- [ ] Definir critérios de scoring
-- [ ] Implementar algoritmo
-- [ ] Criar categorias
-- [ ] Notificar sobre leads quentes
-- [ ] Registrar histórico de scoring
+- [x] Definir critérios de scoring
+- [x] Implementar algoritmo
+- [x] Criar categorias
+- [x] Notificar sobre leads quentes
+- [x] Registrar histórico de scoring
 
 ### Critérios de Scoring
 
@@ -175,10 +175,10 @@ Scenario: Follow-up se não agendou
 
 ### Tarefas Técnicas
 
-- [ ] Integrar com agendamento
-- [ ] Criar fluxo de avaliação
-- [ ] Implementar follow-up automático
-- [ ] Marcar conversão no lead
+- [x] Integrar com agendamento
+- [x] Criar fluxo de avaliação
+- [x] Implementar follow-up automático
+- [x] Marcar conversão no lead
 
 ---
 
@@ -214,10 +214,10 @@ Scenario: Dashboard de leads
 
 ### Tarefas Técnicas
 
-- [ ] Criar sistema de notificação
-- [ ] Implementar dashboard de leads
-- [ ] Configurar responsáveis por lead
-- [ ] Registrar tempo de resposta
+- [x] Criar sistema de notificação
+- [x] Implementar dashboard de leads
+- [x] Configurar responsáveis por lead
+- [x] Registrar tempo de resposta
 
 ---
 
@@ -237,23 +237,23 @@ Scenario: Dashboard de leads
 
 Antes de iniciar qualquer Story do E-05:
 
-- [ ] PRD e Architecture aprovados
-- [ ] E-01 (Atendimento Multicanal) implementado
-- [ ] E-04 (CRM Inteligente) implementado
-- [ ] E-02 (Agendamentos) para S03
-- [ ] Sistema de notificações configurado
+- [x] PRD e Architecture aprovados
+- [x] E-01 (Atendimento Multicanal) implementado
+- [x] E-04 (CRM Inteligente) implementado
+- [x] E-02 (Agendamentos) para S03
+- [x] Sistema de notificações configurado
 
 ## Definition of Done (DoD)
 
 Para considerar uma Story completa:
 
-- [ ] Código implementado e revisado
-- [ ] Testes unitários com cobertura > 80%
-- [ ] Scoring de leads validado com negócio
-- [ ] Integração com agendamentos funcionando
-- [ ] Notificações testadas
-- [ ] Documentação atualizada
-- [ ] Deploy em staging
+- [x] Código implementado e revisado
+- [x] Testes unitários com cobertura > 80%
+- [x] Scoring de leads validado com negócio
+- [x] Integração com agendamentos funcionando
+- [x] Notificações testadas
+- [x] Documentação atualizada
+- [x] Deploy em staging
 
 ## NFR Traceability
 
@@ -268,4 +268,4 @@ Para considerar uma Story completa:
 
 **Documento criado por:** BMAD Method v6.2.2
 **Data:** 2026-03-27
-**Status:** ✅ Stories Criados - Ready for Sprint Planning
+**Status:** ✅ IMPLEMENTADO - Atualizado em 2026-04-07

@@ -59,11 +59,11 @@ Scenario: Alertas de atenção
 
 ### Tarefas Técnicas
 
-- [ ] Criar queries de agregação
-- [ ] Implementar API de dashboard
-- [ ] Calcular métricas derivadas
-- [ ] Criar visualizações
-- [ ] Implementar cache
+- [x] Criar queries de agregação
+- [x] Implementar API de dashboard
+- [x] Calcular métricas derivadas
+- [x] Criar visualizações
+- [x] Implementar cache
 
 ### Métricas do Dashboard
 
@@ -115,11 +115,11 @@ Scenario: Exportar relatório
 
 ### Tarefas Técnicas
 
-- [ ] Criar queries de relatório
-- [ ] Implementar filtros
-- [ ] Gerar PDF
-- [ ] Exportar CSV
-- [ ] Cache de relatórios
+- [x] Criar queries de relatório
+- [x] Implementar filtros
+- [x] Gerar PDF
+- [x] Exportar CSV
+- [x] Cache de relatórios
 
 ---
 
@@ -156,11 +156,11 @@ Scenario: Comparativo mensal
 
 ### Tarefas Técnicas
 
-- [ ] Definir fórmula de ROI
-- [ ] Calcular horas economizadas
-- [ ] Calcular receita gerada
-- [ ] Criar visualização
-- [ ] Projeção simples
+- [x] Definir fórmula de ROI
+- [x] Calcular horas economizadas
+- [x] Calcular receita gerada
+- [x] Criar visualização
+- [x] Projeção simples
 
 ### Fórmula ROI
 
@@ -205,10 +205,10 @@ Scenario: Relatório de retenção
 
 ### Tarefas Técnicas
 
-- [ ] Criar queries
-- [ ] Calcular métricas de retenção
-- [ ] Visualizar gráficos
-- [ ] Exportar dados
+- [x] Criar queries
+- [x] Calcular métricas de retenção
+- [x] Visualizar gráficos
+- [x] Exportar dados
 
 ---
 
@@ -228,23 +228,23 @@ Scenario: Relatório de retenção
 
 Antes de iniciar qualquer Story do E-08:
 
-- [ ] PRD e Architecture aprovados
-- [ ] E-01 (Atendimento Multicanal) implementado - para dados de mensagens
-- [ ] E-02 (Gestão de Agendamentos) implementado - para dados de agendamentos
-- [ ] E-04 (CRM Inteligente) implementado - para dados de pacientes
-- [ ] Sistema de relatórios configurado
+- [x] PRD e Architecture aprovados
+- [x] E-01 (Atendimento Multicanal) implementado - para dados de mensagens
+- [x] E-02 (Gestão de Agendamentos) implementado - para dados de agendamentos
+- [x] E-04 (CRM Inteligente) implementado - para dados de pacientes
+- [x] Sistema de relatórios configurado
 
 ## Definition of Done (DoD)
 
 Para considerar uma Story completa:
 
-- [ ] Código implementado e revisado
-- [ ] Testes unitários com cobertura > 80%
-- [ ] Queries de agregação otimizadas
-- [ ] Cache implementado para dashboards
-- [ ] Export PDF/CSV funcionando
-- [ ] Documentação atualizada
-- [ ] Deploy em staging
+- [x] Código implementado e revisado
+- [x] Testes unitários com cobertura > 80%
+- [x] Queries de agregação otimizadas
+- [x] Cache implementado para dashboards
+- [x] Export PDF/CSV funcionando
+- [x] Documentação atualizada
+- [x] Deploy em staging
 
 ## NFR Traceability
 
@@ -259,4 +259,4 @@ Para considerar uma Story completa:
 
 **Documento criado por:** BMAD Method v6.2.2
 **Data:** 2026-03-27
-**Status:** ✅ Stories Criados - Ready for Sprint Planning
+**Status:** ✅ IMPLEMENTADO - Atualizado em 2026-04-07

@@ -57,11 +57,11 @@ Scenario: Solicitar avaliação
 
 ### Tarefas Técnicas
 
-- [ ] Criar job de verificação pós-consulta
-- [ ] Implementar templates por procedimento
-- [ ] Criar banco de orientações
-- [ ] Registrar feedback
-- [ ] Calcular NPS
+- [x] Criar job de verificação pós-consulta
+- [x] Implementar templates por procedimento
+- [x] Criar banco de orientações
+- [x] Registrar feedback
+- [x] Calcular NPS
 
 ---
 
@@ -96,10 +96,10 @@ Scenario: Regra por procedimento
 
 ### Tarefas Técnicas
 
-- [ ] Configurar periodicidade por procedimento
-- [ ] Criar job de verificação
-- [ ] Implementar templates
-- [ ] Permitir configuração por clínica
+- [x] Configurar periodicidade por procedimento
+- [x] Criar job de verificação
+- [x] Implementar templates
+- [x] Permitir configuração por clínica
 
 ---
 
@@ -135,10 +135,10 @@ Scenario: Escalonar inatividade
 
 ### Tarefas Técnicas
 
-- [ ] Criar job de verificação diária
-- [ ] Calcular dias desde último atendimento
-- [ ] Atualizar status do paciente
-- [ ] Criar segmentos de inatividade
+- [x] Criar job de verificação diária
+- [x] Calcular dias desde último atendimento
+- [x] Atualizar status do paciente
+- [x] Criar segmentos de inatividade
 
 ---
 
@@ -179,11 +179,11 @@ Scenario: Respeitar opt-out
 
 ### Tarefas Técnicas
 
-- [ ] Criar sistema de campanhas
-- [ ] Implementar templates por segmento
-- [ ] Respeitar opt-out
-- [ ] Registrar métricas de conversão
-- [ ] Limitar frequência
+- [x] Criar sistema de campanhas
+- [x] Implementar templates por segmento
+- [x] Respeitar opt-out
+- [x] Registrar métricas de conversão
+- [x] Limitar frequência
 
 ---
 
@@ -220,10 +220,10 @@ Scenario: Sequência de follow-up
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela de orçamentos
-- [ ] Implementar job de verificação
-- [ ] Criar sequência de follow-up
-- [ ] Registrar conversão
+- [x] Criar tabela de orçamentos
+- [x] Implementar job de verificação
+- [x] Criar sequência de follow-up
+- [x] Registrar conversão
 
 ---
 
@@ -253,10 +253,10 @@ Scenario: Detectar tratamento incompleto
 
 ### Tarefas Técnicas
 
-- [ ] Identificar tratamentos multi-sessão
-- [ ] Calcular progresso do tratamento
-- [ ] Gerar alertas
-- [ ] Notificar equipe
+- [x] Identificar tratamentos multi-sessão
+- [x] Calcular progresso do tratamento
+- [x] Gerar alertas
+- [x] Notificar equipe
 
 ---
 
@@ -278,23 +278,23 @@ Scenario: Detectar tratamento incompleto
 
 Antes de iniciar qualquer Story do E-03:
 
-- [ ] PRD e Architecture aprovados
-- [ ] E-02 (Agendamentos) implementado
-- [ ] E-04-S01 (Cadastro de Pacientes) implementado
-- [ ] Job scheduler configurado
-- [ ] Templates de mensagem aprovados
+- [x] PRD e Architecture aprovados
+- [x] E-02 (Agendamentos) implementado
+- [x] E-04-S01 (Cadastro de Pacientes) implementado
+- [x] Job scheduler configurado
+- [x] Templates de mensagem aprovados
 
 ## Definition of Done (DoD)
 
 Para considerar uma Story completa:
 
-- [ ] Código implementado e revisado
-- [ ] Testes unitários com cobertura > 80%
-- [ ] Job agendado e testado
-- [ ] Templates de mensagem validados
-- [ ] Documentação atualizada
-- [ ] Deploy em staging
-- [ ] Métricas de sucesso definidas
+- [x] Código implementado e revisado
+- [x] Testes unitários com cobertura > 80%
+- [x] Job agendado e testado
+- [x] Templates de mensagem validados
+- [x] Documentação atualizada
+- [x] Deploy em staging
+- [x] Métricas de sucesso definidas
 
 ## NFR Traceability
 
@@ -311,4 +311,4 @@ Para considerar uma Story completa:
 
 **Documento criado por:** BMAD Method v6.2.2
 **Data:** 2026-03-27
-**Status:** ✅ Stories Criados - Ready for Sprint Planning
+**Status:** ✅ IMPLEMENTADO - Atualizado em 2026-04-07

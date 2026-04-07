@@ -63,13 +63,13 @@ Scenario: Validar telefone único
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela patients
-- [ ] Implementar API de CRUD
-- [ ] Validar CPF (dígitos verificadores)
-- [ ] Validar telefone (formato brasileiro)
-- [ ] Implementar busca de duplicatas
-- [ ] Criar índices únicos
-- [ ] Implementar RLS por clínica
+- [x] Criar tabela patients
+- [x] Implementar API de CRUD
+- [x] Validar CPF (dígitos verificadores)
+- [x] Validar telefone (formato brasileiro)
+- [x] Implementar busca de duplicatas
+- [x] Criar índices únicos
+- [x] Implementar RLS por clínica
 
 ### Campos do Cadastro
 
@@ -140,13 +140,13 @@ Scenario: Confirmar dados extraídos
 
 ### Tarefas Técnicas
 
-- [ ] Integrar com pipeline de extração
-- [ ] Criar fluxo de cadastro conversacional
-- [ ] Implementar confirmação de dados
-- [ ] Validar dados extraídos
-- [ ] Criar estado de "cadastro incompleto"
-- [ ] Permitir edição posterior
-- [ ] Testar com diferentes padrões de resposta
+- [x] Integrar com pipeline de extração
+- [x] Criar fluxo de cadastro conversacional
+- [x] Implementar confirmação de dados
+- [x] Validar dados extraídos
+- [x] Criar estado de "cadastro incompleto"
+- [x] Permitir edição posterior
+- [x] Testar com diferentes padrões de resposta
 
 ### Fluxo Conversacional
 
@@ -202,11 +202,11 @@ Scenario: Ver detalhes do atendimento
 
 ### Tarefas Técnicas
 
-- [ ] Criar relação paciente-agendamentos
-- [ ] Implementar query de histórico
-- [ ] Criar API de histórico
-- [ ] Implementar filtros
-- [ ] Criar visualização de timeline
+- [x] Criar relação paciente-agendamentos
+- [x] Implementar query de histórico
+- [x] Criar API de histórico
+- [x] Implementar filtros
+- [x] Criar visualização de timeline
 
 ---
 
@@ -248,10 +248,10 @@ Scenario: Observações privadas
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela de observações
-- [ ] Implementar campo de preferências
-- [ ] Adicionar controle de visibilidade
-- [ ] Registrar autor e timestamp
+- [x] Criar tabela de observações
+- [x] Implementar campo de preferências
+- [x] Adicionar controle de visibilidade
+- [x] Registrar autor e timestamp
 
 ---
 
@@ -292,11 +292,11 @@ Scenario: Remover tag
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela de tags
-- [ ] Criar relação paciente-tags (N:N)
-- [ ] Implementar API de tags
-- [ ] Implementar busca por tags
-- [ ] Sugerir tags existentes
+- [x] Criar tabela de tags
+- [x] Criar relação paciente-tags (N:N)
+- [x] Implementar API de tags
+- [x] Implementar busca por tags
+- [x] Sugerir tags existentes
 
 ### Tags Sugeridas
 
@@ -347,11 +347,11 @@ Scenario: Salvar segmento
 
 ### Tarefas Técnicas
 
-- [ ] Criar query builder visual
-- [ ] Implementar filtros combinados
-- [ ] Criar API de segmentação
-- [ ] Salvar segmentos
-- [ ] Calcular contagem em tempo real
+- [x] Criar query builder visual
+- [x] Implementar filtros combinados
+- [x] Criar API de segmentação
+- [x] Salvar segmentos
+- [x] Calcular contagem em tempo real
 
 ### Critérios de Segmentação
 
@@ -403,10 +403,10 @@ Scenario: Mesclar pacientes
 
 ### Tarefas Técnicas
 
-- [ ] Implementar busca de duplicatas
-- [ ] Criar função de mesclagem
-- [ ] Registrar audit de mesclagem
-- [ ] Atualizar referências de agendamentos
+- [x] Implementar busca de duplicatas
+- [x] Criar função de mesclagem
+- [x] Registrar audit de mesclagem
+- [x] Atualizar referências de agendamentos
 
 ---
 
@@ -443,21 +443,21 @@ Scenario: Mesclar pacientes
 
 Antes de iniciar qualquer Story do E-04:
 
-- [ ] PRD e Architecture aprovados
-- [ ] Schema de pacientes criado
-- [ ] RLS configurado para multi-tenant
-- [ ] E-01-S05 (Extração de Entidades) para S02
+- [x] PRD e Architecture aprovados
+- [x] Schema de pacientes criado
+- [x] RLS configurado para multi-tenant
+- [x] E-01-S05 (Extração de Entidades) para S02
 
 ## Definition of Done (DoD)
 
 Para considerar uma Story completa:
 
-- [ ] Código implementado e revisado
-- [ ] Testes unitários com cobertura > 80%
-- [ ] Validações de CPF/telefone funcionando
-- [ ] RLS testado por clínica
-- [ ] Documentação da API atualizada
-- [ ] Deploy em staging
+- [x] Código implementado e revisado
+- [x] Testes unitários com cobertura > 80%
+- [x] Validações de CPF/telefone funcionando
+- [x] RLS testado por clínica
+- [x] Documentação da API atualizada
+- [x] Deploy em staging
 
 ## NFR Traceability
 
@@ -475,4 +475,4 @@ Para considerar uma Story completa:
 
 **Documento criado por:** BMAD Method v6.2.2
 **Data:** 2026-03-27
-**Status:** ✅ Stories Criados - Ready for Sprint Planning
+**Status:** ✅ IMPLEMENTADO - Atualizado em 2026-04-07
