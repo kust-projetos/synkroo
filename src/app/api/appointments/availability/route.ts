@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { getAvailableSlots } from '@/services/scheduler/scheduler.service'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * GET /api/appointments/availability
@@ -25,10 +26,7 @@ export async function GET(request: NextRequest) {
     const durationMinutes = parseInt(searchParams.get('duration_minutes') || '30')
 
     if (!dateStr) {
-      return NextResponse.json(
-        { error: 'date is required' },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('date is required'))
     }
 
     const slots = await getAvailableSlots(clinicId, dateStr, durationMinutes, dentistId)
@@ -43,7 +41,6 @@ export async function GET(request: NextRequest) {
       slots,
     })
   } catch (error) {
-    console.error('Error checking availability:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

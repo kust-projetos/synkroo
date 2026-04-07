@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -59,14 +59,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       if (error.code === 'PGRST116') {
         return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
       }
-      dbLogger.error('Error fetching appointment', error)
-      return NextResponse.json({ error: 'Failed to fetch appointment' }, { status: 500 })
+      return handleApiError(error)
     }
 
     return NextResponse.json({ appointment })
   } catch (error) {
-    dbLogger.error('Error in GET /api/appointments/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -156,8 +154,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       .single()
 
     if (error) {
-      dbLogger.error('Error updating appointment', error)
-      return NextResponse.json({ error: 'Failed to update appointment' }, { status: 500 })
+      return handleApiError(error)
     }
 
     // Update patient's last_visit if completed
@@ -170,8 +167,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ appointment })
   } catch (error) {
-    dbLogger.error('Error in PUT /api/appointments/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -224,13 +220,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .eq('clinic_id', clinicId)
 
     if (error) {
-      dbLogger.error('Error cancelling appointment', error)
-      return NextResponse.json({ error: 'Failed to cancel appointment' }, { status: 500 })
+      return handleApiError(error)
     }
 
     return NextResponse.json({ success: true, message: 'Appointment cancelled successfully' })
   } catch (error) {
-    dbLogger.error('Error in DELETE /api/appointments/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

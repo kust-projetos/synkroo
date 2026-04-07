@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getBudgetById, markBudgetSent } from '@/services/budgets/budget.service'
 import { sendWhatsAppMessage } from '@/services/whatsapp'
+import { handleApiError } from '@/lib/errors'
 
 type RouteParams = {
   params: Promise<{ id: string }>
@@ -73,8 +74,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       whatsapp_error: whatsappError,
     })
   } catch (error) {
-    console.error('Error sending budget:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 

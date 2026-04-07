@@ -7,7 +7,7 @@ import {
   deleteBudget,
 } from '@/services/budgets/budget.service'
 import { updateBudgetSchema } from '@/lib/validations'
-import { apiLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 type RouteParams = {
   params: Promise<{ id: string }>
@@ -41,8 +41,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ budget })
   } catch (error) {
-    apiLogger.error('Error fetching budget', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -99,20 +98,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       .single()
 
     if (error) {
-      apiLogger.error('Error updating budget', error)
-      return NextResponse.json({ error: 'Failed to update budget' }, { status: 500 })
+      return handleApiError(error)
     }
 
     return NextResponse.json({ budget: updatedBudget })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    apiLogger.error('Error updating budget', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -154,7 +148,6 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    apiLogger.error('Error deleting budget', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

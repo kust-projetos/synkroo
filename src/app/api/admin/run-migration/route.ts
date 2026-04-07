@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase/admin'
 import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * POST /api/admin/run-migration

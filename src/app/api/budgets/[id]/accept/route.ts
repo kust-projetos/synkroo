@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getBudgetById, acceptBudget } from '@/services/budgets/budget.service'
+import { handleApiError } from '@/lib/errors'
 
 type RouteParams = {
   params: Promise<{ id: string }>
@@ -66,7 +67,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       message: 'Budget accepted successfully',
     })
   } catch (error) {
-    console.error('Error accepting budget:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

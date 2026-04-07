@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 import { rescheduleAppointment } from '@/services/appointments/appointment-actions.service'
 import { rescheduleSchema } from '@/lib/validations'
 
@@ -61,12 +61,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    dbLogger.error('Error in POST /api/appointments/[id]/reschedule', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

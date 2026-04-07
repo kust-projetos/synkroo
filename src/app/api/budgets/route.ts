@@ -9,7 +9,7 @@ import {
 } from '@/services/budgets/budget.service'
 import type { BudgetItem } from '@/lib/supabase/database.types'
 import { createBudgetSchema } from '@/lib/validations'
-import { apiLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * GET /api/budgets
@@ -48,8 +48,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ budgets })
   } catch (error) {
-    apiLogger.error('Error listing budgets', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -91,12 +90,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ budget }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    apiLogger.error('Error creating budget', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import { predictNoShowRisk, getUpcomingAppointmentRisks } from '@/services/analytics/noshow-prediction.service'
 
 /**
@@ -33,8 +33,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    dbLogger.error('Error fetching no-show predictions', error)
-    return NextResponse.json({ error: 'Failed to fetch predictions' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -66,7 +65,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(prediction)
   } catch (error) {
-    dbLogger.error('Error predicting no-show', error)
-    return NextResponse.json({ error: 'Failed to predict no-show' }, { status: 500 })
+    return handleApiError(error)
   }
 }

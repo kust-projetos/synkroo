@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 import { getROIMetrics } from '@/services/analytics/roi.service'
 
 /**
@@ -25,26 +25,19 @@ export async function GET(request: NextRequest) {
 
     const validPeriods = ['month', 'quarter', 'year']
     if (!validPeriods.includes(period)) {
-      return NextResponse.json(
-        { error: 'Invalid period. Use: month, quarter, or year' },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Invalid period. Use: month, quarter, or year'))
     }
 
     // Validate date format
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/
     if (!dateRegex.test(date)) {
-      return NextResponse.json(
-        { error: 'Invalid date format. Use YYYY-MM-DD' },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Invalid date format. Use YYYY-MM-DD'))
     }
 
     const roiMetrics = await getROIMetrics(clinicId, period, date)
 
     return NextResponse.json(roiMetrics)
   } catch (error) {
-    dbLogger.error('Error fetching ROI metrics', error)
-    return NextResponse.json({ error: 'Failed to fetch ROI metrics' }, { status: 500 })
+    return handleApiError(error)
   }
 }

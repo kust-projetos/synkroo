@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { processBudgetFollowups, findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/budgets/followup
@@ -45,7 +46,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error processing budget follow-ups:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
