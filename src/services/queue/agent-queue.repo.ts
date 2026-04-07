@@ -127,7 +127,7 @@ export class AgentQueueRepository {
     }
 
     // Mark as processing
-    await this.updateStatus(data.id, 'processing')
+    await this.updateStatus({ id: data.id, status: 'processing' })
 
     return data as QueueEntry
   }

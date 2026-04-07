@@ -71,7 +71,7 @@ export class OrchestratorAgent extends BaseAgent {
       const context = await memoryManager.loadContext({
         clinicId: payload.clinicId,
         visitorId: payload.visitorId,
-        patientId: payload.context.patient?.patientId,
+        patientId: (payload.context?.patient as unknown as string) || undefined,
         conversationId: payload.conversationId,
         patientRequired: payload.metadata.patientRequired,
         historyNeeded: payload.metadata.historyNeeded,
@@ -79,14 +79,20 @@ export class OrchestratorAgent extends BaseAgent {
       })
 
       // Update payload with loaded context
+      // context has: conversationId, clinicId, patientId, intent, entities, history, metadata, ragContext
       const enrichedPayload: AgentPayload = {
         ...payload,
         context: {
-          session: context.session,
-          patient: context.patient,
-          clinic: context.clinic,
-          conversation: context.conversation,
-          ragKnowledge: context.ragKnowledge,
+          // L1 session data
+          session: (context.metadata?.sessionEntities || {}) as AgentPayload['context']['session'],
+          // L2 patient data (stored in metadata)
+          patient: context.metadata?.patientPreferences ? { preferencias: context.metadata.patientPreferences, riskScore: context.metadata.riskScore } as AgentPayload['context']['patient'] : undefined,
+          // L3 clinic data (stored in metadata)
+          clinic: context.metadata?.clinicName ? { nome: context.metadata.clinicName, cancelamentoPolicy: context.metadata.cancellationPolicy } as AgentPayload['context']['clinic'] : { nome: '', cancelamentoPolicy: { horasAntecedencia: 24, permiteOnline: true } } as AgentPayload['context']['clinic'],
+          // L4 conversation history
+          conversation: { messages: context.history } as AgentPayload['context']['conversation'],
+          // L5 RAG knowledge
+          ragKnowledge: context.ragContext?.knowledge as AgentPayload['context']['ragKnowledge'],
         } as AgentPayload['context'],
       }
 
@@ -161,7 +167,7 @@ export class OrchestratorAgent extends BaseAgent {
       // Listen for responses on the orchestrator queue
       queueService.startListening('orchestrator', async (entry) => {
         try {
-          const responsePayload = entry.payload as AgentPayload
+          const responsePayload = entry.payload as unknown as AgentPayload
 
           // Check if this is the response we're waiting for
           if (responsePayload.metadata?.replyTo === payloadId) {

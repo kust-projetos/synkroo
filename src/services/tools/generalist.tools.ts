@@ -3,7 +3,7 @@
  * Tools for knowledge base search and FAQ answering
  */
 
-import type { Tool } from '@agent-sdk/core'
+import type { Tool } from './base.tools'
 import { dbLogger } from '@/lib/logger'
 import { BASE_TOOLS } from './base.tools'
 

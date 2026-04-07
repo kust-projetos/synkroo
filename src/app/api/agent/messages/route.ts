@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     // Get or create conversation
     let convId: string
     try {
-      convId = await getOrCreateConversation(clinic_id, dbChannel as ChannelType, externalId)
+      convId = await getOrCreateConversation(clinic_id, dbChannel as 'whatsapp' | 'instagram' | 'web', externalId)
     } catch (error) {
       dbLogger.error('Failed to get or create conversation', error)
       return NextResponse.json(

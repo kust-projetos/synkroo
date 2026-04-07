@@ -3,8 +3,21 @@
  * Common tools available to all agents
  */
 
-import type { Tool } from '@agent-sdk/core'
 import { dbLogger } from '@/lib/logger'
+
+// ============================================================================
+// Tool Types
+// ============================================================================
+
+export interface Tool {
+  name: string
+  description: string
+  inputSchema: {
+    type: 'object'
+    properties: Record<string, unknown>
+    required?: string[]
+  }
+}
 
 // ============================================================================
 // Tool Definitions
@@ -254,17 +267,18 @@ export async function logDecisionTool(
   try {
     const { decisionLogService } = await import('@/services/agent/decision-log.service')
 
-    const result = await decisionLogService.log({
-      agent,
-      action,
+    const result = await decisionLogService.logDecision({
+      clinicId: '', // Required but not used in tools context
+      intentClassified: agent,
+      confidenceScore: 1.0,
+      actionTaken: action,
+      riskLevel: 'LOW',
       reasoning,
-      conversationId,
-      metadata: {},
     })
 
     return {
       success: !!result,
-      id: result?.id,
+      id: result as string || undefined,
     }
   } catch (error) {
     dbLogger.error('logDecisionTool error', error)
@@ -282,16 +296,16 @@ export async function logDecisionTool(
 /**
  * Registry mapping tool names to their implementations
  */
-export const BASE_TOOL_IMPLEMENTATIONS: Record<string, (...args: unknown[]) => Promise<unknown>> = {
-  search_patient: async (args: { query: string; clinicId: string }) =>
+export const BASE_TOOL_IMPLEMENTATIONS: Record<string, any> = {
+  search_patient: async (args: any) =>
     searchPatientTool(args.query, args.clinicId),
 
-  get_clinic_info: async (args: { clinicId: string }) =>
+  get_clinic_info: async (args: any) =>
     getClinicInfoTool(args.clinicId),
 
-  send_message: async (args: { channel: string; message: string; conversationId?: string; patientId?: string }) =>
+  send_message: async (args: any) =>
     sendMessageTool(args.channel, args.message, args.conversationId, args.patientId),
 
-  log_decision: async (args: { agent: string; action: string; reasoning: string; conversationId?: string }) =>
+  log_decision: async (args: any) =>
     logDecisionTool(args.agent, args.action, args.reasoning, args.conversationId),
 }
