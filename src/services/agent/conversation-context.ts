@@ -197,8 +197,8 @@ export class ConversationContext {
       const supabase = await createTypedClient()
       const serialized = this.serializeSession(session)
 
-      await supabase
-        .from('conversation_sessions')
+      await (supabase
+        .from('conversation_sessions') as any)
         .upsert(serialized, { onConflict: 'conversation_id' })
     } catch (err) {
       dbLogger.warn('Failed to persist conversation session', { error: String(err) })

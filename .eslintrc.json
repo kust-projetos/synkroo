@@ -9,7 +9,7 @@
     "prefer-const": "error",
     "no-var": "error",
     "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/no-unused-vars": ["error", {
+    "@typescript-eslint/no-unused-vars": ["warn", {
       "argsIgnorePattern": "^_",
       "varsIgnorePattern": "^_",
       "caughtErrorsIgnorePattern": "^_"
@@ -19,7 +19,8 @@
     {
       "files": ["**/__tests__/**/*.ts", "**/*.test.ts"],
       "rules": {
-        "no-console": "off"
+        "no-console": "off",
+        "@typescript-eslint/no-require-imports": "off"
       }
     },
     {

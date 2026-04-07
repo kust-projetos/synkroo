@@ -37,12 +37,6 @@ export default function ProcedimentoDetalhePage() {
     }
   }, [loading, user, router])
 
-  useEffect(() => {
-    if (procedureId) {
-      fetchProcedure()
-    }
-  }, [procedureId, fetchProcedure])
-
   const fetchProcedure = async () => {
     try {
       const response = await fetch(`/api/procedures/${procedureId}?clinic_id=${profile?.clinic_id}`)
@@ -62,6 +56,12 @@ export default function ProcedimentoDetalhePage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (procedureId) {
+      fetchProcedure()
+    }
+  }, [procedureId])
 
   const handleUpdate = async () => {
     try {

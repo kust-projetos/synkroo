@@ -80,14 +80,14 @@ export async function getAppointmentTrends(
       .select('scheduled_at, status')
       .eq('clinic_id', clinicId)
       .gte('scheduled_at', startDate.toISOString())
-      .order('scheduled_at', { ascending: true })
+      .order('scheduled_at', { ascending: true }) as any
 
     if (error) throw error
 
     // Group by date
     const trends: Map<string, AppointmentTrend> = new Map()
 
-    for (const apt of appointments || []) {
+    for (const apt of (appointments as Array<{ scheduled_at: string; status: string }>) || []) {
       const date = apt.scheduled_at.split('T')[0]
       const existing = trends.get(date) || {
         date,
@@ -130,7 +130,7 @@ export async function getHourlyDistribution(
       .from('appointments')
       .select('scheduled_at')
       .eq('clinic_id', clinicId)
-      .gte('scheduled_at', startDate.toISOString())
+      .gte('scheduled_at', startDate.toISOString()) as any
 
     if (error) throw error
 
@@ -138,7 +138,7 @@ export async function getHourlyDistribution(
     const hourCounts: number[] = new Array(24).fill(0)
     let total = 0
 
-    for (const apt of appointments || []) {
+    for (const apt of (appointments as Array<{ scheduled_at: string }>) || []) {
       const hour = new Date(apt.scheduled_at).getHours()
       hourCounts[hour]++
       total++
@@ -173,7 +173,7 @@ export async function getDayOfWeekDistribution(
       .from('appointments')
       .select('scheduled_at')
       .eq('clinic_id', clinicId)
-      .gte('scheduled_at', startDate.toISOString())
+      .gte('scheduled_at', startDate.toISOString()) as any
 
     if (error) throw error
 
@@ -181,7 +181,7 @@ export async function getDayOfWeekDistribution(
     const dayCounts: number[] = new Array(7).fill(0)
     let total = 0
 
-    for (const apt of appointments || []) {
+    for (const apt of (appointments as Array<{ scheduled_at: string }>) || []) {
       const dayOfWeek = new Date(apt.scheduled_at).getDay()
       dayCounts[dayOfWeek]++
       total++
@@ -225,15 +225,15 @@ export async function getHighRiskPatients(
       `)
       .eq('clinic_id', clinicId)
       .order('risk_score', { ascending: false })
-      .limit(limit)
+      .limit(limit) as any
 
     if (error) throw error
 
-    return (patients || []).map((patient) => {
+    return ((patients as any) || []).map((patient: any) => {
       const appointments = (patient.appointments as Array<{ status: string }>) || []
       const totalVisits = appointments.length
-      const cancelledCount = appointments.filter((a) => a.status === 'cancelled').length
-      const noShowCount = appointments.filter((a) => a.status === 'no_show').length
+      const cancelledCount = appointments.filter((a: any) => a.status === 'cancelled').length
+      const noShowCount = appointments.filter((a: any) => a.status === 'no_show').length
 
       // Calculate risk factors
       const riskFactors: string[] = []
@@ -364,14 +364,14 @@ async function calculateAvgConfirmationTime(clinicId: string): Promise<number> {
       .select('scheduled_at, confirmation_sent_at')
       .eq('clinic_id', clinicId)
       .not('confirmation_sent_at', 'is', null)
-      .gte('scheduled_at', ninetyDaysAgo.toISOString())
+      .gte('scheduled_at', ninetyDaysAgo.toISOString()) as any
 
-    if (error || !appointments || appointments.length === 0) {
+    if (error || !appointments || (appointments as any[]).length === 0) {
       return 0
     }
 
     // Calculate average hours between scheduled time and confirmation sent time
-    const totalHours = appointments.reduce((sum, apt) => {
+    const totalHours = (appointments as any[]).reduce((sum, apt) => {
       const scheduled = new Date(apt.scheduled_at).getTime()
       const confirmed = new Date(apt.confirmation_sent_at!).getTime()
       const hoursBeforeAppointment = (scheduled - confirmed) / (1000 * 60 * 60)
@@ -379,7 +379,7 @@ async function calculateAvgConfirmationTime(clinicId: string): Promise<number> {
       return hoursBeforeAppointment > 0 ? sum + hoursBeforeAppointment : sum
     }, 0)
 
-    const avgHours = totalHours / appointments.length
+    const avgHours = totalHours / (appointments as any[]).length
     return Math.round(avgHours * 10) / 10 // Round to 1 decimal
   } catch (error) {
     dbLogger.error('Error calculating avg confirmation time', error)

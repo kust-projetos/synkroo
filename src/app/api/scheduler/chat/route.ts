@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
         .from('patients')
         .select('id, name, phone, email')
         .eq('id', patientId)
-        .single()
+        .single() as { data: { id: string; name: string; phone: string; email: string | null } | null }
 
       if (patient) {
         context.patientInfo = {
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         .from('conversation_states')
         .select('state')
         .eq('conversation_id', conversationId)
-        .single()
+        .single() as { data: { state: Record<string, any> } | null }
 
       if (conversationState?.state) {
         context = { ...context, ...(conversationState.state as any) }
@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
 
     // Save conversation state
     if (conversationId) {
-      await supabase
-        .from('conversation_states')
+      await (supabase
+        .from('conversation_states') as any)
         .upsert({
           conversation_id: conversationId,
           state: {

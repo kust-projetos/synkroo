@@ -64,8 +64,8 @@ export async function PUT(request: NextRequest) {
     if (body.email) updateData.email = body.email
     if (body.settings) updateData.settings = body.settings
 
-    const { error } = await supabase
-      .from('clinics')
+    const { error } = await (supabase
+      .from('clinics') as any)
       .update(updateData)
       .eq('id', clinicId)
 

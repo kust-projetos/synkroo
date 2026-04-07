@@ -7,6 +7,7 @@ import {
   getBudgetStats,
   type CreateBudgetInput,
 } from '@/services/budgets/budget.service'
+import type { BudgetItem } from '@/lib/supabase/database.types'
 import { createBudgetSchema } from '@/lib/validations'
 import { apiLogger } from '@/lib/logger'
 
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       appointment_id,
       title,
       description,
-      items,
+      items: items as BudgetItem[],
       discount_percent,
       discount_value,
       valid_until,

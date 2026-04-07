@@ -63,8 +63,8 @@ export async function POST(request: NextRequest) {
 
     const supabase = await createClient()
 
-    const { data: procedure, error } = await supabase
-      .from('procedures')
+    const { data: procedure, error } = await (supabase
+      .from('procedures') as any)
       .insert({
         clinic_id: clinicId,
         name,

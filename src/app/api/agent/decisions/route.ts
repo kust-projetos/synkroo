@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
+import type { DecisionLog } from '@/lib/supabase/database.types'
 
 /**
  * GET /api/agent/decisions
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     if (patientId) query = query.eq('patient_id', patientId)
     if (conversationId) query = query.eq('conversation_id', conversationId)
 
-    const { data: logs, error } = await query
+    const { data: logs, error } = await query as { data: DecisionLog[] | null; error: null }
 
     if (error) {
       return NextResponse.json({ error: 'Failed to fetch decision logs' }, { status: 500 })

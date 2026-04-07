@@ -14,7 +14,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
  * Typed Supabase client that respects RLS
  * Uses anon key + user cookies for row-level security
  */
-export type TypedSupabaseClient = SupabaseClient<Database>
+export type TypedSupabaseClient = ReturnType<typeof createClient> extends Promise<infer T> ? T : ReturnType<typeof createClient>
 
 /**
  * Create a typed Supabase client with RLS enforcement

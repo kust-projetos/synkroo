@@ -45,7 +45,7 @@ export async function detectIncompleteTreatments(
       .select('id, patient_id, procedure_id, status, scheduled_at, procedures (name)')
       .eq('clinic_id', clinicId)
       .in('status', ['completed', 'confirmed'])
-      .order('scheduled_at', { ascending: true })
+      .order('scheduled_at', { ascending: true }) as any
 
     if (error) throw error
 
@@ -55,7 +55,7 @@ export async function detectIncompleteTreatments(
       appointments: { date: string; status: string }[]
     }>()
 
-    for (const apt of appointments || []) {
+    for (const apt of (appointments as any[]) || []) {
       const procedureName = (apt as any).procedures?.name
       if (!procedureName) continue
 

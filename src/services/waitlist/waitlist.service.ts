@@ -53,15 +53,14 @@ export async function addToWaitlist(
       .from('patients')
       .select('id, name, phone')
       .eq('id', params.patientId)
-      .single()
+      .single() as any
 
     if (patientError || !patient) {
       return { success: false, error: 'Patient not found' }
     }
 
     // Check if patient already has a waitlist entry for this date
-    const { data: existing } = await supabase
-      .from('waitlist')
+    const { data: existing } = await (supabase.from('waitlist') as any)
       .select('id')
       .eq('clinic_id', params.clinicId)
       .eq('patient_id', params.patientId)
@@ -80,7 +79,7 @@ export async function addToWaitlist(
         .from('procedures')
         .select('name')
         .eq('id', params.procedureId)
-        .single()
+        .single() as any
       procedureName = procedure?.name
     }
 
@@ -91,13 +90,13 @@ export async function addToWaitlist(
         .from('dentists')
         .select('name')
         .eq('id', params.dentistId)
-        .single()
+        .single() as any
       dentistName = dentist?.name
     }
 
     // Create waitlist entry
-    const { data: entry, error } = await supabase
-      .from('waitlist')
+    const { data: entry, error } = await (supabase
+      .from('waitlist') as any)
       .insert({
         clinic_id: params.clinicId,
         patient_id: params.patientId,
@@ -365,8 +364,7 @@ Quer garantir este horário? Responda "SIM" para confirmar ou "NÃO" para contin
     }
 
     // Update waitlist entry status
-    await supabase
-      .from('waitlist')
+    await (supabase.from('waitlist') as any)
       .update({
         status: 'notified',
         notified_at: new Date().toISOString(),
@@ -391,8 +389,7 @@ export async function markWaitlistScheduled(
 ): Promise<void> {
   const supabase = await createTypedClient()
 
-  await supabase
-    .from('waitlist')
+  await (supabase.from('waitlist') as any)
     .update({
       status: 'scheduled',
       scheduled_appointment_id: appointmentId,
@@ -411,8 +408,8 @@ export async function cancelWaitlistEntry(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = await createTypedClient()
 
-  const { error } = await supabase
-    .from('waitlist')
+  const { error } = await (supabase
+    .from('waitlist') as any)
     .update({
       status: 'cancelled',
       notes: reason,
@@ -436,8 +433,8 @@ export async function expireOldWaitlistEntries(): Promise<{ expired: number }> {
   const yesterday = new Date()
   yesterday.setDate(yesterday.getDate() - 1)
 
-  const { data, error } = await supabase
-    .from('waitlist')
+  const { data, error } = await (supabase
+    .from('waitlist') as any)
     .update({ status: 'expired' })
     .eq('status', 'waiting')
     .lt('preferred_date', yesterday.toISOString().split('T')[0])

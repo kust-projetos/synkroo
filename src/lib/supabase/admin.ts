@@ -1,11 +1,26 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+let _supabaseAdmin: ReturnType<typeof createClient<Database>> | null = null
 
-if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error('Missing Supabase server environment variables')
+function getSupabaseAdmin() {
+  if (_supabaseAdmin) return _supabaseAdmin
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Missing Supabase server environment variables')
+  }
+
+  _supabaseAdmin = createClient<Database>(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+
+  return _supabaseAdmin
 }
 
 /**
@@ -13,11 +28,13 @@ if (!supabaseUrl || !serviceRoleKey) {
  * Uses service role key to bypass RLS for system operations
  * IMPORTANT: Only use in server-side code, never expose to client
  */
-export const supabaseAdmin = createClient<Database>(supabaseUrl, serviceRoleKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
+export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient<Database>>, {
+  get(_target, prop) {
+    const client = getSupabaseAdmin()
+    // Fix for specific property access issues
+    if (prop === 'client') return client
+    return (client as any)[prop as keyof typeof client]
+  }
 })
 
 /**

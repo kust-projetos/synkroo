@@ -61,8 +61,8 @@ export class PendingActionsService {
     const undoWindow = params.undoWindowMinutes ?? DEFAULT_UNDO_WINDOW_MINUTES
     const undoDeadline = new Date(Date.now() + undoWindow * 60_000).toISOString()
 
-    const { data, error } = await supabase
-      .from('pending_actions')
+    const { data, error } = await (supabase
+      .from('pending_actions') as any)
       .insert({
         clinic_id: params.clinicId,
         conversation_id: params.conversationId ?? null,
@@ -132,8 +132,8 @@ export class PendingActionsService {
       updateData.confirmed_at = new Date().toISOString()
     }
 
-    const { error: updateError } = await supabase
-      .from('pending_actions')
+    const { error: updateError } = await (supabase
+      .from('pending_actions') as any)
       .update(updateData)
       .eq('id', actionId)
 
@@ -152,8 +152,8 @@ export class PendingActionsService {
   async executeAction(actionId: string): Promise<{ executed: boolean; undoDeadline: Date }> {
     const supabase = await createTypedClient()
 
-    const { data, error } = await supabase
-      .from('pending_actions')
+    const { data, error } = await (supabase
+      .from('pending_actions') as any)
       .update({
         status: 'executed',
         updated_at: new Date().toISOString(),
@@ -203,8 +203,8 @@ export class PendingActionsService {
       return { undone: false, restored: {} }
     }
 
-    const { error: updateError } = await supabase
-      .from('pending_actions')
+    const { error: updateError } = await (supabase
+      .from('pending_actions') as any)
       .update({
         status: 'undone',
         undone_at: new Date().toISOString(),
@@ -229,8 +229,8 @@ export class PendingActionsService {
   async expireOldActions(): Promise<number> {
     const supabase = await createTypedClient()
 
-    const { data, error } = await supabase
-      .from('pending_actions')
+    const { data, error } = await (supabase
+      .from('pending_actions') as any)
       .update({
         status: 'expired',
         updated_at: new Date().toISOString(),

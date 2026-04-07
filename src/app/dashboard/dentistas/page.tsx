@@ -21,12 +21,6 @@ export default function DentistasPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchDentists()
-    }
-  }, [profile?.clinic_id, fetchDentists])
-
   const fetchDentists = async () => {
     try {
       const response = await fetch(`/api/dentists?clinic_id=${profile?.clinic_id}`)
@@ -40,6 +34,12 @@ export default function DentistasPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (profile?.clinic_id) {
+      fetchDentists()
+    }
+  }, [profile?.clinic_id])
 
   const filteredDentists = dentists.filter((d) =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||

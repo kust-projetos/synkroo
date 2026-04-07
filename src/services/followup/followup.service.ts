@@ -10,6 +10,7 @@ import { dbLogger, whatsappLogger } from '@/lib/logger'
 type FollowupAppointment = {
   id: string
   scheduled_at: string
+  updated_at?: string
   patients: { id: string; name: string; phone: string } | null
   procedures: { name: string } | null
   dentists: { name: string } | null
@@ -82,16 +83,16 @@ export async function getProcedureGuidelines(
     .eq('clinic_id', clinicId)
     .ilike('procedure_name', `%${procedureName}%`)
     .eq('is_active', true)
-    .single()
+    .single() as any
 
   if (error || !data) return null
 
   return {
-    id: data.id,
-    clinicId: data.clinic_id,
-    procedureId: data.procedure_id,
-    procedureName: data.procedure_name,
-    title: data.title,
+    id: (data as any).id,
+    clinicId: (data as any).clinic_id,
+    procedureId: (data as any).procedure_id,
+    procedureName: (data as any).procedure_name,
+    title: (data as any).title,
     instructions: data.instructions,
     emergencyContact: data.emergency_contact,
     recoveryTimeDays: data.recovery_time_days,
@@ -134,23 +135,24 @@ export async function getFollowUpConfig(
       .is('procedure_name', null)
       .eq('is_active', true)
       .limit(1)
-      .single()
+      .single() as any
 
     if (!defaultConfig) return null
 
-    configData = defaultConfig
+    configData = defaultConfig as any
   }
 
+  const cfg = configData as any
   return {
-    id: configData.id,
-    clinicId: configData.clinic_id,
-    configType: configData.config_type,
-    procedureId: configData.procedure_id,
-    procedureName: configData.procedure_name,
-    delayHours: configData.delay_hours,
-    delayDays: configData.delay_days,
-    delayMonths: configData.delay_months,
-    messageTemplate: configData.message_template,
+    id: cfg.id,
+    clinicId: cfg.clinic_id,
+    configType: cfg.config_type,
+    procedureId: cfg.procedure_id,
+    procedureName: cfg.procedure_name,
+    delayHours: cfg.delay_hours,
+    delayDays: cfg.delay_days,
+    delayMonths: cfg.delay_months,
+    messageTemplate: cfg.message_template,
   }
 }
 
@@ -210,7 +212,7 @@ export async function getAppointmentsNeedingFollowUp(
       clinicId: apt.clinics?.id || '',
       clinicName: apt.clinics?.name || '',
       clinicPhone: apt.clinics?.phone || '',
-      completedAt: new Date(apt.updated_at),
+      completedAt: new Date(apt.updated_at ?? apt.scheduled_at),
     }))
 }
 
@@ -305,7 +307,7 @@ export async function recordPatientFeedback(params: {
 }): Promise<void> {
   const supabase = await createTypedClient()
 
-  await supabase.from('patient_feedback').insert({
+  await (supabase.from('patient_feedback') as any).insert({
     clinic_id: params.clinicId,
     patient_id: params.patientId,
     appointment_id: params.appointmentId,

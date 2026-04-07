@@ -97,22 +97,22 @@ export async function findPendingAppointment(
   const { data: appointments } = await supabase
     .from('appointments')
     .select('id, scheduled_at, status, clinic_id')
-    .eq('patient_id', patient.id)
+    .eq('patient_id', (patient as any).id)
     .in('status', ['scheduled', 'confirmed'])
     .gte('scheduled_at', now.toISOString())
     .order('scheduled_at', { ascending: true })
-    .limit(1)
+    .limit(1) as any
 
-  if (!appointments || appointments.length === 0) {
+  if (!appointments || (appointments as any[]).length === 0) {
     return null
   }
 
-  const apt = appointments[0]
+  const apt = (appointments as any[])[0]
 
   return {
     appointmentId: apt.id,
     scheduledAt: new Date(apt.scheduled_at),
-    patientName: patient.name,
+    patientName: (patient as any).name,
     clinicId: apt.clinic_id,
     status: apt.status,
   }
@@ -147,8 +147,8 @@ export async function processConfirmationResponse(
 
   if (intent.isConfirmation) {
     // Confirm the appointment
-    const { error } = await supabase
-      .from('appointments')
+    const { error } = await (supabase
+      .from('appointments') as any)
       .update({ status: 'confirmed' })
       .eq('id', appointment.appointmentId)
 
@@ -188,8 +188,8 @@ Você receberá um lembrete no dia anterior. Até logo!`,
 
   if (intent.isCancellation) {
     // Cancel the appointment
-    const { error } = await supabase
-      .from('appointments')
+    const { error } = await (supabase
+      .from('appointments') as any)
       .update({
         status: 'cancelled',
         notes: 'Cancelado pelo paciente via WhatsApp',
@@ -289,15 +289,15 @@ export async function processWaitlistConfirmation(
   }
 
   // Create appointment from waitlist
-  const scheduledAt = new Date(`${entry.preferred_date}T${entry.preferred_time_start}:00`)
+  const scheduledAt = new Date(`${(entry as any).preferred_date}T${(entry as any).preferred_time_start}:00`)
 
-  const { data: appointment, error: aptError } = await supabase
-    .from('appointments')
+  const { data: appointment, error: aptError } = await (supabase
+    .from('appointments') as any)
     .insert({
       clinic_id: clinicId,
-      patient_id: entry.patient_id,
-      dentist_id: entry.dentist_id,
-      procedure_id: entry.procedure_id,
+      patient_id: (entry as any).patient_id,
+      dentist_id: (entry as any).dentist_id,
+      procedure_id: (entry as any).procedure_id,
       scheduled_at: scheduledAt.toISOString(),
       duration_minutes: 30,
       status: 'confirmed',
@@ -312,13 +312,13 @@ export async function processWaitlistConfirmation(
   }
 
   // Update waitlist entry
-  await supabase
-    .from('waitlist')
+  await (supabase
+    .from('waitlist') as any)
     .update({
       status: 'scheduled',
-      scheduled_appointment_id: appointment.id,
+      scheduled_appointment_id: (appointment as any).id,
     })
-    .eq('id', entry.id)
+    .eq('id', (entry as any).id)
 
   const dateStr = scheduledAt.toLocaleDateString('pt-BR', {
     weekday: 'long',

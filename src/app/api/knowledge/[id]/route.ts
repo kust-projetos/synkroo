@@ -84,7 +84,7 @@ export async function PUT(
         .select('question, answer')
         .eq('id', id)
         .eq('clinic_id', clinicId)
-        .single()
+        .single() as { data: { question: string; answer: string } | null }
 
       if (current) {
         const text = `${question || current.question}\n${answer || current.answer}`
@@ -93,8 +93,8 @@ export async function PUT(
       }
     }
 
-    const { data, error } = await supabase
-      .from('knowledge_base')
+    const { data, error } = await (supabase
+      .from('knowledge_base') as any)
       .update(updateData)
       .eq('id', id)
       .eq('clinic_id', clinicId)

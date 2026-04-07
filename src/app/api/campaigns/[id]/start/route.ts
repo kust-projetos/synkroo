@@ -37,7 +37,7 @@ export async function POST(
       .from('campaigns')
       .select('clinic_id, status')
       .eq('id', campaignId)
-      .single()
+      .single() as { data: { clinic_id: string; status: string } | null; error: any }
 
     if (campaignError || !campaign) {
       return NextResponse.json(

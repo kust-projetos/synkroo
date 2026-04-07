@@ -123,14 +123,14 @@ export async function POST(request: NextRequest) {
         .from('procedures')
         .select('duration_minutes')
         .eq('id', procedure_id)
-        .single()
+        .single() as { data: { duration_minutes: number } | null }
       if (procedure) duration = procedure.duration_minutes
     }
 
     // Check for conflicts
     const endTime = new Date(scheduledDate.getTime() + duration * 60000)
-    const { data: conflicts } = await supabase
-      .from('appointments')
+    const { data: conflicts } = await (supabase
+      .from('appointments') as any)
       .select('id')
       .eq('clinic_id', clinicId)
       .eq('dentist_id', dentist_id)
@@ -145,8 +145,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create appointment
-    const { data: appointment, error } = await supabase
-      .from('appointments')
+    const { data: appointment, error } = await (supabase
+      .from('appointments') as any)
       .insert({
         clinic_id: clinicId,
         patient_id,

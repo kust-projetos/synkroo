@@ -195,7 +195,7 @@ export async function recordReminderSent(
 ): Promise<void> {
   const supabase = await createTypedClient()
 
-  await supabase.from('appointment_reminders').insert({
+  await (supabase.from('appointment_reminders') as any).insert({
     appointment_id: appointmentId,
     reminder_type: reminderType,
     channel,

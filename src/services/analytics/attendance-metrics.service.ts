@@ -48,7 +48,7 @@ export async function getAttendanceMetrics(params: {
       .select('channel, created_at, metadata')
       .eq('clinic_id', params.clinicId)
       .gte('created_at', params.startDate)
-      .lte('created_at', params.endDate)
+      .lte('created_at', params.endDate) as any
 
     if (convError) throw convError
 
@@ -57,7 +57,7 @@ export async function getAttendanceMetrics(params: {
     const byDayMap = new Map<string, number>()
     let totalMessages = 0
 
-    for (const conv of conversations || []) {
+    for (const conv of (conversations as any[]) || []) {
       const channel = (conv as any).channel || 'unknown'
       byChannel[channel] = (byChannel[channel] || 0) + 1
       totalMessages++

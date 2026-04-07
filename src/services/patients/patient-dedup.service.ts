@@ -179,24 +179,24 @@ export async function mergePatients(
     mergedData.tags = [...new Set([...primaryTags, ...secondaryTags])]
 
     // Update primary patient with merged data
-    const { error: updateError } = await supabase
-      .from('patients')
+    const { error: updateError } = await (supabase
+      .from('patients') as any)
       .update(mergedData)
       .eq('id', primaryId)
 
     if (updateError) throw updateError
 
     // Reassign all appointments from secondary to primary
-    const { error: aptError } = await supabase
-      .from('appointments')
+    const { error: aptError } = await (supabase
+      .from('appointments') as any)
       .update({ patient_id: primaryId })
       .eq('patient_id', secondaryId)
 
     if (aptError) throw aptError
 
     // Reassign conversations
-    const { error: convError } = await supabase
-      .from('conversations')
+    const { error: convError } = await (supabase
+      .from('conversations') as any)
       .update({ patient_id: primaryId })
       .eq('patient_id', secondaryId)
 
@@ -205,8 +205,8 @@ export async function mergePatients(
     }
 
     // Reassign leads
-    const { error: leadError } = await supabase
-      .from('leads')
+    const { error: leadError } = await (supabase
+      .from('leads') as any)
       .update({ patient_id: primaryId })
       .eq('patient_id', secondaryId)
 
@@ -215,8 +215,8 @@ export async function mergePatients(
     }
 
     // Soft-delete secondary patient
-    const { error: deleteError } = await supabase
-      .from('patients')
+    const { error: deleteError } = await (supabase
+      .from('patients') as any)
       .update({
         deleted_at: new Date().toISOString(),
         name: `[MERGED INTO ${primaryId}] ${secondary.name}`,

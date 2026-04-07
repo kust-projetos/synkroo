@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
+import type { PendingAction, AppointmentStatus } from '@/lib/supabase/database.types'
 
 /**
  * GET /api/agent/pending-actions
@@ -58,14 +59,14 @@ export async function POST(_request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const body = await request.json()
+    const body = await _request.json()
     const { action_id } = body
 
     if (!action_id) {
       return NextResponse.json({ error: 'action_id is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createTypedClient() as any
 
     // Verify action belongs to this clinic and is undoable
     const { data: action, error: fetchError } = await supabase
@@ -74,7 +75,7 @@ export async function POST(_request: NextRequest) {
       .eq('id', action_id)
       .eq('clinic_id', clinicId)
       .eq('status', 'executed')
-      .single()
+      .single() as { data: PendingAction | null; error: null }
 
     if (fetchError || !action) {
       return NextResponse.json(
@@ -98,10 +99,10 @@ export async function POST(_request: NextRequest) {
     switch (action.action_type) {
       case 'cancel_appointment': {
         // Restore appointment status
-        const before = action.snapshot_before as Record<string, unknown>
+        const before = action.snapshot_before as { appointment_id: string; status: AppointmentStatus }
         if (before?.appointment_id && before?.status) {
-          await supabase
-            .from('appointments')
+          await (supabase
+            .from('appointments') as any)
             .update({ status: before.status })
             .eq('id', before.appointment_id)
           restored = { appointment_id: before.appointment_id, status: before.status }
@@ -120,7 +121,7 @@ export async function POST(_request: NextRequest) {
         break
       }
       default:
-        restored = undoPayload
+        restored = (undoPayload || {}) as Record<string, unknown>
     }
 
     // Mark as undone

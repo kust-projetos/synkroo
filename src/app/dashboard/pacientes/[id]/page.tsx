@@ -23,10 +23,6 @@ export default function PatientDetailPage() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'info' | 'appointments' | 'messages'>('info')
 
-  useEffect(() => {
-    fetchPatient()
-  }, [patientId, fetchPatient])
-
   const fetchPatient = async () => {
     try {
       const response = await fetch(`/api/patients/${patientId}`)
@@ -43,6 +39,10 @@ export default function PatientDetailPage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchPatient()
+  }, [patientId])
 
   const handleDelete = async () => {
     if (!confirm('Tem certeza que deseja excluir este paciente?')) return
@@ -217,7 +217,7 @@ export default function PatientDetailPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1">Última Visita</label>
-                <p className="text-gray-900">{formatDate(patient.last_visit)}</p>
+                <p className="text-gray-900">{formatDate(patient.last_visit_at)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-500 mb-1">Cadastrado em</label>

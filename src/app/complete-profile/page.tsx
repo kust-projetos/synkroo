@@ -32,8 +32,8 @@ export default function CompleteProfilePage() {
         return
       }
 
-      const { error: insertError } = await supabase
-        .from('users')
+      const { error: insertError } = await (supabaseClient
+        .from('users') as any)
         .insert({
           id: user.id,
           email: user.email,

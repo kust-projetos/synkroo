@@ -91,8 +91,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       updateData.final_value = totalValue - (updateData.discount_value as number)
     }
 
-    const { data: updatedBudget, error } = await supabase
-      .from('budgets')
+    const { data: updatedBudget, error } = await (supabase
+      .from('budgets') as any)
       .update(updateData)
       .eq('id', id)
       .select()

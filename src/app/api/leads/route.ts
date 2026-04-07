@@ -104,11 +104,11 @@ export async function POST(request: NextRequest) {
       clinicId,
       name,
       phone,
-      email,
+      email: email ?? undefined,
       source: (source as LeadSource) || 'other',
-      interest,
-      patientId,
-      notes,
+      interest: interest ?? undefined,
+      patientId: patientId ?? undefined,
+      notes: notes ?? undefined,
     })
 
     if (!lead) {

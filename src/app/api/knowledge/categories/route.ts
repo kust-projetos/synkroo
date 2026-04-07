@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       .from('knowledge_base')
       .select('category')
       .eq('clinic_id', clinicId)
-      .eq('is_active', true)
+      .eq('is_active', true) as { data: Array<{ category: string }> | null; error: any }
 
     if (error) {
       dbLogger.error('Error fetching categories', error)
