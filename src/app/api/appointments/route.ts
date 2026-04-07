@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 import { createAppointmentSchema } from '@/lib/validations'
 
 /**
@@ -64,8 +64,7 @@ export async function GET(request: NextRequest) {
     const { data: appointments, error, count } = await query
 
     if (error) {
-      dbLogger.error('Error fetching appointments', error)
-      return NextResponse.json({ error: 'Failed to fetch appointments' }, { status: 500 })
+      return handleApiError(error)
     }
 
     return NextResponse.json({
@@ -78,8 +77,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    dbLogger.error('Error in GET /api/appointments', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -108,10 +106,7 @@ export async function POST(request: NextRequest) {
     // Validate scheduled_at is in the future
     const scheduledDate = new Date(scheduled_at)
     if (scheduledDate <= new Date()) {
-      return NextResponse.json(
-        { error: 'Appointment must be scheduled for a future date' },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Appointment must be scheduled for a future date'))
     }
 
     const supabase = await createTypedClient()
@@ -138,10 +133,7 @@ export async function POST(request: NextRequest) {
       .or(`scheduled_at.lt.${endTime.toISOString()},and(scheduled_at.gte.${scheduledDate.toISOString()})`)
 
     if (conflicts && conflicts.length > 0) {
-      return NextResponse.json(
-        { error: 'Horário indisponível. Já existe um agendamento neste horário.' },
-        { status: 409 }
-      )
+      return handleApiError(new ValidationError('Horário indisponível. Já existe um agendamento neste horário.'))
     }
 
     // Create appointment
@@ -166,19 +158,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      dbLogger.error('Error creating appointment', error)
-      return NextResponse.json({ error: 'Failed to create appointment' }, { status: 500 })
+      return handleApiError(error)
     }
 
     return NextResponse.json({ appointment }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    dbLogger.error('Error in POST /api/appointments', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
