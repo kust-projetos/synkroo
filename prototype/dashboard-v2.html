@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synkroo - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            200: '#bbf7d0',
+                            300: '#86efac',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        },
+                        accent: {
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Glass effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        /* Gradient text */
+        .gradient-text {
+            background: linear-gradient(135deg, #16a34a 0%, #22c55e 50%, #4ade80 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Pulse animation for live indicator */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .pulse-ring {
+            animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        /* Card hover effect */
+        .card-hover {
+            transition: all 0.2s ease-out;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px -8px rgba(0, 0, 0, 0.15);
+        }
+
+        /* Progress bar animation */
+        @keyframes progress {
+            0% { width: 0; }
+            100% { width: 100%; }
+        }
+
+        /* Token meter gradient */
+        .token-gradient {
+            background: linear-gradient(90deg, #22c55e 0%, #facc15 50%, #ef4444 100%);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+    <div class="min-h-screen flex">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-slate-200 flex flex-col fixed h-full z-20">
+            <!-- Logo -->
+            <div class="h-16 flex items-center px-6 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold text-slate-900">Synkroo</span>
+                </div>
+            </div>
+
+            <!-- Navigation -->
+            <nav class="flex-1 px-3 py-4 space-y-1">
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-50 text-primary-700 font-medium">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="agenda.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    Agenda
+                </a>
+                <a href="conversas.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    Conversas
+                    <span class="ml-auto bg-primary-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">12</span>
+                </a>
+                <a href="pacientes.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    Pacientes
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    Analytics
+                </a>
+
+                <div class="pt-4 mt-4 border-t border-slate-100">
+                    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                        </svg>
+                        Configurações
+                    </a>
+                    <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Ajuda
+                    </a>
+                </div>
+            </nav>
+
+            <!-- Token Usage Widget -->
+            <div class="p-4 border-t border-slate-100">
+                <div class="bg-slate-50 rounded-lg p-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium text-slate-700">Tokens Usados</span>
+                        <span class="text-sm font-semibold text-slate-900">8.2K / 10K</span>
+                    </div>
+                    <div class="h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div class="h-full token-gradient rounded-full" style="width: 82%"></div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1.5">Renova em 5 dias</p>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 ml-64">
+            <!-- Header -->
+            <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sticky top-0 z-10">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-lg font-semibold text-slate-900">Dashboard</h1>
+                    <span class="text-sm text-slate-500">27 de Março, 2026</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <!-- Notifications -->
+                    <button class="relative p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+                        </svg>
+                        <span class="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                    </button>
+                    <!-- User Menu -->
+                    <div class="flex items-center gap-3 pl-4 border-l border-slate-200">
+                        <div class="w-9 h-9 rounded-full bg-primary-100 flex items-center justify-center">
+                            <span class="text-sm font-semibold text-primary-700">AS</span>
+                        </div>
+                        <div class="hidden sm:block">
+                            <p class="text-sm font-medium text-slate-900">Dr. Ana Santos</p>
+                            <p class="text-xs text-slate-500">Clínica Sorriso</p>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Dashboard Content -->
+            <div class="p-6">
+                <!-- ROI Summary Card - Primary Focal Point -->
+                <div class="bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl p-6 text-white mb-6 shadow-lg">
+                    <div class="flex items-start justify-between">
+                        <div>
+                            <p class="text-primary-100 text-sm font-medium mb-1">Retorno sobre Investimento</p>
+                            <h2 class="text-4xl font-bold mb-1">R$ 4.280</h2>
+                            <p class="text-primary-200 text-sm">economizado este mês</p>
+                        </div>
+                        <div class="flex items-center gap-2 bg-white/20 rounded-lg px-3 py-1.5">
+                            <svg class="w-4 h-4 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+                            </svg>
+                            <span class="text-sm font-medium">+23%</span>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-4 gap-4 mt-6">
+                        <div class="bg-white/10 rounded-lg p-3">
+                            <p class="text-primary-200 text-xs mb-1">Horas Economizadas</p>
+                            <p class="text-xl font-semibold">47h</p>
+                        </div>
+                        <div class="bg-white/10 rounded-lg p-3">
+                            <p class="text-primary-200 text-xs mb-1">Agendamentos IA</p>
+                            <p class="text-xl font-semibold">89</p>
+                        </div>
+                        <div class="bg-white/10 rounded-lg p-3">
+                            <p class="text-primary-200 text-xs mb-1">No-show Evitados</p>
+                            <p class="text-xl font-semibold">12</p>
+                        </div>
+                        <div class="bg-white/10 rounded-lg p-3">
+                            <p class="text-primary-200 text-xs mb-1">Satisfação</p>
+                            <p class="text-xl font-semibold">4.8<span class="text-sm">/5</span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Status Panel -->
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold text-slate-900 mb-4">Status dos Agentes IA</h3>
+                    <div class="grid grid-cols-4 gap-4">
+                        <!-- Router Agent -->
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 card-hover">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                    </svg>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-slate-900">Router</p>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="relative flex h-2.5 w-2.5">
+                                            <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                        </span>
+                                        <span class="text-xs text-green-600 font-medium">Online</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Mensagens hoje</span>
+                                    <span class="font-medium text-slate-900">142</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Tempo médio</span>
+                                    <span class="font-medium text-slate-900">2.3s</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scheduler Agent -->
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 card-hover">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                                    </svg>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-slate-900">Agendador</p>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="relative flex h-2.5 w-2.5">
+                                            <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                        </span>
+                                        <span class="text-xs text-green-600 font-medium">Online</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Agendamentos</span>
+                                    <span class="font-medium text-slate-900">28</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Confirmações</span>
+                                    <span class="font-medium text-slate-900">24</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Sales Agent -->
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 card-hover">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-slate-900">Vendas</p>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="relative flex h-2.5 w-2.5">
+                                            <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                        </span>
+                                        <span class="text-xs text-green-600 font-medium">Online</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Orçamentos</span>
+                                    <span class="font-medium text-slate-900">15</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Conversões</span>
+                                    <span class="font-medium text-slate-900">6</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Generalist Agent -->
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 card-hover">
+                            <div class="flex items-center gap-3 mb-3">
+                                <div class="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center">
+                                    <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                                    </svg>
+                                </div>
+                                <div class="flex-1">
+                                    <p class="font-medium text-slate-900">Generalista</p>
+                                    <div class="flex items-center gap-1.5">
+                                        <span class="relative flex h-2.5 w-2.5">
+                                            <span class="pulse-ring absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                                        </span>
+                                        <span class="text-xs text-green-600 font-medium">Online</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="space-y-2">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Dúvidas</span>
+                                    <span class="font-medium text-slate-900">34</span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-slate-500">Escalações</span>
+                                    <span class="font-medium text-slate-900">2</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class="grid grid-cols-3 gap-6 mb-6">
+                    <!-- Today's Schedule -->
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold text-slate-900">Agenda de Hoje</h3>
+                            <a href="agenda.html" class="text-sm text-primary-600 hover:text-primary-700 font-medium">Ver tudo</a>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                                <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-slate-900 truncate">Maria Silva</p>
+                                    <p class="text-xs text-slate-500">09:00 - Limpeza</p>
+                                </div>
+                                <span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">Confirmado</span>
+                            </div>
+                            <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                                <div class="w-2 h-2 rounded-full bg-amber-500"></div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-slate-900 truncate">João Pedro</p>
+                                    <p class="text-xs text-slate-500">10:30 - Canal</p>
+                                </div>
+                                <span class="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-700 rounded-full">Pendente</span>
+                            </div>
+                            <div class="flex items-center gap-3 p-3 rounded-lg bg-red-50 border border-red-100">
+                                <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="text-sm font-medium text-slate-900 truncate">Ana Costa</p>
+                                    <p class="text-xs text-slate-500">14:00 - Clareamento</p>
+                                </div>
+                                <span class="px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">Risco</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- No-Show Risk Alerts -->
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold text-slate-900">Alertas de No-Show</h3>
+                            <span class="px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full">3 pacientes</span>
+                        </div>
+                        <div class="space-y-3">
+                            <div class="p-3 rounded-lg border border-red-100 bg-red-50">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="text-sm font-medium text-slate-900">Ana Costa</p>
+                                    <span class="text-xs font-semibold text-red-600">85%</span>
+                                </div>
+                                <p class="text-xs text-slate-600 mb-2">Histórico: 2 faltas nos últimos 30 dias</p>
+                                <button class="w-full py-1.5 text-xs font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors">
+                                    Contatar agora
+                                </button>
+                            </div>
+                            <div class="p-3 rounded-lg border border-amber-100 bg-amber-50">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="text-sm font-medium text-slate-900">Carlos Lima</p>
+                                    <span class="text-xs font-semibold text-amber-600">62%</span>
+                                </div>
+                                <p class="text-xs text-slate-600">Não confirmou ainda</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="bg-white rounded-xl border border-slate-200 p-5">
+                        <h3 class="font-semibold text-slate-900 mb-4">Ações Rápidas</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <button class="flex flex-col items-center gap-2 p-4 rounded-lg border border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-colors">
+                                <svg class="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                </svg>
+                                <span class="text-xs font-medium text-slate-700">Novo Agendamento</span>
+                            </button>
+                            <button class="flex flex-col items-center gap-2 p-4 rounded-lg border border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-colors">
+                                <svg class="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+                                </svg>
+                                <span class="text-xs font-medium text-slate-700">Novo Paciente</span>
+                            </button>
+                            <button class="flex flex-col items-center gap-2 p-4 rounded-lg border border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-colors">
+                                <svg class="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                                </svg>
+                                <span class="text-xs font-medium text-slate-700">Broadcast</span>
+                            </button>
+                            <button class="flex flex-col items-center gap-2 p-4 rounded-lg border border-slate-200 hover:border-primary-300 hover:bg-primary-50 transition-colors">
+                                <svg class="w-6 h-6 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                                <span class="text-xs font-medium text-slate-700">Relatório</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Activity Feed -->
+                <div class="bg-white rounded-xl border border-slate-200 p-5">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-semibold text-slate-900">Atividade Recente</h3>
+                        <span class="text-xs text-slate-500">Últimas 24 horas</span>
+                    </div>
+                    <div class="space-y-4">
+                        <div class="flex gap-3">
+                            <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-slate-900"><span class="font-medium">Agendador</span> confirmou consulta com Maria Silva via WhatsApp</p>
+                                <p class="text-xs text-slate-500 mt-0.5">há 5 minutos</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-slate-900"><span class="font-medium">Router</span> atendeu novo lead via Instagram - interesse em clareamento</p>
+                                <p class="text-xs text-slate-500 mt-0.5">há 12 minutos</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-slate-900"><span class="font-medium">Vendas</span> converteu orçamento de R$ 2.500 - João Pedro</p>
+                                <p class="text-xs text-slate-500 mt-0.5">há 45 minutos</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <div class="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm text-slate-900"><span class="font-medium">Alerta</span> - Ana Costa identificada como risco de no-show (85%)</p>
+                                <p class="text-xs text-slate-500 mt-0.5">há 1 hora</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Mobile Responsive Styles -->
+    <style>
+        @media (max-width: 1024px) {
+            aside {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            aside.open {
+                transform: translateX(0);
+            }
+            main {
+                margin-left: 0;
+            }
+        }
+    </style>
+</body>
+</html>

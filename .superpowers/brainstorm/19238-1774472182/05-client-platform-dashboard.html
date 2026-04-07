@@ -1,0 +1,179 @@
+<h2>Plataforma do Cliente - Synkroo</h2>
+<p class="subtitle">Wireframe inicial da interface que o cliente usa</p>
+
+<div class="section">
+  <h3>Personas que usam esta plataforma</h3>
+  <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+    <div style="padding: 12px 16px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+      <div style="font-size: 24px;">🦷</div>
+      <div style="font-weight: bold;">Dentista</div>
+      <div style="font-size: 12px; color: #666;">Ver agenda, métricas, ROI</div>
+    </div>
+    <div style="padding: 12px 16px; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+      <div style="font-size: 24px;">👩‍💼</div>
+      <div style="font-weight: bold;">Atendente</div>
+      <div style="font-size: 12px; color: #666;">Monitorar conversas, intervir</div>
+    </div>
+    <div style="padding: 12px 16px; background: #faf5ff; border-radius: 8px; border: 1px solid #e9d5ff;">
+      <div style="font-size: 24px;">⚙️</div>
+      <div style="font-weight: bold;">Admin</div>
+      <div style="font-size: 12px; color: #666;">Configurações, usuários</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Módulos MVP da Plataforma do Cliente</h3>
+  <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+    <div style="padding: 12px; background: #dbeafe; border-radius: 6px; text-align: center;">
+      <strong>Dashboard</strong>
+      <div style="font-size: 12px; color: #1e40af;">ROI, KPIs, tokens</div>
+    </div>
+    <div style="padding: 12px; background: #dbeafe; border-radius: 6px; text-align: center;">
+      <strong>Conversas</strong>
+      <div style="font-size: 12px; color: #1e40af;">Monitorar agente</div>
+    </div>
+    <div style="padding: 12px; background: #dbeafe; border-radius: 6px; text-align: center;">
+      <strong>Agenda</strong>
+      <div style="font-size: 12px; color: #1e40af;">Consultas, slots</div>
+    </div>
+    <div style="padding: 12px; background: #fef3c7; border-radius: 6px; text-align: center;">
+      <strong>Pacientes</strong>
+      <div style="font-size: 12px; color: #92400e;">CRM</div>
+    </div>
+    <div style="padding: 12px; background: #fef3c7; border-radius: 6px; text-align: center;">
+      <strong>WhatsApp</strong>
+      <div style="font-size: 12px; color: #92400e;">Números, templates</div>
+    </div>
+    <div style="padding: 12px; background: #e5e7eb; border-radius: 6px; text-align: center;">
+      <strong>Configurações</strong>
+      <div style="font-size: 12px; color: #4b5563;">Clínica, agente</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Wireframe: Layout Principal</h3>
+
+  <div class="mockup" style="border: 2px solid #e5e7eb; background: #fff;">
+    <div class="mockup-header" style="background: #1e40af; color: white; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-weight: bold; font-size: 18px;">🤖 Synkroo</span>
+        <span style="font-size: 12px; opacity: 0.8;">Odonto Sorriso</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 12px;">🔔</span>
+        <span style="font-size: 12px;">Dr. Ana 👤</span>
+      </div>
+    </div>
+
+    <div style="display: flex; min-height: 400px;">
+      <!-- Sidebar -->
+      <div style="width: 200px; background: #f8fafc; border-right: 1px solid #e5e7eb; padding: 16px 0;">
+        <div style="padding: 8px 16px; background: #dbeafe; border-left: 3px solid #2563eb; font-weight: bold; font-size: 14px;">
+          📊 Dashboard
+        </div>
+        <div style="padding: 8px 16px; font-size: 14px; color: #4b5563;">
+          💬 Conversas
+        </div>
+        <div style="padding: 8px 16px; font-size: 14px; color: #4b5563;">
+          📅 Agenda
+        </div>
+        <div style="padding: 8px 16px; font-size: 14px; color: #4b5563;">
+          👥 Pacientes
+        </div>
+        <div style="padding: 8px 16px; font-size: 14px; color: #4b5563;">
+          📱 WhatsApp
+        </div>
+        <div style="padding: 8px 16px; font-size: 14px; color: #4b5563;">
+          ⚙️ Configurações
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="flex: 1; padding: 16px;">
+        <!-- KPIs Row -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+          <div style="background: #f0fdf4; padding: 12px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #166534;">Consultas Hoje</div>
+            <div style="font-size: 24px; font-weight: bold;">12</div>
+          </div>
+          <div style="background: #fef3c7; padding: 12px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #92400e;">No-show Evitado</div>
+            <div style="font-size: 24px; font-weight: bold;">R$ 2.400</div>
+          </div>
+          <div style="background: #dbeafe; padding: 12px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #1e40af;">Conversas Hoje</div>
+            <div style="font-size: 24px; font-weight: bold;">47</div>
+          </div>
+          <div style="background: #faf5ff; padding: 12px; border-radius: 8px;">
+            <div style="font-size: 12px; color: #6b21a8;">Tokens/mês</div>
+            <div style="font-size: 24px; font-weight: bold;">124k</div>
+          </div>
+        </div>
+
+        <!-- Charts Area -->
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+          <div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+            <div style="font-weight: bold; margin-bottom: 8px;">📈 ROI Semanal</div>
+            <div style="height: 150px; background: linear-gradient(180deg, #dbeafe 0%, #eff6ff 100%); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: #6b7280;">
+              Gráfico de ROI
+            </div>
+          </div>
+          <div style="background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+            <div style="font-weight: bold; margin-bottom: 8px;">🤖 Agente Status</div>
+            <div style="padding: 8px; background: #dcfce7; border-radius: 4px; margin-bottom: 8px;">
+              <div style="font-size: 12px; color: #166534;">● Online</div>
+              <div style="font-size: 14px;">Respondendo em 2s</div>
+            </div>
+            <div style="font-size: 12px; color: #4b5563;">
+              <div>Confiança média: 94%</div>
+              <div>Intervenções hoje: 3</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div style="margin-top: 16px; background: #f8fafc; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+          <div style="font-weight: bold; margin-bottom: 8px;">🕐 Atividade Recente</div>
+          <div style="font-size: 13px; color: #4b5563;">
+            <div style="padding: 4px 0; border-bottom: 1px solid #e5e7eb;">• Maria agendou limpeza às 14h (há 5min)</div>
+            <div style="padding: 4px 0; border-bottom: 1px solid #e5e7eb;">• João confirmou consulta de amanhã (há 12min)</div>
+            <div style="padding: 4px 0;">• Agente reativou paciente inativo - Carla (há 1h)</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Este layout faz sentido?</h3>
+  <div class="options">
+    <div class="option" data-choice="sim-prosseguir" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Sim, está bom!</h3>
+        <p>Prosseguir detalhando outros módulos (Conversas, Agenda, Pacientes).</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ajustes" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Precisa de ajustes</h3>
+        <p>Tenho feedback sobre o layout. Vou explicar.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="outro-foco" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Foco diferente</h3>
+        <p>O dashboard deveria ter outro foco principal. Vou explicar.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="text-align: center; color: #666; margin-top: 24px;">
+  <a href="http://localhost:60958" target="_blank">Abrir no navegador</a>
+</p>

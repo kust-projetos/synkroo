@@ -1,0 +1,62 @@
+{
+  "projectId": "synkroo",
+  "name": "Synkroo - Automação para Clínicas Odontológicas",
+  "description": "Plataforma de atendimento automatizado multicanal com IA conversacional",
+  "version": "1.0.0",
+
+  "branches": ["main"],
+
+  "settings": {
+    "global": {
+      "autoWebhook": true,
+      "enableXsrl": true
+    }
+  },
+
+  "functions": [
+    {
+      "name": "calculate-risk-score",
+      "description": "Calcula score de risco do paciente baseado em histórico",
+      "file": "calculate-risk-score.sql"
+    },
+    {
+      "name": "get-availability",
+      "description": "Retorna horários disponíveis para agendamento",
+      "file": "get-availability.sql"
+    }
+  ],
+
+  "storage": [
+    {
+      "name": "patient-documents",
+      "public": false,
+      "fileSizeLimit": 10485760
+    },
+    {
+      "name": "clinic-assets",
+      "public": true,
+      "fileSizeLimit": 5242880
+    }
+  ],
+
+  "auth": {
+    "enableSignup": true,
+    "enableConfirmations": true,
+    "enableRecovery": true,
+    "enableMagicLink": true,
+    "enableEmailChanges": true,
+    "enablePhoneChanges": false
+  },
+
+  "email": {
+    "enableSignUpEmails": true,
+    "enableConfirmEmails": true,
+    "enableRecoveryEmails": true,
+    "customTemplates": {
+      "invitation": {
+        "subject": "Você foi convidado para {{clinic_name}}",
+        "contentPath": "./emails/invitation.html"
+      }
+    }
+  }
+}
