@@ -41,6 +41,9 @@ export interface AgentPayload {
     historyNeeded: boolean
     faqOrMedical: boolean
     timestamp: string
+    replyTo?: string
+    routedFrom?: string
+    routedTo?: string
   }
 }
 
