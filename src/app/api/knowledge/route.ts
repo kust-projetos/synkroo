@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { ragService } from '@/services/rag'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, DatabaseError } from '@/lib/errors'
 
 /**
  * GET /api/knowledge
@@ -44,14 +44,12 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      dbLogger.error('Error fetching knowledge base', error)
-      return NextResponse.json({ error: 'Failed to fetch knowledge base' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to fetch knowledge base', error))
     }
 
     return NextResponse.json({ data })
   } catch (error) {
-    dbLogger.error('Knowledge base fetch error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -103,7 +101,6 @@ export async function POST(request: NextRequest) {
       message: 'Knowledge entry created with embedding',
     })
   } catch (error) {
-    dbLogger.error('Knowledge base create error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

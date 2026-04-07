@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processAllReminders } from '@/services/reminders/reminder.service'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * POST /api/cron/reminders
@@ -28,11 +29,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    console.error('Error processing reminders:', error)
-    return NextResponse.json(
-      { error: 'Failed to process reminders' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 

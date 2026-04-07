@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * POST /api/cron/smart-triggers
@@ -39,8 +40,7 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    dbLogger.error('Cron: Error processing smart triggers', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 

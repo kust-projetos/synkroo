@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth, createClient } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/conversations/[id]
@@ -64,10 +65,6 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error in conversation details API:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

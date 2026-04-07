@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth, createClient } from '@/lib/supabase/server'
 import { updateDentistSchema } from '@/lib/validations'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * GET /api/dentists/[id]
@@ -34,8 +35,7 @@ export async function GET(
 
     return NextResponse.json({ dentist })
   } catch (error) {
-    console.error('Error in GET /api/dentists/[id]:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -80,13 +80,9 @@ export async function PUT(
     return NextResponse.json({ dentist })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    console.error('Error in PUT /api/dentists/[id]:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -120,7 +116,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error in DELETE /api/dentists/[id]:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

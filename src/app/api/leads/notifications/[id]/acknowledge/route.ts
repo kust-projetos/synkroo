@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import { acknowledgeNotification } from '@/services/leads/lead-notification.service'
 
 interface RouteParams {
@@ -36,7 +36,6 @@ export async function PUT(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    dbLogger.error('Error in PUT /api/leads/notifications/[id]/acknowledge', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

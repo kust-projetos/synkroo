@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import { getPatientHistory } from '@/services/patients/patient-history.service'
 
 interface RouteParams {
@@ -47,7 +47,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ history: result.history })
   } catch (error) {
-    dbLogger.error('Error in GET /api/patients/[id]/history', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

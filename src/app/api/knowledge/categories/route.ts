@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, DatabaseError } from '@/lib/errors'
 
 /**
  * GET /api/knowledge/categories
@@ -27,8 +27,7 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true) as { data: Array<{ category: string }> | null; error: any }
 
     if (error) {
-      dbLogger.error('Error fetching categories', error)
-      return NextResponse.json({ error: 'Failed to fetch categories' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to fetch categories', error))
     }
 
     // Get unique categories with counts
@@ -44,7 +43,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ categories })
   } catch (error) {
-    dbLogger.error('Categories fetch error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

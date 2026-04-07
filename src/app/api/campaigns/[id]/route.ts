@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth, hasRequiredRole, createClient } from '@/lib/supabase/server'
 import { updateCampaignSchema } from '@/lib/validations'
-import { apiLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
 import type { Campaign } from '@/lib/supabase/database.types'
 
 type RecipientRow = { status: string }
@@ -123,11 +123,7 @@ export async function GET(
       })),
     })
   } catch (error) {
-    apiLogger.error('Error fetching campaign', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch campaign' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -224,16 +220,9 @@ export async function PATCH(
     return NextResponse.json({ success: true, status })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    apiLogger.error('Error updating campaign', error)
-    return NextResponse.json(
-      { error: 'Failed to update campaign' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -304,10 +293,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    apiLogger.error('Error deleting campaign', error)
-    return NextResponse.json(
-      { error: 'Failed to delete campaign' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

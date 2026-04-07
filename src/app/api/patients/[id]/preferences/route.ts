@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 import { setPreference, getPreferences } from '@/services/patients/patient-preferences.service'
 
 type RouteParams = {
@@ -45,8 +46,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ preferences })
   } catch (error) {
-    console.error('Error fetching preferences:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -89,7 +89,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({ preference })
   } catch (error) {
-    console.error('Error setting preference:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

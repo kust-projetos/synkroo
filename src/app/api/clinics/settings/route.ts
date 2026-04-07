@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { clinicSettingsSchema } from '@/lib/validations'
-import { apiLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/clinics/settings
@@ -29,13 +29,12 @@ export async function GET() {
       .single()
 
     if (error) {
-      return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 })
+      return handleApiError(error)
     }
 
     return NextResponse.json({ settings: clinic })
   } catch (error) {
-    console.error('Error in GET /api/clinics/settings:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -70,12 +69,11 @@ export async function PUT(request: NextRequest) {
       .eq('id', clinicId)
 
     if (error) {
-      return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 })
+      return handleApiError(error)
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error in PUT /api/clinics/settings:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

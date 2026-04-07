@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth, createClient } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 import {
   processSchedulingRequest,
   createAppointmentFromContext,
@@ -94,11 +95,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error in scheduler chat:', error)
-    return NextResponse.json(
-      { error: 'Failed to process scheduling request' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -134,10 +131,6 @@ export async function GET(request: NextRequest) {
       availableCount: slots.filter(s => s.available).length,
     })
   } catch (error) {
-    console.error('Error getting available slots:', error)
-    return NextResponse.json(
-      { error: 'Failed to get available slots' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

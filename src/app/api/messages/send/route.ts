@@ -7,6 +7,7 @@ import {
   rateLimitPresets,
   createRateLimitHeaders,
 } from '@/lib/rate-limit'
+import { handleApiError } from '@/lib/errors'
 
 interface SendMessageRequest {
   to: string
@@ -159,10 +160,6 @@ export async function POST(request: NextRequest) {
       deliveryError,
     })
   } catch (error) {
-    console.error('Error sending message:', error)
-    return NextResponse.json(
-      { error: 'Failed to send message' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

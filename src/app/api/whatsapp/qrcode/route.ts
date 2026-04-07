@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getWhatsAppService } from '@/services/whatsapp'
 import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/whatsapp/qrcode
@@ -45,10 +46,6 @@ export async function GET() {
       message: 'Waiting for QR code. Please try again in a moment.',
     })
   } catch (error) {
-    console.error('Error getting WhatsApp status:', error)
-    return NextResponse.json(
-      { error: 'Failed to get WhatsApp status' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

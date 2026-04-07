@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { validateApiAuth } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 import { dbLogger } from '@/lib/logger'
 import { getInactivityStats } from '@/services/followup/inactive-patient.service'
 
@@ -119,7 +120,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    dbLogger.error('Error fetching dashboard stats', error)
-    return NextResponse.json({ error: 'Failed to fetch dashboard stats' }, { status: 500 })
+    return handleApiError(error)
   }
 }

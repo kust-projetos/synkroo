@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
@@ -198,8 +198,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    dbLogger.error('Error in GET /api/reports/export:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 

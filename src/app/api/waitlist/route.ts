@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 import {
   addToWaitlist,
@@ -35,8 +35,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ waitlist: entries })
   } catch (error) {
-    dbLogger.error('Error in GET /api/waitlist', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -123,8 +122,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ entry: result.entry }, { status: 201 })
   } catch (error) {
-    dbLogger.error('Error in POST /api/waitlist', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -172,7 +170,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    dbLogger.error('Error in DELETE /api/waitlist', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

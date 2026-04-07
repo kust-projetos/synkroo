@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { addCampaignRecipients, startCampaign } from '@/services/followup/campaign.service'
 import { getPatientsForReactivation } from '@/services/followup/inactive-patient.service'
 import { validateApiAuth, hasRequiredRole, createClient } from '@/lib/supabase/server'
+import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * POST /api/campaigns/[id]/recipients
@@ -82,20 +83,13 @@ export async function POST(
 
     // Manual patient list
     if (!body.patient_ids || !Array.isArray(body.patient_ids)) {
-      return NextResponse.json(
-        { error: 'patient_ids array is required' },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('patient_ids array is required'))
     }
 
     const result = await addCampaignRecipients(campaignId, body.patient_ids)
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error adding recipients:', error)
-    return NextResponse.json(
-      { error: 'Failed to add recipients' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

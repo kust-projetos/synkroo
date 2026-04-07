@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
 import { createServerClient } from '@/lib/supabase'
 import { getLLMProvider } from '@/lib/llm'
+import { handleApiError } from '@/lib/errors'
 import {
   checkRateLimit,
   getClientIdentifier,
@@ -273,11 +274,7 @@ export async function POST(request: NextRequest) {
       messages: processedMessages,
     })
   } catch (error) {
-    console.error('Error processing Instagram webhook:', error)
-    return NextResponse.json(
-      { error: 'Failed to process webhook' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 

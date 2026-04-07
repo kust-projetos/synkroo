@@ -3,6 +3,7 @@ import { processAllFollowUps } from '@/services/followup/followup.service'
 import { runInactivityDetection } from '@/services/followup/inactive-patient.service'
 import { processScheduledCampaigns } from '@/services/followup/campaign.service'
 import { checkAllClinicsHotLeads } from '@/services/leads/lead-notification.service'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * POST /api/cron/followups
@@ -65,11 +66,7 @@ export async function POST(request: NextRequest) {
       results,
     })
   } catch (error) {
-    console.error('Error processing follow-ups:', error)
-    return NextResponse.json(
-      { error: 'Failed to process follow-ups' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { agent } from '@/services/agent/agent.service'
+import { handleApiError, DatabaseError } from '@/lib/errors'
 import { dbLogger } from '@/lib/logger'
 
 /**
@@ -70,8 +71,7 @@ export async function GET(request: NextRequest) {
       messages: messages || [],
     })
   } catch (error) {
-    dbLogger.error('Widget messages fetch error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -120,8 +120,7 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (createError) {
-          dbLogger.error('Error creating conversation', createError)
-          return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
+          return handleApiError(new DatabaseError('Failed to create conversation', createError))
         }
         convId = newConversation.id
       }
@@ -159,7 +158,6 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
-    dbLogger.error('Widget message send error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

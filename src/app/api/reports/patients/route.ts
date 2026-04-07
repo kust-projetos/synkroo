@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/reports/patients
@@ -108,7 +109,6 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error('Error fetching patient report:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
