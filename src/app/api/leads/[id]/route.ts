@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { updateLeadStatus, qualifyLead, LeadStatus } from '@/services/leads/leads.service'
 import { updateLeadSchema } from '@/lib/validations'
 
@@ -43,14 +43,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       if (error.code === 'PGRST116') {
         return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
       }
-      dbLogger.error('Error fetching lead', error)
-      return NextResponse.json({ error: 'Failed to fetch lead' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to fetch lead', error))
     }
 
     return NextResponse.json({ lead })
   } catch (error) {
-    dbLogger.error('Error in GET /api/leads/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -116,20 +114,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       .single()
 
     if (error) {
-      dbLogger.error('Error updating lead', error)
-      return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to update lead', error))
     }
 
     return NextResponse.json({ lead })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    dbLogger.error('Error in PUT /api/leads/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -161,13 +154,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .eq('id', id)
 
     if (error) {
-      dbLogger.error('Error deleting lead', error)
-      return NextResponse.json({ error: 'Failed to delete lead' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to delete lead', error))
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    dbLogger.error('Error in DELETE /api/leads/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

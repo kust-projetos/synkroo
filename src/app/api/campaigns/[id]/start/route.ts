@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { startCampaign } from '@/services/followup/campaign.service'
 import { validateApiAuth, hasRequiredRole, createClient } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * POST /api/campaigns/[id]/start
@@ -74,10 +75,6 @@ export async function POST(
       message: 'Campaign started successfully',
     })
   } catch (error) {
-    console.error('Error starting campaign:', error)
-    return NextResponse.json(
-      { error: 'Failed to start campaign' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

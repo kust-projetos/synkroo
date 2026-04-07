@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { ragService, embeddingService } from '@/services/rag'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, DatabaseError } from '@/lib/errors'
 
 /**
  * GET /api/knowledge/[id]
@@ -38,8 +38,7 @@ export async function GET(
 
     return NextResponse.json({ data })
   } catch (error) {
-    dbLogger.error('Knowledge entry fetch error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -102,14 +101,12 @@ export async function PUT(
       .single()
 
     if (error) {
-      dbLogger.error('Error updating knowledge entry', error)
-      return NextResponse.json({ error: 'Failed to update entry' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to update entry', error))
     }
 
     return NextResponse.json({ success: true, data })
   } catch (error) {
-    dbLogger.error('Knowledge entry update error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -141,13 +138,11 @@ export async function DELETE(
       .eq('clinic_id', clinicId)
 
     if (error) {
-      dbLogger.error('Error deleting knowledge entry', error)
-      return NextResponse.json({ error: 'Failed to delete entry' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to delete entry', error))
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    dbLogger.error('Knowledge entry delete error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

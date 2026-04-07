@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger, apiLogger } from '@/lib/logger'
+import { handleApiError, ValidationError } from '@/lib/errors'
+import { dbLogger } from '@/lib/logger'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 import { PAGINATION } from '@/lib/config'
 import {
@@ -63,8 +64,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    dbLogger.error('Error in GET /api/leads', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -126,7 +126,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ lead }, { status: 201 })
   } catch (error) {
-    dbLogger.error('Error in POST /api/leads', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

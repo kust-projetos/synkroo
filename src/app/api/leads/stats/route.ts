@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import { getLeadStats } from '@/services/leads/leads.service'
 
 /**
@@ -22,7 +22,6 @@ export async function GET() {
 
     return NextResponse.json(stats)
   } catch (error) {
-    dbLogger.error('Error fetching lead stats', error)
-    return NextResponse.json({ error: 'Failed to fetch lead stats' }, { status: 500 })
+    return handleApiError(error)
   }
 }

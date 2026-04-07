@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { getLLMProvider } from '@/lib/llm'
+import { handleApiError } from '@/lib/errors'
 import type { Message } from '@/lib/supabase/database.types'
 
 interface InboundMessage {
@@ -165,10 +166,6 @@ export async function POST(request: NextRequest) {
       responseMessage,
     })
   } catch (error) {
-    console.error('Error processing inbound message:', error)
-    return NextResponse.json(
-      { error: 'Failed to process message' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

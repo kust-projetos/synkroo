@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 import { detectDuplicates, mergePatients } from '@/services/patients/patient-dedup.service'
 
 /**
@@ -21,8 +22,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ duplicates, total: duplicates.length })
   } catch (error) {
-    console.error('Error detecting duplicates:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -62,7 +62,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.error('Error merging patients:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/messages/history/[conversationId]
@@ -43,10 +44,6 @@ export async function GET(
       },
     })
   } catch (error) {
-    console.error('Error fetching message history:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch message history' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

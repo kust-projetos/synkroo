@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { updatePatientSchema } from '@/lib/validations'
-import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -53,14 +52,12 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       if (error.code === 'PGRST116') {
         return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
       }
-      dbLogger.error('Error fetching patient', error)
-      return NextResponse.json({ error: 'Failed to fetch patient' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to fetch patient', error))
     }
 
     return NextResponse.json({ patient })
   } catch (error) {
-    dbLogger.error('Error in GET /api/patients/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -124,20 +121,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (error.code === 'PGRST116') {
         return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
       }
-      dbLogger.error('Error updating patient', error)
-      return NextResponse.json({ error: 'Failed to update patient' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to update patient', error))
     }
 
     return NextResponse.json({ patient })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    dbLogger.error('Error in PUT /api/patients/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -203,13 +195,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       .eq('clinic_id', clinicId)
 
     if (error) {
-      dbLogger.error('Error deleting patient', error)
-      return NextResponse.json({ error: 'Failed to delete patient' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to delete patient', error))
     }
 
     return NextResponse.json({ success: true, message: 'Patient deleted successfully' })
   } catch (error) {
-    dbLogger.error('Error in DELETE /api/patients/[id]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

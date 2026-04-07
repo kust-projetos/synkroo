@@ -5,6 +5,7 @@ import {
   updateInactivePatientTags,
 } from '@/services/followup/inactive-patient.service'
 import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/patients/inactive?min_days=30&stats_only=true
@@ -42,11 +43,7 @@ export async function GET(request: NextRequest) {
       patients,
     })
   } catch (error) {
-    console.error('Error fetching inactive patients:', error)
-    return NextResponse.json(
-      { error: 'Failed to fetch inactive patients' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -78,10 +75,6 @@ export async function POST(request: NextRequest) {
       errors: result.errors,
     })
   } catch (error) {
-    console.error('Error updating patient tags:', error)
-    return NextResponse.json(
-      { error: 'Failed to update patient tags' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

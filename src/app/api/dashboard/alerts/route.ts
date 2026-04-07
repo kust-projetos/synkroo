@@ -4,6 +4,7 @@ import { createTypedClient } from '@/lib/supabase/typed'
 import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete-treatment.service'
 import { getHotLeads } from '@/services/leads/leads.service'
 import { findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/dashboard/alerts
@@ -176,7 +177,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    console.error('Error fetching dashboard alerts:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

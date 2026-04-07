@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * POST /api/cron/cleanup
@@ -61,11 +62,7 @@ export async function POST(request: NextRequest) {
       results,
     })
   } catch (error) {
-    console.error('Error running cleanup:', error)
-    return NextResponse.json(
-      { error: 'Failed to run cleanup' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 

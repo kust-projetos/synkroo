@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth, createClient } from '@/lib/supabase/server'
 import { createDentistSchema } from '@/lib/validations'
-import { apiLogger } from '@/lib/logger'
+import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { PAGINATION } from '@/lib/config'
 
 /**
@@ -35,14 +35,12 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1)
 
     if (error) {
-      apiLogger.error('Error fetching dentists', error)
-      return NextResponse.json({ error: 'Failed to fetch dentists' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to fetch dentists', error))
     }
 
     return NextResponse.json({ dentists, pagination: { limit, offset } })
   } catch (error) {
-    apiLogger.error('Error in GET /api/dentists', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -78,19 +76,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      apiLogger.error('Error creating dentist', error)
-      return NextResponse.json({ error: 'Failed to create dentist' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to create dentist', error))
     }
 
     return NextResponse.json({ dentist }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    apiLogger.error('Error in POST /api/dentists', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

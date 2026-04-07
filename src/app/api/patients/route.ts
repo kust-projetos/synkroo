@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { createPatientSchema } from '@/lib/validations'
 
 /**
@@ -43,8 +43,7 @@ export async function GET(request: NextRequest) {
     const { data: patients, error, count } = await query
 
     if (error) {
-      dbLogger.error('Error fetching patients', error)
-      return NextResponse.json({ error: 'Failed to fetch patients' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to fetch patients', error))
     }
 
     return NextResponse.json({
@@ -57,8 +56,7 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    dbLogger.error('Error in GET /api/patients', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -116,19 +114,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      dbLogger.error('Error creating patient', error)
-      return NextResponse.json({ error: 'Failed to create patient' }, { status: 500 })
+      return handleApiError(new DatabaseError('Failed to create patient', error))
     }
 
     return NextResponse.json({ patient }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: 'Validation failed', details: error.issues },
-        { status: 400 }
-      )
+      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     }
-    dbLogger.error('Error in POST /api/patients', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

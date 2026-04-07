@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
+import { handleApiError } from '@/lib/errors'
 import {
   getApprovedTemplates,
   getAllTemplates,
@@ -30,8 +31,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ templates })
   } catch (error) {
-    console.error('Error fetching templates:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -76,7 +76,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ template })
   } catch (error) {
-    console.error('Error creating template:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

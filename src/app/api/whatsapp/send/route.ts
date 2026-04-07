@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getWhatsAppService } from '@/services/whatsapp'
 import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
 import { whatsappSendSchema } from '@/lib/validations'
-import { whatsappLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 
 /**
  * POST /api/whatsapp/send
@@ -34,11 +34,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result)
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error)
-    return NextResponse.json(
-      { error: 'Failed to send message' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
@@ -61,10 +57,6 @@ export async function GET() {
 
     return NextResponse.json(session)
   } catch (error) {
-    whatsappLogger.error('Error getting WhatsApp status', error)
-    return NextResponse.json(
-      { error: 'Failed to get status' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }

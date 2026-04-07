@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { createServerClient } from '@/lib/supabase'
+import { handleApiError } from '@/lib/errors'
 import { whatsappLogger } from '@/lib/logger'
 import { sendWhatsAppMessage } from '@/services/whatsapp'
 import { getLLMProvider } from '@/lib/llm'
@@ -370,11 +371,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, processed: true, action: 'responded' })
   } catch (error) {
-    whatsappLogger.error('Error processing Evolution webhook', error)
-    return NextResponse.json(
-      { error: 'Failed to process webhook' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 

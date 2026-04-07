@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { embeddingService } from '@/services/rag'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError, DatabaseError } from '@/lib/errors'
 
 /**
  * POST /api/knowledge/search
@@ -42,8 +42,7 @@ export async function POST(request: NextRequest) {
     })
 
     if (error) {
-      dbLogger.error('Knowledge search error', error)
-      return NextResponse.json({ error: 'Search failed' }, { status: 500 })
+      return handleApiError(new DatabaseError('Search failed', error))
     }
 
     return NextResponse.json({
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
       count: data?.length || 0,
     })
   } catch (error) {
-    dbLogger.error('Knowledge search error', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

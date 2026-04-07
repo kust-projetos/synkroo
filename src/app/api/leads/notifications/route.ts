@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { dbLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
 import {
   getUnacknowledgedNotifications,
   checkAndNotifyHotLeads,
@@ -28,8 +28,7 @@ export async function GET() {
       count: notifications.length,
     })
   } catch (error) {
-    dbLogger.error('Error in GET /api/leads/notifications', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }
 
@@ -61,7 +60,6 @@ export async function POST() {
       count: notifications.length,
     })
   } catch (error) {
-    dbLogger.error('Error in POST /api/leads/notifications', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return handleApiError(error)
   }
 }

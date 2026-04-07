@@ -3,7 +3,8 @@ import { createHmac } from 'crypto'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { createServerClient } from '@/lib/supabase'
 import { getLLMProvider } from '@/lib/llm'
-import { dbLogger, whatsappLogger } from '@/lib/logger'
+import { handleApiError } from '@/lib/errors'
+import { whatsappLogger } from '@/lib/logger'
 import {
   checkRateLimit,
   getClientIdentifier,
@@ -335,11 +336,7 @@ export async function POST(request: NextRequest) {
       messages: processedMessages,
     })
   } catch (error) {
-    console.error('Error processing WhatsApp webhook:', error)
-    return NextResponse.json(
-      { error: 'Failed to process webhook' },
-      { status: 500 }
-    )
+    return handleApiError(error)
   }
 }
 
