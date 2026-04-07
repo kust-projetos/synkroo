@@ -67,13 +67,13 @@ Scenario: Agendamento completo em uma mensagem
 
 ### Tarefas Técnicas
 
-- [ ] Criar fluxo de agendamento conversacional
-- [ ] Integrar com extração de entidades
-- [ ] Implementar máquina de estados
-- [ ] Validar regras de negócio
-- [ ] Criar confirmação visual
-- [ ] Implementar timeout de sessão
-- [ ] Testar com diferentes padrões de linguagem
+- [x] Criar fluxo de agendamento conversacional (/api/agent/schedule-flow)
+- [x] Integrar com extração de entidades
+- [x] Implementar máquina de estados
+- [x] Validar regras de negócio
+- [x] Criar confirmação visual
+- [x] Implementar timeout de sessão
+- [x] Testar com diferentes padrões de linguagem
 
 ### Fluxo de Agendamento
 
@@ -138,12 +138,12 @@ Scenario: Bloqueio de agenda
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela de agendamentos
-- [ ] Criar tabela de bloqueios
-- [ ] Implementar query de disponibilidade
-- [ ] Configurar horários de expediente
-- [ ] Implementar cache de disponibilidade
-- [ ] Criar índices para performance
+- [x] Criar tabela de agendamentos (appointments)
+- [x] Criar tabela de bloqueios (schedule_blocks)
+- [x] Implementar query de disponibilidade
+- [x] Configurar horários de expediente
+- [x] Implementar cache de disponibilidade
+- [x] Criar índices para performance
 
 ### Schema de Agendamento
 
@@ -198,11 +198,11 @@ Scenario: Agendar com específico
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela de profissionais
-- [ ] Associar agendamentos a profissionais
-- [ ] Configurar horários por profissional
-- [ ] Implementar seleção de profissional
-- [ ] Criar página de gestão de profissionais
+- [x] Criar tabela de profissionais (dentists)
+- [x] Associar agendamentos a profissionais
+- [x] Configurar horários por profissional (working_hours)
+- [x] Implementar seleção de profissional
+- [x] Criar página de gestão de profissionais (/dashboard/dentistas)
 
 ---
 
@@ -246,11 +246,11 @@ Scenario: Confirmar reagendamento
 
 ### Tarefas Técnicas
 
-- [ ] Implementar fluxo de reagendamento
-- [ ] Atualizar status do agendamento antigo
-- [ ] Criar novo agendamento
-- [ ] Registrar histórico de alterações
-- [ ] Notificar profissional
+- [x] Implementar fluxo de reagendamento (PUT /api/appointments/[id]/reschedule)
+- [x] Atualizar status do agendamento antigo
+- [x] Criar novo agendamento
+- [x] Registrar histórico de alterações
+- [x] Notificar profissional
 
 ---
 
@@ -293,11 +293,11 @@ Scenario: Perguntar motivo
 
 ### Tarefas Técnicas
 
-- [ ] Implementar fluxo de cancelamento
-- [ ] Registrar motivo de cancelamento
-- [ ] Liberar horário automaticamente
-- [ ] Notificar clínica
-- [ ] Atualizar métricas de no-show
+- [x] Implementar fluxo de cancelamento (PUT /api/appointments/[id]/cancel)
+- [x] Registrar motivo de cancelamento
+- [x] Liberar horário automaticamente
+- [x] Notificar clínica
+- [x] Atualizar métricas de no-show
 
 ---
 
@@ -338,10 +338,10 @@ Scenario: Aceitar sugestão
 
 ### Tarefas Técnicas
 
-- [ ] Implementar algoritmo de sugestão
-- [ ] Buscar horários próximos
-- [ ] Considerar preferências do paciente
-- [ ] Limitar sugestões a 3-5 opções
+- [x] Implementar algoritmo de sugestão
+- [x] Buscar horários próximos
+- [x] Considerar preferências do paciente
+- [x] Limitar sugestões a 3-5 opções
 
 ---
 
@@ -377,11 +377,11 @@ Scenario: Lock durante confirmação
 
 ### Tarefas Técnicas
 
-- [ ] Implementar lock otimista no banco
-- [ ] Usar transações atômicas
-- [ ] Implementar fila de processamento
-- [ ] Criar testes de concorrência
-- [ ] Monitorar deadlocks
+- [x] Implementar lock otimista no banco
+- [x] Usar transações atômicas (Supabase transactions)
+- [x] Implementar fila de processamento
+- [x] Criar testes de concorrência
+- [x] Monitorar deadlocks
 
 ---
 
@@ -425,11 +425,11 @@ Scenario: Paciente cancela
 
 ### Tarefas Técnicas
 
-- [ ] Criar job de verificação
-- [ ] Implementar template de confirmação
-- [ ] Processar resposta do paciente
-- [ ] Atualizar status do agendamento
-- [ ] Registrar log de confirmações
+- [x] Criar job de verificação (confirmation-handler.service.ts)
+- [x] Implementar template de confirmação
+- [x] Processar resposta do paciente (/api/appointments/confirm-response)
+- [x] Atualizar status do agendamento
+- [x] Registrar log de confirmações
 
 ---
 
@@ -464,10 +464,10 @@ Scenario: Lembrete já confirmado
 
 ### Tarefas Técnicas
 
-- [ ] Criar job de lembrete
-- [ ] Implementar template
-- [ ] Incluir detalhes da consulta
-- [ ] Verificar status de confirmação
+- [x] Criar job de lembrete (reminder.service.ts, cron /api/cron/reminders)
+- [x] Implementar template
+- [x] Incluir detalhes da consulta
+- [x] Verificar status de confirmação
 
 ---
 
@@ -509,10 +509,10 @@ Scenario: Alertar no-show recorrente
 
 ### Tarefas Técnicas
 
-- [ ] Criar job de detecção de no-show
-- [ ] Implementar check-in manual
-- [ ] Calcular taxa de no-show por paciente
-- [ ] Criar alerta de recorrência
+- [x] Criar job de detecção de no-show (PUT /api/appointments/[id]/noshow)
+- [x] Implementar check-in manual
+- [x] Calcular taxa de no-show por paciente
+- [x] Criar alerta de recorrência
 
 ---
 
@@ -591,4 +591,4 @@ Para considerar uma Story completa:
 
 **Documento criado por:** BMAD Method v6.2.2
 **Data:** 2026-03-27
-**Status:** ✅ Stories Criados - Ready for Sprint Planning
+**Status:** ✅ IMPLEMENTADO - Atualizado em 2026-04-07

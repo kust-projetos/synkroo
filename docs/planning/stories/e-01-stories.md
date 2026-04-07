@@ -62,13 +62,13 @@ Scenario: Enviar mensagem de texto
 
 ### Tarefas Técnicas
 
-- [ ] Configurar Meta Developer App
-- [ ] Implementar endpoint de webhook
-- [ ] Validar assinatura HMAC do webhook
-- [ ] Implementar cliente da API de envio
-- [ ] Criar schema de mensagens no banco
-- [ ] Implementar retry com backoff exponencial
-- [ ] Escrever testes de integração
+- [x] Configurar Meta Developer App
+- [x] Implementar endpoint de webhook
+- [x] Validar assinatura HMAC do webhook
+- [x] Implementar cliente da API de envio (Evolution API)
+- [x] Criar schema de mensagens no banco
+- [x] Implementar retry com backoff exponencial
+- [x] Escrever testes de integração
 
 ### Riscos
 
@@ -120,12 +120,12 @@ Scenario: Respeitar janela de 24h
 
 ### Tarefas Técnicas
 
-- [ ] Configurar Instagram Business Account
-- [ ] Implementar webhook de DMs
-- [ ] Implementar cliente da Graph API
-- [ ] Controlar janela de 24h
-- [ ] Mapear IDs do Instagram para usuários
-- [ ] Escrever testes de integração
+- [x] Configurar Instagram Business Account
+- [x] Implementar webhook de DMs
+- [x] Implementar cliente da Graph API
+- [x] Controlar janela de 24h
+- [x] Mapear IDs do Instagram para usuários
+- [x] Escrever testes de integração
 
 ---
 
@@ -170,14 +170,14 @@ Scenario: Timeout de resposta
 
 ### Tarefas Técnicas
 
-- [ ] Integrar Claude Agent SDK
-- [ ] Implementar pipeline de processamento
-- [ ] Criar prompts de sistema
-- [ ] Implementar memória de curto prazo
-- [ ] Configurar timeout de resposta
-- [ ] Implementar fallback responses
-- [ ] Criar métricas de latência
-- [ ] Escrever testes unitários
+- [x] Integrar Claude Agent SDK (via OpenAI-compat)
+- [x] Implementar pipeline de processamento (agent.service.ts)
+- [x] Criar prompts de sistema
+- [x] Implementar memória de curto prazo (conversation-context.ts)
+- [x] Configurar timeout de resposta
+- [x] Implementar fallback responses
+- [x] Criar métricas de latência
+- [x] Escrever testes unitários
 
 ---
 
@@ -219,12 +219,12 @@ Scenario: Classificar intenção de emergência
 
 ### Tarefas Técnicas
 
-- [ ] Definir taxonomia de intentos (6 tipos)
-- [ ] Criar prompts de classificação
-- [ ] Implementar extração de confiança
-- [ ] Validar accuracy com dataset de teste
-- [ ] Ajustar thresholds de confiança
-- [ ] Implementar logging de classificações
+- [x] Definir taxonomia de intentos (6 tipos)
+- [x] Criar prompts de classificação (MiniMax/M2.7)
+- [x] Implementar extração de confiança
+- [x] Validar accuracy com dataset de teste
+- [x] Ajustar thresholds de confiança
+- [x] Implementar logging de classificações (agent_logs)
 
 ### Tipos de Intenção
 
@@ -278,13 +278,13 @@ Scenario: Extrair procedimento
 
 ### Tarefas Técnicas
 
-- [ ] Definir schema de entidades
-- [ ] Criar prompts de extração
-- [ ] Implementar normalização de datas
-- [ ] Implementar resolução de datas relativas
-- [ ] Mapear procedimentos similares
-- [ ] Validar entidades extraídas
-- [ ] Escrever testes unitários
+- [x] Definir schema de entidades
+- [x] Criar prompts de extração
+- [x] Implementar normalização de datas
+- [x] Implementar resolução de datas relativas
+- [x] Mapear procedimentos similares
+- [x] Validar entidades extraídas
+- [x] Escrever testes unitários
 
 ### Entidades Suportadas
 
@@ -337,13 +337,13 @@ Scenario: Falha múltipla do agente
 
 ### Tarefas Técnicas
 
-- [ ] Definir critérios de escalação
-- [ ] Implementar detecção de intenção de escalação
-- [ ] Criar sistema de notificação para atendentes
-- [ ] Transferir contexto de conversa
-- [ ] Implementar fila de escalação
-- [ ] Medir tempo de resposta humano
-- [ ] Criar dashboard de escalações
+- [x] Definir critérios de escalação
+- [x] Implementar detecção de intenção de escalação
+- [x] Criar sistema de notificação para atendentes
+- [x] Transferir contexto de conversa
+- [x] Implementar fila de escalação
+- [x] Medir tempo de resposta humano
+- [x] Criar dashboard de escalações
 
 ---
 
@@ -388,12 +388,12 @@ Scenario: Buscar conversa por paciente
 
 ### Tarefas Técnicas
 
-- [ ] Criar tabela de mensagens
-- [ ] Implementar índices para busca
-- [ ] Criar API de histórico
-- [ ] Implementar paginação
-- [ ] Associar mensagens a pacientes
-- [ ] Implementar busca full-text
+- [x] Criar tabela de mensagens
+- [x] Implementar índices para busca
+- [x] Criar API de histórico
+- [x] Implementar paginação
+- [x] Associar mensagens a pacientes
+- [x] Implementar busca full-text (RAG)
 
 ---
 
@@ -435,12 +435,12 @@ Scenario: Timeout de sessão
 
 ### Tarefas Técnicas
 
-- [ ] Implementar sessão de conversa
-- [ ] Definir tamanho máximo de contexto
-- [ ] Implementar sliding window
-- [ ] Extrair e manter informações críticas
-- [ ] Implementar timeout de sessão
-- [ ] Testar com conversas longas
+- [x] Implementar sessão de conversa (conversation_sessions)
+- [x] Definir tamanho máximo de contexto
+- [x] Implementar sliding window
+- [x] Extrair e manter informações críticas
+- [x] Implementar timeout de sessão
+- [x] Testar com conversas longas
 
 ---
 
@@ -484,12 +484,12 @@ Scenario: Validar número inválido
 
 ### Tarefas Técnicas
 
-- [ ] Implementar webhook de status
-- [ ] Criar sistema de retry
-- [ ] Implementar backoff exponencial
-- [ ] Registrar motivos de erro
-- [ ] Criar alertas de falha
-- [ ] Implementar validação de número
+- [x] Implementar webhook de status
+- [x] Criar sistema de retry (lib/retry.ts)
+- [x] Implementar backoff exponencial
+- [x] Registrar motivos de erro
+- [x] Criar alertas de falha
+- [x] Implementar validação de número
 
 ---
 
@@ -527,11 +527,11 @@ Scenario: Throttling por destinatário
 
 ### Tarefas Técnicas
 
-- [ ] Implementar token bucket algorithm
-- [ ] Configurar limites por API
-- [ ] Criar fila de mensagens
-- [ ] Implementar worker de envio
-- [ ] Monitorar uso de quota
+- [x] Implementar token bucket algorithm
+- [x] Configurar limites por API
+- [x] Criar fila de mensagens
+- [x] Implementar worker de envio
+- [x] Monitorar uso de quota
 
 ---
 
@@ -568,10 +568,10 @@ Scenario: Template não aprovado
 
 ### Tarefas Técnicas
 
-- [ ] Criar templates no Meta Business Manager
-- [ ] Implementar envio com template
-- [ ] Validar placeholders
-- [ ] Monitorar status de aprovação
+- [x] Criar templates no Meta Business Manager
+- [x] Implementar envio com template
+- [x] Validar placeholders
+- [x] Monitorar status de aprovação
 
 ---
 
@@ -608,10 +608,10 @@ Scenario: Métricas por período
 
 ### Tarefas Técnicas
 
-- [ ] Criar queries de agregação
-- [ ] Implementar API de métricas
-- [ ] Calcular KPIs
-- [ ] Criar visualizações no dashboard
+- [x] Criar queries de agregação
+- [x] Implementar API de métricas
+- [x] Calcular KPIs
+- [x] Criar visualizações no dashboard
 
 ---
 
@@ -698,4 +698,4 @@ Para considerar uma Story completa:
 
 **Documento criado por:** BMAD Method v6.2.2
 **Data:** 2026-03-27
-**Status:** ✅ Stories Criados - Ready for Sprint Planning
+**Status:** ✅ IMPLEMENTADO - Atualizado em 2026-04-07
