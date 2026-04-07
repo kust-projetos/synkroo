@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { validateApiAuth, hasRequiredRole, createClient } from '@/lib/supabase/server'
 import { updateCampaignSchema } from '@/lib/validations'
 import { apiLogger } from '@/lib/logger'
+import type { Campaign } from '@/lib/supabase/database.types'
 
 type RecipientRow = { status: string }
 
@@ -41,7 +42,7 @@ export async function GET(
       .from('campaigns')
       .select('*')
       .eq('id', campaignId)
-      .single()
+      .single() as { data: Campaign | null; error: any }
 
     if (campaignError || !campaign) {
       return NextResponse.json(
@@ -165,7 +166,7 @@ export async function PATCH(
       .from('campaigns')
       .select('clinic_id, status')
       .eq('id', campaignId)
-      .single()
+      .single() as { data: { clinic_id: string; status: string } | null; error: any }
 
     if (campaignError || !campaign) {
       return NextResponse.json(
@@ -215,8 +216,8 @@ export async function PATCH(
       updateData.resumed_at = new Date().toISOString()
     }
 
-    await supabase
-      .from('campaigns')
+    await (supabase
+      .from('campaigns') as any)
       .update(updateData)
       .eq('id', campaignId)
 
@@ -268,7 +269,7 @@ export async function DELETE(
       .from('campaigns')
       .select('clinic_id, status')
       .eq('id', campaignId)
-      .single()
+      .single() as { data: { clinic_id: string; status: string } | null; error: any }
 
     if (campaignError || !campaign) {
       return NextResponse.json(

@@ -77,8 +77,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       const qualification = await qualifyLead(id, {
         hasBudget,
         hasTimeline,
-        interest,
-        notes,
+        interest: interest ?? undefined,
+        notes: notes ?? undefined,
       })
 
       if (!qualification) {
@@ -90,7 +90,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Handle status update
     if (status) {
-      const lead = await updateLeadStatus(id, status as LeadStatus, notes)
+      const lead = await updateLeadStatus(id, status as LeadStatus, notes ?? undefined)
       if (!lead) {
         return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 })
       }
@@ -108,8 +108,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (notes !== undefined) updateData.notes = notes
     if (interest !== undefined) updateData.interest = interest
 
-    const { data: lead, error } = await supabase
-      .from('leads')
+    const { data: lead, error } = await (supabase
+      .from('leads') as any)
       .update(updateData)
       .eq('id', id)
       .select()
@@ -151,8 +151,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const { createTypedClient } = await import('@/lib/supabase/typed')
     const supabase = await createTypedClient()
 
-    const { error } = await supabase
-      .from('leads')
+    const { error } = await (supabase
+      .from('leads') as any)
       .update({
         status: 'lost',
         lost_reason: 'Archived',

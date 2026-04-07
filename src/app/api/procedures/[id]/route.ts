@@ -61,8 +61,8 @@ export async function PUT(
 
     const supabase = await createClient()
 
-    const { data: procedure, error } = await supabase
-      .from('procedures')
+    const { data: procedure, error } = await (supabase
+      .from('procedures') as any)
       .update({
         name: body.name,
         description: body.description,
@@ -109,8 +109,8 @@ export async function DELETE(
 
     const supabase = await createClient()
 
-    const { error } = await supabase
-      .from('procedures')
+    const { error } = await (supabase
+      .from('procedures') as any)
       .update({ is_active: false })
       .eq('id', procedureId)
       .eq('clinic_id', clinicId)

@@ -36,7 +36,7 @@ export async function GET(
       `)
       .eq('id', id)
       .eq('clinic_id', clinicId)
-      .single()
+      .single() as { data: Record<string, any> | null; error: any }
 
     if (convError || !conversation) {
       return NextResponse.json(

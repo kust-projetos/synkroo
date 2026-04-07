@@ -26,10 +26,6 @@ export default function EditarPacientePage() {
   })
   const [newTag, setNewTag] = useState('')
 
-  useEffect(() => {
-    fetchPatient()
-  }, [patientId, fetchPatient])
-
   const fetchPatient = async () => {
     try {
       const response = await fetch(`/api/patients/${patientId}`)
@@ -57,6 +53,10 @@ export default function EditarPacientePage() {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    fetchPatient()
+  }, [patientId])
 
   const formatPhoneForDisplay = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '')

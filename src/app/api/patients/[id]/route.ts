@@ -112,8 +112,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (notes !== undefined) updateData.notes = notes?.trim() || null
     if (tags !== undefined) updateData.tags = tags
 
-    const { data: patient, error } = await supabase
-      .from('patients')
+    const { data: patient, error } = await (supabase
+      .from('patients') as any)
       .update(updateData)
       .eq('id', id)
       .eq('clinic_id', clinicId)
@@ -190,8 +190,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Soft delete by anonymizing sensitive data
-    const { error } = await supabase
-      .from('patients')
+    const { error } = await (supabase
+      .from('patients') as any)
       .update({
         name: '[Deleted Patient]',
         phone: '00000000000',

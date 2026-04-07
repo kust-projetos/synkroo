@@ -43,8 +43,8 @@ export async function addObservation(params: {
   const supabase = await createTypedClient()
 
   try {
-    const { data, error } = await supabase
-      .from('patient_observations')
+    const { data, error } = await (supabase
+      .from('patient_observations') as any)
       .insert({
         patient_id: params.patientId,
         clinic_id: params.clinicId,
@@ -139,8 +139,8 @@ export async function setPreference(params: {
 
   try {
     // Upsert: update if exists, insert if not
-    const { data, error } = await supabase
-      .from('patient_preferences')
+    const { data, error } = await (supabase
+      .from('patient_preferences') as any)
       .upsert(
         {
           patient_id: params.patientId,

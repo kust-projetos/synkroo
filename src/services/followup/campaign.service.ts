@@ -11,6 +11,7 @@ type PatientBasic = { id: string; name: string; phone: string }
 type CampaignRow = {
   id: string
   name: string
+  description?: string
   status: string
   campaign_type: string
   target_segment: string | null
@@ -21,6 +22,11 @@ type CampaignRow = {
   completed_at: string | null
   created_at: string
   clinic_id: string
+  total_recipients?: number
+  sent_count?: number
+  response_count?: number
+  conversion_count?: number
+  opt_out_count?: number
 }
 
 export interface Campaign {
@@ -66,8 +72,8 @@ export async function createCampaign(params: {
 }): Promise<{ success: boolean; campaign?: Campaign; error?: string }> {
   const supabase = await createTypedClient()
 
-  const { data, error } = await supabase
-    .from('campaigns')
+  const { data, error } = await (supabase
+    .from('campaigns') as any)
     .insert({
       clinic_id: params.clinicId,
       name: params.name,
@@ -89,21 +95,21 @@ export async function createCampaign(params: {
   return {
     success: true,
     campaign: {
-      id: data.id,
-      clinicId: data.clinic_id,
-      name: data.name,
-      description: data.description,
-      campaignType: data.campaign_type,
-      targetSegment: data.target_segment,
-      messageTemplate: data.message_template,
-      channel: data.channel,
-      status: data.status,
-      scheduledAt: data.scheduled_at ? new Date(data.scheduled_at) : undefined,
-      totalRecipients: data.total_recipients,
-      sentCount: data.sent_count,
-      responseCount: data.response_count,
-      conversionCount: data.conversion_count,
-      optOutCount: data.opt_out_count,
+      id: (data as any).id,
+      clinicId: (data as any).clinic_id,
+      name: (data as any).name,
+      description: (data as any).description,
+      campaignType: (data as any).campaign_type,
+      targetSegment: (data as any).target_segment,
+      messageTemplate: (data as any).message_template,
+      channel: (data as any).channel,
+      status: (data as any).status,
+      scheduledAt: (data as any).scheduled_at ? new Date((data as any).scheduled_at) : undefined,
+      totalRecipients: (data as any).total_recipients,
+      sentCount: (data as any).sent_count,
+      responseCount: (data as any).response_count,
+      conversionCount: (data as any).conversion_count,
+      optOutCount: (data as any).opt_out_count,
     },
   }
 }
@@ -121,21 +127,21 @@ export async function addCampaignRecipients(
   const { data: patients, error: patientError } = await supabase
     .from('patients')
     .select('id, name, phone')
-    .in('id', patientIds)
+    .in('id', patientIds) as any
 
   if (patientError) {
     return { success: false, added: 0, error: patientError.message }
   }
 
   // Create recipient records
-  const recipients = patients?.map((p) => ({
+  const recipients = (patients as any[])?.map((p: any) => ({
     campaign_id: campaignId,
     patient_id: p.id,
     status: 'pending',
   })) || []
 
-  const { error } = await supabase
-    .from('campaign_recipients')
+  const { error } = await (supabase
+    .from('campaign_recipients') as any)
     .insert(recipients)
 
   if (error) {
@@ -147,12 +153,12 @@ export async function addCampaignRecipients(
     .from('campaigns')
     .select('total_recipients')
     .eq('id', campaignId)
-    .single()
+    .single() as any
 
-  const newTotal = (currentCampaign?.total_recipients || 0) + recipients.length
+  const newTotal = ((currentCampaign as any)?.total_recipients || 0) + recipients.length
 
-  await supabase
-    .from('campaigns')
+  await (supabase
+    .from('campaigns') as any)
     .update({ total_recipients: newTotal })
     .eq('id', campaignId)
 
@@ -170,15 +176,15 @@ export async function startCampaign(campaignId: string): Promise<{ success: bool
     .from('campaigns')
     .select('*')
     .eq('id', campaignId)
-    .single()
+    .single() as any
 
   if (campaignError || !campaign) {
     return { success: false, error: 'Campaign not found' }
   }
 
   // Update status to running
-  await supabase
-    .from('campaigns')
+  await (supabase
+    .from('campaigns') as any)
     .update({
       status: 'running',
       started_at: new Date().toISOString(),
@@ -195,29 +201,29 @@ export async function startCampaign(campaignId: string): Promise<{ success: bool
       patients (name, phone)
     `)
     .eq('campaign_id', campaignId)
-    .eq('status', 'pending')
+    .eq('status', 'pending') as any
 
   let sent = 0
   let failed = 0
 
-  for (const recipient of recipients || []) {
+  for (const recipient of (recipients as any[]) || []) {
     // Format message - patients is returned as array from join
-    const patient = Array.isArray(recipient.patients) ? recipient.patients[0] : recipient.patients
-    const message = campaign.message_template
+    const patient = Array.isArray((recipient as any).patients) ? (recipient as any).patients[0] : (recipient as any).patients
+    const message = (campaign as any).message_template
       .replace(/{{patient_name}}/g, patient?.name || 'Paciente')
 
     // Send message
     const result = await sendCampaignMessage(patient?.phone, message)
 
     // Update recipient status
-    await supabase
-      .from('campaign_recipients')
+    await (supabase
+      .from('campaign_recipients') as any)
       .update({
         status: result.success ? 'sent' : 'failed',
         sent_at: result.success ? new Date().toISOString() : null,
         error_message: result.error,
       })
-      .eq('id', recipient.id)
+      .eq('id', (recipient as any).id)
 
     if (result.success) {
       sent++
@@ -230,8 +236,8 @@ export async function startCampaign(campaignId: string): Promise<{ success: bool
   }
 
   // Update campaign stats
-  await supabase
-    .from('campaigns')
+  await (supabase
+    .from('campaigns') as any)
     .update({
       status: 'completed',
       completed_at: new Date().toISOString(),
@@ -310,29 +316,29 @@ export async function getCampaigns(
     query = query.eq('status', status)
   }
 
-  const { data, error } = await query
+  const { data, error } = await query as any
 
   if (error) return []
 
-  return (data || []).map((c: CampaignRow) => ({
+  return ((data as CampaignRow[]) || []).map((c) => ({
     id: c.id,
     clinicId: c.clinic_id,
     name: c.name,
     description: c.description,
-    campaignType: c.campaign_type,
+    campaignType: c.campaign_type as Campaign['campaignType'],
     targetSegment: c.target_segment,
     messageTemplate: c.message_template,
     channel: c.channel,
-    status: c.status,
+    status: c.status as Campaign['status'],
     scheduledAt: c.scheduled_at ? new Date(c.scheduled_at) : undefined,
     startedAt: c.started_at ? new Date(c.started_at) : undefined,
     completedAt: c.completed_at ? new Date(c.completed_at) : undefined,
-    totalRecipients: c.total_recipients,
-    sentCount: c.sent_count,
-    responseCount: c.response_count,
-    conversionCount: c.conversion_count,
-    optOutCount: c.opt_out_count,
-  }))
+    totalRecipients: c.total_recipients ?? 0,
+    sentCount: c.sent_count ?? 0,
+    responseCount: c.response_count ?? 0,
+    conversionCount: c.conversion_count ?? 0,
+    optOutCount: c.opt_out_count ?? 0,
+  })) as Campaign[]
 }
 
 /**
@@ -348,11 +354,11 @@ export async function processScheduledCampaigns(): Promise<void> {
     .from('campaigns')
     .select('*')
     .eq('status', 'scheduled')
-    .lte('scheduled_at', now.toISOString())
+    .lte('scheduled_at', now.toISOString()) as any
 
-  for (const campaign of campaigns || []) {
-    dbLogger.info(`Starting scheduled campaign: ${campaign.name}`)
-    await startCampaign(campaign.id)
+  for (const campaign of (campaigns as any[]) || []) {
+    dbLogger.info(`Starting scheduled campaign: ${(campaign as any).name}`)
+    await startCampaign((campaign as any).id)
   }
 }
 

@@ -90,8 +90,8 @@ export async function createTemplate(params: {
       }
     }
 
-    const { data, error } = await supabase
-      .from('message_templates')
+    const { data, error } = await (supabase
+      .from('message_templates') as any)
       .insert({
         clinic_id: params.clinicId,
         name: params.name,

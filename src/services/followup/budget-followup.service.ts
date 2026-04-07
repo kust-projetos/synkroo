@@ -45,22 +45,22 @@ export async function findUnconvertedBudgets(clinicId: string): Promise<Unconver
       `)
       .eq('clinic_id', clinicId)
       .in('status', ['sent', 'pending'])
-      .order('created_at', { ascending: true })
+      .order('created_at', { ascending: true }) as any
 
     if (error) throw error
 
     const now = new Date()
     const results: UnconvertedBudget[] = []
 
-    for (const budget of budgets || []) {
+    for (const budget of (budgets as any[]) || []) {
       const patient = (budget as any).patients
-      const createdDate = new Date(budget.created_at)
+      const createdDate = new Date((budget as any).created_at)
       const daysSinceCreated = Math.floor(
         (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
       )
 
       // Parse current follow-up stage from notes
-      const notes: string = budget.notes || ''
+      const notes: string = (budget as any).notes || ''
       let followupStage = 0
       const stageMatch = notes.match(/\[followup-stage-(\d+)-date/)
       if (stageMatch) {
@@ -70,16 +70,16 @@ export async function findUnconvertedBudgets(clinicId: string): Promise<Unconver
       // Only include if past first follow-up threshold
       if (daysSinceCreated >= FOLLOWUP_STAGES[0].day) {
         results.push({
-          id: budget.id,
-          patient_id: budget.patient_id,
+          id: (budget as any).id,
+          patient_id: (budget as any).patient_id,
           patient_name: patient?.name || 'Desconhecido',
           patient_phone: patient?.phone || null,
-          clinic_id: budget.clinic_id,
-          total_value: budget.total_value,
-          created_at: budget.created_at,
+          clinic_id: (budget as any).clinic_id,
+          total_value: (budget as any).total_value,
+          created_at: (budget as any).created_at,
           days_since_created: daysSinceCreated,
           followup_stage: followupStage,
-          status: budget.status,
+          status: (budget as any).status,
         })
       }
     }
@@ -109,7 +109,7 @@ export async function sendBudgetFollowup(
       .select('id, patient_id, notes, patients (name, phone)')
       .eq('id', budgetId)
       .eq('clinic_id', clinicId)
-      .single()
+      .single() as any
 
     if (fetchError || !budget) {
       return { success: false, message: 'Budget not found' }
@@ -121,7 +121,7 @@ export async function sendBudgetFollowup(
     }
 
     // Parse current stage from notes
-    const notes: string = budget.notes || ''
+    const notes: string = (budget as any).notes || ''
     let currentStage = 0
     const stageMatch = notes.match(/\[followup-stage-(\d+)-date/)
     if (stageMatch) {
@@ -141,8 +141,8 @@ export async function sendBudgetFollowup(
     const stageMarker = `[followup-stage-${nextStage}-date: ${new Date().toISOString().split('T')[0]}]`
     const updatedNotes = notes ? `${notes}\n${stageMarker}` : stageMarker
 
-    const { error: updateError } = await supabase
-      .from('budgets')
+    const { error: updateError } = await (supabase
+      .from('budgets') as any)
       .update({
         notes: updatedNotes,
         updated_at: new Date().toISOString(),
@@ -154,7 +154,7 @@ export async function sendBudgetFollowup(
     dbLogger.info('Budget follow-up sent', {
       budgetId,
       stage: nextStage,
-      patientName: patient.name,
+      patientName: (patient as any).name,
     })
 
     return {

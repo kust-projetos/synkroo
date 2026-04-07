@@ -35,11 +35,13 @@ export async function POST(
 
     // Verify campaign belongs to user's clinic
     const supabase = await createClient()
-    const { data: campaign, error: campaignError } = await supabase
+    const campaignResult = await supabase
       .from('campaigns')
       .select('clinic_id')
       .eq('id', campaignId)
-      .single()
+      .single() as { data: { clinic_id: string } | null; error: any }
+    const campaign = campaignResult.data
+    const campaignError = campaignResult.error
 
     if (campaignError || !campaign) {
       return NextResponse.json(

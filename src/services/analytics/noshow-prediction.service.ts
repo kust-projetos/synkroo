@@ -43,17 +43,17 @@ async function getPatientHistory(patientId: string): Promise<PatientHistory> {
     const { data: appointments, error } = await supabase
       .from('appointments')
       .select('status, scheduled_at, confirmation_sent_at')
-      .eq('patient_id', patientId)
+      .eq('patient_id', patientId) as any
 
     if (error) throw error
 
-    const total = appointments?.length || 0
-    const completed = appointments?.filter((a) => a.status === 'completed').length || 0
-    const cancelled = appointments?.filter((a) => a.status === 'cancelled').length || 0
-    const no_shows = appointments?.filter((a) => a.status === 'no_show').length || 0
+    const total = (appointments as any[])?.length || 0
+    const completed = (appointments as any[])?.filter((a) => a.status === 'completed').length || 0
+    const cancelled = (appointments as any[])?.filter((a) => a.status === 'cancelled').length || 0
+    const no_shows = (appointments as any[])?.filter((a) => a.status === 'no_show').length || 0
 
     // Get last visit
-    const completedAppointments = appointments?.filter((a) => a.status === 'completed') || []
+    const completedAppointments = (appointments as any[])?.filter((a) => a.status === 'completed') || []
     const lastVisit =
       completedAppointments.length > 0
         ? completedAppointments.sort(
@@ -62,7 +62,7 @@ async function getPatientHistory(patientId: string): Promise<PatientHistory> {
         : null
 
     // Calculate average confirmation time from actual confirmation timestamps
-    const confirmedAppointments = appointments?.filter(
+    const confirmedAppointments = (appointments as any[])?.filter(
       (a) => a.confirmation_sent_at && new Date(a.scheduled_at) > new Date(a.confirmation_sent_at)
     ) || []
 
@@ -277,7 +277,7 @@ export async function predictNoShowRisk(
       .from('patients')
       .select('id, name, risk_score')
       .eq('id', patientId)
-      .single()
+      .single() as any
 
     if (patientError) throw patientError
 
@@ -292,11 +292,11 @@ export async function predictNoShowRisk(
     ]
 
     // Add base risk score from patient
-    if (patient.risk_score && patient.risk_score > 0) {
+    if ((patient as any).risk_score && (patient as any).risk_score > 0) {
       factors.push({
         name: 'base_risk',
-        impact: patient.risk_score / 100,
-        description: `Score de risco base: ${patient.risk_score}`,
+        impact: (patient as any).risk_score / 100,
+        description: `Score de risco base: ${(patient as any).risk_score}`,
       })
     }
 
@@ -319,7 +319,7 @@ export async function predictNoShowRisk(
 
     return {
       patient_id: patientId,
-      patient_name: patient.name,
+      patient_name: (patient as any).name,
       scheduled_at: scheduledAt,
       risk_score: riskScore,
       riskLevel,
@@ -369,14 +369,14 @@ export async function getUpcomingAppointmentRisks(
       .in('status', ['scheduled', 'confirmed'])
       .gte('scheduled_at', startDate.toISOString())
       .lte('scheduled_at', endDate.toISOString())
-      .order('scheduled_at', { ascending: true })
+      .order('scheduled_at', { ascending: true }) as any
 
     if (error) throw error
 
     const predictions: NoShowPrediction[] = []
 
-    for (const apt of appointments || []) {
-      const patientData = apt.patients as { id: string; name: string; risk_score: number } | { id: string; name: string; risk_score: number }[] | null
+    for (const apt of (appointments as any[]) || []) {
+      const patientData = (apt as any).patients as { id: string; name: string; risk_score: number } | { id: string; name: string; risk_score: number }[] | null
       if (!patientData || Array.isArray(patientData)) continue
 
       const patient = patientData

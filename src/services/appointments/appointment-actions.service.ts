@@ -44,34 +44,34 @@ export async function getAppointmentInfo(appointmentId: string): Promise<Appoint
       procedures (name)
     `)
     .eq('id', appointmentId)
-    .single()
+    .single() as any
 
   if (error || !data) {
     return null
   }
 
   // Extract patient data - handle both array and object from join
-  const patientData = data.patients as any
+  const patientData = (data as any).patients as any
   const patient = Array.isArray(patientData) ? patientData[0] : patientData
 
   // Extract dentist data
-  const dentistData = data.dentists as any
+  const dentistData = (data as any).dentists as any
   const dentistName = Array.isArray(dentistData) ? dentistData[0]?.name : dentistData?.name
 
   // Extract procedure data
-  const procedureData = data.procedures as any
+  const procedureData = (data as any).procedures as any
   const procedureName = Array.isArray(procedureData) ? procedureData[0]?.name : procedureData?.name
 
   return {
-    id: data.id,
-    clinicId: data.clinic_id,
-    patientId: data.patient_id,
+    id: (data as any).id,
+    clinicId: (data as any).clinic_id,
+    patientId: (data as any).patient_id,
     patientName: patient?.name || '',
     patientPhone: patient?.phone || '',
-    scheduledAt: new Date(data.scheduled_at),
-    durationMinutes: data.duration_minutes,
-    status: data.status,
-    dentistId: data.dentist_id || undefined,
+    scheduledAt: new Date((data as any).scheduled_at),
+    durationMinutes: (data as any).duration_minutes,
+    status: (data as any).status,
+    dentistId: (data as any).dentist_id || undefined,
     dentistName,
     procedureName,
   }
@@ -97,8 +97,8 @@ export async function cancelAppointment(
   }
 
   // Update appointment status
-  const { error: updateError } = await supabase
-    .from('appointments')
+  const { error: updateError } = await (supabase
+    .from('appointments') as any)
     .update({
       status: 'cancelled',
       notes: reason ? `Cancelado: ${reason}` : 'Cancelado',
@@ -179,8 +179,8 @@ export async function rescheduleAppointment(
   }
 
   // Update appointment
-  const { error: updateError } = await supabase
-    .from('appointments')
+  const { error: updateError } = await (supabase
+    .from('appointments') as any)
     .update({
       scheduled_at: newScheduledAt.toISOString(),
       status: 'scheduled', // Reset to scheduled after reschedule
@@ -223,8 +223,8 @@ export async function confirmAppointment(
     return { success: false, error: 'Only scheduled appointments can be confirmed' }
   }
 
-  const { error: updateError } = await supabase
-    .from('appointments')
+  const { error: updateError } = await (supabase
+    .from('appointments') as any)
     .update({ status: 'confirmed' })
     .eq('id', appointmentId)
 
@@ -258,8 +258,8 @@ export async function markNoShow(
     return { success: false, error: 'Only scheduled or confirmed appointments can be marked as no-show' }
   }
 
-  const { error: updateError } = await supabase
-    .from('appointments')
+  const { error: updateError } = await (supabase
+    .from('appointments') as any)
     .update({ status: 'no_show' })
     .eq('id', appointmentId)
 
@@ -273,15 +273,15 @@ export async function markNoShow(
     .from('patients')
     .select('no_show_count, risk_score')
     .eq('id', appointment.patientId)
-    .single()
+    .single() as any
 
   if (patient) {
-    const newNoShowCount = (patient.no_show_count || 0) + 1
+    const newNoShowCount = ((patient as any).no_show_count || 0) + 1
     // Increase risk score for no-shows
-    const newRiskScore = Math.min(100, (patient.risk_score || 0) + 10)
+    const newRiskScore = Math.min(100, ((patient as any).risk_score || 0) + 10)
 
-    await supabase
-      .from('patients')
+    await (supabase
+      .from('patients') as any)
       .update({
         no_show_count: newNoShowCount,
         risk_score: newRiskScore,

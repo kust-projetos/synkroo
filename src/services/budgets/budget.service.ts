@@ -107,8 +107,8 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
   const totals = calculateBudgetTotals(input.items, discount_percent)
 
   // Create budget
-  const { data: budget, error: budgetError } = await supabase
-    .from('budgets')
+  const { data: budget, error: budgetError } = await (supabase
+    .from('budgets') as any)
     .insert({
       clinic_id: input.clinic_id,
       patient_id: input.patient_id,
@@ -134,7 +134,7 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
 
   // Create budget items
   const budgetItems = input.items.map((item) => ({
-    budget_id: budget.id,
+    budget_id: (budget as any).id,
     procedure_id: item.procedure_id,
     procedure_name: item.procedure_name,
     quantity: item.quantity,
@@ -144,8 +144,8 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
     notes: item.notes,
   }))
 
-  const { data: items, error: itemsError } = await supabase
-    .from('budget_items')
+  const { data: items, error: itemsError } = await (supabase
+    .from('budget_items') as any)
     .insert(budgetItems)
     .select()
 
@@ -249,8 +249,8 @@ export async function updateBudgetStatus(
     ...metadata,
   }
 
-  const { data, error } = await supabase
-    .from('budgets')
+  const { data, error } = await (supabase
+    .from('budgets') as any)
     .update(updateData)
     .eq('id', budgetId)
     .select()
@@ -345,8 +345,8 @@ export async function scheduleNextFollowUp(
   const nextFollowUp = new Date()
   nextFollowUp.setDate(nextFollowUp.getDate() + daysFromNow)
 
-  const { data, error } = await supabase
-    .from('budgets')
+  const { data, error } = await (supabase
+    .from('budgets') as any)
     .update({
       follow_up_sequence: 1, // Increment
       next_follow_up_at: nextFollowUp.toISOString(),
@@ -379,8 +379,8 @@ export async function deleteBudget(budgetId: string, hardDelete: boolean = false
   }
 
   // Soft delete - mark as expired
-  const { error } = await supabase
-    .from('budgets')
+  const { error } = await (supabase
+    .from('budgets') as any)
     .update({
       status: 'expired',
       updated_at: new Date().toISOString(),
@@ -408,7 +408,7 @@ export async function getBudgetStats(clinicId: string): Promise<{
   const { data, error } = await supabase
     .from('budgets')
     .select('status, final_value')
-    .eq('clinic_id', clinicId)
+    .eq('clinic_id', clinicId) as any
 
   if (error) {
     dbLogger.error('Error fetching budget stats', error)
@@ -425,13 +425,13 @@ export async function getBudgetStats(clinicId: string): Promise<{
   }
 
   const stats = {
-    total: data?.length || 0,
-    pending: data?.filter((b) => b.status === 'pending').length || 0,
-    sent: data?.filter((b) => b.status === 'sent').length || 0,
-    accepted: data?.filter((b) => b.status === 'accepted').length || 0,
-    rejected: data?.filter((b) => b.status === 'rejected').length || 0,
-    converted: data?.filter((b) => b.status === 'converted').length || 0,
-    total_value: data?.reduce((sum, b) => sum + (b.final_value || 0), 0) || 0,
+    total: (data as any[])?.length || 0,
+    pending: (data as any[])?.filter((b: any) => b.status === 'pending').length || 0,
+    sent: (data as any[])?.filter((b: any) => b.status === 'sent').length || 0,
+    accepted: (data as any[])?.filter((b: any) => b.status === 'accepted').length || 0,
+    rejected: (data as any[])?.filter((b: any) => b.status === 'rejected').length || 0,
+    converted: (data as any[])?.filter((b: any) => b.status === 'converted').length || 0,
+    total_value: (data as any[])?.reduce((sum: number, b: any) => sum + (b.final_value || 0), 0) || 0,
     conversion_rate: 0,
   }
 

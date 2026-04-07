@@ -38,12 +38,6 @@ export default function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchSettings()
-    }
-  }, [profile?.clinic_id, fetchSettings])
-
   const fetchSettings = async () => {
     try {
       const response = await fetch('/api/clinics/settings')
@@ -55,6 +49,12 @@ export default function ConfiguracoesPage() {
       console.error('Error fetching settings:', error)
     }
   }
+
+  useEffect(() => {
+    if (profile?.clinic_id) {
+      fetchSettings()
+    }
+  }, [profile?.clinic_id])
 
   const handleSave = async () => {
     setSaving(true)

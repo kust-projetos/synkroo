@@ -97,7 +97,7 @@ export class RAGService {
         p_clinic_id: clinicId,
         match_threshold: threshold,
         match_count: limit,
-      })
+      } as any) as any
 
       if (error) {
         dbLogger.error('Knowledge base search error', error)
@@ -128,7 +128,7 @@ export class RAGService {
         p_patient_id: patientId || null,
         match_threshold: threshold,
         match_count: limit,
-      })
+      } as any) as any
 
       if (error) {
         dbLogger.error('Memory search error', error)
@@ -166,7 +166,7 @@ export class RAGService {
         p_embedding: embedding,
         p_intent: options.intent || null,
         p_entities: options.entities || {},
-      })
+      } as any) as any
 
       if (error) {
         dbLogger.error('Store message with embedding error', error)
@@ -195,7 +195,7 @@ export class RAGService {
         p_conversation_id: conversationId,
         p_summary: summary,
         p_embedding: embedding,
-      })
+      } as any) as any
 
       if (error) {
         dbLogger.error('Store summary error', error)
@@ -224,8 +224,7 @@ export class RAGService {
       const text = `${question}\n${answer}`
       const { embedding } = await embeddingService.generateEmbedding(text)
 
-      const { data, error } = await (await this.serverClient)
-        .from('knowledge_base')
+      const { data, error } = await ((await this.serverClient).from('knowledge_base') as any)
         .insert({
           clinic_id: clinicId,
           category,

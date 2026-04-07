@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       .eq('status', 'escalated')
       .is('resolved_at', null)
       .order('created_at', { ascending: false })
-      .limit(5)
+      .limit(5) as { data: Array<{ id: string; patient_id: string; created_at: string }> | null }
 
     for (const em of emergencies || []) {
       alerts.push({
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
       .eq('clinic_id', clinicId)
       .eq('status', 'pending')
       .gte('scheduled_at', today)
-      .lt('scheduled_at', today + 'T23:59:59')
+      .lt('scheduled_at', today + 'T23:59:59') as { data: Array<{ id: string; patient_id: string; scheduled_at: string; patients?: { name: string } }> | null }
 
     for (const apt of (unconfirmed || []).slice(0, 5)) {
       const patientName = (apt as any).patients?.name || 'Paciente'

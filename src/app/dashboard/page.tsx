@@ -57,10 +57,10 @@ export default function DashboardPage() {
         {/* Welcome Card */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Bem-vindo, {profile.name}! 👋
+            Bem-vindo, {profile?.name}! 👋
           </h2>
           <p className="text-gray-600">
-            {profile.clinics?.name || 'Sua clínica'}
+            {profile?.clinics?.name || 'Sua clínica'}
           </p>
         </div>
 

@@ -8,6 +8,9 @@ const budgetItemSchema = z.object({
   procedure_name: z.string().min(1).max(200),
   quantity: z.number().int().min(1).default(1),
   unit_price: z.number().min(0),
+  discount_percent: z.number().min(0).max(100).optional().default(0),
+  total_price: z.number().optional(),
+  notes: z.string().optional(),
 })
 
 export const createBudgetSchema = z.object({

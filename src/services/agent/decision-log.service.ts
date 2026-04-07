@@ -65,8 +65,8 @@ class DecisionLogService {
 
   async logDecision(params: CreateDecisionLogParams): Promise<string> {
     try {
-      const { data, error } = await (await this.client)
-        .from('decision_logs')
+      const { data, error } = await ((await this.client)
+        .from('decision_logs') as any)
         .insert({
           clinic_id: params.clinicId,
           conversation_id: params.conversationId ?? null,

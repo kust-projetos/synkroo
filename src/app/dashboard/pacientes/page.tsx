@@ -181,7 +181,7 @@ export default function PatientsPage() {
                       {patient.email || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(patient.last_visit)}
+                      {formatDate(patient.last_visit_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex flex-wrap gap-1">
@@ -193,9 +193,9 @@ export default function PatientsPage() {
                             {tag}
                           </span>
                         ))}
-                        {patient.tags?.length > 3 && (
+                        {(patient.tags?.length ?? 0) > 3 && (
                           <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                            +{patient.tags.length - 3}
+                            +{(patient.tags?.length ?? 0) - 3}
                           </span>
                         )}
                       </div>

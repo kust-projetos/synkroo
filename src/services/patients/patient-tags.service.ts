@@ -96,8 +96,8 @@ export async function addPatientTag(
 
     const newTags = [...currentTags, tag]
 
-    const { error: updateError } = await supabase
-      .from('patients')
+    const { error: updateError } = await (supabase
+      .from('patients') as any)
       .update({ tags: newTags, updated_at: new Date().toISOString() })
       .eq('id', patientId)
 
@@ -131,8 +131,8 @@ export async function removePatientTag(
     const currentTags: string[] = (patient as any).tags || []
     const newTags = currentTags.filter((t) => t !== tag)
 
-    const { error: updateError } = await supabase
-      .from('patients')
+    const { error: updateError } = await (supabase
+      .from('patients') as any)
       .update({ tags: newTags, updated_at: new Date().toISOString() })
       .eq('id', patientId)
 
@@ -155,8 +155,8 @@ export async function setPatientTags(
   const supabase = await createTypedClient()
 
   try {
-    const { error } = await supabase
-      .from('patients')
+    const { error } = await (supabase
+      .from('patients') as any)
       .update({ tags, updated_at: new Date().toISOString() })
       .eq('id', patientId)
 

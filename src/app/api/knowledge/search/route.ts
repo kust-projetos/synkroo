@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     // Search using RPC function
     const supabase = await createTypedClient()
-    const { data, error } = await supabase.rpc('search_knowledge_base', {
+    const { data, error } = await (supabase as any).rpc('search_knowledge_base', {
       query_embedding: embedding,
       p_clinic_id: clinicId,
       match_threshold: threshold || 0.7,

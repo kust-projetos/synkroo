@@ -85,8 +85,8 @@ export class AgentService {
           registrationOverride = registration.suggestedReply
           // Update conversation with new patient if created
           if (registration.patientId) {
-            await (await this.serverClient)
-              .from('conversations')
+            await ((await this.serverClient)
+              .from('conversations') as any)
               .update({ patient_id: registration.patientId })
               .eq('id', conversationId)
           }
@@ -214,11 +214,13 @@ export class AgentService {
     metadata?: Record<string, unknown>
   ): Promise<AgentContext> {
     // Get conversation
-    const { data: conversation, error: convError } = await (await this.serverClient)
+    const convResult = await (await this.serverClient)
       .from('conversations')
       .select('*')
       .eq('id', conversationId)
-      .single()
+      .single() as { data: Record<string, any> | null; error: any }
+    const conversation = convResult.data
+    const convError = convResult.error
 
     if (convError || !conversation) {
       dbLogger.error('Conversation not found', convError, { conversationId })
@@ -358,8 +360,8 @@ export class AgentService {
     conversationId: string,
     status: Conversation['status']
   ): Promise<void> {
-    await (await this.serverClient)
-      .from('conversations')
+    await ((await this.serverClient)
+      .from('conversations') as any)
       .update({ status })
       .eq('id', conversationId)
   }
@@ -387,8 +389,8 @@ export class AgentService {
     })
 
     // Store message in database
-    const { data, error } = await (await this.serverClient)
-      .from('messages')
+    const { data, error } = await ((await this.serverClient)
+      .from('messages') as any)
       .insert({
         conversation_id: conversationId,
         direction,

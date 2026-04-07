@@ -22,12 +22,6 @@ export default function ProcedimentosPage() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchProcedures()
-    }
-  }, [profile?.clinic_id, fetchProcedures])
-
   const fetchProcedures = async () => {
     try {
       const response = await fetch(`/api/procedures?clinic_id=${profile?.clinic_id}`)
@@ -41,6 +35,12 @@ export default function ProcedimentosPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (profile?.clinic_id) {
+      fetchProcedures()
+    }
+  }, [profile?.clinic_id])
 
   const filteredProcedures = procedures.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())

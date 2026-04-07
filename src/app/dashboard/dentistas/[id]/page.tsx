@@ -34,12 +34,6 @@ export default function DentistaDetalhePage() {
     cro_number: '',
   })
 
-  useEffect(() => {
-    if (dentistId) {
-      fetchDentist()
-    }
-  }, [dentistId, fetchDentist])
-
   const fetchDentist = async () => {
     try {
       const response = await fetch(`/api/dentists/${dentistId}?clinic_id=${profile?.clinic_id}`)
@@ -60,6 +54,12 @@ export default function DentistaDetalhePage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (dentistId) {
+      fetchDentist()
+    }
+  }, [dentistId])
 
   const handleUpdate = async () => {
     try {

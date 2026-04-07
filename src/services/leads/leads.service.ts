@@ -185,8 +185,8 @@ export async function createLead(params: {
       previousPatient: !!params.patientId,
     })
 
-    const { data: lead, error } = await supabase
-      .from('leads')
+    const { data: lead, error } = await (supabase
+      .from('leads') as any)
       .insert({
         clinic_id: params.clinicId,
         patient_id: params.patientId || null,
@@ -294,8 +294,8 @@ export async function updateLeadStatus(
       updateData.notes = notes
     }
 
-    const { data: lead, error } = await supabase
-      .from('leads')
+    const { data: lead, error } = await (supabase
+      .from('leads') as any)
       .update(updateData)
       .eq('id', leadId)
       .select()
@@ -383,7 +383,7 @@ export async function qualifyLead(
       updated_at: new Date().toISOString(),
     }
 
-    await supabase.from('leads').update(updateData).eq('id', leadId)
+    await (supabase.from('leads') as any).update(updateData).eq('id', leadId)
 
     // Trigger hot lead notification if score crossed threshold
     if (previousScore < 70 && scoreResult.score >= 70) {
@@ -442,8 +442,8 @@ export async function convertLeadToPatient(
   const supabase = await createTypedClient()
 
   try {
-    const { error } = await supabase
-      .from('leads')
+    const { error } = await (supabase
+      .from('leads') as any)
       .update({
         patient_id: patientId,
         status: 'converted',
@@ -477,7 +477,7 @@ export async function getLeadStats(clinicId: string): Promise<{
     const { data: leads, error } = await supabase
       .from('leads')
       .select('status, temperature, score')
-      .eq('clinic_id', clinicId)
+      .eq('clinic_id', clinicId) as any
 
     if (error) throw error
 
@@ -500,14 +500,14 @@ export async function getLeadStats(clinicId: string): Promise<{
     let totalScore = 0
     let converted = 0
 
-    for (const lead of leads || []) {
+    for (const lead of (leads as any[]) || []) {
       byStatus[lead.status as LeadStatus]++
       byTemperature[lead.temperature as LeadTemperature]++
       totalScore += lead.score || 0
       if (lead.status === 'converted') converted++
     }
 
-    const total = leads?.length || 0
+    const total = (leads as any[])?.length || 0
 
     return {
       total,

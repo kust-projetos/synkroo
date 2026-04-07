@@ -60,7 +60,7 @@ export async function POST() {
       GRANT EXECUTE ON FUNCTION public.get_user_clinic_id() TO authenticated;
     `
 
-    const { error } = await supabaseAdmin.rpc('exec_sql', { sql_query: sql })
+    const { error } = await (supabaseAdmin as any).rpc('exec_sql' as any, { sql_query: sql } as any)
 
     if (error) {
       // Try executing via direct query
@@ -81,7 +81,7 @@ export async function POST() {
       const results = []
       for (const stmt of statements) {
         try {
-          const { error: stmtError } = await supabaseAdmin.rpc('exec', { sql: stmt })
+          const { error: stmtError } = await (supabaseAdmin as any).rpc('exec' as any, { sql: stmt } as any)
           results.push({ statement: stmt, success: !stmtError, error: stmtError?.message })
         } catch (e) {
           results.push({ statement: stmt, success: false, error: String(e) })

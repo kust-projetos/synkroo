@@ -28,6 +28,7 @@ export async function POST(request: NextRequest) {
     const {
       message,
       patient_id,
+      conversation_history = [],
     } = body
 
     if (!message || !patient_id) {
@@ -248,7 +249,7 @@ async function handleSchedulingIntent(
       .select('id, name')
       .eq('clinic_id', clinicId)
       .ilike('name', `%${entities.procedimento}%`)
-      .single()
+      .single() as { data: { id: string; name: string } | null }
 
     if (procedure) {
       procedureId = procedure.id
@@ -261,11 +262,11 @@ async function handleSchedulingIntent(
     .from('patients')
     .select('name')
     .eq('id', patientId)
-    .single()
+    .single() as { data: { name: string } | null }
 
   // Create the appointment
-  const { data: appointment, error } = await supabase
-    .from('appointments')
+  const insertResult = await (supabase
+    .from('appointments') as any)
     .insert({
       clinic_id: clinicId,
       patient_id: patientId,
@@ -281,6 +282,8 @@ async function handleSchedulingIntent(
       procedures (name)
     `)
     .single()
+  const appointment = insertResult.data
+  const error = insertResult.error
 
   if (error) {
     dbLogger.error('Error creating appointment', error)
@@ -332,7 +335,7 @@ async function handleConfirmationIntent(
     .gte('scheduled_at', new Date().toISOString())
     .order('scheduled_at', { ascending: true })
     .limit(1)
-    .single()
+    .single() as { data: { id: string; scheduled_at: string; status: string } | null }
 
   if (!appointment) {
     return NextResponse.json({
@@ -344,8 +347,7 @@ async function handleConfirmationIntent(
   }
 
   // Update status to confirmed
-  await supabase
-    .from('appointments')
+  await (supabase.from('appointments') as any)
     .update({ status: 'confirmed' })
     .eq('id', appointment.id)
 
@@ -394,23 +396,24 @@ async function handleQuestionIntent(
   clinicId: string,
   message: string,
   entities: Record<string, string | null>,
-  conversationHistory: Array<{ role: string; content: string }>
+  _conversationHistory: Array<{ role: string; content: string }>
 ): Promise<NextResponse> {
   // Get clinic procedures for context
   const { data: procedures } = await supabase
     .from('procedures')
     .select('name, description, price, duration_minutes')
     .eq('clinic_id', clinicId)
-    .eq('is_active', true)
+    .eq('is_active', true) as { data: Array<{ name: string; description: string | null; price: number | null; duration_minutes: number | null }> | null }
 
   // Generate response using configured LLM provider
   const llm = getLLMProvider()
   const response = await llm.generateResponse(message, {
     intent: 'duvida',
     entities,
+    conversationHistory: [],
     clinicInfo: {
       name: 'Nossa clínica',
-      procedures: procedures?.map(p => p.name) || [],
+      procedures: (procedures || []).map(p => p.name),
     },
   })
 

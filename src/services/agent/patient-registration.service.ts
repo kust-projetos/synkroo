@@ -80,8 +80,8 @@ export async function createMinimalPatient(params: {
   const supabase = await createTypedClient()
 
   try {
-    const { data, error } = await supabase
-      .from('patients')
+    const { data, error } = await (supabase
+      .from('patients') as any)
       .insert({
         clinic_id: params.clinicId,
         name: params.name,
@@ -131,8 +131,8 @@ export async function updatePatientInfo(
     if (updates.cpf) updateData.cpf = updates.cpf
     if (updates.birth_date) updateData.birth_date = updates.birth_date
 
-    const { error } = await supabase
-      .from('patients')
+    const { error } = await (supabase
+      .from('patients') as any)
       .update(updateData)
       .eq('id', patientId)
 
@@ -161,8 +161,8 @@ export async function markRegistrationComplete(patientId: string): Promise<boole
     const currentTags: string[] = (patient as any)?.tags || []
     const newTags = currentTags.filter((t) => t !== 'Cadastro Incompleto')
 
-    const { error } = await supabase
-      .from('patients')
+    const { error } = await (supabase
+      .from('patients') as any)
       .update({ tags: newTags, updated_at: new Date().toISOString() })
       .eq('id', patientId)
 

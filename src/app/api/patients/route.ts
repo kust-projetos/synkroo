@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       .select('id')
       .eq('clinic_id', clinicId)
       .eq('phone', cleanPhone)
-      .single()
+      .single() as { data: { id: string } | null }
 
     if (existingPatient) {
       return NextResponse.json(
@@ -99,8 +99,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Create patient — clinic_id from authenticated session
-    const { data: patient, error } = await supabase
-      .from('patients')
+    const { data: patient, error } = await (supabase
+      .from('patients') as any)
       .insert({
         clinic_id: clinicId,
         name: name.trim(),

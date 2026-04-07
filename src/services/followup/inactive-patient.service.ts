@@ -88,7 +88,7 @@ export async function identifyInactivePatients(
       )
     `)
     .eq('clinic_id', clinicId)
-    .or(`last_visit.is.null,last_visit.lte.${cutoffDate.toISOString()}`)
+    .or(`last_visit.is.null,last_visit.lte.${cutoffDate.toISOString()}`) as any
 
   if (error) {
     dbLogger.error('Error identifying inactive patients', error)
@@ -97,26 +97,26 @@ export async function identifyInactivePatients(
 
   const inactivePatients: InactivePatient[] = []
 
-  for (const patient of patients || []) {
-    const daysSince = calculateDaysSinceLastVisit(patient.last_visit)
+  for (const patient of (patients as any[]) || []) {
+    const daysSince = calculateDaysSinceLastVisit((patient as any).last_visit)
     const segment = getInactivitySegment(daysSince)
 
     if (!segment) continue
 
     // Get last completed appointment procedure
-    const lastCompletedAppointment = patient.appointments
+    const lastCompletedAppointment = (patient as any).appointments
       ?.filter((a: any) => a.status === 'completed')
       .sort((a: any, b: any) =>
         new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
       )[0] as any
 
     // Count total visits
-    const totalVisits = patient.appointments?.filter((a: any) =>
+    const totalVisits = (patient as any).appointments?.filter((a: any) =>
       ['completed', 'confirmed'].includes(a.status)
     ).length || 0
 
     // Extract clinic name - handle both array and object from join
-    const clinicData = patient.clinics as any
+    const clinicData = (patient as any).clinics as any
     const clinicName = Array.isArray(clinicData) ? (clinicData[0]?.name || '') : (clinicData?.name || '')
 
     // Extract procedure name - handle both array and object from join
@@ -124,17 +124,17 @@ export async function identifyInactivePatients(
     const lastProcedure = Array.isArray(procedureData) ? procedureData[0]?.name : procedureData?.name
 
     inactivePatients.push({
-      patientId: patient.id,
-      patientName: patient.name,
-      patientPhone: patient.phone,
-      lastVisit: patient.last_visit ? new Date(patient.last_visit) : null,
+      patientId: (patient as any).id,
+      patientName: (patient as any).name,
+      patientPhone: (patient as any).phone,
+      lastVisit: (patient as any).last_visit ? new Date((patient as any).last_visit) : null,
       daysSinceLastVisit: daysSince,
       inactivitySegment: segment.segment as InactivePatient['inactivitySegment'],
-      clinicId: patient.clinic_id,
+      clinicId: (patient as any).clinic_id,
       clinicName,
       totalVisits,
       lastProcedure,
-      riskScore: patient.risk_score || 0,
+      riskScore: (patient as any).risk_score || 0,
     })
   }
 
@@ -169,9 +169,9 @@ export async function updateInactivePatientTags(
       .from('patients')
       .select('tags')
       .eq('id', patient.patientId)
-      .single()
+      .single() as any
 
-    const currentTags = currentPatient?.tags || []
+    const currentTags = (currentPatient as any)?.tags || []
 
     // Remove old inactivity tags
     const cleanedTags = currentTags.filter((tag: string) =>
@@ -182,8 +182,8 @@ export async function updateInactivePatientTags(
     const newTags = [...cleanedTags, segment.label]
 
     // Update patient
-    const { error } = await supabase
-      .from('patients')
+    const { error } = await (supabase
+      .from('patients') as any)
       .update({ tags: newTags })
       .eq('id', patient.patientId)
 
@@ -270,9 +270,9 @@ export async function runInactivityDetection(): Promise<void> {
   // Get all clinics
   const { data: clinics } = await supabase
     .from('clinics')
-    .select('id')
+    .select('id') as any
 
-  for (const clinic of clinics || []) {
+  for (const clinic of (clinics as any[]) || []) {
     const result = await updateInactivePatientTags(clinic.id)
     dbLogger.info(`Clinic ${clinic.id} updated`, { updated: result.updated, errors: result.errors })
   }

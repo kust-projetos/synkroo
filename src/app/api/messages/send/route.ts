@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
 
     if (!conversation) {
       // Create new conversation
-      const { data: newConv, error: createError } = await serverClient
-        .from('conversations')
+      const { data: newConv, error: createError } = await (serverClient
+        .from('conversations') as any)
         .insert({
           clinic_id: clinicId,
           channel,
@@ -91,8 +91,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Store outbound message
-    const { data: savedMessage, error: msgError } = await serverClient
-      .from('messages')
+    const { data: savedMessage, error: msgError } = await (serverClient
+      .from('messages') as any)
       .insert({
         conversation_id: conversation.id,
         direction: 'outbound',
@@ -134,8 +134,8 @@ export async function POST(request: NextRequest) {
 
     // Update message with delivery status
     if (deliveryStatus !== 'pending') {
-      await serverClient
-        .from('messages')
+      await (serverClient
+        .from('messages') as any)
         .update({
           metadata: {
             delivery_status: deliveryStatus,
@@ -147,8 +147,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Update conversation last_message_at
-    await serverClient
-      .from('conversations')
+    await (serverClient
+      .from('conversations') as any)
       .update({ last_message_at: new Date().toISOString() })
       .eq('id', conversation?.id)
 

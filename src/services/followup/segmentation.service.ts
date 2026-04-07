@@ -47,8 +47,8 @@ export async function createSegment(params: {
     // Preview patient count first
     const patientCount = await previewSegmentSize(params.clinicId, params.criteria)
 
-    const { data, error } = await supabase
-      .from('campaign_segments')
+    const { data, error } = await (supabase
+      .from('campaign_segments') as any)
       .insert({
         clinic_id: params.clinicId,
         name: params.name,

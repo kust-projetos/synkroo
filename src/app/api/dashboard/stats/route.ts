@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       .select('id, status')
       .eq('clinic_id', clinicId)
       .gte('scheduled_at', today)
-      .lt('scheduled_at', today + 'T23:59:59')
+      .lt('scheduled_at', today + 'T23:59:59') as { data: Array<{ id: string; status: string }> | null; error: any }
 
     if (todayError) {
       dbLogger.error('Error fetching today appointments', todayError)
@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
       .from('appointments')
       .select('status')
       .eq('clinic_id', clinicId)
-      .gte('created_at', thirtyDaysAgo.toISOString())
+      .gte('created_at', thirtyDaysAgo.toISOString()) as { data: Array<{ status: string }> | null; error: any }
 
     if (recentError) {
       dbLogger.error('Error fetching recent appointments', recentError)

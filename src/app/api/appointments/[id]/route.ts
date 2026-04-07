@@ -142,8 +142,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (status !== undefined) updateData.status = status
     if (notes !== undefined) updateData.notes = notes
 
-    const { data: appointment, error } = await supabase
-      .from('appointments')
+    const { data: appointment, error } = await (supabase
+      .from('appointments') as any)
       .update(updateData)
       .eq('id', id)
       .eq('clinic_id', clinicId)

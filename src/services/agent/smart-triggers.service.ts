@@ -144,7 +144,7 @@ class SmartTriggersService {
   }
 
   async logTrigger(params: LogTriggerParams): Promise<void> {
-    const { error } = await (await this.client).from('smart_trigger_log').insert({
+    const { error } = await ((await this.client).from('smart_trigger_log') as any).insert({
       clinic_id: params.clinicId, patient_id: params.patientId,
       appointment_id: params.appointmentId ?? null,
       trigger_type: params.triggerType,
@@ -156,7 +156,7 @@ class SmartTriggersService {
   }
 
   async recordResponse(triggerLogId: string, response: string): Promise<void> {
-    const { error } = await (await this.client).from('smart_trigger_log').update({
+    const { error } = await ((await this.client).from('smart_trigger_log') as any).update({
       patient_responded: true, response_at: new Date().toISOString(), patient_response: response,
     }).eq('id', triggerLogId)
     if (error) dbLogger.error('Failed to record trigger response', error, { triggerLogId })
@@ -190,12 +190,12 @@ class SmartTriggersService {
         .from('patients')
         .select('name, phone')
         .eq('id', appt.patient_id)
-        .single()
+        .single() as { data: { name: string; phone: string } | null }
       const { data: clinic } = await (await this.client)
         .from('clinics')
         .select('name, phone')
         .eq('id', appt.clinic_id)
-        .single()
+        .single() as { data: { name: string; phone: string } | null }
       if (!patient?.phone) { summary.skipped++; continue }
 
       const canSend = await this.checkCooldown(appt.patient_id, triggerType, config.cooldownMinutes)
@@ -266,8 +266,8 @@ class SmartTriggersService {
           .from('clinics')
           .select('name, phone')
           .eq('id', p.clinic_id)
-          .single()
-        const clinic = clinicRow as any
+          .single() as { data: { name: string; phone: string } | null }
+        const clinic = clinicRow
         const daysSince = Math.floor((Date.now() - new Date(p.last_visit_at).getTime()) / 86_400_000)
         const data: TriggerData = {
           patientName: p.name, patientPhone: p.phone,

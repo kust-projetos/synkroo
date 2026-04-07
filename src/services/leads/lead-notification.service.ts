@@ -98,9 +98,9 @@ async function getResponsiblePhone(
       .from('users')
       .select('phone')
       .eq('id', assignedTo)
-      .single()
+      .single() as any
 
-    if (user?.phone) return user.phone
+    if ((user as any)?.phone) return (user as any).phone
   }
 
   // Fallback to clinic owner/admin
@@ -111,7 +111,7 @@ async function getResponsiblePhone(
     .in('role', ['owner', 'admin'])
     .eq('is_active', true)
     .limit(1)
-    .single()
+    .single() as any
 
   return admin?.phone ?? null
 }
@@ -147,8 +147,8 @@ async function storeNotification(params: {
 }): Promise<LeadNotification | null> {
   const supabase = await createTypedClient()
 
-  const { data, error } = await supabase
-    .from('lead_notifications')
+  const { data, error } = await (supabase
+    .from('lead_notifications') as any)
     .insert({
       lead_id: params.leadId,
       clinic_id: params.clinicId,
@@ -319,15 +319,15 @@ export async function checkAllClinicsHotLeads(): Promise<void> {
     const { data: clinics, error } = await supabase
       .from('clinics')
       .select('id')
-      .limit(100)
+      .limit(100) as any
 
     if (error) throw error
 
     logger.info('Scanning hot leads across clinics', {
-      clinicCount: clinics?.length ?? 0,
+      clinicCount: (clinics as any[])?.length ?? 0,
     })
 
-    for (const clinic of clinics || []) {
+    for (const clinic of (clinics as any[]) || []) {
       await checkAndNotifyHotLeads(clinic.id)
     }
   } catch (error) {
@@ -342,8 +342,8 @@ export async function acknowledgeNotification(notificationId: string): Promise<b
   const supabase = await createTypedClient()
 
   try {
-    const { error } = await supabase
-      .from('lead_notifications')
+    const { error } = await (supabase
+      .from('lead_notifications') as any)
       .update({
         acknowledged: true,
         acknowledged_at: new Date().toISOString(),

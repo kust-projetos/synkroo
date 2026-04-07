@@ -192,7 +192,7 @@ export async function getAvailableSlots(
     .from('clinics')
     .select('settings')
     .eq('id', clinicId)
-    .single()
+    .single() as any
 
   const defaultHours = {
     start: '08:00',
@@ -227,7 +227,7 @@ export async function getAvailableSlots(
     .from('dentists')
     .select('id, name')
     .eq('clinic_id', clinicId)
-    .eq('is_active', true)
+    .eq('is_active', true) as any
 
   const dentistMap = new Map<string, string>(dentists?.map((d: any) => [d.id, d.name]) || [])
 
@@ -372,7 +372,7 @@ export async function createAppointmentFromContext(
         .select('id')
         .eq('clinic_id', context.clinicId)
         .ilike('name', `%${context.appointmentRequest.procedure}%`)
-        .single()
+        .single() as any
       procedureId = procedure?.id || null
     }
 
@@ -384,12 +384,12 @@ export async function createAppointmentFromContext(
         .select('id')
         .eq('clinic_id', context.clinicId)
         .ilike('name', `%${context.appointmentRequest.dentist}%`)
-        .single()
+        .single() as any
       dentistId = dentist?.id || null
     }
 
-    const { data: appointment, error } = await supabase
-      .from('appointments')
+    const { data: appointment, error } = await (supabase
+      .from('appointments') as any)
       .insert({
         clinic_id: context.clinicId,
         patient_id: context.patientId,
