@@ -36,7 +36,7 @@ describe('LLM Provider Factory', () => {
 
       // Debug what was actually called
       expect(OpenAICompatProvider).toHaveBeenCalled()
-      const callArgs = OpenAICompatProvider.mock.calls[0]
+      const callArgs = (OpenAICompatProvider as any).mock.calls[0]
       expect(callArgs[0]).toBe('MiniMax')
       expect(callArgs[1].apiUrl).toBe('https://api.minimax.io/v1/text/chatcompletion_v2')
       expect(callArgs[1].apiKey).toBe('')

@@ -267,9 +267,7 @@ describe('Auth API Endpoints', () => {
       it('deve retornar 200 quando logout é bem sucedido', async () => {
         mockSupabase.auth.signOut.mockResolvedValue({ error: null })
 
-        const request = createMockRequest({}, 'POST')
-
-        const response = await LogoutPOST(request)
+        const response = await LogoutPOST()
         const body = await response.json()
 
         expect(response.status).toBe(200)
@@ -283,9 +281,7 @@ describe('Auth API Endpoints', () => {
           error: { message: 'Failed to sign out' },
         })
 
-        const request = createMockRequest({}, 'POST')
-
-        const response = await LogoutPOST(request)
+        const response = await LogoutPOST()
         const body = await response.json()
 
         expect(response.status).toBe(400)
@@ -298,9 +294,7 @@ describe('Auth API Endpoints', () => {
     describe('3. Refresh token válido - deve retornar novo access token', () => {
       it('deve retornar sessão válida quando token é válido', async () => {
         // sessionUser and sessionProfile already set to mock data in beforeEach
-        const request = createMockRequest({}, 'GET')
-
-        const response = await SessionGET(request)
+        const response = await SessionGET()
         const body = await response.json()
 
         expect(response.status).toBe(200)
@@ -311,9 +305,7 @@ describe('Auth API Endpoints', () => {
 
       it('deve retornar perfil do usuário junto com sessão', async () => {
         // sessionUser and sessionProfile already set to mock data in beforeEach
-        const request = createMockRequest({}, 'GET')
-
-        const response = await SessionGET(request)
+        const response = await SessionGET()
         const body = await response.json()
 
         expect(response.status).toBe(200)
@@ -328,9 +320,7 @@ describe('Auth API Endpoints', () => {
         sessionUser = null as any
         sessionProfile = null as any
 
-        const request = createMockRequest({}, 'GET')
-
-        const response = await SessionGET(request)
+        const response = await SessionGET()
         const body = await response.json()
 
         expect(response.status).toBe(200)
@@ -348,9 +338,7 @@ describe('Auth API Endpoints', () => {
         sessionUser = null as any
         sessionProfile = null as any
 
-        const request = createMockRequest({}, 'GET')
-
-        const response = await SessionGET(request)
+        const response = await SessionGET()
         const body = await response.json()
 
         // Token reuse detection - session endpoint should return unauthenticated
@@ -363,9 +351,7 @@ describe('Auth API Endpoints', () => {
         sessionUser = null as any
         sessionProfile = null as any
 
-        const request = createMockRequest({}, 'GET')
-
-        const response = await SessionGET(request)
+        const response = await SessionGET()
         const body = await response.json()
 
         expect(body.authenticated).toBe(false)
