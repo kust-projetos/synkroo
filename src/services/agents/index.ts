@@ -6,6 +6,13 @@
 export * from './types'
 export * from './base.agent'
 
+// Agents
+export * from './orchestrator.agent'
+export * from './router.agent'
+export * from './scheduler.agent'
+export * from './sales.agent'
+export * from './generalist.agent'
+
 // Prompts
 export * from './prompts/router.prompt'
 export * from './prompts/scheduler.prompt'
