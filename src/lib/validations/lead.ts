@@ -1,0 +1,31 @@
+import { z } from 'zod'
+import { emailSchema, phoneSchema } from './common'
+
+export const leadSourceEnum = z.enum([
+  'whatsapp',
+  'instagram',
+  'website',
+  'referral',
+  'manual',
+  'other',
+])
+
+// --- Create lead ---
+export const createLeadSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200),
+  phone: phoneSchema,
+  email: emailSchema.optional().nullable(),
+  source: leadSourceEnum.optional(),
+  interest: z.string().max(500).optional().nullable(),
+  patientId: z.string().uuid().optional().nullable(),
+  notes: z.string().max(2000).optional().nullable(),
+})
+
+// --- Update lead ---
+export const updateLeadSchema = z.object({
+  status: z.enum(['new', 'contacted', 'qualified', 'proposal', 'negotiation', 'won', 'lost']).optional(),
+  notes: z.string().max(2000).optional().nullable(),
+  hasBudget: z.boolean().optional(),
+  hasTimeline: z.boolean().optional(),
+  interest: z.string().max(500).optional().nullable(),
+})

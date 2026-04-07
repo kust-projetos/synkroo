@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synkroo - Conversas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 300: '#86efac',
+                            400: '#4ade80', 500: '#22c55e', 600: '#16a34a', 700: '#15803d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-50 font-sans antialiased">
+    <div class="min-h-screen flex">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-slate-200 flex flex-col fixed h-full z-20">
+            <div class="h-16 flex items-center px-6 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center">
+                        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                    </div>
+                    <span class="text-xl font-bold text-slate-900">Synkroo</span>
+                </div>
+            </div>
+            <nav class="flex-1 px-3 py-4 space-y-1">
+                <a href="dashboard-v2.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="agenda.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    Agenda
+                </a>
+                <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-primary-50 text-primary-700 font-medium">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                    Conversas
+                    <span class="ml-auto bg-primary-500 text-white text-xs font-medium px-2 py-0.5 rounded-full">12</span>
+                </a>
+                <a href="pacientes.html" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-600 hover:bg-slate-50">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    Pacientes
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 ml-64 flex">
+            <!-- Conversations List -->
+            <div class="w-80 bg-white border-r border-slate-200 flex flex-col">
+                <div class="p-4 border-b border-slate-100">
+                    <div class="relative">
+                        <svg class="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                        <input type="text" placeholder="Buscar conversas..." class="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="flex gap-2 p-4 border-b border-slate-100">
+                    <button class="px-3 py-1.5 text-xs font-medium bg-primary-100 text-primary-700 rounded-full">Todas</button>
+                    <button class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-full">WhatsApp</button>
+                    <button class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-full">Instagram</button>
+                    <button class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-full">Humanos</button>
+                </div>
+
+                <!-- Conversation List -->
+                <div class="flex-1 overflow-y-auto">
+                    <!-- Active conversation -->
+                    <div class="p-4 bg-primary-50 border-l-4 border-primary-500 cursor-pointer">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                                <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="font-medium text-slate-900">Maria Silva</p>
+                                    <span class="text-xs text-slate-500">10:35</span>
+                                </div>
+                                <p class="text-sm text-slate-600 truncate">Perfeito! Confirmado para quinta às 9h</p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="px-1.5 py-0.5 text-xs bg-green-100 text-green-700 rounded">Agendamento</span>
+                                    <span class="w-2 h-2 rounded-full bg-primary-500"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Other conversations -->
+                    <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="font-medium text-slate-900">João Pedro</p>
+                                    <span class="text-xs text-slate-500">09:22</span>
+                                </div>
+                                <p class="text-sm text-slate-600 truncate">Quanto custa o tratamento de canal?</p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded">Lead</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="font-medium text-slate-900">Ana Costa</p>
+                                    <span class="text-xs text-slate-500">08:45</span>
+                                </div>
+                                <p class="text-sm text-slate-600 truncate">Não sei se vou conseguir ir amanhã...</p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="px-1.5 py-0.5 text-xs bg-red-100 text-red-700 rounded">Risco</span>
+                                    <span class="text-xs text-red-600 font-medium">Atenção necessária</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                <span class="text-sm font-semibold text-purple-700">CL</span>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="font-medium text-slate-900">Carlos Lima</p>
+                                    <span class="text-xs text-slate-500">Ontem</span>
+                                </div>
+                                <p class="text-sm text-slate-600 truncate">Muito obrigado pelo atendimento!</p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="px-1.5 py-0.5 text-xs bg-slate-100 text-slate-600 rounded">Concluído</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Escalated to human -->
+                    <div class="p-4 hover:bg-slate-50 cursor-pointer border-b border-slate-100 bg-amber-50">
+                        <div class="flex items-start gap-3">
+                            <div class="w-10 h-10 rounded-full bg-amber-500 flex items-center justify-center">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                </svg>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center justify-between mb-1">
+                                    <p class="font-medium text-slate-900">Roberto Fernandes</p>
+                                    <span class="text-xs text-slate-500">Ontem</span>
+                                </div>
+                                <p class="text-sm text-slate-600 truncate">Quero falar com um atendente humano</p>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="px-1.5 py-0.5 text-xs bg-amber-100 text-amber-700 rounded font-medium">Escalonado</span>
+                                    <span class="text-xs text-amber-600">Aguardando resposta</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat Area -->
+            <div class="flex-1 flex flex-col">
+                <!-- Chat Header -->
+                <div class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
+                            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <p class="font-medium text-slate-900">Maria Silva</p>
+                            <p class="text-xs text-slate-500">+55 11 99999-8888 · Paciente</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">Agendamento confirmado</span>
+                        <button class="p-2 hover:bg-slate-100 rounded-lg">
+                            <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Messages -->
+                <div class="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100">
+                    <!-- Date separator -->
+                    <div class="flex items-center gap-4">
+                        <div class="flex-1 h-px bg-slate-300"></div>
+                        <span class="text-xs text-slate-500 font-medium">Hoje</span>
+                        <div class="flex-1 h-px bg-slate-300"></div>
+                    </div>
+
+                    <!-- Incoming message -->
+                    <div class="flex gap-3 max-w-lg">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="bg-white rounded-2xl rounded-tl-md p-4 shadow-sm">
+                                <p class="text-slate-800">Olá! Gostaria de marcar uma consulta para limpeza. Vocês têm horário essa semana?</p>
+                            </div>
+                            <span class="text-xs text-slate-400 mt-1 ml-2">10:32</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Response -->
+                    <div class="flex gap-3 max-w-lg ml-auto flex-row-reverse">
+                        <div class="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="bg-primary-500 text-white rounded-2xl rounded-tr-md p-4">
+                                <p>Olá Maria! Tudo bem? 😊</p>
+                                <p class="mt-2">Temos horários disponíveis essa semana:</p>
+                                <ul class="mt-2 space-y-1">
+                                    <li>• Quinta às 09:00</li>
+                                    <li>• Quinta às 15:00</li>
+                                    <li>• Sexta às 10:00</li>
+                                </ul>
+                                <p class="mt-2">Qual horário funciona melhor para você?</p>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1 mr-2 justify-end">
+                                <span class="text-xs text-slate-400">10:33</span>
+                                <span class="text-xs text-primary-500">Enviado por IA</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- User response -->
+                    <div class="flex gap-3 max-w-lg">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="bg-white rounded-2xl rounded-tl-md p-4 shadow-sm">
+                                <p class="text-slate-800">Quinta às 9h está ótimo!</p>
+                            </div>
+                            <span class="text-xs text-slate-400 mt-1 ml-2">10:34</span>
+                        </div>
+                    </div>
+
+                    <!-- AI Confirmation -->
+                    <div class="flex gap-3 max-w-lg ml-auto flex-row-reverse">
+                        <div class="w-8 h-8 rounded-full bg-primary-500 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="bg-primary-500 text-white rounded-2xl rounded-tr-md p-4">
+                                <p>Perfeito! Confirmando:</p>
+                                <div class="mt-2 p-3 bg-white/10 rounded-lg">
+                                    <p class="font-medium">📅 Quinta, 27 de Março</p>
+                                    <p>⏰ 09:00</p>
+                                    <p>🦷 Limpeza</p>
+                                    <p>👩‍⚕️ Dra. Ana Santos</p>
+                                </div>
+                                <p class="mt-2">Vou te enviar um lembrete no dia anterior. Alguma dúvida?</p>
+                            </div>
+                            <div class="flex items-center gap-2 mt-1 mr-2 justify-end">
+                                <span class="text-xs text-slate-400">10:35</span>
+                                <svg class="w-4 h-4 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Final confirmation -->
+                    <div class="flex gap-3 max-w-lg">
+                        <div class="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                            <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="bg-white rounded-2xl rounded-tl-md p-4 shadow-sm">
+                                <p class="text-slate-800">Perfeito! Confirmado para quinta às 9h. Obrigada! 😊</p>
+                            </div>
+                            <span class="text-xs text-slate-400 mt-1 ml-2">10:35</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="bg-white border-t border-slate-200 p-4">
+                    <div class="flex items-end gap-3">
+                        <button class="p-2 hover:bg-slate-100 rounded-lg">
+                            <svg class="w-5 h-5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                            </svg>
+                        </button>
+                        <div class="flex-1 relative">
+                            <textarea rows="1" placeholder="Digite sua mensagem..." class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"></textarea>
+                        </div>
+                        <button class="p-2.5 bg-primary-500 hover:bg-primary-600 rounded-xl transition-colors">
+                            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-400 mt-2 ml-1">IA ativa · Resposta automática habilitada</p>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+</html>

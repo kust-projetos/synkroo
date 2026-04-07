@@ -1,0 +1,289 @@
+<h2>UX Design Premium - Synkroo Dashboard</h2>
+<p class="subtitle">Design específico para cada persona com visualização do sistema 4+1</p>
+
+<div class="section">
+  <h3>Princípios de Design Aplicados</h3>
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px;">
+    <div style="padding: 12px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+      <strong>1. Valor Financeiro Visível</strong>
+      <div style="font-size: 13px; color: #92400e;">ROI em R$, não só métricas abstratas</div>
+    </div>
+    <div style="padding: 12px; background: #dbeafe; border-radius: 8px; border-left: 4px solid #2563eb;">
+      <strong>2. Agente como "Funcionário Digital"</strong>
+      <div style="font-size: 13px; color: #1e40af;">Visualizar qual agente está trabalhando</div>
+    </div>
+    <div style="padding: 12px; background: #d1fae5; border-radius: 8px; border-left: 4px solid #10b981;">
+      <strong>3. Predição de Risco</strong>
+      <div style="font-size: 13px; color: #065f46;">No-show score por paciente em tempo real</div>
+    </div>
+    <div style="padding: 12px; background: #faf5ff; border-radius: 8px; border-left: 4px solid #7c3aed;">
+      <strong>4. Persona-Specific</strong>
+      <div style="font-size: 13px; color: #5b21b6;">Dashboard muda conforme o usuário</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Dashboard Principal - Visão Dentista (Dono)</h3>
+
+  <div class="mockup" style="border: 2px solid #1e3a5f; background: #0f172a; color: #e2e8f0;">
+    <!-- Header Premium -->
+    <div style="background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="font-weight: bold; font-size: 20px; color: white;">
+          <span style="background: #10b981; padding: 4px 8px; border-radius: 4px; font-size: 14px; margin-right: 8px;">AI</span>
+          Synkroo
+        </div>
+        <div style="font-size: 13px; color: #93c5fd;">
+          🏥 Odonto Sorriso · Plano Growth
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="font-size: 12px; color: #86efac;">
+          ● Agente Online · 2s resposta
+        </div>
+        <div style="font-size: 13px; color: #e2e8f0;">
+          Dra. Ana Silva ▼
+        </div>
+      </div>
+    </div>
+
+    <div style="display: flex;">
+      <!-- Sidebar Premium -->
+      <div style="width: 220px; background: #1e293b; padding: 16px 0; border-right: 1px solid #334155;">
+        <!-- Agente Status Card -->
+        <div style="margin: 0 12px 16px; padding: 12px; background: linear-gradient(135deg, #065f46 0%, #047857 100%); border-radius: 8px;">
+          <div style="font-size: 11px; color: #86efac; margin-bottom: 4px;">AGENTE ATIVO</div>
+          <div style="font-size: 14px; font-weight: bold; color: white;">
+            🤖 Router
+          </div>
+          <div style="font-size: 11px; color: #d1fae5; margin-top: 4px;">
+            Confidence: 94%
+          </div>
+          <div style="display: flex; gap: 4px; margin-top: 8px;">
+            <div style="flex: 1; height: 4px; background: #10b981; border-radius: 2px;"></div>
+            <div style="flex: 1; height: 4px; background: #10b981; border-radius: 2px;"></div>
+            <div style="flex: 1; height: 4px; background: #10b981; border-radius: 2px;"></div>
+            <div style="flex: 1; height: 4px; background: #374151; border-radius: 2px;"></div>
+            <div style="flex: 1; height: 4px; background: #374151; border-radius: 2px;"></div>
+          </div>
+          <div style="font-size: 9px; color: #9ca3af; margin-top: 4px;">Scheduler · Sales · Generalist (lazy)</div>
+        </div>
+
+        <!-- Menu Items -->
+        <div style="padding: 10px 16px; background: #1e3a5f; border-left: 3px solid #3b82f6; font-weight: bold; font-size: 14px;">
+          📊 Dashboard
+        </div>
+        <div style="padding: 10px 16px; font-size: 14px; color: #94a3b8;">
+          💬 Conversas
+          <span style="background: #ef4444; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; margin-left: 4px;">3</span>
+        </div>
+        <div style="padding: 10px 16px; font-size: 14px; color: #94a3b8;">
+          📅 Agenda
+          <span style="color: #fbbf24; font-size: 10px; margin-left: 4px;">⚠️ 2 risco</span>
+        </div>
+        <div style="padding: 10px 16px; font-size: 14px; color: #94a3b8;">
+          👥 Pacientes
+        </div>
+        <div style="padding: 10px 16px; font-size: 14px; color: #94a3b8;">
+          📱 Canais
+        </div>
+        <div style="border-top: 1px solid #334155; margin: 8px 16px;"></div>
+        <div style="padding: 10px 16px; font-size: 14px; color: #94a3b8;">
+          🧠 Treinar Agente
+        </div>
+        <div style="padding: 10px 16px; font-size: 14px; color: #94a3b8;">
+          ⚙️ Configurações
+        </div>
+      </div>
+
+      <!-- Main Content -->
+      <div style="flex: 1; padding: 20px;">
+        <!-- ROI Hero Card -->
+        <div style="background: linear-gradient(135deg, #047857 0%, #059669 50%, #10b981 100%); border-radius: 12px; padding: 20px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-size: 14px; color: #d1fae5;">💰 ROI ESTE MÊS</div>
+            <div style="font-size: 36px; font-weight: bold; color: white; margin: 4px 0;">
+              R$ 14.780
+            </div>
+            <div style="font-size: 13px; color: #a7f3d0;">
+              ↑ 32% vs mês anterior · Payback em 5 dias
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 12px; color: #d1fae5;">INVESTIMENTO</div>
+            <div style="font-size: 20px; font-weight: bold; color: white;">R$ 1.250</div>
+            <div style="font-size: 11px; color: #a7f3d0;">Mensal + Tokens</div>
+            <div style="font-size: 9px; color: #86efac; margin-top: 4px;">11.8x de retorno</div>
+          </div>
+        </div>
+
+        <!-- KPI Cards -->
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;">
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; border: 1px solid #334155;">
+            <div style="font-size: 12px; color: #9ca3af;">🎯 No-show Evitado</div>
+            <div style="font-size: 28px; font-weight: bold; color: #10b981;">8</div>
+            <div style="font-size: 12px; color: #6ee7b7;">R$ 4.200 recuperado</div>
+          </div>
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; border: 1px solid #334155;">
+            <div style="font-size: 12px; color: #9ca3af;">📥 Leads Capturados</div>
+            <div style="font-size: 28px; font-weight: bold; color: #3b82f6;">23</div>
+            <div style="font-size: 12px; color: #93c5fd;">6 madrugada/fim de semana</div>
+          </div>
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; border: 1px solid #334155;">
+            <div style="font-size: 12px; color: #9ca3af;">🔄 Reativados</div>
+            <div style="font-size: 28px; font-weight: bold; color: #8b5cf6;">5</div>
+            <div style="font-size: 12px; color: #c4b5fd;">Pacientes inativos voltaram</div>
+          </div>
+          <div style="background: #1e293b; padding: 16px; border-radius: 8px; border: 1px solid #334155;">
+            <div style="font-size: 12px; color: #9ca3af;">⚡ Tokens Usados</div>
+            <div style="font-size: 28px; font-weight: bold; color: #f59e0b;">87k</div>
+            <div style="font-size: 12px; color: #fcd34d;">87% do budget · R$ 87</div>
+          </div>
+        </div>
+
+        <!-- Two Column Layout -->
+        <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 16px;">
+          <!-- Agent Activity -->
+          <div style="background: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 16px;">
+            <div style="font-weight: bold; margin-bottom: 12px; display: flex; justify-content: space-between;">
+              <span>🤖 O que o Agente fez hoje</span>
+              <span style="font-size: 12px; color: #6b7280;">47 conversas</span>
+            </div>
+            <div style="space-y: 8px;">
+              <div style="padding: 10px; background: #0f172a; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="background: #10b981; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: white;">SCHEDULER</span>
+                  <span style="margin-left: 8px; font-size: 13px;">Agendou limpeza com Maria</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">há 5min</span>
+              </div>
+              <div style="padding: 10px; background: #0f172a; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="background: #f59e0b; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: white;">SALES</span>
+                  <span style="margin-left: 8px; font-size: 13px;">Reativou paciente inativo - Carlos</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">há 12min</span>
+              </div>
+              <div style="padding: 10px; background: #0f172a; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="background: #3b82f6; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: white;">ROUTER</span>
+                  <span style="margin-left: 8px; font-size: 13px;">Confirmou consulta de João (amanhã 14h)</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">há 18min</span>
+              </div>
+              <div style="padding: 10px; background: #0f172a; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="background: #8b5cf6; padding: 2px 6px; border-radius: 4px; font-size: 10px; color: white;">GENERALIST</span>
+                  <span style="margin-left: 8px; font-size: 13px;">Respondeu FAQ sobre convênio</span>
+                </div>
+                <span style="font-size: 11px; color: #6b7280;">há 25min</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- No-show Risk Alert -->
+          <div style="background: #1e293b; border-radius: 8px; border: 1px solid #334155; padding: 16px;">
+            <div style="font-weight: bold; margin-bottom: 12px; display: flex; justify-content: space-between;">
+              <span>⚠️ Risco de No-show</span>
+              <span style="font-size: 12px; color: #fbbf24;">2 consultas</span>
+            </div>
+            <div style="padding: 10px; background: linear-gradient(90deg, #7f1d1d 0%, #991b1b 100%); border-radius: 6px; margin-bottom: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 13px; color: white; font-weight: bold;">Ana Paula</div>
+                  <div style="font-size: 11px; color: #fca5a5;">Hoje 15h · Canal com Dr. Paulo</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 18px; font-weight: bold; color: #fca5a5;">87%</div>
+                  <div style="font-size: 9px; color: #f87171;">ALTO RISCO</div>
+                </div>
+              </div>
+              <div style="margin-top: 8px; font-size: 10px; color: #fecaca;">
+                ⚡ Já faltou 2x · Confirmou tardiamente
+              </div>
+            </div>
+            <div style="padding: 10px; background: linear-gradient(90deg, #78350f 0%, #92400e 100%); border-radius: 6px;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <div style="font-size: 13px; color: white; font-weight: bold;">Pedro Santos</div>
+                  <div style="font-size: 11px; color: #fde68a;">Amanhã 10h · Clareamento</div>
+                </div>
+                <div style="text-align: right;">
+                  <div style="font-size: 18px; font-weight: bold; color: #fde68a;">64%</div>
+                  <div style="font-size: 9px; color: #fcd34d;">MÉDIO</div>
+                </div>
+              </div>
+            </div>
+            <div style="margin-top: 12px; font-size: 11px; color: #9ca3af;">
+              💡 Agente vai reforçar confirmação automaticamente
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Melhorias Implementadas</h3>
+  <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+    <div style="padding: 12px; background: #f0fdf4; border-radius: 8px;">
+      <strong>✅ ROI em R$ calculado</strong>
+      <div style="font-size: 13px; color: #166534;">Valor financeiro real, não métricas abstratas</div>
+    </div>
+    <div style="padding: 12px; background: #f0fdf4; border-radius: 8px;">
+      <strong>✅ Agentes 4+1 visualizados</strong>
+      <div style="font-size: 13px; color: #166534;">Cliente vê qual agente está trabalhando</div>
+    </div>
+    <div style="padding: 12px; background: #f0fdf4; border-radius: 8px;">
+      <strong>✅ No-show prediction com cores</strong>
+      <div style="font-size: 13px; color: #166534;">Score de risco por paciente em tempo real</div>
+    </div>
+    <div style="padding: 12px; background: #f0fdf4; border-radius: 8px;">
+      <strong>✅ Ações do agente detalhadas</strong>
+      <div style="font-size: 13px; color: #166534;">Não só "conversas", mas o que foi feito</div>
+    </div>
+    <div style="padding: 12px; background: #f0fdf4; border-radius: 8px;">
+      <strong>✅ Dark mode premium</strong>
+      <div style="font-size: 13px; color: #166534;">Design moderno e profissional</div>
+    </div>
+    <div style="padding: 12px; background: #f0fdf4; border-radius: 8px;">
+      <strong>✅ Contexto específico de clínica</strong>
+      <div style="font-size: 13px; color: #166534;">Nomes reais, procedimentos, dentistas</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Próximo: Dashboard Atendente</h3>
+  <p>A atendente precisa de uma visão diferente - foco em operação e intervenção.</p>
+
+  <div class="options">
+    <div class="option" data-choice="prosseguir-atendente" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>Prosseguir para Dashboard Atendente</h3>
+        <p>Mostrar como seria a interface para a atendente monitorar conversas e intervir.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="detalhar-agenda" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>Detalhar módulo Agenda</h3>
+        <p>Quero ver o wireframe da agenda com visualização de risco de no-show.</p>
+      </div>
+    </div>
+    <div class="option" data-choice="feedback-dashboard" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>Tenho feedback no Dashboard</h3>
+        <p>Ainda quero ajustar algo antes de prosseguir.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="text-align: center; color: #666; margin-top: 24px;">
+  <a href="http://localhost:60958" target="_blank">Abrir no navegador</a>
+</p>

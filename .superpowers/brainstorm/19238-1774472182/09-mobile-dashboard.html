@@ -1,0 +1,1475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#09090b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Synkroo - Dashboard Mobile</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================
+       MOBILE-FIRST RESET & BASE
+       ============================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.5;
+      overflow-x: hidden;
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+      overscroll-behavior-y: contain;
+    }
+
+    /* ============================================
+       CSS CUSTOM PROPERTIES
+       ============================================ */
+    :root {
+      --bg-primary: #09090b;
+      --bg-secondary: #18181b;
+      --bg-tertiary: #27272a;
+      --text-primary: #fafafa;
+      --text-secondary: #a1a1aa;
+      --text-tertiary: #71717a;
+      --border: #27272a;
+      --accent: #6366f1;
+      --accent-muted: rgba(99, 102, 241, 0.1);
+      --success: #22c55e;
+      --warning: #eab308;
+      --danger: #ef4444;
+
+      /* Mobile-specific */
+      --safe-area-top: env(safe-area-inset-top, 0px);
+      --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+      --nav-height: 56px;
+      --bottom-nav-height: 64px;
+      --touch-target: 44px;
+
+      /* GPU-optimized shadows */
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
+    }
+
+    /* ============================================
+       APP CONTAINER
+       ============================================ */
+    .app {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      min-height: -webkit-fill-available;
+    }
+
+    /* ============================================
+       PULL TO REFRESH
+       ============================================ */
+    .pull-indicator {
+      position: fixed;
+      top: calc(var(--safe-area-top) + var(--nav-height) + 8px);
+      left: 50%;
+      transform: translateX(-50%) translateY(-60px);
+      width: 36px;
+      height: 36px;
+      background: var(--bg-secondary);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-md);
+      z-index: 100;
+      opacity: 0;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+      will-change: transform, opacity;
+    }
+
+    .pull-indicator.visible {
+      opacity: 1;
+    }
+
+    .pull-indicator svg {
+      width: 20px;
+      height: 20px;
+      stroke: var(--accent);
+      fill: none;
+      stroke-width: 2;
+      transition: transform 0.3s ease;
+    }
+
+    .pull-indicator.ready svg {
+      transform: rotate(180deg);
+    }
+
+    /* ============================================
+       TOP NAVIGATION BAR
+       ============================================ */
+    .top-nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding-top: var(--safe-area-top);
+      background: rgba(24, 24, 27, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .top-nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: var(--nav-height);
+      padding: 0 16px;
+    }
+
+    .top-nav-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo-icon svg {
+      width: 18px;
+      height: 18px;
+      fill: white;
+    }
+
+    .clinic-name {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .top-nav-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: rgba(34, 197, 94, 0.1);
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid rgba(34, 197, 94, 0.2);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--success);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .user-avatar {
+      width: var(--touch-target);
+      height: var(--touch-target);
+      background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Ripple Effect */
+    .ripple {
+      position: absolute;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.3);
+      transform: scale(0);
+      animation: ripple-animation 0.6s ease-out;
+      pointer-events: none;
+    }
+
+    @keyframes ripple-animation {
+      to {
+        transform: scale(4);
+        opacity: 0;
+      }
+    }
+
+    /* ============================================
+       MAIN CONTENT AREA
+       ============================================ */
+    .content {
+      flex: 1;
+      padding: 16px;
+      padding-bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom) + 16px);
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ============================================
+       ROI HERO CARD
+       ============================================ */
+    .roi-card {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2), var(--shadow-glow);
+      position: relative;
+      overflow: hidden;
+      will-change: transform;
+    }
+
+    .roi-card::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -30%;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .roi-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+
+    .roi-label {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 500;
+    }
+
+    .roi-multiplier {
+      font-size: 11px;
+      color: var(--accent);
+      padding: 4px 10px;
+      background: var(--accent-muted);
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .roi-value {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #6366f1 0%, #a78bfa 50%, #c4b5fd 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .roi-change {
+      font-size: 13px;
+      color: var(--success);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .roi-change svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    .roi-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(99, 102, 241, 0.1);
+    }
+
+    .roi-investment {
+      text-align: left;
+    }
+
+    .roi-investment-value {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .roi-investment-label {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .roi-payback {
+      font-size: 12px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* ============================================
+       HORIZONTAL SCROLL METRICS
+       ============================================ */
+    .metrics-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      padding-bottom: 8px;
+      margin-bottom: 16px;
+      scrollbar-width: none;
+    }
+
+    .metrics-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .metric-card {
+      flex: 0 0 calc(50% - 6px);
+      min-width: 140px;
+      background: var(--bg-secondary);
+      border-radius: 14px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      scroll-snap-align: start;
+      position: relative;
+      overflow: hidden;
+      will-change: transform;
+      transition: transform 0.2s ease;
+    }
+
+    .metric-card:active {
+      transform: scale(0.98);
+    }
+
+    .metric-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--metric-color, var(--accent));
+    }
+
+    .metric-card:nth-child(1) { --metric-color: var(--success); }
+    .metric-card:nth-child(2) { --metric-color: var(--accent); }
+    .metric-card:nth-child(3) { --metric-color: #8b5cf6; }
+    .metric-card:nth-child(4) { --metric-color: var(--warning); }
+
+    .metric-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--accent-muted);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .metric-icon svg {
+      width: 18px;
+      height: 18px;
+      stroke: var(--accent);
+      fill: none;
+    }
+
+    .metric-label {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      font-weight: 500;
+    }
+
+    .metric-value {
+      font-size: 28px;
+      font-weight: 700;
+      margin-top: 2px;
+      letter-spacing: -0.02em;
+    }
+
+    .metric-change {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 4px;
+    }
+
+    /* Scroll Hint */
+    .scroll-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-bottom: 16px;
+      animation: scroll-hint-pulse 2s ease-in-out infinite;
+    }
+
+    .scroll-hint svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    @keyframes scroll-hint-pulse {
+      0%, 100% { opacity: 0.5; }
+      50% { opacity: 1; }
+    }
+
+    /* ============================================
+       SWIPEABLE CARDS CONTAINER
+       ============================================ */
+    .cards-container {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cards-track {
+      display: flex;
+      transition: transform 0.3s ease;
+      will-change: transform;
+    }
+
+    .card-slide {
+      flex: 0 0 100%;
+      width: 100%;
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-title svg {
+      width: 16px;
+      height: 16px;
+      stroke: var(--accent);
+      fill: none;
+    }
+
+    .card-meta {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      background: var(--bg-tertiary);
+      padding: 4px 8px;
+      border-radius: 8px;
+    }
+
+    /* Swipe Indicators */
+    .swipe-indicator {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .swipe-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 50%;
+      transition: all 0.3s ease;
+    }
+
+    .swipe-dot.active {
+      background: var(--accent);
+      width: 24px;
+      border-radius: 4px;
+    }
+
+    /* ============================================
+       ACTIVITY LIST
+       ============================================ */
+    .activity-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      min-height: var(--touch-target);
+    }
+
+    .activity-item:last-child {
+      border-bottom: none;
+    }
+
+    .activity-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .activity-agent {
+      font-size: 9px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+    }
+
+    .activity-agent.scheduler { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+    .activity-agent.sales { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+    .activity-agent.router { background: rgba(99, 102, 241, 0.15); color: #6366f1; }
+    .activity-agent.generalist { background: rgba(139, 92, 246, 0.15); color: #8b5cf6; }
+
+    .activity-text {
+      font-size: 13px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .activity-time {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      white-space: nowrap;
+      margin-left: 8px;
+    }
+
+    /* Gesture Hint */
+    .gesture-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      margin-top: 12px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+
+    .gesture-hint svg {
+      width: 14px;
+      height: 14px;
+      stroke: currentColor;
+      fill: none;
+      animation: swipe-hint 1.5s ease-in-out infinite;
+    }
+
+    @keyframes swipe-hint {
+      0%, 100% { transform: translateX(-4px); }
+      50% { transform: translateX(4px); }
+    }
+
+    /* ============================================
+       RISK ALERTS
+       ============================================ */
+    .risk-item {
+      padding: 14px;
+      border-radius: 12px;
+      margin-bottom: 10px;
+      transition: transform 0.2s ease;
+      min-height: var(--touch-target);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .risk-item:active {
+      transform: scale(0.98);
+    }
+
+    .risk-item.high {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    .risk-item.medium {
+      background: rgba(234, 179, 8, 0.08);
+      border: 1px solid rgba(234, 179, 8, 0.2);
+    }
+
+    .risk-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .risk-patient {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .risk-detail {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+
+    .risk-score-badge {
+      text-align: right;
+    }
+
+    .risk-score {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .risk-score.high { color: #ef4444; }
+    .risk-score.medium { color: #eab308; }
+
+    .risk-level {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .risk-flags {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+    }
+
+    .risk-flags svg {
+      width: 12px;
+      height: 12px;
+      stroke: currentColor;
+      fill: none;
+    }
+
+    .risk-auto {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: rgba(99, 102, 241, 0.05);
+      border-radius: 8px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px dashed rgba(99, 102, 241, 0.2);
+    }
+
+    .risk-auto svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--accent);
+      fill: none;
+    }
+
+    /* ============================================
+       AGENT STATUS WIDGET
+       ============================================ */
+    .agent-widget {
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.08) 0%, rgba(34, 197, 94, 0.03) 100%);
+      border-radius: 14px;
+      border: 1px solid rgba(34, 197, 94, 0.15);
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    .agent-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .agent-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--success);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .agent-label::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .agent-confidence {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    .agent-name {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .agent-bar {
+      display: flex;
+      gap: 4px;
+      margin-top: 12px;
+    }
+
+    .agent-bar-segment {
+      flex: 1;
+      height: 4px;
+      background: var(--success);
+      border-radius: 2px;
+    }
+
+    .agent-bar-segment.inactive {
+      background: var(--bg-tertiary);
+    }
+
+    .agent-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .agent-legend-item {
+      font-size: 10px;
+      color: var(--text-tertiary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .agent-legend-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .agent-legend-dot.active { background: var(--success); }
+    .agent-legend-dot.lazy { background: var(--text-tertiary); }
+
+    /* ============================================
+       BOTTOM NAVIGATION
+       ============================================ */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(24, 24, 27, 0.95);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      padding-bottom: var(--safe-area-bottom);
+      z-index: 50;
+    }
+
+    .bottom-nav-inner {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      height: var(--bottom-nav-height);
+      padding: 0 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-width: var(--touch-target);
+      min-height: var(--touch-target);
+      padding: 4px 12px;
+      border-radius: 12px;
+      color: var(--text-tertiary);
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .nav-item svg {
+      width: 22px;
+      height: 22px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      margin-bottom: 2px;
+    }
+
+    .nav-item span {
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .nav-item.active {
+      color: var(--accent);
+      background: var(--accent-muted);
+    }
+
+    .nav-item:active {
+      transform: scale(0.95);
+    }
+
+    .nav-badge {
+      position: absolute;
+      top: 2px;
+      right: 8px;
+      background: var(--danger);
+      color: white;
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+      min-width: 16px;
+      text-align: center;
+    }
+
+    .nav-warning {
+      position: absolute;
+      top: 2px;
+      right: 8px;
+      width: 8px;
+      height: 8px;
+      background: var(--warning);
+      border-radius: 50%;
+    }
+
+    /* ============================================
+       QUICK ACTION FAB
+       ============================================ */
+    .fab {
+      position: fixed;
+      bottom: calc(var(--bottom-nav-height) + var(--safe-area-bottom) + 16px);
+      right: 16px;
+      width: 56px;
+      height: 56px;
+      background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+      z-index: 40;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .fab:active {
+      transform: scale(0.95);
+      box-shadow: 0 2px 10px rgba(99, 102, 241, 0.3);
+    }
+
+    .fab svg {
+      width: 24px;
+      height: 24px;
+      stroke: white;
+      fill: none;
+      stroke-width: 2;
+    }
+
+    /* ============================================
+       GPU-OPTIMIZED ANIMATIONS
+       ============================================ */
+    .gpu-accelerated {
+      transform: translateZ(0);
+      will-change: transform;
+      backface-visibility: hidden;
+    }
+
+    /* Reduced motion for accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* ============================================
+       TABLET BREAKPOINT (768px - 1024px)
+       ============================================ */
+    @media (min-width: 768px) {
+      .content {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      .metrics-scroll {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        overflow-x: visible;
+      }
+
+      .metric-card {
+        flex: none;
+        min-width: auto;
+      }
+
+      .scroll-hint {
+        display: none;
+      }
+
+      .cards-track {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+        transform: none !important;
+      }
+
+      .card-slide {
+        flex: none;
+        width: auto;
+      }
+
+      .swipe-indicator {
+        display: none;
+      }
+
+      .gesture-hint {
+        display: none;
+      }
+
+      .roi-card {
+        padding: 28px;
+      }
+
+      .roi-value {
+        font-size: 44px;
+      }
+
+      .bottom-nav {
+        display: none;
+      }
+
+      .content {
+        padding-bottom: 24px;
+      }
+
+      .fab {
+        display: none;
+      }
+    }
+
+    /* ============================================
+       LARGE SCREEN (1024px+)
+       ============================================ */
+    @media (min-width: 1024px) {
+      .content {
+        max-width: 960px;
+        padding: 32px;
+      }
+
+      .metrics-scroll {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .cards-track {
+        grid-template-columns: 1.5fr 1fr;
+      }
+
+      .roi-card {
+        padding: 32px 36px;
+      }
+
+      .roi-value {
+        font-size: 48px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Pull to Refresh Indicator -->
+    <div class="pull-indicator" id="pullIndicator">
+      <svg viewBox="0 0 24 24">
+        <polyline points="18 15 12 9 6 15"/>
+      </svg>
+    </div>
+
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+      <div class="top-nav-inner">
+        <div class="top-nav-left">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <span class="clinic-name">Odonto Sorriso</span>
+        </div>
+        <div class="top-nav-right">
+          <div class="status-pill">
+            <div class="status-dot"></div>
+            <span>Online</span>
+          </div>
+          <div class="user-avatar" onclick="createRipple(event)">
+            AS
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="content">
+      <!-- Agent Status Widget -->
+      <div class="agent-widget">
+        <div class="agent-header">
+          <div class="agent-label">Agente Ativo</div>
+          <span class="agent-confidence">94%</span>
+        </div>
+        <div class="agent-name">Router</div>
+        <div class="agent-bar">
+          <div class="agent-bar-segment"></div>
+          <div class="agent-bar-segment"></div>
+          <div class="agent-bar-segment"></div>
+          <div class="agent-bar-segment inactive"></div>
+          <div class="agent-bar-segment inactive"></div>
+        </div>
+        <div class="agent-legend">
+          <div class="agent-legend-item">
+            <span class="agent-legend-dot active"></span>
+            Scheduler
+          </div>
+          <div class="agent-legend-item">
+            <span class="agent-legend-dot active"></span>
+            Sales
+          </div>
+          <div class="agent-legend-item">
+            <span class="agent-legend-dot lazy"></span>
+            Generalist
+          </div>
+        </div>
+      </div>
+
+      <!-- ROI Hero Card -->
+      <div class="roi-card gpu-accelerated">
+        <div class="roi-header">
+          <div class="roi-label">ROI Este Mes</div>
+          <div class="roi-multiplier">11.8x retorno</div>
+        </div>
+        <div class="roi-value">R$ 14.780</div>
+        <div class="roi-change">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+            <polyline points="17 6 23 6 23 12"/>
+          </svg>
+          +32% vs mes anterior
+        </div>
+        <div class="roi-footer">
+          <div class="roi-investment">
+            <div class="roi-investment-value">R$ 1.250</div>
+            <div class="roi-investment-label">Investimento mensal</div>
+          </div>
+          <div class="roi-payback">
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none">
+              <circle cx="12" cy="12" r="10"/>
+              <polyline points="12 6 12 12 16 14"/>
+            </svg>
+            Payback em 5 dias
+          </div>
+        </div>
+      </div>
+
+      <!-- Horizontal Scroll Metrics -->
+      <div class="scroll-hint">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Deslize para ver mais
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="9 18 15 12 9 6"/>
+        </svg>
+      </div>
+
+      <div class="metrics-scroll">
+        <div class="metric-card gpu-accelerated">
+          <div class="metric-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <div class="metric-label">No-show Evitado</div>
+          <div class="metric-value" style="color: var(--success);">8</div>
+          <div class="metric-change">R$ 4.200 recuperado</div>
+        </div>
+
+        <div class="metric-card gpu-accelerated">
+          <div class="metric-icon">
+            <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>
+          </div>
+          <div class="metric-label">Leads Capturados</div>
+          <div class="metric-value" style="color: var(--accent);">23</div>
+          <div class="metric-change">6 fora do horario</div>
+        </div>
+
+        <div class="metric-card gpu-accelerated">
+          <div class="metric-icon">
+            <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </div>
+          <div class="metric-label">Reativados</div>
+          <div class="metric-value" style="color: #8b5cf6;">5</div>
+          <div class="metric-change">Pacientes inativos</div>
+        </div>
+
+        <div class="metric-card gpu-accelerated">
+          <div class="metric-icon">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </div>
+          <div class="metric-label">Tokens</div>
+          <div class="metric-value">87k</div>
+          <div class="metric-change">87% do budget</div>
+        </div>
+      </div>
+
+      <!-- Swipe Indicators -->
+      <div class="swipe-indicator">
+        <div class="swipe-dot active"></div>
+        <div class="swipe-dot"></div>
+      </div>
+
+      <!-- Swipeable Cards Container -->
+      <div class="cards-container" id="cardsContainer">
+        <div class="cards-track" id="cardsTrack">
+          <!-- Card 1: Agent Activity -->
+          <div class="card-slide">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">
+                  <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
+                  O que o Agente fez hoje
+                </span>
+                <span class="card-meta">47 conversas</span>
+              </div>
+
+              <div class="activity-item">
+                <div class="activity-left">
+                  <span class="activity-agent scheduler">Scheduler</span>
+                  <span class="activity-text">Agendou limpeza com Maria</span>
+                </div>
+                <span class="activity-time">5min</span>
+              </div>
+
+              <div class="activity-item">
+                <div class="activity-left">
+                  <span class="activity-agent sales">Sales</span>
+                  <span class="activity-text">Reativou paciente inativo - Carlos</span>
+                </div>
+                <span class="activity-time">12min</span>
+              </div>
+
+              <div class="activity-item">
+                <div class="activity-left">
+                  <span class="activity-agent router">Router</span>
+                  <span class="activity-text">Confirmou consulta de Joao</span>
+                </div>
+                <span class="activity-time">18min</span>
+              </div>
+
+              <div class="activity-item">
+                <div class="activity-left">
+                  <span class="activity-agent generalist">Generalist</span>
+                  <span class="activity-text">Respondeu FAQ sobre convenio</span>
+                </div>
+                <span class="activity-time">25min</span>
+              </div>
+
+              <div class="gesture-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+                Deslize para ver alertas
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Risk Alerts -->
+          <div class="card-slide">
+            <div class="card">
+              <div class="card-header">
+                <span class="card-title">
+                  <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  Risco de No-show
+                </span>
+                <span class="card-meta">2 consultas</span>
+              </div>
+
+              <div class="risk-item high">
+                <div class="risk-header">
+                  <div>
+                    <div class="risk-patient">Ana Paula</div>
+                    <div class="risk-detail">Hoje 15h - Canal com Dr. Paulo</div>
+                  </div>
+                  <div class="risk-score-badge">
+                    <div class="risk-score high">87%</div>
+                    <div class="risk-level" style="color: #ef4444;">Alto Risco</div>
+                  </div>
+                </div>
+                <div class="risk-flags">
+                  <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  Ja faltou 2x - Confirmou tardiamente
+                </div>
+              </div>
+
+              <div class="risk-item medium">
+                <div class="risk-header">
+                  <div>
+                    <div class="risk-patient">Pedro Santos</div>
+                    <div class="risk-detail">Amanha 10h - Clareamento</div>
+                  </div>
+                  <div class="risk-score-badge">
+                    <div class="risk-score medium">64%</div>
+                    <div class="risk-level" style="color: #eab308;">Medio</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="risk-auto">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                O agente vai reforcar confirmacao automaticamente
+              </div>
+
+              <div class="gesture-hint">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Deslize para ver atividades
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- FAB Button -->
+    <div class="fab" onclick="createRipple(event)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="12" y1="5" x2="12" y2="19"/>
+        <line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <nav class="bottom-nav">
+      <div class="bottom-nav-inner">
+        <div class="nav-item active" onclick="createRipple(event)">
+          <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <span>Dashboard</span>
+        </div>
+        <div class="nav-item" onclick="createRipple(event)">
+          <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>Conversas</span>
+          <span class="nav-badge">3</span>
+        </div>
+        <div class="nav-item" onclick="createRipple(event)">
+          <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Agenda</span>
+          <span class="nav-warning"></span>
+        </div>
+        <div class="nav-item" onclick="createRipple(event)">
+          <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <span>Pacientes</span>
+        </div>
+        <div class="nav-item" onclick="createRipple(event)">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>Config</span>
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <script>
+    // ============================================
+    // TOUCH INTERACTIONS & GESTURES
+    // ============================================
+
+    // Ripple Effect
+    function createRipple(event) {
+      const element = event.currentTarget;
+      const rect = element.getBoundingClientRect();
+      const ripple = document.createElement('span');
+      const size = Math.max(rect.width, rect.height);
+
+      ripple.style.width = ripple.style.height = size + 'px';
+      ripple.style.left = (event.clientX || event.touches?.[0]?.clientX || rect.left + rect.width / 2) - rect.left - size / 2 + 'px';
+      ripple.style.top = (event.clientY || event.touches?.[0]?.clientY || rect.top + rect.height / 2) - rect.top - size / 2 + 'px';
+      ripple.classList.add('ripple');
+
+      element.appendChild(ripple);
+
+      setTimeout(() => ripple.remove(), 600);
+    }
+
+    // Swipe Cards
+    let currentSlide = 0;
+    const cardsTrack = document.getElementById('cardsTrack');
+    const swipeDots = document.querySelectorAll('.swipe-dot');
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    function updateSlide() {
+      cardsTrack.style.transform = `translateX(-${currentSlide * 100}%)`;
+      swipeDots.forEach((dot, index) => {
+        dot.classList.toggle('active', index === currentSlide);
+      });
+    }
+
+    function handleSwipe() {
+      const swipeThreshold = 50;
+      const diff = touchStartX - touchEndX;
+
+      if (Math.abs(diff) > swipeThreshold) {
+        if (diff > 0 && currentSlide < 1) {
+          currentSlide++;
+        } else if (diff < 0 && currentSlide > 0) {
+          currentSlide--;
+        }
+        updateSlide();
+      }
+    }
+
+    document.getElementById('cardsContainer').addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    document.getElementById('cardsContainer').addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      handleSwipe();
+    }, { passive: true });
+
+    // Pull to Refresh (visual only)
+    let pullStartY = 0;
+    let isPulling = false;
+    const pullIndicator = document.getElementById('pullIndicator');
+
+    document.addEventListener('touchstart', (e) => {
+      if (window.scrollY === 0) {
+        pullStartY = e.touches[0].clientY;
+        isPulling = true;
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!isPulling) return;
+
+      const pullDistance = e.touches[0].clientY - pullStartY;
+
+      if (pullDistance > 0 && pullDistance < 100) {
+        pullIndicator.classList.add('visible');
+        pullIndicator.style.transform = `translateX(-50%) translateY(${pullDistance * 0.5}px)`;
+
+        if (pullDistance > 60) {
+          pullIndicator.classList.add('ready');
+        } else {
+          pullIndicator.classList.remove('ready');
+        }
+      }
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+      isPulling = false;
+      pullIndicator.classList.remove('visible', 'ready');
+      pullIndicator.style.transform = 'translateX(-50%) translateY(-60px)';
+    }, { passive: true });
+
+    // Metrics Scroll Indicator
+    const metricsScroll = document.querySelector('.metrics-scroll');
+    const scrollHint = document.querySelector('.scroll-hint');
+
+    metricsScroll.addEventListener('scroll', () => {
+      if (metricsScroll.scrollLeft > 50) {
+        scrollHint.style.opacity = '0';
+      } else {
+        scrollHint.style.opacity = '';
+      }
+    }, { passive: true });
+
+    // Lazy Loading Hints (for images when added)
+    if ('IntersectionObserver' in window) {
+      const lazyImages = document.querySelectorAll('img[data-src]');
+      const imageObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const img = entry.target;
+            img.src = img.dataset.src;
+            img.removeAttribute('data-src');
+            imageObserver.unobserve(img);
+          }
+        });
+      });
+
+      lazyImages.forEach(img => imageObserver.observe(img));
+    }
+
+    // Reduced Motion Check
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+    if (prefersReducedMotion.matches) {
+      document.documentElement.style.setProperty('--transition-duration', '0.01ms');
+    }
+  </script>
+</body>
+</html>

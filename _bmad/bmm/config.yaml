@@ -1,0 +1,35 @@
+# BMAD Configuration - Synkroo
+
+# Project Information
+project_name: "Synkroo"
+project_root: "C:/Users/walis/OneDrive/Desktop/claude_code/workspace/projects/synkroo"
+
+# User Configuration
+user_name: "Walis"
+communication_language: "pt-BR"
+document_output_language: "pt-BR"
+user_skill_level: "intermediate"
+
+# Output Locations
+output_folder: "docs"
+planning_artifacts: "docs/planning"
+project_knowledge: "docs/knowledge"
+
+# Date (auto-generated)
+date: "2026-03-23"
+
+# Workflow Settings
+default_mode: "guided"  # guided, yolo, autonomous
+
+# Agent Preferences
+preferred_agents:
+  pm: "John"
+  architect: "Winston"
+  dev: "Amelia"
+  ux: "Alex"
+
+# Templates
+templates:
+  brief: "methods/bmad/api/bmm/1-analysis/bmad-product-brief/resources/brief-template.md"
+  prd: "methods/bmad/api/bmm/2-plan-workflows/bmad-create-prd/templates/prd-template.md"
+  architecture: "methods/bmad/api/bmm/3-solutioning/bmad-create-architecture/architecture-decision-template.md"
