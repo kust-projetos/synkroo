@@ -3,7 +3,10 @@
  * Exports all tools and provides agent-specific tool configurations
  */
 
-import type { Tool } from '@agent-sdk/core'
+import type { Tool } from './base.tools'
+
+// Export Tool interface
+export type { Tool } from './base.tools'
 
 // Export all tool definitions
 export { BASE_TOOLS } from './base.tools'
@@ -113,7 +116,7 @@ export const AGENT_TOOLS: Record<string, Tool[]> = {
  * Complete registry of all tool implementations
  * Maps tool name to implementation function
  */
-export const TOOL_IMPLEMENTATIONS: Record<string, (...args: unknown[]) => Promise<unknown>> = {
+export const TOOL_IMPLEMENTATIONS: Record<string, any> = {
   // Base tools
   ...BASE_TOOL_IMPLEMENTATIONS,
   // Router tools
