@@ -113,7 +113,7 @@ describe('Budget Service', () => {
         clinic_id: 'c1',
         patient_id: 'p1',
         items: [
-          { procedure_name: 'Limpeza', quantity: 1, unit_price: 100, discount_percent: 0 },
+          { procedure_name: 'Limpeza', quantity: 1, unit_price: 100, discount_percent: 0, total_price: 100 },
         ],
       })
 
@@ -163,7 +163,7 @@ describe('Budget Service', () => {
       await expect(createBudget({
         clinic_id: 'c1',
         patient_id: 'p1',
-        items: [{ procedure_name: 'Limpeza', quantity: 1, unit_price: 100, discount_percent: 0 }],
+        items: [{ procedure_name: 'Limpeza', quantity: 1, unit_price: 100, discount_percent: 0, total_price: 100 }],
       })).rejects.toThrow('Failed to create budget items')
 
       expect(mockSupabase.from).toHaveBeenCalledWith('budgets')

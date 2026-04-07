@@ -49,7 +49,7 @@ export const mockProfile = {
 }
 
 // Helper to create mock Supabase client
-export function createMockSupabaseClient(overrides = {}) {
+export function createMockSupabaseClient(overrides: { auth?: Record<string, unknown>; [key: string]: unknown } = {}) {
   return {
     auth: {
       signInWithPassword: jest.fn().mockResolvedValue({

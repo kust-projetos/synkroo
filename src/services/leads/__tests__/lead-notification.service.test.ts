@@ -52,10 +52,16 @@ function createMockLead(overrides: Partial<Lead> = {}): Lead {
     source: 'instagram',
     score: 85,
     status: 'new',
+    temperature: 'warm',
     clinic_id: 'clinic-1',
+    patient_id: null,
     assigned_to: null,
     interest: 'Implante Dentário',
     notes: 'Paciente muito interessado',
+    last_contact_at: null,
+    next_followup_at: null,
+    converted_at: null,
+    lost_reason: null,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...overrides,
@@ -125,7 +131,6 @@ function createLimitChain(result: { data?: any; error?: any }) {
     from: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
     // limit() directly resolves the promise
     limit: jest.fn().mockResolvedValue(result),
@@ -142,7 +147,6 @@ function createDedupChain(result: { data?: any; error?: any }) {
     from: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
     gte: jest.fn().mockReturnThis(),
     limit: jest.fn().mockResolvedValue(result),
   }
@@ -158,7 +162,6 @@ function createAdminChain(result: { data?: any; error?: any }) {
     select: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     in: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
     single: jest.fn().mockResolvedValue(result),
   }
@@ -185,7 +188,6 @@ function createThenableChain(result: { data?: any; error?: any }) {
   const chain: any = {
     from: jest.fn().mockReturnThis(),
     select: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
     eq: jest.fn().mockReturnThis(),
     order: jest.fn().mockReturnThis(),
     limit: jest.fn().mockReturnThis(),
@@ -477,7 +479,6 @@ describe('lead-notification.service', () => {
         from: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         limit: jest.fn().mockResolvedValue({ data: [], error: null }),
       }
@@ -486,8 +487,6 @@ describe('lead-notification.service', () => {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         in: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         single: jest.fn().mockResolvedValue({ data: { phone: '+5511888888888' }, error: null }),
       }
@@ -509,7 +508,6 @@ describe('lead-notification.service', () => {
         from: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
         gte: jest.fn().mockReturnThis(),
         limit: jest.fn().mockResolvedValue({ data: [], error: null }),
       }
@@ -518,8 +516,6 @@ describe('lead-notification.service', () => {
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         in: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
         limit: jest.fn().mockReturnThis(),
         single: jest.fn().mockResolvedValue({ data: { phone: '+5511888888888' }, error: null }),
       }
@@ -553,7 +549,6 @@ describe('lead-notification.service', () => {
         from: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         limit: jest.fn().mockResolvedValue({ data: null, error: { message: 'DB Error' } }),
       }
@@ -569,7 +564,6 @@ describe('lead-notification.service', () => {
       const mockClient = {
         from: jest.fn().mockReturnThis(),
         select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
         eq: jest.fn().mockReturnThis(),
         order: jest.fn().mockReturnThis(),
         limit: jest.fn().mockResolvedValue({ data: [], error: null }),

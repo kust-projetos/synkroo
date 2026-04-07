@@ -387,9 +387,9 @@ describe('AgentService', () => {
     })
 
     it('should update conversation status - basic test', () => {
-      // Just test that the method exists
+      // Just test that the method exists (private method, using any to access)
       const service = new AgentService()
-      expect(typeof service.updateConversationStatus).toBe('function')
+      expect(typeof (service as any).updateConversationStatus).toBe('function')
     })
   })
 })
