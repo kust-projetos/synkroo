@@ -14,8 +14,8 @@ let queueService: unknown = null
 async function getQueueService() {
   if (!queueService) {
     try {
-      const module = await import('@/services/queue')
-      queueService = module.queueService || module
+      const queueModule = await import('@/services/queue')
+      queueService = queueModule.queueService || queueModule
     } catch {
       dbLogger.warn('Queue service not available')
     }
