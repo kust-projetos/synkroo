@@ -2,9 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { CheckIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth/context'
 import { useToast } from '@/lib/ui/toast'
+import { FormPage } from '@/components/ui/form-page'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Patient {
   id: string
@@ -158,9 +163,7 @@ export default function NewAppointmentPage() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const handleSubmit = async () => {
     if (!selectedPatient || !selectedDate || !selectedTime) {
       toast.showToast('Por favor, preencha todos os campos obrigatórios', 'error')
       return
@@ -208,227 +211,196 @@ export default function NewAppointmentPage() {
   }
 
   return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/agendamentos" className="text-gray-500 hover:text-gray-700">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Novo Agendamento</h1>
-              <p className="text-sm text-gray-500">Agende uma nova consulta</p>
-            </div>
-          </div>
-        </div>
-
-      {/* Form */}
-      <div className="max-w-3xl">
-        <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6 space-y-6">
-          {/* Patient Search */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Paciente *
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={patientSearch}
-                onChange={(e) => {
-                  setPatientSearch(e.target.value)
-                  searchPatients(e.target.value)
-                }}
-                placeholder="Buscar paciente pelo nome ou telefone..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {searchingPatients && (
-                <div className="absolute right-3 top-2.5">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600"></div>
-                </div>
-              )}
-            </div>
-            {patients.length > 0 && !selectedPatient && (
-              <div className="mt-2 border border-gray-200 rounded-lg divide-y divide-gray-200 max-h-48 overflow-y-auto">
-                {patients.map((patient) => (
-                  <button
-                    key={patient.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedPatient(patient.id)
-                      setPatientSearch(patient.name)
-                      setPatients([])
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-gray-50 flex justify-between items-center"
-                  >
-                    <span className="font-medium">{patient.name}</span>
-                    <span className="text-sm text-gray-500">{formatPhone(patient.phone)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {selectedPatient && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-green-600">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Paciente selecionado
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedPatient('')
-                    setPatientSearch('')
-                  }}
-                  className="text-red-600 hover:text-red-700 ml-2"
-                >
-                  Remover
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Date and Time */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Data *
-              </label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                min={minDate}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Duração (minutos)
-              </label>
-              <select
-                value={duration}
-                onChange={(e) => setDuration(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={15}>15 min</option>
-                <option value={30}>30 min</option>
-                <option value={45}>45 min</option>
-                <option value={60}>1 hora</option>
-                <option value={90}>1h 30min</option>
-                <option value={120}>2 horas</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Dentist */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Dentista
-            </label>
-            <select
-              value={selectedDentist}
-              onChange={(e) => setSelectedDentist(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Selecione um dentista</option>
-              {dentists.map((dentist) => (
-                <option key={dentist.id} value={dentist.id}>
-                  {dentist.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Procedure */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Procedimento
-            </label>
-            <select
-              value={selectedProcedure}
-              onChange={(e) => setSelectedProcedure(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Selecione um procedimento</option>
-              {procedures.map((procedure) => (
-                <option key={procedure.id} value={procedure.id}>
-                  {procedure.name} ({procedure.duration_minutes} min)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Available Time Slots */}
-          {selectedDate && selectedDentist && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Horário *
-              </label>
-              {loadingSlots ? (
-                <div className="flex justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                </div>
-              ) : availableSlots.length === 0 ? (
-                <p className="text-sm text-gray-500 py-2">Nenhum horário disponível para esta data</p>
-              ) : (
-                <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
-                  {availableSlots.map((slot) => (
-                    <button
-                      key={slot.time}
-                      type="button"
-                      disabled={!slot.available}
-                      onClick={() => setSelectedTime(slot.time)}
-                      className={`px-3 py-2 text-sm rounded-lg border transition ${
-                        selectedTime === slot.time
-                          ? 'bg-blue-600 text-white border-blue-600'
-                          : slot.available
-                          ? 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
-                          : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
-                      }`}
-                      title={slot.reason}
-                    >
-                      {slot.time}
-                    </button>
-                  ))}
-                </div>
-              )}
+    <FormPage
+      title="Novo Agendamento"
+      backHref="/dashboard/agendamentos"
+      onSubmit={handleSubmit}
+      loading={loading}
+      submitLabel="Salvar Agendamento"
+      submitDisabled={!selectedPatient || !selectedDate || !selectedTime}
+    >
+      {/* Patient Search */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Paciente *
+        </label>
+        <div className="relative">
+          <Input
+            type="text"
+            value={patientSearch}
+            onChange={(e) => {
+              setPatientSearch(e.target.value)
+              searchPatients(e.target.value)
+            }}
+            placeholder="Buscar paciente pelo nome ou telefone..."
+          />
+          {searchingPatients && (
+            <div className="absolute right-3 top-2.5">
+              <Skeleton className="h-5 w-5 rounded-full" />
             </div>
           )}
-
-          {/* Notes */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Observações
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={3}
-              placeholder="Observações sobre o agendamento..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
+        </div>
+        {patients.length > 0 && !selectedPatient && (
+          <div className="mt-2 border border-border rounded-lg divide-y divide-border max-h-48 overflow-y-auto bg-card">
+            {patients.map((patient) => (
+              <button
+                key={patient.id}
+                type="button"
+                onClick={() => {
+                  setSelectedPatient(patient.id)
+                  setPatientSearch(patient.name)
+                  setPatients([])
+                }}
+                className="w-full px-4 py-2 text-left hover:bg-muted/50 flex justify-between items-center transition-colors"
+              >
+                <span className="font-medium text-foreground">{patient.name}</span>
+                <span className="text-sm text-muted-foreground">{formatPhone(patient.phone)}</span>
+              </button>
+            ))}
           </div>
-
-          {/* Submit */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Link
-              href="/dashboard/agendamentos"
-              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-            >
-              Cancelar
-            </Link>
+        )}
+        {selectedPatient && (
+          <div className="mt-2 flex items-center gap-2 text-sm">
+            <Badge variant="default" className="bg-teal-600 text-white border-teal-600">
+              <CheckIcon className="h-3 w-3 mr-1" />
+              Paciente selecionado
+            </Badge>
             <button
-              type="submit"
-              disabled={loading || !selectedPatient || !selectedDate || !selectedTime}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              type="button"
+              onClick={() => {
+                setSelectedPatient('')
+                setPatientSearch('')
+              }}
+              className="text-destructive hover:text-destructive/80 ml-2 text-sm flex items-center gap-1"
             >
-              {loading ? 'Salvando...' : 'Salvar Agendamento'}
+              <XMarkIcon className="h-4 w-4" />
+              Remover
             </button>
           </div>
-        </form>
+        )}
       </div>
-    </div>
+
+      {/* Date and Time */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Data *
+          </label>
+          <Input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            min={minDate}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Duração (minutos)
+          </label>
+          <select
+            value={duration}
+            onChange={(e) => setDuration(parseInt(e.target.value))}
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <option value={15}>15 min</option>
+            <option value={30}>30 min</option>
+            <option value={45}>45 min</option>
+            <option value={60}>1 hora</option>
+            <option value={90}>1h 30min</option>
+            <option value={120}>2 horas</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Dentist */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Dentista
+        </label>
+        <select
+          value={selectedDentist}
+          onChange={(e) => setSelectedDentist(e.target.value)}
+          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          <option value="">Selecione um dentista</option>
+          {dentists.map((dentist) => (
+            <option key={dentist.id} value={dentist.id}>
+              {dentist.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Procedure */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Procedimento
+        </label>
+        <select
+          value={selectedProcedure}
+          onChange={(e) => setSelectedProcedure(e.target.value)}
+          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          <option value="">Selecione um procedimento</option>
+          {procedures.map((procedure) => (
+            <option key={procedure.id} value={procedure.id}>
+              {procedure.name} ({procedure.duration_minutes} min)
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Available Time Slots */}
+      {selectedDate && selectedDentist && (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">
+            Horário *
+          </label>
+          {loadingSlots ? (
+            <div className="flex justify-center py-4">
+              <Skeleton className="h-6 w-6 rounded-full" />
+            </div>
+          ) : availableSlots.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">Nenhum horário disponível para esta data</p>
+          ) : (
+            <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+              {availableSlots.map((slot) => (
+                <button
+                  key={slot.time}
+                  type="button"
+                  disabled={!slot.available}
+                  onClick={() => setSelectedTime(slot.time)}
+                  className={`px-3 py-2 text-sm rounded-lg border transition ${
+                    selectedTime === slot.time
+                      ? 'bg-teal-600 text-white border-teal-600'
+                      : slot.available
+                      ? 'bg-card text-foreground border-border hover:border-teal-500 hover:bg-muted/50'
+                      : 'bg-muted text-muted-foreground border-border cursor-not-allowed'
+                  }`}
+                  title={slot.reason}
+                >
+                  {slot.time}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Notes */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Observações
+        </label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder="Observações sobre o agendamento..."
+          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+        />
+      </div>
+    </FormPage>
   )
 }

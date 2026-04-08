@@ -1,250 +1,306 @@
-'use client'
+"use client"
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useAuth } from '@/lib/auth/context'
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import { usePathname } from "next/navigation"
+import { useTheme } from "next-themes"
+import { cn } from "@/lib/utils"
+import { useAuth } from "@/lib/auth/context"
+import {
+  Squares2X2Icon,
+  UsersIcon,
+  CalendarDaysIcon,
+  ClockIcon,
+  ChatBubbleLeftRightIcon,
+  MegaphoneIcon,
+  FlagIcon,
+  ChartBarIcon,
+  IdentificationIcon,
+  WrenchScrewdriverIcon,
+  Cog6ToothIcon,
+  ArrowRightStartOnRectangleIcon as LogoutIcon,
+  SunIcon,
+  MoonIcon,
+  ChevronDoubleLeftIcon,
+  ChevronDoubleRightIcon,
+  Bars3Icon,
+} from "@heroicons/react/24/outline"
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { Button } from "@/components/ui/button"
+
+const COLLAPSED_KEY = "synkroo_sidebar_collapsed"
 
 interface NavItem {
   name: string
   href: string
-  icon: React.ReactNode
+  icon: React.ForwardRefExoticComponent<React.SVGProps<SVGSVGElement>>
+  section: "principal" | "comunicacao" | "gestao"
+  badge?: {
+    count: number
+    variant: "zinc" | "teal" | "amber" | "blue" | "red" | "pill-teal"
+  }
 }
 
 const navItems: NavItem[] = [
-  {
-    name: 'Dashboard',
-    href: '/dashboard',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Pacientes',
-    href: '/dashboard/pacientes',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Agendamentos',
-    href: '/dashboard/agendamentos',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Inativos',
-    href: '/dashboard/pacientes/inativos',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Lista de Espera',
-    href: '/dashboard/lista-espera',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Campanhas',
-    href: '/dashboard/campanhas',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Conversas',
-    href: '/dashboard/conversas',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Leads',
-    href: '/dashboard/leads',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Dentistas',
-    href: '/dashboard/dentistas',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Procedimentos',
-    href: '/dashboard/procedimentos',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Analytics',
-    href: '/dashboard/analytics',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
-    ),
-  },
-  {
-    name: 'Configurações',
-    href: '/dashboard/configuracoes',
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      </svg>
-    ),
-  },
+  { name: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, section: "principal" },
+  { name: "Pacientes", href: "/dashboard/pacientes", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "zinc" } },
+  { name: "Agendamentos", href: "/dashboard/agendamentos", icon: CalendarDaysIcon, section: "principal", badge: { count: 0, variant: "teal" } },
+  { name: "Lista de Espera", href: "/dashboard/lista-espera", icon: ClockIcon, section: "principal" },
+  { name: "Inativos", href: "/dashboard/pacientes/inativos", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "amber" } },
+  { name: "Conversas", href: "/dashboard/conversas", icon: ChatBubbleLeftRightIcon, section: "comunicacao", badge: { count: 0, variant: "pill-teal" } },
+  { name: "Campanhas", href: "/dashboard/campanhas", icon: MegaphoneIcon, section: "comunicacao", badge: { count: 0, variant: "blue" } },
+  { name: "Leads", href: "/dashboard/leads", icon: FlagIcon, section: "comunicacao", badge: { count: 0, variant: "red" } },
+  { name: "Analytics", href: "/dashboard/analytics", icon: ChartBarIcon, section: "gestao" },
+  { name: "Dentistas", href: "/dashboard/dentistas", icon: IdentificationIcon, section: "gestao" },
+  { name: "Procedimentos", href: "/dashboard/procedimentos", icon: WrenchScrewdriverIcon, section: "gestao" },
+  { name: "Configuracoes", href: "/dashboard/configuracoes", icon: Cog6ToothIcon, section: "gestao" },
 ]
 
-interface SidebarProps {
-  isOpen: boolean
-  onClose: () => void
+const sectionLabels = {
+  principal: "Principal",
+  comunicacao: "Comunicacao",
+  gestao: "Gestao",
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
-  const pathname = usePathname()
-  const { profile, logout } = useAuth()
+function BadgePill({ count, variant, collapsed }: { count: number; variant: string; collapsed: boolean }) {
+  if (count === 0) return null
 
-  const isActive = (href: string) => {
-    if (href === '/dashboard') {
-      return pathname === '/dashboard'
-    }
-    return pathname.startsWith(href)
+  const styles: Record<string, string> = {
+    zinc: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400",
+    teal: "bg-teal-50 text-teal-600 dark:bg-teal-900/50 dark:text-teal-400",
+    amber: "bg-amber-50 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400",
+    blue: "bg-blue-50 text-blue-600 dark:bg-blue-900/50 dark:text-blue-400",
+    red: "bg-red-50 text-red-600 dark:bg-red-900/50 dark:text-red-400",
+    "pill-teal": "bg-teal-600 text-white",
+  }
+
+  if (collapsed) {
+    return (
+      <div className={cn("absolute top-0 right-0 h-2 w-2 rounded-full", variant === "pill-teal" ? "bg-teal-600" : "bg-teal-500")} />
+    )
   }
 
   return (
-    <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={onClose}
-          aria-hidden="true"
-        />
-      )}
-
-      {/* Sidebar */}
-      <aside
-        className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-white border-r border-gray-200
-          transform transition-transform duration-300 ease-in-out
-          lg:translate-x-0 lg:z-auto
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
-        `}
-        role="navigation"
-        aria-label="Menu principal"
-      >
-        <div className="flex flex-col h-full">
-          {/* Logo */}
-          <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200">
-            <Link
-              href="/dashboard"
-              className="text-xl font-bold text-indigo-600"
-              onClick={onClose}
-            >
-              Synkroo
-            </Link>
-            <button
-              onClick={onClose}
-              className="lg:hidden p-2 text-gray-500 hover:text-gray-700 rounded-lg"
-              aria-label="Fechar menu"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onClose}
-                className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
-                  ${isActive(item.href)
-                    ? 'bg-indigo-50 text-indigo-600 font-medium'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                  }
-                `}
-              >
-                {item.icon}
-                <span>{item.name}</span>
-              </Link>
-            ))}
-          </nav>
-
-          {/* User Info */}
-          <div className="border-t border-gray-200 p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
-                <span className="text-indigo-600 font-medium">
-                  {profile?.name?.charAt(0) || 'U'}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
-                  {profile?.name}
-                </p>
-                <p className="text-xs text-gray-500 capitalize">
-                  {profile?.role}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={logout}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-              Sair
-            </button>
-          </div>
-        </div>
-      </aside>
-    </>
+    <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded", styles[variant] || styles.zinc)}>
+      {count}
+    </span>
   )
 }
 
-export function SidebarToggle({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="lg:hidden p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
-      aria-label="Abrir menu"
+function NavItemLink({ item, isActive, collapsed }: { item: NavItem; isActive: boolean; collapsed: boolean }) {
+  const Icon = item.icon
+  const content = (
+    <Link
+      href={item.href}
+      className={cn(
+        "flex items-center gap-3 rounded-lg transition-colors relative",
+        collapsed ? "justify-center p-2 mx-auto" : "px-3 py-2",
+        isActive
+          ? "bg-teal-600/[0.06] dark:bg-teal-400/10 text-teal-600 dark:text-teal-400"
+          : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+      )}
     >
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-      </svg>
-    </button>
+      <Icon className={cn("flex-shrink-0", collapsed ? "h-5 w-5" : "h-[18px] w-[18px]", isActive && "text-teal-600 dark:text-teal-400")} />
+      {!collapsed && <span className={cn("text-[13px]", isActive && "font-semibold")}>{item.name}</span>}
+      {item.badge && item.badge.count > 0 && (
+        <BadgePill count={item.badge.count} variant={item.badge.variant} collapsed={collapsed} />
+      )}
+    </Link>
+  )
+
+  if (collapsed) {
+    return (
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>{content}</TooltipTrigger>
+        <TooltipContent side="right" className="flex items-center gap-2">
+          {item.name}
+          {item.badge && item.badge.count > 0 && (
+            <BadgePill count={item.badge.count} variant={item.badge.variant} collapsed={false} />
+          )}
+        </TooltipContent>
+      </Tooltip>
+    )
+  }
+
+  return content
+}
+
+function SidebarContent({
+  collapsed,
+  onToggle,
+}: {
+  collapsed: boolean
+  onToggle: () => void
+}) {
+  const pathname = usePathname()
+  const { theme, setTheme } = useTheme()
+  const { profile, logout } = useAuth()
+  const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"
+
+  const sections = ["principal", "comunicacao", "gestao"] as const
+
+  return (
+    <div className={cn(
+      "flex flex-col h-full transition-all duration-200",
+      "bg-white dark:bg-[#0f0f11]",
+      "border-r border-zinc-200 dark:border-zinc-800"
+    )}>
+      {/* Logo */}
+      <div className={cn("flex items-center gap-3 px-4 pt-5 pb-4", collapsed && "justify-center px-2")}>
+        <div className="h-8 w-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+          S
+        </div>
+        {!collapsed && <span className="text-[15px] font-bold text-foreground tracking-tight">Synkroo</span>}
+        {!collapsed && (
+          <button onClick={onToggle} className="ml-auto h-7 w-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+            <ChevronDoubleLeftIcon className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Nav Sections */}
+      <nav className="flex-1 overflow-y-auto px-3 py-1">
+        <TooltipProvider>
+          {sections.map((section, si) => {
+            const sectionItems = navItems.filter(i => i.section === section)
+            return (
+              <div key={section} className={cn(si > 0 && "mt-2")}>
+                {!collapsed && (
+                  <div className="px-3 pt-3 pb-1 text-[9px] font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-[0.08em]">
+                    {sectionLabels[section]}
+                  </div>
+                )}
+                {collapsed && si > 0 && <div className="w-5 h-px bg-zinc-200 dark:bg-zinc-800 mx-auto my-2" />}
+                <div className="space-y-0.5">
+                  {sectionItems.map(item => (
+                    <NavItemLink
+                      key={item.href}
+                      item={item}
+                      isActive={pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))}
+                      collapsed={collapsed}
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </TooltipProvider>
+      </nav>
+
+      {/* Footer */}
+      <div className={cn("px-3 pb-3 pt-2 border-t border-zinc-100 dark:border-zinc-800", collapsed && "px-2")}>
+        {/* Theme Toggle */}
+        <div className={cn("flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-3", collapsed && "mx-auto w-fit")}>
+          <button
+            onClick={() => setTheme("light")}
+            className={cn(
+              "rounded-md p-1.5 transition-colors",
+              collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
+              theme === "light" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-600"
+            )}
+          >
+            <SunIcon className="h-3.5 w-3.5" />
+            {!collapsed && <span className="text-[11px] font-medium">Claro</span>}
+          </button>
+          <button
+            onClick={() => setTheme("dark")}
+            className={cn(
+              "rounded-md p-1.5 transition-colors",
+              collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
+              theme === "dark" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-600"
+            )}
+          >
+            <MoonIcon className="h-3.5 w-3.5" />
+            {!collapsed && <span className="text-[11px] font-medium">Escuro</span>}
+          </button>
+        </div>
+
+        {/* User */}
+        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
+          <div className="h-8 w-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">
+            {initials}
+          </div>
+          {!collapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold text-foreground truncate">{profile?.name || "Usuario"}</div>
+                <div className="text-[10px] text-zinc-400 capitalize">{profile?.role || "Admin"}</div>
+              </div>
+              <button onClick={() => logout()} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+                <LogoutIcon className="h-4 w-4" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Expand button (collapsed only) */}
+        {collapsed && (
+          <button onClick={onToggle} className="mt-3 mx-auto h-7 w-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-600">
+            <ChevronDoubleRightIcon className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const saved = localStorage.getItem(COLLAPSED_KEY)
+    if (saved === "true") setCollapsed(true)
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (mounted) {
+      localStorage.setItem(COLLAPSED_KEY, String(collapsed))
+    }
+  }, [collapsed, mounted])
+
+  if (!mounted) {
+    return <div className="w-60 border-r border-border bg-card" />
+  }
+
+  return (
+    <aside
+      className={cn(
+        "hidden lg:flex flex-col h-screen sticky top-0 transition-all duration-200 border-r border-border bg-card",
+        collapsed ? "w-16" : "w-60"
+      )}
+    >
+      <SidebarContent collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />
+    </aside>
+  )
+}
+
+export function MobileSidebar() {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="lg:hidden">
+          <Bars3Icon className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-60 p-0">
+        <SheetTitle className="sr-only">Menu de navegacao</SheetTitle>
+        <SidebarContent collapsed={false} onToggle={() => setOpen(false)} />
+      </SheetContent>
+    </Sheet>
   )
 }

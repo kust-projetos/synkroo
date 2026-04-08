@@ -2,6 +2,21 @@
 
 import { useAuth } from '@/lib/auth/context'
 import { useEffect, useState } from 'react'
+import { PageHeader } from '@/components/ui/page-header'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { StatusBadge } from '@/components/ui/status-badge'
+import {
+  BellIcon,
+  ChatBubbleLeftRightIcon,
+  CameraIcon,
+  BuildingOfficeIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+} from '@heroicons/react/24/outline'
 
 interface ClinicSettings {
   name: string
@@ -79,178 +94,220 @@ export default function ConfiguracoesPage() {
     }
   }
 
+  const updateNotificationSetting = (key: string, value: boolean | number) => {
+    setSettings({
+      ...settings,
+      notification_settings: {
+        ...settings.notification_settings!,
+        [key]: value,
+      },
+    })
+  }
+
   return (
-    <div className="p-4 lg:p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Configurações</h1>
+    <div className="flex flex-col gap-6 p-4 lg:p-8 max-w-4xl">
+      <PageHeader
+        title="Configurações"
+        description="Gerencie as configurações da sua clínica"
+      />
 
-        {message && (
-          <div
-            className={`mb-4 p-4 rounded-lg ${
-              message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-            }`}
-          >
-            {message.text}
+      {/* Success/Error Message */}
+      {message && (
+        <div
+          className={`flex items-center gap-3 p-4 rounded-lg border ${
+            message.type === 'success'
+              ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800'
+              : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800'
+          }`}
+        >
+          {message.type === 'success' ? (
+            <CheckCircleIcon className="w-5 h-5 flex-shrink-0" />
+          ) : (
+            <XCircleIcon className="w-5 h-5 flex-shrink-0" />
+          )}
+          <span className="text-sm font-medium">{message.text}</span>
+        </div>
+      )}
+
+      {/* Informações da Clínica */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <BuildingOfficeIcon className="w-5 h-5 text-muted-foreground" />
+            <CardTitle>Informações da Clínica</CardTitle>
           </div>
-        )}
-
-        {/* Informações da Clínica */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações da Clínica</h2>
+          <CardDescription>Dados básicos da sua clínica</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-              <input
-                type="text"
+            <div className="space-y-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input
+                id="name"
                 value={settings.name}
                 onChange={(e) => setSettings({ ...settings, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="Nome da clínica"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefone</Label>
+              <Input
+                id="phone"
                 type="tel"
                 value={settings.phone}
                 onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                 placeholder="(00) 00000-0000"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">E-mail</label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
                 type="email"
                 value={settings.email}
                 onChange={(e) => setSettings({ ...settings, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="email@exemplo.com"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Cidade</label>
-              <input
-                type="text"
+            <div className="space-y-2">
+              <Label htmlFor="city">Cidade</Label>
+              <Input
+                id="city"
                 value={settings.city || ''}
                 onChange={(e) => setSettings({ ...settings, city: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                placeholder="São Paulo"
               />
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Notificações */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Notificações Automáticas</h2>
+      {/* Notificações */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <BellIcon className="w-5 h-5 text-muted-foreground" />
+            <CardTitle>Notificações Automáticas</CardTitle>
+          </div>
+          <CardDescription>Configure lembretes e follow-ups automáticos</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="reminder-24h">Lembrete 24h antes</Label>
+              <p className="text-sm text-muted-foreground">
+                Enviar lembrete de agendamento um dia antes
+              </p>
+            </div>
+            <Switch
+              id="reminder-24h"
+              checked={settings.notification_settings?.appointment_reminder_24h}
+              onCheckedChange={(checked) => updateNotificationSetting('appointment_reminder_24h', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="reminder-2h">Lembrete 2h antes</Label>
+              <p className="text-sm text-muted-foreground">
+                Enviar lembrete de agendamento duas horas antes
+              </p>
+            </div>
+            <Switch
+              id="reminder-2h"
+              checked={settings.notification_settings?.appointment_reminder_2h}
+              onCheckedChange={(checked) => updateNotificationSetting('appointment_reminder_2h', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="follow-up">Follow-up pós-consulta</Label>
+              <p className="text-sm text-muted-foreground">
+                Enviar mensagem automática após a consulta
+              </p>
+            </div>
+            <Switch
+              id="follow-up"
+              checked={settings.notification_settings?.follow_up_enabled}
+              onCheckedChange={(checked) => updateNotificationSetting('follow_up_enabled', checked)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="inactive-days">Dias para paciente inativo</Label>
+            <Input
+              id="inactive-days"
+              type="number"
+              value={settings.notification_settings?.inactive_patient_days || 90}
+              onChange={(e) =>
+                updateNotificationSetting('inactive_patient_days', parseInt(e.target.value) || 90)
+              }
+              min={30}
+              max={365}
+              className="w-32"
+            />
+            <p className="text-xs text-muted-foreground">
+              Pacientes sem agendamento há mais de este período serão considerados inativos
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Integrações */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <ChatBubbleLeftRightIcon className="w-5 h-5 text-muted-foreground" />
+            <CardTitle>Integrações</CardTitle>
+          </div>
+          <CardDescription>Conecte sua clínica com plataformas de mensagem</CardDescription>
+        </CardHeader>
+        <CardContent>
           <div className="space-y-4">
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={settings.notification_settings?.appointment_reminder_24h}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    notification_settings: {
-                      ...settings.notification_settings!,
-                      appointment_reminder_24h: e.target.checked,
-                    },
-                  })
-                }
-                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <span className="text-gray-700">Lembrete de agendamento 24h antes</span>
-            </label>
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={settings.notification_settings?.appointment_reminder_2h}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    notification_settings: {
-                      ...settings.notification_settings!,
-                      appointment_reminder_2h: e.target.checked,
-                    },
-                  })
-                }
-                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <span className="text-gray-700">Lembrete de agendamento 2h antes</span>
-            </label>
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={settings.notification_settings?.follow_up_enabled}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    notification_settings: {
-                      ...settings.notification_settings!,
-                      follow_up_enabled: e.target.checked,
-                    },
-                  })
-                }
-                className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <span className="text-gray-700">Follow-up pós-consulta automático</span>
-            </label>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Dias para identificar paciente inativo
-              </label>
-              <input
-                type="number"
-                value={settings.notification_settings?.inactive_patient_days || 90}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    notification_settings: {
-                      ...settings.notification_settings!,
-                      inactive_patient_days: parseInt(e.target.value) || 90,
-                    },
-                  })
-                }
-                className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                min={30}
-                max={365}
-              />
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-green-500 flex items-center justify-center">
+                  <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-foreground">WhatsApp Business</h3>
+                  <p className="text-sm text-muted-foreground">Conecte seu número do WhatsApp</p>
+                </div>
+              </div>
+              <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                Conectar
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                  <CameraIcon className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-medium text-foreground">Instagram</h3>
+                  <p className="text-sm text-muted-foreground">Conecte sua conta do Instagram</p>
+                </div>
+              </div>
+              <Button size="sm" className="bg-pink-600 hover:bg-pink-700">
+                Conectar
+              </Button>
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Integrações */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Integrações</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <h3 className="font-medium text-gray-900">WhatsApp Business</h3>
-                <p className="text-sm text-gray-500">Conecte seu número do WhatsApp</p>
-              </div>
-              <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
-                Conectar
-              </button>
-            </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <h3 className="font-medium text-gray-900">Instagram</h3>
-                <p className="text-sm text-gray-500">Conecte sua conta do Instagram</p>
-              </div>
-              <button className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors">
-                Conectar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Botão Salvar */}
-        <div className="flex justify-end">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? 'Salvando...' : 'Salvar Configurações'}
-          </button>
-        </div>
+      {/* Botão Salvar */}
+      <div className="flex justify-end">
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 shadow-md shadow-teal-600/20 min-w-[160px]"
+        >
+          {saving ? 'Salvando...' : 'Salvar Configurações'}
+        </Button>
+      </div>
     </div>
   )
 }

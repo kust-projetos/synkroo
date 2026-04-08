@@ -4,7 +4,14 @@ import { useAuth } from '@/lib/auth/context'
 import { useRouter, useParams } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { ErrorState } from '@/components/ui/ErrorState'
+import { PencilIcon, TrashIcon, UserIcon } from '@heroicons/react/24/outline'
+import { DetailPage } from '@/components/ui/detail-page'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Dentist {
   id: string
@@ -100,8 +107,9 @@ export default function DentistaDetalhePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     )
   }
@@ -109,7 +117,11 @@ export default function DentistaDetalhePage() {
   if (error) {
     return (
       <div className="p-4 lg:p-8">
-        <ErrorState message={error} onRetry={fetchDentist} />
+        <EmptyState
+          title="Erro ao carregar"
+          description={error}
+          action={{ label: "Tentar novamente", onClick: fetchDentist }}
+        />
       </div>
     )
   }
@@ -117,157 +129,129 @@ export default function DentistaDetalhePage() {
   if (!dentist) {
     return (
       <div className="p-4 lg:p-8">
-        <div className="flex flex-col items-center justify-center p-8 bg-white rounded-xl shadow-sm">
-          <svg className="w-12 h-12 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-          </svg>
-          <p className="text-gray-500 mb-4">Dentista não encontrado</p>
-          <Link href="/dashboard/dentistas" className="text-indigo-600 hover:text-indigo-700 text-sm">
-            Voltar para lista
-          </Link>
-        </div>
+        <EmptyState
+          title="Dentista não encontrado"
+          description="O dentista que você está procurando não existe ou foi removido."
+          icon={<UserIcon className="h-12 w-12 text-muted-foreground" />}
+          action={{ label: "Voltar para lista", onClick: () => router.push('/dashboard/dentistas') }}
+        />
       </div>
     )
   }
 
-  return (
-    <div className="p-4 lg:p-8">
-        <div className="flex items-center gap-4 mb-6">
-          <Link href="/dashboard/dentistas" className="text-gray-500 hover:text-gray-700">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </Link>
-          <h1 className="text-2xl font-bold text-gray-900">
-            {editing ? 'Editar Dentista' : 'Detalhes do Dentista'}
-          </h1>
-        </div>
+  const actions = editing ? undefined : (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+        <PencilIcon className="h-4 w-4 mr-1" />
+        Editar
+      </Button>
+      <Button variant="outline" size="sm" onClick={handleDelete} className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive">
+        <TrashIcon className="h-4 w-4 mr-1" />
+        Excluir
+      </Button>
+    </>
+  )
 
-        <div className="max-w-2xl bg-white rounded-xl shadow-sm p-6">
-          {editing ? (
-            <div className="space-y-4">
+  return (
+    <DetailPage
+      title={editing ? 'Editar Dentista' : dentist.name}
+      backHref="/dashboard/dentistas"
+      status={editing ? undefined : { type: dentist.is_active ? 'success' : 'error', label: dentist.is_active ? 'Ativo' : 'Inativo' }}
+      actions={actions}
+    >
+      <Card className="max-w-2xl p-6">
+        {editing ? (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Nome</label>
+              <Input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome</label>
-                <input
-                  type="text"
-                  value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
+                <Input
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-                  <input
-                    type="tel"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Especialidade</label>
-                  <select
-                    value={form.specialty}
-                    onChange={(e) => setForm({ ...form, specialty: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  >
-                    <option value="">Selecione...</option>
-                    <option value="Clínico Geral">Clínico Geral</option>
-                    <option value="Ortodontia">Ortodontia</option>
-                    <option value="Implantodontia">Implantodontia</option>
-                    <option value="Endodontia">Endodontia</option>
-                    <option value="Periodontia">Periodontia</option>
-                    <option value="Odontopediatria">Odontopediatria</option>
-                    <option value="Estética Dental">Estética Dental</option>
-                    <option value="Prótese">Prótese</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">CRO</label>
-                  <input
-                    type="text"
-                    value={form.cro_number}
-                    onChange={(e) => setForm({ ...form, cro_number: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-4 pt-4">
-                <button
-                  onClick={handleUpdate}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  Salvar
-                </button>
-                <button
-                  onClick={() => setEditing(false)}
-                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancelar
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+                <Input
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                />
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Nome</p>
-                  <p className="font-medium text-gray-900">{dentist.name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Especialidade</p>
-                  <p className="font-medium text-gray-900">{dentist.specialty || 'Geral'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Telefone</p>
-                  <p className="font-medium text-gray-900">{dentist.phone || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium text-gray-900">{dentist.email || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">CRO</p>
-                  <p className="font-medium text-gray-900">{dentist.cro_number || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Status</p>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                    dentist.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {dentist.is_active ? 'Ativo' : 'Inativo'}
-                  </span>
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">Especialidade</label>
+                <select
+                  value={form.specialty}
+                  onChange={(e) => setForm({ ...form, specialty: e.target.value })}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="Clínico Geral">Clínico Geral</option>
+                  <option value="Ortodontia">Ortodontia</option>
+                  <option value="Implantodontia">Implantodontia</option>
+                  <option value="Endodontia">Endodontia</option>
+                  <option value="Periodontia">Periodontia</option>
+                  <option value="Odontopediatria">Odontopediatria</option>
+                  <option value="Estética Dental">Estética Dental</option>
+                  <option value="Prótese">Prótese</option>
+                </select>
               </div>
-              <div className="flex gap-4 pt-4 border-t">
-                <button
-                  onClick={() => setEditing(true)}
-                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                >
-                  Excluir
-                </button>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1">CRO</label>
+                <Input
+                  type="text"
+                  value={form.cro_number}
+                  onChange={(e) => setForm({ ...form, cro_number: e.target.value })}
+                />
               </div>
             </div>
-          )}
-        </div>
-    </div>
+            <div className="flex gap-4 pt-4">
+              <Button onClick={handleUpdate} className="bg-teal-600 hover:bg-teal-700">
+                Salvar
+              </Button>
+              <Button variant="outline" onClick={() => setEditing(false)}>
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Nome</p>
+                <p className="font-medium text-foreground text-lg">{dentist.name}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Especialidade</p>
+                <p className="font-medium text-foreground">{dentist.specialty || 'Geral'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Telefone</p>
+                <p className="font-medium text-foreground">{dentist.phone || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Email</p>
+                <p className="font-medium text-foreground">{dentist.email || '-'}</p>
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">CRO</p>
+                <p className="font-medium text-foreground">{dentist.cro_number || '-'}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </Card>
+    </DetailPage>
   )
 }

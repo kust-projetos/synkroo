@@ -2,8 +2,17 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import { UserIcon, PhoneIcon, CalendarIcon, XMarkIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth/context'
 import { useToast } from '@/lib/ui/toast'
+import { PageHeader } from '@/components/ui/page-header'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface InactivePatient {
   patientId: string
@@ -117,14 +126,14 @@ export default function InactivePatientsPage() {
     return labels[segment] || segment
   }
 
-  const getSegmentColor = (segment: string) => {
-    const colors: Record<string, string> = {
-      inactive_30: 'bg-yellow-100 text-yellow-700',
-      inactive_60: 'bg-orange-100 text-orange-700',
-      inactive_90: 'bg-red-100 text-red-700',
-      inactive_180: 'bg-red-200 text-red-800',
+  const getSegmentColor = (segment: string): "success" | "warning" | "error" | "info" | "teal" | "zinc" => {
+    const colors: Record<string, "success" | "warning" | "error" | "info" | "teal" | "zinc"> = {
+      inactive_30: 'warning',
+      inactive_60: 'warning',
+      inactive_90: 'error',
+      inactive_180: 'error',
     }
-    return colors[segment] || 'bg-gray-100 text-gray-700'
+    return colors[segment] || 'zinc'
   }
 
   const filteredPatients = selectedSegment
@@ -180,243 +189,188 @@ export default function InactivePatientsPage() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+        <Skeleton className="h-8 w-8 rounded-full" />
       </div>
     )
   }
 
   return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pacientes Inativos</h1>
-              <p className="text-sm text-gray-500">Pacientes que não visitam há 30+ dias</p>
-            </div>
-            <Link
-              href="/dashboard/campanhas/nova"
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
+    <div className="p-6">
+      <PageHeader
+        title="Pacientes Inativos"
+        description="Pacientes que não visitam há 30+ dias"
+        action={
+          <Link href="/dashboard/campanhas/nova">
+            <Button className="bg-teal-600 hover:bg-teal-700">
+              <PaperAirplaneIcon className="h-4 w-4 mr-1" />
               Nova Campanha
-            </Link>
-          </div>
-        </div>
+            </Button>
+          </Link>
+        }
+      />
 
       {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <button
-            onClick={() => setSelectedSegment(null)}
-            className={`p-4 rounded-lg border-2 transition ${
-              selectedSegment === null
-                ? 'border-indigo-500 bg-indigo-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="text-2xl font-bold text-gray-900">{stats?.totalInactive || 0}</div>
-            <div className="text-sm text-gray-600">Total</div>
-          </button>
-          <button
-            onClick={() => setSelectedSegment('inactive_30')}
-            className={`p-4 rounded-lg border-2 transition ${
-              selectedSegment === 'inactive_30'
-                ? 'border-yellow-500 bg-yellow-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="text-2xl font-bold text-yellow-600">{stats?.bySegment?.inactive_30 || 0}</div>
-            <div className="text-sm text-gray-600">30-59 dias</div>
-          </button>
-          <button
-            onClick={() => setSelectedSegment('inactive_60')}
-            className={`p-4 rounded-lg border-2 transition ${
-              selectedSegment === 'inactive_60'
-                ? 'border-orange-500 bg-orange-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="text-2xl font-bold text-orange-600">{stats?.bySegment?.inactive_60 || 0}</div>
-            <div className="text-sm text-gray-600">60-89 dias</div>
-          </button>
-          <button
-            onClick={() => setSelectedSegment('inactive_90')}
-            className={`p-4 rounded-lg border-2 transition ${
-              selectedSegment === 'inactive_90'
-                ? 'border-red-400 bg-red-50'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="text-2xl font-bold text-red-500">{stats?.bySegment?.inactive_90 || 0}</div>
-            <div className="text-sm text-gray-600">90-179 dias</div>
-          </button>
-          <button
-            onClick={() => setSelectedSegment('inactive_180')}
-            className={`p-4 rounded-lg border-2 transition ${
-              selectedSegment === 'inactive_180'
-                ? 'border-red-600 bg-red-100'
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            }`}
-          >
-            <div className="text-2xl font-bold text-red-700">{stats?.bySegment?.inactive_180 || 0}</div>
-            <div className="text-sm text-gray-600">6+ meses</div>
-          </button>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <Card
+          className={`p-4 rounded-lg cursor-pointer transition ${selectedSegment === null ? 'bg-teal-50 dark:bg-teal-950 border-teal-500' : ''}`}
+          onClick={() => setSelectedSegment(null)}
+        >
+          <div className="text-2xl font-bold text-foreground">{stats?.totalInactive || 0}</div>
+          <div className="text-sm text-muted-foreground">Total</div>
+        </Card>
+        <Card
+          className={`p-4 rounded-lg cursor-pointer transition ${selectedSegment === 'inactive_30' ? 'bg-yellow-50 dark:bg-yellow-950 border-yellow-500' : ''}`}
+          onClick={() => setSelectedSegment('inactive_30')}
+        >
+          <div className="text-2xl font-bold text-yellow-600">{stats?.bySegment?.inactive_30 || 0}</div>
+          <div className="text-sm text-muted-foreground">30-59 dias</div>
+        </Card>
+        <Card
+          className={`p-4 rounded-lg cursor-pointer transition ${selectedSegment === 'inactive_60' ? 'bg-orange-50 dark:bg-orange-950 border-orange-500' : ''}`}
+          onClick={() => setSelectedSegment('inactive_60')}
+        >
+          <div className="text-2xl font-bold text-orange-600">{stats?.bySegment?.inactive_60 || 0}</div>
+          <div className="text-sm text-muted-foreground">60-89 dias</div>
+        </Card>
+        <Card
+          className={`p-4 rounded-lg cursor-pointer transition ${selectedSegment === 'inactive_90' ? 'bg-red-50 dark:bg-red-950 border-red-500' : ''}`}
+          onClick={() => setSelectedSegment('inactive_90')}
+        >
+          <div className="text-2xl font-bold text-red-500">{stats?.bySegment?.inactive_90 || 0}</div>
+          <div className="text-sm text-muted-foreground">90-179 dias</div>
+        </Card>
+        <Card
+          className={`p-4 rounded-lg cursor-pointer transition ${selectedSegment === 'inactive_180' ? 'bg-red-100 dark:bg-red-900 border-red-600' : ''}`}
+          onClick={() => setSelectedSegment('inactive_180')}
+        >
+          <div className="text-2xl font-bold text-red-700">{stats?.bySegment?.inactive_180 || 0}</div>
+          <div className="text-sm text-muted-foreground">6+ meses</div>
+        </Card>
+      </div>
 
-        {/* Patients List */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-            </div>
-          ) : filteredPatients.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="mt-2">
-                {selectedSegment
-                  ? 'Nenhum paciente neste segmento'
-                  : 'Nenhum paciente inativo'}
-              </p>
-              <p className="text-sm mt-1">Ótimo! Todos os pacientes estão em dia.</p>
-            </div>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Paciente
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Telefone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Última Visita
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Dias Inativo
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Segmento
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredPatients.map((patient) => (
-                  <tr key={patient.patientId} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                          <span className="text-gray-600 font-medium">
-                            {patient.patientName.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {patient.patientName}
-                          </div>
-                        </div>
+      {/* Patients List */}
+      <Card>
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <Skeleton className="h-8 w-8 rounded-full" />
+          </div>
+        ) : filteredPatients.length === 0 ? (
+          <EmptyState
+            title="Nenhum paciente inativo"
+            description={selectedSegment ? 'Nenhum paciente neste segmento' : 'Ótimo! Todos os pacientes estão em dia.'}
+            icon={<UserIcon className="h-12 w-12 text-muted-foreground" />}
+          />
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Paciente</TableHead>
+                <TableHead>Telefone</TableHead>
+                <TableHead>Última Visita</TableHead>
+                <TableHead>Dias Inativo</TableHead>
+                <TableHead>Segmento</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredPatients.map((patient) => (
+                <TableRow key={patient.patientId}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                        <span className="text-foreground font-medium">
+                          {patient.patientName.charAt(0).toUpperCase()}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <span className="font-medium text-foreground">{patient.patientName}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <PhoneIcon className="h-4 w-4" />
                       {formatPhone(patient.patientPhone)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <CalendarIcon className="h-4 w-4" />
                       {formatDate(patient.lastVisit)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-gray-900">
-                        {patient.daysSinceLastVisit} dias
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${getSegmentColor(patient.inactivitySegment)}`}>
-                        {getSegmentLabel(patient.inactivitySegment)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/dashboard/pacientes/${patient.patientId}`}
-                        className="text-indigo-600 hover:text-indigo-900 mr-3"
-                      >
-                        Ver
-                      </Link>
-                      <button
-                        onClick={() => openContactModal(patient)}
-                        className="text-green-600 hover:text-green-900"
-                      >
-                        Contatar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="font-medium text-foreground">{patient.daysSinceLastVisit} dias</span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {getSegmentLabel(patient.inactivitySegment)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Link href={`/dashboard/pacientes/${patient.patientId}`}>
+                      <Button variant="ghost" size="sm">Ver</Button>
+                    </Link>
+                    <Button variant="ghost" size="sm" onClick={() => openContactModal(patient)} className="text-green-600 hover:text-green-700">
+                      Contatar
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
 
-        {/* Contact Modal */}
-        {contactModal.isOpen && contactModal.patient && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Contatar {contactModal.patient.patientName}
-                </h3>
-                <button
-                  onClick={() => setContactModal({ isOpen: false, patient: null, message: '', sending: false })}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+      {/* Contact Modal */}
+      <Dialog open={contactModal.isOpen} onOpenChange={(open) => setContactModal((prev) => ({ ...prev, isOpen: open }))}>
+        <DialogContent>
+          {contactModal.patient && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Contatar {contactModal.patient.patientName}</DialogTitle>
+              </DialogHeader>
+
+              <div className="mb-4">
+                <p className="text-sm text-muted-foreground mb-1">Telefone</p>
+                <p className="font-medium flex items-center gap-2">
+                  <PhoneIcon className="h-4 w-4 text-muted-foreground" />
+                  {formatPhone(contactModal.patient.patientPhone)}
+                </p>
               </div>
 
               <div className="mb-4">
-                <p className="text-sm text-gray-500 mb-1">Telefone</p>
-                <p className="font-medium">{formatPhone(contactModal.patient.patientPhone)}</p>
-              </div>
-
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-foreground mb-1">
                   Mensagem
                 </label>
                 <textarea
                   value={contactModal.message}
                   onChange={(e) => setContactModal((prev) => ({ ...prev, message: e.target.value }))}
                   rows={6}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[150px] font-mono"
                 />
               </div>
 
-              <div className="flex justify-end gap-3">
-                <button
+              <DialogFooter>
+                <Button
+                  variant="outline"
                   onClick={() => setContactModal({ isOpen: false, patient: null, message: '', sending: false })}
-                  className="px-4 py-2 text-gray-700 hover:text-gray-900"
                 >
                   Cancelar
-                </button>
-                <button
+                </Button>
+                <Button
                   onClick={sendMessage}
                   disabled={contactModal.sending || !contactModal.message}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center gap-2"
+                  className="bg-green-600 hover:bg-green-700"
                 >
                   {contactModal.sending && (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                   )}
                   {contactModal.sending ? 'Enviando...' : 'Enviar WhatsApp'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

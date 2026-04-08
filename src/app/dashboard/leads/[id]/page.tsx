@@ -4,6 +4,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
+import { PhoneIcon, EnvelopeIcon, ChartBarIcon } from '@heroicons/react/24/outline'
+import { DetailPage } from '@/components/ui/detail-page'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'converted' | 'lost'
 type LeadTemperature = 'cold' | 'warm' | 'hot'
@@ -35,14 +42,14 @@ const statusLabels: Record<LeadStatus, string> = {
   lost: 'Perdido',
 }
 
-const statusColors: Record<LeadStatus, string> = {
-  new: 'bg-blue-100 text-blue-700',
-  contacted: 'bg-purple-100 text-purple-700',
-  qualified: 'bg-indigo-100 text-indigo-700',
-  proposal: 'bg-yellow-100 text-yellow-700',
-  negotiation: 'bg-orange-100 text-orange-700',
-  converted: 'bg-green-100 text-green-700',
-  lost: 'bg-red-100 text-red-700',
+const statusColors: Record<LeadStatus, "success" | "warning" | "error" | "info" | "teal" | "zinc"> = {
+  new: 'info',
+  contacted: 'teal',
+  qualified: 'teal',
+  proposal: 'warning',
+  negotiation: 'warning',
+  converted: 'success',
+  lost: 'error',
 }
 
 const temperatureLabels: Record<LeadTemperature, string> = {
@@ -55,6 +62,13 @@ const temperatureColors: Record<LeadTemperature, string> = {
   cold: 'bg-blue-500',
   warm: 'bg-orange-500',
   hot: 'bg-red-500',
+}
+
+const getScoreColor = (score: number) => {
+  if (score >= 80) return 'bg-green-500'
+  if (score >= 60) return 'bg-yellow-500'
+  if (score >= 40) return 'bg-orange-500'
+  return 'bg-red-500'
 }
 
 export default function LeadDetailPage() {
@@ -134,8 +148,9 @@ export default function LeadDetailPage() {
 
   if (dataLoading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     )
   }
@@ -144,159 +159,164 @@ export default function LeadDetailPage() {
     return null
   }
 
+  const statusColor = statusColors[lead.status]
+  const statusLabel = statusLabels[lead.status]
+
   return (
-    <div className="p-4 lg:p-8 max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <Link
-            href="/dashboard/leads"
-            className="text-sm text-gray-500 hover:text-gray-700 mb-2 inline-block"
-          >
-            ← Voltar para Leads
-          </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{lead.name}</h1>
-              <p className="text-gray-600 mt-1">Lead detalhes</p>
-            </div>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium ${statusColors[lead.status]}`}>
-              {statusLabels[lead.status]}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Info */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Contact Card */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações de Contato</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-sm text-gray-500">Telefone</div>
-                  <div className="font-medium">{lead.phone}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Email</div>
-                  <div className="font-medium">{lead.email || '-'}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Origem</div>
-                  <div className="font-medium capitalize">{lead.source}</div>
-                </div>
-                <div>
-                  <div className="text-sm text-gray-500">Interesse</div>
-                  <div className="font-medium">{lead.interest || '-'}</div>
+    <DetailPage
+      title={lead.name}
+      backHref="/dashboard/leads"
+      status={{ type: statusColor, label: statusLabel }}
+    >
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Main Info */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Contact Card */}
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Informações de Contato</h2>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-sm text-muted-foreground">Telefone</div>
+                <div className="font-medium flex items-center gap-2">
+                  <PhoneIcon className="h-4 w-4 text-muted-foreground" />
+                  {lead.phone}
                 </div>
               </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Email</div>
+                <div className="font-medium">{lead.email || '-'}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Origem</div>
+                <div className="font-medium capitalize">{lead.source}</div>
+              </div>
+              <div>
+                <div className="text-sm text-muted-foreground">Interesse</div>
+                <div className="font-medium">{lead.interest || '-'}</div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Notes */}
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Observações</h2>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[120px]"
+              rows={4}
+              placeholder="Adicione observações sobre o lead..."
+            />
+            <Button
+              onClick={saveNotes}
+              disabled={updating}
+              variant="outline"
+              className="mt-2"
+            >
+              Salvar Observações
+            </Button>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Score Card */}
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+              <ChartBarIcon className="h-5 w-5 text-muted-foreground" />
+              Score & Temperatura
+            </h2>
+            <div className="text-center mb-4">
+              <div className="text-4xl font-bold text-foreground">{lead.score}%</div>
+              <div className="text-sm text-muted-foreground">Score do Lead</div>
             </div>
 
-            {/* Notes */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Observações</h2>
-              <textarea
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                rows={4}
-                placeholder="Adicione observações sobre o lead..."
+            {/* Score Bar */}
+            <div className="w-full bg-muted rounded-full h-3 mb-4 overflow-hidden">
+              <div
+                className={`h-3 rounded-full transition-all ${getScoreColor(lead.score)}`}
+                style={{ width: `${lead.score}%` }}
               />
-              <button
-                onClick={saveNotes}
+            </div>
+
+            <div className="flex items-center justify-center gap-2">
+              <div className={`w-3 h-3 rounded-full ${temperatureColors[lead.temperature]}`} />
+              <span className="font-medium">{temperatureLabels[lead.temperature]}</span>
+            </div>
+          </Card>
+
+          {/* Actions */}
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Ações</h2>
+            <div className="space-y-2">
+              <select
+                value={lead.status}
+                onChange={(e) => updateStatus(e.target.value as LeadStatus)}
                 disabled={updating}
-                className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
-                Salvar Observações
-              </button>
-            </div>
-          </div>
+                {Object.entries(statusLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Score Card */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Score & Temperatura</h2>
-              <div className="text-center mb-4">
-                <div className="text-4xl font-bold text-gray-900">{lead.score}%</div>
-                <div className="text-sm text-gray-500">Score do Lead</div>
-              </div>
-              <div className="flex items-center justify-center gap-2">
-                <div className={`w-3 h-3 rounded-full ${temperatureColors[lead.temperature]}`} />
-                <span className="font-medium">{temperatureLabels[lead.temperature]}</span>
-              </div>
-            </div>
+              <a
+                href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block w-full text-center bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+              >
+                💬 Abrir no WhatsApp
+              </a>
 
-            {/* Actions */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Ações</h2>
-              <div className="space-y-2">
-                <select
-                  value={lead.status}
-                  onChange={(e) => updateStatus(e.target.value as LeadStatus)}
-                  disabled={updating}
-                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500"
-                >
-                  {Object.entries(statusLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-
+              {lead.email && (
                 <a
-                  href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block w-full text-center bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors"
+                  href={`mailto:${lead.email}`}
+                  className="block w-full text-center bg-muted text-foreground px-4 py-2 rounded-lg hover:bg-muted/70 transition-colors flex items-center justify-center gap-2"
                 >
-                  💬 Abrir no WhatsApp
+                  <EnvelopeIcon className="h-4 w-4" />
+                  Enviar Email
                 </a>
-
-                {lead.email && (
-                  <a
-                    href={`mailto:${lead.email}`}
-                    className="block w-full text-center bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition-colors"
-                  >
-                    ✉️ Enviar Email
-                  </a>
-                )}
-              </div>
+              )}
             </div>
+          </Card>
 
-            {/* Dates */}
-            <div className="bg-white rounded-xl shadow-sm p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Datas</h2>
-              <div className="space-y-3 text-sm">
+          {/* Dates */}
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Datas</h2>
+            <div className="space-y-3 text-sm">
+              <div>
+                <div className="text-muted-foreground">Criado em</div>
+                <div className="font-medium">
+                  {new Date(lead.created_at).toLocaleDateString('pt-BR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                  })}
+                </div>
+              </div>
+              {lead.last_contact_at && (
                 <div>
-                  <div className="text-gray-500">Criado em</div>
+                  <div className="text-muted-foreground">Último contato</div>
                   <div className="font-medium">
-                    {new Date(lead.created_at).toLocaleDateString('pt-BR', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })}
+                    {new Date(lead.last_contact_at).toLocaleDateString('pt-BR')}
                   </div>
                 </div>
-                {lead.last_contact_at && (
-                  <div>
-                    <div className="text-gray-500">Último contato</div>
-                    <div className="font-medium">
-                      {new Date(lead.last_contact_at).toLocaleDateString('pt-BR')}
-                    </div>
+              )}
+              {lead.next_followup_at && (
+                <div>
+                  <div className="text-muted-foreground">Próximo follow-up</div>
+                  <div className="font-medium">
+                    {new Date(lead.next_followup_at).toLocaleDateString('pt-BR')}
                   </div>
-                )}
-                {lead.next_followup_at && (
-                  <div>
-                    <div className="text-gray-500">Próximo follow-up</div>
-                    <div className="font-medium">
-                      {new Date(lead.next_followup_at).toLocaleDateString('pt-BR')}
-                    </div>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
-          </div>
+          </Card>
         </div>
-    </div>
+      </div>
+    </DetailPage>
   )
 }

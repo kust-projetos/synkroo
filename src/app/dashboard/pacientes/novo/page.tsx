@@ -2,9 +2,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
+import { XMarkIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth/context'
 import { useToast } from '@/lib/ui/toast'
+import { FormPage } from '@/components/ui/form-page'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 export default function NovoPacientePage() {
   const router = useRouter()
@@ -75,9 +79,7 @@ export default function NovoPacientePage() {
     setFormData(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tagToRemove) }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
+  const handleSubmit = async () => {
     if (!clinicId) {
       toast.showToast('Clínica não encontrada', 'error')
       return
@@ -123,185 +125,145 @@ export default function NovoPacientePage() {
   }
 
   return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/pacientes" className="text-gray-500 hover:text-gray-700">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Novo Paciente</h1>
-              <p className="text-sm text-gray-500">Cadastre um novo paciente na clínica</p>
-            </div>
-          </div>
+    <FormPage
+      title="Novo Paciente"
+      backHref="/dashboard/pacientes"
+      onSubmit={handleSubmit}
+      loading={loading}
+      submitLabel="Salvar Paciente"
+    >
+      {/* Name */}
+      <div>
+        <label htmlFor="name" className="block text-sm font-medium text-foreground mb-1">
+          Nome completo *
+        </label>
+        <Input
+          type="text"
+          id="name"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          required
+          placeholder="Nome do paciente"
+        />
+      </div>
+
+      {/* Phone */}
+      <div>
+        <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-1">
+          Telefone / WhatsApp *
+        </label>
+        <Input
+          type="tel"
+          id="phone"
+          name="phone"
+          value={formData.phone}
+          onChange={handlePhoneChange}
+          required
+          placeholder="(99) 99999-9999"
+        />
+      </div>
+
+      {/* Email */}
+      <div>
+        <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
+          Email
+        </label>
+        <Input
+          type="email"
+          id="email"
+          name="email"
+          value={formData.email}
+          onChange={handleChange}
+          placeholder="email@exemplo.com"
+        />
+      </div>
+
+      {/* CPF and Birth Date */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="cpf" className="block text-sm font-medium text-foreground mb-1">
+            CPF
+          </label>
+          <Input
+            type="text"
+            id="cpf"
+            name="cpf"
+            value={formData.cpf}
+            onChange={handleCpfChange}
+            placeholder="999.999.999-99"
+          />
         </div>
+        <div>
+          <label htmlFor="birth_date" className="block text-sm font-medium text-foreground mb-1">
+            Data de Nascimento
+          </label>
+          <Input
+            type="date"
+            id="birth_date"
+            name="birth_date"
+            value={formData.birth_date}
+            onChange={handleChange}
+          />
+        </div>
+      </div>
 
-      {/* Form */}
-      <div className="max-w-3xl">
-        <form onSubmit={handleSubmit} className="bg-white shadow rounded-lg p-6 space-y-6">
-
-          {/* Name */}
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
-              Nome completo *
-            </label>
-            <input
-              type="text"
-              id="name"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Nome do paciente"
-            />
-          </div>
-
-          {/* Phone */}
-          <div>
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-              Telefone / WhatsApp *
-            </label>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              value={formData.phone}
-              onChange={handlePhoneChange}
-              required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="(99) 99999-9999"
-            />
-          </div>
-
-          {/* Email */}
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              id="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="email@exemplo.com"
-            />
-          </div>
-
-          {/* CPF and Birth Date */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="cpf" className="block text-sm font-medium text-gray-700 mb-1">
-                CPF
-              </label>
-              <input
-                type="text"
-                id="cpf"
-                name="cpf"
-                value={formData.cpf}
-                onChange={handleCpfChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="999.999.999-99"
-              />
-            </div>
-            <div>
-              <label htmlFor="birth_date" className="block text-sm font-medium text-gray-700 mb-1">
-                Data de Nascimento
-              </label>
-              <input
-                type="date"
-                id="birth_date"
-                name="birth_date"
-                value={formData.birth_date}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
-
-          {/* Tags */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tags
-            </label>
-            <div className="flex gap-2 mb-2">
-              <input
-                type="text"
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Adicionar tag (ex: VIP, Novo)"
-              />
+      {/* Tags */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">
+          Tags
+        </label>
+        <div className="flex gap-2 mb-2">
+          <Input
+            type="text"
+            value={newTag}
+            onChange={(e) => setNewTag(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+            placeholder="Adicionar tag (ex: VIP, Novo)"
+          />
+          <Button
+            type="button"
+            onClick={addTag}
+            variant="secondary"
+          >
+            Adicionar
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {formData.tags.map((tag, i) => (
+            <Badge
+              key={i}
+              variant="secondary"
+              className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm"
+            >
+              {tag}
               <button
                 type="button"
-                onClick={addTag}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition"
+                onClick={() => removeTag(tag)}
+                className="ml-1 hover:opacity-70"
               >
-                Adicionar
+                <XMarkIcon className="h-3 w-3" />
               </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {formData.tags.map((tag, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(tag)}
-                    className="text-blue-500 hover:text-blue-700"
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          </div>
-
-          {/* Notes */}
-          <div>
-            <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
-              Observações
-            </label>
-            <textarea
-              id="notes"
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Alergias, observações médicas, preferências..."
-            />
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
-            <Link
-              href="/dashboard/pacientes"
-              className="px-4 py-2 text-gray-700 hover:text-gray-900"
-            >
-              Cancelar
-            </Link>
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-            >
-              {loading && (
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              )}
-              {loading ? 'Salvando...' : 'Salvar Paciente'}
-            </button>
-          </div>
-        </form>
+            </Badge>
+          ))}
+        </div>
       </div>
-    </div>
+
+      {/* Notes */}
+      <div>
+        <label htmlFor="notes" className="block text-sm font-medium text-foreground mb-1">
+          Observações
+        </label>
+        <textarea
+          id="notes"
+          name="notes"
+          value={formData.notes}
+          onChange={handleChange}
+          rows={3}
+          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
+          placeholder="Alergias, observações médicas, preferências..."
+        />
+      </div>
+    </FormPage>
   )
 }

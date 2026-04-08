@@ -3,7 +3,13 @@
 import { useAuth } from '@/lib/auth/context'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { BeakerIcon, PlusIcon, ClockIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { SearchInput } from '@/components/ui/search-input'
+import { Card } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Procedure {
   id: string
@@ -53,74 +59,95 @@ export default function ProcedimentosPage() {
     }).format(price || 0)
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-      </div>
-    )
-  }
-
   if (error) {
     return (
-      <div className="p-4 lg:p-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Procedimentos</h1>
+      <div className="p-4 lg:p-8 space-y-6">
+        <PageHeader
+          title="Procedimentos"
+          description="Gerencie os procedimentos da clínica"
+        />
         <ErrorState message={error} onRetry={fetchProcedures} />
       </div>
     )
   }
 
   return (
-    <div className="p-4 lg:p-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Procedimentos</h1>
-          <Link
-            href="/dashboard/procedimentos/novo"
-            className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Novo Procedimento
-          </Link>
-        </div>
+    <div className="p-4 lg:p-8 space-y-6">
+      <PageHeader
+        title="Procedimentos"
+        description="Gerencie os procedimentos da clínica"
+        action={
+          <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
+            <Link href="/dashboard/procedimentos/novo">
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Novo Procedimento
+            </Link>
+          </Button>
+        }
+      />
 
-        {/* Search */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Buscar procedimento..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar procedimento..."
+      />
 
-        {/* Procedures Grid */}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+        </div>
+      ) : filteredProcedures.length === 0 ? (
+        <EmptyState
+          icon={<BeakerIcon className="h-8 w-8 text-teal-600 dark:text-teal-400" />}
+          title={search ? 'Nenhum procedimento encontrado' : 'Nenhum procedimento cadastrado'}
+          description={search ? 'Tente buscar com outros termos' : 'Comece cadastrando o primeiro procedimento da clínica'}
+          action={!search ? {
+            label: 'Cadastrar Procedimento',
+            onClick: () => window.location.href = '/dashboard/procedimentos/novo',
+          } : undefined}
+        />
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProcedures.length === 0 ? (
-            <div className="col-span-full p-8 text-center text-gray-500 bg-white rounded-xl">
-              {search ? 'Nenhum procedimento encontrado' : 'Nenhum procedimento cadastrado'}
-            </div>
-          ) : (
-            filteredProcedures.map((procedure) => (
-              <Link
-                key={procedure.id}
-                href={`/dashboard/procedimentos/${procedure.id}`}
-                className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-shadow"
-              >
-                <h3 className="font-semibold text-gray-900 mb-2">{procedure.name}</h3>
-                {procedure.description && (
-                  <p className="text-sm text-gray-500 mb-4 line-clamp-2">{procedure.description}</p>
-                )}
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-gray-500">{procedure.duration_minutes} min</span>
-                  <span className="font-medium text-indigo-600">{formatPrice(procedure.price)}</span>
+          {filteredProcedures.map((procedure) => (
+            <Link
+              key={procedure.id}
+              href={`/dashboard/procedimentos/${procedure.id}`}
+              className="group"
+            >
+              <Card className="p-6 h-full transition-all hover:shadow-lg hover:border-teal-200 dark:hover:border-teal-800">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 flex items-center justify-center">
+                    <BeakerIcon className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+                  </div>
+                  <div
+                    className={`h-2 w-2 rounded-full ${
+                      procedure.is_active ? 'bg-teal-500' : 'bg-zinc-300'
+                    }`}
+                  />
                 </div>
-              </Link>
-            ))
-          )}
+                <h3 className="font-semibold text-foreground mb-2 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                  {procedure.name}
+                </h3>
+                {procedure.description && (
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                    {procedure.description}
+                  </p>
+                )}
+                <div className="flex items-center justify-between text-sm pt-4 border-t border-border">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <ClockIcon className="h-4 w-4" />
+                    <span>{procedure.duration_minutes} min</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 font-semibold text-teal-600 dark:text-teal-400">
+                    <CurrencyDollarIcon className="h-4 w-4" />
+                    <span>{formatPrice(procedure.price)}</span>
+                  </div>
+                </div>
+              </Card>
+            </Link>
+          ))}
         </div>
-      </div>
+      )}
+    </div>
   )
 }

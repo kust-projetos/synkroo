@@ -3,6 +3,9 @@
 import { useAuth } from '@/lib/auth/context'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { FormPage } from '@/components/ui/form-page'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
 
 export default function NovoDentistaPage() {
   const { profile } = useAuth()
@@ -16,8 +19,7 @@ export default function NovoDentistaPage() {
     cro_number: '',
   })
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     setSaving(true)
 
     try {
@@ -41,93 +43,71 @@ export default function NovoDentistaPage() {
   }
 
   return (
-    <div className="p-4 lg:p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Novo Dentista</h1>
-
-      <div className="max-w-2xl bg-white rounded-xl shadow-sm p-6">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nome *</label>
-            <input
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Telefone</label>
-              <input
-                type="tel"
-                value={form.phone}
-                onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="(00) 00000-0000"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Especialidade</label>
-              <select
-                value={form.specialty}
-                onChange={(e) => setForm({ ...form, specialty: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-              >
-                <option value="">Selecione...</option>
-                <option value="Clínico Geral">Clínico Geral</option>
-                <option value="Ortodontia">Ortodontia</option>
-                <option value="Implantodontia">Implantodontia</option>
-                <option value="Endodontia">Endodontia</option>
-                <option value="Periodontia">Periodontia</option>
-                <option value="Odontopediatria">Odontopediatria</option>
-                <option value="Estética Dental">Estética Dental</option>
-                <option value="Prótese">Prótese</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">CRO</label>
-              <input
-                type="text"
-                value={form.cro_number}
-                onChange={(e) => setForm({ ...form, cro_number: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                placeholder="00000/UF"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-4 pt-4">
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
-            >
-              {saving ? 'Salvando...' : 'Salvar'}
-            </button>
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancelar
-            </button>
-          </div>
-        </form>
+    <FormPage
+      title="Novo Dentista"
+      backHref="/dashboard/dentistas"
+      onSubmit={handleSubmit}
+      loading={saving}
+    >
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-1">Nome *</label>
+        <Input
+          type="text"
+          required
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
       </div>
-    </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Telefone</label>
+          <Input
+            type="tel"
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+            placeholder="(00) 00000-0000"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Email</label>
+          <Input
+            type="email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">Especialidade</label>
+          <select
+            value={form.specialty}
+            onChange={(e) => setForm({ ...form, specialty: e.target.value })}
+            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          >
+            <option value="">Selecione...</option>
+            <option value="Clínico Geral">Clínico Geral</option>
+            <option value="Ortodontia">Ortodontia</option>
+            <option value="Implantodontia">Implantodontia</option>
+            <option value="Endodontia">Endodontia</option>
+            <option value="Periodontia">Periodontia</option>
+            <option value="Odontopediatria">Odontopediatria</option>
+            <option value="Estética Dental">Estética Dental</option>
+            <option value="Prótese">Prótese</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">CRO</label>
+          <Input
+            type="text"
+            value={form.cro_number}
+            onChange={(e) => setForm({ ...form, cro_number: e.target.value })}
+            placeholder="00000/UF"
+          />
+        </div>
+      </div>
+    </FormPage>
   )
 }

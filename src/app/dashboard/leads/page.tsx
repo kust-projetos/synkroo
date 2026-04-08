@@ -3,7 +3,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import Link from 'next/link'
+import { UserGroupIcon, PlusIcon, BellIcon, FireIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { StatsGrid } from '@/components/ui/stats-grid'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Card } from '@/components/ui/card'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { Badge } from '@/components/ui/badge'
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'converted' | 'lost'
 type LeadTemperature = 'cold' | 'warm' | 'hot'
@@ -51,19 +59,19 @@ const statusLabels: Record<LeadStatus, string> = {
   contacted: 'Contatado',
   qualified: 'Qualificado',
   proposal: 'Proposta',
-  negotiation: 'Negociacao',
+  negotiation: 'Negociação',
   converted: 'Convertido',
   lost: 'Perdido',
 }
 
-const statusColors: Record<LeadStatus, string> = {
-  new: 'bg-blue-100 text-blue-700',
-  contacted: 'bg-purple-100 text-purple-700',
-  qualified: 'bg-indigo-100 text-indigo-700',
-  proposal: 'bg-yellow-100 text-yellow-700',
-  negotiation: 'bg-orange-100 text-orange-700',
-  converted: 'bg-green-100 text-green-700',
-  lost: 'bg-red-100 text-red-700',
+const statusBadgeTypes: Record<LeadStatus, 'info' | 'teal' | 'warning' | 'error' | 'success' | 'zinc'> = {
+  new: 'info',
+  contacted: 'teal',
+  qualified: 'warning',
+  proposal: 'warning',
+  negotiation: 'error',
+  converted: 'success',
+  lost: 'zinc',
 }
 
 const temperatureColors: Record<LeadTemperature, string> = {
@@ -178,265 +186,256 @@ export default function LeadsPage() {
     )
   }
 
-  if (dataLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-      </div>
-    )
-  }
-
   const hotLeads = leads.filter((l) => l.temperature === 'hot')
 
   return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
-            <p className="text-gray-600 mt-1">Gerencie seu pipeline de vendas</p>
-          </div>
-          <Link
-            href="/dashboard/leads/novo"
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            + Novo Lead
-          </Link>
-        </div>
+    <div className="p-4 lg:p-8 space-y-6">
+      <PageHeader
+        title="Leads"
+        description="Gerencie seu pipeline de vendas"
+        action={
+          <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
+            <Link href="/dashboard/leads/novo">
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Novo Lead
+            </Link>
+          </Button>
+        }
+      />
 
-        {/* Stats */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-              <div className="text-sm text-gray-500">Total</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-blue-600">{stats.byStatus.new}</div>
-              <div className="text-sm text-gray-500">Novos</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-indigo-600">{stats.byStatus.qualified}</div>
-              <div className="text-sm text-gray-500">Qualificados</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-red-600">{stats.byTemperature.hot}</div>
-              <div className="text-sm text-gray-500">Quentes</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-green-600">{stats.conversionRate}%</div>
-              <div className="text-sm text-gray-500">Conversao</div>
-            </div>
-          </div>
-        )}
+      {/* Stats */}
+      {stats && (
+        <StatsGrid
+          columns={5}
+          stats={[
+            { label: 'Total', value: stats.total },
+            { label: 'Novos', value: stats.byStatus.new },
+            { label: 'Qualificados', value: stats.byStatus.qualified },
+            { label: 'Quentes', value: stats.byTemperature.hot },
+            { label: 'Conversão', value: `${stats.conversionRate}%` },
+          ]}
+        />
+      )}
 
-        {/* Unacknowledged Hot Lead Notifications */}
-        {notifications.length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🔔</span>
-                <span className="font-semibold text-red-700">
-                  {notifications.length} alerta(s) de lead quente nao confirmado(s)
-                </span>
-              </div>
-              <button
-                onClick={handleAcknowledgeAll}
-                className="text-xs bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Confirmar todos
-              </button>
-            </div>
-            <div className="space-y-2">
-              {notifications.slice(0, 5).map((notification) => (
-                <div
-                  key={notification.id}
-                  className="bg-white px-4 py-3 rounded-lg flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                    <div>
-                      <span className="font-medium text-gray-900">
-                        {notification.lead_name || 'Lead desconhecido'}
-                      </span>
-                      <span className="text-sm text-gray-500 ml-2">
-                        Score: {notification.lead_score ?? '-'} | Origem: {notification.lead_source || '-'}
-                      </span>
-                      {notification.lead_interest && (
-                        <span className="text-xs text-indigo-600 ml-2">
-                          Interesse: {notification.lead_interest}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400">
-                      {new Date(notification.sent_at).toLocaleString('pt-BR')}
-                    </span>
-                    <Link
-                      href={`/dashboard/leads/${notification.lead_id}`}
-                      className="text-xs text-indigo-600 hover:text-indigo-800"
-                    >
-                      Ver lead
-                    </Link>
-                    <button
-                      onClick={() => handleAcknowledge(notification.id)}
-                      className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded hover:bg-gray-200 transition-colors"
-                    >
-                      Confirmar
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {notifications.length > 5 && (
-                <p className="text-xs text-red-600 text-center">
-                  E mais {notifications.length - 5} alerta(s)...
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Hot Leads Alert (no unacknowledged notifications, just hot leads summary) */}
-        {hotLeads.length > 0 && notifications.length === 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">🔥</span>
-              <span className="font-semibold text-red-700">
-                {hotLeads.length} lead(s) quente(s) precisam de atencao!
+      {/* Unacknowledged Hot Lead Notifications */}
+      {notifications.length > 0 && (
+        <Card className="p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 border-red-200 dark:border-red-800">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <BellIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
+              <span className="font-semibold text-red-700 dark:text-red-400">
+                {notifications.length} alerta(s) de lead quente não confirmado(s)
               </span>
             </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {hotLeads.slice(0, 5).map((lead) => (
-                <Link
-                  key={lead.id}
-                  href={`/dashboard/leads/${lead.id}`}
-                  className="bg-white px-3 py-2 rounded-lg text-sm hover:bg-red-100 transition-colors whitespace-nowrap"
-                >
-                  {lead.name} ({lead.score}%)
-                </Link>
-              ))}
-            </div>
+            <Button
+              size="sm"
+              onClick={handleAcknowledgeAll}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Confirmar todos
+            </Button>
           </div>
-        )}
-
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as LeadStatus | 'all')}
-                className="border rounded-lg px-3 py-2 text-sm"
+          <div className="space-y-2">
+            {notifications.slice(0, 5).map((notification) => (
+              <div
+                key={notification.id}
+                className="bg-background px-4 py-3 rounded-lg flex items-center justify-between gap-4"
               >
-                <option value="all">Todos</option>
-                {Object.entries(statusLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">Temperatura</label>
-              <select
-                value={temperatureFilter}
-                onChange={(e) => setTemperatureFilter(e.target.value as LeadTemperature | 'all')}
-                className="border rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="all">Todas</option>
-                <option value="hot">Quente</option>
-                <option value="warm">Morno</option>
-                <option value="cold">Frio</option>
-              </select>
-            </div>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-medium text-foreground">
+                      {notification.lead_name || 'Lead desconhecido'}
+                    </span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      Score: {notification.lead_score ?? '-'} | Origem: {notification.lead_source || '-'}
+                    </span>
+                    {notification.lead_interest && (
+                      <Badge variant="outline" className="ml-2 text-xs">
+                        {notification.lead_interest}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(notification.sent_at).toLocaleString('pt-BR')}
+                  </span>
+                  <Link
+                    href={`/dashboard/leads/${notification.lead_id}`}
+                    className="text-xs text-teal-600 hover:text-teal-700"
+                  >
+                    Ver lead
+                  </Link>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAcknowledge(notification.id)}
+                  >
+                    <CheckIcon className="h-3 w-3 mr-1" />
+                    Confirmar
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {notifications.length > 5 && (
+              <p className="text-xs text-red-600 dark:text-red-400 text-center">
+                E mais {notifications.length - 5} alerta(s)...
+              </p>
+            )}
           </div>
-        </div>
+        </Card>
+      )}
 
-        {/* Leads Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {dataLoading ? (
-            <div className="h-64 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
-            </div>
-          ) : leads.length === 0 ? (
-            <div className="text-center text-gray-500 py-12">
-              <p className="text-lg mb-2">Nenhum lead encontrado</p>
-              <Link href="/dashboard/leads/novo" className="text-indigo-600 hover:text-indigo-700">
-                Adicionar primeiro lead
+      {/* Hot Leads Alert */}
+      {hotLeads.length > 0 && notifications.length === 0 && (
+        <Card className="p-4 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 border-orange-200 dark:border-orange-800">
+          <div className="flex items-center gap-2 mb-3">
+            <FireIcon className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+            <span className="font-semibold text-orange-700 dark:text-orange-400">
+              {hotLeads.length} lead(s) quente(s) precisam de atenção!
+            </span>
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {hotLeads.slice(0, 5).map((lead) => (
+              <Link
+                key={lead.id}
+                href={`/dashboard/leads/${lead.id}`}
+                className="bg-background px-3 py-2 rounded-lg text-sm hover:bg-orange-100 dark:hover:bg-orange-900/20 transition-colors whitespace-nowrap border border-border"
+              >
+                {lead.name} ({lead.score}%)
               </Link>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Nome</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Contato</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Origem</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Score</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Interesse</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Acoes</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {leads.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${temperatureColors[lead.temperature]}`} />
-                          <span className="font-medium text-gray-900">{lead.name}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        <div>{lead.phone}</div>
-                        {lead.email && <div className="text-xs text-gray-400">{lead.email}</div>}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600 capitalize">{lead.source}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <div className="w-16 bg-gray-200 rounded-full h-2">
-                            <div
-                              className={`h-2 rounded-full ${
-                                lead.score >= 70 ? 'bg-red-500' : lead.score >= 40 ? 'bg-orange-500' : 'bg-blue-500'
-                              }`}
-                              style={{ width: `${lead.score}%` }}
-                            />
-                          </div>
-                          <span className="text-sm text-gray-600">{lead.score}%</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <select
-                          value={lead.status}
-                          onChange={(e) => updateLeadStatus(lead.id, e.target.value as LeadStatus)}
-                          className={`text-xs px-2 py-1 rounded border-0 ${statusColors[lead.status]}`}
-                        >
-                          {Object.entries(statusLabels).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">{lead.interest || '-'}</td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/dashboard/leads/${lead.id}`}
-                          className="text-indigo-600 hover:text-indigo-700 text-sm"
-                        >
-                          Ver detalhes
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <Card className="p-4">
+        <div className="flex flex-wrap gap-4">
+          <div>
+            <label className="text-sm text-muted-foreground block mb-1">Status</label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as LeadStatus | 'all')}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {Object.entries(statusLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm text-muted-foreground block mb-1">Temperatura</label>
+            <Select
+              value={temperatureFilter}
+              onValueChange={(v) => setTemperatureFilter(v as LeadTemperature | 'all')}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="hot">Quente</SelectItem>
+                <SelectItem value="warm">Morno</SelectItem>
+                <SelectItem value="cold">Frio</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
+      </Card>
+
+      {/* Leads Table */}
+      {dataLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+        </div>
+      ) : leads.length === 0 ? (
+        <Card className="p-12 text-center">
+          <UserGroupIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-lg font-medium text-foreground mb-2">Nenhum lead encontrado</p>
+          <Link href="/dashboard/leads/novo" className="text-teal-600 hover:text-teal-700">
+            Adicionar primeiro lead
+          </Link>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted border-b border-border">
+                <tr>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Nome</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Contato</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Origem</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Score</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Interesse</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {leads.map((lead) => (
+                  <tr key={lead.id} className="hover:bg-muted/50">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${temperatureColors[lead.temperature]}`} />
+                        <span className="font-medium text-foreground">{lead.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      <div>{lead.phone}</div>
+                      {lead.email && <div className="text-xs text-muted-foreground">{lead.email}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground capitalize">{lead.source}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-16 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className={`h-full ${
+                              lead.score >= 70 ? 'bg-red-500' : lead.score >= 40 ? 'bg-orange-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${lead.score}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-muted-foreground">{lead.score}%</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={lead.status}
+                        onChange={(e) => updateLeadStatus(lead.id, e.target.value as LeadStatus)}
+                        className="text-xs border-0 bg-transparent cursor-pointer"
+                      >
+                        {Object.entries(statusLabels).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">{lead.interest || '-'}</td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/dashboard/leads/${lead.id}`}
+                        className="text-sm text-teal-600 hover:text-teal-700"
+                      >
+                        Ver detalhes
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }

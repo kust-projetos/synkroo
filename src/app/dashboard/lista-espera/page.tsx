@@ -3,6 +3,15 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import Link from 'next/link'
+import { ClockIcon, PlusIcon, ExclamationTriangleIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { StatsGrid } from '@/components/ui/stats-grid'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/status-badge'
 
 type WaitlistStatus = 'waiting' | 'notified' | 'scheduled' | 'expired' | 'cancelled'
 
@@ -43,17 +52,17 @@ const statusLabels: Record<WaitlistStatus, string> = {
   cancelled: 'Cancelado',
 }
 
-const statusColors: Record<WaitlistStatus, string> = {
-  waiting: 'bg-yellow-100 text-yellow-700',
-  notified: 'bg-blue-100 text-blue-700',
-  scheduled: 'bg-green-100 text-green-700',
-  expired: 'bg-gray-100 text-gray-700',
-  cancelled: 'bg-red-100 text-red-700',
+const statusBadgeTypes: Record<WaitlistStatus, 'warning' | 'info' | 'success' | 'zinc' | 'error'> = {
+  waiting: 'warning',
+  notified: 'info',
+  scheduled: 'success',
+  expired: 'zinc',
+  cancelled: 'error',
 }
 
 const priorityColors: Record<number, string> = {
-  1: 'bg-gray-500',
-  2: 'bg-gray-400',
+  1: 'bg-zinc-500',
+  2: 'bg-zinc-400',
   3: 'bg-yellow-500',
   4: 'bg-orange-500',
   5: 'bg-red-500',
@@ -167,249 +176,235 @@ export default function WaitlistPage() {
     return Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60 * 24))
   }
 
-  if (dataLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-      </div>
-    )
-  }
-
   const urgentEntries = entries.filter((e) => e.priority >= 7 && e.status === 'waiting')
 
   return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Lista de Espera</h1>
-            <p className="text-gray-600 mt-1">Gerencie pacientes aguardando vagas</p>
-          </div>
-          <Link
-            href="/dashboard/agendamentos/novo"
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            + Nova Entrada
-          </Link>
-        </div>
+    <div className="p-4 lg:p-8 space-y-6">
+      <PageHeader
+        title="Lista de Espera"
+        description="Gerencie pacientes aguardando vagas"
+        action={
+          <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
+            <Link href="/dashboard/agendamentos/novo">
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Nova Entrada
+            </Link>
+          </Button>
+        }
+      />
 
-        {/* Stats */}
-        {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-gray-900">{stats.total}</div>
-              <div className="text-sm text-gray-500">Total</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-yellow-600">{stats.waiting}</div>
-              <div className="text-sm text-gray-500">Aguardando</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-blue-600">{stats.notified}</div>
-              <div className="text-sm text-gray-500">Notificados</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-green-600">{stats.scheduled}</div>
-              <div className="text-sm text-gray-500">Agendados</div>
-            </div>
-            <div className="bg-white rounded-xl shadow-sm p-4">
-              <div className="text-2xl font-bold text-indigo-600">{stats.avgWaitDays}</div>
-              <div className="text-sm text-gray-500">Dias Média</div>
-            </div>
-          </div>
-        )}
+      {/* Stats */}
+      {stats && (
+        <StatsGrid
+          columns={5}
+          stats={[
+            { label: 'Total', value: stats.total },
+            { label: 'Aguardando', value: stats.waiting },
+            { label: 'Notificados', value: stats.notified },
+            { label: 'Agendados', value: stats.scheduled },
+            { label: 'Dias Média', value: stats.avgWaitDays },
+          ]}
+        />
+      )}
 
-        {/* Urgent Alert */}
-        {urgentEntries.length > 0 && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-xl">⚠️</span>
-              <span className="font-semibold text-red-700">
-                {urgentEntries.length} entrada(s) prioritária(s) precisam de atenção!
-              </span>
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-2">
-              {urgentEntries.slice(0, 5).map((entry) => (
-                <div
-                  key={entry.id}
-                  className="bg-white px-3 py-2 rounded-lg text-sm whitespace-nowrap"
-                >
-                  <span className="font-medium">{entry.patientName}</span>
-                  <span className="text-gray-500 ml-2">
-                    {formatDate(entry.preferredDate)}
-                  </span>
-                </div>
-              ))}
-            </div>
+      {/* Urgent Alert */}
+      {urgentEntries.length > 0 && (
+        <Card className="p-4 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 border-red-200 dark:border-red-800">
+          <div className="flex items-center gap-2 mb-3">
+            <ExclamationTriangleIcon className="h-5 w-5 text-red-600 dark:text-red-400" />
+            <span className="font-semibold text-red-700 dark:text-red-400">
+              {urgentEntries.length} entrada(s) prioritária(s) precisam de atenção!
+            </span>
           </div>
-        )}
-
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">Status</label>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as WaitlistStatus | 'all')}
-                className="border rounded-lg px-3 py-2 text-sm"
+          <div className="flex gap-2 overflow-x-auto pb-2">
+            {urgentEntries.slice(0, 5).map((entry) => (
+              <div
+                key={entry.id}
+                className="bg-background px-3 py-2 rounded-lg text-sm whitespace-nowrap border border-border"
               >
-                <option value="all">Todos</option>
-                {Object.entries(statusLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-sm text-gray-600 block mb-1">Data Preferida</label>
-              <input
-                type="date"
-                value={dateFilter}
-                onChange={(e) => setDateFilter(e.target.value)}
-                className="border rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            {dateFilter && (
-              <div className="flex items-end">
-                <button
-                  onClick={() => setDateFilter('')}
-                  className="text-sm text-gray-500 hover:text-gray-700"
-                >
-                  Limpar filtro
-                </button>
+                <span className="font-medium text-foreground">{entry.patientName}</span>
+                <span className="text-muted-foreground ml-2">
+                  {formatDate(entry.preferredDate)}
+                </span>
               </div>
-            )}
+            ))}
           </div>
-        </div>
+        </Card>
+      )}
 
-        {/* Waitlist Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {dataLoading ? (
-            <div className="h-64 flex items-center justify-center">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
-            </div>
-          ) : entries.length === 0 ? (
-            <div className="text-center text-gray-500 py-12">
-              <p className="text-lg mb-2">Nenhuma entrada na lista de espera</p>
-              <Link
-                href="/dashboard/agendamentos/novo"
-                className="text-indigo-600 hover:text-indigo-700"
+      {/* Filters */}
+      <Card className="p-4">
+        <div className="flex flex-wrap gap-4">
+          <div>
+            <label className="text-sm text-muted-foreground block mb-1">Status</label>
+            <Select
+              value={statusFilter}
+              onValueChange={(v) => setStatusFilter(v as WaitlistStatus | 'all')}
+            >
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {Object.entries(statusLabels).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-sm text-muted-foreground block mb-1">Data Preferida</label>
+            <Input
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="w-auto"
+            />
+          </div>
+          {dateFilter && (
+            <div className="flex items-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setDateFilter('')}
               >
-                Adicionar paciente à lista →
-              </Link>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Paciente</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Preferência</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Procedimento</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Dentista</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Prioridade</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Esperando</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Status</th>
-                    <th className="text-left px-4 py-3 text-sm font-medium text-gray-500">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {entries.map((entry) => (
-                    <tr key={entry.id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        <div>
-                          <div className="font-medium text-gray-900">{entry.patientName}</div>
-                          <div className="text-sm text-gray-500">{entry.patientPhone}</div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm">
-                          <div className="font-medium text-gray-900">
-                            {formatDate(entry.preferredDate)}
-                          </div>
-                          <div className="text-gray-500">
-                            {formatTime(entry.preferredTimeStart)}
-                            {entry.preferredTimeEnd !== entry.preferredTimeStart &&
-                              ` - ${formatTime(entry.preferredTimeEnd)}`}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {entry.procedureName || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {entry.dentistName || 'Qualquer'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
-                              priorityColors[entry.priority] || 'bg-gray-500'
-                            }`}
-                          >
-                            {entry.priority}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-600">
-                        {getDaysWaiting(entry.createdAt)} dias
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`text-xs px-2 py-1 rounded ${statusColors[entry.status]}`}
-                        >
-                          {statusLabels[entry.status]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          {entry.status === 'waiting' && (
-                            <>
-                              <button
-                                onClick={() => cancelEntry(entry.id)}
-                                className="text-red-600 hover:text-red-700 text-sm"
-                              >
-                                Cancelar
-                              </button>
-                            </>
-                          )}
-                          {entry.status === 'notified' && (
-                            <span className="text-sm text-gray-500">
-                              Aguardando resposta
-                            </span>
-                          )}
-                          {entry.status === 'scheduled' && entry.scheduledAppointmentId && (
-                            <Link
-                              href={`/dashboard/agendamentos/${entry.scheduledAppointmentId}`}
-                              className="text-indigo-600 hover:text-indigo-700 text-sm"
-                            >
-                              Ver agendamento
-                            </Link>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                Limpar filtro
+              </Button>
             </div>
           )}
         </div>
+      </Card>
 
-        {/* Notes section */}
-        {entries.length > 0 && (
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <h3 className="font-medium text-blue-900 mb-2">💡 Como funciona</h3>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Quando um agendamento é cancelado, pacientes na lista são notificados automaticamente</li>
-              <li>• A prioridade vai de 1 (baixa) a 10 (urgente)</li>
-              <li>• Pacientes notificados têm 2 horas para confirmar a vaga</li>
-              <li>• Entradas expiram automaticamente após a data preferida</li>
-            </ul>
+      {/* Waitlist Table */}
+      {dataLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+        </div>
+      ) : entries.length === 0 ? (
+        <Card className="p-12 text-center">
+          <ClockIcon className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+          <p className="text-lg font-medium text-foreground mb-2">Nenhuma entrada na lista de espera</p>
+          <Link
+            href="/dashboard/agendamentos/novo"
+            className="text-teal-600 hover:text-teal-700"
+          >
+            Adicionar paciente à lista →
+          </Link>
+        </Card>
+      ) : (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted border-b border-border">
+                <tr>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Paciente</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Preferência</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Procedimento</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Dentista</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Prioridade</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Esperando</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Status</th>
+                  <th className="text-left px-4 py-3 text-sm font-medium text-muted-foreground">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {entries.map((entry) => (
+                  <tr key={entry.id} className="hover:bg-muted/50">
+                    <td className="px-4 py-3">
+                      <div>
+                        <div className="font-medium text-foreground">{entry.patientName}</div>
+                        <div className="text-sm text-muted-foreground">{entry.patientPhone}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-sm">
+                        <div className="font-medium text-foreground">
+                          {formatDate(entry.preferredDate)}
+                        </div>
+                        <div className="text-muted-foreground">
+                          {formatTime(entry.preferredTimeStart)}
+                          {entry.preferredTimeEnd !== entry.preferredTimeStart &&
+                            ` - ${formatTime(entry.preferredTimeEnd)}`}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {entry.procedureName || '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {entry.dentistName || 'Qualquer'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div
+                        className={`h-8 w-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${
+                          priorityColors[entry.priority] || 'bg-zinc-500'
+                        }`}
+                      >
+                        {entry.priority}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground">
+                      {getDaysWaiting(entry.createdAt)} dias
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={statusBadgeTypes[entry.status]}>
+                        {statusLabels[entry.status]}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        {entry.status === 'waiting' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => cancelEntry(entry.id)}
+                          >
+                            Cancelar
+                          </Button>
+                        )}
+                        {entry.status === 'notified' && (
+                          <span className="text-sm text-muted-foreground">
+                            Aguardando resposta
+                          </span>
+                        )}
+                        {entry.status === 'scheduled' && entry.scheduledAppointmentId && (
+                          <Link
+                            href={`/dashboard/agendamentos/${entry.scheduledAppointmentId}`}
+                            className="text-sm text-teal-600 hover:text-teal-700"
+                          >
+                            Ver agendamento
+                          </Link>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
+        </Card>
+      )}
+
+      {/* Notes section */}
+      {entries.length > 0 && (
+        <Card className="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/20 dark:to-cyan-950/20 border-blue-200 dark:border-blue-800">
+          <div className="flex items-start gap-2">
+            <InformationCircleIcon className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-blue-900 dark:text-blue-400 mb-2">Como funciona</h3>
+              <ul className="text-sm text-blue-800 dark:text-blue-300 space-y-1">
+                <li>• Quando um agendamento é cancelado, pacientes na lista são notificados automaticamente</li>
+                <li>• A prioridade vai de 1 (baixa) a 10 (urgente)</li>
+                <li>• Pacientes notificados têm 2 horas para confirmar a vaga</li>
+                <li>• Entradas expiram automaticamente após a data preferida</li>
+              </ul>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }

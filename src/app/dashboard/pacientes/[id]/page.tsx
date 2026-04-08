@@ -3,7 +3,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { PencilIcon, TrashIcon, UserIcon, CalendarIcon, TagIcon } from '@heroicons/react/24/outline'
 import { useToast } from '@/lib/ui/toast'
+import { DetailPage } from '@/components/ui/detail-page'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Skeleton } from '@/components/ui/skeleton'
 import type { Patient, Appointment } from '@/lib/supabase/database.types'
 
 interface PatientWithDetails extends Patient {
@@ -21,7 +29,6 @@ export default function PatientDetailPage() {
 
   const [patient, setPatient] = useState<PatientWithDetails | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'info' | 'appointments' | 'messages'>('info')
 
   const fetchPatient = async () => {
     try {
@@ -83,15 +90,15 @@ export default function PatientDetailPage() {
   }
 
   const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      scheduled: 'bg-yellow-100 text-yellow-700',
-      confirmed: 'bg-blue-100 text-blue-700',
-      in_progress: 'bg-purple-100 text-purple-700',
-      completed: 'bg-green-100 text-green-700',
-      cancelled: 'bg-red-100 text-red-700',
-      no_show: 'bg-gray-100 text-gray-700',
+    const colors: Record<string, "success" | "warning" | "error" | "info" | "teal" | "zinc"> = {
+      scheduled: 'info',
+      confirmed: 'teal',
+      in_progress: 'warning',
+      completed: 'success',
+      cancelled: 'error',
+      no_show: 'zinc',
     }
-    return colors[status] || 'bg-gray-100 text-gray-700'
+    return colors[status] || 'zinc'
   }
 
   const getStatusLabel = (status: string) => {
@@ -108,8 +115,9 @@ export default function PatientDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     )
   }
@@ -118,8 +126,8 @@ export default function PatientDetailPage() {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900">Paciente não encontrado</h2>
-          <Link href="/dashboard/pacientes" className="mt-4 inline-block text-blue-600 hover:text-blue-700">
+          <h2 className="text-xl font-semibold text-foreground">Paciente não encontrado</h2>
+          <Link href="/dashboard/pacientes" className="mt-4 inline-block text-primary hover:text-primary/80">
             Voltar para lista
           </Link>
         </div>
@@ -127,112 +135,84 @@ export default function PatientDetailPage() {
     )
   }
 
+  const actions = (
+    <>
+      <Link href={`/dashboard/pacientes/${patientId}/editar`}>
+        <Button variant="outline" size="sm">
+          <PencilIcon className="h-4 w-4 mr-1" />
+          Editar
+        </Button>
+      </Link>
+      <Button variant="outline" size="sm" onClick={handleDelete} className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive">
+        <TrashIcon className="h-4 w-4 mr-1" />
+        Excluir
+      </Button>
+    </>
+  )
+
   return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard/pacientes" className="text-gray-500 hover:text-gray-700">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Link>
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="text-blue-600 font-bold text-lg">
-                    {patient.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900">{patient.name}</h1>
-                  <p className="text-sm text-gray-500">{formatPhone(patient.phone)}</p>
-                </div>
+    <DetailPage
+      title={patient.name}
+      backHref="/dashboard/pacientes"
+      actions={actions}
+    >
+      <Tabs defaultValue="info" className="w-full">
+        <TabsList>
+          <TabsTrigger value="info">Informações</TabsTrigger>
+          <TabsTrigger value="appointments">
+            Agendamentos ({patient.appointments?.length || 0})
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="info" className="mt-6">
+          <Card className="p-6">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900/30 rounded-full flex items-center justify-center">
+                <UserIcon className="h-6 w-6 text-teal-600 dark:text-teal-400" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">{formatPhone(patient.phone)}</p>
               </div>
             </div>
-            <div className="flex gap-2">
-              <Link
-                href={`/dashboard/pacientes/${patientId}/editar`}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                Editar
-              </Link>
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6">
-        <nav className="-mb-px flex space-x-8">
-          <button
-            onClick={() => setActiveTab('info')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'info'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Informações
-          </button>
-          <button
-            onClick={() => setActiveTab('appointments')}
-            className={`py-4 px-1 border-b-2 font-medium text-sm ${
-              activeTab === 'appointments'
-                ? 'border-blue-500 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-            }`}
-          >
-            Agendamentos ({patient.appointments?.length || 0})
-          </button>
-        </nav>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-5xl">
-        {activeTab === 'info' && (
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações do Paciente</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Telefone</label>
-                <p className="text-gray-900">{formatPhone(patient.phone)}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Telefone</label>
+                <p className="text-foreground font-medium">{formatPhone(patient.phone)}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Email</label>
-                <p className="text-gray-900">{patient.email || '-'}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Email</label>
+                <p className="text-foreground font-medium">{patient.email || '-'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">CPF</label>
-                <p className="text-gray-900">{patient.cpf || '-'}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">CPF</label>
+                <p className="text-foreground font-medium">{patient.cpf || '-'}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Data de Nascimento</label>
-                <p className="text-gray-900">{formatDate(patient.birth_date)}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Data de Nascimento</label>
+                <p className="text-foreground font-medium">{formatDate(patient.birth_date)}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Última Visita</label>
-                <p className="text-gray-900">{formatDate(patient.last_visit_at)}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Última Visita</label>
+                <p className="text-foreground font-medium">{formatDate(patient.last_visit_at)}</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-500 mb-1">Cadastrado em</label>
-                <p className="text-gray-900">{formatDate(patient.created_at)}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Cadastrado em</label>
+                <p className="text-foreground font-medium">{formatDate(patient.created_at)}</p>
               </div>
             </div>
 
             {patient.tags && patient.tags.length > 0 && (
               <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-500 mb-2">Tags</label>
+                <label className="block text-sm font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                  <TagIcon className="h-4 w-4" />
+                  Tags
+                </label>
                 <div className="flex flex-wrap gap-2">
                   {patient.tags.map((tag, i) => (
-                    <span key={i} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
+                    <Badge key={i} variant="secondary">
                       {tag}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
@@ -240,65 +220,80 @@ export default function PatientDetailPage() {
 
             {patient.notes && (
               <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-500 mb-1">Observações</label>
-                <p className="text-gray-900 whitespace-pre-wrap">{patient.notes}</p>
+                <label className="block text-sm font-medium text-muted-foreground mb-1">Observações</label>
+                <p className="text-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-lg">{patient.notes}</p>
               </div>
             )}
-          </div>
-        )}
+          </Card>
+        </TabsContent>
 
-        {activeTab === 'appointments' && (
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+        <TabsContent value="appointments" className="mt-6">
+          <Card>
             {patient.appointments && patient.appointments.length > 0 ? (
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Data/Hora
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Procedimento
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Dentista
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Procedimento</TableHead>
+                    <TableHead>Dentista</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {patient.appointments.map((appointment) => (
-                    <tr key={appointment.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDateTime(appointment.scheduled_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <TableRow key={appointment.id}>
+                      <TableCell className="text-foreground font-medium">
+                        <div className="flex items-center gap-2">
+                          <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                          {formatDateTime(appointment.scheduled_at)}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {(appointment as any).procedures?.name || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
                         {(appointment as any).dentists?.name || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(appointment.status)}`}>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={getStatusColor(appointment.status)}>
                           {getStatusLabel(appointment.status)}
-                        </span>
-                      </td>
-                    </tr>
+                        </StatusBadge>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             ) : (
-              <div className="text-center py-12 text-gray-500">
-                <p>Nenhum agendamento encontrado</p>
-                <Link href="/dashboard/agendamentos/novo" className="mt-4 inline-block text-blue-600 hover:text-blue-700">
-                  Agendar consulta
+              <div className="text-center py-12">
+                <CalendarIcon className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">Nenhum agendamento encontrado</p>
+                <Link href="/dashboard/agendamentos/novo">
+                  <Button variant="outline">
+                    <CalendarIcon className="h-4 w-4 mr-2" />
+                    Agendar consulta
+                  </Button>
                 </Link>
               </div>
             )}
-          </div>
-      )}
-    </div>
-  </div>
-)
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </DetailPage>
+  )
+}
+
+function StatusBadge({ status, children }: { status: "success" | "warning" | "error" | "info" | "teal" | "zinc", children: React.ReactNode }) {
+  return (
+    <Badge variant="outline" className={`font-medium text-xs border px-2.5 py-0.5 rounded-md ${
+      status === 'success' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800' :
+      status === 'warning' ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400 dark:border-amber-800' :
+      status === 'error' ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-400 dark:border-red-800' :
+      status === 'info' ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400 dark:border-blue-800' :
+      status === 'teal' ? 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950 dark:text-teal-400 dark:border-teal-800' :
+      'bg-zinc-100 text-zinc-600 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700'
+    }`}>
+      <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-current" />
+      {children}
+    </Badge>
+  )
 }
