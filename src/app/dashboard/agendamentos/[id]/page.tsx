@@ -3,8 +3,15 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { CalendarIcon, UserIcon, ClockIcon, PencilIcon, TrashIcon, PhoneIcon } from '@heroicons/react/24/outline'
 import { useAuth } from '@/lib/auth/context'
 import { useToast } from '@/lib/ui/toast'
+import { DetailPage } from '@/components/ui/detail-page'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 
 interface Appointment {
   id: string
@@ -15,6 +22,8 @@ interface Appointment {
   patients?: { id: string; name: string; phone: string }
   dentists?: { id: string; name: string }
   procedures?: { id: string; name: string; duration_minutes: number }
+  dentist_id?: string
+  procedure_id?: string
 }
 
 interface Dentist {
@@ -29,13 +38,15 @@ interface Procedure {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'scheduled', label: 'Agendado', color: 'bg-yellow-100 text-yellow-700' },
-  { value: 'confirmed', label: 'Confirmado', color: 'bg-blue-100 text-blue-700' },
-  { value: 'in_progress', label: 'Em andamento', color: 'bg-purple-100 text-purple-700' },
-  { value: 'completed', label: 'Concluído', color: 'bg-green-100 text-green-700' },
-  { value: 'cancelled', label: 'Cancelado', color: 'bg-red-100 text-red-700' },
-  { value: 'no_show', label: 'Não compareceu', color: 'bg-gray-100 text-gray-700' },
-]
+  { value: 'scheduled', label: 'Agendado', color: 'info' },
+  { value: 'confirmed', label: 'Confirmado', color: 'teal' },
+  { value: 'in_progress', label: 'Em andamento', color: 'warning' },
+  { value: 'completed', label: 'Concluído', color: 'success' },
+  { value: 'cancelled', label: 'Cancelado', color: 'error' },
+  { value: 'no_show', label: 'Não compareceu', color: 'zinc' },
+] as const
+
+type StatusColor = "success" | "warning" | "error" | "info" | "teal" | "zinc"
 
 export default function AppointmentDetailPage() {
   const params = useParams()
@@ -195,8 +206,9 @@ export default function AppointmentDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-20 w-full" />
+        <Skeleton className="h-64 w-full" />
       </div>
     )
   }
@@ -205,8 +217,8 @@ export default function AppointmentDetailPage() {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900">Agendamento não encontrado</h2>
-          <Link href="/dashboard/agendamentos" className="mt-4 inline-block text-blue-600 hover:text-blue-700">
+          <h2 className="text-xl font-semibold text-foreground">Agendamento não encontrado</h2>
+          <Link href="/dashboard/agendamentos" className="mt-4 inline-block text-primary hover:text-primary/80">
             Voltar para lista
           </Link>
         </div>
@@ -216,54 +228,43 @@ export default function AppointmentDetailPage() {
 
   const statusInfo = getStatusInfo(appointment.status)
 
-  return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard/agendamentos" className="text-gray-500 hover:text-gray-700">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Link>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  {appointment.patients?.name || 'Paciente não encontrado'}
-                </h1>
-                <p className="text-sm text-gray-500">{formatDateTime(appointment.scheduled_at)}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`px-3 py-1 text-sm rounded-full ${statusInfo.color}`}>
-                {statusInfo.label}
-              </span>
-              {!editing && appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
-                <button
-                  onClick={() => setEditing(true)}
-                  className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-                >
-                  Editar
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+  const actions = (
+    <>
+      {!editing && appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+        <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+          <PencilIcon className="h-4 w-4 mr-1" />
+          Editar
+        </Button>
+      )}
+      {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
+        <Button variant="outline" size="sm" onClick={handleCancel} className="text-destructive hover:text-destructive border-destructive/30 hover:border-destructive">
+          <TrashIcon className="h-4 w-4 mr-1" />
+          Cancelar
+        </Button>
+      )}
+    </>
+  )
 
-      {/* Content */}
+  return (
+    <DetailPage
+      title={appointment.patients?.name || 'Paciente não encontrado'}
+      backHref="/dashboard/agendamentos"
+      status={{ type: statusInfo.color as StatusColor, label: statusInfo.label }}
+      actions={actions}
+    >
       <div className="max-w-4xl">
         {editing ? (
           /* Edit Form */
-          <div className="bg-white shadow rounded-lg p-6 space-y-6">
-            <h2 className="text-lg font-semibold text-gray-900">Editar Agendamento</h2>
+          <Card className="p-6 space-y-6">
+            <h2 className="text-lg font-semibold text-foreground">Editar Agendamento</h2>
 
             {/* Status */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Status</label>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -275,11 +276,11 @@ export default function AppointmentDetailPage() {
 
             {/* Duration */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Duração (minutos)</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Duração (minutos)</label>
               <select
                 value={duration}
                 onChange={(e) => setDuration(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 <option value={15}>15 min</option>
                 <option value={30}>30 min</option>
@@ -292,11 +293,11 @@ export default function AppointmentDetailPage() {
 
             {/* Dentist */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Dentista</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Dentista</label>
               <select
                 value={selectedDentist}
                 onChange={(e) => setSelectedDentist(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 <option value="">Selecione um dentista</option>
                 {dentists.map((dentist) => (
@@ -309,11 +310,11 @@ export default function AppointmentDetailPage() {
 
             {/* Procedure */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Procedimento</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Procedimento</label>
               <select
                 value={selectedProcedure}
                 onChange={(e) => setSelectedProcedure(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 <option value="">Selecione um procedimento</option>
                 {procedures.map((procedure) => (
@@ -326,96 +327,94 @@ export default function AppointmentDetailPage() {
 
             {/* Notes */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Observações</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Observações</label>
               <textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[80px]"
               />
             </div>
 
             {/* Actions */}
             <div className="flex justify-end gap-3 pt-4 border-t">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => setEditing(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleUpdate}
                 disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                className="bg-teal-600 hover:bg-teal-700"
               >
                 {saving ? 'Salvando...' : 'Salvar'}
-              </button>
+              </Button>
             </div>
-          </div>
+          </Card>
         ) : (
           /* Detail View */
           <div className="space-y-6">
             {/* Patient Info */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações do Paciente</h2>
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <UserIcon className="h-5 w-5 text-muted-foreground" />
+                Informações do Paciente
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Nome</label>
-                  <p className="text-gray-900">{appointment.patients?.name || '-'}</p>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Nome</label>
+                  <p className="text-foreground font-medium">{appointment.patients?.name || '-'}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Telefone</label>
-                  <p className="text-gray-900">
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Telefone</label>
+                  <p className="text-foreground font-medium flex items-center gap-2">
+                    <PhoneIcon className="h-4 w-4 text-muted-foreground" />
                     {appointment.patients?.phone ? formatPhone(appointment.patients.phone) : '-'}
                   </p>
                 </div>
               </div>
-            </div>
+            </Card>
 
             {/* Appointment Info */}
-            <div className="bg-white shadow rounded-lg p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Detalhes do Agendamento</h2>
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <CalendarIcon className="h-5 w-5 text-muted-foreground" />
+                Detalhes do Agendamento
+              </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Data/Hora</label>
-                  <p className="text-gray-900">{formatDateTime(appointment.scheduled_at)}</p>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Data/Hora</label>
+                  <p className="text-foreground font-medium">{formatDateTime(appointment.scheduled_at)}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Duração</label>
-                  <p className="text-gray-900">{appointment.duration_minutes} minutos</p>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Duração</label>
+                  <p className="text-foreground font-medium flex items-center gap-2">
+                    <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                    {appointment.duration_minutes} minutos
+                  </p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Dentista</label>
-                  <p className="text-gray-900">{appointment.dentists?.name || 'Não definido'}</p>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Dentista</label>
+                  <p className="text-foreground font-medium">{appointment.dentists?.name || 'Não definido'}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Procedimento</label>
-                  <p className="text-gray-900">{appointment.procedures?.name || 'Não definido'}</p>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Procedimento</label>
+                  <p className="text-foreground font-medium">{appointment.procedures?.name || 'Não definido'}</p>
                 </div>
               </div>
 
               {appointment.notes && (
                 <div className="mt-4 pt-4 border-t">
-                  <label className="block text-sm font-medium text-gray-500 mb-1">Observações</label>
-                  <p className="text-gray-900 whitespace-pre-wrap">{appointment.notes}</p>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">Observações</label>
+                  <p className="text-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-lg">{appointment.notes}</p>
                 </div>
               )}
-            </div>
-
-            {/* Actions */}
-            {appointment.status !== 'cancelled' && appointment.status !== 'completed' && (
-              <div className="flex justify-end">
-                <button
-                  onClick={handleCancel}
-                  className="px-4 py-2 text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition"
-                >
-                  Cancelar Agendamento
-                </button>
-              </div>
-            )}
+            </Card>
           </div>
         )}
       </div>
-    </div>
+    </DetailPage>
   )
 }

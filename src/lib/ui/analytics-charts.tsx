@@ -1,6 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { StatsGrid } from '@/components/ui/stats-grid'
+import { HourlyChartRecharts } from '@/components/charts/hourly-chart'
+import { DayOfWeekChartRecharts } from '@/components/charts/day-of-week-chart'
+import { TrendsChartRecharts } from '@/components/charts/trends-chart'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { CalendarDaysIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 
 interface AppointmentTrend {
   date: string
@@ -77,9 +83,9 @@ export function AnalyticsMetrics({ insights, loading }: { insights: ClinicInsigh
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="bg-white rounded-xl shadow-sm p-4 animate-pulse">
-            <div className="h-8 bg-gray-200 rounded mb-2" />
-            <div className="h-4 bg-gray-200 rounded w-2/3" />
+          <div key={i} className="bg-card rounded-xl shadow-sm p-4 animate-pulse">
+            <div className="h-8 bg-muted rounded mb-2" />
+            <div className="h-4 bg-muted rounded w-2/3" />
           </div>
         ))}
       </div>
@@ -88,7 +94,7 @@ export function AnalyticsMetrics({ insights, loading }: { insights: ClinicInsigh
 
   if (!insights) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-yellow-700">
+      <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 text-yellow-700 dark:text-yellow-400">
         Não foi possível carregar as métricas
       </div>
     )
@@ -96,39 +102,35 @@ export function AnalyticsMetrics({ insights, loading }: { insights: ClinicInsigh
 
   const { metrics } = insights
 
-  return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="text-2xl font-bold text-indigo-600">
-          {metrics.avgAppointmentsPerDay.toFixed(1)}
-        </div>
-        <div className="text-sm text-gray-500">Média diária</div>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="text-2xl font-bold text-blue-600">
-          {metrics.peakHour}:00
-        </div>
-        <div className="text-sm text-gray-500">Horário pico</div>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="text-2xl font-bold text-orange-600">
-          {metrics.cancellationRate}%
-        </div>
-        <div className="text-sm text-gray-500">Taxa cancelamento</div>
-      </div>
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <div className="text-2xl font-bold text-red-600">
-          {metrics.noShowRate}%
-        </div>
-        <div className="text-sm text-gray-500">Taxa no-show</div>
-      </div>
-    </div>
-  )
+  const stats = [
+    {
+      label: 'Média diária',
+      value: metrics.avgAppointmentsPerDay.toFixed(1),
+      icon: <CalendarDaysIcon className="w-5 h-5 text-teal-600 dark:text-teal-400" />,
+    },
+    {
+      label: 'Horário pico',
+      value: `${metrics.peakHour}:00`,
+      icon: <ClockIcon className="w-5 h-5 text-teal-600 dark:text-teal-400" />,
+    },
+    {
+      label: 'Taxa cancelamento',
+      value: `${metrics.cancellationRate}%`,
+      icon: <XCircleIcon className="w-5 h-5 text-orange-600 dark:text-orange-400" />,
+    },
+    {
+      label: 'Taxa no-show',
+      value: `${metrics.noShowRate}%`,
+      icon: <CheckCircleIcon className="w-5 h-5 text-red-600 dark:text-red-400" />,
+    },
+  ]
+
+  return <StatsGrid stats={stats} columns={4} />
 }
 
 export function HourlyChart({ insights, loading }: { insights: ClinicInsights | null; loading: boolean }) {
   if (loading) {
-    return <div className="h-64 bg-gray-100 rounded-xl animate-pulse" />
+    return <div className="h-64 bg-muted rounded-xl animate-pulse" />
   }
 
   if (!insights) return null
@@ -140,42 +142,12 @@ export function HourlyChart({ insights, loading }: { insights: ClinicInsights | 
       consultas: h.count,
     }))
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Distribuição por Horário</h3>
-      <div className="h-64">
-        {data.length > 0 ? (
-          <div className="flex items-end gap-1 h-full">
-            {data.map((item, i) => {
-              const maxCount = Math.max(...data.map((d) => d.consultas))
-              const height = (item.consultas / maxCount) * 100
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center">
-                  <div
-                    className="w-full bg-indigo-500 rounded-t transition-all hover:bg-indigo-600"
-                    style={{ height: `${height}%`, minHeight: '4px' }}
-                    title={`${item.consultas} consultas`}
-                  />
-                  <span className="text-xs text-gray-500 mt-1 rotate-0 truncate w-full text-center">
-                    {item.hour}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        ) : (
-          <div className="h-full flex items-center justify-center text-gray-500">
-            Sem dados suficientes
-          </div>
-        )}
-      </div>
-    </div>
-  )
+  return <HourlyChartRecharts data={data} loading={loading} />
 }
 
 export function DayOfWeekChart({ insights, loading }: { insights: ClinicInsights | null; loading: boolean }) {
   if (loading) {
-    return <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
+    return <div className="h-48 bg-muted rounded-xl animate-pulse" />
   }
 
   if (!insights) return null
@@ -186,27 +158,7 @@ export function DayOfWeekChart({ insights, loading }: { insights: ClinicInsights
     percentual: d.percentage,
   }))
 
-  const maxCount = Math.max(...data.map((d) => d.consultas), 1)
-
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Distribuição por Dia da Semana</h3>
-      <div className="space-y-2">
-        {data.map((item, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="w-10 text-sm text-gray-600">{item.dia}</span>
-            <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
-              <div
-                className="bg-green-500 h-full rounded-full transition-all"
-                style={{ width: `${(item.consultas / maxCount) * 100}%` }}
-              />
-            </div>
-            <span className="w-12 text-sm text-gray-500 text-right">{item.consultas}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+  return <DayOfWeekChartRecharts data={data} loading={loading} />
 }
 
 export interface ROIMetricsData {
@@ -284,13 +236,13 @@ export function ROICard({
 }) {
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-6 animate-pulse">
-        <div className="h-6 bg-gray-200 rounded w-1/3 mb-4" />
+      <div className="bg-card rounded-xl shadow-sm p-6 animate-pulse">
+        <div className="h-6 bg-muted rounded w-1/3 mb-4" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => (
             <div key={i}>
-              <div className="h-8 bg-gray-200 rounded mb-2" />
-              <div className="h-4 bg-gray-200 rounded w-2/3" />
+              <div className="h-8 bg-muted rounded mb-2" />
+              <div className="h-4 bg-muted rounded w-2/3" />
             </div>
           ))}
         </div>
@@ -300,7 +252,7 @@ export function ROICard({
 
   if (!roiData) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-yellow-700">
+      <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-xl p-4 text-yellow-700 dark:text-yellow-400">
         Não foi possível carregar os dados de ROI
       </div>
     )
@@ -310,157 +262,112 @@ export function ROICard({
   const isPositiveChange = changePercent >= 0
 
   return (
-    <div className="bg-white rounded-xl shadow-sm p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-900">Retorno sobre Investimento</h2>
-        <div className="flex items-center gap-2">
-          <span
-            className={`text-2xl font-bold ${
-              roiData.roi >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}
-          >
-            {roiData.roi.toFixed(1)}%
-          </span>
-          {roiData.comparison && (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Retorno sobre Investimento</CardTitle>
+          <div className="flex items-center gap-2">
             <span
-              className={`text-xs font-medium px-2 py-1 rounded ${
-                isPositiveChange
-                  ? 'bg-green-100 text-green-700'
-                  : 'bg-red-100 text-red-700'
+              className={`text-2xl font-bold ${
+                roiData.roi >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-red-600 dark:text-red-400'
               }`}
             >
-              {isPositiveChange ? '+' : ''}
-              {changePercent.toFixed(1)}% vs periodo anterior
+              {roiData.roi.toFixed(1)}%
             </span>
-          )}
+            {roiData.comparison && (
+              <span
+                className={`text-xs font-medium px-2 py-1 rounded ${
+                  isPositiveChange
+                    ? 'bg-teal-100 dark:bg-teal-950 text-teal-700 dark:text-teal-400'
+                    : 'bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-400'
+                }`}
+              >
+                {isPositiveChange ? '+' : ''}
+                {changePercent.toFixed(1)}% vs periodo anterior
+              </span>
+            )}
+          </div>
         </div>
-      </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+          <div>
+            <div className="text-lg font-bold text-teal-600 dark:text-teal-400">
+              {formatCurrency(roiData.savings.totalSaved)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Economia ({roiData.savings.messagesHandled} msgs IA)
+            </div>
+          </div>
+          <div>
+            <div className="text-lg font-bold text-teal-600 dark:text-teal-400">
+              {formatCurrency(roiData.revenue.totalRevenue)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Receita ({roiData.revenue.appointmentsBooked} agendamentos)
+            </div>
+          </div>
+          <div>
+            <div className="text-lg font-bold text-teal-600 dark:text-teal-400">
+              {formatCurrency(roiData.revenue.recoveredRevenue)}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              No-shows recuperados ({roiData.revenue.recoveredNoShows})
+            </div>
+          </div>
+          <div>
+            <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
+              {formatCurrency(roiData.costs.total)}
+            </div>
+            <div className="text-xs text-muted-foreground">Custo plataforma</div>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-        <div>
-          <div className="text-lg font-bold text-blue-600">
-            {formatCurrency(roiData.savings.totalSaved)}
-          </div>
-          <div className="text-xs text-gray-500">
-            Economia ({roiData.savings.messagesHandled} msgs IA)
-          </div>
-        </div>
-        <div>
-          <div className="text-lg font-bold text-green-600">
-            {formatCurrency(roiData.revenue.totalRevenue)}
-          </div>
-          <div className="text-xs text-gray-500">
-            Receita ({roiData.revenue.appointmentsBooked} agendamentos)
+        <div className="border-t border-border pt-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Beneficio liquido</span>
+            <span
+              className={`text-lg font-bold ${
+                roiData.netBenefit >= 0 ? 'text-teal-600 dark:text-teal-400' : 'text-red-600 dark:text-red-400'
+              }`}
+            >
+              {formatCurrency(roiData.netBenefit)}
+            </span>
           </div>
         </div>
-        <div>
-          <div className="text-lg font-bold text-purple-600">
-            {formatCurrency(roiData.revenue.recoveredRevenue)}
-          </div>
-          <div className="text-xs text-gray-500">
-            No-shows recuperados ({roiData.revenue.recoveredNoShows})
-          </div>
-        </div>
-        <div>
-          <div className="text-lg font-bold text-orange-600">
-            {formatCurrency(roiData.costs.total)}
-          </div>
-          <div className="text-xs text-gray-500">Custo plataforma</div>
-        </div>
-      </div>
-
-      <div className="border-t pt-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-600">Beneficio liquido</span>
-          <span
-            className={`text-lg font-bold ${
-              roiData.netBenefit >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}
-          >
-            {formatCurrency(roiData.netBenefit)}
-          </span>
-        </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
 export function TrendsChart({ insights, loading }: { insights: ClinicInsights | null; loading: boolean }) {
   if (loading) {
-    return <div className="h-48 bg-gray-100 rounded-xl animate-pulse" />
+    return <div className="h-48 bg-muted rounded-xl animate-pulse" />
   }
 
   if (!insights || insights.appointmentTrends.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-4">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Tendências (30 dias)</h3>
-        <div className="h-48 flex items-center justify-center text-gray-500">
-          Sem dados suficientes
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Tendências (30 dias)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-48 flex items-center justify-center text-muted-foreground">
+            Sem dados suficientes
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   const recentTrends = insights.appointmentTrends.slice(-14) // Last 14 days
 
-  return (
-    <div className="bg-white rounded-xl shadow-sm p-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Tendências (últimos 14 dias)</h3>
-      <div className="h-48 overflow-x-auto">
-        <div className="flex gap-1 h-full min-w-max">
-          {recentTrends.map((trend, i) => {
-            const maxTotal = Math.max(...recentTrends.map((t) => t.total), 1)
-            const completedHeight = (trend.completed / maxTotal) * 100
-            const cancelledHeight = (trend.cancelled / maxTotal) * 100
-            const noShowHeight = (trend.no_show / maxTotal) * 100
+  const data = recentTrends.map((trend) => ({
+    date: new Date(trend.date).getDate().toString(),
+    concluidos: trend.completed,
+    cancelados: trend.cancelled,
+    noShow: trend.no_show,
+  }))
 
-            return (
-              <div key={i} className="flex flex-col items-center w-8">
-                <div className="flex-1 w-full flex flex-col justify-end gap-px">
-                  {trend.completed > 0 && (
-                    <div
-                      className="w-full bg-green-500 rounded-t"
-                      style={{ height: `${completedHeight}%`, minHeight: '2px' }}
-                      title={`Concluídos: ${trend.completed}`}
-                    />
-                  )}
-                  {trend.cancelled > 0 && (
-                    <div
-                      className="w-full bg-orange-500"
-                      style={{ height: `${cancelledHeight}%`, minHeight: '2px' }}
-                      title={`Cancelados: ${trend.cancelled}`}
-                    />
-                  )}
-                  {trend.no_show > 0 && (
-                    <div
-                      className="w-full bg-red-500 rounded-b"
-                      style={{ height: `${noShowHeight}%`, minHeight: '2px' }}
-                      title={`No-show: ${trend.no_show}`}
-                    />
-                  )}
-                </div>
-                <span className="text-xs text-gray-400 mt-1 truncate w-full text-center">
-                  {new Date(trend.date).getDate()}
-                </span>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-      <div className="flex gap-4 mt-2 text-xs">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-green-500 rounded" />
-          <span className="text-gray-500">Concluído</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-orange-500 rounded" />
-          <span className="text-gray-500">Cancelado</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-red-500 rounded" />
-          <span className="text-gray-500">No-show</span>
-        </div>
-      </div>
-    </div>
-  )
+  return <TrendsChartRecharts data={data} loading={loading} />
 }

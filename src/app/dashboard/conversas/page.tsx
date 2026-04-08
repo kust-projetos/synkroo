@@ -2,7 +2,22 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth/context'
-import Link from 'next/link'
+import { PageHeader } from '@/components/ui/page-header'
+import { SearchInput } from '@/components/ui/search-input'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { Card } from '@/components/ui/card'
+import {
+  ChatBubbleLeftRightIcon,
+  PhoneIcon,
+  CameraIcon,
+  ArrowLeftIcon,
+  PaperAirplaneIcon,
+  CalendarIcon,
+  ClockIcon,
+} from '@heroicons/react/24/outline'
 
 interface Message {
   id: string
@@ -30,28 +45,29 @@ interface Conversation {
     intent?: string
   }
   messages?: Message[]
+  unread_count?: number
 }
 
-const statusColors: Record<string, string> = {
-  active: 'bg-green-100 text-green-700',
-  waiting: 'bg-amber-100 text-amber-700',
-  closed: 'bg-slate-100 text-slate-600',
-  escalated: 'bg-red-100 text-red-700',
+const intentLabels: Record<string, { label: string; status: 'success' | 'info' | 'error' | 'warning' }> = {
+  agendamento: { label: 'Agendamento', status: 'success' },
+  duvida: { label: 'Dúvida', status: 'info' },
+  emergencia: { label: 'Emergência', status: 'error' },
+  confirmacao: { label: 'Confirmação', status: 'info' },
+  reclamacao: { label: 'Reclamação', status: 'warning' },
+  outros: { label: 'Outros', status: 'info' },
 }
 
-const intentLabels: Record<string, { label: string; color: string }> = {
-  agendamento: { label: 'Agendamento', color: 'bg-green-100 text-green-700' },
-  duvida: { label: 'Dúvida', color: 'bg-blue-100 text-blue-700' },
-  emergencia: { label: 'Emergência', color: 'bg-red-100 text-red-700' },
-  confirmacao: { label: 'Confirmação', color: 'bg-purple-100 text-purple-700' },
-  reclamacao: { label: 'Reclamação', color: 'bg-amber-100 text-amber-700' },
-  outros: { label: 'Outros', color: 'bg-slate-100 text-slate-600' },
+const channelConfig: Record<string, { bg: string; icon: React.ReactNode; name: string }> = {
+  whatsapp: { bg: 'bg-green-500', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, name: 'WhatsApp' },
+  instagram: { bg: 'bg-gradient-to-br from-purple-500 to-pink-500', icon: <CameraIcon className="w-5 h-5" />, name: 'Instagram' },
+  web: { bg: 'bg-blue-500', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, name: 'Web' },
 }
 
-const channelIcons: Record<string, { bg: string; icon: string }> = {
-  whatsapp: { bg: 'bg-green-500', icon: '💬' },
-  instagram: { bg: 'bg-gradient-to-br from-purple-500 to-pink-500', icon: '📷' },
-  web: { bg: 'bg-blue-500', icon: '🌐' },
+const statusConfig: Record<string, { label: string; status: 'success' | 'warning' | 'error' | 'info' | 'zinc' }> = {
+  active: { label: 'Ativo', status: 'success' },
+  waiting: { label: 'Aguardando', status: 'warning' },
+  closed: { label: 'Fechado', status: 'zinc' },
+  escalated: { label: 'Escalonado', status: 'error' },
 }
 
 export default function ConversasPage() {
@@ -138,6 +154,8 @@ export default function ConversasPage() {
     )
   })
 
+  const activeCount = conversations.filter(c => c.status === 'active').length
+
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || sending || !profile?.clinic_id) return
 
@@ -168,189 +186,222 @@ export default function ConversasPage() {
   }
 
   return (
-    <div className="p-4 lg:p-6 h-[calc(100vh-80px)] lg:h-screen flex flex-col">
-        <div className="flex gap-4 flex-1 min-h-0">
-          {/* Conversations List */}
-          <div className="w-full lg:w-96 bg-white rounded-lg shadow flex flex-col">
-            {/* Header */}
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-3">
-                <h1 className="text-xl font-bold text-gray-900">Conversas</h1>
-                <span className="bg-green-100 text-green-700 text-sm font-medium px-2 py-1 rounded-full">
-                  {conversations.filter(c => c.status === 'active').length} ativas
-                </span>
-              </div>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Buscar conversas..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
+    <div className="flex flex-col gap-6 p-4 lg:p-6 h-[calc(100vh-80px)] lg:h-screen overflow-hidden">
+      {/* Header */}
+      <PageHeader
+        title="Conversas"
+        description={`Gerencie suas conversas em tempo real`}
+        action={
+          <div className="flex items-center gap-2">
+            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800">
+              {activeCount} ativas
+            </Badge>
+          </div>
+        }
+      />
 
-            {/* Filters */}
-            <div className="flex gap-2 p-3 border-b border-gray-200 overflow-x-auto">
-              {[
-                { key: 'all', label: 'Todas' },
-                { key: 'whatsapp', label: 'WhatsApp' },
-                { key: 'instagram', label: 'Instagram' },
-                { key: 'escalated', label: 'Humanos' },
-              ].map((f) => (
+      {/* Main Content */}
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* Conversations List */}
+        <Card className="w-full lg:w-96 flex flex-col overflow-hidden">
+          {/* Search */}
+          <div className="p-4 border-b border-border">
+            <SearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Buscar conversas..."
+              className="w-full"
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="flex gap-2 p-3 border-b border-border overflow-x-auto">
+            {[
+              { key: 'all', label: 'Todas' },
+              { key: 'whatsapp', label: 'WhatsApp' },
+              { key: 'instagram', label: 'Instagram' },
+              { key: 'escalated', label: 'Humanos' },
+            ].map((f) => (
+              <Button
+                key={f.key}
+                variant={filter === f.key ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setFilter(f.key as typeof filter)}
+                className="whitespace-nowrap"
+              >
+                {f.label}
+              </Button>
+            ))}
+          </div>
+
+          {/* List */}
+          <div className="flex-1 overflow-y-auto">
+            {loadingConvs ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center px-4">
+                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                  <ChatBubbleLeftRightIcon className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium text-foreground">Nenhuma conversa</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {searchQuery ? 'Tente outro termo de busca' : 'Novas conversas aparecerão aqui'}
+                </p>
+              </div>
+            ) : (
+              filteredConversations.map((conv) => (
                 <button
-                  key={f.key}
-                  onClick={() => setFilter(f.key as typeof filter)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
-                    filter === f.key
-                      ? 'bg-indigo-100 text-indigo-700'
-                      : 'text-gray-600 hover:bg-gray-100'
+                  key={conv.id}
+                  onClick={() => fetchConversationDetails(conv.id)}
+                  className={`w-full p-4 text-left hover:bg-muted/50 border-b border-border transition-colors ${
+                    selectedConversation?.id === conv.id ? 'bg-muted border-l-4 border-l-primary' : ''
                   }`}
                 >
-                  {f.label}
+                  <div className="flex items-start gap-3">
+                    <div className="relative">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback className={`text-white ${channelConfig[conv.channel]?.bg}`}>
+                          {conv.patient?.name?.charAt(0) || conv.external_id.charAt(0)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {conv.status === 'active' && (
+                        <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-card" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-medium text-foreground truncate text-sm">
+                          {conv.patient?.name || conv.external_id}
+                        </p>
+                        <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                          {formatTime(conv.last_message_at)}
+                        </span>
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {conv.last_message?.content || 'Sem mensagens'}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {conv.last_message?.intent && intentLabels[conv.last_message.intent] && (
+                          <StatusBadge status={intentLabels[conv.last_message.intent].status}>
+                            {intentLabels[conv.last_message.intent].label}
+                          </StatusBadge>
+                        )}
+                        {conv.unread_count && conv.unread_count > 0 && (
+                          <Badge variant="outline" className="bg-primary text-primary-foreground border-primary text-xs px-1.5 py-0">
+                            {conv.unread_count}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </button>
-              ))}
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto">
-              {loadingConvs ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" />
-                </div>
-              ) : filteredConversations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-gray-500">
-                  <span className="text-4xl mb-3">💬</span>
-                  <p className="text-sm">Nenhuma conversa encontrada</p>
-                </div>
-              ) : (
-                filteredConversations.map((conv) => (
-                  <button
-                    key={conv.id}
-                    onClick={() => fetchConversationDetails(conv.id)}
-                    className={`w-full p-4 text-left hover:bg-gray-50 border-b border-gray-100 transition-colors ${
-                      selectedConversation?.id === conv.id ? 'bg-indigo-50 border-l-4 border-l-indigo-500' : ''
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white ${channelIcons[conv.channel]?.bg || 'bg-gray-300'}`}>
-                        {channelIcons[conv.channel]?.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-medium text-gray-900 truncate">
-                            {conv.patient?.name || conv.external_id}
-                          </p>
-                          <span className="text-xs text-gray-500">
-                            {formatTime(conv.last_message_at)}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 truncate">
-                          {conv.last_message?.content || 'Sem mensagens'}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          {conv.last_message?.intent && intentLabels[conv.last_message.intent] && (
-                            <span className={`px-1.5 py-0.5 text-xs rounded ${intentLabels[conv.last_message.intent].color}`}>
-                              {intentLabels[conv.last_message.intent].label}
-                            </span>
-                          )}
-                          {conv.status === 'escalated' && (
-                            <span className="px-1.5 py-0.5 text-xs rounded bg-amber-100 text-amber-700 font-medium">
-                              Escalonado
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Chat View - Hidden on mobile unless conversation selected */}
-          <div className={`flex-1 bg-white rounded-lg shadow flex flex-col ${selectedConversation ? 'flex' : 'hidden lg:flex'}`}>
-            {selectedConversation ? (
-              <>
-                {/* Chat Header */}
-                <div className="p-4 border-b border-gray-200 flex items-center gap-4">
-                  <button
-                    onClick={() => setSelectedConversation(null)}
-                    className="lg:hidden p-2 text-gray-500 hover:text-gray-700"
-                  >
-                    ← Voltar
-                  </button>
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">
-                      {selectedConversation.patient?.name || selectedConversation.external_id}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {selectedConversation.patient?.phone || selectedConversation.external_id}
-                    </p>
-                  </div>
-                  <span className={`px-3 py-1 text-xs font-medium rounded-full ${statusColors[selectedConversation.status]}`}>
-                    {selectedConversation.status === 'active' ? 'Ativo' :
-                     selectedConversation.status === 'escalated' ? 'Escalonado' :
-                     selectedConversation.status === 'waiting' ? 'Aguardando' : 'Fechado'}
-                  </span>
-                </div>
-
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-                  {selectedConversation.messages?.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                          msg.direction === 'inbound'
-                            ? 'bg-white border border-gray-200 text-gray-900'
-                            : 'bg-indigo-600 text-white'
-                        }`}
-                      >
-                        <p className="text-sm">{msg.content}</p>
-                        <p className={`text-xs mt-1 ${msg.direction === 'inbound' ? 'text-gray-400' : 'text-indigo-200'}`}>
-                          {formatTime(msg.created_at)}
-                          {msg.is_ai && ' · IA'}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Message Input */}
-                <div className="p-4 border-t border-gray-200">
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      placeholder="Digite sua mensagem..."
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                      disabled={sending}
-                      className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
-                    />
-                    <button
-                      onClick={sendMessage}
-                      disabled={!newMessage.trim() || sending}
-                      className="px-6 py-2 bg-indigo-600 text-white rounded-lg font-medium text-sm hover:bg-indigo-700 transition-colors disabled:opacity-50"
-                    >
-                      {sending ? 'Enviando...' : 'Enviar'}
-                    </button>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-                <span className="text-6xl mb-4">💬</span>
-                <p className="text-lg font-medium text-gray-700">Selecione uma conversa</p>
-                <p className="text-sm mt-1">Escolha uma conversa na lista para visualizar</p>
-              </div>
+              ))
             )}
           </div>
-        </div>
+        </Card>
+
+        {/* Chat View */}
+        <Card className={`flex-1 flex flex-col overflow-hidden ${selectedConversation ? 'flex' : 'hidden lg:flex'}`}>
+          {selectedConversation ? (
+            <>
+              {/* Chat Header */}
+              <div className="p-4 border-b border-border flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSelectedConversation(null)}
+                  className="lg:hidden"
+                >
+                  <ArrowLeftIcon className="w-5 h-5" />
+                </Button>
+                <div className="flex-1">
+                  <p className="font-medium text-foreground">
+                    {selectedConversation.patient?.name || selectedConversation.external_id}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedConversation.patient?.phone || selectedConversation.external_id}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <StatusBadge status={statusConfig[selectedConversation.status].status}>
+                    {statusConfig[selectedConversation.status].label}
+                  </StatusBadge>
+                </div>
+              </div>
+
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/20">
+                {selectedConversation.messages?.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
+                  >
+                    <div
+                      className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl ${
+                        msg.direction === 'inbound'
+                          ? 'bg-card border border-border text-foreground'
+                          : 'bg-primary text-primary-foreground'
+                      }`}
+                    >
+                      <p className="text-sm">{msg.content}</p>
+                      <p className={`text-xs mt-1 ${msg.direction === 'inbound' ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}>
+                        {formatTime(msg.created_at)}
+                        {msg.is_ai && ' · IA'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Quick Actions */}
+              <div className="px-4 py-2 border-t border-border flex gap-2">
+                <Button variant="ghost" size="sm" className="h-8 text-xs">
+                  <CalendarIcon className="w-4 h-4 mr-1" />
+                  Agendar
+                </Button>
+                <Button variant="ghost" size="sm" className="h-8 text-xs">
+                  <ClockIcon className="w-4 h-4 mr-1" />
+                  Reagendar
+                </Button>
+              </div>
+
+              {/* Message Input */}
+              <div className="p-4 border-t border-border bg-card">
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="Digite sua mensagem..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    disabled={sending}
+                    className="flex-1 px-4 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+                  />
+                  <Button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || sending}
+                    size="icon"
+                  >
+                    <PaperAirplaneIcon className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6">
+              <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+                <ChatBubbleLeftRightIcon className="w-8 h-8 text-muted-foreground" />
+              </div>
+              <p className="text-lg font-medium text-foreground">Selecione uma conversa</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                Escolha uma conversa na lista para visualizar e responder
+              </p>
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   )
 }

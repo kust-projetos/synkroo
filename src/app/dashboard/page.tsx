@@ -4,6 +4,17 @@ import Link from 'next/link'
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { StatsGrid } from '@/components/ui/stats-grid'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  CalendarDaysIcon,
+  CurrencyDollarIcon,
+  ChatBubbleLeftRightIcon,
+  UsersIcon,
+  ClockIcon,
+  PlusIcon,
+  MegaphoneIcon,
+} from '@heroicons/react/24/outline'
 
 interface DashboardStats {
   today: {
@@ -52,100 +63,122 @@ export default function DashboardPage() {
     }
   }, [profile?.clinic_id, fetchStats])
 
+  const primaryStats = [
+    {
+      label: 'Agendamentos Hoje',
+      value: statsLoading ? '...' : stats?.today.appointments || 0,
+      icon: <CalendarDaysIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
+      trend: stats?.today.pending
+        ? { value: stats.today.pending, label: 'pendente(s)' }
+        : undefined,
+    },
+    {
+      label: 'Taxa de Confirmação',
+      value: statsLoading ? '...' : `${stats?.metrics.confirmationRate || 0}%`,
+      icon: <ClockIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
+      trend: { value: 0, label: 'Últimos 30 dias' },
+    },
+    {
+      label: 'Pacientes Inativos',
+      value: statsLoading ? '...' : stats?.inactivePatients.totalInactive || 0,
+      icon: <UsersIcon className="w-6 h-6 text-orange-600 dark:text-orange-400" />,
+    },
+  ]
+
+  const secondaryStats = [
+    {
+      label: 'Total de Pacientes',
+      value: statsLoading ? '...' : stats?.metrics.totalPatients || 0,
+      invert: true,
+      icon: <UsersIcon className="w-6 h-6 text-white" />,
+    },
+    {
+      label: 'Campanhas Ativas',
+      value: statsLoading ? '...' : stats?.metrics.activeCampaigns || 0,
+      icon: <MegaphoneIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
+    },
+    {
+      label: 'Conversas Abertas',
+      value: statsLoading ? '...' : stats?.metrics.openConversations || 0,
+      icon: <ChatBubbleLeftRightIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
+    },
+  ]
+
   return (
-    <div className="p-4 lg:p-8">
-        {/* Welcome Card */}
-        <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">
-            Bem-vindo, {profile?.name}! 👋
-          </h2>
-          <p className="text-gray-600">
+    <div className="space-y-6">
+      {/* Welcome Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-xl">
+            Bem-vindo, {profile?.name}!
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">
             {profile?.clinics?.name || 'Sua clínica'}
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Error Banner */}
+      {error && (
+        <div>
+          <ErrorState message={error} onRetry={fetchStats} />
         </div>
+      )}
 
-        {/* Error Banner */}
-        {error && (
-          <div className="mb-6">
-            <ErrorState message={error} onRetry={fetchStats} />
-          </div>
-        )}
+      {/* Primary Stats Grid */}
+      <StatsGrid stats={primaryStats} columns={3} />
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-3xl font-bold text-indigo-600">
-              {statsLoading ? '...' : stats?.today.appointments || 0}
-            </div>
-            <div className="text-sm text-gray-600 mt-1">Agendamentos Hoje</div>
-            {stats?.today.pending ? (
-              <div className="text-xs text-orange-500 mt-1">
-                {stats.today.pending} pendente(s)
-              </div>
-            ) : null}
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-3xl font-bold text-green-600">
-              {statsLoading ? '...' : `${stats?.metrics.confirmationRate || 0}%`}
-            </div>
-            <div className="text-sm text-gray-600 mt-1">Taxa de Confirmação</div>
-            <div className="text-xs text-gray-400 mt-1">Últimos 30 dias</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-3xl font-bold text-orange-600">
-              {statsLoading ? '...' : stats?.inactivePatients.totalInactive || 0}
-            </div>
-            <div className="text-sm text-gray-600 mt-1">Pacientes Inativos</div>
-            <Link href="/dashboard/pacientes/inativos" className="text-xs text-indigo-500 hover:text-indigo-600 mt-1 inline-block">
-              Ver detalhes →
-            </Link>
-          </div>
-        </div>
+      {/* Secondary Stats Grid */}
+      <StatsGrid stats={secondaryStats} columns={3} />
 
-        {/* Secondary Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-3xl font-bold text-purple-600">
-              {statsLoading ? '...' : stats?.metrics.totalPatients || 0}
-            </div>
-            <div className="text-sm text-gray-600 mt-1">Total de Pacientes</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-3xl font-bold text-blue-600">
-              {statsLoading ? '...' : stats?.metrics.activeCampaigns || 0}
-            </div>
-            <div className="text-sm text-gray-600 mt-1">Campanhas Ativas</div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="text-3xl font-bold text-teal-600">
-              {statsLoading ? '...' : stats?.metrics.openConversations || 0}
-            </div>
-            <div className="text-sm text-gray-600 mt-1">Conversas Abertas</div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Ações Rápidas</h3>
+      {/* Quick Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Ações Rápidas</CardTitle>
+        </CardHeader>
+        <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link href="/dashboard/agendamentos/novo" className="p-4 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors text-center">
-              <div className="text-2xl mb-2">📅</div>
-              <div className="text-sm font-medium text-gray-700">Novo Agendamento</div>
+            <Link
+              href="/dashboard/agendamentos/novo"
+              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
+            >
+              <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                <PlusIcon className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-sm font-medium text-foreground">Novo Agendamento</div>
             </Link>
-            <Link href="/dashboard/pacientes/inativos" className="p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors text-center">
-              <div className="text-2xl mb-2">⏰</div>
-              <div className="text-sm font-medium text-gray-700">Pacientes Inativos</div>
+            <Link
+              href="/dashboard/pacientes/inativos"
+              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
+            >
+              <div className="h-10 w-10 rounded-xl bg-orange-600 dark:bg-orange-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                <ClockIcon className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-sm font-medium text-foreground">Pacientes Inativos</div>
             </Link>
-            <Link href="/dashboard/campanhas/nova" className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-center">
-              <div className="text-2xl mb-2">📢</div>
-              <div className="text-sm font-medium text-gray-700">Nova Campanha</div>
+            <Link
+              href="/dashboard/campanhas/nova"
+              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
+            >
+              <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                <MegaphoneIcon className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-sm font-medium text-foreground">Nova Campanha</div>
             </Link>
-            <Link href="/dashboard/conversas" className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-center">
-              <div className="text-2xl mb-2">💬</div>
-              <div className="text-sm font-medium text-gray-700">Mensagens</div>
+            <Link
+              href="/dashboard/conversas"
+              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
+            >
+              <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
+                <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
+              </div>
+              <div className="text-sm font-medium text-foreground">Mensagens</div>
             </Link>
           </div>
-        </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

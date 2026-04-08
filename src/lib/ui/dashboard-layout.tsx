@@ -1,29 +1,38 @@
 'use client'
 
-import { useState } from 'react'
-import { Sidebar, SidebarToggle } from '@/lib/ui/sidebar'
+import { Sidebar, MobileSidebar } from '@/lib/ui/sidebar'
+import { ChatWidget } from '@/components/chat-widget'
+
+// Demo clinic ID - in production this would come from the clinic's subdomain or settings
+const DEMO_CLINIC_ID = '1e211b5d-d8a9-44ef-a5c7-5ce6c583218a'
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Sidebar */}
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+    <div className="min-h-screen bg-background">
+      {/* Desktop Sidebar */}
+      <Sidebar />
 
-      {/* Main content - com padding-left no desktop para compensar o sidebar fixo */}
-      <div className="lg:pl-64 min-h-screen flex flex-col">
+      {/* Main content */}
+      <div className="lg:pl-60 min-h-screen flex flex-col">
         {/* Mobile header */}
-        <header className="lg:hidden bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-4 sticky top-0 z-30">
-          <SidebarToggle onClick={() => setSidebarOpen(true)} />
-          <span className="text-lg font-semibold text-indigo-600">Synkroo</span>
+        <header className="lg:hidden bg-card border-b border-border px-4 py-3 flex items-center gap-4 sticky top-0 z-30">
+          <MobileSidebar />
+          <span className="text-lg font-semibold text-teal-600 dark:text-teal-400">Synkroo</span>
         </header>
 
         {/* Page content */}
-        <main className="flex-1">
+        <main className="flex-1 p-6">
           {children}
         </main>
       </div>
+
+      {/* Chat Widget - Available on all dashboard pages */}
+      <ChatWidget
+        clinicId={DEMO_CLINIC_ID}
+        clinicName="Clínica Demo"
+        position="bottom-right"
+        greeting="Olá! Sou a Mia, assistente virtual da Clínica Demo. Como posso ajudar?"
+      />
     </div>
   )
 }

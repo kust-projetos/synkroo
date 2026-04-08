@@ -3,6 +3,10 @@
 import { Suspense, useState } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import { useRouter } from 'next/navigation'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { BuildingOfficeIcon, UserIcon, EnvelopeIcon, LockClosedIcon, ArrowLeftIcon } from '@heroicons/react/24/outline'
 
 function SignupForm() {
   const [name, setName] = useState('')
@@ -33,81 +37,94 @@ function SignupForm() {
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Clinic Name */}
       <div>
-        <label htmlFor="clinicName" className="block text-sm font-medium text-gray-700 mb-1">
-          Nome da Clinica
+        <label htmlFor="clinicName" className="block text-sm font-medium text-foreground mb-1">
+          Nome da Clínica
         </label>
-        <input
-          id="clinicName"
-          type="text"
-          value={clinicName}
-          onChange={(e) => setClinicName(e.target.value)}
-          required
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white text-gray-900 placeholder-gray-400"
-          placeholder="Clinica Sorriso"
-        />
+        <div className="relative">
+          <BuildingOfficeIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            id="clinicName"
+            type="text"
+            value={clinicName}
+            onChange={(e) => setClinicName(e.target.value)}
+            required
+            className="pl-10"
+            placeholder="Clínica Sorriso"
+          />
+        </div>
       </div>
 
       {/* Name */}
       <div>
-        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="name" className="block text-sm font-medium text-foreground mb-1">
           Seu Nome
         </label>
-        <input
-          id="name"
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white text-gray-900 placeholder-gray-400"
-          placeholder="Dr. Maria Silva"
-        />
+        <div className="relative">
+          <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            className="pl-10"
+            placeholder="Dr. Maria Silva"
+          />
+        </div>
       </div>
 
       {/* Email */}
       <div>
-        <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="email" className="block text-sm font-medium text-foreground mb-1">
           Email
         </label>
-        <input
-          id="email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white text-gray-900 placeholder-gray-400"
-          placeholder="seu@email.com"
-        />
+        <div className="relative">
+          <EnvelopeIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="pl-10"
+            placeholder="seu@email.com"
+          />
+        </div>
       </div>
 
       {/* Password */}
       <div>
-        <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="password" className="block text-sm font-medium text-foreground mb-1">
           Senha
         </label>
-        <input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={6}
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors bg-white text-gray-900 placeholder-gray-400"
-          placeholder="Minimo 6 caracteres"
-        />
+        <div className="relative">
+          <LockClosedIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            className="pl-10"
+            placeholder="Mínimo 6 caracteres"
+          />
+        </div>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-sm text-red-600">{error}</p>
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
       {/* Submit Button */}
-      <button
+      <Button
         type="submit"
         disabled={loading}
-        className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+        className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400"
+        size="lg"
       >
         {loading ? (
           <span className="flex items-center justify-center">
@@ -120,12 +137,12 @@ function SignupForm() {
         ) : (
           'Criar Conta'
         )}
-      </button>
+      </Button>
 
       {/* Login Link */}
-      <p className="text-center text-sm text-gray-600">
-        Ja tem uma conta?{' '}
-        <a href="/login" className="text-indigo-600 hover:text-indigo-500 font-medium">
+      <p className="text-center text-sm text-muted-foreground">
+        Já tem uma conta?{' '}
+        <a href="/login" className="text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium">
           Entrar
         </a>
       </p>
@@ -136,39 +153,44 @@ function SignupForm() {
 function SignupFallback() {
   return (
     <div className="space-y-5 animate-pulse">
-      <div className="h-12 bg-gray-200 rounded-lg"></div>
-      <div className="h-12 bg-gray-200 rounded-lg"></div>
-      <div className="h-12 bg-gray-200 rounded-lg"></div>
-      <div className="h-12 bg-gray-200 rounded-lg"></div>
-      <div className="h-12 bg-indigo-300 rounded-lg"></div>
+      <div className="h-12 bg-muted rounded-lg"></div>
+      <div className="h-12 bg-muted rounded-lg"></div>
+      <div className="h-12 bg-muted rounded-lg"></div>
+      <div className="h-12 bg-muted rounded-lg"></div>
+      <div className="h-12 bg-teal-600/20 rounded-lg"></div>
     </div>
   )
 }
 
 export default function SignupPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-900 dark:to-zinc-800">
       <div className="max-w-md w-full mx-4">
         {/* Logo */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-indigo-600">Synkroo</h1>
-          <p className="text-gray-600 mt-2">Automacao para Clinicas Odontologicas</p>
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-teal-500 to-teal-700 rounded-2xl shadow-lg mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+            </svg>
+          </div>
+          <h1 className="text-3xl font-bold text-foreground">Synkroo</h1>
+          <p className="text-muted-foreground mt-2">Automação para Clínicas Odontológicas</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-2xl font-semibold text-gray-900 text-center mb-6">
+        <Card className="rounded-2xl shadow-xl p-8">
+          <h2 className="text-2xl font-semibold text-foreground text-center mb-6">
             Criar Conta
           </h2>
 
           <Suspense fallback={<SignupFallback />}>
             <SignupForm />
           </Suspense>
-        </div>
+        </Card>
 
         {/* Footer */}
-        <p className="text-center text-sm text-gray-500 mt-6">
-          2026 Synkroo. Todos os direitos reservados.
+        <p className="text-center text-sm text-muted-foreground mt-6">
+          © 2026 Synkroo. Todos os direitos reservados.
         </p>
       </div>
     </div>

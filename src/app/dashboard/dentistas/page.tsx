@@ -3,6 +3,13 @@
 import { useAuth } from '@/lib/auth/context'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { UserCircleIcon, PlusIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { SearchInput } from '@/components/ui/search-input'
+import { DataTable, type Column } from '@/components/ui/data-table'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Badge } from '@/components/ui/badge'
 
 interface Dentist {
   id: string
@@ -46,88 +53,99 @@ export default function DentistasPage() {
     d.specialty?.toLowerCase().includes(search.toLowerCase())
   )
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
-      </div>
-    )
-  }
+  const columns: Column<Dentist>[] = [
+    {
+      key: 'name',
+      header: 'Nome',
+      cell: (dentist) => (
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 flex items-center justify-center">
+            <UserCircleIcon className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+          </div>
+          <span className="font-medium text-foreground">{dentist.name}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'specialty',
+      header: 'Especialidade',
+      cell: (dentist) => (
+        <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950 dark:text-teal-400 dark:border-teal-800">
+          {dentist.specialty || 'Geral'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'phone',
+      header: 'Telefone',
+      cell: (dentist) => <span className="text-sm text-muted-foreground">{dentist.phone || '-'}</span>,
+    },
+    {
+      key: 'email',
+      header: 'Email',
+      cell: (dentist) => <span className="text-sm text-muted-foreground">{dentist.email || '-'}</span>,
+    },
+    {
+      key: 'cro',
+      header: 'CRO',
+      cell: (dentist) => <span className="text-sm text-muted-foreground">{dentist.cro_number || '-'}</span>,
+    },
+    {
+      key: 'actions',
+      header: 'Ações',
+      cell: (dentist) => (
+        <Link
+          href={`/dashboard/dentistas/${dentist.id}`}
+          className="text-sm font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 inline-flex items-center gap-1"
+        >
+          Ver detalhes
+          <ChevronRightIcon className="h-3.5 w-3.5" />
+        </Link>
+      ),
+      className: 'text-right',
+    },
+  ]
 
   return (
-    <div className="p-4 lg:p-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Dentistas</h1>
-          <Link
-            href="/dashboard/dentistas/novo"
-            className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Novo Dentista
-          </Link>
-        </div>
+    <div className="p-4 lg:p-8 space-y-6">
+      <PageHeader
+        title="Dentistas"
+        description="Gerencie os dentistas da clínica"
+        action={
+          <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
+            <Link href="/dashboard/dentistas/novo">
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Novo Dentista
+            </Link>
+          </Button>
+        }
+      />
 
-        {/* Search */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Buscar por nome ou especialidade..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-          />
-        </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nome ou especialidade..."
+      />
 
-        {/* Dentists Table */}
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-          {filteredDentists.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              {search ? 'Nenhum dentista encontrado' : 'Nenhum dentista cadastrado'}
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Especialidade</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Telefone</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CRO</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredDentists.map((dentist) => (
-                    <tr key={dentist.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="font-medium text-gray-900">{dentist.name}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 text-xs font-medium bg-indigo-100 text-indigo-800 rounded-full">
-                          {dentist.specialty || 'Geral'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">{dentist.phone || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">{dentist.email || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-500">{dentist.cro_number || '-'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <Link
-                          href={`/dashboard/dentistas/${dentist.id}`}
-                          className="text-indigo-600 hover:text-indigo-900"
-                        >
-                          Ver detalhes
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+      {(!isLoading && filteredDentists.length === 0) ? (
+        <EmptyState
+          icon={<UserCircleIcon className="h-8 w-8 text-teal-600 dark:text-teal-400" />}
+          title={search ? 'Nenhum dentista encontrado' : 'Nenhum dentista cadastrado'}
+          description={search ? 'Tente buscar com outros termos' : 'Comece cadastrando o primeiro dentista da clínica'}
+          action={!search ? {
+            label: 'Cadastrar Dentista',
+            onClick: () => window.location.href = '/dashboard/dentistas/novo',
+          } : undefined}
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={filteredDentists}
+          loading={isLoading}
+          keyExtractor={(dentist) => dentist.id}
+          emptyMessage={search ? 'Nenhum dentista encontrado' : 'Nenhum dentista cadastrado'}
+        />
+      )}
     </div>
   )
 }

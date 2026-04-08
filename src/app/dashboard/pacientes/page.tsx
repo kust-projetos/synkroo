@@ -3,7 +3,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
+import { UserGroupIcon, PlusIcon, PencilIcon } from '@heroicons/react/24/outline'
 import type { Patient } from '@/lib/supabase/database.types'
+import { PageHeader } from '@/components/ui/page-header'
+import { Button } from '@/components/ui/button'
+import { SearchInput } from '@/components/ui/search-input'
+import { DataTable, type Column } from '@/components/ui/data-table'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Badge } from '@/components/ui/badge'
 
 interface PatientWithAppointments extends Patient {
   appointments?: Array<{
@@ -21,7 +28,6 @@ export default function PatientsPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
-  // Get clinic ID from auth context
   const clinicId = profile?.clinic_id
 
   const fetchPatients = useCallback(async () => {
@@ -76,198 +82,177 @@ export default function PatientsPage() {
     return phone
   }
 
-  return (
-    <div className="p-4 lg:p-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow mb-6 p-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Pacientes</h1>
-              <p className="text-sm text-gray-500">Gerencie os pacientes da clínica</p>
-            </div>
-            <Link
-              href="/dashboard/pacientes/novo"
-              className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Novo Paciente
-            </Link>
+  const columns: Column<PatientWithAppointments>[] = [
+    {
+      key: 'name',
+      header: 'Nome',
+      cell: (patient) => (
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-teal-50 to-teal-100 dark:from-teal-950 dark:to-teal-900 flex items-center justify-center">
+            <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">
+              {patient.name.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div>
+            <div className="font-medium text-foreground">{patient.name}</div>
+            {patient.cpf && (
+              <div className="text-sm text-muted-foreground">CPF: {patient.cpf}</div>
+            )}
           </div>
         </div>
-
-      {/* Search Bar */}
-      <div className="mb-6">
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nome, telefone ou email..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-          <button
-            type="submit"
-            className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition"
-          >
-            Buscar
-          </button>
-        </form>
-      </div>
-
-      {/* Patients Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          ) : patients.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
-              <p className="mt-2">Nenhum paciente encontrado</p>
-              <Link href="/dashboard/pacientes/novo" className="mt-4 inline-block text-blue-600 hover:text-blue-700">
-                Cadastrar primeiro paciente
-              </Link>
-            </div>
-          ) : (
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Nome
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Telefone
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Email
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Última Visita
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tags
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {patients.map((patient) => (
-                  <tr key={patient.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 font-medium">
-                            {patient.name.charAt(0).toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{patient.name}</div>
-                          {patient.cpf && (
-                            <div className="text-sm text-gray-500">CPF: {patient.cpf}</div>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatPhone(patient.phone)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {patient.email || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {formatDate(patient.last_visit_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-wrap gap-1">
-                        {patient.tags?.slice(0, 3).map((tag, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                        {(patient.tags?.length ?? 0) > 3 && (
-                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                            +{(patient.tags?.length ?? 0) - 3}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <Link
-                        href={`/dashboard/pacientes/${patient.id}`}
-                        className="text-blue-600 hover:text-blue-900 mr-4"
-                      >
-                        Ver
-                      </Link>
-                      <Link
-                        href={`/dashboard/pacientes/${patient.id}/editar`}
-                        className="text-gray-600 hover:text-gray-900"
-                      >
-                        Editar
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  Anterior
-                </button>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-                >
-                  Próximo
-                </button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Página <span className="font-medium">{page}</span> de{' '}
-                    <span className="font-medium">{totalPages}</span>
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                    <button
-                      onClick={() => setPage(p => Math.max(1, p - 1))}
-                      disabled={page === 1}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Anterior
-                    </button>
-                    <button
-                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                      disabled={page === totalPages}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      Próximo
-                    </button>
-                  </nav>
-                </div>
-              </div>
-            </div>
+      ),
+    },
+    {
+      key: 'phone',
+      header: 'Telefone',
+      cell: (patient) => <span className="text-sm">{formatPhone(patient.phone)}</span>,
+    },
+    {
+      key: 'email',
+      header: 'Email',
+      cell: (patient) => (
+        <span className="text-sm text-muted-foreground">{patient.email || '-'}</span>
+      ),
+    },
+    {
+      key: 'last_visit',
+      header: 'Última Visita',
+      cell: (patient) => (
+        <span className="text-sm text-muted-foreground">{formatDate(patient.last_visit_at)}</span>
+      ),
+    },
+    {
+      key: 'tags',
+      header: 'Tags',
+      cell: (patient) => (
+        <div className="flex flex-wrap gap-1">
+          {patient.tags?.slice(0, 3).map((tag, i) => (
+            <Badge key={i} variant="outline" className="text-xs">
+              {tag}
+            </Badge>
+          ))}
+          {(patient.tags?.length ?? 0) > 3 && (
+            <Badge variant="secondary" className="text-xs">
+              +{(patient.tags?.length ?? 0) - 3}
+            </Badge>
           )}
         </div>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Ações',
+      cell: (patient) => (
+        <div className="flex items-center gap-3 justify-end">
+          <Link
+            href={`/dashboard/pacientes/${patient.id}`}
+            className="text-sm font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400"
+          >
+            Ver
+          </Link>
+          <Link
+            href={`/dashboard/pacientes/${patient.id}/editar`}
+            className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
+          >
+            <PencilIcon className="h-3.5 w-3.5" />
+            Editar
+          </Link>
+        </div>
+      ),
+      className: 'text-right',
+    },
+  ]
+
+  return (
+    <div className="p-4 lg:p-8 space-y-6">
+      <PageHeader
+        title="Pacientes"
+        description="Gerencie os pacientes da clínica"
+        action={
+          <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
+            <Link href="/dashboard/pacientes/novo">
+              <PlusIcon className="h-4 w-4 mr-2" />
+              Novo Paciente
+            </Link>
+          </Button>
+        }
+      />
+
+      <form onSubmit={handleSearch}>
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Buscar por nome, telefone ou email..."
+        />
+      </form>
+
+      {(!loading && patients.length === 0) ? (
+        <EmptyState
+          icon={<UserGroupIcon className="h-8 w-8 text-teal-600 dark:text-teal-400" />}
+          title={search ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
+          description={search ? 'Tente buscar com outros termos' : 'Comece cadastrando o primeiro paciente da clínica'}
+          action={!search ? {
+            label: 'Cadastrar Paciente',
+            onClick: () => window.location.href = '/dashboard/pacientes/novo',
+          } : undefined}
+        />
+      ) : (
+        <DataTable
+          columns={columns}
+          data={patients}
+          loading={loading}
+          keyExtractor={(patient) => patient.id}
+          emptyMessage={search ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}
+        />
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-border bg-card px-4 py-3 rounded-xl">
+          <div className="flex-1 flex justify-between sm:hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Próximo
+            </Button>
+          </div>
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Página <span className="font-medium text-foreground">{page}</span> de{' '}
+              <span className="font-medium text-foreground">{totalPages}</span>
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                Anterior
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+              >
+                Próximo
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
