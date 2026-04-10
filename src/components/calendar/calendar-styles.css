@@ -1,0 +1,62 @@
+/* src/components/calendar/calendar-styles.css */
+
+/* Status-specific event styles */
+.ec-event.ec-status-scheduled {
+  border-left: 3px dashed rgba(96, 165, 250, 0.8) !important;
+  opacity: 0.85;
+}
+
+.ec-event.ec-status-confirmed {
+  border-left: 3px solid rgba(52, 211, 153, 0.8) !important;
+}
+
+.ec-event.ec-status-in-progress {
+  border-left: 3px solid rgba(16, 185, 129, 0.9) !important;
+  background-size: 200% 100% !important;
+  animation: ec-shimmer 2s linear infinite;
+}
+
+.ec-event.ec-status-completed {
+  border-left: 3px solid rgba(209, 213, 219, 0.6) !important;
+  opacity: 0.7;
+}
+
+.ec-event.ec-status-cancelled {
+  border-left: 3px solid rgba(248, 113, 113, 0.6) !important;
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+
+.ec-event.ec-status-no-show {
+  border-left: 3px solid rgba(248, 113, 113, 0.8) !important;
+  opacity: 0.5;
+}
+
+@keyframes ec-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Dark mode integration with next-themes */
+.dark .ec {
+  color-scheme: dark;
+}
+
+.ec {
+  --ec-border-color: var(--border);
+  --ec-today-bg-color: rgba(59, 130, 246, 0.08);
+  --ec-highlight-color: rgba(59, 130, 246, 0.12);
+  font-family: inherit;
+}
+
+/* Calendar takes full height of container */
+.ec {
+  height: 100%;
+}
+
+/* Responsive: hide sidebar on mobile */
+@media (max-width: 767px) {
+  .calendar-sidebar {
+    display: none;
+  }
+}

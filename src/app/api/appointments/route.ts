@@ -24,6 +24,8 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date') // YYYY-MM-DD
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
+    const dentistIds = searchParams.getAll('dentist_ids')  // repeated param: ?dentist_ids=a&dentist_ids=b
+    const specialty = searchParams.get('specialty')
     const page = parseInt(searchParams.get('page') || '1')
     const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
 
@@ -35,7 +37,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         patients (id, name, phone),
-        dentists (id, name),
+        dentists (id, name, specialty),
         procedures (id, name, duration_minutes, price)
       `, { count: 'exact' })
       .eq('clinic_id', clinicId)
@@ -45,6 +47,16 @@ export async function GET(request: NextRequest) {
     if (patientId) query = query.eq('patient_id', patientId)
     if (dentistId) query = query.eq('dentist_id', dentistId)
     if (status) query = query.eq('status', status)
+
+    // Multi-dentist filter (repeated params)
+    if (dentistIds.length > 0) {
+      query = query.in('dentist_id', dentistIds)
+    }
+
+    // Specialty filter — join on dentists table
+    if (specialty) {
+      query = query.eq('dentists.specialty', specialty)
+    }
 
     // Date filters
     if (date) {
@@ -152,7 +164,7 @@ export async function POST(request: NextRequest) {
       .select(`
         *,
         patients (id, name, phone),
-        dentists (id, name),
+        dentists (id, name, specialty),
         procedures (id, name)
       `)
       .single()
