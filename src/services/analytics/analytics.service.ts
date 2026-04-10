@@ -282,6 +282,9 @@ export async function getHighRiskPatients(
 
 /**
  * Predict demand for upcoming days
+ * Uses a single query to fetch all historical appointments, then aggregates
+ * by day-of-week in JavaScript — replacing the previous 112 individual queries
+ * (14 days × 8 historical weeks).
  */
 export async function getDemandForecast(
   clinicId: string,
@@ -290,8 +293,37 @@ export async function getDemandForecast(
   const supabase = await createTypedClient()
 
   try {
-    // Get historical data for the same day of week in past weeks
     const historicalWeeks = 8 // Look at last 8 weeks
+
+    // Single query: fetch all appointments from the historical window
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - historicalWeeks * 7 - days)
+    const endDate = new Date()
+
+    const { data: appointments, error } = await supabase
+      .from('appointments')
+      .select('scheduled_at')
+      .eq('clinic_id', clinicId)
+      .gte('scheduled_at', startDate.toISOString())
+      .lt('scheduled_at', endDate.toISOString()) as any
+
+    if (error) throw error
+
+    // Group historical appointments by individual date, indexed by day-of-week.
+    // Each unique date becomes one data point — this preserves the same granularity
+    // as the original per-week queries (one count per historical day).
+    const appointmentsByDayOfWeek: Map<number, Map<string, number>> = new Map()
+    for (let d = 0; d < 7; d++) appointmentsByDayOfWeek.set(d, new Map())
+
+    for (const apt of (appointments as Array<{ scheduled_at: string }>) || []) {
+      const date = new Date(apt.scheduled_at)
+      const dayOfWeek = date.getDay()
+      const dateStr = apt.scheduled_at.split('T')[0]
+      const dayMap = appointmentsByDayOfWeek.get(dayOfWeek)!
+      dayMap.set(dateStr, (dayMap.get(dateStr) || 0) + 1)
+    }
+
+    // Build forecasts for each upcoming day
     const forecasts: DemandForecast[] = []
 
     for (let i = 0; i < days; i++) {
@@ -300,22 +332,9 @@ export async function getDemandForecast(
       const dayOfWeek = targetDate.getDay()
       const dateStr = targetDate.toISOString().split('T')[0]
 
-      // Get appointments for same day of week in historical period
-      const historicalCounts: number[] = []
-
-      for (let week = 1; week <= historicalWeeks; week++) {
-        const historicalDate = new Date(targetDate)
-        historicalDate.setDate(historicalDate.getDate() - week * 7)
-
-        const { count } = await supabase
-          .from('appointments')
-          .select('id', { count: 'exact', head: true })
-          .eq('clinic_id', clinicId)
-          .gte('scheduled_at', historicalDate.toISOString())
-          .lt('scheduled_at', new Date(historicalDate.getTime() + 86400000).toISOString())
-
-        if (count) historicalCounts.push(count)
-      }
+      // Collect per-day appointment counts for the same day of week
+      const dayMap = appointmentsByDayOfWeek.get(dayOfWeek)!
+      const historicalCounts = Array.from(dayMap.values())
 
       // Calculate average and confidence
       const avg =
@@ -397,13 +416,14 @@ export async function getClinicInsights(
   const { trendDays = 30, forecastDays = 14 } = options
 
   try {
-    // Run all analytics in parallel
-    const [trends, hourly, dayOfWeek, riskPatients, forecast] = await Promise.all([
+    // Run all analytics in parallel (including avg confirmation time)
+    const [trends, hourly, dayOfWeek, riskPatients, forecast, avgConfirmationTime] = await Promise.all([
       getAppointmentTrends(clinicId, trendDays),
       getHourlyDistribution(clinicId, 90),
       getDayOfWeekDistribution(clinicId, 90),
       getHighRiskPatients(clinicId, 20),
       getDemandForecast(clinicId, forecastDays),
+      calculateAvgConfirmationTime(clinicId),
     ])
 
     // Calculate metrics
@@ -425,9 +445,6 @@ export async function getClinicInsights(
 
     const cancellationRate = totalAppointments > 0 ? totalCancelled / totalAppointments : 0
     const noShowRate = totalAppointments > 0 ? totalNoShow / totalAppointments : 0
-
-    // Calculate average confirmation time
-    const avgConfirmationTime = await calculateAvgConfirmationTime(clinicId)
 
     return {
       appointmentTrends: trends,

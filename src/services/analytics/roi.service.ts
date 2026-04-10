@@ -306,14 +306,16 @@ export async function getROIMetrics(
     const startStr = start.toISOString()
     const endStr = end.toISOString()
 
-    const currentMetrics = await calculateROI(clinicId, startStr, endStr)
-
     // Get previous period for comparison
     const prevRange = getPreviousPeriodRange(period, date)
     const prevStartStr = prevRange.start.toISOString()
     const prevEndStr = prevRange.end.toISOString()
 
-    const previousMetrics = await calculateROI(clinicId, prevStartStr, prevEndStr)
+    // Run both period calculations in parallel to reduce latency
+    const [currentMetrics, previousMetrics] = await Promise.all([
+      calculateROI(clinicId, startStr, endStr),
+      calculateROI(clinicId, prevStartStr, prevEndStr),
+    ])
 
     const changePercent =
       previousMetrics.roi !== 0
