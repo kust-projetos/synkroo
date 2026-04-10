@@ -60,7 +60,7 @@ const intentLabels: Record<string, { label: string; status: 'success' | 'info' |
 const channelConfig: Record<string, { bg: string; icon: React.ReactNode; name: string }> = {
   whatsapp: { bg: 'bg-green-500', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, name: 'WhatsApp' },
   instagram: { bg: 'bg-gradient-to-br from-purple-500 to-pink-500', icon: <CameraIcon className="w-5 h-5" />, name: 'Instagram' },
-  web: { bg: 'bg-blue-500', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, name: 'Web' },
+  web: { bg: 'bg-teal-600', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, name: 'Web' },
 }
 
 const statusConfig: Record<string, { label: string; status: 'success' | 'warning' | 'error' | 'info' | 'zinc' }> = {
@@ -193,7 +193,7 @@ export default function ConversasPage() {
         description={`Gerencie suas conversas em tempo real`}
         action={
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-400 dark:border-green-800">
+            <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950 dark:text-teal-400 dark:border-teal-800">
               {activeCount} ativas
             </Badge>
           </div>
