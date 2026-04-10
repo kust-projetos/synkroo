@@ -341,7 +341,73 @@ export async function predictNoShowRisk(
 }
 
 /**
- * Get no-show risk predictions for all upcoming appointments
+ * Build a PatientHistory map from batch-fetched appointment data.
+ * Groups all historical appointments by patient_id and computes
+ * the same metrics as getPatientHistory but without per-patient queries.
+ */
+function buildPatientHistoryMap(
+  rawAppointments: { status: string; scheduled_at: string; confirmation_sent_at: string | null; patient_id: string }[]
+): Map<string, PatientHistory> {
+  // Group appointments by patient_id
+  const grouped = new Map<string, typeof rawAppointments>()
+  for (const apt of rawAppointments) {
+    const existing = grouped.get(apt.patient_id)
+    if (existing) {
+      existing.push(apt)
+    } else {
+      grouped.set(apt.patient_id, [apt])
+    }
+  }
+
+  const historyMap = new Map<string, PatientHistory>()
+
+  for (const [patientId, appointments] of grouped) {
+    const total = appointments.length
+    const completed = appointments.filter((a) => a.status === 'completed').length
+    const cancelled = appointments.filter((a) => a.status === 'cancelled').length
+    const no_shows = appointments.filter((a) => a.status === 'no_show').length
+
+    // Get last visit
+    const completedAppointments = appointments.filter((a) => a.status === 'completed')
+    const lastVisit =
+      completedAppointments.length > 0
+        ? completedAppointments.sort(
+            (a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
+          )[0].scheduled_at
+        : null
+
+    // Calculate average confirmation time from actual confirmation timestamps
+    const confirmedAppointments = appointments.filter(
+      (a) => a.confirmation_sent_at && new Date(a.scheduled_at) > new Date(a.confirmation_sent_at)
+    )
+
+    let avgConfirmationTime: number | null = null
+    if (confirmedAppointments.length > 0) {
+      const totalHours = confirmedAppointments.reduce((sum, apt) => {
+        const scheduled = new Date(apt.scheduled_at).getTime()
+        const confirmed = new Date(apt.confirmation_sent_at!).getTime()
+        return sum + (scheduled - confirmed) / (1000 * 60 * 60)
+      }, 0)
+      avgConfirmationTime = Math.round((totalHours / confirmedAppointments.length) * 10) / 10
+    }
+
+    historyMap.set(patientId, {
+      total_appointments: total,
+      completed,
+      cancelled,
+      no_shows,
+      last_visit: lastVisit,
+      average_confirmation_time: avgConfirmationTime,
+    })
+  }
+
+  return historyMap
+}
+
+/**
+ * Get no-show risk predictions for all upcoming appointments.
+ * Uses batch queries to avoid N+1 pattern: fetches all patient data
+ * and appointment history in 3 queries total instead of 2N+1.
  */
 export async function getUpcomingAppointmentRisks(
   clinicId: string,
@@ -354,7 +420,7 @@ export async function getUpcomingAppointmentRisks(
     const endDate = new Date()
     endDate.setDate(endDate.getDate() + days)
 
-    // Get upcoming appointments
+    // Query 1: Get upcoming appointments with patient data (join)
     const { data: appointments, error } = await supabase
       .from('appointments')
       .select(
@@ -373,17 +439,101 @@ export async function getUpcomingAppointmentRisks(
 
     if (error) throw error
 
+    const validAppointments = ((appointments as any[]) || []).filter((apt) => {
+      const patientData = apt.patients as { id: string; name: string; risk_score: number } | { id: string; name: string; risk_score: number }[] | null
+      return patientData && !Array.isArray(patientData)
+    })
+
+    if (validAppointments.length === 0) {
+      return []
+    }
+
+    // Extract unique patient IDs for batch queries
+    const patientIdSet = new Set<string>()
+    for (const apt of validAppointments) {
+      patientIdSet.add(apt.patient_id)
+    }
+    const patientIds = [...patientIdSet]
+
+    // Query 2: Batch-fetch all appointment history for these patients
+    const { data: historyAppointments, error: historyError } = await supabase
+      .from('appointments')
+      .select('status, scheduled_at, confirmation_sent_at, patient_id')
+      .in('patient_id', patientIds) as any
+
+    if (historyError) throw historyError
+
+    // Build patient history map from batch data
+    const historyMap = buildPatientHistoryMap((historyAppointments as any[]) || [])
+
+    // Build patient info map from the join data already fetched in Query 1
+    const patientInfoMap = new Map<string, { name: string; risk_score: number }>()
+    for (const apt of validAppointments) {
+      const patientData = apt.patients as { id: string; name: string; risk_score: number }
+      if (!patientInfoMap.has(patientData.id)) {
+        patientInfoMap.set(patientData.id, { name: patientData.name, risk_score: patientData.risk_score })
+      }
+    }
+
+    // Calculate predictions using pre-fetched batch data (no additional queries)
     const predictions: NoShowPrediction[] = []
 
-    for (const apt of (appointments as any[]) || []) {
-      const patientData = (apt as any).patients as { id: string; name: string; risk_score: number } | { id: string; name: string; risk_score: number }[] | null
-      if (!patientData || Array.isArray(patientData)) continue
+    for (const apt of validAppointments) {
+      const patientData = apt.patients as { id: string; name: string; risk_score: number }
+      const patientId = patientData.id
+      const history = historyMap.get(patientId) || {
+        total_appointments: 0,
+        completed: 0,
+        cancelled: 0,
+        no_shows: 0,
+        last_visit: null,
+        average_confirmation_time: null,
+      }
+      const patientInfo = patientInfoMap.get(patientId) || { name: 'Unknown', risk_score: 0 }
 
-      const patient = patientData
-      const prediction = await predictNoShowRisk(patient.id, apt.scheduled_at)
-      prediction.appointment_id = apt.id
+      // Calculate risk factors using existing pure functions
+      const factors: RiskFactor[] = [
+        calculateHistoryRisk(history),
+        calculateTimingRisk(apt.scheduled_at),
+        calculateInactivityRisk(history.last_visit),
+      ]
 
-      predictions.push(prediction)
+      // Add base risk score from patient
+      if (patientInfo.risk_score && patientInfo.risk_score > 0) {
+        factors.push({
+          name: 'base_risk',
+          impact: patientInfo.risk_score / 100,
+          description: `Score de risco base: ${patientInfo.risk_score}`,
+        })
+      }
+
+      // Calculate total risk score (0-100)
+      const totalImpact = factors.reduce((sum, f) => sum + f.impact, 0)
+      const riskScore = Math.min(Math.round(totalImpact * 100), 100)
+
+      // Determine risk level
+      let riskLevel: 'low' | 'medium' | 'high'
+      if (riskScore >= 50) {
+        riskLevel = 'high'
+      } else if (riskScore >= 30) {
+        riskLevel = 'medium'
+      } else {
+        riskLevel = 'low'
+      }
+
+      // Generate recommendations
+      const recommendations = generateRecommendations(factors, riskScore)
+
+      predictions.push({
+        patient_id: patientId,
+        patient_name: patientInfo.name,
+        appointment_id: apt.id,
+        scheduled_at: apt.scheduled_at,
+        risk_score: riskScore,
+        riskLevel,
+        factors,
+        recommendations,
+      })
     }
 
     // Sort by risk score descending
