@@ -53,7 +53,7 @@ src/app/dashboard/agendamentos/list-view.tsx       (extracted current page — p
 
 ```json
 {
-  "@event-calendar/core": "^3.0.0"
+  "@event-calendar/core": "^5.6.0"
 }
 ```
 
@@ -91,20 +91,30 @@ src/app/dashboard/agendamentos/list-view.tsx       (extracted current page — p
 ```typescript
 // ScheduleCalendar.tsx
 'use client'
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { createCalendar, destroyCalendar,
          DayGrid, TimeGrid, ResourceTimeGrid, Interaction } from '@event-calendar/core'
 import '@event-calendar/core/index.css'
 
-export function ScheduleCalendar({ events, resources, options, onEventClick, onDateClick, onEventDrop, onDatesSet }) {
+// Memoize options to avoid unnecessary re-creates
+const PLUGINS = [DayGrid, TimeGrid, ResourceTimeGrid, Interaction]
+
+export function ScheduleCalendar({ events, resources, options, onEventClick, onDateClick, onEventDrop, onEventResize, onDatesSet }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const ecRef = useRef(null)
+  const ecRef = useRef<any>(null)
+
+  // Serialize events for comparison to avoid re-create on reference change
+  const eventsKey = useMemo(() => JSON.stringify(events), [events])
+  const resourcesKey = useMemo(() => JSON.stringify(resources), [resources])
 
   useEffect(() => {
     if (!containerRef.current) return
 
+    // Destroy previous instance before creating new one
+    destroyCalendar(containerRef.current)
+
     ecRef.current = createCalendar(containerRef.current,
-      [DayGrid, TimeGrid, ResourceTimeGrid, Interaction],
+      PLUGINS,
       {
         view: options.view,
         events,
@@ -123,6 +133,7 @@ export function ScheduleCalendar({ events, resources, options, onEventClick, onD
         eventClick: onEventClick,
         dateClick: onDateClick,
         eventDrop: onEventDrop,
+        eventResize: onEventResize,
         datesSet: onDatesSet,
         eventContent: customEventContent,
         eventClassNames: eventClassNames,
@@ -131,22 +142,9 @@ export function ScheduleCalendar({ events, resources, options, onEventClick, onD
     )
 
     return () => {
-      if (ecRef.current) destroyCalendar(ecRef.current)
+      destroyCalendar(containerRef.current)
     }
-  }, []) // Mount only
-
-  // Update events/resources on change (without full re-mount)
-  useEffect(() => {
-    if (ecRef.current) {
-      ecRef.current.setOption('events', events)
-    }
-  }, [events])
-
-  useEffect(() => {
-    if (ecRef.current) {
-      ecRef.current.setOption('resources', resources)
-    }
-  }, [resources])
+  }, [eventsKey, resourcesKey, options.view]) // Re-create when events/resources/view change
 
   return <div ref={containerRef} className="ec" />
 }
@@ -160,6 +158,8 @@ const ScheduleCalendar = dynamic(() =>
   { ssr: false, loading: () => <CalendarSkeleton /> }
 )
 ```
+
+**Note on re-creation strategy:** `@event-calendar/core` does not expose `setOption()` for bulk updates. Instead of trying incremental updates, we destroy + recreate the calendar when events/resources change. The `eventsKey` memo ensures this only happens when data actually changes (not on reference change). This is safe because the library renders fast (~45KB, no vdom) and avoids stale state bugs from incremental updates.
 
 ---
 
@@ -227,7 +227,10 @@ interface CalendarResource {
    - Is target within working hours? (no → reject with red highlight)
    - Is target slot free? (checked client-side against loaded events)
 3. EventCalendar handles visual feedback automatically (shadow, snap)
-4. Background: PUT /api/appointments/[id]/reschedule { scheduled_at, duration_minutes }
+4. Drag = move event: POST /api/appointments/[id]/reschedule { new_date, new_time, notify_patient: true }
+   Resize = change duration: PUT /api/appointments/[id] { duration_minutes: newDuration }
+5. On success: revalidate cache (invalidate React Query key)
+6. On error: call info.revert() + show toast with error message
 5. On success: revalidate cache (invalidate React Query key)
 6. On error: call info.revert() + show toast with error message
    - "Conflito de horario" for server-side overlap (race condition)
@@ -300,9 +303,10 @@ Implementation:
 |-------|------|-------------|
 | `dentist_ids` | repeated string | `?dentist_ids=uuid1&dentist_ids=uuid2` (standard repeated params) |
 | `specialty` | string | Filter by dentist specialty (server joins dentists table) |
-| `include_joins` | boolean | When true, always include patient, dentist, procedure objects |
 
 When `start_date` and `end_date` are both present, the endpoint automatically returns joins (calendar mode). No need for explicit `include_joins` — just using date range triggers the enriched response.
+
+**API change required:** Current dentist join returns only `{id, name}`. Must add `specialty` to the select: `dentists(id, name, specialty)`.
 
 Response format:
 ```json
@@ -481,6 +485,7 @@ Query key: `['calendar-events', clinicId, startDate, endDate, dentistIds, specia
 |----------|------------|
 | Drag to occupied slot | Red highlight on target + toast "Conflito: horario ja ocupado" + `info.revert()` |
 | Drag outside work hours | Gray highlight + toast "Fora do horario de atendimento" + `info.revert()` |
+| Resize beyond limits | `info.revert()` + toast "Duracao maxima excedida" |
 | Drag completed/cancelled | Blocked entirely (event not draggable, non-editable status) |
 | API error on create | Inline error in dialog, dialog stays open |
 | API error on edit | Inline error in dialog, dialog stays open |
@@ -500,7 +505,7 @@ Status changes made via the AppointmentDialog trigger WhatsApp notifications aut
 |--------|-------------|----------------------|
 | Confirm | `POST /api/appointments/[id]/confirm` | Yes — confirmation message |
 | Cancel | `POST /api/appointments/[id]/cancel` | Yes — cancellation message |
-| Reschedule (drag) | `PUT /api/appointments/[id]/reschedule` | Yes — reschedule notification |
+| Reschedule (drag) | `POST /api/appointments/[id]/reschedule` | Yes — reschedule notification |
 | No-show | `POST /api/appointments/[id]/noshow` | No — internal action only |
 | Create | `POST /api/appointments` | No — clinic-initiated, not patient-facing |
 
@@ -519,7 +524,7 @@ The dialog does NOT need custom notification logic — existing service function
 - **Zero dependencies**: no date-fns localizer, no moment, no separate DnD library
 - **Prefetch**: adjacent week prefetched on idle for smooth navigation
 - **Event transform**: `useCalendarEvents` memoizes the API → CalendarEvent[] transform
-- **setOption updates**: events/resources updated without full calendar re-mount
+- **setOption updates**: calendar destroyed and recreated on data change (fast with ~45KB library)
 
 ---
 
@@ -557,7 +562,7 @@ These items are explicitly deferred to Phase 2 (Google Calendar integration):
 
 ## Files to Create/Modify
 
-### New Files (11)
+### New Files (13)
 - `src/components/calendar/CalendarLayout.tsx`
 - `src/components/calendar/CalendarToolbar.tsx`
 - `src/components/calendar/CalendarSidebar.tsx`
@@ -574,7 +579,7 @@ These items are explicitly deferred to Phase 2 (Google Calendar integration):
 
 ### Modified Files (2)
 - `src/app/dashboard/agendamentos/page.tsx` — rewritten with view toggle
-- `src/app/api/appointments/route.ts` — extend GET with `dentist_ids` (repeated params), `specialty`, auto-joins on date range
+- `src/app/api/appointments/route.ts` — extend GET: add `dentist_ids` (repeated params), `specialty` filter, add `specialty` to dentist join, auto-joins on date range
 
 ### Preserved Files
 - `src/app/dashboard/agendamentos/novo/page.tsx` — keep existing create flow
