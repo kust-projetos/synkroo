@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const { data: dentists, error } = await supabase
       .from('dentists')
-      .select('id, name, phone, email, specialty, created_at')
+      .select('id, name, phone, email, specialty, cro, is_active, created_at')
       .eq('clinic_id', clinicId)
       .eq('is_active', true)
       .order('name', { ascending: true })

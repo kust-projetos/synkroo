@@ -163,11 +163,20 @@ function SidebarContent({
         </div>
         {!collapsed && <span className="text-[15px] font-bold text-foreground tracking-tight">Synkroo</span>}
         {!collapsed && (
-          <button onClick={onToggle} className="ml-auto h-7 w-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+          <button onClick={onToggle} className="ml-auto h-7 w-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 hover:border-teal-300 dark:hover:border-teal-700 transition-colors">
             <ChevronDoubleLeftIcon className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
+
+      {/* Expand button (collapsed only) */}
+      {collapsed && (
+        <div className="flex justify-center pb-2">
+          <button onClick={onToggle} className="h-7 w-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 hover:border-teal-300 dark:hover:border-teal-700 transition-colors">
+            <ChevronDoubleRightIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Nav Sections */}
       <nav className="flex-1 overflow-y-auto px-3 py-1">
@@ -243,13 +252,6 @@ function SidebarContent({
             </>
           )}
         </div>
-
-        {/* Expand button (collapsed only) */}
-        {collapsed && (
-          <button onClick={onToggle} className="mt-3 mx-auto h-7 w-7 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-zinc-600">
-            <ChevronDoubleRightIcon className="h-3.5 w-3.5" />
-          </button>
-        )}
       </div>
     </div>
   )
@@ -279,7 +281,7 @@ export function Sidebar() {
     <aside
       className={cn(
         "hidden lg:flex flex-col h-screen sticky top-0 transition-all duration-200 border-r border-border bg-card",
-        collapsed ? "w-16" : "w-60"
+        collapsed ? "w-20" : "w-60"
       )}
     >
       <SidebarContent collapsed={collapsed} onToggle={() => setCollapsed(!collapsed)} />

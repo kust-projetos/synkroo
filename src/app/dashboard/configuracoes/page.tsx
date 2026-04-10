@@ -105,7 +105,7 @@ export default function ConfiguracoesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 lg:p-8 max-w-4xl">
+    <div className="flex flex-col gap-6 p-4 lg:p-8">
       <PageHeader
         title="Configurações"
         description="Gerencie as configurações da sua clínica"

@@ -13,7 +13,7 @@ interface DetailPageProps {
 
 export function DetailPage({ title, backHref, backLabel = "Voltar", status, actions, children }: DetailPageProps) {
   return (
-    <div>
+    <div className="p-4 lg:p-8">
       <BackLink href={backHref} label={backLabel} />
       <div className="flex items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">

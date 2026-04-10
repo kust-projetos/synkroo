@@ -17,7 +17,7 @@ interface FormPageProps {
 
 export function FormPage({ title, backHref, backLabel = "Voltar", children, onSubmit, submitLabel = "Salvar", cancelHref, loading = false, submitDisabled = false }: FormPageProps) {
   return (
-    <div>
+    <div className="p-4 lg:p-8">
       <BackLink href={backHref} label={backLabel} />
       <h1 className="text-xl font-bold tracking-tight text-foreground mb-6">{title}</h1>
       <Card className="p-6">

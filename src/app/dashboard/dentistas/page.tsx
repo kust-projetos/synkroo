@@ -18,6 +18,7 @@ interface Dentist {
   email: string
   specialty: string
   cro_number: string
+  cro: string
   is_active: boolean
   created_at: string
 }
@@ -88,7 +89,7 @@ export default function DentistasPage() {
     {
       key: 'cro',
       header: 'CRO',
-      cell: (dentist) => <span className="text-sm text-muted-foreground">{dentist.cro_number || '-'}</span>,
+      cell: (dentist) => <span className="text-sm text-muted-foreground">{dentist.cro || dentist.cro_number || '-'}</span>,
     },
     {
       key: 'actions',
