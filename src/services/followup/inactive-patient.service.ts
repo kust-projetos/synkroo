@@ -75,7 +75,7 @@ export async function identifyInactivePatients(
       id,
       name,
       phone,
-      last_visit,
+      last_visit_at,
       risk_score,
       clinic_id,
       created_at,
@@ -88,7 +88,7 @@ export async function identifyInactivePatients(
       )
     `)
     .eq('clinic_id', clinicId)
-    .or(`last_visit.is.null,last_visit.lte.${cutoffDate.toISOString()}`) as any
+    .or(`last_visit_at.is.null,last_visit_at.lte.${cutoffDate.toISOString()}`) as any
 
   if (error) {
     dbLogger.error('Error identifying inactive patients', error)
@@ -98,7 +98,7 @@ export async function identifyInactivePatients(
   const inactivePatients: InactivePatient[] = []
 
   for (const patient of (patients as any[]) || []) {
-    const daysSince = calculateDaysSinceLastVisit((patient as any).last_visit)
+    const daysSince = calculateDaysSinceLastVisit((patient as any).last_visit_at)
     const segment = getInactivitySegment(daysSince)
 
     if (!segment) continue
@@ -127,7 +127,7 @@ export async function identifyInactivePatients(
       patientId: (patient as any).id,
       patientName: (patient as any).name,
       patientPhone: (patient as any).phone,
-      lastVisit: (patient as any).last_visit ? new Date((patient as any).last_visit) : null,
+      lastVisit: (patient as any).last_visit_at ? new Date((patient as any).last_visit_at) : null,
       daysSinceLastVisit: daysSince,
       inactivitySegment: segment.segment as InactivePatient['inactivitySegment'],
       clinicId: (patient as any).clinic_id,

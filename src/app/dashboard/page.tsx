@@ -89,8 +89,7 @@ export default function DashboardPage() {
     {
       label: 'Total de Pacientes',
       value: statsLoading ? '...' : stats?.metrics.totalPatients || 0,
-      invert: true,
-      icon: <UsersIcon className="w-6 h-6 text-white" />,
+      icon: <UsersIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
     },
     {
       label: 'Campanhas Ativas',
@@ -105,7 +104,7 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-4 lg:p-6">
       {/* Welcome Card */}
       <Card>
         <CardHeader>
