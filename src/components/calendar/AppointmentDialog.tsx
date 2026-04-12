@@ -99,10 +99,12 @@ export function AppointmentDialog({
       setPatientPhone(event.extendedProps.patientPhone || '')
       setDentistId(event.resourceId)
       setProcedureId('')
-      const start = event.start.replace(' ', 'T')
-      const d = new Date(start)
-      setDate(d.toISOString().split('T')[0])
-      setTime(d.toTimeString().slice(0, 5))
+      // Handle both Date object and ISO string formats
+      const startDate = event.start instanceof Date
+        ? event.start
+        : new Date(event.start.replace(' ', 'T'))
+      setDate(startDate.toISOString().split('T')[0])
+      setTime(startDate.toTimeString().slice(0, 5))
       setNotes(event.extendedProps.notes || '')
     }
   }, [open, mode, event, prefillDate, prefillTime, prefillDentistId])
