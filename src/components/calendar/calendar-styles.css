@@ -149,16 +149,19 @@
   font-size: 11px !important;
   text-transform: uppercase !important;
   letter-spacing: 0.025em !important;
+  background: rgba(6, 95, 70, 0.06) !important;
 }
 
 /* Saturday - amber/orange color */
 .ec-day-grid .ec-col-head.ec-sat {
   color: rgba(217, 119, 6, 0.9) !important;
+  background: rgba(217, 119, 6, 0.08) !important;
 }
 
 /* Sunday - soft red/muted red */
 .ec-day-grid .ec-col-head.ec-sun {
   color: rgba(220, 38, 38, 0.85) !important;
+  background: rgba(220, 38, 38, 0.06) !important;
 }
 
 /* ============================================
@@ -203,14 +206,17 @@
 /* Dark mode - week day headers */
 .dark .ec-day-grid .ec-col-head {
   color: rgba(52, 211, 153, 0.85) !important;
+  background: rgba(52, 211, 153, 0.1) !important;
 }
 
 .dark .ec-day-grid .ec-col-head.ec-sat {
   color: rgba(251, 191, 36, 0.85) !important;
+  background: rgba(251, 191, 36, 0.1) !important;
 }
 
 .dark .ec-day-grid .ec-col-head.ec-sun {
   color: rgba(252, 129, 129, 0.85) !important;
+  background: rgba(252, 129, 129, 0.1) !important;
 }
 
 /* ============================================
