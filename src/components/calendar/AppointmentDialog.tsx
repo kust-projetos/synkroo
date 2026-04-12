@@ -376,10 +376,10 @@ export function AppointmentDialog({
               {status === 'in_progress' && (
                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Concluir</Button>
               )}
-              {status === 'cancelled' && (
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('reactivate')} disabled={submitting}>Remarcar</Button>
-              )}
             </>
+          )}
+          {mode === 'edit' && event && status === 'cancelled' && !submitting && (
+            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('reactivate')} disabled={submitting}>Remarcar</Button>
           )}
           {mode === 'create' && (
             <Button size="sm" onClick={handleSubmit} disabled={submitting || !patientName || !dentistId || !date || !time}>
