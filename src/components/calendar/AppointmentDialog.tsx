@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useAuth } from '@/lib/auth/context'
 import { useDentists, useProcedures, useClinicSettings } from '@/lib/hooks/use-queries'
+import { MiniCalendar } from './MiniCalendar'
 import type { CalendarEvent } from './hooks/useCalendarEvents'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -88,6 +89,7 @@ export function AppointmentDialog({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [rescheduleMode, setRescheduleMode] = useState(false)
+  const [showMiniCalendar, setShowMiniCalendar] = useState(false)
 
   // Calculate end time from start time + duration
   const calculateEndTime = (startTime: string, dur: string): string => {
@@ -313,18 +315,45 @@ export function AppointmentDialog({
               <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm">
                 Selecione uma nova data e horário para remarcar este agendamento.
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-sm font-medium">Data</label>
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1" />
+              <div className="space-y-3">
+                <div className="flex gap-2 items-center">
+                  <div className="flex-1">
+                    <label className="text-sm font-medium">Data</label>
+                    <Input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowMiniCalendar(!showMiniCalendar)}
+                    className={`mt-6 px-3 py-1.5 text-sm rounded-md border transition-colors ${showMiniCalendar ? 'bg-teal-600 text-white border-teal-600' : 'bg-background text-muted-foreground border-muted hover:border-teal-400'}`}
+                  >
+                    📅
+                  </button>
                 </div>
-                <div>
-                  <label className="text-sm font-medium">Início</label>
-                  <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-1" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Término</label>
-                  <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} className="mt-1" />
+                {showMiniCalendar && (
+                  <div className="border rounded-md p-3 bg-background">
+                    <MiniCalendar
+                      selectedDate={date ? new Date(date + 'T12:00:00') : new Date()}
+                      onSelectDate={(d) => {
+                        setDate(d.toISOString().split('T')[0])
+                        setShowMiniCalendar(false)
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-sm font-medium">Início</label>
+                    <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">Término</label>
+                    <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} className="mt-1" />
+                  </div>
                 </div>
               </div>
             </>
