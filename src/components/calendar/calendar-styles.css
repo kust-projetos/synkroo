@@ -168,43 +168,62 @@
    Horizontal and vertical lines for time slots
    ============================================ */
 
-/* Horizontal slot lines - solid for hour markers */
-.ec-time-grid .ec-time-grid-slot {
-  border-top: 1px solid var(--ec-border-color) !important;
-  border-bottom: none !important;
+/* ============================================
+   GRID LINES VISUAL ENHANCEMENTS
+   Horizontal and vertical lines for time slots
+   ============================================ */
+
+/* Apply background grid pattern to the main grid area */
+.ec-time-grid .ec-main {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.1) 0px,
+      rgba(0, 0, 0, 0.1) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    repeating-linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.06) 0px,
+      rgba(0, 0, 0, 0.06) 1px,
+      transparent 1px,
+      transparent calc(100% / 7)
+    );
+  background-size: 100% 60px, calc(100% / 7) 100%;
+  background-position: 0 0, 0 0;
 }
 
-/* Stronger lines at hour boundaries (every 2 slots) */
-.ec-time-grid .ec-time-grid-slot:nth-child(2n) {
-  border-top: 1px solid var(--ec-border-color) !important;
+/* Time axis (sidebar) stronger right border */
+.ec-time-grid .ec-sidebar {
+  border-right: 2px solid rgba(0, 0, 0, 0.15) !important;
+  background: white;
 }
 
-/* Vertical lines for day columns - subtle dashed grid */
-.ec-time-grid .ec-day-grid-column {
-  border-left: 1px dashed rgba(var(--foreground-rgb), 0.12) !important;
-}
-
-/* Solid vertical lines for day headers */
-.ec-time-grid .ec-day-header {
-  border-left: 1px solid var(--ec-border-color) !important;
-}
-
-.ec-time-grid .ec-day-header:first-child {
-  border-left: none !important;
-}
-
-/* Resource view vertical lines */
+/* Resource columns vertical lines */
 .ec-resource-time-grid .ec-resource-col {
-  border-left: 1px solid var(--ec-border-color) !important;
+  border-left: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Time axis vertical line */
-.ec-time-grid .ec-time-axis {
-  border-right: 2px solid var(--ec-border-color) !important;
+/* Dark mode adjustments */
+.dark .ec-time-grid .ec-main {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.1) 0px,
+      rgba(255, 255, 255, 0.1) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    repeating-linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.06) 0px,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px,
+      transparent calc(100% / 7)
+    );
 }
 
-/* Current time vertical line span the full height */
-.ec-timegrid-now-indicator-arrow {
-  background-color: rgba(59, 130, 246, 0.8) !important;
-  width: 2px !important;
+.dark .ec-time-grid .ec-sidebar {
+  border-right-color: rgba(255, 255, 255, 0.2) !important;
 }
