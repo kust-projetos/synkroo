@@ -69,4 +69,4 @@ logs/
 supabase/config.toml
 
 # Claude Code (local config can contain sensitive paths)
-/.claude/
+/.claude/graphify-out/
