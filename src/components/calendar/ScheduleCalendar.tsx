@@ -52,7 +52,19 @@ export function ScheduleCalendar({
   useEffect(() => {
     if (!containerRef.current) return
 
-    createCalendar(containerRef.current, PLUGINS, {
+    // Destroy existing calendar BEFORE clearing DOM to prevent orphaned instances
+    if (containerRef.current.__calendar) {
+      destroyCalendar(containerRef.current.__calendar)
+      containerRef.current.__calendar = undefined
+    }
+
+    // Clear any residual DOM from previous instance
+    while (containerRef.current.firstChild) {
+      containerRef.current.removeChild(containerRef.current.firstChild)
+    }
+
+    // Create new calendar and store reference for cleanup
+    const calendar = createCalendar(containerRef.current, PLUGINS, {
       view,
       date: dateStr,
       events,
@@ -99,9 +111,15 @@ export function ScheduleCalendar({
       },
     })
 
+    // Store calendar reference for cleanup
+    containerRef.current.__calendar = calendar
+
     return () => {
       if (containerRef.current) {
-        destroyCalendar(containerRef.current)
+        if (containerRef.current.__calendar) {
+          destroyCalendar(containerRef.current.__calendar)
+          containerRef.current.__calendar = undefined
+        }
       }
     }
   }, [eventsKey, resourcesKey, view, dateStr])
