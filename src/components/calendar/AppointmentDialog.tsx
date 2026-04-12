@@ -73,9 +73,52 @@ export function AppointmentDialog({
   const [date, setDate] = useState('')
   const [time, setTime] = useState('')
   const [duration, setDuration] = useState('30')
+  const [endTime, setEndTime] = useState('')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Calculate end time from start time + duration
+  const calculateEndTime = (startTime: string, dur: string): string => {
+    if (!startTime || !dur) return ''
+    const [h, m] = startTime.split(':').map(Number)
+    const totalMinutes = h * 60 + m + parseInt(dur)
+    const endH = Math.floor(totalMinutes / 60) % 24
+    const endM = totalMinutes % 60
+    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
+  }
+
+  // Calculate duration from start time + end time
+  const calculateDuration = (startTime: string, finTime: string): string => {
+    if (!startTime || !finTime) return '30'
+    const [sh, sm] = startTime.split(':').map(Number)
+    const [eh, em] = finTime.split(':').map(Number)
+    const diff = (eh * 60 + em) - (sh * 60 + sm)
+    return diff > 0 ? String(diff) : '30'
+  }
+
+  // Sync endTime when duration changes
+  const handleDurationChange = (newDuration: string) => {
+    setDuration(newDuration)
+    if (time) {
+      setEndTime(calculateEndTime(time, newDuration))
+    }
+  }
+
+  // Sync duration when endTime changes
+  const handleEndTimeChange = (newEndTime: string) => {
+    setEndTime(newEndTime)
+    if (time) {
+      setDuration(calculateDuration(time, newEndTime))
+    }
+  }
+
+  // Sync time + duration → endTime
+  useEffect(() => {
+    if (time && duration) {
+      setEndTime(calculateEndTime(time, duration))
+    }
+  }, [time, duration])
 
   const isReadonly = mode === 'edit' && event ? READONLY_STATUSES.has(event.extendedProps.status) : false
   const status = event?.extendedProps.status
@@ -103,8 +146,14 @@ export function AppointmentDialog({
       const startDate = event.start instanceof Date
         ? event.start
         : new Date(event.start.replace(' ', 'T'))
+      const endDate = event.end instanceof Date
+        ? event.end
+        : new Date(event.end.replace(' ', 'T'))
       setDate(startDate.toISOString().split('T')[0])
       setTime(startDate.toTimeString().slice(0, 5))
+      const durMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000)
+      setDuration(String(durMinutes > 0 ? durMinutes : 30))
+      setEndTime(endDate.toTimeString().slice(0, 5))
       setNotes(event.extendedProps.notes || '')
     }
   }, [open, mode, event, prefillDate, prefillTime, prefillDentistId])
@@ -241,21 +290,26 @@ export function AppointmentDialog({
               <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={isReadonly} className="mt-1" />
             </div>
             <div>
-              <label className="text-sm font-medium">Duração</label>
-              <Select value={duration} onValueChange={setDuration} disabled={isReadonly}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="15">15 min</SelectItem>
-                  <SelectItem value="30">30 min</SelectItem>
-                  <SelectItem value="45">45 min</SelectItem>
-                  <SelectItem value="60">1 hora</SelectItem>
-                  <SelectItem value="90">1h 30min</SelectItem>
-                  <SelectItem value="120">2 horas</SelectItem>
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium">Término</label>
+              <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} disabled={isReadonly} className="mt-1" />
             </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium">Duração</label>
+            <Select value={duration} onValueChange={handleDurationChange} disabled={isReadonly}>
+              <SelectTrigger className="mt-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="15">15 min</SelectItem>
+                <SelectItem value="30">30 min</SelectItem>
+                <SelectItem value="45">45 min</SelectItem>
+                <SelectItem value="60">1 hora</SelectItem>
+                <SelectItem value="90">1h 30min</SelectItem>
+                <SelectItem value="120">2 horas</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           <div>
