@@ -141,6 +141,7 @@ export function AppointmentDialog({
     if (!open) return
     setError(null)
     setRescheduleMode(false)
+    setShowMiniCalendar(false)
 
     if (mode === 'create') {
       setPatientName('')
@@ -163,7 +164,7 @@ export function AppointmentDialog({
       const endDate = event.end instanceof Date
         ? event.end
         : new Date(event.end.replace(' ', 'T'))
-      setDate(startDate.toISOString().split('T')[0])
+      setDate(startDate.toLocaleDateString('en-CA'))
       setTime(startDate.toTimeString().slice(0, 5))
       const durMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000)
       setDuration(String(durMinutes > 0 ? durMinutes : 30))
@@ -331,7 +332,9 @@ export function AppointmentDialog({
                     onClick={() => setShowMiniCalendar(!showMiniCalendar)}
                     className={`mt-6 px-3 py-1.5 text-sm rounded-md border transition-colors ${showMiniCalendar ? 'bg-teal-600 text-white border-teal-600' : 'bg-background text-muted-foreground border-muted hover:border-teal-400'}`}
                   >
-                    📅
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zM0 8a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2H2a2 2 0 01-2-2V8z" clipRule="evenodd" />
+                    </svg>
                   </button>
                 </div>
                 {showMiniCalendar && (
@@ -374,7 +377,30 @@ export function AppointmentDialog({
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-sm font-medium">Data</label>
-                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={isReadonly} className="mt-1" />
+                  <div className="flex gap-1">
+                    <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={isReadonly} className="mt-1 flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => setShowMiniCalendar(!showMiniCalendar)}
+                      disabled={isReadonly}
+                      className={`mt-1 px-2 py-1.5 text-sm rounded-md border transition-colors ${showMiniCalendar ? 'bg-teal-600 text-white border-teal-600' : 'bg-background text-muted-foreground border-muted hover:border-teal-400'}`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zM0 8a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2H2a2 2 0 01-2-2V8z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                  {showMiniCalendar && !isReadonly && (
+                    <div className="border rounded-md p-3 bg-background mt-1">
+                      <MiniCalendar
+                        selectedDate={date ? new Date(date + 'T12:00:00') : new Date()}
+                        onSelectDate={(d) => {
+                          setDate(d.toLocaleDateString('en-CA'))
+                          setShowMiniCalendar(false)
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-sm font-medium">Início</label>
