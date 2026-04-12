@@ -34,7 +34,7 @@ export function useCalendarState() {
 
   const state: CalendarState = useMemo(() => {
     const viewParam = searchParams.get('view') as CalendarView | null
-    const view = ALL_VIEWS.includes(viewParam!) ? viewParam! : 'timeGridWeek'
+    const view = (viewParam !== null && ALL_VIEWS.includes(viewParam)) ? viewParam : 'timeGridWeek'
     const dateStr = searchParams.get('date') || format(new Date(), 'yyyy-MM-dd')
     const date = new Date(dateStr + 'T12:00:00')
     const dentists = searchParams.get('dentists') || ''
