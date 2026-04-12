@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
+import { useCampaigns } from '@/lib/hooks/use-queries'
 import { useToast } from '@/lib/ui/toast'
 
 interface Campaign {
@@ -27,41 +28,15 @@ interface Campaign {
 export default function CampaignsPage() {
   const { profile, loading: authLoading } = useAuth()
   const toast = useToast()
-  const [campaigns, setCampaigns] = useState<Campaign[]>([])
-  const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
 
   const clinicId = profile?.clinic_id
 
-  const fetchCampaigns = useCallback(async () => {
-    if (!clinicId) return
+  const { data, isLoading: loading, refetch: fetchCampaigns } = useCampaigns(
+    clinicId ? { clinic_id: clinicId } : undefined
+  )
 
-    setLoading(true)
-    try {
-      const params = new URLSearchParams({
-        clinic_id: clinicId,
-      })
-
-      const response = await fetch(`/api/campaigns?${params}`)
-      const data = await response.json()
-
-      if (response.ok) {
-        setCampaigns(data.campaigns || [])
-      } else {
-        console.error('Failed to fetch campaigns:', data.error)
-      }
-    } catch (error) {
-      console.error('Error fetching campaigns:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [clinicId])
-
-  useEffect(() => {
-    if (!authLoading && clinicId) {
-      fetchCampaigns()
-    }
-  }, [authLoading, clinicId, fetchCampaigns])
+  const campaigns = (data?.campaigns || []) as Campaign[]
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {

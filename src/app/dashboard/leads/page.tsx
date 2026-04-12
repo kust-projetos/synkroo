@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth } from '@/lib/auth/context'
+import { useLeads, useLeadStats, useLeadNotifications } from '@/lib/hooks/use-queries'
 import Link from 'next/link'
 import { UserGroupIcon, PlusIcon, BellIcon, FireIcon, CheckIcon } from '@heroicons/react/24/outline'
 import { ErrorState } from '@/components/ui/ErrorState'
@@ -10,7 +11,6 @@ import { Button } from '@/components/ui/button'
 import { StatsGrid } from '@/components/ui/stats-grid'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card } from '@/components/ui/card'
-import { StatusBadge } from '@/components/ui/status-badge'
 import { Badge } from '@/components/ui/badge'
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'converted' | 'lost'
@@ -82,55 +82,27 @@ const temperatureColors: Record<LeadTemperature, string> = {
 
 export default function LeadsPage() {
   const { profile } = useAuth()
-  const [leads, setLeads] = useState<Lead[]>([])
-  const [stats, setStats] = useState<LeadStats | null>(null)
-  const [notifications, setNotifications] = useState<LeadNotification[]>([])
-  const [dataLoading, setDataLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all')
   const [temperatureFilter, setTemperatureFilter] = useState<LeadTemperature | 'all'>('all')
 
-  const fetchData = useCallback(async () => {
-    try {
-      setDataLoading(true)
-      setError(null)
-
-      const leadsParams = new URLSearchParams()
-      if (statusFilter !== 'all') leadsParams.set('status', statusFilter)
-      if (temperatureFilter !== 'all') leadsParams.set('temperature', temperatureFilter)
-
-      const [leadsRes, statsRes, notifRes] = await Promise.all([
-        fetch(`/api/leads?${leadsParams.toString()}`),
-        fetch('/api/leads/stats'),
-        fetch('/api/leads/notifications'),
-      ])
-
-      if (leadsRes.ok) {
-        const leadsData = await leadsRes.json()
-        setLeads(leadsData.leads || [])
-      }
-
-      if (statsRes.ok) {
-        const statsData = await statsRes.json()
-        setStats(statsData)
-      }
-
-      if (notifRes.ok) {
-        const notifData = await notifRes.json()
-        setNotifications(notifData.notifications || [])
-      }
-    } catch {
-      setError('Falha ao carregar leads')
-    } finally {
-      setDataLoading(false)
-    }
+  const leadsParams = useMemo(() => {
+    const params: Record<string, string> = {}
+    if (statusFilter !== 'all') params.status = statusFilter
+    if (temperatureFilter !== 'all') params.temperature = temperatureFilter
+    return params
   }, [statusFilter, temperatureFilter])
 
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchData()
-    }
-  }, [profile?.clinic_id, fetchData])
+  const { data: leadsData, isLoading: leadsLoading, error: leadsError, refetch: refetchLeads } = useLeads(leadsParams)
+  const { data: stats } = useLeadStats()
+  const { data: notifData, refetch: refetchNotifs } = useLeadNotifications()
+
+  const leads = (leadsData?.leads || []) as Lead[]
+  const notifications = (notifData?.notifications || []) as LeadNotification[]
+  const dataLoading = leadsLoading
+
+  const fetchData = async () => {
+    await Promise.all([refetchLeads(), refetchNotifs()])
+  }
 
   const handleAcknowledge = async (notificationId: string) => {
     try {
@@ -139,7 +111,7 @@ export default function LeadsPage() {
       })
 
       if (response.ok) {
-        setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+        refetchNotifs()
       }
     } catch (err) {
       console.error('Error acknowledging notification:', err)
@@ -155,7 +127,7 @@ export default function LeadsPage() {
       )
       const allOk = results.every((r) => r.ok)
       if (allOk) {
-        setNotifications([])
+        refetchNotifs()
       }
     } catch (err) {
       console.error('Error acknowledging all notifications:', err)
@@ -171,17 +143,17 @@ export default function LeadsPage() {
       })
 
       if (response.ok) {
-        fetchData()
+        refetchLeads()
       }
     } catch (err) {
       console.error('Error updating lead:', err)
     }
   }
 
-  if (error && !dataLoading) {
+  if (leadsError && !dataLoading) {
     return (
       <div className="p-4 lg:p-8">
-        <ErrorState message={error} onRetry={fetchData} />
+        <ErrorState message="Falha ao carregar leads" onRetry={fetchData} />
       </div>
     )
   }
