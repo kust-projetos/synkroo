@@ -62,6 +62,12 @@ export async function PUT(request: NextRequest) {
     if (body.phone) updateData.phone = body.phone
     if (body.email) updateData.email = body.email
     if (body.settings) updateData.settings = body.settings
+    if (body.appointment_durations) {
+      updateData.settings = {
+        ...body.settings,
+        appointment_durations: body.appointment_durations,
+      }
+    }
 
     const { error } = await (supabase
       .from('clinics') as any)

@@ -35,6 +35,7 @@ interface ClinicSettings {
     follow_up_enabled: boolean
     inactive_patient_days: number
   }
+  appointment_durations?: number[]
 }
 
 export default function ConfiguracoesPage() {
@@ -49,6 +50,7 @@ export default function ConfiguracoesPage() {
       follow_up_enabled: true,
       inactive_patient_days: 90,
     },
+    appointment_durations: [15, 30, 45, 60, 90, 120],
   })
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -251,6 +253,53 @@ export default function ConfiguracoesPage() {
               Pacientes sem agendamento há mais de este período serão considerados inativos
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Durações de Appointment */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <BellIcon className="w-5 h-5 text-muted-foreground" />
+            <CardTitle>Durações de Consulta</CardTitle>
+          </div>
+          <CardDescription>Personalize as opções de duração de consulta</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Defina quais durações estarão disponíveis ao criar agendamentos. Cada valor representa minutos.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {[10, 15, 20, 30, 40, 45, 50, 60, 75, 90, 120].map((mins) => {
+              const isSelected = settings.appointment_durations?.includes(mins)
+              return (
+                <button
+                  key={mins}
+                  type="button"
+                  onClick={() => {
+                    const current = settings.appointment_durations || [15, 30, 45, 60, 90, 120]
+                    if (isSelected) {
+                      if (current.length > 1) {
+                        setSettings({ ...settings, appointment_durations: current.filter((d) => d !== mins) })
+                      }
+                    } else {
+                      setSettings({ ...settings, appointment_durations: [...current, mins].sort((a, b) => a - b) })
+                    }
+                  }}
+                  className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                    isSelected
+                      ? 'bg-teal-600 text-white border-teal-600'
+                      : 'bg-background text-muted-foreground border-muted hover:border-teal-400'
+                  }`}
+                >
+                  {mins < 60 ? `${mins} min` : mins === 60 ? '1 hora' : mins === 120 ? '2 horas' : `${mins} min`}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Selecione pelo menos 1 duração. Máximo: 10 opções.
+          </p>
         </CardContent>
       </Card>
 
