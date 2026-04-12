@@ -2,7 +2,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import { useDentists } from '@/lib/hooks/use-queries'
 import { CalendarSidebar } from './CalendarSidebar'
@@ -56,6 +56,19 @@ export function CalendarLayout() {
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [prefillDate, setPrefillDate] = useState<string>('')
   const [prefillDentistId, setPrefillDentistId] = useState<string>('')
+
+  // Responsive: determine available views based on viewport width
+  // Uses state + useEffect to avoid SSR hydration mismatch
+  const [availableViews, setAvailableViews] = useState<CalendarView[]>(ALL_VIEWS)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const mq = window.matchMedia('(max-width: 767px)')
+    const handler = () => setAvailableViews(mq.matches ? MOBILE_VIEWS : ALL_VIEWS)
+    handler() // initialize with current value
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   const handleEventClick = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event)
@@ -123,11 +136,6 @@ export function CalendarLayout() {
       updateState({ view: viewType as CalendarView })
     }
   }, [updateState])
-
-  // Responsive: show only mobile views on small screens
-  const availableViews = typeof window !== 'undefined' && window.innerWidth < 768
-    ? MOBILE_VIEWS
-    : ALL_VIEWS
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">

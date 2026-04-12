@@ -52,9 +52,6 @@ export function ScheduleCalendar({
   useEffect(() => {
     if (!containerRef.current) return
 
-    // Destroy previous instance
-    destroyCalendar(containerRef.current)
-
     createCalendar(containerRef.current, PLUGINS, {
       view,
       date: dateStr,

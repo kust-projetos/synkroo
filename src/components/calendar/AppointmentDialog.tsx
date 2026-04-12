@@ -114,7 +114,16 @@ export function AppointmentDialog({
 
     try {
       if (mode === 'create') {
-        const scheduledAt = `${date}T${time}:00-03:00`
+        // Get local timezone offset (e.g., "-03:00", "-04:00", "+05:30")
+        const tzOffset = (() => {
+          const offset = new Date().getTimezoneOffset()
+          const absOffset = Math.abs(offset)
+          const hours = Math.floor(absOffset / 60)
+          const minutes = absOffset % 60
+          const sign = offset <= 0 ? '+' : '-'
+          return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
+        })()
+        const scheduledAt = `${date}T${time}:00${tzOffset}`
         const res = await fetch('/api/appointments', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
