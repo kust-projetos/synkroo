@@ -38,23 +38,31 @@ export function MiniCalendar({ selectedDate, onSelectDate }: MiniCalendarProps) 
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between px-1">
-        <button onClick={() => setCurrentMonth(addMonths(currentMonth, -1))} className="p-1 rounded hover:bg-muted">
-          <ChevronLeftIcon className="h-4 w-4" />
-        </button>
-        <span className="text-sm font-medium capitalize">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold capitalize text-foreground">
           {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
         </span>
-        <button onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-1 rounded hover:bg-muted">
-          <ChevronRightIcon className="h-4 w-4" />
-        </button>
+        <div className="flex gap-0.5">
+          <button
+            onClick={() => setCurrentMonth(addMonths(currentMonth, -1))}
+            className="p-1 rounded-md hover:bg-muted transition-colors"
+          >
+            <ChevronLeftIcon className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
+            className="p-1 rounded-md hover:bg-muted transition-colors"
+          >
+            <ChevronRightIcon className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-7 gap-0.5 text-center">
         {/* Day labels for weekStartsOn: 1 (Monday-first). Order: S=Segunda, T=Terça, Q=Quarta, Q=Quinta, S=Sexta, S=Sábado, D=Domingo */}
         {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((d, i) => (
-          <div key={i} className="text-[10px] text-muted-foreground py-1">{d}</div>
+          <div key={i} className="text-[10px] font-medium text-muted-foreground py-1">{d}</div>
         ))}
         {days.map((d, i) => {
           const inMonth = isSameMonth(d, currentMonth)
@@ -65,10 +73,13 @@ export function MiniCalendar({ selectedDate, onSelectDate }: MiniCalendarProps) 
               key={i}
               onClick={() => onSelectDate(d)}
               className={`
-                text-xs py-1 rounded-sm transition-colors
+                text-xs py-1.5 rounded-md transition-all
                 ${!inMonth ? 'text-muted-foreground/40' : 'text-foreground'}
-                ${selected ? 'bg-teal-600 text-white font-semibold' : 'hover:bg-muted'}
-                ${today && !selected ? 'ring-1 ring-teal-400' : ''}
+                ${selected
+                  ? 'bg-teal-600 text-white font-semibold shadow-sm'
+                  : 'hover:bg-muted'
+                }
+                ${today && !selected ? 'ring-1 ring-teal-400 font-medium' : ''}
               `}
             >
               {format(d, 'd')}
