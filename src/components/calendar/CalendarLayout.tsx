@@ -180,7 +180,7 @@ export function CalendarLayout() {
         <div className="flex-1 overflow-hidden">
           <ScheduleCalendar
             events={events}
-            resources={resources}
+            resources={state.view === 'resourceTimeGridDay' ? resources : []}
             view={state.view}
             date={state.date}
             onEventClick={handleEventClick}
