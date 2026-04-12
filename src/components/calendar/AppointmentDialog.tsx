@@ -231,14 +231,30 @@ export function AppointmentDialog({
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="text-sm font-medium">Data</label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={isReadonly} className="mt-1" />
             </div>
             <div>
-              <label className="text-sm font-medium">Horário</label>
+              <label className="text-sm font-medium">Início</label>
               <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={isReadonly} className="mt-1" />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Duração</label>
+              <Select value={duration} onValueChange={setDuration} disabled={isReadonly}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="15">15 min</SelectItem>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="45">45 min</SelectItem>
+                  <SelectItem value="60">1 hora</SelectItem>
+                  <SelectItem value="90">1h 30min</SelectItem>
+                  <SelectItem value="120">2 horas</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
