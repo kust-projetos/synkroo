@@ -153,14 +153,14 @@ export async function rescheduleAppointment(
   }
 
   if (!['scheduled', 'confirmed', 'cancelled'].includes(appointment.status)) {
-    return { success: false, error: 'Apenas agendamentos agendados, confirmados ou cancelados podem ser remarcados' }
+    return { success: false, error: 'Não foi possível remarcar este agendamento. Apenas agendamentos nos estados agendado, confirmado ou cancelado podem ser remarcados.' }
   }
 
   const newScheduledAt = new Date(`${newDate}T${newTime}:00`)
 
   // Validate new date is in the future
   if (newScheduledAt <= new Date()) {
-    return { success: false, error: 'A nova data e horário devem ser no futuro' }
+    return { success: false, error: 'A data e horário escolhidos são anteriores ao momento atual. Por favor, selecione uma data e horário futuros.' }
   }
 
   // Check for conflicts at new time via atomic RPC
