@@ -130,6 +130,7 @@ export function useCalendarEvents(
   }, [data])
 
   const invalidateCalendar = () => {
+    queryClient.invalidateQueries({ queryKey: ['calendar-events', ''] })
     queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
   }
 
