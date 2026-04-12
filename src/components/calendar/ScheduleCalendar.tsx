@@ -79,6 +79,7 @@ export function ScheduleCalendar({
       slotMaxTime: '20:00:00',
       scrollTime: '08:00:00',
       snapDuration: '00:15:00',
+      slotHeight: 60, // 60px per hour = 30px per 30min slot
       headerToolbar: false,
       dayMaxEvents: 3,
       height: '100%',
