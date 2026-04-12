@@ -60,11 +60,6 @@
    TIME GRID (WEEK & DAY VIEWS)
    ============================================ */
 
-/* Horizontal lines between time slots */
-.ec-time-grid .ec-time-grid-slot {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
-}
-
 /* Sidebar - time labels with light background */
 .ec-time-grid .ec-sidebar {
   background: #fafafa !important;
@@ -77,17 +72,84 @@
   color: #374151;
 }
 
+/* Grid background with horizontal lines - 3 intensities */
+/* 120px = 1 hour, so: 30min=30px, 15min=15px */
+.ec-time-grid .ec-grid {
+  background:
+    /* 15-minute lines - lightest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.03) 0px,
+      rgba(0, 0, 0, 0.03) 1px,
+      transparent 1px,
+      transparent 30px
+    ),
+    /* 30-minute lines - medium */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.06) 0px,
+      rgba(0, 0, 0, 0.06) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    /* 1-hour lines - darkest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.12) 0px,
+      rgba(0, 0, 0, 0.12) 1px,
+      transparent 1px,
+      transparent 120px
+    ),
+    /* Base background */
+    #fafafa;
+  background-attachment: local;
+}
+
 /* Vertical lines separating days - WEEK VIEW ONLY */
-.ec-time-gridWeek .ec-main {
-  background-image: repeating-linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0.05) 0px,
-    rgba(0, 0, 0, 0.05) 1px,
-    transparent 1px,
-    transparent calc(100% / 7)
-  );
-  background-size: calc(100% / 7) 100%;
-  background-position: 0 0;
+.ec-time-gridWeek .ec-grid {
+  background-image:
+    /* Vertical day dividers */
+    repeating-linear-gradient(
+      to right,
+      rgba(0, 0, 0, 0.08) 0px,
+      rgba(0, 0, 0, 0.08) 1px,
+      transparent 1px,
+      transparent calc(100% / 7)
+    ),
+    /* 15-minute lines - lightest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.03) 0px,
+      rgba(0, 0, 0, 0.03) 1px,
+      transparent 1px,
+      transparent 30px
+    ),
+    /* 30-minute lines - medium */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.06) 0px,
+      rgba(0, 0, 0, 0.06) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    /* 1-hour lines - darkest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.12) 0px,
+      rgba(0, 0, 0, 0.12) 1px,
+      transparent 1px,
+      transparent 120px
+    ),
+    /* Base background */
+    #fafafa;
+  background-size:
+    calc(100% / 7) 100%,
+    100% 30px,
+    100% 60px,
+    100% 120px,
+    100% 100%;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+  background-attachment: local;
 }
 
 /* Resource columns vertical lines */
@@ -196,27 +258,88 @@
   color: #d1d5db;
 }
 
-/* Time slots horizontal lines */
+/* Time slots horizontal lines - remove border-based lines */
 .dark .ec-time-grid .ec-time-grid-slot {
-  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  border-bottom: none !important;
 }
 
-/* Main grid area background */
-.dark .ec-time-grid .ec-main {
-  background: #111827 !important;
+/* Main grid area background with horizontal lines - DARK MODE */
+.dark .ec-time-grid .ec-grid {
+  background:
+    /* 15-minute lines - lightest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.04) 0px,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 30px
+    ),
+    /* 30-minute lines - medium */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.08) 0px,
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    /* 1-hour lines - darkest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.15) 0px,
+      rgba(255, 255, 255, 0.15) 1px,
+      transparent 1px,
+      transparent 120px
+    ),
+    /* Base background */
+    #111827;
+  background-attachment: local;
 }
 
-/* Vertical day separator lines - WEEK VIEW */
-.dark .ec-time-gridWeek .ec-main {
-  background-image: repeating-linear-gradient(
-    to right,
-    rgba(255, 255, 255, 0.06) 0px,
-    rgba(255, 255, 255, 0.06) 1px,
-    transparent 1px,
-    transparent calc(100% / 7)
-  ) !important;
-  background-size: calc(100% / 7) 100% !important;
-  background-position: 0 0 !important;
+/* Grid area background - WEEK VIEW DARK MODE */
+.dark .ec-time-gridWeek .ec-grid {
+  background-image:
+    /* Vertical day dividers */
+    repeating-linear-gradient(
+      to right,
+      rgba(255, 255, 255, 0.10) 0px,
+      rgba(255, 255, 255, 0.10) 1px,
+      transparent 1px,
+      transparent calc(100% / 7)
+    ),
+    /* 15-minute lines - lightest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.04) 0px,
+      rgba(255, 255, 255, 0.04) 1px,
+      transparent 1px,
+      transparent 30px
+    ),
+    /* 30-minute lines - medium */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.08) 0px,
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px,
+      transparent 60px
+    ),
+    /* 1-hour lines - darkest */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.15) 0px,
+      rgba(255, 255, 255, 0.15) 1px,
+      transparent 1px,
+      transparent 120px
+    ),
+    /* Base background */
+    #111827;
+  background-size:
+    calc(100% / 7) 100%,
+    100% 30px,
+    100% 60px,
+    100% 120px,
+    100% 100%;
+  background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+  background-attachment: local;
 }
 
 /* Resource columns vertical lines */
