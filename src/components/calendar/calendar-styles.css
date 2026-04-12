@@ -106,42 +106,42 @@
 }
 
 /* Vertical lines separating days - WEEK VIEW ONLY */
-.ec-time-gridWeek .ec-grid {
-  background-image:
-    /* Vertical day dividers */
+.ec-time-grid.ec-week-view .ec-grid {
+  background:
+    /* Vertical day dividers - VERY VISIBLE */
     repeating-linear-gradient(
       to right,
-      rgba(0, 0, 0, 0.08) 0px,
-      rgba(0, 0, 0, 0.08) 1px,
-      transparent 1px,
+      rgba(0, 0, 0, 0.60) 0px,
+      rgba(0, 0, 0, 0.60) 2px,
+      transparent 2px,
       transparent calc(100% / 7)
     ),
     /* 15-minute lines - lightest */
     repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.03) 0px,
-      rgba(0, 0, 0, 0.03) 1px,
+      rgba(0, 0, 0, 0.20) 0px,
+      rgba(0, 0, 0, 0.20) 1px,
       transparent 1px,
       transparent 30px
     ),
     /* 30-minute lines - medium */
     repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.06) 0px,
-      rgba(0, 0, 0, 0.06) 1px,
+      rgba(0, 0, 0, 0.35) 0px,
+      rgba(0, 0, 0, 0.35) 1px,
       transparent 1px,
       transparent 60px
     ),
     /* 1-hour lines - darkest */
     repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.12) 0px,
-      rgba(0, 0, 0, 0.12) 1px,
-      transparent 1px,
+      rgba(0, 0, 0, 0.55) 0px,
+      rgba(0, 0, 0, 0.55) 2px,
+      transparent 2px,
       transparent 120px
     ),
     /* Base background */
-    #fafafa;
+    #fafafa !important;
   background-size:
     calc(100% / 7) 100%,
     100% 30px,
@@ -376,54 +376,55 @@
 
 /* Day header for WEEK/DAY view - transparent to show grid lines */
 .ec-time-grid .ec-col-head {
-  background: rgba(250, 250, 250, 0.92) !important;
+  background: rgba(250, 250, 250, 0.12) !important;
+  background-color: rgba(250, 250, 250, 0.12) !important;
   color: #1f2937 !important;
   border-right-color: rgba(0, 0, 0, 0.08) !important;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
 }
 
 .ec-time-grid .ec-col-head.ec-today {
-  background: rgba(20, 184, 166, 0.15) !important;
+  background: rgba(20, 184, 166, 0.04) !important;
   color: rgba(6, 95, 70, 1) !important;
   font-weight: 700 !important;
   text-shadow: none;
 }
 
 .ec-time-grid .ec-col-head.ec-sat {
-  background: rgba(217, 119, 6, 0.12) !important;
+  background: rgba(217, 119, 6, 0.03) !important;
   color: rgba(180, 83, 9, 1) !important;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
 }
 
 .ec-time-grid .ec-col-head.ec-sun {
-  background: rgba(220, 38, 38, 0.08) !important;
+  background: rgba(220, 38, 38, 0.02) !important;
   color: rgba(185, 28, 28, 1) !important;
   text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
 }
 
 /* Dark mode day headers */
 .dark .ec-time-grid .ec-col-head {
-  background: rgba(31, 41, 55, 0.92) !important;
+  background: rgba(31, 41, 55, 0.20) !important;
   color: #f3f4f6 !important;
   border-right-color: rgba(255, 255, 255, 0.08) !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .dark .ec-time-grid .ec-col-head.ec-today {
-  background: rgba(20, 184, 166, 0.20) !important;
+  background: rgba(20, 184, 166, 0.06) !important;
   color: rgba(52, 211, 153, 1) !important;
   font-weight: 700 !important;
   text-shadow: none;
 }
 
 .dark .ec-time-grid .ec-col-head.ec-sat {
-  background: rgba(251, 191, 36, 0.15) !important;
+  background: rgba(251, 191, 36, 0.04) !important;
   color: rgba(251, 191, 36, 1) !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .dark .ec-time-grid .ec-col-head.ec-sun {
-  background: rgba(252, 129, 129, 0.12) !important;
+  background: rgba(252, 129, 129, 0.03) !important;
   color: rgba(252, 129, 129, 1) !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
