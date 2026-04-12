@@ -163,33 +163,25 @@ export async function rescheduleAppointment(
     return { success: false, error: 'New appointment time must be in the future' }
   }
 
-  // Check for conflicts at new time
-  const newEndTime = new Date(newScheduledAt.getTime() + appointment.durationMinutes * 60000)
+  // Check for conflicts at new time via atomic RPC
+  const { data: rescheduleResult, error: rpcError } = await (supabase as any).rpc(
+    'reschedule_appointment_slot',
+    {
+      p_appointment_id:   appointmentId,
+      p_clinic_id:        appointment.clinicId,
+      p_dentist_id:       appointment.dentistId || null,
+      p_scheduled_at:     newScheduledAt.toISOString(),
+      p_duration_minutes: appointment.durationMinutes,
+    }
+  )
 
-  const { data: conflicts } = await supabase
-    .from('appointments')
-    .select('id')
-    .eq('clinic_id', appointment.clinicId)
-    .in('status', ['scheduled', 'confirmed', 'in_progress'])
-    .neq('id', appointmentId)
-    .or(`scheduled_at.lt.${newEndTime.toISOString()},and(scheduled_at.gte.${newScheduledAt.toISOString()})`)
-
-  if (conflicts && conflicts.length > 0) {
-    return { success: false, error: 'Horário indisponível. Já existe um agendamento neste horário.' }
+  if (rpcError) {
+    dbLogger.error('Error rescheduling appointment', rpcError)
+    return { success: false, error: 'Failed to reschedule appointment' }
   }
 
-  // Update appointment
-  const { error: updateError } = await (supabase
-    .from('appointments') as any)
-    .update({
-      scheduled_at: newScheduledAt.toISOString(),
-      status: 'scheduled', // Reset to scheduled after reschedule
-    })
-    .eq('id', appointmentId)
-
-  if (updateError) {
-    dbLogger.error('Error rescheduling appointment', updateError)
-    return { success: false, error: 'Failed to reschedule appointment' }
+  if (!rescheduleResult.success) {
+    return { success: false, error: rescheduleResult.error }
   }
 
   dbLogger.info(`Appointment ${appointmentId} rescheduled`, {
