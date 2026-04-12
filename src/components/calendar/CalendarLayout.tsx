@@ -87,6 +87,11 @@ export function CalendarLayout() {
   const handleEventDrop = useCallback(async (info: any) => {
     const eventId = info.event.id
     const newStart = new Date(info.event.start)
+    if (isNaN(newStart.getTime())) {
+      console.error('Invalid date in event drop:', info.event.start)
+      info.revert()
+      return
+    }
     const newDate = newStart.toISOString().split('T')[0]
     const newTime = newStart.toTimeString().slice(0, 5)
 
@@ -112,6 +117,11 @@ export function CalendarLayout() {
     const eventId = info.event.id
     const start = new Date(info.event.start)
     const end = new Date(info.event.end)
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      console.error('Invalid date in event resize:', { start: info.event.start, end: info.event.end })
+      info.revert()
+      return
+    }
     const newDuration = Math.round((end.getTime() - start.getTime()) / 60000)
 
     try {

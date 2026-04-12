@@ -13,15 +13,10 @@ const DENTIST_PALETTE = [
 
 /**
  * Get a deterministic color for a dentist.
- * Uses a Map cache so the same ID always returns the same color.
+ * Color is computed directly from ID hash - no caching needed since
+ * the computation is a simple hash that's faster than Map lookup.
  */
-const colorCache = new Map<string, string>()
-
 export function getDentistColor(dentistId: string, fallbackIndex?: number): string {
-  const cached = colorCache.get(dentistId)
-  if (cached) return cached
-
-  // Deterministic pick from ID hash if no index provided
   let index: number
   if (fallbackIndex !== undefined) {
     index = fallbackIndex
@@ -33,11 +28,13 @@ export function getDentistColor(dentistId: string, fallbackIndex?: number): stri
     index = Math.abs(hash)
   }
 
-  const color = DENTIST_PALETTE[index % DENTIST_PALETTE.length]
-  colorCache.set(dentistId, color)
-  return color
+  return DENTIST_PALETTE[index % DENTIST_PALETTE.length]
 }
 
+/**
+ * @deprecated No-op. Color is computed directly from dentist ID hash,
+ * so no cache invalidation is needed.
+ */
 export function clearDentistColorCache(): void {
-  colorCache.clear()
+  // No-op: removed module-level cache, no invalidation needed
 }
