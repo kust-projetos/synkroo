@@ -1,35 +1,32 @@
 /* src/components/calendar/calendar-styles.css */
 
-/* Status-specific event styles */
+/* Status-specific event styles — border-left indicator */
 .ec-event.ec-status-scheduled {
-  border-left: 3px dashed rgba(96, 165, 250, 0.8) !important;
-  opacity: 0.85;
+  border-left: 4px solid rgba(96, 165, 250, 0.9) !important;
+  opacity: 0.9;
 }
 
 .ec-event.ec-status-confirmed {
-  border-left: 3px solid rgba(52, 211, 153, 0.8) !important;
+  border-left: 4px solid rgba(52, 211, 153, 0.9) !important;
 }
 
 .ec-event.ec-status-in-progress {
-  border-left: 3px solid rgba(16, 185, 129, 0.9) !important;
-  background-size: 200% 100% !important;
-  animation: ec-shimmer 2s linear infinite;
+  border-left: 4px solid rgba(16, 185, 129, 1) !important;
 }
 
 .ec-event.ec-status-completed {
-  border-left: 3px solid rgba(209, 213, 219, 0.6) !important;
-  opacity: 0.7;
+  border-left: 4px solid rgba(156, 163, 175, 0.6) !important;
+  opacity: 0.75;
 }
 
 .ec-event.ec-status-cancelled {
-  border-left: 3px solid rgba(248, 113, 113, 0.6) !important;
-  opacity: 0.5;
-  text-decoration: line-through;
+  border-left: 4px solid rgba(248, 113, 113, 0.7) !important;
+  opacity: 0.55;
 }
 
 .ec-event.ec-status-no-show {
-  border-left: 3px solid rgba(248, 113, 113, 0.8) !important;
-  opacity: 0.5;
+  border-left: 4px solid rgba(239, 68, 68, 0.8) !important;
+  opacity: 0.55;
 }
 
 @keyframes ec-shimmer {
@@ -80,25 +77,38 @@
 
 /* ============================================
    GRID LINES - TIME GRID (WEEK/DAY VIEW)
-   Horizontal and vertical lines for time slots
+   Horizontal lines always visible
+   Vertical lines only in week view (7 columns)
    ============================================ */
 
-/* Apply background grid pattern to time grid main area */
-.ec-time-grid .ec-main {
+/* Horizontal lines only — every 60px (1 hour with slotHeight:60) */
+.ec .ec-time-grid .ec-main {
   background-image:
-    /* Horizontal lines - every 60px (1 hour with slotHeight:60) */
     repeating-linear-gradient(
       to bottom,
-      rgba(0, 0, 0, 0.08) 0px,
-      rgba(0, 0, 0, 0.08) 1px,
+      rgba(0, 0, 0, 0.06) 0px,
+      rgba(0, 0, 0, 0.06) 1px,
+      transparent 1px,
+      transparent 60px
+    );
+  background-size: 100% 60px;
+  background-position: 0 0;
+}
+
+/* Week view: add vertical separators between day columns */
+.ec.ec-week-view .ec-time-grid .ec-main {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.06) 0px,
+      rgba(0, 0, 0, 0.06) 1px,
       transparent 1px,
       transparent 60px
     ),
-    /* Vertical lines - 7 columns for week view */
     repeating-linear-gradient(
       to right,
-      rgba(0, 0, 0, 0.06) 0px,
-      rgba(0, 0, 0, 0.06) 1px,
+      rgba(0, 0, 0, 0.04) 0px,
+      rgba(0, 0, 0, 0.04) 1px,
       transparent 1px,
       transparent calc(100% / 7)
     );
@@ -157,19 +167,32 @@
    DARK MODE GRID LINES
    ============================================ */
 
-.dark .ec-time-grid .ec-main {
+/* Day view: horizontal only */
+.dark .ec .ec-time-grid .ec-main {
   background-image:
     repeating-linear-gradient(
       to bottom,
-      rgba(255, 255, 255, 0.08) 0px,
-      rgba(255, 255, 255, 0.08) 1px,
+      rgba(255, 255, 255, 0.06) 0px,
+      rgba(255, 255, 255, 0.06) 1px,
+      transparent 1px,
+      transparent 60px
+    );
+}
+
+/* Week view: horizontal + vertical */
+.dark .ec.ec-week-view .ec-time-grid .ec-main {
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.06) 0px,
+      rgba(255, 255, 255, 0.06) 1px,
       transparent 1px,
       transparent 60px
     ),
     repeating-linear-gradient(
       to right,
-      rgba(255, 255, 255, 0.06) 0px,
-      rgba(255, 255, 255, 0.06) 1px,
+      rgba(255, 255, 255, 0.04) 0px,
+      rgba(255, 255, 255, 0.04) 1px,
       transparent 1px,
       transparent calc(100% / 7)
     );
@@ -217,4 +240,313 @@
 /* Now indicator line */
 .ec-timegrid-now-indicator-arrow {
   background-color: rgba(59, 130, 246, 0.8) !important;
+}
+
+/* ============================================
+   EVENT CARDS — ENHANCED VISUAL HIERARCHY
+   ============================================ */
+
+/* Base event card — clean card with status-colored left border */
+.ec-event {
+  border-radius: 4px !important;
+  overflow: visible !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  background-color: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(2px);
+}
+
+/* Hover effect on events */
+.ec-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 10 !important;
+  background-color: #fff !important;
+}
+
+/* Dark overlay on events for text readability — targets custom HTML inside event */
+.ec-full-event {
+  position: relative;
+  padding: 3px 6px 3px 8px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Card surface — subtle inner shadow for depth */
+.ec-event::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.5) 0%,
+    transparent 1px
+  );
+  pointer-events: none;
+  border-radius: 4px;
+  z-index: 0;
+}
+
+.ec-event > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Event header — time + status badge */
+.ec-event-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+}
+
+.ec-event-time {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.9);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+/* Status badge pill */
+.ec-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 9px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.75);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ec-status-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Event body — title + procedure */
+.ec-event-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.ec-event-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.ec-event-procedure {
+  font-size: 10px;
+  color: rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+/* Month view event */
+.ec-month-event {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 1px 0;
+}
+
+.ec-month-event .ec-event-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ec-month-event .ec-event-time {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  flex-shrink: 0;
+}
+
+.ec-month-event .ec-event-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: white;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Dark mode event adjustments — dark cards with white text */
+.dark .ec-event {
+  background-color: rgba(30, 30, 30, 0.9) !important;
+}
+
+.dark .ec-event:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  background-color: rgba(40, 40, 40, 0.95) !important;
+}
+
+.dark .ec-event::before {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.05) 0%,
+    transparent 1px
+  );
+}
+
+.dark .ec-event-time {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.dark .ec-status-badge {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.dark .ec-event-title {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.dark .ec-event-procedure {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* Short events — show minimal info */
+.ec-short-event .ec-event-procedure {
+  display: none;
+}
+
+.ec-short-event .ec-status-badge {
+  display: none;
+}
+
+/* ============================================
+   MICRO-INTERACTIONS & TRANSITIONS
+   ============================================ */
+
+/* Smooth transition for event color changes */
+.ec-event {
+  transition: background-color 0.2s ease, opacity 0.2s ease;
+}
+
+/* Time slot hover */
+.ec-time-grid .ec-slot:hover {
+  background-color: rgba(59, 130, 246, 0.04);
+  cursor: pointer;
+}
+
+/* Selection highlight */
+.ec-time-grid .ec-slot.ec-selected {
+  background-color: rgba(59, 130, 246, 0.12);
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+/* Thin scrollbar for sidebar */
+.calendar-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.calendar-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calendar-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+.dark .calendar-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.calendar-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.dark .calendar-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Scrollbar for dentist filter */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+}
+
+.dark .scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ============================================
+   ANIMATION - FADE IN
+   ============================================ */
+
+/* Subtle fade-in for calendar container */
+.ec {
+  animation: ec-fade-in 0.2s ease-out;
+}
+
+@keyframes ec-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ============================================
+   ACCESSIBILITY — FOCUS RINGS
+   ============================================ */
+
+/* Focus visible for keyboard navigation */
+.ec button:focus-visible,
+.ec [role="button"]:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline-offset: 1px;
+}
+
+.calendar-sidebar button:focus-visible {
+  outline: 2px solid rgba(20, 184, 166, 0.6);
+  outline-offset: 1px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .ec-time-grid .ec-main {
+    background-image: none !important;
+  }
+
+  .ec-time-grid .ec-sidebar {
+    border-right-width: 3px !important;
+  }
+
+  .ec-event {
+    border-width: 2px !important;
+  }
 }
