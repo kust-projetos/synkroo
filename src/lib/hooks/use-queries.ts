@@ -284,4 +284,3 @@ export function useClinicSettings() {
     staleTime: 5 * 60 * 1000,
   })
 }
-}
