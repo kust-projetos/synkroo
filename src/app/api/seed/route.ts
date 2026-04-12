@@ -269,6 +269,113 @@ export async function GET(request: NextRequest) {
     if (error) results.follow_up_configs.err++; else results.follow_up_configs.ok++
   }
 
+  // === APPOINTMENTS (~40) ===
+  // Generate realistic demo appointments spread across past days, today, and future days
+  results.appointments = { ok: 0, err: 0, errors: [] }
+
+  const appointmentStatuses = ['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'] as const
+  const appointmentNotes = [
+    'Primeira consulta do paciente', 'Retorno para acompanhamento',
+    'Avaliação inicial', 'Procedimento agendado pelo WhatsApp',
+    'Urgência — dor relatada', 'Check-up de rotina',
+    'Retorno pós-cirúrgico', 'Paciente solicitou horário cedo',
+    null, null, null,
+  ]
+
+  // Generate time slots (08:00 to 17:30 in 30-min increments)
+  const timeSlots: string[] = []
+  for (let h = 8; h <= 17; h++) {
+    timeSlots.push(`${String(h).padStart(2, '0')}:00`)
+    if (h < 18) timeSlots.push(`${String(h).padStart(2, '0')}:30`)
+  }
+
+  const procedureDurations: Record<string, number> = {
+    'Limpeza Profissional': 30, 'Clareamento': 60, 'Restauração': 45,
+    'Restauração Estética': 60, 'Tratamento de Canal': 90, 'Extração': 45,
+    'Extração de Siso': 60, 'Implante Dentário': 120, 'Prótese Total': 90,
+    'Prótese Parcial': 60, 'Aparelho Ortodôntico': 60, 'Faceta de Porcelana': 90,
+    'Lente de Contato Dental': 90, 'Coroa de Porcelana': 60, 'Profilaxia': 30,
+    'Radiografia': 15, 'Avaliação': 30,
+  }
+
+  // Get procedure names for duration lookup
+  const { data: procData } = await supabase.from('procedures').select('id, name, duration_minutes').eq('clinic_id', cid)
+  const procMap = new Map(procData?.map(p => [p.id, p]) || [])
+
+  // Helper: create date for a specific day offset from today at a given time
+  function makeDate(dayOffset: number, time: string): string {
+    const d = new Date()
+    d.setDate(d.getDate() + dayOffset)
+    const [h, m] = time.split(':').map(Number)
+    d.setHours(h, m, 0, 0)
+    return d.toISOString()
+  }
+
+  // Generate appointments: past (-3 to -1 days), today (0), future (+1 to +7 days)
+  const dayOffsets = [-3, -2, -1, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 4, 5, 6, 7]
+
+  // Track used slots per dentist per day to avoid conflicts
+  const usedSlots = new Map<string, Set<string>>()
+  function slotKey(dentistId: string, dayOffset: number, time: string) {
+    return `${dentistId}-${dayOffset}-${time}`
+  }
+
+  for (const dayOffset of dayOffsets) {
+    if (dentistIds.length === 0 || patientIds.length === 0) break
+
+    // Each day gets 2-4 appointments per dentist
+    for (const dentistId of dentistIds) {
+      const countThisDay = 2 + randomInt(0, 2)
+      const shuffled = [...timeSlots].sort(() => Math.random() - 0.5)
+      const dayTimeSlots = shuffled.slice(0, Math.min(countThisDay, shuffled.length))
+
+      for (const time of dayTimeSlots.slice(0, countThisDay)) {
+        const key = slotKey(dentistId, dayOffset, time)
+        if (usedSlots.has(key)) continue
+        if (!usedSlots.has(`${dentistId}-${dayOffset}`)) {
+          usedSlots.set(`${dentistId}-${dayOffset}`, new Set())
+        }
+        usedSlots.get(`${dentistId}-${dayOffset}`)!.add(time)
+
+        const procedureId = randomPick(procedureIds)
+        const procInfo = procMap.get(procedureId)
+        const duration = procInfo?.duration_minutes || procedureDurations[procInfo?.name || ''] || 30
+
+        // Determine status based on day offset
+        let status: string
+        if (dayOffset < 0) {
+          // Past days: mostly completed, some cancelled/no_show
+          const pastStatuses = ['completed', 'completed', 'completed', 'completed', 'cancelled', 'no_show']
+          status = randomPick(pastStatuses)
+        } else if (dayOffset === 0) {
+          // Today: mix of confirmed, in_progress, scheduled
+          const todayStatuses = ['confirmed', 'confirmed', 'scheduled', 'in_progress']
+          status = randomPick(todayStatuses)
+        } else {
+          // Future: mostly scheduled and confirmed
+          const futureStatuses = ['scheduled', 'scheduled', 'confirmed', 'confirmed']
+          status = randomPick(futureStatuses)
+        }
+
+        const patientId = randomPick(patientIds)
+        const note = randomPick(appointmentNotes)
+
+        const { error } = await supabase.from('appointments').insert({
+          clinic_id: cid,
+          patient_id: patientId,
+          dentist_id: dentistId,
+          procedure_id: procedureId,
+          scheduled_at: makeDate(dayOffset, time),
+          duration_minutes: duration,
+          status: status,
+          notes: note,
+        })
+        if (error) { results.appointments.err++; results.appointments.errors.push(`${dayOffset}d ${time}: ${error.message}`) }
+        else { results.appointments.ok++ }
+      }
+    }
+  }
+
   // === SUMMARY ===
   const summary: Record<string, number> = {}
   for (const [k, v] of Object.entries(results)) {

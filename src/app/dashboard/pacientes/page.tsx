@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
+import { usePatients } from '@/lib/hooks/use-queries'
 import { UserGroupIcon, PlusIcon, PencilIcon } from '@heroicons/react/24/outline'
 import type { Patient } from '@/lib/supabase/database.types'
 import { PageHeader } from '@/components/ui/page-header'
@@ -22,52 +23,31 @@ interface PatientWithAppointments extends Patient {
 
 export default function PatientsPage() {
   const { profile } = useAuth()
-  const [patients, setPatients] = useState<PatientWithAppointments[]>([])
-  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
 
   const clinicId = profile?.clinic_id
 
-  const fetchPatients = useCallback(async () => {
-    if (!clinicId) return
-
-    setLoading(true)
-    try {
-      const params = new URLSearchParams({
-        clinic_id: clinicId,
-        page: String(page),
-        limit: '20',
-      })
-      if (search) params.append('search', search)
-
-      const response = await fetch(`/api/patients?${params}`)
-      const data = await response.json()
-
-      if (response.ok) {
-        setPatients(data.patients || [])
-        setTotalPages(data.pagination?.totalPages || 1)
-      } else {
-        console.error('Failed to fetch patients:', data.error)
-      }
-    } catch (error) {
-      console.error('Error fetching patients:', error)
-    } finally {
-      setLoading(false)
+  const queryParams = useMemo(() => {
+    const params: Record<string, string> = {
+      clinic_id: clinicId || '',
+      page: String(page),
+      limit: '20',
     }
+    if (search) params.search = search
+    return params
   }, [clinicId, page, search])
 
-  useEffect(() => {
-    if (clinicId) {
-      fetchPatients()
-    }
-  }, [clinicId, fetchPatients])
+  const { data, isLoading: loading, refetch } = usePatients(
+    clinicId ? queryParams : undefined
+  )
+
+  const patients = (data?.patients || []) as PatientWithAppointments[]
+  const totalPages = data?.pagination?.totalPages || 1
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
     setPage(1)
-    fetchPatients()
   }
 
   const formatDate = (dateStr: string | null) => {

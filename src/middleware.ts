@@ -54,6 +54,7 @@ export async function middleware(request: NextRequest) {
     '/api/messages',
     '/api/agent',
     '/api/cron', // Cron endpoints use CRON_SECRET for auth
+    '/api/seed', // Seed endpoints use secret param for auth
   ]
 
   const pathname = request.nextUrl.pathname
@@ -70,19 +71,29 @@ export async function middleware(request: NextRequest) {
   }
 
   // If user exists but no profile in users table, redirect to complete profile
-  // This handles the case where auth user exists but profile wasn't created
+  // Uses cookie flag to avoid DB query on every request
   if (user && request.nextUrl.pathname !== '/complete-profile') {
-    // Check if user has a profile
-    const { data: profile } = await (supabase as any)
-      .from('users')
-      .select('id')
-      .eq('id', user.id)
-      .single()
+    const hasProfile = request.cookies.get('sb-profile-complete')
 
-    if (!profile && !request.nextUrl.pathname.startsWith('/api/')) {
-      const url = request.nextUrl.clone()
-      url.pathname = '/complete-profile'
-      return NextResponse.redirect(url)
+    if (!hasProfile) {
+      const { data: profile } = await (supabase as any)
+        .from('users')
+        .select('id')
+        .eq('id', user.id)
+        .single()
+
+      if (profile) {
+        // Profile exists — set cookie so we skip this check next time
+        supabaseResponse.cookies.set('sb-profile-complete', '1', {
+          maxAge: 60 * 60 * 24 * 7, // 7 days
+          path: '/',
+          sameSite: 'lax',
+        })
+      } else if (!request.nextUrl.pathname.startsWith('/api/')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/complete-profile'
+        return NextResponse.redirect(url)
+      }
     }
   }
 

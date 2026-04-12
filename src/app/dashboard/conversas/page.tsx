@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useMemo } from 'react'
 import { useAuth } from '@/lib/auth/context'
+import { useConversations, useConversation } from '@/lib/hooks/use-queries'
 import { PageHeader } from '@/components/ui/page-header'
 import { SearchInput } from '@/components/ui/search-input'
 import { Button } from '@/components/ui/button'
@@ -72,61 +73,33 @@ const statusConfig: Record<string, { label: string; status: 'success' | 'warning
 
 export default function ConversasPage() {
   const { profile } = useAuth()
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [filter, setFilter] = useState<'all' | 'whatsapp' | 'instagram' | 'escalated'>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [loadingConvs, setLoadingConvs] = useState(true)
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
 
-  const fetchConversations = useCallback(async () => {
-    if (!profile?.clinic_id) return
-
-    setLoadingConvs(true)
-    try {
-      const params = new URLSearchParams({
-        clinic_id: profile.clinic_id,
-        limit: '50',
-      })
-
-      if (filter === 'escalated') {
-        params.set('status', 'escalated')
-      } else if (filter !== 'all') {
-        params.set('channel', filter)
-      }
-
-      const response = await fetch(`/api/conversations?${params}`)
-      const data = await response.json()
-
-      if (data.success) {
-        setConversations(data.conversations || [])
-      }
-    } catch (error) {
-      console.error('Error fetching conversations:', error)
-    } finally {
-      setLoadingConvs(false)
+  const convParams = useMemo(() => {
+    const params: Record<string, string> = {
+      clinic_id: profile?.clinic_id || '',
+      limit: '50',
     }
+    if (filter === 'escalated') {
+      params.status = 'escalated'
+    } else if (filter !== 'all') {
+      params.channel = filter
+    }
+    return params
   }, [profile?.clinic_id, filter])
 
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchConversations()
-    }
-  }, [profile?.clinic_id, fetchConversations])
+  const { data: convsData, isLoading: loadingConvs, refetch: refetchConvs } = useConversations(
+    profile?.clinic_id ? convParams : undefined
+  )
 
-  const fetchConversationDetails = async (id: string) => {
-    try {
-      const response = await fetch(`/api/conversations/${id}`)
-      const data = await response.json()
+  const { data: detailData, refetch: refetchDetail } = useConversation(selectedId || '')
 
-      if (data.success) {
-        setSelectedConversation(data.conversation)
-      }
-    } catch (error) {
-      console.error('Error fetching conversation details:', error)
-    }
-  }
+  const conversations = (convsData?.conversations || []) as Conversation[]
+  const selectedConversation = detailData?.conversation as Conversation | null
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -157,18 +130,19 @@ export default function ConversasPage() {
   const activeCount = conversations.filter(c => c.status === 'active').length
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedConversation || sending || !profile?.clinic_id) return
+    if (!newMessage.trim() || !selectedId || sending || !profile?.clinic_id) return
 
     setSending(true)
     try {
+      const conv = selectedConversation
       const response = await fetch('/api/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clinicId: profile.clinic_id,
-          to: selectedConversation.external_id,
+          to: conv?.external_id || '',
           message: newMessage.trim(),
-          channel: selectedConversation.channel,
+          channel: conv?.channel || 'whatsapp',
         }),
       })
 
@@ -176,7 +150,8 @@ export default function ConversasPage() {
 
       if (data.success) {
         setNewMessage('')
-        await fetchConversationDetails(selectedConversation.id)
+        refetchDetail()
+        refetchConvs()
       }
     } catch (error) {
       console.error('Error sending message:', error)
@@ -254,7 +229,7 @@ export default function ConversasPage() {
               filteredConversations.map((conv) => (
                 <button
                   key={conv.id}
-                  onClick={() => fetchConversationDetails(conv.id)}
+                  onClick={() => setSelectedId(conv.id)}
                   className={`w-full p-4 text-left hover:bg-muted/50 border-b border-border transition-colors ${
                     selectedConversation?.id === conv.id ? 'bg-muted border-l-4 border-l-primary' : ''
                   }`}
@@ -311,7 +286,7 @@ export default function ConversasPage() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setSelectedConversation(null)}
+                  onClick={() => setSelectedId(null)}
                   className="lg:hidden"
                 >
                   <ArrowLeftIcon className="w-5 h-5" />

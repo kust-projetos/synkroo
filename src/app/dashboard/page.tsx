@@ -1,14 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/lib/auth/context'
+import { useDashboardStats } from '@/lib/hooks/use-queries'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { StatsGrid } from '@/components/ui/stats-grid'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   CalendarDaysIcon,
-  CurrencyDollarIcon,
   ChatBubbleLeftRightIcon,
   UsersIcon,
   ClockIcon,
@@ -16,52 +15,9 @@ import {
   MegaphoneIcon,
 } from '@heroicons/react/24/outline'
 
-interface DashboardStats {
-  today: {
-    appointments: number
-    confirmed: number
-    pending: number
-  }
-  metrics: {
-    confirmationRate: number
-    activeCampaigns: number
-    openConversations: number
-    totalPatients: number
-  }
-  inactivePatients: {
-    totalInactive: number
-    bySegment: Record<string, number>
-  }
-}
-
 export default function DashboardPage() {
   const { profile } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [statsLoading, setStatsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const fetchStats = useCallback(async () => {
-    if (!profile?.clinic_id) return
-
-    try {
-      setError(null)
-      const response = await fetch('/api/dashboard/stats')
-      const data = await response.json()
-      if (response.ok) {
-        setStats(data)
-      }
-    } catch {
-      setError('Falha ao carregar estatísticas')
-    } finally {
-      setStatsLoading(false)
-    }
-  }, [profile?.clinic_id])
-
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchStats()
-    }
-  }, [profile?.clinic_id, fetchStats])
+  const { data: stats, isLoading: statsLoading, error: queryError, refetch } = useDashboardStats()
 
   const primaryStats = [
     {
@@ -120,9 +76,9 @@ export default function DashboardPage() {
       </Card>
 
       {/* Error Banner */}
-      {error && (
+      {queryError && (
         <div>
-          <ErrorState message={error} onRetry={fetchStats} />
+          <ErrorState message="Falha ao carregar estatísticas" onRetry={() => refetch()} />
         </div>
       )}
 

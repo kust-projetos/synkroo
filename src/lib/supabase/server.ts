@@ -41,21 +41,6 @@ export async function createClient() {
 }
 
 /**
- * Get the current session on the server
- */
-export async function getSession() {
-  const supabase = await createClient()
-  const { data: { session }, error } = await supabase.auth.getSession()
-
-  if (error) {
-    console.error('Error getting session:', error)
-    return null
-  }
-
-  return session
-}
-
-/**
  * Get the current user on the server
  */
 export async function getUser() {
@@ -72,12 +57,16 @@ export async function getUser() {
 
 /**
  * Get the current user's profile with clinic info
+ * Uses a single client instance for user + profile queries
  */
 export async function getUserProfile() {
-  const user = await getUser()
-  if (!user) return null
-
   const supabase = await createClient()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return null
+  }
+
   const { data: profile, error } = await supabase
     .from('users')
     .select(`
@@ -166,24 +155,18 @@ export interface AuthResult {
 }
 
 /**
- * Validate API authentication
- * Use in API routes to check auth and get user profile
+ * Validate API authentication (optimized)
+ * getUserProfile() fetches user + profile with a single client instance
+ * Saves 1 roundtrip compared to calling getUser() + getUserProfile() separately
  */
 export async function validateApiAuth(): Promise<AuthResult> {
   try {
-    const user = await getUser()
-    if (!user) {
-      return {
-        success: false,
-        error: { message: 'Unauthorized', status: 401 },
-      }
-    }
-
     const profile = await getUserProfile()
+
     if (!profile) {
       return {
         success: false,
-        error: { message: 'User profile not found', status: 403 },
+        error: { message: 'Unauthorized', status: 401 },
       }
     }
 
@@ -196,7 +179,7 @@ export async function validateApiAuth(): Promise<AuthResult> {
 
     return {
       success: true,
-      user: { id: user.id, email: user.email || '' },
+      user: { id: profile.id, email: profile.email },
       profile: profile as any,
     }
   } catch (error) {
