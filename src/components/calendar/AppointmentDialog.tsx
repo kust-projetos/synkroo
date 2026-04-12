@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useAuth } from '@/lib/auth/context'
-import { useDentists, useProcedures } from '@/lib/hooks/use-queries'
+import { useDentists, useProcedures, useClinicSettings } from '@/lib/hooks/use-queries'
 import type { CalendarEvent } from './hooks/useCalendarEvents'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -62,9 +62,19 @@ export function AppointmentDialog({
   const { profile } = useAuth()
   const { data: dentistsData } = useDentists(profile?.clinic_id)
   const { data: proceduresData } = useProcedures(profile?.clinic_id)
+  const { data: settingsData } = useClinicSettings()
 
   const dentists = dentistsData?.dentists || []
   const procedures = proceduresData?.procedures || []
+  const customDurations = settingsData?.settings?.appointment_durations || [15, 30, 45, 60, 90, 120]
+
+  const formatDuration = (mins: number) => {
+    if (mins < 60) return `${mins} min`
+    if (mins === 60) return '1 hora'
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return m > 0 ? `${h}h ${m}min` : `${h} hora${h > 1 ? 's' : ''}`
+  }
 
   const [patientName, setPatientName] = useState('')
   const [patientPhone, setPatientPhone] = useState('')
@@ -302,12 +312,9 @@ export function AppointmentDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="15">15 min</SelectItem>
-                <SelectItem value="30">30 min</SelectItem>
-                <SelectItem value="45">45 min</SelectItem>
-                <SelectItem value="60">1 hora</SelectItem>
-                <SelectItem value="90">1h 30min</SelectItem>
-                <SelectItem value="120">2 horas</SelectItem>
+                {customDurations.map((mins) => (
+                  <SelectItem key={mins} value={String(mins)}>{formatDuration(mins)}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
