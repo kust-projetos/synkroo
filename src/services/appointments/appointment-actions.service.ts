@@ -289,6 +289,46 @@ export async function markNoShow(
 }
 
 /**
+ * Reactivate a cancelled appointment (move back to scheduled)
+ */
+export async function reactivateAppointment(
+  appointmentId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createTypedClient()
+
+  const appointment = await getAppointmentInfo(appointmentId)
+  if (!appointment) {
+    return { success: false, error: 'Appointment not found' }
+  }
+
+  if (appointment.status !== 'cancelled') {
+    return { success: false, error: 'Only cancelled appointments can be reactivated' }
+  }
+
+  // Validate original appointment time is still in the future
+  if (appointment.scheduledAt <= new Date()) {
+    return { success: false, error: 'Original appointment time has passed. Please reschedule instead.' }
+  }
+
+  // Update appointment status back to scheduled
+  const { error: updateError } = await (supabase
+    .from('appointments') as any)
+    .update({ status: 'scheduled' })
+    .eq('id', appointmentId)
+
+  if (updateError) {
+    dbLogger.error('Error reactivating appointment', updateError)
+    return { success: false, error: 'Failed to reactivate appointment' }
+  }
+
+  dbLogger.info(`Appointment ${appointmentId} reactivated (moved from cancelled to scheduled)`, {
+    patientName: appointment.patientName,
+  })
+
+  return { success: true }
+}
+
+/**
  * Send cancellation notification to patient
  */
 async function sendCancellationNotification(
