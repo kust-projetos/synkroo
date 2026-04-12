@@ -152,8 +152,8 @@ export async function rescheduleAppointment(
     return { success: false, error: 'Appointment not found' }
   }
 
-  if (!['scheduled', 'confirmed'].includes(appointment.status)) {
-    return { success: false, error: 'Only scheduled or confirmed appointments can be rescheduled' }
+  if (!['scheduled', 'confirmed', 'cancelled'].includes(appointment.status)) {
+    return { success: false, error: 'Only scheduled, confirmed or cancelled appointments can be rescheduled' }
   }
 
   const newScheduledAt = new Date(`${newDate}T${newTime}:00`)

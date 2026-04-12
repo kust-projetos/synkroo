@@ -41,7 +41,7 @@ const READONLY_STATUSES = new Set(['completed', 'cancelled', 'no_show'])
 interface AppointmentDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  mode: 'create' | 'edit'
+  mode: 'create' | 'edit' | 'reschedule'
   event?: CalendarEvent | null
   prefillDate?: string
   prefillTime?: string
@@ -87,6 +87,7 @@ export function AppointmentDialog({
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [rescheduleMode, setRescheduleMode] = useState(false)
 
   // Calculate end time from start time + duration
   const calculateEndTime = (startTime: string, dur: string): string => {
@@ -137,6 +138,7 @@ export function AppointmentDialog({
   useEffect(() => {
     if (!open) return
     setError(null)
+    setRescheduleMode(false)
 
     if (mode === 'create') {
       setPatientName('')
@@ -228,6 +230,34 @@ export function AppointmentDialog({
     }
   }
 
+  const handleReschedule = async () => {
+    if (!event || !profile?.clinic_id) return
+    setSubmitting(true)
+    setError(null)
+
+    try {
+      const res = await fetch(`/api/appointments/${event.id}/reschedule`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          new_date: date,
+          new_time: time,
+          notify_patient: false,
+        }),
+      })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Erro ao remarcar agendamento')
+      }
+      onSuccess()
+      onOpenChange(false)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const handleStatusAction = async (action: string) => {
     if (!event) return
     setSubmitting(true)
@@ -256,9 +286,9 @@ export function AppointmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{mode === 'create' ? 'Novo Agendamento' : 'Detalhes do Agendamento'}</DialogTitle>
+          <DialogTitle>{mode === 'create' ? 'Novo Agendamento' : mode === 'reschedule' ? 'Remarcar Agendamento' : 'Detalhes do Agendamento'}</DialogTitle>
           <DialogDescription>
-            {mode === 'create' ? 'Preencha os dados para criar um novo agendamento' : 'Visualize e gerencie o agendamento'}
+            {mode === 'create' ? 'Preencha os dados para criar um novo agendamento' : mode === 'reschedule' ? 'Selecione nova data e horário' : 'Visualize e gerencie o agendamento'}
           </DialogDescription>
         </DialogHeader>
 
@@ -269,7 +299,7 @@ export function AppointmentDialog({
             </div>
           )}
 
-          {mode === 'edit' && event && (
+          {mode === 'edit' && event && !rescheduleMode && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Status</span>
               <StatusBadge status={STATUS_BADGE[status!] || 'info'}>
@@ -278,115 +308,150 @@ export function AppointmentDialog({
             </div>
           )}
 
-          <div>
-            <label className="text-sm font-medium">Paciente</label>
-            {mode === 'edit' ? (
-              <p className="text-sm text-foreground mt-1">{patientName}</p>
-            ) : (
-              <div className="space-y-2 mt-1">
-                <Input placeholder="Nome do paciente" value={patientName} onChange={(e) => setPatientName(e.target.value)} disabled={isReadonly} />
-                <Input placeholder="Telefone" value={patientPhone} onChange={(e) => setPatientPhone(e.target.value)} disabled={isReadonly} />
+          {rescheduleMode ? (
+            <>
+              <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm">
+                Selecione uma nova data e horário para remarcar este agendamento.
               </div>
-            )}
-          </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Data</label>
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Início</label>
+                  <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Término</label>
+                  <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} className="mt-1" />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <label className="text-sm font-medium">Paciente</label>
+                {mode === 'edit' ? (
+                  <p className="text-sm text-foreground mt-1">{patientName}</p>
+                ) : (
+                  <div className="space-y-2 mt-1">
+                    <Input placeholder="Nome do paciente" value={patientName} onChange={(e) => setPatientName(e.target.value)} disabled={isReadonly} />
+                    <Input placeholder="Telefone" value={patientPhone} onChange={(e) => setPatientPhone(e.target.value)} disabled={isReadonly} />
+                  </div>
+                )}
+              </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="text-sm font-medium">Data</label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={isReadonly} className="mt-1" />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Início</label>
-              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={isReadonly} className="mt-1" />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Término</label>
-              <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} disabled={isReadonly} className="mt-1" />
-            </div>
-          </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Data</label>
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} disabled={isReadonly} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Início</label>
+                  <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={isReadonly} className="mt-1" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Término</label>
+                  <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} disabled={isReadonly} className="mt-1" />
+                </div>
+              </div>
 
-          <div>
-            <label className="text-sm font-medium">Duração</label>
-            <Select value={duration} onValueChange={handleDurationChange} disabled={isReadonly}>
-              <SelectTrigger className="mt-1">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {customDurations.map((mins) => (
-                  <SelectItem key={mins} value={String(mins)}>{formatDuration(mins)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div>
+                <label className="text-sm font-medium">Duração</label>
+                <Select value={duration} onValueChange={handleDurationChange} disabled={isReadonly}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customDurations.map((mins) => (
+                      <SelectItem key={mins} value={String(mins)}>{formatDuration(mins)}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div>
-            <label className="text-sm font-medium">Profissional</label>
-            <Select value={dentistId} onValueChange={setDentistId} disabled={isReadonly}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {dentists.map((d: any) => (
-                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div>
+                <label className="text-sm font-medium">Profissional</label>
+                <Select value={dentistId} onValueChange={setDentistId} disabled={isReadonly}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dentists.map((d: any) => (
+                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div>
-            <label className="text-sm font-medium">Procedimento</label>
-            <Select value={procedureId} onValueChange={(v) => {
-              setProcedureId(v)
-              const proc = procedures.find((p: any) => p.id === v)
-              if (proc?.duration_minutes) setDuration(String(proc.duration_minutes))
-            }} disabled={isReadonly}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Selecione" />
-              </SelectTrigger>
-              <SelectContent>
-                {procedures.map((p: any) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.duration_minutes}min)</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              <div>
+                <label className="text-sm font-medium">Procedimento</label>
+                <Select value={procedureId} onValueChange={(v) => {
+                  setProcedureId(v)
+                  const proc = procedures.find((p: any) => p.id === v)
+                  if (proc?.duration_minutes) setDuration(String(proc.duration_minutes))
+                }} disabled={isReadonly}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {procedures.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.duration_minutes}min)</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          <div>
-            <label className="text-sm font-medium">Observações</label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} disabled={isReadonly} placeholder="Notas opcionais" className="mt-1" />
-          </div>
+              <div>
+                <label className="text-sm font-medium">Observações</label>
+                <Input value={notes} onChange={(e) => setNotes(e.target.value)} disabled={isReadonly} placeholder="Notas opcionais" className="mt-1" />
+              </div>
+            </>
+          )}
         </div>
 
         <DialogFooter className="gap-2">
-          {mode === 'edit' && event && !isReadonly && (
+          {rescheduleMode ? (
             <>
-              {status === 'scheduled' && (
+              <Button size="sm" variant="outline" onClick={() => setRescheduleMode(false)} disabled={submitting}>Cancelar</Button>
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleReschedule} disabled={submitting || !date || !time}>
+                {submitting ? 'Remarcando...' : 'Confirmar Remarcar'}
+              </Button>
+            </>
+          ) : (
+            <>
+              {mode === 'edit' && event && !isReadonly && (
                 <>
-                  <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
-                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Confirmar</Button>
+                  {status === 'scheduled' && (
+                    <>
+                      <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
+                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Confirmar</Button>
+                    </>
+                  )}
+                  {status === 'confirmed' && (
+                    <>
+                      <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
+                      <Button size="sm" variant="outline" onClick={() => handleStatusAction('noshow')} disabled={submitting}>Não Compareceu</Button>
+                      <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Iniciar</Button>
+                    </>
+                  )}
+                  {status === 'in_progress' && (
+                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Concluir</Button>
+                  )}
                 </>
               )}
-              {status === 'confirmed' && (
-                <>
-                  <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
-                  <Button size="sm" variant="outline" onClick={() => handleStatusAction('noshow')} disabled={submitting}>Não Compareceu</Button>
-                  <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Iniciar</Button>
-                </>
+              {mode === 'edit' && event && status === 'cancelled' && !submitting && (
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setRescheduleMode(true)} disabled={submitting}>Remarcar</Button>
               )}
-              {status === 'in_progress' && (
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Concluir</Button>
+              {mode === 'create' && (
+                <Button size="sm" onClick={handleSubmit} disabled={submitting || !patientName || !dentistId || !date || !time}>
+                  {submitting ? 'Criando...' : 'Criar Agendamento'}
+                </Button>
               )}
             </>
           )}
-          {mode === 'edit' && event && status === 'cancelled' && !submitting && (
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('reactivate')} disabled={submitting}>Remarcar</Button>
-          )}
-          {mode === 'create' && (
-            <Button size="sm" onClick={handleSubmit} disabled={submitting || !patientName || !dentistId || !date || !time}>
-              {submitting ? 'Criando...' : 'Criar Agendamento'}
-            </Button>
-          )}
-          <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
+          {!rescheduleMode && <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>}
         </DialogFooter>
       </DialogContent>
     </Dialog>
