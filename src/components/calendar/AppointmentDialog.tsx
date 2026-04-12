@@ -1,7 +1,7 @@
 // src/components/calendar/AppointmentDialog.tsx
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -90,6 +90,19 @@ export function AppointmentDialog({
   const [error, setError] = useState<string | null>(null)
   const [rescheduleMode, setRescheduleMode] = useState(false)
   const [showMiniCalendar, setShowMiniCalendar] = useState(false)
+  const dateInputRef = useRef<HTMLDivElement>(null)
+
+  // Close mini calendar on click outside
+  useEffect(() => {
+    if (!showMiniCalendar) return
+    const handler = (e: MouseEvent) => {
+      if (dateInputRef.current && !dateInputRef.current.contains(e.target as Node)) {
+        setShowMiniCalendar(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMiniCalendar])
 
   // Calculate end time from start time + duration
   const calculateEndTime = (startTime: string, dur: string): string => {
@@ -319,7 +332,7 @@ export function AppointmentDialog({
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-medium">Data</label>
-                  <div className="relative mt-1">
+                  <div className="relative mt-1" ref={dateInputRef}>
                     <Input
                       type="date"
                       value={date}
@@ -369,7 +382,7 @@ export function AppointmentDialog({
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-sm font-medium">Data</label>
-                  <div className="relative mt-1">
+                  <div className="relative mt-1" ref={dateInputRef}>
                     <Input
                       type="date"
                       value={date}
