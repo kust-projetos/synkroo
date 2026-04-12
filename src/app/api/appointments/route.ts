@@ -134,43 +134,42 @@ export async function POST(request: NextRequest) {
       if (procedure) duration = procedure.duration_minutes
     }
 
-    // Check for conflicts
-    const endTime = new Date(scheduledDate.getTime() + duration * 60000)
-    const { data: conflicts } = await (supabase
-      .from('appointments') as any)
-      .select('id')
-      .eq('clinic_id', clinicId)
-      .eq('dentist_id', dentist_id)
-      .in('status', ['scheduled', 'confirmed', 'in_progress'])
-      .or(`scheduled_at.lt.${endTime.toISOString()},and(scheduled_at.gte.${scheduledDate.toISOString()})`)
+    // Call atomic RPC to reserve slot — conflict check + insert in single transaction
+    const { data: result, error: rpcError } = await (supabase as any).rpc(
+      'reserve_appointment_slot',
+      {
+        p_clinic_id:        clinicId,
+        p_patient_id:       patient_id,
+        p_dentist_id:       dentist_id,
+        p_procedure_id:     procedure_id || null,
+        p_scheduled_at:      scheduledDate.toISOString(),
+        p_duration_minutes: duration,
+        p_notes:           notes || null,
+      }
+    )
 
-    if (conflicts && conflicts.length > 0) {
-      return handleApiError(new ValidationError('Horário indisponível. Já existe um agendamento neste horário.'))
+    if (rpcError) {
+      return handleApiError(rpcError)
     }
 
-    // Create appointment
-    const { data: appointment, error } = await (supabase
+    if (!result.success) {
+      return handleApiError(new ValidationError(result.error))
+    }
+
+    // Fetch full appointment with joins for response
+    const { data: appointment, error: fetchError } = await (supabase
       .from('appointments') as any)
-      .insert({
-        clinic_id: clinicId,
-        patient_id,
-        dentist_id,
-        procedure_id,
-        scheduled_at,
-        duration_minutes: duration,
-        notes,
-        status: 'scheduled',
-      })
       .select(`
         *,
         patients (id, name, phone),
         dentists (id, name, specialty),
         procedures (id, name)
       `)
+      .eq('id', result.appointment_id)
       .single()
 
-    if (error) {
-      return handleApiError(error)
+    if (fetchError) {
+      return handleApiError(fetchError)
     }
 
     return NextResponse.json({ appointment }, { status: 201 })
