@@ -41,17 +41,9 @@ export function CalendarSidebar({
     : dentists
 
   return (
-    <aside className="calendar-sidebar w-[280px] flex-shrink-0 border-r border-border bg-muted/20 p-4 space-y-5 hidden lg:block overflow-y-auto">
+    <aside className="calendar-sidebar w-[280px] flex-shrink-0 border-r border-border p-4 space-y-6 hidden lg:block">
       <MiniCalendar selectedDate={selectedDate} onSelectDate={onSelectDate} />
-
-      {/* Divider */}
-      <div className="border-t border-border/60" />
-
       <SpecialtyFilter specialties={specialties} value={specialty} onChange={onSpecialtyChange} />
-
-      {/* Divider */}
-      <div className="border-t border-border/60" />
-
       <DentistFilter
         dentists={filteredDentists}
         selectedIds={selectedDentistIds}
