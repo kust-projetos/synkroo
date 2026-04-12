@@ -139,6 +139,29 @@
 }
 
 /* ============================================
+   DAY HEADER (MONTH VIEW)
+   ============================================ */
+
+/* Week day headers - dark green for Mon-Fri */
+.ec-day-grid .ec-col-head {
+  color: rgba(6, 95, 70, 0.9) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.025em !important;
+}
+
+/* Saturday - amber/orange color */
+.ec-day-grid .ec-col-head.ec-sat {
+  color: rgba(217, 119, 6, 0.9) !important;
+}
+
+/* Sunday - soft red/muted red */
+.ec-day-grid .ec-col-head.ec-sun {
+  color: rgba(220, 38, 38, 0.85) !important;
+}
+
+/* ============================================
    CURRENT TIME INDICATOR
    ============================================ */
 
@@ -175,6 +198,19 @@
 
 .dark .ec-day-grid .ec-grid {
   border-bottom-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Dark mode - week day headers */
+.dark .ec-day-grid .ec-col-head {
+  color: rgba(52, 211, 153, 0.85) !important;
+}
+
+.dark .ec-day-grid .ec-col-head.ec-sat {
+  color: rgba(251, 191, 36, 0.85) !important;
+}
+
+.dark .ec-day-grid .ec-col-head.ec-sun {
+  color: rgba(252, 129, 129, 0.85) !important;
 }
 
 /* ============================================
