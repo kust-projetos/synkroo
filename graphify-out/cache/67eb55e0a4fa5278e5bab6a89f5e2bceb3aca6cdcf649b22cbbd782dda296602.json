@@ -1,0 +1,1 @@
+{"nodes": [{"id": "jest_setup", "label": "jest.setup.ts", "file_type": "code", "source_file": "projetos\\synkroo\\jest.setup.ts", "source_location": "L1"}], "edges": [{"source": "jest_setup", "target": "jest_dom", "relation": "imports_from", "confidence": "EXTRACTED", "source_file": "projetos\\synkroo\\jest.setup.ts", "source_location": "L6", "weight": 1.0}]}

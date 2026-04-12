@@ -116,9 +116,10 @@
    DAY GRID (MONTH VIEW)
    ============================================ */
 
-/* Subtle vertical lines between columns - NO background image needed */
+/* Vertical lines between day columns */
 .ec-day-grid .ec-day {
-  border-right: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
 /* Remove right border on last column (sunday) */
@@ -127,14 +128,14 @@
   border-right: none !important;
 }
 
-/* Subtle horizontal lines between weeks */
+/* Horizontal lines between weeks */
 .ec-day-grid .ec-week {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.25) !important;
 }
 
 /* Week header separator */
 .ec-day-grid .ec-grid {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.10) !important;
 }
 
 /* ============================================
