@@ -220,6 +220,49 @@
 }
 
 /* ============================================
+   DAY GRID (MONTH VIEW) - DARK MODE
+   ============================================ */
+
+/* Day cells background and text */
+.dark .ec-day-grid .ec-day {
+  background: #1f2937 !important;
+}
+
+.dark .ec-day-grid .ec-day-date,
+.dark .ec-day-grid .ec-day-content {
+  color: #e5e7eb !important;
+}
+
+/* More link in day cell */
+.dark .ec-day-grid .ec-day-more-link {
+  color: rgba(52, 211, 153, 0.7) !important;
+}
+
+/* Events inside day grid */
+.dark .ec-day-grid .ec-event {
+  background-color: rgba(20, 184, 166, 0.9) !important;
+  border-color: rgba(20, 184, 166, 1) !important;
+  color: #fff !important;
+}
+
+/* Week row separator */
+.dark .ec-day-grid .ec-week {
+  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* More popover dark mode */
+.dark .ec-popover {
+  background: #1f2937 !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #e5e7eb !important;
+}
+
+.dark .ec-popover .ec-popover-header {
+  background: rgba(52, 211, 153, 0.1) !important;
+  color: rgba(52, 211, 153, 0.9) !important;
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 

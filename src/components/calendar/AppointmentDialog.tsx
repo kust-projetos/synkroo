@@ -104,6 +104,31 @@ export function AppointmentDialog({
     return () => document.removeEventListener('mousedown', handler)
   }, [showMiniCalendar])
 
+  // Format YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS → DD/MM/YYYY for display
+  const formatDateDisplay = (value: string) => {
+    if (!value) return ''
+    // Handle ISO format with time component: "2026-04-23T00:00:00"
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (isoMatch) {
+      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`
+    }
+    // Handle DD/MM/YYYY already formatted
+    const slashMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (slashMatch) return value
+    return ''
+  }
+
+  // Parse DD/MM/YYYY → YYYY-MM-DD on input change; invalid input → empty
+  const parseDateInput = (value: string) => {
+    const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (match) {
+      const [, d, m, y] = match
+      const date = new Date(`${y}-${m}-${d}T12:00:00`)
+      if (!isNaN(date.getTime())) return `${y}-${m}-${d}`
+    }
+    return ''
+  }
+
   // Calculate end time from start time + duration
   const calculateEndTime = (startTime: string, dur: string): string => {
     if (!startTime || !dur) return ''
@@ -334,9 +359,9 @@ export function AppointmentDialog({
                   <label className="text-sm font-medium">Data</label>
                   <div className="relative mt-1" ref={dateInputRef}>
                     <Input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
+                      type="text"
+                      value={formatDateDisplay(date)}
+                      onChange={(e) => setDate(parseDateInput(e.target.value))}
                       className="w-full pr-0"
                       onFocus={() => setShowMiniCalendar(true)}
                     />
@@ -384,9 +409,9 @@ export function AppointmentDialog({
                   <label className="text-sm font-medium">Data</label>
                   <div className="relative mt-1" ref={dateInputRef}>
                     <Input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
+                      type="text"
+                      value={formatDateDisplay(date)}
+                      onChange={(e) => setDate(parseDateInput(e.target.value))}
                       disabled={isReadonly}
                       className="w-full pr-0"
                       onFocus={() => !isReadonly && setShowMiniCalendar(true)}
