@@ -58,12 +58,10 @@ export async function GET(request: NextRequest) {
       query = query.eq('dentists.specialty', specialty)
     }
 
-    // Date filters
+    // Date filters — use UTC to avoid local timezone offset issues
     if (date) {
-      const start = new Date(date)
-      start.setHours(0, 0, 0, 0)
-      const end = new Date(date)
-      end.setHours(23, 59, 59, 999)
+      const start = new Date(date + 'T00:00:00Z')
+      const end = new Date(date + 'T23:59:59.999Z')
       query = query.gte('scheduled_at', start.toISOString()).lte('scheduled_at', end.toISOString())
     } else if (startDate && endDate) {
       query = query.gte('scheduled_at', startDate).lte('scheduled_at', endDate)
