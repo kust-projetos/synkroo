@@ -52,6 +52,7 @@ export function MiniCalendar({ selectedDate, onSelectDate }: MiniCalendarProps) 
       </div>
 
       <div className="grid grid-cols-7 gap-0.5 text-center">
+        {/* Day labels for weekStartsOn: 1 (Monday-first). Order: S=Segunda, T=Terça, Q=Quarta, Q=Quinta, S=Sexta, S=Sábado, D=Domingo */}
         {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((d, i) => (
           <div key={i} className="text-[10px] text-muted-foreground py-1">{d}</div>
         ))}
