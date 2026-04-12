@@ -1,9 +1,10 @@
 'use client'
 
 import { useAuth } from '@/lib/auth/context'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { UserCircleIcon, PlusIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
+import { useDentists } from '@/lib/hooks/use-queries'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { SearchInput } from '@/components/ui/search-input'
@@ -25,29 +26,10 @@ interface Dentist {
 
 export default function DentistasPage() {
   const { profile } = useAuth()
-  const [dentists, setDentists] = useState<Dentist[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  const fetchDentists = async () => {
-    try {
-      const response = await fetch(`/api/dentists?clinic_id=${profile?.clinic_id}`)
-      if (response.ok) {
-        const data = await response.json()
-        setDentists(data.dentists || [])
-      }
-    } catch (error) {
-      console.error('Error fetching dentists:', error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchDentists()
-    }
-  }, [profile?.clinic_id])
+  const { data, isLoading } = useDentists(profile?.clinic_id)
+  const dentists: Dentist[] = data?.dentists || []
 
   const filteredDentists = dentists.filter((d) =>
     d.name.toLowerCase().includes(search.toLowerCase()) ||

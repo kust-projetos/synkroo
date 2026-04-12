@@ -1,9 +1,10 @@
 'use client'
 
 import { useAuth } from '@/lib/auth/context'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { BeakerIcon, PlusIcon, ClockIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline'
+import { useProcedures } from '@/lib/hooks/use-queries'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
@@ -23,30 +24,10 @@ interface Procedure {
 
 export default function ProcedimentosPage() {
   const { profile } = useAuth()
-  const [procedures, setProcedures] = useState<Procedure[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
-  const fetchProcedures = async () => {
-    try {
-      const response = await fetch(`/api/procedures?clinic_id=${profile?.clinic_id}`)
-      if (response.ok) {
-        const data = await response.json()
-        setProcedures(data.procedures || [])
-      }
-    } catch {
-      setError('Falha ao carregar procedimentos')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    if (profile?.clinic_id) {
-      fetchProcedures()
-    }
-  }, [profile?.clinic_id])
+  const { data, isLoading, error: queryError, refetch } = useProcedures(profile?.clinic_id)
+  const procedures: Procedure[] = data?.procedures || []
 
   const filteredProcedures = procedures.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -59,14 +40,14 @@ export default function ProcedimentosPage() {
     }).format(price || 0)
   }
 
-  if (error) {
+  if (queryError) {
     return (
       <div className="p-4 lg:p-8 space-y-6">
         <PageHeader
           title="Procedimentos"
           description="Gerencie os procedimentos da clínica"
         />
-        <ErrorState message={error} onRetry={fetchProcedures} />
+        <ErrorState message="Falha ao carregar procedimentos" onRetry={() => refetch()} />
       </div>
     )
   }

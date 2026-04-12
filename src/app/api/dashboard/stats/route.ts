@@ -8,6 +8,7 @@ import { getInactivityStats } from '@/services/followup/inactive-patient.service
 /**
  * GET /api/dashboard/stats
  * Get dashboard statistics for a clinic
+ * All independent queries run in parallel via Promise.all()
  */
 export async function GET(request: NextRequest) {
   try {
@@ -23,84 +24,109 @@ export async function GET(request: NextRequest) {
     const supabase = await createTypedClient()
 
     const today = new Date().toISOString().split('T')[0]
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-    // Get today's appointments count
-    const { data: todayAppointments, error: todayError } = await supabase
-      .from('appointments')
-      .select('id, status')
-      .eq('clinic_id', clinicId)
-      .gte('scheduled_at', today)
-      .lt('scheduled_at', today + 'T23:59:59') as { data: Array<{ id: string; status: string }> | null; error: any }
+    // Run all independent queries in parallel
+    // getInactivityStats is isolated to prevent it from breaking other queries
+    const [
+      todayResult,
+      recentResult,
+      inactiveStats,
+      campaignsResult,
+      conversationsResult,
+      patientsResult,
+    ] = await Promise.all([
+      // 1. Today's appointments
+      supabase
+        .from('appointments')
+        .select('id, status')
+        .eq('clinic_id', clinicId)
+        .gte('scheduled_at', today)
+        .lt('scheduled_at', today + 'T23:59:59'),
 
-    if (todayError) {
-      dbLogger.error('Error fetching today appointments', todayError)
+      // 2. Last 30 days for confirmation rate
+      supabase
+        .from('appointments')
+        .select('status')
+        .eq('clinic_id', clinicId)
+        .gte('created_at', thirtyDaysAgo.toISOString()),
+
+      // 3. Inactive patients (isolated from failures)
+      getInactivityStats(clinicId).catch((err) => {
+        dbLogger.error('Inactivity stats failed', { error: String(err) })
+        return { totalInactive: 0, bySegment: {}, atRiskRevenue: 0 }
+      }),
+
+      // 4. Active campaigns
+      supabase
+        .from('campaigns')
+        .select('id, status')
+        .eq('clinic_id', clinicId)
+        .in('status', ['running', 'scheduled']),
+
+      // 5. Open conversations
+      supabase
+        .from('conversations')
+        .select('id')
+        .eq('clinic_id', clinicId)
+        .in('status', ['active', 'waiting']),
+
+      // 6. Total patients count
+      supabase
+        .from('patients')
+        .select('id', { count: 'exact', head: true })
+        .eq('clinic_id', clinicId),
+    ])
+
+    // Check for Supabase query errors
+    const queryErrors = [
+      { name: 'todayAppointments', result: todayResult },
+      { name: 'recentAppointments', result: recentResult },
+      { name: 'campaigns', result: campaignsResult },
+      { name: 'conversations', result: conversationsResult },
+      { name: 'patients', result: patientsResult },
+    ].filter(({ name, result }) => {
+      if ('error' in result && result.error) {
+        dbLogger.error(`Dashboard stats query error: ${name}`, { error: result.error })
+        return true
+      }
+      return false
+    })
+
+    if (queryErrors.length === 5) {
+      return NextResponse.json(
+        { error: 'Failed to fetch dashboard statistics' },
+        { status: 500 }
+      )
     }
 
+    // Process today's appointments
+    const todayAppointments = todayResult.data as Array<{ id: string; status: string }> | null
     const todayCount = todayAppointments?.length || 0
     const confirmedCount = todayAppointments?.filter((a) => a.status === 'confirmed').length || 0
     const pendingCount = todayAppointments?.filter(
       (a) => a.status === 'pending' || a.status === 'scheduled'
     ).length || 0
 
-    // Get confirmation rate (last 30 days)
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const { data: recentAppointments, error: recentError } = await supabase
-      .from('appointments')
-      .select('status')
-      .eq('clinic_id', clinicId)
-      .gte('created_at', thirtyDaysAgo.toISOString()) as { data: Array<{ status: string }> | null; error: any }
-
-    if (recentError) {
-      dbLogger.error('Error fetching recent appointments', recentError)
-    }
-
+    // Process confirmation rate
+    const recentAppointments = recentResult.data as Array<{ status: string }> | null
     const totalRecent = recentAppointments?.length || 0
     const confirmedRecent = recentAppointments?.filter(
       (a) => a.status === 'confirmed' || a.status === 'completed'
     ).length || 0
-
     const confirmationRate = totalRecent > 0 ? Math.round((confirmedRecent / totalRecent) * 100) : 0
 
-    // Get inactive patients count using service
-    const inactiveStats = await getInactivityStats(clinicId)
-
-    // Get active campaigns count
-    const { data: campaigns, error: campaignsError } = await supabase
-      .from('campaigns')
-      .select('id, status')
-      .eq('clinic_id', clinicId)
-      .in('status', ['running', 'scheduled'])
-
-    if (campaignsError) {
-      dbLogger.error('Error fetching campaigns', campaignsError)
-    }
-
+    // Process campaigns
+    const campaigns = campaignsResult.data as Array<{ id: string; status: string }> | null
     const activeCampaigns = campaigns?.length || 0
 
-    // Get active conversations count
-    const { data: conversations, error: convError } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('clinic_id', clinicId)
-      .in('status', ['active', 'waiting'])
-
-    if (convError) {
-      dbLogger.error('Error fetching conversations', convError)
-    }
-
+    // Process conversations
+    const conversations = conversationsResult.data as Array<{ id: string }> | null
     const openConversations = conversations?.length || 0
 
-    // Get total patients count
-    const { count: totalPatients, error: patientsError } = await supabase
-      .from('patients')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', clinicId)
-
-    if (patientsError) {
-      dbLogger.error('Error counting patients', patientsError)
-    }
+    // Process patients count
+    const totalPatients = patientsResult.count || 0
 
     return NextResponse.json({
       today: {
@@ -112,7 +138,7 @@ export async function GET(request: NextRequest) {
         confirmationRate,
         activeCampaigns,
         openConversations,
-        totalPatients: totalPatients || 0,
+        totalPatients,
       },
       inactivePatients: {
         totalInactive: inactiveStats.totalInactive,
