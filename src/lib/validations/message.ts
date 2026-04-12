@@ -16,4 +16,5 @@ export const clinicSettingsSchema = z.object({
   phone: z.string().max(20).optional(),
   email: z.string().email().optional(),
   settings: z.record(z.unknown()).optional(),
+  appointment_durations: z.array(z.number().int().positive()).optional(),
 })

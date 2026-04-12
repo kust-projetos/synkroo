@@ -273,3 +273,15 @@ export function useWaitlist() {
     staleTime: 2 * 60 * 1000,
   })
 }
+
+/**
+ * Clinic settings — cached for 5 min
+ */
+export function useClinicSettings() {
+  return useQuery({
+    queryKey: queryKeys.settings,
+    queryFn: () => fetcher<any>('/api/clinics/settings'),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+}
