@@ -23,7 +23,8 @@ interface MiniCalendarProps {
 }
 
 export function MiniCalendar({ selectedDate, onSelectDate }: MiniCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(startOfMonth(selectedDate))
+  const validDate = selectedDate instanceof Date && !isNaN(selectedDate.getTime()) ? selectedDate : new Date()
+  const [currentMonth, setCurrentMonth] = useState(startOfMonth(validDate))
 
   const monthStart = startOfMonth(currentMonth)
   const monthEnd = endOfMonth(currentMonth)
