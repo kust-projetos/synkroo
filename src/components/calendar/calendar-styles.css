@@ -60,3 +60,26 @@
     display: none;
   }
 }
+
+/* Make events fill full width of their resource column */
+.ec-time-grid-event {
+  width: 100% !important;
+  margin-right: 0 !important;
+}
+
+.ec-time-grid-event .ec-event {
+  width: 100% !important;
+  box-sizing: border-box;
+}
+
+/* In resource view, events should span full column width */
+.ec-resource-time-grid .ec-time-grid-event {
+  right: 0 !important;
+  left: 0 !important;
+}
+
+/* Alternative approach: stretch events to fill available space */
+.ec .ec-event[data-resource-id] {
+  width: 100% !important;
+  inset: auto !important;
+}
