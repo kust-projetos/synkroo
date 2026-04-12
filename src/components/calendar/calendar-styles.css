@@ -1,34 +1,37 @@
 /* src/components/calendar/calendar-styles.css */
 
-/* Status-specific event styles */
+/* ============================================
+   EVENT STATUS STYLES
+   Left border color indicates appointment status
+   ============================================ */
+
 .ec-event.ec-status-scheduled {
-  border-left: 3px dashed rgba(96, 165, 250, 0.8) !important;
+  border-left: 3px dashed rgba(20, 184, 166, 0.8) !important;
   opacity: 0.85;
 }
 
 .ec-event.ec-status-confirmed {
-  border-left: 3px solid rgba(52, 211, 153, 0.8) !important;
+  border-left: 3px solid rgba(16, 185, 129, 0.9) !important;
 }
 
 .ec-event.ec-status-in-progress {
-  border-left: 3px solid rgba(16, 185, 129, 0.9) !important;
-  background-size: 200% 100% !important;
+  border-left: 3px solid rgba(20, 184, 166, 1.0) !important;
   animation: ec-shimmer 2s linear infinite;
 }
 
 .ec-event.ec-status-completed {
-  border-left: 3px solid rgba(209, 213, 219, 0.6) !important;
+  border-left: 3px solid rgba(156, 163, 175, 0.7) !important;
   opacity: 0.7;
 }
 
 .ec-event.ec-status-cancelled {
-  border-left: 3px solid rgba(248, 113, 113, 0.6) !important;
+  border-left: 3px solid rgba(248, 113, 113, 0.7) !important;
   opacity: 0.5;
   text-decoration: line-through;
 }
 
 .ec-event.ec-status-no-show {
-  border-left: 3px solid rgba(248, 113, 113, 0.8) !important;
+  border-left: 3px solid rgba(248, 113, 113, 0.9) !important;
   opacity: 0.5;
 }
 
@@ -37,31 +40,62 @@
   100% { background-position: 200% 0; }
 }
 
-/* Dark mode integration with next-themes */
+/* ============================================
+   BASE CALENDAR CONFIGURATION
+   ============================================ */
+
+.ec {
+  --ec-border-color: var(--border);
+  --ec-today-bg-color: rgba(20, 184, 166, 0.08);
+  --ec-highlight-color: rgba(20, 184, 166, 0.12);
+  font-family: inherit;
+  height: 100%;
+}
+
 .dark .ec {
   color-scheme: dark;
 }
 
-.ec {
-  --ec-border-color: var(--border);
-  --ec-today-bg-color: rgba(59, 130, 246, 0.08);
-  --ec-highlight-color: rgba(59, 130, 246, 0.12);
-  font-family: inherit;
+/* ============================================
+   TIME GRID (WEEK & DAY VIEWS)
+   ============================================ */
+
+/* Horizontal lines between time slots */
+.ec-time-grid .ec-time-grid-slot {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
 }
 
-/* Calendar takes full height of container */
-.ec {
-  height: 100%;
+/* Sidebar - time labels with light background */
+.ec-time-grid .ec-sidebar {
+  background: #fafafa !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.1) !important;
 }
 
-/* Responsive: hide sidebar on mobile */
-@media (max-width: 767px) {
-  .calendar-sidebar {
-    display: none;
-  }
+.ec-time-grid .ec-sidebar time {
+  font-size: 11px;
+  font-weight: 500;
+  color: #374151;
 }
 
-/* Make events fill full width of their resource column */
+/* Vertical lines separating days - WEEK VIEW ONLY */
+.ec-time-gridWeek .ec-main {
+  background-image: repeating-linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.05) 0px,
+    rgba(0, 0, 0, 0.05) 1px,
+    transparent 1px,
+    transparent calc(100% / 7)
+  );
+  background-size: calc(100% / 7) 100%;
+  background-position: 0 0;
+}
+
+/* Resource columns vertical lines */
+.ec-resource-time-grid .ec-resource-col {
+  border-left: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Make events fill full width of their column */
 .ec-time-grid-event {
   width: 100% !important;
   margin-right: 0 !important;
@@ -72,149 +106,82 @@
   box-sizing: border-box;
 }
 
-/* In resource view, events should span full column width */
+/* Resource view - events span full column */
 .ec-resource-time-grid .ec-time-grid-event {
   right: 0 !important;
   left: 0 !important;
 }
 
 /* ============================================
-   GRID LINES - TIME GRID (WEEK/DAY VIEW)
-   Horizontal and vertical lines for time slots
+   DAY GRID (MONTH VIEW)
    ============================================ */
 
-/* Apply background grid pattern to time grid main area */
-.ec-time-grid .ec-main {
-  background-image:
-    /* Horizontal lines - every 60px (1 hour with slotHeight:60) */
-    repeating-linear-gradient(
-      to bottom,
-      rgba(0, 0, 0, 0.08) 0px,
-      rgba(0, 0, 0, 0.08) 1px,
-      transparent 1px,
-      transparent 60px
-    ),
-    /* Vertical lines - 7 columns for week view */
-    repeating-linear-gradient(
-      to right,
-      rgba(0, 0, 0, 0.06) 0px,
-      rgba(0, 0, 0, 0.06) 1px,
-      transparent 1px,
-      transparent calc(100% / 7)
-    );
-  background-size: 100% 60px, calc(100% / 7) 100%;
-  background-position: 0 0, 0 0;
-}
-
-/* Time axis (sidebar) stronger right border */
-.ec-time-grid .ec-sidebar {
-  border-right: 2px solid rgba(0, 0, 0, 0.12) !important;
-  background: white;
-}
-
-/* Resource columns vertical lines */
-.ec-resource-time-grid .ec-resource-col {
-  border-left: 1px solid rgba(0, 0, 0, 0.08) !important;
-}
-
-/* ============================================
-   GRID LINES - DAY GRID (MONTH VIEW)
-   Subtle grid lines for month calendar
-   ============================================ */
-
-/* Month view - subtle grid for day cells */
-.ec-day-grid .ec-body {
-  background-image:
-    /* Vertical lines between day columns */
-    repeating-linear-gradient(
-      to right,
-      rgba(0, 0, 0, 0.05) 0px,
-      rgba(0, 0, 0, 0.05) 1px,
-      transparent 1px,
-      transparent calc(100% / 7)
-    );
-  background-size: calc(100% / 7) 100%;
-}
-
-/* Day cells in month view - horizontal lines between weeks */
+/* Subtle vertical lines between columns - NO background image needed */
 .ec-day-grid .ec-day {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
-  border-right: 1px solid rgba(0, 0, 0, 0.04) !important;
+  border-right: 1px solid rgba(0, 0, 0, 0.06) !important;
 }
 
-/* Remove right border on last column (sunday) to avoid double line */
+/* Remove right border on last column (sunday) */
 .ec-day-grid .ec-col-head.ec-sun,
 .ec-day-grid .ec-day.ec-sun {
   border-right: none !important;
 }
 
-/* Week header separators */
+/* Subtle horizontal lines between weeks */
+.ec-day-grid .ec-week {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Week header separator */
 .ec-day-grid .ec-grid {
-  border-bottom: 2px solid rgba(0, 0, 0, 0.1) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
 }
 
 /* ============================================
-   DARK MODE GRID LINES
+   CURRENT TIME INDICATOR
    ============================================ */
 
-.dark .ec-time-grid .ec-main {
-  background-image:
-    repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.08) 0px,
-      rgba(255, 255, 255, 0.08) 1px,
-      transparent 1px,
-      transparent 60px
-    ),
-    repeating-linear-gradient(
-      to right,
-      rgba(255, 255, 255, 0.06) 0px,
-      rgba(255, 255, 255, 0.06) 1px,
-      transparent 1px,
-      transparent calc(100% / 7)
-    );
+.ec-timegrid-now-indicator-line {
+  background-color: #ef4444 !important;
+  border: none !important;
 }
 
+.ec-timegrid-now-indicator-arrow {
+  display: none !important;
+}
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+
 .dark .ec-time-grid .ec-sidebar {
+  background: #1f2937 !important;
   border-right-color: rgba(255, 255, 255, 0.15) !important;
-  background: #1a1a1a;
+}
+
+.dark .ec-time-grid .ec-sidebar time {
+  color: #d1d5db;
+}
+
+.dark .ec-time-grid .ec-time-grid-slot {
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
 }
 
 .dark .ec-day-grid .ec-day {
-  border-bottom-color: rgba(255, 255, 255, 0.08) !important;
-  border-right-color: rgba(255, 255, 255, 0.04) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.06) !important;
+  border-right-color: rgba(255, 255, 255, 0.03) !important;
 }
 
 .dark .ec-day-grid .ec-grid {
-  border-bottom-color: rgba(255, 255, 255, 0.12) !important;
+  border-bottom-color: rgba(255, 255, 255, 0.1) !important;
 }
 
 /* ============================================
-   TIME SLOTS AND LABELS
+   RESPONSIVE
    ============================================ */
 
-/* Time labels in sidebar */
-.ec-time-grid .ec-sidebar time {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted-foreground);
-}
-
-/* Slot height */
-.ec-time-grid .ec-slot {
-  height: 60px;
-}
-
-/* Current time indicator */
-.ec-timegrid-now-indicator-label {
-  background-color: rgba(59, 130, 246, 0.9) !important;
-  color: white !important;
-  font-size: 10px;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-/* Now indicator line */
-.ec-timegrid-now-indicator-arrow {
-  background-color: rgba(59, 130, 246, 0.8) !important;
+@media (max-width: 767px) {
+  .calendar-sidebar {
+    display: none;
+  }
 }

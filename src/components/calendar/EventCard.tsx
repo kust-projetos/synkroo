@@ -10,11 +10,13 @@ export function eventContent(info: any): { html: string } {
   const isMonthView = view.type === 'dayGridMonth'
 
   if (isMonthView) {
+    const title = event.title || 'Evento'
+    const time = timeText ? `${timeText} ` : ''
     return {
       html: `
         <div style="display:flex;align-items:center;gap:4px;overflow:hidden;font-size:11px;">
-          <span style="width:6px;height:6px;border-radius:50%;background:${event.backgroundColor};flex-shrink:0;"></span>
-          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${timeText} ${event.title}</span>
+          <span style="width:6px;height:6px;border-radius:50%;background:${event.backgroundColor || '#14b8a6'};flex-shrink:0;"></span>
+          <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${time}${title}</span>
         </div>
       `,
     }
