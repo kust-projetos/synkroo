@@ -83,3 +83,128 @@
   width: 100% !important;
   inset: auto !important;
 }
+
+/* ============================================
+   TIME GRID VISUAL ENHANCEMENTS
+   Show slot lines and improve readability
+   ============================================ */
+
+/* Time grid slot styling - make grid lines more visible */
+.ec-time-grid .ec-time-grid-slot {
+  border-color: var(--ec-border-color) !important;
+  border-style: solid !important;
+}
+
+/* Show stronger lines at hour marks (every 2 slots at 30min = every hour) */
+.ec-time-grid .ec-time-grid-slot:nth-child(2n) {
+  border-bottom-width: 1px !important;
+}
+
+/* Subtle highlight for every other 30-min slot (zebra striping) */
+.ec-time-grid .ec-time-grid-slot {
+  background-color: transparent;
+}
+
+/* Alternate slot background for better visual separation */
+.ec-time-grid .ec-time-grid-slot:nth-child(4n+1) {
+  background-color: rgba(var(--foreground-rgb), 0.02);
+}
+
+/* Make time labels more prominent */
+.ec-time-grid .ec-time-grid-slot-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+}
+
+/* Vertical lines for resource columns */
+.ec-time-grid .ec-day-grid-column {
+  border-left: 1px solid var(--ec-border-color) !important;
+}
+
+/* Resource column header styling */
+.ec-resource-time-grid .ec-resource-timeline-col-header {
+  border-left: 2px solid var(--ec-border-color) !important;
+}
+
+/* Week day headers - horizontal lines */
+.ec-time-grid .ec-day-header {
+  border-bottom: 2px solid var(--ec-border-color) !important;
+}
+
+/* Add subtle background to current time indicator lane */
+.ec-time-grid .ec-timegrid-slot-now-line {
+  border-top: 2px dashed rgba(59, 130, 246, 0.8) !important;
+}
+
+/* Now indicator label */
+.ec-timegrid-now-indicator-label {
+  background-color: rgba(59, 130, 246, 0.9) !important;
+  color: white !important;
+  font-size: 10px;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+/* Better slot height for readability - 60px per hour = 30px per 30min slot */
+.ec-time-grid .ec-time-grid-slot {
+  height: 30px !important;
+}
+
+/* Improve event card readability */
+.ec-time-grid-event {
+  margin: 1px 0 !important;
+  border-radius: 4px !important;
+}
+
+/* Slot lane (background lane for events) */
+.ec-time-grid .ec-time-grid-lane {
+  border-bottom: 1px dashed var(--ec-border-color) !important;
+}
+
+/* ============================================
+   GRID LINES VISUAL ENHANCEMENTS
+   Horizontal and vertical lines for time slots
+   ============================================ */
+
+/* Horizontal slot lines - solid for hour markers */
+.ec-time-grid .ec-time-grid-slot {
+  border-top: 1px solid var(--ec-border-color) !important;
+  border-bottom: none !important;
+}
+
+/* Stronger lines at hour boundaries (every 2 slots) */
+.ec-time-grid .ec-time-grid-slot:nth-child(2n) {
+  border-top: 1px solid var(--ec-border-color) !important;
+}
+
+/* Vertical lines for day columns - subtle dashed grid */
+.ec-time-grid .ec-day-grid-column {
+  border-left: 1px dashed rgba(var(--foreground-rgb), 0.12) !important;
+}
+
+/* Solid vertical lines for day headers */
+.ec-time-grid .ec-day-header {
+  border-left: 1px solid var(--ec-border-color) !important;
+}
+
+.ec-time-grid .ec-day-header:first-child {
+  border-left: none !important;
+}
+
+/* Resource view vertical lines */
+.ec-resource-time-grid .ec-resource-col {
+  border-left: 1px solid var(--ec-border-color) !important;
+}
+
+/* Time axis vertical line */
+.ec-time-grid .ec-time-axis {
+  border-right: 2px solid var(--ec-border-color) !important;
+}
+
+/* Current time vertical line span the full height */
+.ec-timegrid-now-indicator-arrow {
+  background-color: rgba(59, 130, 246, 0.8) !important;
+  width: 2px !important;
+}
