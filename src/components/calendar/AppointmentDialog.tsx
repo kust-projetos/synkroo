@@ -362,19 +362,22 @@ export function AppointmentDialog({
             <>
               {status === 'scheduled' && (
                 <>
-                  <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Cancelar</Button>
+                  <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
                   <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Confirmar</Button>
                 </>
               )}
               {status === 'confirmed' && (
                 <>
-                  <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Cancelar</Button>
+                  <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
                   <Button size="sm" variant="outline" onClick={() => handleStatusAction('noshow')} disabled={submitting}>Não Compareceu</Button>
                   <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Iniciar</Button>
                 </>
               )}
               {status === 'in_progress' && (
                 <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Concluir</Button>
+              )}
+              {status === 'cancelled' && (
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('reactivate')} disabled={submitting}>Remarcar</Button>
               )}
             </>
           )}
