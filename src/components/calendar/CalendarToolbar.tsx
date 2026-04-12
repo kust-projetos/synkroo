@@ -4,24 +4,11 @@
 import { addWeeks, addMonths, addDays, subWeeks, subMonths, subDays, format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline'
-import {
-  CalendarIcon,
-  CalendarDaysIcon,
-  ClockIcon,
-  UsersIcon,
-} from '@heroicons/react/24/outline'
 import { Button } from '@/components/ui/button'
 import type { CalendarView } from './hooks/useCalendarState'
 import { VIEW_LABELS } from './hooks/useCalendarState'
 
 const ALL_VIEWS: CalendarView[] = ['dayGridMonth', 'timeGridWeek', 'timeGridDay', 'resourceTimeGridDay']
-
-const VIEW_ICONS: Record<CalendarView, React.ComponentType<{ className?: string }>> = {
-  dayGridMonth: CalendarDaysIcon,
-  timeGridWeek: CalendarIcon,
-  timeGridDay: ClockIcon,
-  resourceTimeGridDay: UsersIcon,
-}
 
 interface CalendarToolbarProps {
   view: CalendarView
@@ -74,17 +61,15 @@ export function CalendarToolbar({
   })()
 
   return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border bg-background/80 backdrop-blur-sm">
-      <div className="flex items-center gap-1.5">
-        <div className="flex rounded-lg border border-border bg-muted/30 p-0.5 shadow-sm">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('prev')}>
-            <ChevronLeftIcon className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => navigate('next')}>
-            <ChevronRightIcon className="h-4 w-4" />
-          </Button>
-        </div>
-        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onToday}>
+    <div className="flex items-center justify-between gap-4 px-4 py-3 border-b border-border bg-background">
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => navigate('prev')}>
+          <ChevronLeftIcon className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => navigate('next')}>
+          <ChevronRightIcon className="h-4 w-4" />
+        </Button>
+        <Button variant="outline" size="sm" onClick={onToday}>
           Hoje
         </Button>
         <h2 className="text-sm font-semibold ml-2 capitalize">{title}</h2>
@@ -94,26 +79,22 @@ export function CalendarToolbar({
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex rounded-lg border border-border bg-muted/50 p-0.5 shadow-sm">
-          {availableViews.map((v) => {
-            const ViewIcon = VIEW_ICONS[v]
-            return (
-              <button
-                key={v}
-                onClick={() => onViewChange(v)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
-                  view === v
-                    ? 'bg-teal-600 text-white shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-background'
-                }`}
-              >
-                <ViewIcon className="h-3.5 w-3.5" />
-                {VIEW_LABELS[v]}
-              </button>
-            )
-          })}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          {availableViews.map((v) => (
+            <button
+              key={v}
+              onClick={() => onViewChange(v)}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                view === v
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-background text-muted-foreground hover:bg-muted'
+              }`}
+            >
+              {VIEW_LABELS[v]}
+            </button>
+          ))}
         </div>
-        <Button size="sm" onClick={onNewAppointment} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 shadow-sm">
+        <Button size="sm" onClick={onNewAppointment} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
           <PlusIcon className="h-4 w-4 mr-1" />
           Novo
         </Button>

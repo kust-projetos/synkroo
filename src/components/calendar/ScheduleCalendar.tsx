@@ -125,10 +125,5 @@ export function ScheduleCalendar({
     }
   }, [eventsKey, resourcesKey, view, dateStr])
 
-  // Derive view category class for CSS grid line differentiation
-  // Day view: 1 column (no vertical grid lines needed)
-  // Week view: 7 columns (vertical grid lines for day separators)
-  const viewCategory = view === 'timeGridDay' ? 'ec-day-view' : view === 'timeGridWeek' ? 'ec-week-view' : ''
-
-  return <div ref={containerRef} className={`ec ${viewCategory}`} style={{ height: '100%' }} />
+  return <div ref={containerRef} className="ec" style={{ height: '100%' }} />
 }
