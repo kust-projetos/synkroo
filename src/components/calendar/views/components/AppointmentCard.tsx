@@ -1,6 +1,5 @@
 import { cn } from '@/lib/utils'
 import type { Appointment } from '../../utils/appointment-utils'
-import { getStatusColors, getStatusIcon, isCancelledStatus } from '../../utils/appointment-utils'
 
 interface AppointmentCardProps {
   appointment: Appointment
@@ -17,6 +16,23 @@ export function AppointmentCard({
   onDragStart,
   className,
 }: AppointmentCardProps) {
+  const isBlocked = appointment.isBlocked
+
+  // Blocked appointments render as subtle background blocks
+  if (isBlocked) {
+    return (
+      <div
+        className={cn(
+          "absolute left-1 right-1 rounded-lg bg-muted/40 border border-dashed border-muted-foreground/30",
+          className
+        )}
+        style={{
+          ...style,
+        }}
+      />
+    )
+  }
+
   const colors = getStatusColors(appointment.status)
   const icon = getStatusIcon(appointment.status)
   const isCancelled = isCancelledStatus(appointment.status)
@@ -67,4 +83,33 @@ export function AppointmentCard({
       </div>
     </div>
   )
+}
+
+// Helper functions that should be imported or duplicated
+function getStatusColors(status: string): { bg: string; bgEnd: string } {
+  const colors: Record<string, { bg: string; bgEnd: string }> = {
+    scheduled: { bg: '#F59E0B', bgEnd: '#D97706' },
+    confirmed: { bg: '#14B8A6', bgEnd: '#0D9488' },
+    in_progress: { bg: '#22C55E', bgEnd: '#16A34A' },
+    completed: { bg: '#6B7280', bgEnd: '#4B5563' },
+    cancelled: { bg: '#EF4444', bgEnd: '#DC2626' },
+    no_show: { bg: '#EF4444', bgEnd: '#DC2626' },
+  }
+  return colors[status] || colors.scheduled
+}
+
+function getStatusIcon(status: string): string {
+  const icons: Record<string, string> = {
+    scheduled: '⏳',
+    confirmed: '✓',
+    in_progress: '▶',
+    completed: '✓',
+    cancelled: '✕',
+    no_show: '✕',
+  }
+  return icons[status] || '⏳'
+}
+
+function isCancelledStatus(status: string): boolean {
+  return ['cancelled', 'no_show'].includes(status)
 }

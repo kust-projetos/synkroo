@@ -14,7 +14,7 @@ interface WeekViewProps {
   date: Date
   events: CalendarEvent[]
   onEventClick?: (eventId: string) => void
-  onEventDrop?: (eventId: string, newDate: Date, newHour: number) => void
+  onEventDrop?: (eventId: string, newDate: Date, newHour: number, newMinute: number) => void
 }
 
 export function WeekView({ date, events, onEventClick, onEventDrop }: WeekViewProps) {
@@ -37,9 +37,9 @@ export function WeekView({ date, events, onEventClick, onEventDrop }: WeekViewPr
     setDraggedEventId(appointment.id)
   }, [])
 
-  const handleDrop = useCallback((appointmentId: string, targetDay: Date, targetHour: number) => {
+  const handleDrop = useCallback((appointmentId: string, targetDay: Date, targetHour: number, targetMinute: number) => {
     setDraggedEventId(null)
-    onEventDrop?.(appointmentId, targetDay, targetHour)
+    onEventDrop?.(appointmentId, targetDay, targetHour, targetMinute)
   }, [onEventDrop])
 
   return (
@@ -68,8 +68,9 @@ export function WeekView({ date, events, onEventClick, onEventDrop }: WeekViewPr
                     hour={hour}
                     appointments={appointments}
                     onAppointmentClick={onEventClick}
-                    onDrop={(id, h) => handleDrop(id, day, h)}
+                    onDrop={(id, h, m) => handleDrop(id, day, h, m)}
                     isDropTarget={draggedEventId !== null}
+                    draggedAppointmentId={draggedEventId}
                     onDragStart={handleDragStart}
                   />
                 )

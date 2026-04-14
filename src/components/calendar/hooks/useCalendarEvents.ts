@@ -14,6 +14,7 @@ export interface CalendarEvent {
   resourceId: string
   backgroundColor: string
   editable: boolean
+  display: 'block' | 'inline' | 'background'
   extendedProps: {
     patientName: string
     procedureName: string
@@ -22,6 +23,7 @@ export interface CalendarEvent {
     notes: string | null
     patientPhone: string | null
     durationMinutes: number
+    isBlocked?: boolean
   }
 }
 
@@ -89,24 +91,29 @@ export function useCalendarEvents(
     if (!data?.appointments) return []
     return (data.appointments as AppointmentResponse['appointments'])
       .filter((apt) => apt.dentists?.id)
-      .map((apt, index) => ({
-        id: apt.id,
-        title: apt.patients?.name || 'Paciente',
-        start: formatDateTime(apt.scheduled_at),
-        end: addMinutes(apt.scheduled_at, apt.duration_minutes),
-        resourceId: apt.dentists!.id,
-        backgroundColor: getDentistColor(apt.dentists!.id, index),
-        editable: EDITABLE_STATUSES.has(apt.status),
-        extendedProps: {
-          patientName: apt.patients?.name || 'Paciente',
-          procedureName: apt.procedures?.name || '',
-          status: apt.status,
-          dentistName: apt.dentists?.name || '',
-          notes: apt.notes,
-          patientPhone: apt.patients?.phone || null,
-          durationMinutes: apt.duration_minutes,
-        },
-      }))
+      .map((apt, index) => {
+        const isBlocked = apt.status === 'blocked' || apt.status === 'unavailable'
+        return {
+          id: apt.id,
+          title: isBlocked ? 'Bloqueado' : apt.patients?.name || 'Paciente',
+          start: formatDateTime(apt.scheduled_at),
+          end: addMinutes(apt.scheduled_at, apt.duration_minutes),
+          resourceId: apt.dentists!.id,
+          backgroundColor: isBlocked ? '#9CA3AF' : getDentistColor(apt.dentists!.id, index),
+          editable: false,
+          display: isBlocked ? 'background' : 'block',
+          extendedProps: {
+            patientName: apt.patients?.name || 'Paciente',
+            procedureName: apt.procedures?.name || '',
+            status: isBlocked ? 'blocked' : apt.status,
+            dentistName: apt.dentists!.name || '',
+            notes: apt.notes,
+            patientPhone: apt.patients?.phone || null,
+            durationMinutes: apt.duration_minutes,
+            isBlocked,
+          },
+        }
+      })
   }, [data])
 
   const resources = useMemo((): CalendarResource[] => {

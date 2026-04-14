@@ -11,6 +11,7 @@ export interface Appointment {
   patientPhone?: string
   startMinutes: number
   dentistId: string
+  isBlocked?: boolean
 }
 
 export interface StatusColorSet {
@@ -67,6 +68,7 @@ export function eventToAppointment(event: CalendarEvent, date: Date): Appointmen
     patientPhone: event.extendedProps.patientPhone || undefined,
     startMinutes,
     dentistId: event.resourceId,
+    isBlocked: event.extendedProps.isBlocked === true,
   }
 }
 
