@@ -195,13 +195,9 @@ export function AppointmentDialog({
       setPatientPhone(event.extendedProps.patientPhone || '')
       setDentistId(event.resourceId)
       setProcedureId('')
-      // Handle both Date object and ISO string formats
-      const startDate = event.start instanceof Date
-        ? event.start
-        : new Date(event.start.replace(' ', 'T'))
-      const endDate = event.end instanceof Date
-        ? event.end
-        : new Date(event.end.replace(' ', 'T'))
+      // CalendarEvent.start/end are ISO strings with space separator
+      const startDate = new Date(event.start.replace(' ', 'T'))
+      const endDate = new Date(event.end.replace(' ', 'T'))
       setDate(startDate.toLocaleDateString('en-CA'))
       setTime(startDate.toTimeString().slice(0, 5))
       const durMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000)
@@ -446,7 +442,7 @@ export function AppointmentDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {customDurations.map((mins) => (
+                    {customDurations.map((mins: number) => (
                       <SelectItem key={mins} value={String(mins)}>{formatDuration(mins)}</SelectItem>
                     ))}
                   </SelectContent>

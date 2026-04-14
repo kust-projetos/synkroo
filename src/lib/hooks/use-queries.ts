@@ -240,14 +240,14 @@ export function useCampaign(id: string) {
 /**
  * Calendar events — cached for 30s, enriched with joins
  */
-export function useCalendarEventsQuery(params?: Record<string, string>) {
-  const qs = params ? new URLSearchParams(params).toString() : ''
+export function useCalendarEventsQuery(params?: Record<string, string> | string) {
+  const qs = typeof params === 'string' ? params : params ? new URLSearchParams(params).toString() : ''
 
   return useQuery({
     queryKey: queryKeys.calendarEvents(qs),
     queryFn: () => fetcher<any>(`/api/appointments${qs ? `?${qs}` : ''}`),
     staleTime: 30 * 1000,
-    enabled: !!params,
+    enabled: !!qs,
   })
 }
 
