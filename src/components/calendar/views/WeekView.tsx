@@ -5,13 +5,10 @@ import { cn } from '@/lib/utils'
 import { TimeColumn } from './components/TimeColumn'
 import { DayHeader } from './components/DayHeader'
 import { TimeSlot } from './components/TimeSlot'
-import { ManyAppointmentsSlot } from './components/ManyAppointmentsSlot'
 import { CurrentTimeIndicator } from './components/CurrentTimeIndicator'
 import { getWeekDays, HOURS, SLOT_HEIGHT, formatDateKey } from '../utils/date-utils'
 import { eventToAppointment, groupAppointmentsByHour } from '../utils/appointment-utils'
 import type { CalendarEvent } from '../hooks/useCalendarEvents'
-
-const MAX_VISIBLE_PER_SLOT = 3
 
 interface WeekViewProps {
   date: Date
@@ -63,19 +60,6 @@ export function WeekView({ date, events, onEventClick, onEventDrop }: WeekViewPr
                   return eventDate.getHours() === hour
                 })
                 const appointments = hourEvents.map(e => eventToAppointment(e, day))
-                const isManyAppointments = appointments.length > MAX_VISIBLE_PER_SLOT
-
-                if (isManyAppointments) {
-                  return (
-                    <ManyAppointmentsSlot
-                      key={`${dayStr}-${hour}`}
-                      appointments={appointments}
-                      maxVisible={MAX_VISIBLE_PER_SLOT}
-                      onAppointmentClick={onEventClick}
-                      onExpand={() => {}}
-                    />
-                  )
-                }
 
                 return (
                   <TimeSlot
