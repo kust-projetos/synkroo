@@ -60,4 +60,8 @@ export function setTime(date: Date, hours: number, minutes: number = 0): Date {
   return setMinutes(setHours(date, hours), minutes)
 }
 
+export function formatDateKey(date: Date): string {
+  return format(date, 'yyyy-MM-dd')
+}
+
 export { isSameDay, isToday, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, format }
