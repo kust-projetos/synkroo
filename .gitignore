@@ -70,3 +70,6 @@ supabase/config.toml
 
 # Claude Code (local config can contain sensitive paths)
 /.claude/graphify-out/
+
+# Worktrees (isolated workspaces for parallel development)
+/.worktrees/
