@@ -19,7 +19,7 @@ interface ScheduleCalendarProps {
   onDateChange: (date: Date) => void
   onEventClick: (event: CalendarEvent) => void
   onDateClick: (date: string, resourceId?: string) => void
-  onEventDrop: (eventId: string, newDate: Date, newHour: number) => void
+  onEventDrop: (eventId: string, newDate: Date, newHour: number, newMinute: number) => void
   onEventResize: (info: any) => void
   onDatesSet: (startDate: string, endDate: string, viewType: string) => void
 }
@@ -37,9 +37,9 @@ export function ScheduleCalendar({
   const { toast } = useToast()
 
   const handleEventDrop = useCallback(
-    async (eventId: string, newDate: Date, newHour: number) => {
+    async (eventId: string, newDate: Date, newHour: number, newMinute: number) => {
       try {
-        await onEventDrop(eventId, newDate, newHour)
+        await onEventDrop(eventId, newDate, newHour, newMinute)
         toast({
           title: 'Sucesso',
           description: 'Agendamento reagendado',

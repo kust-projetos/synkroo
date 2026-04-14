@@ -108,13 +108,14 @@ export function CalendarLayout() {
 
   // Handle event drop - call API to reschedule
   const handleEventDrop = useCallback(
-    async (eventId: string, newDate: Date, newHour: number) => {
+    async (eventId: string, newDate: Date, newHour: number, newMinute: number) => {
+      const formattedTime = `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}:00`
       const response = await fetch(`/api/appointments/${eventId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           date: format(newDate, 'yyyy-MM-dd'),
-          time: `${String(newHour).padStart(2, '0')}:00:00`,
+          time: formattedTime,
         }),
       })
       if (!response.ok) throw new Error('Failed to reschedule')

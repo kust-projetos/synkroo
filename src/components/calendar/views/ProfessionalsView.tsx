@@ -4,21 +4,18 @@ import { useMemo, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { TimeColumn } from './components/TimeColumn'
 import { TimeSlot } from './components/TimeSlot'
-import { ManyAppointmentsSlot } from './components/ManyAppointmentsSlot'
 import { ProfessionalHeader } from './components/ProfessionalHeader'
 import { HOURS, formatDateHeader } from '../utils/date-utils'
 import { eventToAppointment, groupAppointmentsByDentist } from '../utils/appointment-utils'
 import type { CalendarEvent, CalendarResource } from '../hooks/useCalendarEvents'
 import { getDentistColor } from '../utils/dentist-colors'
 
-const MAX_VISIBLE_PER_SLOT = 3
-
 interface ProfessionalsViewProps {
   date: Date
   events: CalendarEvent[]
   resources: CalendarResource[]
   onEventClick?: (eventId: string) => void
-  onEventDrop?: (eventId: string, newDate: Date, newHour: number) => void
+  onEventDrop?: (eventId: string, newDate: Date, newHour: number, newMinute: number) => void
 }
 
 export function ProfessionalsView({
@@ -42,9 +39,9 @@ export function ProfessionalsView({
     setDraggedEventId(appointment.id)
   }, [])
 
-  const handleDrop = useCallback((appointmentId: string, newHour: number) => {
+  const handleDrop = useCallback((appointmentId: string, newHour: number, newMinute: number) => {
     setDraggedEventId(null)
-    onEventDrop?.(appointmentId, date, newHour)
+    onEventDrop?.(appointmentId, date, newHour, newMinute)
   }, [date, onEventDrop])
 
   return (
@@ -55,14 +52,20 @@ export function ProfessionalsView({
 
       <div className="flex flex-1 overflow-auto">
         <TimeColumn />
-        <div className="flex flex-1">
+        <div className="flex flex-1 min-w-0">
           {resources.map((resource, index) => {
             const dentistAppointments = appointmentsByDentist.get(resource.id) || []
             const color = getDentistColor(resource.id, index)
             const initials = resource.title.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
 
             return (
-              <div key={resource.id} className="flex-1 border-r border-border">
+              <div
+                key={resource.id}
+                className={cn(
+                  "flex-1 min-w-[120px] border-r border-border last:border-r-0",
+                  index >= 2 && "bg-muted/10"
+                )}
+              >
                 <ProfessionalHeader
                   name={resource.title}
                   specialty=""
@@ -73,18 +76,6 @@ export function ProfessionalsView({
                   const hourAppointments = dentistAppointments.filter(
                     a => Math.floor(a.startMinutes / 60) === hour
                   )
-                  const isManyAppointments = hourAppointments.length > MAX_VISIBLE_PER_SLOT
-
-                  if (isManyAppointments) {
-                    return (
-                      <ManyAppointmentsSlot
-                        key={`${resource.id}-${hour}`}
-                        appointments={hourAppointments}
-                        maxVisible={MAX_VISIBLE_PER_SLOT}
-                        onAppointmentClick={onEventClick}
-                      />
-                    )
-                  }
 
                   return (
                     <TimeSlot
@@ -95,6 +86,7 @@ export function ProfessionalsView({
                       onAppointmentClick={onEventClick}
                       onDrop={handleDrop}
                       isDropTarget={draggedEventId !== null}
+                      draggedAppointmentId={draggedEventId}
                       onDragStart={handleDragStart}
                     />
                   )
