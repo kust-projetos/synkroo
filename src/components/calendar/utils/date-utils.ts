@@ -24,8 +24,32 @@ export const WEEKDAYS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'] as co
 
 export const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const
 
-export const SLOT_HEIGHT = 80 // pixels per hour
-export const MINUTES_PER_PIXEL = 60 / SLOT_HEIGHT
+// 15-minute slot configuration
+export const SLOT_MINUTES = 15
+export const SLOTS_PER_HOUR = 60 / SLOT_MINUTES // 4
+export const SLOT_HEIGHT = 20 // pixels per 15-min slot
+export const MINUTES_PER_PIXEL = SLOT_MINUTES / SLOT_HEIGHT
+
+// Total slots per day (11 hours * 4 slots)
+export const TOTAL_SLOTS = HOURS.length * SLOTS_PER_HOUR // 44
+
+// Convert time to slot index
+export function timeToSlot(hour: number, minute: number): number {
+  return (hour - HOURS[0]) * SLOTS_PER_HOUR + Math.floor(minute / SLOT_MINUTES)
+}
+
+// Convert slot index to hour and minute
+export function slotToTime(slot: number): { hour: number; minute: number } {
+  const adjustedSlot = slot % TOTAL_SLOTS
+  const hour = HOURS[0] + Math.floor(adjustedSlot / SLOTS_PER_HOUR)
+  const minute = (adjustedSlot % SLOTS_PER_HOUR) * SLOT_MINUTES
+  return { hour, minute }
+}
+
+// Snap minutes to nearest slot
+export function snapToSlot(minute: number): number {
+  return Math.round(minute / SLOT_MINUTES) * SLOT_MINUTES
+}
 
 export function formatDateHeader(date: Date): string {
   return format(date, "d 'de' MMMM, yyyy", { locale: ptBR })

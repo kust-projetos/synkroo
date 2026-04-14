@@ -13,7 +13,7 @@ interface DayViewProps {
   date: Date
   events: CalendarEvent[]
   onEventClick?: (eventId: string) => void
-  onEventDrop?: (eventId: string, newDate: Date, newHour: number) => void
+  onEventDrop?: (eventId: string, newDate: Date, newHour: number, newMinute: number) => void
 }
 
 export function DayView({ date, events, onEventClick, onEventDrop }: DayViewProps) {
@@ -31,9 +31,9 @@ export function DayView({ date, events, onEventClick, onEventDrop }: DayViewProp
     setDraggedEventId(appointment.id)
   }, [])
 
-  const handleDrop = useCallback((appointmentId: string, newHour: number) => {
+  const handleDrop = useCallback((appointmentId: string, newHour: number, newMinute: number) => {
     setDraggedEventId(null)
-    onEventDrop?.(appointmentId, date, newHour)
+    onEventDrop?.(appointmentId, date, newHour, newMinute)
   }, [date, onEventDrop])
 
   return (
@@ -57,6 +57,7 @@ export function DayView({ date, events, onEventClick, onEventDrop }: DayViewProp
                 onAppointmentClick={onEventClick}
                 onDrop={handleDrop}
                 isDropTarget={draggedEventId !== null}
+                draggedAppointmentId={draggedEventId}
                 onDragStart={handleDragStart}
               />
             )
