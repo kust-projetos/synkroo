@@ -21,12 +21,15 @@ global.fetch = jest.fn().mockResolvedValue({ ok: true })
 
 const mockSupabase = {
   from: jest.fn(),
+  rpc: jest.fn(),
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  jest.resetAllMocks()
   const { createTypedClient } = require('@/lib/supabase/typed')
   createTypedClient.mockReturnValue(mockSupabase)
+  const { processWaitlistOnCancellation } = require('@/services/waitlist/waitlist.service')
+  processWaitlistOnCancellation.mockResolvedValue({ notified: 0 })
 })
 
 describe('WhatsApp Confirmation Flow', () => {
@@ -134,6 +137,10 @@ describe('WhatsApp Confirmation Flow', () => {
             eq: jest.fn().mockResolvedValue({ error: null }),
           }),
         })
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { success: true },
+        error: null,
+      })
 
       const result = await rescheduleAppointment('apt-123', dateStr, timeStr)
 
