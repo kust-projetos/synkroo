@@ -21,6 +21,7 @@ export interface CalendarEvent {
     dentistName: string
     notes: string | null
     patientPhone: string | null
+    durationMinutes: number
   }
 }
 
@@ -80,12 +81,8 @@ export function useCalendarEvents(
     return urlParams.toString()
   }, [clinicId, startDate, endDate, dentistIds, specialty])
 
-  const params = useMemo(() => {
-    if (!queryUrl) return undefined
-    return Object.fromEntries(new URLSearchParams(queryUrl))
-  }, [queryUrl])
-
-  const { data: rawData, isLoading, error, refetch } = useCalendarEventsQuery(params)
+  // Pass query string directly to preserve repeated params (e.g. dentist_ids=X&dentist_ids=Y)
+  const { data: rawData, isLoading, error, refetch } = useCalendarEventsQuery(queryUrl || undefined)
   const data = rawData as AppointmentResponse | undefined
 
   const events = useMemo((): CalendarEvent[] => {
@@ -107,6 +104,7 @@ export function useCalendarEvents(
           dentistName: apt.dentists?.name || '',
           notes: apt.notes,
           patientPhone: apt.patients?.phone || null,
+          durationMinutes: apt.duration_minutes,
         },
       }))
   }, [data])
