@@ -7,7 +7,7 @@ import { DayHeader } from './components/DayHeader'
 import { TimeSlot } from './components/TimeSlot'
 import { ManyAppointmentsSlot } from './components/ManyAppointmentsSlot'
 import { CurrentTimeIndicator } from './components/CurrentTimeIndicator'
-import { getWeekDays, HOURS, SLOT_HEIGHT } from '../utils/date-utils'
+import { getWeekDays, HOURS, SLOT_HEIGHT, formatDateKey } from '../utils/date-utils'
 import { eventToAppointment, groupAppointmentsByHour } from '../utils/appointment-utils'
 import type { CalendarEvent } from '../hooks/useCalendarEvents'
 
@@ -28,7 +28,7 @@ export function WeekView({ date, events, onEventClick, onEventDrop }: WeekViewPr
   const appointmentsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
     weekDays.forEach(day => {
-      const dayStr = day.toISOString().split('T')[0]
+      const dayStr = formatDateKey(day)
       const dayAppointments = events.filter(e => e.start.startsWith(dayStr))
       map.set(dayStr, dayAppointments)
     })
@@ -50,7 +50,7 @@ export function WeekView({ date, events, onEventClick, onEventDrop }: WeekViewPr
       <TimeColumn />
       <div className="flex flex-1">
         {weekDays.map((day, dayIndex) => {
-          const dayStr = day.toISOString().split('T')[0]
+          const dayStr = formatDateKey(day)
           const dayEvents = appointmentsByDay.get(dayStr) || []
           const isWeekend = dayIndex >= 5
 

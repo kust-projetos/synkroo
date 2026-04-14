@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { cn } from '@/lib/utils'
-import { getMonthDays, isToday, format } from '../utils/date-utils'
+import { getMonthDays, isToday, format, formatDateKey } from '../utils/date-utils'
 import { getStatusColors, type AppointmentStatus } from '../utils/appointment-utils'
 import type { CalendarEvent } from '../hooks/useCalendarEvents'
 
@@ -24,7 +24,8 @@ export function MonthView({ date, events, onEventClick, onDayClick }: MonthViewP
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
     events.forEach(event => {
-      const dayStr = event.start.split('T')[0]
+      // Format from useCalendarEvents is "YYYY-MM-DD HH:MM:SS" (space separator)
+      const dayStr = event.start.split(' ')[0]
       const existing = map.get(dayStr) || []
       map.set(dayStr, [...existing, event])
     })
@@ -51,7 +52,7 @@ export function MonthView({ date, events, onEventClick, onDayClick }: MonthViewP
       <div className="flex-1 grid grid-cols-7 grid-rows-5">
         {weeks.slice(0, 5).map((week, weekIndex) =>
           week.map((day, dayIndex) => {
-            const dayStr = day.toISOString().split('T')[0]
+            const dayStr = formatDateKey(day)
             const dayEvents = eventsByDay.get(dayStr) || []
             const isCurrentMonth = day.getMonth() === date.getMonth()
             const isWeekend = dayIndex >= 5
