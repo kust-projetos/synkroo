@@ -1,17 +1,19 @@
 // src/components/calendar/CalendarLayout.tsx
 'use client'
 
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { ScheduleCalendar } from './ScheduleCalendar'
 import { CalendarToolbar } from './CalendarToolbar'
 import { CalendarSidebar } from './CalendarSidebar'
+import { AppointmentDialog } from './AppointmentDialog'
 import { useCalendarState } from './hooks/useCalendarState'
 import { useCalendarEvents } from './hooks/useCalendarEvents'
 import { useCalendarNavigation } from './hooks/useCalendarNavigation'
+import { useAuth } from '@/lib/auth/context'
 import type { CalendarView } from './hooks/useCalendarState'
-
-// TODO: Get clinicId from auth context
-const CLINIC_ID = 'default-clinic'
+import type { CalendarEvent } from './hooks/useCalendarEvents'
+import { format } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 interface Dentist {
   id: string
@@ -20,9 +22,24 @@ interface Dentist {
 }
 
 export function CalendarLayout() {
+  const { profile } = useAuth()
+  const clinicId = profile?.clinic_id || 'default-clinic'
+
+  const [dialogState, setDialogState] = useState<{
+    open: boolean
+    mode: 'create' | 'edit' | 'reschedule'
+    event?: CalendarEvent | null
+    prefillDate?: string
+    prefillTime?: string
+    prefillDentistId?: string
+  }>({
+    open: false,
+    mode: 'create',
+  })
+
   const { state, updateState } = useCalendarState()
   const { events, resources, isLoading, refetch, invalidateCalendar } = useCalendarEvents(
-    CLINIC_ID,
+    clinicId,
     state.startDate,
     state.endDate,
     state.dentistIds,
@@ -61,32 +78,56 @@ export function CalendarLayout() {
     [updateState]
   )
 
-  // Handle event click - TODO: open dialog
-  const handleEventClick = useCallback((event: any) => {
-    console.log('Event clicked:', event)
-    // TODO: open appointment dialog
+  // Handle event click - open edit dialog
+  const handleEventClick = useCallback((event: CalendarEvent) => {
+    setDialogState({
+      open: true,
+      mode: 'edit',
+      event,
+    })
   }, [])
 
-  // Handle date click - TODO: open new appointment dialog
+  // Handle date click - open new appointment dialog
   const handleDateClick = useCallback((date: string, resourceId?: string) => {
-    console.log('Date clicked:', date, resourceId)
-    // TODO: open new appointment dialog
+    setDialogState({
+      open: true,
+      mode: 'create',
+      prefillDate: date,
+      prefillDentistId: resourceId,
+    })
   }, [])
 
   // Handle new appointment button
   const handleNewAppointment = useCallback(() => {
-    // TODO: open new appointment dialog
-    console.log('New appointment')
-  }, [])
+    setDialogState({
+      open: true,
+      mode: 'create',
+      prefillDate: format(state.date, 'yyyy-MM-dd', { locale: ptBR }),
+    })
+  }, [state.date])
 
-  // Handle event drop - TODO: call API
+  // Handle event drop - call API to reschedule
   const handleEventDrop = useCallback(
     async (eventId: string, newDate: Date, newHour: number) => {
-      console.log('Event dropped:', eventId, newDate, newHour)
-      // TODO: call API to reschedule
+      const response = await fetch(`/api/appointments/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: format(newDate, 'yyyy-MM-dd'),
+          time: `${String(newHour).padStart(2, '0')}:00:00`,
+        }),
+      })
+      if (!response.ok) throw new Error('Failed to reschedule')
+      invalidateCalendar()
     },
-    []
+    [invalidateCalendar]
   )
+
+  // Handle dialog success
+  const handleDialogSuccess = useCallback(() => {
+    setDialogState(prev => ({ ...prev, open: false }))
+    invalidateCalendar()
+  }, [invalidateCalendar])
 
   // Handle dentist filter change
   const handleDentistChange = useCallback(
@@ -141,6 +182,16 @@ export function CalendarLayout() {
           />
         </div>
       </div>
+      <AppointmentDialog
+        open={dialogState.open}
+        onOpenChange={(open) => setDialogState(prev => ({ ...prev, open }))}
+        mode={dialogState.mode}
+        event={dialogState.event}
+        prefillDate={dialogState.prefillDate}
+        prefillTime={dialogState.prefillTime}
+        prefillDentistId={dialogState.prefillDentistId}
+        onSuccess={handleDialogSuccess}
+      />
     </div>
   )
 }
