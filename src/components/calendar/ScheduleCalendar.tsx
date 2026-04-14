@@ -1,32 +1,25 @@
 // src/components/calendar/ScheduleCalendar.tsx
 'use client'
 
-import { useEffect, useRef, useMemo } from 'react'
-import {
-  createCalendar,
-  destroyCalendar,
-  DayGrid,
-  TimeGrid,
-  ResourceTimeGrid,
-  Interaction,
-} from '@event-calendar/core'
-import '@event-calendar/core/index.css'
-import './calendar-styles.css'
-
-import { eventContent, eventClassNames } from './EventCard'
+import { useCallback } from 'react'
+import { useToast } from '@/hooks/use-toast'
+import { WeekView } from './views/WeekView'
+import { MonthView } from './views/MonthView'
+import { DayView } from './views/DayView'
+import { ProfessionalsView } from './views/ProfessionalsView'
+import { useCalendarNavigation } from './hooks/useCalendarNavigation'
 import type { CalendarEvent, CalendarResource } from './hooks/useCalendarEvents'
 import type { CalendarView } from './hooks/useCalendarState'
-
-const PLUGINS = [DayGrid, TimeGrid, ResourceTimeGrid, Interaction]
 
 interface ScheduleCalendarProps {
   events: CalendarEvent[]
   resources: CalendarResource[]
   view: CalendarView
   date: Date
+  onDateChange: (date: Date) => void
   onEventClick: (event: CalendarEvent) => void
   onDateClick: (date: string, resourceId?: string) => void
-  onEventDrop: (info: any) => void
+  onEventDrop: (eventId: string, newDate: Date, newHour: number) => void
   onEventResize: (info: any) => void
   onDatesSet: (startDate: string, endDate: string, viewType: string) => void
 }
@@ -36,94 +29,86 @@ export function ScheduleCalendar({
   resources,
   view,
   date,
+  onDateChange,
   onEventClick,
   onDateClick,
   onEventDrop,
-  onEventResize,
-  onDatesSet,
 }: ScheduleCalendarProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+  const { toast } = useToast()
 
-  // Serialize to detect actual data changes (avoid re-create on reference change)
-  const eventsKey = useMemo(() => JSON.stringify(events), [events])
-  const resourcesKey = useMemo(() => JSON.stringify(resources), [resources])
-  const dateStr = useMemo(() => date.toISOString().split('T')[0], [date])
-
-  useEffect(() => {
-    if (!containerRef.current) return
-
-    // Destroy existing calendar BEFORE clearing DOM to prevent orphaned instances
-    if (containerRef.current.__calendar) {
-      destroyCalendar(containerRef.current.__calendar)
-      containerRef.current.__calendar = undefined
-    }
-
-    // Clear any residual DOM from previous instance
-    while (containerRef.current.firstChild) {
-      containerRef.current.removeChild(containerRef.current.firstChild)
-    }
-
-    // Create new calendar and store reference for cleanup
-    const calendar = createCalendar(containerRef.current, PLUGINS, {
-      view,
-      date: dateStr,
-      events,
-      resources,
-      editable: true,
-      selectable: true,
-      nowIndicator: true,
-      firstDay: 1,
-      locale: 'pt-BR',
-      slotDuration: '00:30:00',
-      slotMinTime: '07:00:00',
-      slotMaxTime: '20:00:00',
-      scrollTime: '08:00:00',
-      snapDuration: '00:15:00',
-      slotHeight: 60, // 60px per hour = 30px per 30min slot
-      headerToolbar: false,
-      dayMaxEvents: 3,
-      height: '100%',
-      eventContent,
-      eventClassNames,
-      eventClick: (info: any) => {
-        const e = info.event
-        onEventClick({
-          id: e.id,
-          title: e.title,
-          start: e.startStr || e.start,
-          end: e.endStr || e.end,
-          resourceId: e.resource?.id || '',
-          backgroundColor: e.backgroundColor,
-          editable: true,
-          extendedProps: e.extendedProps || {},
+  const handleEventDrop = useCallback(
+    async (eventId: string, newDate: Date, newHour: number) => {
+      try {
+        await onEventDrop(eventId, newDate, newHour)
+        toast({
+          title: 'Sucesso',
+          description: 'Agendamento reagendado',
         })
-      },
-      dateClick: (info: any) => {
-        onDateClick(info.dateStr, info.resource?.id)
-      },
-      eventDrop: (info: any) => {
-        onEventDrop(info)
-      },
-      eventResize: (info: any) => {
-        onEventResize(info)
-      },
-      datesSet: (info: any) => {
-        onDatesSet(info.startStr, info.endStr, info.view.type)
-      },
-    })
-
-    // Store calendar reference for cleanup
-    containerRef.current.__calendar = calendar
-
-    return () => {
-      if (containerRef.current) {
-        if (containerRef.current.__calendar) {
-          destroyCalendar(containerRef.current.__calendar)
-          containerRef.current.__calendar = undefined
-        }
+      } catch (error) {
+        toast({
+          title: 'Erro',
+          description: 'Falha ao reagendar. Tente novamente.',
+          variant: 'destructive',
+        })
       }
-    }
-  }, [eventsKey, resourcesKey, view, dateStr])
+    },
+    [onEventDrop, toast]
+  )
 
-  return <div ref={containerRef} className="ec" style={{ height: '100%' }} />
+  const renderView = () => {
+    switch (view) {
+      case 'dayGridMonth':
+        return (
+          <MonthView
+            date={date}
+            events={events}
+            onEventClick={(id) => {
+              const event = events.find((e) => e.id === id)
+              if (event) onEventClick(event)
+            }}
+            onDayClick={onDateChange}
+          />
+        )
+      case 'timeGridDay':
+        return (
+          <DayView
+            date={date}
+            events={events}
+            onEventClick={(id) => {
+              const event = events.find((e) => e.id === id)
+              if (event) onEventClick(event)
+            }}
+            onEventDrop={handleEventDrop}
+          />
+        )
+      case 'resourceTimeGridDay':
+        return (
+          <ProfessionalsView
+            date={date}
+            events={events}
+            resources={resources}
+            onEventClick={(id) => {
+              const event = events.find((e) => e.id === id)
+              if (event) onEventClick(event)
+            }}
+            onEventDrop={handleEventDrop}
+          />
+        )
+      case 'timeGridWeek':
+      default:
+        return (
+          <WeekView
+            date={date}
+            events={events}
+            onEventClick={(id) => {
+              const event = events.find((e) => e.id === id)
+              if (event) onEventClick(event)
+            }}
+            onEventDrop={handleEventDrop}
+          />
+        )
+    }
+  }
+
+  return <div className="h-full w-full">{renderView()}</div>
 }
