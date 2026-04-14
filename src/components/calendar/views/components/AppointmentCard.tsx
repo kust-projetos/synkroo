@@ -8,9 +8,6 @@ interface AppointmentCardProps {
   onClick?: () => void
   onDragStart?: (e: React.DragEvent) => void
   className?: string
-  /** Column layout for overlapping appointments */
-  columnIndex?: number
-  totalColumns?: number
 }
 
 export function AppointmentCard({
@@ -19,29 +16,21 @@ export function AppointmentCard({
   onClick,
   onDragStart,
   className,
-  columnIndex = 0,
-  totalColumns = 1,
 }: AppointmentCardProps) {
   const colors = getStatusColors(appointment.status)
   const icon = getStatusIcon(appointment.status)
   const isCancelled = isCancelledStatus(appointment.status)
 
-  // Calculate column width and offset
-  const columnWidth = totalColumns > 1 ? 100 / totalColumns : 100
-  const leftOffset = totalColumns > 1 ? columnIndex * columnWidth : 0
-
   return (
     <div
       className={cn(
-        "absolute top-1 rounded-lg p-2 shadow-sm",
-        "transition-transform duration-200 hover:scale-[1.02]",
+        "absolute left-1 right-1 rounded-lg p-2 shadow-sm",
+        "transition-transform duration-200 hover:scale-[1.01]",
         isCancelled && "opacity-70",
         className
       )}
       style={{
         background: `linear-gradient(135deg, ${colors.bg}, ${colors.bgEnd})`,
-        left: `${leftOffset}%`,
-        width: totalColumns > 1 ? `calc(${columnWidth}% - 4px)` : 'calc(100% - 8px)',
         ...style,
       }}
       onClick={onClick}
