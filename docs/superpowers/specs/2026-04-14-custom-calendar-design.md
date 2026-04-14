@@ -33,7 +33,6 @@ Rebuild the calendar view from scratch without `@event-calendar/core`, solving t
   --primary: #14b8a6;
   --primary-foreground: #ffffff;
   --secondary: #f59e0b;
-  --secondary-foreground: #ffffff;
   --border: #e2e8f0;
   --ring: #14b8a6;
   --card: #ffffff;
@@ -48,6 +47,7 @@ Rebuild the calendar view from scratch without `@event-calendar/core`, solving t
     --muted-foreground: #a1a1aa;
     --primary: #14b8a6;
     --primary-foreground: #0a0a0a;
+    --secondary: #f59e0b;
     --border: #27272a;
     --card: #18181b;
     --card-foreground: #fafafa;
@@ -62,9 +62,9 @@ Rebuild the calendar view from scratch without `@event-calendar/core`, solving t
 | scheduled | `#f59e0b` → `#d97706` | `rgba(255,255,255,0.2)` | white |
 | confirmed | `#14b8a6` → `#0d9488` | `#22c55e` | white |
 | in_progress | `#22c55e` → `#16a34a` | `rgba(255,255,255,0.25)` | white |
-| completed | `#9ca3af` → `#6b7280` | `rgba(255,255,255,0.15)` | white |
-| cancelled | `#9ca3af` → `#6b7280` | `rgba(255,255,255,0.15)` | white |
-| no_show | `#9ca3af` → `#6b7280` | `rgba(255,255,255,0.15)` | white |
+| completed | `#6b7280` → `#4b5563` | `rgba(255,255,255,0.15)` | white |
+| cancelled | `#ef4444` → `#dc2626` | `rgba(255,255,255,0.2)` | white |
+| no_show | `#ef4444` → `#dc2626` | `rgba(255,255,255,0.2)` | white |
 
 ### 2.3 Professional Colors
 
@@ -197,7 +197,7 @@ function AppointmentCard({ appointment, style, onClick, onDragStart }: Appointme
         ...style
       }}
       onClick={onClick}
-      draggable={appointment.status === 'scheduled' || appointment.status === 'confirmed'}
+      draggable={['scheduled', 'confirmed', 'in_progress'].includes(appointment.status)}
       onDragStart={onDragStart}
     >
       <div className="flex justify-between items-start gap-2">
@@ -232,13 +232,18 @@ function AppointmentCard({ appointment, style, onClick, onDragStart }: Appointme
 ```tsx
 interface TimeSlotProps {
   date: Date
+  currentDate: Date
   hour: number
   appointments: Appointment[]
   onAppointmentClick?: (id: string) => void
   onDrop?: (appointmentId: string, newDate: Date, newHour: number) => void
+  slotHeight?: number
 }
 
-function TimeSlot({ date, hour, appointments, onAppointmentClick, onDrop }: TimeSlotProps) {
+function TimeSlot({ date, currentDate, hour, appointments, onAppointmentClick, onDrop, slotHeight = 80 }: TimeSlotProps) {
+  const cardHeight = 36 // altura do card em px
+  const gap = 4 // gap entre cards
+
   return (
     <div
       className="h-20 border-b border-border relative"
@@ -253,7 +258,7 @@ function TimeSlot({ date, hour, appointments, onAppointmentClick, onDrop }: Time
         <AppointmentCard
           key={apt.id}
           appointment={apt}
-          style={{ top: `${index * 40}px`, zIndex: index + 1 }}
+          style={{ top: `${index * (cardHeight + gap)}px`, zIndex: index + 1 }}
           onClick={() => onAppointmentClick?.(apt.id)}
         />
       ))}
@@ -264,10 +269,14 @@ function TimeSlot({ date, hour, appointments, onAppointmentClick, onDrop }: Time
 
 ### 4.5 Many Appointments Slot (Overflow)
 
-When `appointments.length > 3`:
+When `appointments.length > maxVisible`:
 
 ```tsx
-function ManyAppointmentsSlot({ appointments, maxVisible = 3 }: TimeSlotProps) {
+interface ManyAppointmentsSlotProps extends TimeSlotProps {
+  maxVisible?: number
+}
+
+function ManyAppointmentsSlot({ appointments, maxVisible = 3, ...props }: ManyAppointmentsSlotProps) {
   const visibleAppointments = appointments.slice(0, maxVisible)
   const overflowCount = appointments.length - maxVisible
   const hasOverflow = overflowCount > 0
@@ -282,9 +291,12 @@ function ManyAppointmentsSlot({ appointments, maxVisible = 3 }: TimeSlotProps) {
         />
       ))}
       {hasOverflow && (
-        <div className="text-center text-[10px] text-muted-foreground py-1">
+        <button
+          className="w-full text-center text-[10px] text-muted-foreground py-1 hover:text-primary transition-colors"
+          onClick={() => {/* Expandir slot */}}
+        >
           +{overflowCount} mais
-        </div>
+        </button>
       )}
     </div>
   )
@@ -324,10 +336,12 @@ interface ProfessionalColumnProps {
     color: string
   }
   slots: Map<number, Appointment[]>
+  currentDate: Date
+  hours?: number[]
   onAppointmentClick?: (id: string) => void
 }
 
-function ProfessionalColumn({ professional, slots, onAppointmentClick }: ProfessionalColumnProps) {
+function ProfessionalColumn({ professional, slots, currentDate, hours = [8,9,10,11,12,13,14,15,16,17,18], onAppointmentClick }: ProfessionalColumnProps) {
   const headerClass = `h-14 p-2 text-center border-b-2 flex items-center justify-center gap-2`
   const colorMap: Record<string, string> = {
     '#3b82f6': 'header-carlos',
@@ -351,10 +365,11 @@ function ProfessionalColumn({ professional, slots, onAppointmentClick }: Profess
       </div>
 
       {/* Time Slots */}
-      {[8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18].map(hour => (
+      {hours.map(hour => (
         <TimeSlot
           key={hour}
           date={currentDate}
+          currentDate={currentDate}
           hour={hour}
           appointments={slots.get(hour) || []}
           onAppointmentClick={onAppointmentClick}
@@ -436,6 +451,48 @@ export interface CalendarEvent {
 - One column per dentist
 - Dentist header with avatar and specialty
 - Shows workload distribution
+
+### 6.5 Current Time Indicator
+
+Display a red line indicating the current time:
+
+```tsx
+function CurrentTimeIndicator({ slotHeight = 80, hourHeight = 80 / 60 }) {
+  const now = new Date()
+  const hours = now.getHours()
+  const minutes = now.getMinutes()
+  const top = (hours * slotHeight) + (minutes * hourHeight)
+
+  return (
+    <div
+      className="absolute left-0 right-0 border-t-2 border-red-500 z-50 pointer-events-none"
+      style={{ top: `${top}px` }}
+    >
+      <div className="w-2 h-2 bg-red-500 rounded-full -mt-1 -ml-1" />
+    </div>
+  )
+}
+```
+
+**CSS:**
+```css
+.ec-now-indicator {
+  background-color: #ef4444;
+  border: none;
+  height: 2px;
+}
+
+.ec-now-indicator::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+}
+```
 
 ---
 
@@ -569,7 +626,77 @@ src/components/calendar/
 
 ---
 
-## 12. Success Criteria
+## 12. Responsividade
+
+### Desktop (lg+)
+- Sidebar visível: `w-[280px]`
+- Grid completo com 5-7 colunas
+
+### Tablet (md-lg)
+- Sidebar colapsável
+- Grid com scroll horizontal se necessário
+
+### Mobile (< md)
+- Sidebar escondida por padrão (toggle)
+- Visão diária default (semana não cabe)
+- Cards simplificados
+- Touch-friendly: tap para ver detalhes
+
+**Estratégia:**
+```css
+/* Mobile-first approach */
+.calendar-grid {
+  @apply grid-cols-1; /* Mobile: 1 coluna */
+}
+
+@media (min-width: 768px) {
+  .calendar-grid {
+    @apply grid-cols-3; /* Tablet: 3 colunas */
+  }
+}
+
+@media (min-width: 1024px) {
+  .calendar-grid {
+    @apply grid-cols-7; /* Desktop: 7 colunas */
+  }
+}
+```
+
+---
+
+## 13. Scroll Position Management
+
+### Auto-scroll to Current Time
+
+When navigating to "today" or opening the page, scroll to show current time:
+
+```tsx
+function scrollToCurrentTime(timeColumnRef: RefObject<HTMLDivElement>) {
+  const now = new Date()
+  const hours = now.getHours()
+  const minutes = now.getMinutes()
+  const slotHeight = 80 // pixels per hour
+  const scrollTop = (hours * slotHeight) + minutes - (window.innerHeight / 2)
+
+  timeColumnRef.current?.scrollTo({ top: Math.max(0, scrollTop), behavior: 'smooth' })
+}
+```
+
+### Persistence
+
+Scroll position should NOT be persisted in URL (too granular). Use sessionStorage for tab switch.
+
+```tsx
+// On tab change
+sessionStorage.setItem('calendar-scroll', scrollPosition.toString())
+
+// On mount
+const savedScroll = sessionStorage.getItem('calendar-scroll')
+```
+
+---
+
+## 14. Success Criteria
 
 - [ ] No overlapping cards when multiple appointments in same slot
 - [ ] Cards stack vertically with proper overflow handling
@@ -579,3 +706,6 @@ src/components/calendar/
 - [ ] Accessibility: keyboard navigation, screen reader support
 - [ ] Drag and drop rescheduling works
 - [ ] URL params remain synchronized
+- [ ] Current time indicator visible
+- [ ] Mobile responsive
+- [ ] Scroll position managed on navigation
