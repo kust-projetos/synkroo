@@ -4,13 +4,10 @@ import { useMemo, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { TimeColumn } from './components/TimeColumn'
 import { TimeSlot } from './components/TimeSlot'
-import { ManyAppointmentsSlot } from './components/ManyAppointmentsSlot'
 import { CurrentTimeIndicator } from './components/CurrentTimeIndicator'
 import { HOURS, SLOT_HEIGHT, formatDateHeader } from '../utils/date-utils'
 import { eventToAppointment, groupAppointmentsByHour } from '../utils/appointment-utils'
 import type { CalendarEvent } from '../hooks/useCalendarEvents'
-
-const MAX_VISIBLE_PER_SLOT = 3
 
 interface DayViewProps {
   date: Date
@@ -50,18 +47,6 @@ export function DayView({ date, events, onEventClick, onEventDrop }: DayViewProp
         <div className="flex-1 relative">
           {HOURS.map((hour) => {
             const hourAppointments = appointmentsByHour.get(hour) || []
-            const isManyAppointments = hourAppointments.length > MAX_VISIBLE_PER_SLOT
-
-            if (isManyAppointments) {
-              return (
-                <ManyAppointmentsSlot
-                  key={hour}
-                  appointments={hourAppointments}
-                  maxVisible={MAX_VISIBLE_PER_SLOT}
-                  onAppointmentClick={onEventClick}
-                />
-              )
-            }
 
             return (
               <TimeSlot
