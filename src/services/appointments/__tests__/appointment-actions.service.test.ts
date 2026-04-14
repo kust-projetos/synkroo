@@ -26,12 +26,17 @@ global.fetch = jest.fn().mockResolvedValue({ ok: true })
 
 const mockSupabase = {
   from: jest.fn(),
+  rpc: jest.fn(),
 }
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  jest.resetAllMocks()
   const { createTypedClient } = require('@/lib/supabase/typed')
   createTypedClient.mockReturnValue(mockSupabase)
+
+  // Reconfigure waitlist mock after reset
+  const { processWaitlistOnCancellation } = require('@/services/waitlist/waitlist.service')
+  processWaitlistOnCancellation.mockResolvedValue({ notified: 0 })
 })
 
 describe('Appointment Actions Service', () => {
@@ -315,6 +320,11 @@ describe('Appointment Actions Service', () => {
             eq: jest.fn().mockResolvedValue({ error: null }),
           }),
         })
+      // Mock RPC for reschedule
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { success: true },
+        error: null,
+      })
 
       const result = await rescheduleAppointment('apt-123', dateStr, timeStr)
 
@@ -326,7 +336,8 @@ describe('Appointment Actions Service', () => {
       const pastDate = '2020-01-01'
       const pastTime = '10:00'
 
-      mockSupabase.from.mockReturnValue({
+      // Mock getAppointmentInfo
+      mockSupabase.from.mockReturnValueOnce({
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
             single: jest.fn().mockResolvedValue({
@@ -340,7 +351,7 @@ describe('Appointment Actions Service', () => {
       const result = await rescheduleAppointment('apt-123', pastDate, pastTime)
 
       expect(result.success).toBe(false)
-      expect(result.error).toContain('future')
+      expect(result.error).toContain('futuros')
     })
 
     it('should fail on schedule conflict', async () => {
@@ -349,33 +360,21 @@ describe('Appointment Actions Service', () => {
       const timeStr = '10:00'
 
       // Mock getAppointmentInfo
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
+      mockSupabase.from.mockReturnValueOnce({
+        select: jest.fn().mockReturnValue({
+          eq: jest.fn().mockReturnValue({
+            single: jest.fn().mockResolvedValue({
+              data: mockAppointment,
+              error: null,
             }),
           }),
-        })
-      // Mock conflict check with existing appointment
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              in: jest.fn().mockReturnValue({
-                neq: jest.fn().mockReturnValue({
-                  or: jest.fn().mockResolvedValue({
-                    data: [{ id: 'conflict-apt' }],
-                    error: null
-                  }),
-                }),
-              }),
-            }),
-          }),
-        })
+        }),
+      })
+      // Mock RPC conflict check
+      mockSupabase.rpc.mockResolvedValueOnce({
+        data: { success: false, error: 'Horário indisponível' },
+        error: null,
+      })
 
       const result = await rescheduleAppointment('apt-123', dateStr, timeStr)
 
@@ -387,43 +386,39 @@ describe('Appointment Actions Service', () => {
   describe('markNoShow', () => {
     it('should mark scheduled appointment as no-show', async () => {
       // Mock getAppointmentInfo
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
+      mockSupabase.from.mockReturnValueOnce({
+        select: () => ({
+          eq: () => ({
+            single: jest.fn().mockResolvedValue({
+              data: mockAppointment,
+              error: null,
             }),
           }),
-        })
+        }),
+      })
       // Mock appointment status update
-      mockSupabase.from
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
+      mockSupabase.from.mockReturnValueOnce({
+        update: () => ({
+          eq: () => Promise.resolve({ error: null }),
+        }),
+      })
       // Mock patient select
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { no_show_count: 0, risk_score: 10 },
-                error: null,
-              }),
+      mockSupabase.from.mockReturnValueOnce({
+        select: () => ({
+          eq: () => ({
+            single: jest.fn().mockResolvedValue({
+              data: { no_show_count: 0, risk_score: 10 },
+              error: null,
             }),
           }),
-        })
+        }),
+      })
       // Mock patient update
-      mockSupabase.from
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
+      mockSupabase.from.mockReturnValueOnce({
+        update: () => ({
+          eq: () => Promise.resolve({ error: null }),
+        }),
+      })
 
       const result = await markNoShow('apt-123')
 
@@ -432,43 +427,39 @@ describe('Appointment Actions Service', () => {
 
     it('should increase patient risk score', async () => {
       // Mock getAppointmentInfo
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
+      mockSupabase.from.mockReturnValueOnce({
+        select: () => ({
+          eq: () => ({
+            single: jest.fn().mockResolvedValue({
+              data: mockAppointment,
+              error: null,
             }),
           }),
-        })
+        }),
+      })
       // Mock appointment status update
-      mockSupabase.from
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
+      mockSupabase.from.mockReturnValueOnce({
+        update: () => ({
+          eq: () => Promise.resolve({ error: null }),
+        }),
+      })
       // Mock patient select with existing no-shows
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { no_show_count: 2, risk_score: 30 },
-                error: null,
-              }),
+      mockSupabase.from.mockReturnValueOnce({
+        select: () => ({
+          eq: () => ({
+            single: jest.fn().mockResolvedValue({
+              data: { no_show_count: 2, risk_score: 30 },
+              error: null,
             }),
           }),
-        })
+        }),
+      })
       // Mock patient update
-      mockSupabase.from
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
+      mockSupabase.from.mockReturnValueOnce({
+        update: () => ({
+          eq: () => Promise.resolve({ error: null }),
+        }),
+      })
 
       const result = await markNoShow('apt-123')
 
@@ -483,9 +474,9 @@ describe('Appointment Actions Service', () => {
         status: 'completed',
       }
 
-      mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
+      mockSupabase.from.mockReturnValueOnce({
+        select: () => ({
+          eq: () => ({
             single: jest.fn().mockResolvedValue({
               data: completedAppointment,
               error: null,
