@@ -1,85 +1,86 @@
-'use client'
+// WeekView — 7-column week calendar
 
-import { useState, useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
+import { TimeGrid } from '../grid/TimeGrid'
+import { EventLayer, groupEventsByDate } from '../grid/EventLayer'
+import { EmptySlots } from '../grid/EmptySlots'
+import { NowIndicator } from '../grid/NowIndicator'
+import { useAutoScroll } from '../hooks/useAutoScroll'
+import { useCalendarStore } from '../store/calendar-store'
+import {
+  getWeekDays,
+  getShortDayName,
+  getDayNumber,
+  isToday,
+  isWeekend,
+  formatDateKey,
+} from '../utils/date-utils'
 import { cn } from '@/lib/utils'
-import { TimeColumn } from './components/TimeColumn'
-import { DayHeader } from './components/DayHeader'
-import { TimeSlot } from './components/TimeSlot'
-import { CurrentTimeIndicator } from './components/CurrentTimeIndicator'
-import { getWeekDays, HOURS, SLOT_HEIGHT, formatDateKey } from '../utils/date-utils'
-import { eventToAppointment, groupAppointmentsByHour } from '../utils/appointment-utils'
-import type { CalendarEvent } from '../hooks/useCalendarEvents'
+import type { CalendarEvent } from '../utils/types'
 
 interface WeekViewProps {
-  date: Date
   events: CalendarEvent[]
-  onEventClick?: (eventId: string) => void
-  onEventDrop?: (eventId: string, newDate: Date, newHour: number, newMinute: number) => void
+  date: Date
 }
 
-export function WeekView({ date, events, onEventClick, onEventDrop }: WeekViewProps) {
-  const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
+export function WeekView({ events, date }: WeekViewProps) {
+  const scrollRef = useAutoScroll<HTMLDivElement>()
+  const startHour = useCalendarStore((s) => s.startHour)
+  const endHour = useCalendarStore((s) => s.endHour)
+  const days = useMemo(() => getWeekDays(date), [date])
 
-  const weekDays = useMemo(() => getWeekDays(date), [date])
+  // Group events by day column
+  const eventsByColumn = useMemo(
+    () => groupEventsByDate(events, days),
+    [events, days],
+  )
 
-  const appointmentsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>()
-    weekDays.forEach(day => {
-      const dayStr = formatDateKey(day)
-      const dayAppointments = events.filter(e => e.start.startsWith(dayStr))
-      map.set(dayStr, dayAppointments)
-    })
-    return map
-  }, [weekDays, events])
+  // Column headers for each day
+  const columnHeaders = (
+    <>
+      {days.map((day) => (
+        <div
+          key={formatDateKey(day)}
+          className={cn(
+            'flex flex-col items-center py-2 border-r border-border last:border-r-0',
+            isToday(day) && 'bg-teal-50/50 dark:bg-teal-950/20',
+          )}
+        >
+          <div className={cn(
+            'text-xs uppercase',
+            isToday(day) ? 'text-teal-600 dark:text-teal-400 font-bold' : 'text-muted-foreground',
+            isWeekend(day) && !isToday(day) && 'text-muted-foreground/70',
+          )}>
+            {getShortDayName(day)}
+          </div>
+          <div className={cn(
+            'text-lg mt-0.5 w-8 h-8 flex items-center justify-center rounded-full',
+            isToday(day) && 'bg-teal-600 text-white font-bold',
+          )}>
+            {getDayNumber(day)}
+          </div>
+        </div>
+      ))}
+    </>
+  )
 
-  const handleDragStart = useCallback((e: React.DragEvent, appointment: any) => {
-    e.dataTransfer.setData('appointmentId', appointment.id)
-    setDraggedEventId(appointment.id)
-  }, [])
-
-  const handleDrop = useCallback((appointmentId: string, targetDay: Date, targetHour: number, targetMinute: number) => {
-    setDraggedEventId(null)
-    onEventDrop?.(appointmentId, targetDay, targetHour, targetMinute)
-  }, [onEventDrop])
+  // Find which day is today for the now indicator
+  const todayIndex = days.findIndex((d) => isToday(d))
 
   return (
-    <div className="flex gap-0 bg-background h-full overflow-auto">
-      <TimeColumn />
-      <div className="flex flex-1">
-        {weekDays.map((day, dayIndex) => {
-          const dayStr = formatDateKey(day)
-          const dayEvents = appointmentsByDay.get(dayStr) || []
-          const isWeekend = dayIndex >= 5
-
-          return (
-            <div key={dayStr} className={cn("flex-1 border-r border-border", isWeekend && "bg-muted/30")}>
-              <DayHeader date={day} isWeekend={isWeekend} />
-              {HOURS.map(hour => {
-                const hourEvents = dayEvents.filter(e => {
-                  const eventDate = new Date(e.start)
-                  return eventDate.getHours() === hour
-                })
-                const appointments = hourEvents.map(e => eventToAppointment(e, day))
-
-                return (
-                  <TimeSlot
-                    key={`${dayStr}-${hour}`}
-                    date={day}
-                    hour={hour}
-                    appointments={appointments}
-                    onAppointmentClick={onEventClick}
-                    onDrop={(id, h, m) => handleDrop(id, day, h, m)}
-                    isDropTarget={draggedEventId !== null}
-                    draggedAppointmentId={draggedEventId}
-                    onDragStart={handleDragStart}
-                  />
-                )
-              })}
-            </div>
-          )
-        })}
-      </div>
-      <CurrentTimeIndicator slotHeight={SLOT_HEIGHT} />
+    <div className="flex-1 flex flex-col min-h-0">
+      <TimeGrid
+        ref={scrollRef}
+        columnCount={7}
+        columnHeaders={columnHeaders}
+        eventContent={
+          <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={7} />
+        }
+        slotsContent={<EmptySlots columnCount={7} dates={days.map(formatDateKey)} />}
+        nowIndicator={
+          todayIndex >= 0 ? <NowIndicator date={days[todayIndex]} startHour={startHour} endHour={endHour} /> : undefined
+        }
+      />
     </div>
   )
 }

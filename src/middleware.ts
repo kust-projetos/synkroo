@@ -6,6 +6,15 @@ import { NextResponse, type NextRequest } from 'next/server'
  * Runs on every request to protected routes
  */
 export async function middleware(request: NextRequest) {
+  // Dev bypass: skip auth entirely when Supabase env vars are missing
+  if (
+    process.env.NODE_ENV === 'development' &&
+    (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  ) {
+    console.warn('[middleware] Supabase env vars missing — skipping auth in development')
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
