@@ -1,101 +1,94 @@
-'use client'
+// ProfessionalsView — columns by dentist with time grid
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo } from 'react'
+import { TimeGrid } from '../grid/TimeGrid'
+import { EventLayer, groupEventsByDentist } from '../grid/EventLayer'
+import { EmptySlots } from '../grid/EmptySlots'
+import { NowIndicator } from '../grid/NowIndicator'
+import { useAutoScroll } from '../hooks/useAutoScroll'
+import { useCalendarStore } from '../store/calendar-store'
+import { getDentistPalette } from '../utils/dentist-colors'
+import { formatDateKey } from '../utils/date-utils'
 import { cn } from '@/lib/utils'
-import { TimeColumn } from './components/TimeColumn'
-import { TimeSlot } from './components/TimeSlot'
-import { ProfessionalHeader } from './components/ProfessionalHeader'
-import { HOURS, formatDateHeader } from '../utils/date-utils'
-import { eventToAppointment, groupAppointmentsByDentist } from '../utils/appointment-utils'
-import type { CalendarEvent, CalendarResource } from '../hooks/useCalendarEvents'
-import { getDentistColor } from '../utils/dentist-colors'
+import type { CalendarEvent, CalendarResource } from '../utils/types'
 
 interface ProfessionalsViewProps {
-  date: Date
   events: CalendarEvent[]
+  date: Date
   resources: CalendarResource[]
-  onEventClick?: (eventId: string) => void
-  onEventDrop?: (eventId: string, newDate: Date, newHour: number, newMinute: number) => void
 }
 
-export function ProfessionalsView({
-  date,
-  events,
-  resources,
-  onEventClick,
-  onEventDrop,
-}: ProfessionalsViewProps) {
-  const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
+export function ProfessionalsView({ events, date, resources }: ProfessionalsViewProps) {
+  const scrollRef = useAutoScroll<HTMLDivElement>()
+  const startHour = useCalendarStore((s) => s.startHour)
+  const endHour = useCalendarStore((s) => s.endHour)
+  const columnCount = resources.length || 1
 
-  const dayStr = date.toISOString().split('T')[0]
-  const dayEvents = useMemo(
-    () => events.filter(e => e.start.startsWith(dayStr)).map(e => eventToAppointment(e, date)),
-    [events, dayStr, date]
+  // Filter events to selected date
+  const dayEvents = useMemo(() => {
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+    return events.filter((e) => {
+      const key = `${e.start.getFullYear()}-${String(e.start.getMonth() + 1).padStart(2, '0')}-${String(e.start.getDate()).padStart(2, '0')}`
+      return key === dateKey
+    })
+  }, [events, date])
+
+  // Group events by dentist
+  const dentistIds = useMemo(() => resources.map((r) => r.id), [resources])
+  const eventsByColumn = useMemo(
+    () => groupEventsByDentist(dayEvents, dentistIds),
+    [dayEvents, dentistIds],
   )
-  const appointmentsByDentist = useMemo(() => groupAppointmentsByDentist(dayEvents), [dayEvents])
 
-  const handleDragStart = useCallback((e: React.DragEvent, appointment: any) => {
-    e.dataTransfer.setData('appointmentId', appointment.id)
-    setDraggedEventId(appointment.id)
-  }, [])
+  // Column headers with dentist names and colors
+  const columnHeaders = (
+    <>
+      {resources.map((resource) => {
+        const palette = getDentistPalette(resource.id)
+        return (
+          <div
+            key={resource.id}
+            className={cn(
+              'flex flex-col items-center py-2 px-2 border-r border-border last:border-r-0',
+              palette.headerBg,
+            )}
+          >
+            <div className={cn('text-xs font-medium truncate', palette.headerText)}>
+              {resource.name}
+            </div>
+            {resource.specialty && (
+              <div className="text-[10px] text-muted-foreground truncate">
+                {resource.specialty}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </>
+  )
 
-  const handleDrop = useCallback((appointmentId: string, newHour: number, newMinute: number) => {
-    setDraggedEventId(null)
-    onEventDrop?.(appointmentId, date, newHour, newMinute)
-  }, [date, onEventDrop])
+  if (resources.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-muted-foreground">
+        Nenhum profissional cadastrado
+      </div>
+    )
+  }
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="h-12 px-4 border-b border-border flex items-center">
-        <h2 className="text-sm font-semibold">{formatDateHeader(date)}</h2>
-      </div>
-
-      <div className="flex flex-1 overflow-auto">
-        <TimeColumn />
-        <div className="flex flex-1 min-w-0">
-          {resources.map((resource, index) => {
-            const dentistAppointments = appointmentsByDentist.get(resource.id) || []
-            const color = getDentistColor(resource.id, index)
-            const initials = resource.title.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)
-
-            return (
-              <div
-                key={resource.id}
-                className={cn(
-                  "flex-1 min-w-[120px] border-r border-border last:border-r-0",
-                  index >= 2 && "bg-muted/10"
-                )}
-              >
-                <ProfessionalHeader
-                  name={resource.title}
-                  specialty=""
-                  initials={initials}
-                  color={color}
-                />
-                {HOURS.map((hour) => {
-                  const hourAppointments = dentistAppointments.filter(
-                    a => Math.floor(a.startMinutes / 60) === hour
-                  )
-
-                  return (
-                    <TimeSlot
-                      key={`${resource.id}-${hour}`}
-                      date={date}
-                      hour={hour}
-                      appointments={hourAppointments}
-                      onAppointmentClick={onEventClick}
-                      onDrop={handleDrop}
-                      isDropTarget={draggedEventId !== null}
-                      draggedAppointmentId={draggedEventId}
-                      onDragStart={handleDragStart}
-                    />
-                  )
-                })}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col min-h-0">
+      <TimeGrid
+        ref={scrollRef}
+        columnCount={columnCount}
+        columnHeaders={columnHeaders}
+        eventContent={
+          <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={columnCount} />
+        }
+        slotsContent={
+          <EmptySlots columnCount={columnCount} dates={[formatDateKey(date)]} columnDentistIds={dentistIds} />
+        }
+        nowIndicator={<NowIndicator date={date} startHour={startHour} endHour={endHour} />}
+      />
     </div>
   )
 }

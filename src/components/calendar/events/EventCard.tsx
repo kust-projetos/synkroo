@@ -1,0 +1,78 @@
+// EventCard — positioned event card using minute-based calculations
+
+import { getPixelOffsetFor, getPixelHeight, formatTime } from '../utils/date-utils'
+import { eventCardVariants } from './event-styles'
+import { EventTooltip } from './EventTooltip'
+import { useCalendarStore } from '../store/calendar-store'
+import type { LaidOutEvent } from '../utils/types'
+import type { AppointmentStatus } from '@/lib/supabase/database.types'
+
+interface EventCardProps {
+  laidOut: LaidOutEvent
+  /** Column index in the grid (0 for day view, 0-6 for week, 0-N for professionals) */
+  gridColumn: number
+  /** Total columns in the grid */
+  totalGridColumns: number
+}
+
+export function EventCard({ laidOut, gridColumn, totalGridColumns }: EventCardProps) {
+  const { event, column, totalColumns } = laidOut
+  const openEditDialog = useCalendarStore((s) => s.openEditDialog)
+  const startHour = useCalendarStore((s) => s.startHour)
+
+  // Calculate position within the grid column
+  const columnWidth = 100 / totalGridColumns
+  const baseLeft = gridColumn * columnWidth
+
+  // Within the overlapping group, calculate sub-position
+  const subWidth = columnWidth / totalColumns
+  const left = baseLeft + column * subWidth
+
+  // Vertical position based on time (uses dynamic startHour)
+  const top = getPixelOffsetFor(event.start, startHour)
+  const height = getPixelHeight(event.durationMinutes)
+
+  // Determine what text fits based on available height
+  const showTime = height >= 20
+  const showTitle = height >= 35
+  const showProcedure = height >= 55
+
+  return (
+    <EventTooltip event={event}>
+      <div
+        className={eventCardVariants({ status: event.status as AppointmentStatus })}
+        style={{
+          position: 'absolute',
+          top,
+          height: Math.max(height, 20), // minimum 20px
+          left: `${left}%`,
+          width: `${subWidth - 0.5}%`, // tiny gap between overlapping events
+          zIndex: 10,
+        }}
+        onClick={(e) => {
+          e.stopPropagation()
+          openEditDialog(event.id)
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={`${event.title} - ${formatTime(event.start)}`}
+      >
+        {showTime && (
+          <span className="font-medium block truncate">
+            {formatTime(event.start)}
+          </span>
+        )}
+        {showTitle && (
+          <span className="block truncate font-semibold">
+            {event.title}
+          </span>
+        )}
+        {showProcedure && (
+          <span className="block truncate opacity-75">
+            {event.procedureName}
+          </span>
+        )}
+      </div>
+    </EventTooltip>
+  )
+}

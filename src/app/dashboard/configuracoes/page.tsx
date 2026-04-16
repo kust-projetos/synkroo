@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { useCalendarStore } from '@/components/calendar/store/calendar-store'
 import {
   BellIcon,
   ChatBubbleLeftRightIcon,
@@ -16,6 +17,7 @@ import {
   BuildingOfficeIcon,
   CheckCircleIcon,
   XCircleIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline'
 
 interface ClinicSettings {
@@ -36,6 +38,88 @@ interface ClinicSettings {
     inactive_patient_days: number
   }
   appointment_durations?: number[]
+}
+
+/** Business hours configuration card — syncs with calendar store */
+function BusinessHoursCard() {
+  const startHour = useCalendarStore((s) => s.startHour)
+  const endHour = useCalendarStore((s) => s.endHour)
+  const setBusinessHours = useCalendarStore((s) => s.setBusinessHours)
+  const [localStart, setLocalStart] = useState(startHour)
+  const [localEnd, setLocalEnd] = useState(endHour)
+
+  // Sync from store on mount
+  useEffect(() => {
+    setLocalStart(startHour)
+    setLocalEnd(endHour)
+  }, [startHour, endHour])
+
+  const handleApply = () => {
+    setBusinessHours(localStart, localEnd)
+  }
+
+  const formatHour = (h: number) => `${h.toString().padStart(2, '0')}:00`
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <ClockIcon className="w-5 h-5 text-muted-foreground" />
+          <CardTitle>Horário de Funcionamento</CardTitle>
+        </div>
+        <CardDescription>
+          Defina o horário de funcionamento da clínica. O calendário se ajustará automaticamente.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="start-hour">Abertura</Label>
+            <select
+              id="start-hour"
+              value={localStart}
+              onChange={(e) => setLocalStart(parseInt(e.target.value))}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                <option key={h} value={h}>{formatHour(h)}</option>
+              ))}
+            </select>
+          </div>
+          <span className="text-muted-foreground text-sm pt-6 hidden sm:block">até</span>
+          <div className="space-y-2">
+            <Label htmlFor="end-hour">Fechamento</Label>
+            <select
+              id="end-hour"
+              value={localEnd}
+              onChange={(e) => setLocalEnd(parseInt(e.target.value))}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {Array.from({ length: 24 }, (_, i) => i + 1).map((h) => (
+                <option key={h} value={h}>{formatHour(h)}</option>
+              ))}
+            </select>
+          </div>
+          <Button
+            onClick={handleApply}
+            disabled={localStart >= localEnd}
+            size="sm"
+            className="bg-teal-600 hover:bg-teal-700 min-w-[100px]"
+          >
+            Aplicar
+          </Button>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Atual: <span className="font-medium text-foreground">{formatHour(startHour)}</span> — <span className="font-medium text-foreground">{formatHour(endHour)}</span> ({endHour - startHour}h de expediente)
+        </p>
+        {localStart >= localEnd && (
+          <p className="text-sm text-red-600 dark:text-red-400">
+            O horário de abertura deve ser anterior ao de fechamento.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  )
 }
 
 export default function ConfiguracoesPage() {
@@ -183,6 +267,9 @@ export default function ConfiguracoesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Horário de Funcionamento */}
+      <BusinessHoursCard />
 
       {/* Notificações */}
       <Card>
