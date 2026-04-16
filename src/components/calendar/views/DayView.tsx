@@ -1,70 +1,61 @@
-'use client'
+// DayView — single day calendar with time grid
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo } from 'react'
+import { TimeGrid } from '../grid/TimeGrid'
+import { EventLayer, groupEventsByDate } from '../grid/EventLayer'
+import { EmptySlots } from '../grid/EmptySlots'
+import { NowIndicator } from '../grid/NowIndicator'
+import { useAutoScroll } from '../hooks/useAutoScroll'
+import { useCalendarStore } from '../store/calendar-store'
+import { formatDateKey, getShortDayName, getDayNumber, isToday, isWeekend } from '../utils/date-utils'
 import { cn } from '@/lib/utils'
-import { TimeColumn } from './components/TimeColumn'
-import { TimeSlot } from './components/TimeSlot'
-import { CurrentTimeIndicator } from './components/CurrentTimeIndicator'
-import { HOURS, SLOT_HEIGHT, formatDateHeader } from '../utils/date-utils'
-import { eventToAppointment, groupAppointmentsByHour } from '../utils/appointment-utils'
-import type { CalendarEvent } from '../hooks/useCalendarEvents'
+import type { CalendarEvent } from '../utils/types'
 
 interface DayViewProps {
-  date: Date
   events: CalendarEvent[]
-  onEventClick?: (eventId: string) => void
-  onEventDrop?: (eventId: string, newDate: Date, newHour: number, newMinute: number) => void
+  date: Date
 }
 
-export function DayView({ date, events, onEventClick, onEventDrop }: DayViewProps) {
-  const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
+export function DayView({ events, date }: DayViewProps) {
+  const scrollRef = useAutoScroll<HTMLDivElement>()
+  const startHour = useCalendarStore((s) => s.startHour)
+  const endHour = useCalendarStore((s) => s.endHour)
 
-  const dayStr = date.toISOString().split('T')[0]
-  const dayEvents = useMemo(
-    () => events.filter(e => e.start.startsWith(dayStr)).map(e => eventToAppointment(e, date)),
-    [events, dayStr, date]
+  // Group events into column 0 (single day = single column)
+  const eventsByColumn = useMemo(() => {
+    const map = new Map<number, CalendarEvent[]>()
+    const dayEvents = events.filter((e) => {
+      const key = `${e.start.getFullYear()}-${String(e.start.getMonth() + 1).padStart(2, '0')}-${String(e.start.getDate()).padStart(2, '0')}`
+      return key === formatDateKey(date)
+    })
+    if (dayEvents.length > 0) map.set(0, dayEvents)
+    return map
+  }, [events, date])
+
+  // Column header
+  const columnHeaders = (
+    <div className="flex items-center justify-center py-2">
+      <div className={cn(
+        'text-center',
+        isToday(date) && 'text-teal-600 dark:text-teal-400 font-bold',
+        isWeekend(date) && !isToday(date) && 'text-muted-foreground',
+      )}>
+        <div className="text-xs uppercase">{getShortDayName(date)}</div>
+        <div className="text-lg">{getDayNumber(date)}</div>
+      </div>
+    </div>
   )
-  const appointmentsByHour = useMemo(() => groupAppointmentsByHour(dayEvents), [dayEvents])
-
-  const handleDragStart = useCallback((e: React.DragEvent, appointment: any) => {
-    e.dataTransfer.setData('appointmentId', appointment.id)
-    setDraggedEventId(appointment.id)
-  }, [])
-
-  const handleDrop = useCallback((appointmentId: string, newHour: number, newMinute: number) => {
-    setDraggedEventId(null)
-    onEventDrop?.(appointmentId, date, newHour, newMinute)
-  }, [date, onEventDrop])
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      <div className="h-12 px-4 border-b border-border flex items-center">
-        <h2 className="text-sm font-semibold">{formatDateHeader(date)}</h2>
-      </div>
-
-      <div className="flex flex-1 overflow-auto">
-        <TimeColumn />
-        <div className="flex-1 relative">
-          {HOURS.map((hour) => {
-            const hourAppointments = appointmentsByHour.get(hour) || []
-
-            return (
-              <TimeSlot
-                key={hour}
-                date={date}
-                hour={hour}
-                appointments={hourAppointments}
-                onAppointmentClick={onEventClick}
-                onDrop={handleDrop}
-                isDropTarget={draggedEventId !== null}
-                draggedAppointmentId={draggedEventId}
-                onDragStart={handleDragStart}
-              />
-            )
-          })}
-          <CurrentTimeIndicator slotHeight={SLOT_HEIGHT} />
-        </div>
-      </div>
+    <div className="flex-1 flex flex-col min-h-0">
+      <TimeGrid
+        ref={scrollRef}
+        columnCount={1}
+        columnHeaders={columnHeaders}
+        eventContent={<EventLayer eventsByColumn={eventsByColumn} totalGridColumns={1} />}
+        slotsContent={<EmptySlots columnCount={1} dates={[formatDateKey(date)]} />}
+        nowIndicator={<NowIndicator date={date} startHour={startHour} endHour={endHour} />}
+      />
     </div>
   )
 }

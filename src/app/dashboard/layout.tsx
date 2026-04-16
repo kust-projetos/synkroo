@@ -5,6 +5,9 @@ import { useAuth } from '@/lib/auth/context'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/lib/ui/dashboard-layout'
 
+const isDevBypass = process.env.NODE_ENV === 'development' &&
+  (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
 export default function DashboardRootLayout({
   children,
 }: {
@@ -14,12 +17,12 @@ export default function DashboardRootLayout({
   const router = useRouter()
 
   useEffect(() => {
-    if (!loading && !user) {
+    if (!isDevBypass && !loading && !user) {
       router.push('/login')
     }
   }, [loading, user, router])
 
-  if (loading) {
+  if (loading && !isDevBypass) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
@@ -27,7 +30,7 @@ export default function DashboardRootLayout({
     )
   }
 
-  if (!user || !profile) {
+  if (!isDevBypass && (!user || !profile)) {
     return null
   }
 

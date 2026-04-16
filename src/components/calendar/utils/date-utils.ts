@@ -1,91 +1,183 @@
+// Date utilities for calendar — constants and helpers
+
 import {
-  format,
   startOfWeek,
   endOfWeek,
+  eachDayOfInterval,
   startOfMonth,
   endOfMonth,
-  eachDayOfInterval,
-  isSameDay,
-  isToday,
+  format,
   addDays,
   addWeeks,
-  addMonths,
   subDays,
   subWeeks,
+  addMonths,
   subMonths,
-  getHours,
-  getMinutes,
-  setHours,
-  setMinutes,
+  getDay,
+  isToday as dateFnsIsToday,
+  isWeekend as dateFnsIsWeekend,
 } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
-export const WEEKDAYS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'] as const
-
-export const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const
-
-// 15-minute slot configuration
+// Grid constants (defaults — overridden by store for configurable business hours)
+export const DEFAULT_START_HOUR = 8
+export const DEFAULT_END_HOUR = 18
+export const HOUR_SIZE = 80 // pixels per hour
 export const SLOT_MINUTES = 15
 export const SLOTS_PER_HOUR = 60 / SLOT_MINUTES // 4
-export const SLOT_HEIGHT = 20 // pixels per 15-min slot
-export const MINUTES_PER_PIXEL = SLOT_MINUTES / SLOT_HEIGHT
+export const SLOT_HEIGHT = HOUR_SIZE / SLOTS_PER_HOUR // 20px
+export const MINUTE_HEIGHT = HOUR_SIZE / 60 // ~1.33px per minute
 
-// Total slots per day (11 hours * 4 slots)
-export const TOTAL_SLOTS = HOURS.length * SLOTS_PER_HOUR // 44
+// Legacy constants (used by components not yet migrated)
+export const HOURS = Array.from({ length: DEFAULT_END_HOUR - DEFAULT_START_HOUR }, (_, i) => i + DEFAULT_START_HOUR)
+export const DAY_START_HOUR = DEFAULT_START_HOUR
+export const DAY_END_HOUR = DEFAULT_END_HOUR
+export const TOTAL_MINUTES = (DAY_END_HOUR - DAY_START_HOUR) * 60
 
-// Convert time to slot index
-export function timeToSlot(hour: number, minute: number): number {
-  return (hour - HOURS[0]) * SLOTS_PER_HOUR + Math.floor(minute / SLOT_MINUTES)
+/** Generate hours array from dynamic start/end */
+export function getHoursRange(startHour: number, endHour: number): number[] {
+  return Array.from({ length: endHour - startHour }, (_, i) => i + startHour)
 }
 
-// Convert slot index to hour and minute
-export function slotToTime(slot: number): { hour: number; minute: number } {
-  const adjustedSlot = slot % TOTAL_SLOTS
-  const hour = HOURS[0] + Math.floor(adjustedSlot / SLOTS_PER_HOUR)
-  const minute = (adjustedSlot % SLOTS_PER_HOUR) * SLOT_MINUTES
-  return { hour, minute }
+/** Get minutes from day start for a given hour configuration */
+export function getMinutesFromDayStartFor(date: Date, startHour: number): number {
+  return getMinutesFromMidnight(date) - startHour * 60
 }
 
-// Snap minutes to nearest slot
-export function snapToSlot(minute: number): number {
-  return Math.round(minute / SLOT_MINUTES) * SLOT_MINUTES
+/** Get pixel offset for a time within a grid with given start hour */
+export function getPixelOffsetFor(date: Date, startHour: number): number {
+  return getMinutesFromDayStartFor(date, startHour) * MINUTE_HEIGHT
 }
 
-export function formatDateHeader(date: Date): string {
-  return format(date, "d 'de' MMMM, yyyy", { locale: ptBR })
+/** Get minutes from midnight for a given date */
+export function getMinutesFromMidnight(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes()
 }
 
-export function formatTime(hour: number): string {
-  return `${hour.toString().padStart(2, '0')}:00`
+/** Get minutes from day start (8:00) */
+export function getMinutesFromDayStart(date: Date): number {
+  return getMinutesFromMidnight(date) - DAY_START_HOUR * 60
 }
 
-export function getWeekDays(date: Date): Date[] {
-  const start = startOfWeek(date, { weekStartsOn: 1 })
-  const end = endOfWeek(date, { weekStartsOn: 1 })
-  return eachDayOfInterval({ start, end })
+/** Get pixel offset for a time within the grid */
+export function getPixelOffset(date: Date): number {
+  return getMinutesFromDayStart(date) * MINUTE_HEIGHT
 }
 
-export function getMonthDays(date: Date): Date[] {
-  const start = startOfMonth(date)
-  const end = endOfMonth(date)
-  const days = eachDayOfInterval({ start, end })
-  const startDayOfWeek = start.getDay() === 0 ? 6 : start.getDay() - 1
-  const paddedStart = addDays(start, -startDayOfWeek)
-  const endDayOfWeek = end.getDay() === 0 ? 6 : end.getDay() - 1
-  const paddedEnd = addDays(end, 6 - endDayOfWeek)
-  return eachDayOfInterval({ start: paddedStart, end: paddedEnd })
+/** Get pixel height for a duration in minutes */
+export function getPixelHeight(durationMinutes: number): number {
+  return durationMinutes * MINUTE_HEIGHT
 }
 
-export function getStartMinutes(date: Date): number {
-  return getHours(date) * 60 + getMinutes(date)
-}
-
-export function setTime(date: Date, hours: number, minutes: number = 0): Date {
-  return setMinutes(setHours(date, hours), minutes)
-}
-
+/** Format a date key as YYYY-MM-DD */
 export function formatDateKey(date: Date): string {
   return format(date, 'yyyy-MM-dd')
 }
 
-export { isSameDay, isToday, addDays, addWeeks, addMonths, subDays, subWeeks, subMonths, format }
+/** Get all days in a week for a given date */
+export function getWeekDays(date: Date): Date[] {
+  const start = startOfWeek(date, { weekStartsOn: 1 }) // Monday
+  const end = endOfWeek(date, { weekStartsOn: 1 })
+  return eachDayOfInterval({ start, end })
+}
+
+/** Get all days in a month for a given date */
+export function getMonthDays(date: Date): Date[][] {
+  const monthStart = startOfMonth(date)
+  const monthEnd = endOfMonth(date)
+  const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+  const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
+
+  const allDays = eachDayOfInterval({ start: calStart, end: calEnd })
+  const weeks: Date[][] = []
+  for (let i = 0; i < allDays.length; i += 7) {
+    weeks.push(allDays.slice(i, i + 7))
+  }
+  return weeks
+}
+
+/** Navigate to next/prev date based on view */
+export function getNextDate(date: Date, view: string): Date {
+  switch (view) {
+    case 'day':
+    case 'professionals':
+      return addDays(date, 1)
+    case 'week':
+      return addWeeks(date, 1)
+    case 'month':
+      return addMonths(date, 1)
+    default:
+      return addDays(date, 1)
+  }
+}
+
+export function getPrevDate(date: Date, view: string): Date {
+  switch (view) {
+    case 'day':
+    case 'professionals':
+      return subDays(date, 1)
+    case 'week':
+      return subWeeks(date, 1)
+    case 'month':
+      return subMonths(date, 1)
+    default:
+      return subDays(date, 1)
+  }
+}
+
+/** Format date range for toolbar title */
+export function formatTitle(date: Date, view: string): string {
+  switch (view) {
+    case 'day':
+    case 'professionals':
+      return format(date, "d 'de' MMMM", { locale: ptBR })
+    case 'week': {
+      const days = getWeekDays(date)
+      const first = days[0]
+      const last = days[days.length - 1]
+      if (first.getMonth() === last.getMonth()) {
+        return `${format(first, 'd')} - ${format(last, 'd')} de ${format(first, 'MMMM', { locale: ptBR })}`
+      }
+      return `${format(first, "d 'de' MMM", { locale: ptBR })} - ${format(last, "d 'de' MMM", { locale: ptBR })}`
+    }
+    case 'month':
+      return format(date, "MMMM 'de' yyyy", { locale: ptBR })
+    default:
+      return format(date, "d 'de' MMMM", { locale: ptBR })
+  }
+}
+
+/** Format hour label (e.g. "08:00") */
+export function formatHourLabel(hour: number): string {
+  return `${hour.toString().padStart(2, '0')}:00`
+}
+
+/** Format time from Date (e.g. "09:30") */
+export function formatTime(date: Date): string {
+  return format(date, 'HH:mm')
+}
+
+/** Check if date is today */
+export function isToday(date: Date): boolean {
+  return dateFnsIsToday(date)
+}
+
+/** Check if date is weekend */
+export function isWeekend(date: Date): boolean {
+  return dateFnsIsWeekend(date)
+}
+
+/** Get day of week (0=Sun, 1=Mon, ..., 6=Sat) */
+export function getDayOfWeek(date: Date): number {
+  return getDay(date)
+}
+
+/** Short day name (Seg, Ter, etc.) */
+export function getShortDayName(date: Date): string {
+  return format(date, 'EEE', { locale: ptBR })
+}
+
+/** Day number */
+export function getDayNumber(date: Date): number {
+  return date.getDate()
+}
