@@ -144,10 +144,15 @@ describe('Segmentation Service', () => {
     })
 
     describe('advanced criteria (procedures, lastVisit, totalSpent)', () => {
+      // Dynamic dates relative to Date.now() so tests don't rot over time
+      const daysAgo = (d: number) => {
+        const date = new Date()
+        date.setDate(date.getDate() - d)
+        return date.toISOString().split('T')[0]
+      }
+
       it('should filter patients by lastVisitMin days', async () => {
-        // First call: count query (gets initial count, but is overridden by advanced logic)
         const countChain = createChain({ count: 3, error: null })
-        // Second call: get patient IDs
         const patientChain = createChain({
           data: [
             { id: 'p1' },
@@ -156,12 +161,11 @@ describe('Segmentation Service', () => {
           ],
           error: null,
         })
-        // Third call: get appointments
         const aptChain = createChain({
           data: [
-            { patient_id: 'p1', scheduled_at: '2026-03-01' }, // 30 days ago
-            { patient_id: 'p2', scheduled_at: '2026-02-01' }, // 60 days ago
-            { patient_id: 'p3', scheduled_at: '2026-01-01' }, // 90 days ago
+            { patient_id: 'p1', scheduled_at: daysAgo(30) },
+            { patient_id: 'p2', scheduled_at: daysAgo(60) },
+            { patient_id: 'p3', scheduled_at: daysAgo(90) },
           ],
           error: null,
         })
@@ -184,8 +188,8 @@ describe('Segmentation Service', () => {
         })
         const aptChain = createChain({
           data: [
-            { patient_id: 'p1', scheduled_at: '2026-03-20' }, // 11 days ago
-            { patient_id: 'p2', scheduled_at: '2026-02-01' }, // 60 days ago
+            { patient_id: 'p1', scheduled_at: daysAgo(11) },
+            { patient_id: 'p2', scheduled_at: daysAgo(60) },
           ],
           error: null,
         })
