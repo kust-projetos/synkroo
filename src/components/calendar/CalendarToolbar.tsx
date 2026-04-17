@@ -10,6 +10,7 @@ import {
   SunIcon,
   ViewColumnsIcon,
   UserGroupIcon,
+  ClipboardDocumentListIcon,
 } from '@heroicons/react/24/outline'
 import type { CalendarView } from './utils/types'
 
@@ -18,6 +19,7 @@ const VIEW_OPTIONS: { view: CalendarView; label: string; icon: React.ReactNode }
   { view: 'week', label: 'Semana', icon: <ViewColumnsIcon className="h-4 w-4" /> },
   { view: 'month', label: 'Mes', icon: <CalendarDaysIcon className="h-4 w-4" /> },
   { view: 'professionals', label: 'Profissionais', icon: <UserGroupIcon className="h-4 w-4" /> },
+  { view: 'list', label: 'Lista', icon: <ClipboardDocumentListIcon className="h-4 w-4" /> },
 ]
 
 export function CalendarToolbar() {
@@ -56,13 +58,13 @@ export function CalendarToolbar() {
       </div>
 
       {/* Right: View switcher */}
-      <div className="flex items-center rounded-lg border border-border overflow-hidden">
+      <div className="flex items-center rounded-lg border border-border overflow-hidden divide-x divide-border">
         {VIEW_OPTIONS.map(({ view: v, label, icon }) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-r border-border last:border-r-0',
+              'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors',
               view === v
                 ? 'bg-teal-600 text-white'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',

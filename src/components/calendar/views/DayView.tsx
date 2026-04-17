@@ -24,10 +24,8 @@ export function DayView({ events, date }: DayViewProps) {
   // Group events into column 0 (single day = single column)
   const eventsByColumn = useMemo(() => {
     const map = new Map<number, CalendarEvent[]>()
-    const dayEvents = events.filter((e) => {
-      const key = `${e.start.getFullYear()}-${String(e.start.getMonth() + 1).padStart(2, '0')}-${String(e.start.getDate()).padStart(2, '0')}`
-      return key === formatDateKey(date)
-    })
+    const targetKey = formatDateKey(date)
+    const dayEvents = events.filter((e) => formatDateKey(e.start) === targetKey)
     if (dayEvents.length > 0) map.set(0, dayEvents)
     return map
   }, [events, date])

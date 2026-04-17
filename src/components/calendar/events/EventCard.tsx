@@ -33,9 +33,9 @@ export function EventCard({ laidOut, gridColumn, totalGridColumns }: EventCardPr
   const height = getPixelHeight(event.durationMinutes)
 
   // Determine what text fits based on available height
-  const showTime = height >= 20
-  const showTitle = height >= 35
-  const showProcedure = height >= 55
+  const showTime = height >= 16
+  const showTitle = height >= 28
+  const showProcedure = height >= 48
 
   return (
     <EventTooltip event={event}>
@@ -44,9 +44,9 @@ export function EventCard({ laidOut, gridColumn, totalGridColumns }: EventCardPr
         style={{
           position: 'absolute',
           top,
-          height: Math.max(height, 20), // minimum 20px
+          height: Math.max(height, 18),
           left: `${left}%`,
-          width: `${subWidth - 0.5}%`, // tiny gap between overlapping events
+          width: `${subWidth - 0.5}%`,
           zIndex: 10,
         }}
         onClick={(e) => {
@@ -58,17 +58,17 @@ export function EventCard({ laidOut, gridColumn, totalGridColumns }: EventCardPr
         aria-label={`${event.title} - ${formatTime(event.start)}`}
       >
         {showTime && (
-          <span className="font-medium block truncate">
-            {formatTime(event.start)}
+          <span className="font-semibold block text-[10px] leading-tight">
+            {formatTime(event.start)}{showTitle ? '' : ` ${event.title}`}
           </span>
         )}
         {showTitle && (
-          <span className="block truncate font-semibold">
+          <span className="block font-medium text-[10px] leading-tight">
             {event.title}
           </span>
         )}
         {showProcedure && (
-          <span className="block truncate opacity-75">
+          <span className="block opacity-70 text-[9px] leading-tight">
             {event.procedureName}
           </span>
         )}
