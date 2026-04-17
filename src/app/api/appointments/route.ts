@@ -64,7 +64,9 @@ export async function GET(request: NextRequest) {
       const end = new Date(date + 'T23:59:59.999Z')
       query = query.gte('scheduled_at', start.toISOString()).lte('scheduled_at', end.toISOString())
     } else if (startDate && endDate) {
-      query = query.gte('scheduled_at', startDate).lte('scheduled_at', endDate)
+      const start = new Date(startDate + 'T00:00:00Z')
+      const end = new Date(endDate + 'T23:59:59.999Z')
+      query = query.gte('scheduled_at', start.toISOString()).lte('scheduled_at', end.toISOString())
     }
 
     // Pagination

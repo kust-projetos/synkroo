@@ -1,145 +1,143 @@
-// src/components/calendar/hooks/useCalendarEvents.ts
-'use client'
+// useCalendarEvents — fetch appointments and transform to CalendarEvent[]
 
-import { useMemo } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
-import { useCalendarEventsQuery } from '@/lib/hooks/use-queries'
-import { getDentistColor } from '../utils/dentist-colors'
+import { useEffect, useMemo, useState } from 'react'
+import { useCalendarEventsQuery, useDentists, useProcedures } from '@/lib/hooks/use-queries'
+import { useAuth } from '@/lib/auth/context'
+import { getWeekDays, formatDateKey } from '../utils/date-utils'
+import { useCalendarStore } from '../store/calendar-store'
+import { generateMockEvents, generateMockResources } from '../utils/mock-events'
+import type { CalendarEvent, CalendarResource } from '../utils/types'
 
-export interface CalendarEvent {
+/** Client-only check — avoids hydration mismatch */
+function useIsDevBypass(): boolean {
+  const [isBypass, setIsBypass] = useState(false)
+  useEffect(() => {
+    const noSupabase =
+      !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    setIsBypass(noSupabase)
+  }, [])
+  return isBypass
+}
+
+interface AppointmentRow {
   id: string
-  title: string
-  start: string
-  end: string
-  resourceId: string
-  backgroundColor: string
-  editable: boolean
-  display: 'block' | 'inline' | 'background'
-  extendedProps: {
-    patientName: string
-    procedureName: string
-    status: string
-    dentistName: string
-    notes: string | null
-    patientPhone: string | null
-    durationMinutes: number
-    isBlocked?: boolean
-  }
+  scheduled_at: string
+  duration_minutes: number
+  status: string
+  notes: string | null
+  patients?: { id: string; name: string; phone: string } | null
+  dentists?: { id: string; name: string; specialty?: string } | null
+  procedures?: { id: string; name: string; duration_minutes: number } | null
 }
 
-export interface CalendarResource {
-  id: string
-  title: string
-  eventBackgroundColor: string
+interface UseCalendarEventsResult {
+  events: CalendarEvent[]
+  resources: CalendarResource[]
+  isLoading: boolean
+  error: Error | null
 }
 
-interface AppointmentResponse {
-  appointments: Array<{
-    id: string
-    scheduled_at: string
-    duration_minutes: number
-    status: string
-    notes: string | null
-    patients?: { id: string; name: string; phone: string } | null
-    dentists?: { id: string; name: string; specialty: string } | null
-    procedures?: { id: string; name: string; duration_minutes: number } | null
-  }>
-}
+export function useCalendarEvents(): UseCalendarEventsResult {
+  const { profile } = useAuth()
+  const clinicId = profile?.clinic_id
+  const { view, selectedDate, dentistFilter } = useCalendarStore()
+  const isDevBypass = useIsDevBypass()
+  const useMock = isDevBypass && !clinicId
 
-const EDITABLE_STATUSES = new Set(['scheduled', 'confirmed', 'in_progress'])
+  // Calculate date range based on view
+  const dateRange = useMemo(() => {
+    if (view === 'month') {
+      const y = selectedDate.getFullYear()
+      const m = selectedDate.getMonth()
+      return {
+        startDate: `${y}-${String(m + 1).padStart(2, '0')}-01`,
+        endDate: `${y}-${String(m + 1).padStart(2, '0')}-${String(new Date(y, m + 1, 0).getDate()).padStart(2, '0')}`,
+      }
+    }
+    if (view === 'week') {
+      const days = getWeekDays(selectedDate)
+      return {
+        startDate: formatDateKey(days[0]),
+        endDate: formatDateKey(days[days.length - 1]),
+      }
+    }
+    const key = formatDateKey(selectedDate)
+    return { startDate: key, endDate: key }
+  }, [view, selectedDate])
 
-function formatDateTime(dateStr: string): string {
-  // API returns ISO with offset: "2026-04-10T09:00:00-03:00"
-  // @event-calendar/core expects: "2026-04-10 09:00:00"
-  const d = new Date(dateStr)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`
-}
+  // ── Mock data (dev bypass) ────────────────────────────────────
+  const mockEvents = useMemo<CalendarEvent[]>(() => {
+    if (!useMock) return []
+    const start = new Date(dateRange.startDate + 'T00:00:00')
+    const end = new Date(dateRange.endDate + 'T23:59:59')
+    let events = generateMockEvents(start, end)
+    if (dentistFilter.length > 0) {
+      events = events.filter((e) => dentistFilter.includes(e.dentistId))
+    }
+    return events
+  }, [useMock, dateRange, dentistFilter])
 
-function addMinutes(dateStr: string, minutes: number): string {
-  const d = new Date(dateStr)
-  d.setMinutes(d.getMinutes() + minutes)
-  return formatDateTime(d.toISOString())
-}
+  const mockResources = useMemo<CalendarResource[]>(() => {
+    if (!useMock) return []
+    return generateMockResources()
+  }, [useMock])
 
-export function useCalendarEvents(
-  clinicId: string | undefined,
-  startDate: string,
-  endDate: string,
-  dentistIds: string[],
-  specialty: string
-) {
-  const queryClient = useQueryClient()
-
-  // Build URL with repeated dentist_ids
-  const queryUrl = useMemo(() => {
+  // ── Supabase data (production) ────────────────────────────────
+  // Hooks must always be called (Rules of Hooks)
+  const queryString = useMemo(() => {
     if (!clinicId) return ''
-    const urlParams = new URLSearchParams()
-    urlParams.set('clinic_id', clinicId)
-    urlParams.set('start_date', startDate)
-    urlParams.set('end_date', endDate)
-    dentistIds.forEach(id => urlParams.append('dentist_ids', id))
-    if (specialty) urlParams.set('specialty', specialty)
-    return urlParams.toString()
-  }, [clinicId, startDate, endDate, dentistIds, specialty])
+    const params = new URLSearchParams({
+      clinic_id: clinicId,
+      start_date: dateRange.startDate,
+      end_date: dateRange.endDate,
+    })
+    dentistFilter.forEach((id) => params.append('dentist_ids', id))
+    return params.toString()
+  }, [clinicId, dateRange, dentistFilter])
 
-  // Pass query string directly to preserve repeated params (e.g. dentist_ids=X&dentist_ids=Y)
-  const { data: rawData, isLoading, error, refetch } = useCalendarEventsQuery(queryUrl || undefined)
-  const data = rawData as AppointmentResponse | undefined
+  const { data, isLoading, error } = useCalendarEventsQuery(queryString || undefined)
+  const { data: dentistsData } = useDentists(clinicId)
 
-  const events = useMemo((): CalendarEvent[] => {
-    if (!data?.appointments) return []
-    return (data.appointments as AppointmentResponse['appointments'])
-      .filter((apt) => apt.dentists?.id)
-      .map((apt, index) => {
-        const isBlocked = apt.status === 'blocked' || apt.status === 'unavailable'
-        return {
-          id: apt.id,
-          title: isBlocked ? 'Bloqueado' : apt.patients?.name || 'Paciente',
-          start: formatDateTime(apt.scheduled_at),
-          end: addMinutes(apt.scheduled_at, apt.duration_minutes),
-          resourceId: apt.dentists!.id,
-          backgroundColor: isBlocked ? '#9CA3AF' : getDentistColor(apt.dentists!.id, index),
-          editable: false,
-          display: isBlocked ? 'background' : 'block',
-          extendedProps: {
-            patientName: apt.patients?.name || 'Paciente',
-            procedureName: apt.procedures?.name || '',
-            status: isBlocked ? 'blocked' : apt.status,
-            dentistName: apt.dentists!.name || '',
-            notes: apt.notes,
-            patientPhone: apt.patients?.phone || null,
-            durationMinutes: apt.duration_minutes,
-            isBlocked,
-          },
-        }
-      })
-  }, [data])
+  const supabaseEvents = useMemo<CalendarEvent[]>(() => {
+    const appointments = (data?.appointments || []) as AppointmentRow[]
+    return appointments.map((apt) => {
+      const start = new Date(apt.scheduled_at)
+      const end = new Date(start.getTime() + apt.duration_minutes * 60000)
 
-  const resources = useMemo((): CalendarResource[] => {
-    if (!data?.appointments) return []
-    const seen = new Map<string, { name: string; color: string }>()
-    ;(data.appointments as AppointmentResponse['appointments']).forEach((apt, index) => {
-      if (apt.dentists?.id && !seen.has(apt.dentists.id)) {
-        seen.set(apt.dentists.id, {
-          name: apt.dentists.name,
-          color: getDentistColor(apt.dentists.id, index),
-        })
+      return {
+        id: apt.id,
+        title: apt.patients?.name || 'Paciente',
+        start,
+        end,
+        dentistId: apt.dentists?.id || '',
+        dentistName: apt.dentists?.name || 'Sem dentista',
+        procedureName: apt.procedures?.name || '',
+        status: apt.status as CalendarEvent['status'],
+        durationMinutes: apt.duration_minutes,
+        notes: apt.notes,
       }
     })
-    return Array.from(seen.entries()).map(([id, info]) => ({
-      id,
-      title: info.name,
-      eventBackgroundColor: info.color,
-    }))
   }, [data])
 
-  const invalidateCalendar = () => {
-    queryClient.invalidateQueries({
-      predicate: (query) =>
-        query.queryKey[0] === 'calendar-events',
-    })
+  const supabaseResources = useMemo<CalendarResource[]>(() => {
+    const dentists = (dentistsData?.dentists || []) as { id: string; name: string; specialty?: string }[]
+    return dentists.map((d) => ({
+      id: d.id,
+      name: d.name,
+      color: '',
+      specialty: d.specialty,
+    }))
+  }, [dentistsData])
+
+  // ── Return appropriate data source ────────────────────────────
+  if (useMock) {
+    return { events: mockEvents, resources: mockResources, isLoading: false, error: null }
   }
 
-  return { events, resources, isLoading, error, refetch, invalidateCalendar }
+  return {
+    events: supabaseEvents,
+    resources: supabaseResources,
+    isLoading,
+    error: error as Error | null,
+  }
 }
