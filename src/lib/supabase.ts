@@ -34,7 +34,7 @@ function getSupabaseClient() {
  * Creates a no-op proxy that safely handles Supabase calls when env vars are missing.
  * Used in development to allow UI work without a configured backend.
  */
-function createNoOpProxy<T>(): T {
+function createNoOpProxy<T extends object>(): T {
   return new Proxy({} as T, {
     get(_target, prop) {
       if (prop === 'auth') {
