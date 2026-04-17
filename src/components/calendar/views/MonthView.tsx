@@ -1,110 +1,115 @@
-'use client'
+// MonthView — monthly grid with mini-event cards
 
 import { useMemo } from 'react'
+import { getMonthDays, isToday, isWeekend, formatDateKey, formatTime } from '../utils/date-utils'
+import { useCalendarStore } from '../store/calendar-store'
+import { statusDotColors } from '../events/event-styles'
 import { cn } from '@/lib/utils'
-import { getMonthDays, isToday, format, formatDateKey } from '../utils/date-utils'
-import { getStatusColors, type AppointmentStatus } from '../utils/appointment-utils'
-import type { CalendarEvent } from '../hooks/useCalendarEvents'
+import type { CalendarEvent } from '../utils/types'
 
 interface MonthViewProps {
-  date: Date
   events: CalendarEvent[]
-  onEventClick?: (eventId: string) => void
-  onDayClick?: (date: Date) => void
+  date: Date
 }
 
-export function MonthView({ date, events, onEventClick, onDayClick }: MonthViewProps) {
-  const monthDays = useMemo(() => getMonthDays(date), [date])
-  const weeks: Date[][] = []
+const WEEKDAY_HEADERS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
+const MAX_VISIBLE_EVENTS = 3
 
-  for (let i = 0; i < monthDays.length; i += 7) {
-    weeks.push(monthDays.slice(i, i + 7))
-  }
+export function MonthView({ events, date }: MonthViewProps) {
+  const weeks = useMemo(() => getMonthDays(date), [date])
+  const { setView, setSelectedDate } = useCalendarStore()
 
-  const eventsByDay = useMemo(() => {
+  // Index events by date key
+  const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
-    events.forEach(event => {
-      // Format from useCalendarEvents is "YYYY-MM-DD HH:MM:SS" (space separator)
-      const dayStr = event.start.split(' ')[0]
-      const existing = map.get(dayStr) || []
-      map.set(dayStr, [...existing, event])
+    events.forEach((event) => {
+      const key = formatDateKey(event.start)
+      const list = map.get(key) || []
+      list.push(event)
+      map.set(key, list)
     })
+    // Sort events within each day by start time
+    map.forEach((list) => list.sort((a, b) => a.start.getTime() - b.start.getTime()))
     return map
   }, [events])
 
-  const getDotStatus = (event: CalendarEvent): AppointmentStatus => {
-    return (event.extendedProps.status || 'scheduled') as AppointmentStatus
+  const handleDayClick = (day: Date) => {
+    setSelectedDate(day)
+    setView('day')
   }
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex-1 flex flex-col">
+      {/* Weekday headers */}
       <div className="grid grid-cols-7 border-b border-border">
-        {['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'].map((day) => (
-          <div
-            key={day}
-            className="h-10 px-2 text-xs font-semibold text-muted-foreground flex items-center justify-center border-r last:border-r-0 border-border"
-          >
-            {day}
+        {WEEKDAY_HEADERS.map((name) => (
+          <div key={name} className="py-2 text-center text-xs font-medium text-muted-foreground uppercase">
+            {name}
           </div>
         ))}
       </div>
 
-      <div className="flex-1 grid grid-cols-7 grid-rows-5">
-        {weeks.slice(0, 5).map((week, weekIndex) =>
-          week.map((day, dayIndex) => {
-            const dayStr = formatDateKey(day)
-            const dayEvents = eventsByDay.get(dayStr) || []
-            const isCurrentMonth = day.getMonth() === date.getMonth()
-            const isWeekend = dayIndex >= 5
+      {/* Day cells */}
+      <div className="flex-1 grid grid-rows-[repeat(auto-fill,minmax(100px,1fr))]">
+        {weeks.map((week, wi) => (
+          <div key={wi} className="grid grid-cols-7 border-b border-border">
+            {week.map((day) => {
+              const key = formatDateKey(day)
+              const dayEvents = eventsByDate.get(key) || []
+              const isCurrentMonth = day.getMonth() === date.getMonth()
+              const today = isToday(day)
+              const visible = dayEvents.slice(0, MAX_VISIBLE_EVENTS)
+              const remaining = dayEvents.length - MAX_VISIBLE_EVENTS
 
-            return (
-              <div
-                key={dayStr}
-                className={cn(
-                  "border-r border-b border-border p-1 min-h-[100px] cursor-pointer",
-                  "hover:bg-muted/30 transition-colors",
-                  !isCurrentMonth && "bg-muted/20",
-                  isWeekend && "bg-muted/10"
-                )}
-                onClick={() => onDayClick?.(day)}
-              >
-                <div className="flex items-center justify-center mb-1">
-                  <span
-                    className={cn(
-                      "w-6 h-6 text-xs font-medium rounded-full flex items-center justify-center",
-                      isToday(day) && "bg-primary text-primary-foreground"
-                    )}
-                  >
-                    {format(day, 'd')}
-                  </span>
-                </div>
+              return (
+                <div
+                  key={key}
+                  className={cn(
+                    'border-r border-border last:border-r-0 p-1 min-h-[100px] cursor-pointer hover:bg-muted/30 transition-colors',
+                    !isCurrentMonth && 'opacity-40',
+                    today && 'bg-teal-50/50 dark:bg-teal-950/20',
+                  )}
+                  onClick={() => handleDayClick(day)}
+                >
+                  <div className={cn(
+                    'text-sm mb-1',
+                    today
+                      ? 'w-6 h-6 flex items-center justify-center rounded-full bg-teal-600 text-white font-bold'
+                      : isWeekend(day)
+                        ? 'text-muted-foreground'
+                        : 'text-foreground',
+                  )}>
+                    {day.getDate()}
+                  </div>
 
-                <div className="space-y-0.5">
-                  {dayEvents.slice(0, 3).map((event) => {
-                    const status = getDotStatus(event)
-                    const colors = getStatusColors(status)
-                    return (
+                  {/* Mini event cards */}
+                  <div className="space-y-0.5">
+                    {visible.map((event) => (
                       <div
                         key={event.id}
-                        className="h-1.5 rounded-full cursor-pointer hover:opacity-80 transition-opacity"
-                        style={{ backgroundColor: colors.bg }}
+                        className="flex items-center gap-1 text-xs px-1 py-0.5 rounded bg-muted/50 truncate"
                         onClick={(e) => {
                           e.stopPropagation()
-                          onEventClick?.(event.id)
+                          // Could open edit dialog here
                         }}
-                      />
-                    )
-                  })}
-                  {dayEvents.length > 3 && (
-                    <div className="text-[9px] text-muted-foreground text-center">
-                      +{dayEvents.length - 3}
-                    </div>
-                  )}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDotColors[event.status] || 'bg-gray-400'}`} />
+                        <span className="truncate">
+                          {formatTime(event.start)} {event.title}
+                        </span>
+                      </div>
+                    ))}
+                    {remaining > 0 && (
+                      <div className="text-xs text-muted-foreground px-1">
+                        +{remaining} mais
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )
-          })
-        )}
+              )
+            })}
+          </div>
+        ))}
       </div>
     </div>
   )

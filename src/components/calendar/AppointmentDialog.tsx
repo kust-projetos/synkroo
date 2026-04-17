@@ -1,535 +1,272 @@
-// src/components/calendar/AppointmentDialog.tsx
-'use client'
+// AppointmentDialog — create/edit appointment dialog
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
-import { useDentists, useProcedures, useClinicSettings } from '@/lib/hooks/use-queries'
-import { MiniCalendar } from './MiniCalendar'
-import type { CalendarEvent } from './hooks/useCalendarEvents'
+import { useDentists, useProcedures } from '@/lib/hooks/use-queries'
+import { formatHourLabel } from './utils/date-utils'
+import type { AppointmentStatus } from '@/lib/supabase/database.types'
 
-const STATUS_LABELS: Record<string, string> = {
-  scheduled: 'Agendado',
-  confirmed: 'Confirmado',
-  in_progress: 'Em Andamento',
-  completed: 'Concluído',
-  cancelled: 'Cancelado',
-  no_show: 'Não Compareceu',
+interface DialogFormData {
+  patientName: string
+  patientPhone: string
+  dentistId: string
+  procedureId: string
+  date: string
+  hour: string
+  minute: string
+  duration: number
+  notes: string
 }
 
-const STATUS_BADGE: Record<string, 'warning' | 'info' | 'teal' | 'success' | 'error' | 'zinc'> = {
-  scheduled: 'warning',
-  confirmed: 'info',
-  in_progress: 'teal',
-  completed: 'success',
-  cancelled: 'error',
-  no_show: 'zinc',
-}
+const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120]
 
-const READONLY_STATUSES = new Set(['completed', 'cancelled', 'no_show'])
-
-interface AppointmentDialogProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  mode: 'create' | 'edit' | 'reschedule'
-  event?: CalendarEvent | null
-  prefillDate?: string
-  prefillTime?: string
-  prefillDentistId?: string
-  onSuccess: () => void
-}
-
-export function AppointmentDialog({
-  open,
-  onOpenChange,
-  mode,
-  event,
-  prefillDate,
-  prefillTime,
-  prefillDentistId,
-  onSuccess,
-}: AppointmentDialogProps) {
+export function AppointmentDialog() {
+  const { dialog, closeDialog } = useCalendarStore()
   const { profile } = useAuth()
-  const { data: dentistsData } = useDentists(profile?.clinic_id)
-  const { data: proceduresData } = useProcedures(profile?.clinic_id)
-  const { data: settingsData } = useClinicSettings()
+  const clinicId = profile?.clinic_id
 
-  const dentists = dentistsData?.dentists || []
-  const procedures = proceduresData?.procedures || []
-  const customDurations = settingsData?.settings?.appointment_durations || [15, 30, 45, 60, 90, 120]
+  const { data: dentistsData } = useDentists(clinicId)
+  const { data: proceduresData } = useProcedures(clinicId)
 
-  const formatDuration = (mins: number) => {
-    if (mins < 60) return `${mins} min`
-    if (mins === 60) return '1 hora'
-    const h = Math.floor(mins / 60)
-    const m = mins % 60
-    return m > 0 ? `${h}h ${m}min` : `${h} hora${h > 1 ? 's' : ''}`
-  }
+  const dentists = (dentistsData?.dentists || []) as { id: string; name: string }[]
+  const procedures = (proceduresData?.procedures || []) as { id: string; name: string; duration_minutes: number }[]
 
-  const [patientName, setPatientName] = useState('')
-  const [patientPhone, setPatientPhone] = useState('')
-  const [dentistId, setDentistId] = useState('')
-  const [procedureId, setProcedureId] = useState('')
-  const [date, setDate] = useState('')
-  const [time, setTime] = useState('')
-  const [duration, setDuration] = useState('30')
-  const [endTime, setEndTime] = useState('')
-  const [notes, setNotes] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [rescheduleMode, setRescheduleMode] = useState(false)
-  const [showMiniCalendar, setShowMiniCalendar] = useState(false)
-  const dateInputRef = useRef<HTMLDivElement>(null)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState<DialogFormData>({
+    patientName: '',
+    patientPhone: '',
+    dentistId: '',
+    procedureId: '',
+    date: '',
+    hour: '09',
+    minute: '00',
+    duration: 30,
+    notes: '',
+  })
 
-  // Close mini calendar on click outside
+  // Pre-fill form when dialog opens
   useEffect(() => {
-    if (!showMiniCalendar) return
-    const handler = (e: MouseEvent) => {
-      if (dateInputRef.current && !dateInputRef.current.contains(e.target as Node)) {
-        setShowMiniCalendar(false)
+    if (dialog.open && dialog.mode === 'create' && dialog.slotInfo) {
+      const { date, hour, minute, dentistId } = dialog.slotInfo
+      const d = date
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      setForm((prev) => ({
+        ...prev,
+        date: dateStr,
+        hour: String(hour).padStart(2, '0'),
+        minute: String(minute).padStart(2, '0'),
+        dentistId: dentistId || prev.dentistId,
+      }))
+    }
+  }, [dialog])
+
+  // Update duration when procedure changes
+  useEffect(() => {
+    if (form.procedureId) {
+      const proc = procedures.find((p) => p.id === form.procedureId)
+      if (proc?.duration_minutes) {
+        setForm((prev) => ({ ...prev, duration: proc.duration_minutes }))
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showMiniCalendar])
+  }, [form.procedureId, procedures])
 
-  // Format YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS → DD/MM/YYYY for display
-  const formatDateDisplay = (value: string) => {
-    if (!value) return ''
-    // Handle ISO format with time component: "2026-04-23T00:00:00"
-    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/)
-    if (isoMatch) {
-      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`
-    }
-    // Handle DD/MM/YYYY already formatted
-    const slashMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-    if (slashMatch) return value
-    return ''
-  }
+  const handleSave = useCallback(async () => {
+    if (!clinicId || !form.patientName || !form.date) return
 
-  // Parse DD/MM/YYYY → YYYY-MM-DD on input change; invalid input → empty
-  const parseDateInput = (value: string) => {
-    const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-    if (match) {
-      const [, d, m, y] = match
-      const date = new Date(`${y}-${m}-${d}T12:00:00`)
-      if (!isNaN(date.getTime())) return `${y}-${m}-${d}`
-    }
-    return ''
-  }
-
-  // Calculate end time from start time + duration
-  const calculateEndTime = (startTime: string, dur: string): string => {
-    if (!startTime || !dur) return ''
-    const [h, m] = startTime.split(':').map(Number)
-    const totalMinutes = h * 60 + m + parseInt(dur)
-    const endH = Math.floor(totalMinutes / 60) % 24
-    const endM = totalMinutes % 60
-    return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
-  }
-
-  // Calculate duration from start time + end time
-  const calculateDuration = (startTime: string, finTime: string): string => {
-    if (!startTime || !finTime) return '30'
-    const [sh, sm] = startTime.split(':').map(Number)
-    const [eh, em] = finTime.split(':').map(Number)
-    const diff = (eh * 60 + em) - (sh * 60 + sm)
-    return diff > 0 ? String(diff) : '30'
-  }
-
-  // Sync endTime when duration changes
-  const handleDurationChange = (newDuration: string) => {
-    setDuration(newDuration)
-    if (time) {
-      setEndTime(calculateEndTime(time, newDuration))
-    }
-  }
-
-  // Sync duration when endTime changes
-  const handleEndTimeChange = (newEndTime: string) => {
-    setEndTime(newEndTime)
-    if (time) {
-      setDuration(calculateDuration(time, newEndTime))
-    }
-  }
-
-  // Sync time + duration → endTime
-  useEffect(() => {
-    if (time && duration) {
-      setEndTime(calculateEndTime(time, duration))
-    }
-  }, [time, duration])
-
-  const isReadonly = mode === 'edit' && event ? READONLY_STATUSES.has(event.extendedProps.status) : false
-  const status = event?.extendedProps.status
-
-  // Prefill on open
-  useEffect(() => {
-    if (!open) return
-    setError(null)
-    setRescheduleMode(false)
-    setShowMiniCalendar(false)
-
-    if (mode === 'create') {
-      setPatientName('')
-      setPatientPhone('')
-      setDentistId(prefillDentistId || '')
-      setProcedureId('')
-      setDate(prefillDate ? prefillDate.split(' ')[0] : '')
-      setTime(prefillTime || prefillDate?.split(' ')[1]?.slice(0, 5) || '')
-      setDuration('30')
-      setNotes('')
-    } else if (event) {
-      setPatientName(event.extendedProps.patientName)
-      setPatientPhone(event.extendedProps.patientPhone || '')
-      setDentistId(event.resourceId)
-      setProcedureId('')
-      // CalendarEvent.start/end are ISO strings with space separator
-      const startDate = new Date(event.start.replace(' ', 'T'))
-      const endDate = new Date(event.end.replace(' ', 'T'))
-      setDate(startDate.toLocaleDateString('en-CA'))
-      setTime(startDate.toTimeString().slice(0, 5))
-      const durMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000)
-      setDuration(String(durMinutes > 0 ? durMinutes : 30))
-      setEndTime(endDate.toTimeString().slice(0, 5))
-      setNotes(event.extendedProps.notes || '')
-    }
-  }, [open, mode, event, prefillDate, prefillTime, prefillDentistId])
-
-  const handleSubmit = async () => {
-    if (!profile?.clinic_id) return
-    setSubmitting(true)
-    setError(null)
-
+    setSaving(true)
     try {
-      if (mode === 'create') {
-        // Get local timezone offset (e.g., "-03:00", "-04:00", "+05:30")
-        const tzOffset = (() => {
-          const offset = new Date().getTimezoneOffset()
-          const absOffset = Math.abs(offset)
-          const hours = Math.floor(absOffset / 60)
-          const minutes = absOffset % 60
-          const sign = offset <= 0 ? '+' : '-'
-          return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`
-        })()
-        const scheduledAt = `${date}T${time}:00${tzOffset}`
-        const res = await fetch('/api/appointments', {
+      const scheduledAt = new Date(`${form.date}T${form.hour}:${form.minute}:00`)
+
+      // First, find or create patient
+      let patientId = ''
+      const patientRes = await fetch('/api/patients?search=' + encodeURIComponent(form.patientName))
+      const patientData = await patientRes.json()
+      const existing = patientData?.patients?.find(
+        (p: { name: string }) => p.name.toLowerCase() === form.patientName.toLowerCase()
+      )
+
+      if (existing) {
+        patientId = existing.id
+      } else {
+        const createRes = await fetch('/api/patients', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            patient_name: patientName,
-            patient_phone: patientPhone,
-            dentist_id: dentistId,
-            procedure_id: procedureId || null,
-            scheduled_at: scheduledAt,
-            duration_minutes: parseInt(duration),
-            clinic_id: profile.clinic_id,
-            notes,
+            name: form.patientName,
+            phone: form.patientPhone || undefined,
           }),
         })
-        if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error || 'Erro ao criar agendamento')
-        }
-      } else if (event) {
-        const res = await fetch(`/api/appointments/${event.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            dentist_id: dentistId,
-            procedure_id: procedureId || null,
-            notes,
-          }),
-        })
-        if (!res.ok) {
-          const data = await res.json()
-          throw new Error(data.error || 'Erro ao atualizar agendamento')
-        }
+        const created = await createRes.json()
+        patientId = created.patient?.id
       }
 
-      onSuccess()
-      onOpenChange(false)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
+      if (!patientId) throw new Error('Failed to create/find patient')
 
-  const handleReschedule = async () => {
-    if (!event || !profile?.clinic_id) return
-    setSubmitting(true)
-    setError(null)
-
-    try {
-      const res = await fetch(`/api/appointments/${event.id}/reschedule`, {
+      // Create appointment
+      await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          new_date: date,
-          new_time: time,
-          notify_patient: false,
+          patient_id: patientId,
+          dentist_id: form.dentistId || undefined,
+          procedure_id: form.procedureId || undefined,
+          scheduled_at: scheduledAt.toISOString(),
+          duration_minutes: form.duration,
+          notes: form.notes || undefined,
         }),
       })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Erro ao remarcar agendamento')
-      }
-      onSuccess()
-      onOpenChange(false)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
 
-  const handleStatusAction = async (action: string) => {
-    if (!event) return
-    setSubmitting(true)
-    setError(null)
-
-    try {
-      const res = await fetch(`/api/appointments/${event.id}/${action}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || `Erro ao ${action} agendamento`)
-      }
-      onSuccess()
-      onOpenChange(false)
-    } catch (err: any) {
-      setError(err.message)
+      closeDialog()
+    } catch (err) {
+      console.error('Failed to save appointment:', err)
     } finally {
-      setSubmitting(false)
+      setSaving(false)
     }
-  }
+  }, [form, clinicId, closeDialog])
+
+  const isCreate = dialog.mode === 'create'
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={dialog.open} onOpenChange={(open) => !open && closeDialog()}>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{mode === 'create' ? 'Novo Agendamento' : mode === 'reschedule' ? 'Remarcar Agendamento' : 'Detalhes do Agendamento'}</DialogTitle>
-          <DialogDescription>
-            {mode === 'create' ? 'Preencha os dados para criar um novo agendamento' : mode === 'reschedule' ? 'Selecione nova data e horário' : 'Visualize e gerencie o agendamento'}
-          </DialogDescription>
+          <DialogTitle>
+            {isCreate ? 'Novo Agendamento' : 'Editar Agendamento'}
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {error && (
-            <div className="p-3 rounded-md bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-400 text-sm">
-              {error}
+        <div className="grid gap-4 py-4">
+          {/* Patient */}
+          <div className="grid gap-2">
+            <Label htmlFor="patient">Paciente</Label>
+            <Input
+              id="patient"
+              placeholder="Nome do paciente"
+              value={form.patientName}
+              onChange={(e) => setForm((f) => ({ ...f, patientName: e.target.value }))}
+            />
+          </div>
+
+          {/* Phone */}
+          <div className="grid gap-2">
+            <Label htmlFor="phone">Telefone</Label>
+            <Input
+              id="phone"
+              placeholder="(00) 00000-0000"
+              value={form.patientPhone}
+              onChange={(e) => setForm((f) => ({ ...f, patientPhone: e.target.value }))}
+            />
+          </div>
+
+          {/* Dentist */}
+          <div className="grid gap-2">
+            <Label>Dentista</Label>
+            <Select value={form.dentistId} onValueChange={(v) => setForm((f) => ({ ...f, dentistId: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar dentista" />
+              </SelectTrigger>
+              <SelectContent>
+                {dentists.map((d) => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Procedure */}
+          <div className="grid gap-2">
+            <Label>Procedimento</Label>
+            <Select value={form.procedureId} onValueChange={(v) => setForm((f) => ({ ...f, procedureId: v }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecionar procedimento" />
+              </SelectTrigger>
+              <SelectContent>
+                {procedures.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name} ({p.duration_minutes}min)</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Date and Time */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="date">Data</Label>
+              <Input
+                id="date"
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              />
             </div>
-          )}
-
-          {mode === 'edit' && event && !rescheduleMode && (
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Status</span>
-              <StatusBadge status={STATUS_BADGE[status!] || 'info'}>
-                {STATUS_LABELS[status!] || status}
-              </StatusBadge>
+            <div className="grid gap-2">
+              <Label>Hora</Label>
+              <Select value={form.hour} onValueChange={(v) => setForm((f) => ({ ...f, hour: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 11 }, (_, i) => i + 8).map((h) => (
+                    <SelectItem key={h} value={String(h).padStart(2, '0')}>
+                      {formatHourLabel(h)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          )}
+            <div className="grid gap-2">
+              <Label>Duracao</Label>
+              <Select
+                value={String(form.duration)}
+                onValueChange={(v) => setForm((f) => ({ ...f, duration: parseInt(v) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((d) => (
+                    <SelectItem key={d} value={String(d)}>{d} min</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-          {rescheduleMode ? (
-            <>
-              <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400 text-sm">
-                Selecione uma nova data e horário para remarcar este agendamento.
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="text-sm font-medium">Data</label>
-                  <div className="relative mt-1" ref={dateInputRef}>
-                    <Input
-                      type="text"
-                      value={formatDateDisplay(date)}
-                      onChange={(e) => setDate(parseDateInput(e.target.value))}
-                      className="w-full pr-0"
-                      onFocus={() => setShowMiniCalendar(true)}
-                    />
-                    {showMiniCalendar && (
-                      <div className="absolute z-50 top-full left-0 mt-1 border rounded-md bg-background shadow-md p-2 w-[220px]">
-                        <MiniCalendar
-                          selectedDate={date ? new Date(date + 'T12:00:00') : new Date()}
-                          onSelectDate={(d) => {
-                            setDate(d.toLocaleDateString('en-CA'))
-                            setShowMiniCalendar(false)
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="text-sm font-medium">Início</label>
-                    <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} className="mt-1" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Término</label>
-                    <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} className="mt-1" />
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <label className="text-sm font-medium">Paciente</label>
-                {mode === 'edit' ? (
-                  <p className="text-sm text-foreground mt-1">{patientName}</p>
-                ) : (
-                  <div className="space-y-2 mt-1">
-                    <Input placeholder="Nome do paciente" value={patientName} onChange={(e) => setPatientName(e.target.value)} disabled={isReadonly} />
-                    <Input placeholder="Telefone" value={patientPhone} onChange={(e) => setPatientPhone(e.target.value)} disabled={isReadonly} />
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-sm font-medium">Data</label>
-                  <div className="relative mt-1" ref={dateInputRef}>
-                    <Input
-                      type="text"
-                      value={formatDateDisplay(date)}
-                      onChange={(e) => setDate(parseDateInput(e.target.value))}
-                      disabled={isReadonly}
-                      className="w-full pr-0"
-                      onFocus={() => !isReadonly && setShowMiniCalendar(true)}
-                    />
-                    {showMiniCalendar && !isReadonly && (
-                      <div className="absolute z-50 top-full left-0 mt-1 border rounded-md bg-background shadow-md p-2 w-[220px]">
-                        <MiniCalendar
-                          selectedDate={date ? new Date(date + 'T12:00:00') : new Date()}
-                          onSelectDate={(d) => {
-                            setDate(d.toLocaleDateString('en-CA'))
-                            setShowMiniCalendar(false)
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Início</label>
-                  <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} disabled={isReadonly} className="mt-1" />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Término</label>
-                  <Input type="time" value={endTime} onChange={(e) => handleEndTimeChange(e.target.value)} disabled={isReadonly} className="mt-1" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Duração</label>
-                <Select value={duration} onValueChange={handleDurationChange} disabled={isReadonly}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {customDurations.map((mins: number) => (
-                      <SelectItem key={mins} value={String(mins)}>{formatDuration(mins)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Profissional</label>
-                <Select value={dentistId} onValueChange={setDentistId} disabled={isReadonly}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dentists.map((d: any) => (
-                      <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Procedimento</label>
-                <Select value={procedureId} onValueChange={(v) => {
-                  setProcedureId(v)
-                  const proc = procedures.find((p: any) => p.id === v)
-                  if (proc?.duration_minutes) setDuration(String(proc.duration_minutes))
-                }} disabled={isReadonly}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Selecione" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {procedures.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.duration_minutes}min)</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium">Observações</label>
-                <Input value={notes} onChange={(e) => setNotes(e.target.value)} disabled={isReadonly} placeholder="Notas opcionais" className="mt-1" />
-              </div>
-            </>
-          )}
+          {/* Notes */}
+          <div className="grid gap-2">
+            <Label htmlFor="notes">Observacoes</Label>
+            <Input
+              id="notes"
+              placeholder="Notas opcionais..."
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+            />
+          </div>
         </div>
 
-        <DialogFooter className="gap-2">
-          {rescheduleMode ? (
-            <>
-              <Button size="sm" variant="outline" onClick={() => setRescheduleMode(false)} disabled={submitting}>Cancelar</Button>
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={handleReschedule} disabled={submitting || !date || !time}>
-                {submitting ? 'Remarcando...' : 'Confirmar Remarcar'}
-              </Button>
-            </>
-          ) : (
-            <>
-              {mode === 'edit' && event && !isReadonly && (
-                <>
-                  {status === 'scheduled' && (
-                    <>
-                      <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
-                      <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Confirmar</Button>
-                    </>
-                  )}
-                  {status === 'confirmed' && (
-                    <>
-                      <Button size="sm" variant="outline" className="text-red-600" onClick={() => handleStatusAction('cancel')} disabled={submitting}>Desmarcar</Button>
-                      <Button size="sm" variant="outline" onClick={() => handleStatusAction('noshow')} disabled={submitting}>Não Compareceu</Button>
-                      <Button size="sm" className="bg-teal-600 hover:bg-teal-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Iniciar</Button>
-                    </>
-                  )}
-                  {status === 'in_progress' && (
-                    <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => handleStatusAction('confirm')} disabled={submitting}>Concluir</Button>
-                  )}
-                </>
-              )}
-              {mode === 'edit' && event && status === 'cancelled' && !submitting && (
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700" onClick={() => setRescheduleMode(true)} disabled={submitting}>Remarcar</Button>
-              )}
-              {mode === 'create' && (
-                <Button size="sm" onClick={handleSubmit} disabled={submitting || !patientName || !dentistId || !date || !time}>
-                  {submitting ? 'Criando...' : 'Criar Agendamento'}
-                </Button>
-              )}
-            </>
-          )}
-          {!rescheduleMode && <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>}
+        <DialogFooter>
+          <Button variant="outline" onClick={closeDialog}>
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSave}
+            disabled={saving || !form.patientName || !form.date}
+            className="bg-teal-600 hover:bg-teal-700"
+          >
+            {saving ? 'Salvando...' : isCreate ? 'Agendar' : 'Salvar'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
