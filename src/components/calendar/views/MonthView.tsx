@@ -87,7 +87,7 @@ export function MonthView({ events, date }: MonthViewProps) {
                     {visible.map((event) => (
                       <div
                         key={event.id}
-                        className="flex items-center gap-1 text-xs px-1 py-0.5 rounded bg-muted/50 truncate"
+                        className="flex items-center gap-1 text-[10px] leading-tight px-1 py-0.5 rounded bg-muted/50 overflow-hidden"
                         onClick={(e) => {
                           e.stopPropagation()
                           // Could open edit dialog here

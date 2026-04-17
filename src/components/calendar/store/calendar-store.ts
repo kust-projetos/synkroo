@@ -112,7 +112,7 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
     const dentists = params.getAll('dentist')
 
     const updates: Partial<CalendarStore> = {}
-    if (view && ['day', 'week', 'month', 'professionals'].includes(view)) {
+    if (view && ['day', 'week', 'month', 'professionals', 'list'].includes(view)) {
       updates.view = view
     }
     if (date) {

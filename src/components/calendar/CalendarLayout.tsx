@@ -13,7 +13,11 @@ import { WeekView } from './views/WeekView'
 import { MonthView } from './views/MonthView'
 import { ProfessionalsView } from './views/ProfessionalsView'
 
-export function CalendarLayout() {
+interface CalendarLayoutProps {
+  ListComponent?: React.ComponentType
+}
+
+export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
   const { view, selectedDate, syncFromURL, toSearchParams } = useCalendarStore()
   const { events, resources, isLoading } = useCalendarEvents()
   const searchParams = useSearchParams()
@@ -34,6 +38,14 @@ export function CalendarLayout() {
 
   // Render current view
   const renderView = () => {
+    if (view === 'list' && ListComponent) {
+      return (
+        <div className="flex-1 min-h-0 overflow-auto">
+          <ListComponent />
+        </div>
+      )
+    }
+
     if (isLoading) {
       return (
         <div className="flex-1 flex items-center justify-center">

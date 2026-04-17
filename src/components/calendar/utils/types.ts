@@ -25,7 +25,7 @@ export interface CalendarResource {
 }
 
 /** Calendar view modes */
-export type CalendarView = 'day' | 'week' | 'month' | 'professionals'
+export type CalendarView = 'day' | 'week' | 'month' | 'professionals' | 'list'
 
 /** Dialog state for create/edit */
 export interface DialogSlotInfo {
