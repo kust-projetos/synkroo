@@ -1,4 +1,4 @@
-// EventCard — positioned event card using minute-based calculations
+// EventCard — positioned event card with drag initiation
 
 import { getPixelOffsetFor, getPixelHeight, formatTime } from '../utils/date-utils'
 import { eventCardVariants } from './event-styles'
@@ -9,33 +9,61 @@ import type { AppointmentStatus } from '@/lib/supabase/database.types'
 
 interface EventCardProps {
   laidOut: LaidOutEvent
-  /** Column index in the grid (0 for day view, 0-6 for week, 0-N for professionals) */
   gridColumn: number
-  /** Total columns in the grid */
   totalGridColumns: number
+  isDraggingThis?: boolean
+  onPointerDown?: (
+    e: React.PointerEvent,
+    event: LaidOutEvent['event'],
+    offsetY: number,
+  ) => void
+  gridContentRef?: React.RefObject<HTMLDivElement | null>
 }
 
-export function EventCard({ laidOut, gridColumn, totalGridColumns }: EventCardProps) {
+export function EventCard({
+  laidOut,
+  gridColumn,
+  totalGridColumns,
+  isDraggingThis,
+  onPointerDown,
+  gridContentRef,
+}: EventCardProps) {
   const { event, column, totalColumns } = laidOut
   const openEditDialog = useCalendarStore((s) => s.openEditDialog)
   const startHour = useCalendarStore((s) => s.startHour)
 
-  // Calculate position within the grid column
   const columnWidth = 100 / totalGridColumns
   const baseLeft = gridColumn * columnWidth
-
-  // Within the overlapping group, calculate sub-position
   const subWidth = columnWidth / totalColumns
   const left = baseLeft + column * subWidth
 
-  // Vertical position based on time (uses dynamic startHour)
   const top = getPixelOffsetFor(event.start, startHour)
   const height = getPixelHeight(event.durationMinutes)
 
-  // Determine what text fits based on available height
   const showTime = height >= 16
   const showTitle = height >= 28
   const showProcedure = height >= 48
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!onPointerDown || !gridContentRef) return
+    e.preventDefault()
+
+    const cardEl = e.currentTarget as HTMLElement
+    const gridContent = gridContentRef.current
+    if (!gridContent) return
+
+    const cardRect = cardEl.getBoundingClientRect()
+    const offsetY = e.clientY - cardRect.top
+
+    onPointerDown(e, event, offsetY)
+  }
+
+  const handleClick = (e: React.MouseEvent) => {
+    // Only handle click when drag is not active (no onPointerDown provided)
+    if (onPointerDown) return
+    e.stopPropagation()
+    openEditDialog(event.id)
+  }
 
   return (
     <EventTooltip event={event}>
@@ -48,11 +76,12 @@ export function EventCard({ laidOut, gridColumn, totalGridColumns }: EventCardPr
           left: `${left}%`,
           width: `${subWidth - 0.5}%`,
           zIndex: 10,
+          opacity: isDraggingThis ? 0.3 : 1,
+          cursor: onPointerDown ? 'grab' : 'pointer',
+          transition: isDraggingThis ? 'opacity 0.15s' : undefined,
         }}
-        onClick={(e) => {
-          e.stopPropagation()
-          openEditDialog(event.id)
-        }}
+        onPointerDown={onPointerDown ? handlePointerDown : undefined}
+        onClick={handleClick}
         role="button"
         tabIndex={0}
         aria-label={`${event.title} - ${formatTime(event.start)}`}
