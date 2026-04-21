@@ -13,7 +13,6 @@ interface MonthViewProps {
 }
 
 const WEEKDAY_HEADERS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sab', 'Dom']
-const MAX_VISIBLE_EVENTS = 3
 
 export function MonthView({ events, date }: MonthViewProps) {
   const weeks = useMemo(() => getMonthDays(date), [date])
@@ -28,7 +27,6 @@ export function MonthView({ events, date }: MonthViewProps) {
       list.push(event)
       map.set(key, list)
     })
-    // Sort events within each day by start time
     map.forEach((list) => list.sort((a, b) => a.start.getTime() - b.start.getTime()))
     return map
   }, [events])
@@ -43,73 +41,67 @@ export function MonthView({ events, date }: MonthViewProps) {
       {/* Weekday headers */}
       <div className="grid grid-cols-7 border-b border-border">
         {WEEKDAY_HEADERS.map((name) => (
-          <div key={name} className="py-2 text-center text-xs font-medium text-muted-foreground uppercase">
+          <div key={name} className="py-2.5 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             {name}
           </div>
         ))}
       </div>
 
-      {/* Day cells */}
-      <div className="flex-1 grid grid-rows-[repeat(auto-fill,minmax(100px,1fr))]">
-        {weeks.map((week, wi) => (
-          <div key={wi} className="grid grid-cols-7 border-b border-border">
-            {week.map((day) => {
-              const key = formatDateKey(day)
-              const dayEvents = eventsByDate.get(key) || []
-              const isCurrentMonth = day.getMonth() === date.getMonth()
-              const today = isToday(day)
-              const visible = dayEvents.slice(0, MAX_VISIBLE_EVENTS)
-              const remaining = dayEvents.length - MAX_VISIBLE_EVENTS
+      {/* Day cells — scrollable grid */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="grid" style={{ gridTemplateRows: `repeat(${weeks.length}, minmax(140px, 1fr))` }}>
+          {weeks.map((week, wi) => (
+            <div key={wi} className="grid grid-cols-7 border-b border-border">
+              {week.map((day) => {
+                const key = formatDateKey(day)
+                const dayEvents = eventsByDate.get(key) || []
+                const isCurrentMonth = day.getMonth() === date.getMonth()
+                const today = isToday(day)
 
-              return (
-                <div
-                  key={key}
-                  className={cn(
-                    'border-r border-border last:border-r-0 p-1 min-h-[100px] cursor-pointer hover:bg-muted/30 transition-colors',
-                    !isCurrentMonth && 'opacity-40',
-                    today && 'bg-teal-50/50 dark:bg-teal-950/20',
-                  )}
-                  onClick={() => handleDayClick(day)}
-                >
-                  <div className={cn(
-                    'text-sm mb-1',
-                    today
-                      ? 'w-6 h-6 flex items-center justify-center rounded-full bg-teal-600 text-white font-bold'
-                      : isWeekend(day)
-                        ? 'text-muted-foreground'
-                        : 'text-foreground',
-                  )}>
-                    {day.getDate()}
-                  </div>
-
-                  {/* Mini event cards */}
-                  <div className="space-y-0.5">
-                    {visible.map((event) => (
-                      <div
-                        key={event.id}
-                        className="flex items-center gap-1 text-[10px] leading-tight px-1 py-0.5 rounded bg-muted/50 overflow-hidden"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          // Could open edit dialog here
-                        }}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDotColors[event.status] || 'bg-gray-400'}`} />
-                        <span className="truncate">
-                          {formatTime(event.start)} {event.title}
-                        </span>
-                      </div>
-                    ))}
-                    {remaining > 0 && (
-                      <div className="text-xs text-muted-foreground px-1">
-                        +{remaining} mais
-                      </div>
+                return (
+                  <div
+                    key={key}
+                    className={cn(
+                      'border-r border-border last:border-r-0 p-1.5 min-h-[140px] cursor-pointer hover:bg-muted/30 transition-colors flex flex-col',
+                      !isCurrentMonth && 'opacity-40',
+                      today && 'bg-teal-50/50 dark:bg-teal-950/20',
                     )}
+                    onClick={() => handleDayClick(day)}
+                  >
+                    <div className={cn(
+                      'text-sm mb-1 flex-shrink-0',
+                      today
+                        ? 'w-6 h-6 flex items-center justify-center rounded-full bg-teal-600 text-white font-bold'
+                        : isWeekend(day)
+                          ? 'text-muted-foreground'
+                          : 'text-foreground',
+                    )}>
+                      {day.getDate()}
+                    </div>
+
+                    {/* Scrollable event cards */}
+                    <div className="flex-1 overflow-y-auto space-y-0.5 scrollbar-thin">
+                      {dayEvents.map((event) => (
+                        <div
+                          key={event.id}
+                          className="flex items-center gap-1.5 text-[11px] leading-snug px-1.5 py-0.5 rounded bg-muted/50 hover:bg-muted/80 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                        >
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusDotColors[event.status] || 'bg-gray-400'}`} />
+                          <span className="truncate">
+                            {formatTime(event.start)} {event.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        ))}
+                )
+              })}
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

@@ -7,6 +7,7 @@ import { EmptySlots } from '../grid/EmptySlots'
 import { NowIndicator } from '../grid/NowIndicator'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useCalendarStore } from '../store/calendar-store'
+import type { DragDropResult } from '../hooks/useDragEvent'
 import { getDentistPalette } from '../utils/dentist-colors'
 import { formatDateKey } from '../utils/date-utils'
 import { cn } from '@/lib/utils'
@@ -16,9 +17,11 @@ interface ProfessionalsViewProps {
   events: CalendarEvent[]
   date: Date
   resources: CalendarResource[]
+  onEventDrop?: (result: DragDropResult) => void
+  onEventClick?: (eventId: string) => void
 }
 
-export function ProfessionalsView({ events, date, resources }: ProfessionalsViewProps) {
+export function ProfessionalsView({ events, date, resources, onEventDrop, onEventClick }: ProfessionalsViewProps) {
   const scrollRef = useAutoScroll<HTMLDivElement>()
   const startHour = useCalendarStore((s) => s.startHour)
   const endHour = useCalendarStore((s) => s.endHour)
@@ -81,6 +84,9 @@ export function ProfessionalsView({ events, date, resources }: ProfessionalsView
         ref={scrollRef}
         columnCount={columnCount}
         columnHeaders={columnHeaders}
+        dateKeys={[formatDateKey(date)]}
+        onEventDrop={onEventDrop}
+        onEventClick={onEventClick}
         eventContent={
           <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={columnCount} />
         }
