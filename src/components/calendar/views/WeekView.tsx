@@ -7,6 +7,7 @@ import { EmptySlots } from '../grid/EmptySlots'
 import { NowIndicator } from '../grid/NowIndicator'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useCalendarStore } from '../store/calendar-store'
+import type { DragDropResult } from '../hooks/useDragEvent'
 import {
   getWeekDays,
   getShortDayName,
@@ -21,9 +22,11 @@ import type { CalendarEvent } from '../utils/types'
 interface WeekViewProps {
   events: CalendarEvent[]
   date: Date
+  onEventDrop?: (result: DragDropResult) => void
+  onEventClick?: (eventId: string) => void
 }
 
-export function WeekView({ events, date }: WeekViewProps) {
+export function WeekView({ events, date, onEventDrop, onEventClick }: WeekViewProps) {
   const scrollRef = useAutoScroll<HTMLDivElement>()
   const startHour = useCalendarStore((s) => s.startHour)
   const endHour = useCalendarStore((s) => s.endHour)
@@ -73,6 +76,9 @@ export function WeekView({ events, date }: WeekViewProps) {
         ref={scrollRef}
         columnCount={7}
         columnHeaders={columnHeaders}
+        dateKeys={days.map(formatDateKey)}
+        onEventDrop={onEventDrop}
+        onEventClick={onEventClick}
         eventContent={
           <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={7} />
         }

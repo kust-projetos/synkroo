@@ -22,7 +22,7 @@ import { ptBR } from 'date-fns/locale'
 // Grid constants (defaults — overridden by store for configurable business hours)
 export const DEFAULT_START_HOUR = 8
 export const DEFAULT_END_HOUR = 18
-export const HOUR_SIZE = 80 // pixels per hour
+export const HOUR_SIZE = 100 // pixels per hour
 export const SLOT_MINUTES = 15
 export const SLOTS_PER_HOUR = 60 / SLOT_MINUTES // 4
 export const SLOT_HEIGHT = HOUR_SIZE / SLOTS_PER_HOUR // 20px

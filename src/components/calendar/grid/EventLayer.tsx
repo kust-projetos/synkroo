@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { layoutEvents } from '../events/overlap-utils'
 import { EventCard } from '../events/EventCard'
+import { useCalendarDrag } from '../hooks/useDragEvent'
 import type { CalendarEvent } from '../utils/types'
 
 interface EventLayerProps {
@@ -13,6 +14,8 @@ interface EventLayerProps {
 }
 
 export function EventLayer({ eventsByColumn, totalGridColumns }: EventLayerProps) {
+  const drag = useCalendarDrag()
+
   // Layout events per column using the overlap algorithm
   const laidOutByColumn = useMemo(() => {
     const result = new Map<number, ReturnType<typeof layoutEvents>>()
@@ -32,6 +35,9 @@ export function EventLayer({ eventsByColumn, totalGridColumns }: EventLayerProps
           laidOut={laid}
           gridColumn={colIndex}
           totalGridColumns={totalGridColumns}
+          isDraggingThis={drag?.draggingEventId === laid.event.id}
+          onPointerDown={drag?.onDragStart}
+          gridContentRef={drag?.gridContentRef}
         />
       )
     })

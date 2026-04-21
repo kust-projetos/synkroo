@@ -27,7 +27,10 @@ export async function GET(request: NextRequest) {
     const dentistIds = searchParams.getAll('dentist_ids')  // repeated param: ?dentist_ids=a&dentist_ids=b
     const specialty = searchParams.get('specialty')
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
+    // Calendar views need all events in a date range, not paginated chunks
+    const isCalendarRange = startDate && endDate
+    const defaultLimit = isCalendarRange ? '999' : '50'
+    const limit = Math.min(parseInt(searchParams.get('limit') || defaultLimit), 999)
 
     const supabase = await createTypedClient()
 

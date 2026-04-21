@@ -7,6 +7,7 @@ import { EmptySlots } from '../grid/EmptySlots'
 import { NowIndicator } from '../grid/NowIndicator'
 import { useAutoScroll } from '../hooks/useAutoScroll'
 import { useCalendarStore } from '../store/calendar-store'
+import type { DragDropResult } from '../hooks/useDragEvent'
 import { formatDateKey, getShortDayName, getDayNumber, isToday, isWeekend } from '../utils/date-utils'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '../utils/types'
@@ -14,9 +15,11 @@ import type { CalendarEvent } from '../utils/types'
 interface DayViewProps {
   events: CalendarEvent[]
   date: Date
+  onEventDrop?: (result: DragDropResult) => void
+  onEventClick?: (eventId: string) => void
 }
 
-export function DayView({ events, date }: DayViewProps) {
+export function DayView({ events, date, onEventDrop, onEventClick }: DayViewProps) {
   const scrollRef = useAutoScroll<HTMLDivElement>()
   const startHour = useCalendarStore((s) => s.startHour)
   const endHour = useCalendarStore((s) => s.endHour)
@@ -50,6 +53,9 @@ export function DayView({ events, date }: DayViewProps) {
         ref={scrollRef}
         columnCount={1}
         columnHeaders={columnHeaders}
+        dateKeys={[formatDateKey(date)]}
+        onEventDrop={onEventDrop}
+        onEventClick={onEventClick}
         eventContent={<EventLayer eventsByColumn={eventsByColumn} totalGridColumns={1} />}
         slotsContent={<EmptySlots columnCount={1} dates={[formatDateKey(date)]} />}
         nowIndicator={<NowIndicator date={date} startHour={startHour} endHour={endHour} />}
