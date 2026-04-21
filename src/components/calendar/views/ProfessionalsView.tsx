@@ -78,20 +78,23 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
     )
   }
 
+  const dateKey = formatDateKey(date)
+  const dateKeys = useMemo(() => Array(columnCount).fill(dateKey), [dateKey, columnCount])
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <TimeGrid
         ref={scrollRef}
         columnCount={columnCount}
         columnHeaders={columnHeaders}
-        dateKeys={[formatDateKey(date)]}
+        dateKeys={dateKeys}
         onEventDrop={onEventDrop}
         onEventClick={onEventClick}
         eventContent={
           <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={columnCount} />
         }
         slotsContent={
-          <EmptySlots columnCount={columnCount} dates={[formatDateKey(date)]} columnDentistIds={dentistIds} />
+          <EmptySlots columnCount={columnCount} dates={dateKeys} columnDentistIds={dentistIds} />
         }
         nowIndicator={<NowIndicator date={date} startHour={startHour} endHour={endHour} />}
       />
