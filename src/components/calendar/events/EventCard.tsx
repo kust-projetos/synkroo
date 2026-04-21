@@ -20,6 +20,12 @@ interface EventCardProps {
   gridContentRef?: React.RefObject<HTMLDivElement | null>
 }
 
+export const DRAGGABLE_STATUSES: readonly AppointmentStatus[] = ['scheduled', 'confirmed', 'in_progress'] as const
+
+export function isDraggableStatus(status: AppointmentStatus): boolean {
+  return (DRAGGABLE_STATUSES as readonly string[]).includes(status)
+}
+
 export function EventCard({
   laidOut,
   gridColumn,
@@ -31,6 +37,7 @@ export function EventCard({
   const { event, column, totalColumns } = laidOut
   const openEditDialog = useCalendarStore((s) => s.openEditDialog)
   const startHour = useCalendarStore((s) => s.startHour)
+  const canDrag = isDraggableStatus(event.status)
 
   const columnWidth = 100 / totalGridColumns
   const baseLeft = gridColumn * columnWidth
@@ -77,10 +84,10 @@ export function EventCard({
           width: `${subWidth - 0.5}%`,
           zIndex: 10,
           opacity: isDraggingThis ? 0.3 : 1,
-          cursor: onPointerDown ? 'grab' : 'pointer',
+          cursor: canDrag && onPointerDown ? 'grab' : 'pointer',
           transition: isDraggingThis ? 'opacity 0.15s' : undefined,
         }}
-        onPointerDown={onPointerDown ? handlePointerDown : undefined}
+        onPointerDown={canDrag && onPointerDown ? handlePointerDown : undefined}
         onClick={handleClick}
         role="button"
         tabIndex={0}
