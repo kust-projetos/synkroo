@@ -13,8 +13,8 @@ import { DayView } from './views/DayView'
 import { WeekView } from './views/WeekView'
 import { MonthView } from './views/MonthView'
 import { ProfessionalsView } from './views/ProfessionalsView'
-import type { DragDropResult } from './hooks/useDragEvent'
 import { queryKeys } from '@/lib/hooks/use-queries'
+import { useToast } from '@/lib/ui/toast'
 
 interface CalendarLayoutProps {
   ListComponent?: React.ComponentType
@@ -27,6 +27,7 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
   const router = useRouter()
   const pathname = usePathname()
   const queryClient = useQueryClient()
+  const { showToast } = useToast()
 
   // Sync state from URL on mount
   useEffect(() => {
@@ -41,7 +42,7 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
   }, [view, selectedDate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle event drop — call reschedule API
-  const handleEventDrop = useCallback(async (result: DragDropResult) => {
+  const handleEventDrop = useCallback(async (result: { eventId: string; dateKey: string; hour: number; minute: number }) => {
     const { eventId, dateKey, hour, minute } = result
     const timeStr = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 
@@ -52,15 +53,20 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
         body: JSON.stringify({ new_date: dateKey, new_time: timeStr, notify_patient: false }),
       })
 
-      if (!res.ok) throw new Error('Reschedule failed')
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        const msg = data?.error || 'Não foi possível remarcar este agendamento.'
+        showToast(msg, 'warning')
+        return
+      }
 
-      // Invalidate calendar events cache
-      queryClient.invalidateQueries({ queryKey: queryKeys.calendarEvents() })
-    } catch (err) {
-      // Rollback — refetch to restore original positions
-      queryClient.invalidateQueries({ queryKey: queryKeys.calendarEvents() })
+      showToast('Agendamento remarcado com sucesso!', 'success')
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
+    } catch {
+      showToast('Erro ao remarcar. Tente novamente.', 'error')
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
     }
-  }, [queryClient])
+  }, [queryClient, showToast])
 
   // Handle event click (forwarded from drag hook when no drag occurred)
   const handleEventClick = useCallback((eventId: string) => {
@@ -93,7 +99,7 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
       case 'week':
         return <WeekView events={events} date={selectedDate} {...dragProps} />
       case 'month':
-        return <MonthView events={events} date={selectedDate} />
+        return <MonthView events={events} date={selectedDate} {...dragProps} />
       case 'professionals':
         return (
           <ProfessionalsView

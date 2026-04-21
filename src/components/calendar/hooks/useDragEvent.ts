@@ -6,7 +6,7 @@
 
 'use client'
 
-import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react'
 import { MINUTE_HEIGHT, SLOT_MINUTES } from '../utils/date-utils'
 import type { CalendarEvent } from '../utils/types'
 
@@ -73,6 +73,17 @@ export function useDragEvent(config: UseDragEventConfig) {
   const isDraggingRef = useRef(false)
   const configRef = useRef(config)
   configRef.current = config
+  const listenerCleanupRef = useRef<(() => void) | null>(null)
+
+  // Cleanup listeners on unmount to prevent leaks
+  useEffect(() => {
+    return () => {
+      listenerCleanupRef.current?.()
+      pendingRef.current = null
+      isDraggingRef.current = false
+      latestRef.current = null
+    }
+  }, [])
 
   const initiateDrag = useCallback((
     event: CalendarEvent,
@@ -146,6 +157,7 @@ export function useDragEvent(config: UseDragEventConfig) {
     const onPointerUp = () => {
       document.removeEventListener('pointermove', onPointerMove)
       document.removeEventListener('pointerup', onPointerUp)
+      listenerCleanupRef.current = null
 
       const wasDragging = isDraggingRef.current
       const pending = pendingRef.current
@@ -175,9 +187,15 @@ export function useDragEvent(config: UseDragEventConfig) {
 
     document.addEventListener('pointermove', onPointerMove)
     document.addEventListener('pointerup', onPointerUp)
+    listenerCleanupRef.current = () => {
+      document.removeEventListener('pointermove', onPointerMove)
+      document.removeEventListener('pointerup', onPointerUp)
+    }
   }, [])
 
   const cancelDrag = useCallback(() => {
+    listenerCleanupRef.current?.()
+    listenerCleanupRef.current = null
     pendingRef.current = null
     isDraggingRef.current = false
     latestRef.current = null

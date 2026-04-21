@@ -871,7 +871,7 @@ async function seedAppointments(
       // Status based on date relative to now
       const isPast = date < new Date(now.getFullYear(), now.getMonth(), now.getDate())
       const isToday = date.toDateString() === now.toDateString()
-      let status: string
+      let status: 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
       const roll = Math.random()
 
       if (isPast) {
