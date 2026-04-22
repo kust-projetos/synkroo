@@ -1,23 +1,12 @@
 // useCalendarEvents — fetch appointments and transform to CalendarEvent[]
 
-import { useEffect, useMemo, useState } from 'react'
-import { useCalendarEventsQuery, useDentists, useProcedures } from '@/lib/hooks/use-queries'
+import { useMemo } from 'react'
+import { subDays, addDays } from 'date-fns'
+import { useCalendarEventsQuery, useDentists } from '@/lib/hooks/use-queries'
 import { useAuth } from '@/lib/auth/context'
 import { getWeekDays, formatDateKey } from '../utils/date-utils'
 import { useCalendarStore } from '../store/calendar-store'
-import { generateMockEvents, generateMockResources } from '../utils/mock-events'
 import type { CalendarEvent, CalendarResource } from '../utils/types'
-
-/** Client-only check — avoids hydration mismatch */
-function useIsDevBypass(): boolean {
-  const [isBypass, setIsBypass] = useState(false)
-  useEffect(() => {
-    const noSupabase =
-      !process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    setIsBypass(noSupabase)
-  }, [])
-  return isBypass
-}
 
 interface AppointmentRow {
   id: string
@@ -41,49 +30,33 @@ export function useCalendarEvents(): UseCalendarEventsResult {
   const { profile } = useAuth()
   const clinicId = profile?.clinic_id
   const { view, selectedDate, dentistFilter } = useCalendarStore()
-  const isDevBypass = useIsDevBypass()
-  const useMock = isDevBypass && !clinicId
 
-  // Calculate date range based on view
+  // Calculate date range based on view — expanded by ±1 day to account for timezone
+  // offset between local dates and UTC boundaries used by the API
   const dateRange = useMemo(() => {
     if (view === 'month') {
       const y = selectedDate.getFullYear()
       const m = selectedDate.getMonth()
+      const firstDay = new Date(y, m, 1)
+      const lastDay = new Date(y, m + 1, 0)
       return {
-        startDate: `${y}-${String(m + 1).padStart(2, '0')}-01`,
-        endDate: `${y}-${String(m + 1).padStart(2, '0')}-${String(new Date(y, m + 1, 0).getDate()).padStart(2, '0')}`,
+        startDate: formatDateKey(subDays(firstDay, 1)),
+        endDate: formatDateKey(addDays(lastDay, 1)),
       }
     }
     if (view === 'week') {
       const days = getWeekDays(selectedDate)
       return {
-        startDate: formatDateKey(days[0]),
-        endDate: formatDateKey(days[days.length - 1]),
+        startDate: formatDateKey(subDays(days[0], 1)),
+        endDate: formatDateKey(addDays(days[days.length - 1], 1)),
       }
     }
-    const key = formatDateKey(selectedDate)
-    return { startDate: key, endDate: key }
+    return {
+      startDate: formatDateKey(subDays(selectedDate, 1)),
+      endDate: formatDateKey(addDays(selectedDate, 1)),
+    }
   }, [view, selectedDate])
 
-  // ── Mock data (dev bypass) ────────────────────────────────────
-  const mockEvents = useMemo<CalendarEvent[]>(() => {
-    if (!useMock) return []
-    const start = new Date(dateRange.startDate + 'T00:00:00')
-    const end = new Date(dateRange.endDate + 'T23:59:59')
-    let events = generateMockEvents(start, end)
-    if (dentistFilter.length > 0) {
-      events = events.filter((e) => dentistFilter.includes(e.dentistId))
-    }
-    return events
-  }, [useMock, dateRange, dentistFilter])
-
-  const mockResources = useMemo<CalendarResource[]>(() => {
-    if (!useMock) return []
-    return generateMockResources()
-  }, [useMock])
-
-  // ── Supabase data (production) ────────────────────────────────
-  // Hooks must always be called (Rules of Hooks)
   const queryString = useMemo(() => {
     if (!clinicId) return ''
     const params = new URLSearchParams({
@@ -98,7 +71,7 @@ export function useCalendarEvents(): UseCalendarEventsResult {
   const { data, isLoading, error } = useCalendarEventsQuery(queryString || undefined)
   const { data: dentistsData } = useDentists(clinicId)
 
-  const supabaseEvents = useMemo<CalendarEvent[]>(() => {
+  const events = useMemo<CalendarEvent[]>(() => {
     const appointments = (data?.appointments || []) as AppointmentRow[]
     return appointments.map((apt) => {
       const start = new Date(apt.scheduled_at)
@@ -119,7 +92,7 @@ export function useCalendarEvents(): UseCalendarEventsResult {
     })
   }, [data])
 
-  const supabaseResources = useMemo<CalendarResource[]>(() => {
+  const resources = useMemo<CalendarResource[]>(() => {
     const dentists = (dentistsData?.dentists || []) as { id: string; name: string; specialty?: string }[]
     return dentists.map((d) => ({
       id: d.id,
@@ -129,15 +102,5 @@ export function useCalendarEvents(): UseCalendarEventsResult {
     }))
   }, [dentistsData])
 
-  // ── Return appropriate data source ────────────────────────────
-  if (useMock) {
-    return { events: mockEvents, resources: mockResources, isLoading: false, error: null }
-  }
-
-  return {
-    events: supabaseEvents,
-    resources: supabaseResources,
-    isLoading,
-    error: error as Error | null,
-  }
+  return { events, resources, isLoading, error: error as Error | null }
 }
