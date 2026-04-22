@@ -66,8 +66,11 @@ export function EventCard({
   }
 
   const handleClick = (e: React.MouseEvent) => {
-    // Only handle click when drag is not active (no onPointerDown provided)
     if (onPointerDown) return
+    e.stopPropagation()
+  }
+
+  const handleDoubleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     openEditDialog(event.id)
   }
@@ -89,6 +92,7 @@ export function EventCard({
         }}
         onPointerDown={canDrag && onPointerDown ? handlePointerDown : undefined}
         onClick={handleClick}
+        onDoubleClick={handleDoubleClick}
         role="button"
         tabIndex={0}
         aria-label={`${event.title} - ${formatTime(event.start)}`}

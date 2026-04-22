@@ -180,8 +180,7 @@ export function useDragEvent(config: UseDragEventConfig) {
         setDragState(null)
         setDraggingEventId(null)
       } else if (pending) {
-        // Click — not a drag
-        configRef.current.onClick?.(pending.event.id)
+        // Click — not a drag, let native click/dblclick handle it
       }
     }
 
