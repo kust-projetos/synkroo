@@ -49,10 +49,18 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
       return
     }
     setSelectedDate(day)
+  }
+
+  const handleDayDoubleClick = (day: Date) => {
+    setSelectedDate(day)
     setView('day')
   }
 
   const handleEventClick = (e: React.MouseEvent, eventId: string) => {
+    e.stopPropagation()
+  }
+
+  const handleEventDoubleClick = (e: React.MouseEvent, eventId: string) => {
     e.stopPropagation()
     onEventClick ? onEventClick(eventId) : openEditDialog(eventId)
   }
@@ -162,6 +170,7 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                       isDropTarget && 'bg-primary/10 ring-2 ring-primary/40 ring-inset',
                     )}
                     onClick={() => handleDayClick(day)}
+                    onDoubleClick={() => handleDayDoubleClick(day)}
                     onDragEnter={(e) => handleDragEnter(e, key)}
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
@@ -193,6 +202,7 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                             draggedEventId === event.id && 'opacity-40',
                           )}
                           onClick={(e) => handleEventClick(e, event.id)}
+                          onDoubleClick={(e) => handleEventDoubleClick(e, event.id)}
                           onDragStart={canDrag ? (e) => handleDragStart(e, event) : undefined}
                           onDragEnd={canDrag ? handleDragEnd : undefined}
                         >
@@ -225,6 +235,9 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                             )}
                             align="start"
                             onOpenAutoFocus={(e) => e.preventDefault()}
+                            onInteractOutside={() => {
+                              if (!draggedEventId) setOpenPopoverDay(null)
+                            }}
                           >
                             <div className="p-3 border-b border-border">
                               <p className="text-sm font-semibold">
@@ -247,12 +260,12 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                                     canDrag ? 'cursor-grab' : 'cursor-default',
                                     draggedEventId === event.id && 'opacity-40',
                                   )}
-                                  onClick={(e) => {
+                                  onClick={(e) => e.stopPropagation()}
+                                  onDoubleClick={(e) => {
                                     e.stopPropagation()
                                     openEditDialog(event.id)
                                   }}
                                   onDragStart={canDrag ? (e) => {
-                                    setOpenPopoverDay(null)
                                     handleDragStart(e, event)
                                   } : undefined}
                                   onDragEnd={canDrag ? handleDragEnd : undefined}
