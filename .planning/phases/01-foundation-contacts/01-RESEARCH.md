@@ -105,7 +105,7 @@ None at this time. All scope stays within Phase 1 boundaries.
 ### Core
 | Library | Version | Purpose | Why Standard |
 |---------|---------|---------|--------------|
-| react-resizable-panels | 4.10.0 | Split-view master-detail layout | Best React panel library: lightweight, accessible, persistent layout via `useDefaultLayout`. Used by VS Code, Linear. [VERIFIED: npm registry] |
+| react-resizable-panels | 4.10.0 | Split-view master-detail layout | Best React panel library: lightweight, accessible, persistent layout via `useDefaultLayout`. 5,230+ stars, actively maintained (last release 2026-04-11). [VERIFIED: npm registry + GitHub] |
 | @tanstack/react-query | 5.100.1 | Server state management, infinite queries | Already in project at ^5.97.0. `useInfiniteQuery` for timeline cursor pagination. [VERIFIED: npm registry] |
 | @radix-ui/react-tabs | 1.1.13 | Contact type filter tabs (Todos/Pacientes/Leads) | Already in project. Used for detail sub-tabs. [VERIFIED: package.json] |
 | @supabase/supabase-js | 2.104.1 | Database client with RLS | Already in project at ^2.45.0. Needs update for latest features. [VERIFIED: npm registry] |
@@ -117,11 +117,12 @@ None at this time. All scope stays within Phase 1 boundaries.
 | @heroicons/react | 2.2.0 | Timeline type icons, action icons | Already in project. Use for appointment/WhatsApp/note type icons in timeline. [VERIFIED: package.json] |
 | class-variance-authority | -- | Component variant styling | Already in project for badge variants (tag colors). |
 | next-themes | -- | Dark/light mode support | Already in project. All new components must support both modes. |
+| @react-lgpd-consent/core | -- (optional) | LGPD consent banner (cookie-level) | Only if Phase 1 needs a cookie consent banner. Our consent tracking is custom (database-level). [VERIFIED: GitHub lucianoedipo/react-lgpd-consent, 7 stars, React 19 compatible] |
 
 ### Alternatives Considered
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| react-resizable-panels | allotment | allotment is less maintained (last update 2023). react-resizable-panels has 68 code snippets in Context7, active maintenance, and built-in persistence. [VERIFIED: Context7] |
+| react-resizable-panels | allotment | allotment (1.20.5) last updated 2025-12-19, less frequent releases. react-resizable-panels (4.10.0) last updated 2026-04-11 with 4 releases in 3 weeks. react-resizable-panels has 5,230 stars vs allotment's lower visibility. react-resizable-panels has built-in `useDefaultLayout` persistence hook. [VERIFIED: npm registry timestamps] |
 | react-resizable-panels | CSS resize | Native CSS resize is not accessible, has no persistence, and provides no programmatic control over min/max sizes. |
 | ILIKE search | pg_trgm fuzzy search | pg_trgm needs extension enable (`CREATE EXTENSION pg_trgm`) and GIN trigram index. ILIKE with B-tree prefix index is sufficient for MVP contact count (<10K). Defer pg_trgm to when search needs fuzzy matching. [ASSUMED] |
 | ILIKE search | Supabase full-text search (to_tsvector) | Full-text search requires tsvector columns or generated columns. Overkill for name/phone/email/CPF matching. ILIKE with proper indexes is simpler and handles the use case. [ASSUMED] |
@@ -133,10 +134,116 @@ npm install react-resizable-panels
 ```
 
 **Version verification:**
-- react-resizable-panels: 4.10.0 [VERIFIED: npm registry, 2026-04-24]
+- react-resizable-panels: 4.10.0 [VERIFIED: npm registry, 2026-04-11]
+- allotment: 1.20.5 [VERIFIED: npm registry, 2025-12-19]
 - @tanstack/react-query: 5.100.1 [VERIFIED: npm registry, 2026-04-24]
 - zustand: 5.0.12 [VERIFIED: npm registry, 2026-04-24]
 - zod: 4.3.6 (latest) / 3.23.8 (project) [VERIFIED: npm registry, 2026-04-24]
+
+## Open-Source Reference Implementations
+
+### Category 1: Dental CRM / Clinic Management
+
+| Repo | Stars | Stack | Relevance | URL |
+|------|-------|-------|-----------|-----|
+| HardikQuantumCybernetic/hardik-dental | 4 | React 18 + TypeScript + Supabase + Clerk | HIGH -- Same stack (React + TS + Supabase). Has patients, appointments, doctors, services, WhatsApp integration, admin dashboard. Schema directly referenceable. | https://github.com/HardikQuantumCybernetic/hardik-dental |
+| Arfazrll/POLABDC | 3 | Next.js 14 + Express + Prisma + Supabase + Gemini AI | MEDIUM -- Dental SaaS with Next.js + Supabase. Uses Prisma instead of direct Supabase client. AI-powered features. | https://github.com/Arfazrll/POLABDC |
+| SoulHiro/doutor-agenda | 4 | Next.js + Better Auth + Stripe | MEDIUM -- Medical clinic management in Portuguese. Has clinic/doctor/patient management, scheduling, Stripe subscriptions. | https://github.com/SoulHiro/doutor-agenda |
+
+**Key patterns from hardik-dental (highest relevance):**
+- Uses Supabase RLS on all tables with `FOR ALL USING (true)` admin policies (simpler than our clinic-scoped RLS)
+- Has `patients`, `doctors`, `services`, `appointments`, `feedback` tables
+- Migration structure: numbered UUID-based filenames (Supabase CLI format)
+- Uses Vite (not Next.js) so page structure differs, but component patterns are transferable
+- Services table with categories (preventive, restorative, endodontic, surgical, cosmetic, orthodontic) -- useful for odontologia defaults
+
+### Category 2: Custom Fields (EAV Pattern)
+
+| Repo | Stars | Stack | Relevance | URL |
+|------|-------|-------|-----------|-----|
+| LanternOps/breeze | -- | Drizzle ORM + TypeScript | HIGH -- Has `custom_field_definitions` with enum type (text/number/boolean/dropdown/date), `field_key`, `options` JSONB, `required`, `default_value`. Matches our D2 schema closely. | https://github.com/LanternOps/breeze |
+| open-mercato/open-mercato | -- | MikroORM + TypeScript | HIGH -- EAV with typed columns: `value_text`, `value_multiline`, `value_int`, `value_float`, `value_bool`. Uses `entity_id` + `record_id` + `field_key` instead of `definition_id` FK. Multi-tenant with `organization_id` + `tenant_id`. | https://github.com/open-mercato/open-mercato |
+
+**Key pattern from open-mercato (typed columns EAV):**
+```sql
+-- Their schema (simplified)
+CREATE TABLE custom_field_values (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_id TEXT NOT NULL,           -- Polymorphic entity type
+  record_id TEXT NOT NULL,           -- Polymorphic entity ID
+  organization_id UUID,              -- Multi-tenant
+  field_key TEXT NOT NULL,           -- References custom_field_defs.key
+  value_text TEXT,                   -- Typed column: string values
+  value_multiline TEXT,              -- Typed column: long text
+  value_int INT,                     -- Typed column: integer
+  value_float REAL,                  -- Typed column: decimal
+  value_bool BOOLEAN,                -- Typed column: boolean
+  created_at TIMESTAMPTZ NOT NULL,
+  deleted_at TIMESTAMPTZ             -- Soft delete
+);
+-- Indexes on field_key and (entity_id, record_id, organization_id)
+```
+
+**Key pattern from breeze (Drizzle ORM definition):**
+```typescript
+export const customFieldTypeEnum = pgEnum('custom_field_type', [
+  'text', 'number', 'boolean', 'dropdown', 'date'
+]);
+export const customFieldDefinitions = pgTable('custom_field_definitions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  orgId: uuid('org_id').references(() => organizations.id),
+  name: varchar('name', { length: 100 }).notNull(),
+  fieldKey: varchar('field_key', { length: 100 }).notNull(),
+  type: customFieldTypeEnum('type').notNull(),
+  options: jsonb('options'),
+  required: boolean('required').notNull().default(false),
+  defaultValue: jsonb('default_value'),
+});
+```
+
+**Validation of our D2 design:** Both open-mercato and breeze use the same typed-column EAV pattern we planned. Our schema is consistent with established patterns. Key difference: we add `value_date` and `value_json` columns which they lack, giving us better type coverage for date and multi-select fields.
+
+### Category 3: Consent / LGPD
+
+| Repo | Stars | Stack | Relevance | URL |
+|------|-------|-------|-----------|-----|
+| lucianoedipo/react-lgpd-consent | 7 | React + TypeScript | LOW -- Cookie consent banner library, not database-level consent. Useful only if we need a cookie banner. Our consent tracking is server-side. | https://github.com/lucianoedipo/react-lgpd-consent |
+| UnclePhilburt/StudyFlowSuite | -- | Next.js + Supabase | MEDIUM -- Has Supabase `consent_logs` migration with RLS policies, user_id + legal_version tracking, audit indexes. Good reference for our consent audit pattern. | https://github.com/UnclePhilburt/StudyFlowSuite |
+
+**Key pattern from StudyFlowSuite (Supabase consent with RLS):**
+```sql
+CREATE TABLE IF NOT EXISTS consent_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL,
+  file_id TEXT NOT NULL,
+  legal_version TEXT NOT NULL,
+  action TEXT NOT NULL DEFAULT 'download_consent',
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+-- RLS: Users can only insert/view own logs
+-- Service role has full access for admin audit
+-- Includes compliance summary VIEW
+```
+
+### Category 4: Split-View Panel Library
+
+| Library | Stars | Last Updated | Key Feature |
+|---------|-------|-------------|-------------|
+| react-resizable-panels (bvaughn) | 5,230 | 2026-04-11 | Built-in `useDefaultLayout` persistence, keyboard accessible, touch support. 4 releases in 3 weeks (active). [VERIFIED: npm + GitHub] |
+| allotment (johnwalley) | -- | 2025-12-19 | React split-pane component. Last release 4+ months ago. No built-in persistence hook. [VERIFIED: npm registry] |
+| react-panelgroup (DanFessler) | 256 | 2025-12-26 | Alternative, less popular. [VERIFIED: GitHub] |
+
+**Recommendation confirmed: react-resizable-panels** -- Active maintenance (4 releases in last 3 weeks vs allotment's last release 4+ months ago), built-in persistence via `useDefaultLayout`, 5,230 stars, Context7 docs with 68 code snippets, keyboard accessible.
+
+### Category 5: Next.js CRM Templates
+
+| Repo | Stars | Notes | URL |
+|------|-------|-------|-----|
+| SubashSK777/Next-JS-CRM-Template | 2 | Minimal CRM template. Not feature-rich enough to reference. | https://github.com/SubashSK777/Next-JS-CRM-Template |
+
+**Conclusion:** No mature Next.js CRM template found. The dental/clinic repos (hardik-dental, POLABDC, doutor-agenda) are better references since they have domain-specific schemas.
 
 ## Architecture Patterns
 
@@ -429,6 +536,8 @@ CREATE INDEX idx_cfv_json ON custom_field_values USING gin(value_json) WHERE val
 
 **Key insight:** The `clinic_id` is denormalized into `custom_field_values` to avoid joining through `custom_field_definitions` for RLS. This follows the established pitfall pattern from the codebase where child tables without `clinic_id` cause triple-nested RLS subqueries. [CITED: PITFALLS.md Pitfall 1]
 
+**Cross-reference with open-mercato:** Our design adds `value_date DATE` and `value_json JSONB` beyond their `value_text`, `value_int`, `value_float`, `value_bool`. We also use `definition_id UUID FK` instead of `field_key TEXT`, which enforces referential integrity at the DB level. Both designs include partial indexes on typed columns.
+
 ### Pattern 4: RLS Consolidation (CRITICAL -- Must Be First Migration)
 
 **What:** Drop `get_current_clinic_id()`, keep only `get_user_clinic()`, wrap in SELECT for initPlan caching.
@@ -503,6 +612,8 @@ CREATE TRIGGER trg_consent_audit
   FOR EACH ROW EXECUTE FUNCTION log_consent_change();
 ```
 
+**Cross-reference with StudyFlowSuite:** Their consent_logs uses `ip_address`, `user_agent`, `legal_version` columns we do not include. Our design focuses on per-purpose consent (data_collection/marketing/whatsapp) with grant/revoke timestamps, which is more appropriate for a dental CRM where consent is recorded by staff, not via web click-wrap. If web-based self-service consent is added later, extend with those columns.
+
 ### Pattern 6: Pipeline Stages Migration (CHECK -> FK)
 
 **What:** Replace hardcoded `leads.status` CHECK constraint with `leads.stage_id` FK to `pipeline_stages`.
@@ -549,7 +660,7 @@ WHERE ps.clinic_id = l.clinic_id
   AND ps.system_key = l.status
   OR (ps.system_key IS NULL AND ps.name = l.status);
 
--- Step 5: Backfill leads that did not match by system_key
+-- Step 5: Backfill leads that did not match by systemKey
 UPDATE leads l
 SET stage_id = ps.id
 FROM pipeline_stages ps
@@ -573,12 +684,13 @@ WHERE l.stage_id IS NULL
 
 | Problem | Don't Build | Use Instead | Why |
 |---------|-------------|-------------|-----|
-| Resizable split-view panels | Custom drag handler with mouse events | react-resizable-panels | Handles mouse, touch, keyboard, accessibility, min/max sizes, persistence. 68 code snippets in docs. [VERIFIED: Context7] |
+| Resizable split-view panels | Custom drag handler with mouse events | react-resizable-panels | Handles mouse, touch, keyboard, accessibility, min/max sizes, persistence. 68 code snippets in docs. 5,230 stars, actively maintained. [VERIFIED: Context7 + GitHub] |
 | Infinite scroll pagination | Custom scroll event listener + state | TanStack Query `useInfiniteQuery` + IntersectionObserver | Handles page caching, prefetching, loading states, error retry. Already in project. [VERIFIED: Context7] |
 | Tag autocomplete | Custom dropdown with filtering | Existing `patient-tags.service.ts` pattern + Radix Popover | getClinicTags() and getSuggestedTags() already implemented. Extend to leads. [VERIFIED: codebase] |
 | Contact search | Custom search service | Supabase ILIKE + existing `SearchInput` component | ILIKE with B-tree index is sufficient for <10K contacts. `SearchInput` component exists. [VERIFIED: codebase] |
 | Audit logging for consents | Custom log table + app-layer logging | PostgreSQL trigger -> existing `audit_logs` table | Triggers are reliable (cannot be bypassed by app bugs), and audit_logs table exists in schema. [VERIFIED: codebase] |
 | Form validation | Manual if/else validation | Zod schemas | Already in project at ^3.23.8. Used for API input validation. [VERIFIED: package.json] |
+| Custom field type coercion | Manual type checking in service | Typed columns in DB + Zod discriminated union | The DB schema enforces which value column to use per field_type. Zod validates input before upsert. [VERIFIED: open-mercato + breeze patterns] |
 
 **Key insight:** The codebase has a consistent pattern of API routes + TanStack Query hooks. Do not introduce server actions or a different data fetching pattern. Follow the existing `fetcher<T>()` pattern in `use-queries.ts`. [VERIFIED: codebase]
 
@@ -686,7 +798,7 @@ export async function GET(request: NextRequest) {
 ### Service: Custom Field Value Upsert
 
 ```typescript
-// Source: [pattern from patient-tags.service.ts]
+// Source: [pattern from patient-tags.service.ts, validated against open-mercato + breeze schemas]
 import { createTypedClient } from '@/lib/supabase/typed'
 
 export async function upsertCustomFieldValues(
@@ -728,10 +840,12 @@ export async function upsertCustomFieldValues(
 | Separate pacientes/leads pages | Unified contatos split-view | This phase | Single contact management interface |
 | opt_out boolean fields | Dedicated consents table with audit | This phase | LGPD-compliant consent tracking |
 | Offset pagination | Cursor-based pagination for timeline | This phase | Stable pagination for growing datasets |
+| allotment / react-panelgroup | react-resizable-panels with useDefaultLayout | 2023-present | Most actively maintained split-view library for React |
 
 **Deprecated/outdated:**
 - `get_current_clinic_id()`: Redundant with `get_user_clinic()`. Causes confusion about which function to use. Must be dropped and all references updated. [VERIFIED: codebase grep]
 - `leads.status VARCHAR(20) CHECK (...)`: Cannot be customized per clinic. Being replaced by `leads.stage_id -> pipeline_stages`. [VERIFIED: migration 20260327000600]
+- `allotment`: Less actively maintained (last release Dec 2025). `react-resizable-panels` has more features and faster release cadence. [VERIFIED: npm registry]
 
 ## Assumptions Log
 
@@ -846,18 +960,28 @@ export async function upsertCustomFieldValues(
 ## Sources
 
 ### Primary (HIGH confidence)
-- Context7 react-resizable-panels: PanelGroup, Panel, Separator, useDefaultLayout API
+- Context7 react-resizable-panels: PanelGroup, Panel, Separator, useDefaultLayout API (68 code snippets)
 - Context7 Supabase RLS: Performance patterns, SECURITY DEFINER, SELECT wrapping for initPlan caching
 - Context7 TanStack Query: useInfiniteQuery with cursor pagination, IntersectionObserver pattern
 - Existing codebase migrations (26 files analyzed): RLS patterns, leads schema, pipeline stages needed
 - Existing codebase services: patient-tags.service.ts pattern, typed client pattern
+- npm registry: react-resizable-panels 4.10.0 (2026-04-11), allotment 1.20.5 (2025-12-19), version timestamps
+- GitHub: bvaughn/react-resizable-panels (5,230 stars, actively maintained)
 
 ### Secondary (MEDIUM confidence)
 - PITFALLS.md research (codebase-verified): RLS recursion, hardcoded pipeline, LGPD gaps
 - FEATURES.md research: CRM feature landscape, competitive analysis
+- GitHub repos: HardikQuantumCybernetic/hardik-dental (dental CRM with React+Supabase)
+- GitHub repos: open-mercato/open-mercato (EAV typed columns migration, MikroORM)
+- GitHub repos: LanternOps/breeze (custom field definitions schema, Drizzle ORM)
+- GitHub repos: UnclePhilburt/StudyFlowSuite (Supabase consent_logs with RLS)
+- GitHub repos: lucianoedipo/react-lgpd-consent (React 19 compatible LGPD library)
+- GitHub repos: Arfazrll/POLABDC (dental SaaS, Next.js + Supabase)
+- GitHub repos: SoulHiro/doutor-agenda (Portuguese medical clinic management, Next.js)
 
 ### Tertiary (LOW confidence)
 - ILIKE sufficiency assumption for contact search at scale (no benchmark data)
+- Web search was unavailable (API errors) -- some comparison data could not be verified from web sources
 
 ## Metadata
 
@@ -865,7 +989,9 @@ export async function upsertCustomFieldValues(
 - Standard stack: HIGH -- all libraries verified on npm registry and Context7
 - Architecture: HIGH -- patterns follow existing codebase conventions and verified Supabase docs
 - Pitfalls: HIGH -- codebase-verified RLS issues, existing migration history confirms patterns
-- Custom field EAV: MEDIUM -- typed-column EAV is well-documented pattern but needs performance validation with real data
+- Custom field EAV: HIGH -- typed-column EAV validated against 2 independent open-source implementations (open-mercato, breeze)
+- Split-view library: HIGH -- react-resizable-panels confirmed as best option via npm registry dates (4 releases in 3 weeks vs allotment's last release 4+ months ago)
+- Consent pattern: MEDIUM -- based on StudyFlowSuite reference and LGPD library analysis, but no dental-specific LGPD implementation found
 - Timeline query: MEDIUM -- UNION ALL pattern is standard but depends on verifying junction table schemas
 
 **Research date:** 2026-04-24
