@@ -33,10 +33,12 @@ interface TimeGridProps {
   onEventDrop?: (result: DragDropResult) => void
   /** Event click callback (when drag hook manages clicks) */
   onEventClick?: (eventId: string) => void
+  /** Column indices that are weekend days (receive background tint) */
+  weekendColumns?: number[]
 }
 
 export const TimeGrid = forwardRef<HTMLDivElement, TimeGridProps>(
-  ({ columnCount, columnHeaders, eventContent, slotsContent, nowIndicator, dateKeys, onEventDrop, onEventClick }, ref) => {
+  ({ columnCount, columnHeaders, eventContent, slotsContent, nowIndicator, dateKeys, onEventDrop, onEventClick, weekendColumns }, ref) => {
     const startHour = useCalendarStore((s) => s.startHour)
     const endHour = useCalendarStore((s) => s.endHour)
     const hours = getHoursRange(startHour, endHour)
@@ -72,7 +74,7 @@ export const TimeGrid = forwardRef<HTMLDivElement, TimeGridProps>(
           {/* Column headers */}
           {columnHeaders && (
             <div className="flex border-b border-border bg-background sticky top-0 z-10">
-              <div className="w-16 flex-shrink-0 border-r border-border" />
+              <div className="w-[68px] flex-shrink-0 border-r border-border" />
               <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${columnCount}, 1fr)` }}>
                 {columnHeaders}
               </div>
@@ -100,7 +102,7 @@ export const TimeGrid = forwardRef<HTMLDivElement, TimeGridProps>(
               <HorizontalLines hours={hours} totalHeight={totalHeight} />
 
               {/* Layer 1: Vertical lines */}
-              <VerticalLines columnCount={columnCount} totalHeight={totalHeight} />
+              <VerticalLines columnCount={columnCount} totalHeight={totalHeight} weekendColumns={weekendColumns} />
 
               {/* Layer 2: Empty slots (click-to-create) */}
               <div className="absolute inset-0" style={{ zIndex: 2 }}>

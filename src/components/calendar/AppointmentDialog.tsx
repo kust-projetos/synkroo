@@ -139,7 +139,7 @@ export function AppointmentDialog() {
   const isCreate = dialog.mode === 'create'
 
   return (
-    <Dialog open={dialog.open} onOpenChange={(open) => !open && closeDialog()}>
+    <Dialog open={dialog.open && (dialog.mode === 'create' || dialog.mode === 'edit')} onOpenChange={(open) => !open && closeDialog()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>

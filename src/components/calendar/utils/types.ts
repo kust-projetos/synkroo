@@ -10,7 +10,9 @@ export interface CalendarEvent {
   end: Date
   dentistId: string
   dentistName: string
+  dentistSpecialty?: string
   procedureName: string
+  procedureCategory?: string
   status: AppointmentStatus
   durationMinutes: number
   notes?: string | null
@@ -35,11 +37,20 @@ export interface DialogSlotInfo {
   dentistId?: string
 }
 
+/** Context passed when opening the reschedule dialog after a drag-and-drop */
+export interface RescheduleInfo {
+  eventId: string
+  targetDateKey: string
+  originalHour: number
+  originalMinute: number
+}
+
 export interface DialogState {
   open: boolean
-  mode: 'create' | 'edit'
+  mode: 'create' | 'edit' | 'reschedule'
   slotInfo?: DialogSlotInfo
   eventId?: string
+  rescheduleInfo?: RescheduleInfo
 }
 
 /** Laid-out event after overlap calculation */

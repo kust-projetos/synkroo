@@ -42,13 +42,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const rawBody = await request.json()
-    const { new_date, new_time, notify_patient } = rescheduleSchema.parse(rawBody)
+    const { new_date, new_time, notify_patient, dentist_id } = rescheduleSchema.parse(rawBody)
 
     const result = await rescheduleAppointment(
       id,
       new_date,
       new_time,
-      notify_patient !== false // Default to true
+      notify_patient !== false, // Default to true
+      dentist_id
     )
 
     if (!result.success) {

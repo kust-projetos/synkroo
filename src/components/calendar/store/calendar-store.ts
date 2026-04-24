@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { startOfDay } from 'date-fns'
 import { getNextDate, getPrevDate } from '../utils/date-utils'
-import type { CalendarView, DialogState, DialogSlotInfo } from '../utils/types'
+import type { CalendarView, DialogState, DialogSlotInfo, RescheduleInfo } from '../utils/types'
 
 /** Default business hours for a dental clinic */
 const DEFAULT_START_HOUR = 6
@@ -30,6 +30,7 @@ interface CalendarStore {
   clearDentistFilter: () => void
   openCreateDialog: (slotInfo: DialogSlotInfo) => void
   openEditDialog: (eventId: string) => void
+  openRescheduleDialog: (info: RescheduleInfo) => void
   closeDialog: () => void
   setBusinessHours: (startHour: number, endHour: number) => void
 
@@ -93,6 +94,10 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
 
   openEditDialog: (eventId) => {
     set({ dialog: { open: true, mode: 'edit', eventId } })
+  },
+
+  openRescheduleDialog: (info) => {
+    set({ dialog: { open: true, mode: 'reschedule', rescheduleInfo: info } })
   },
 
   closeDialog: () => {

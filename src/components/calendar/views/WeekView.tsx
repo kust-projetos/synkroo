@@ -50,7 +50,7 @@ export function WeekView({ events, date, onEventDrop, onEventClick }: WeekViewPr
           )}
         >
           <div className={cn(
-            'text-xs uppercase',
+            'text-xs font-medium capitalize',
             isToday(day) ? 'text-teal-600 dark:text-teal-400 font-bold' : 'text-muted-foreground',
             isWeekend(day) && !isToday(day) && 'text-muted-foreground/70',
           )}>
@@ -70,6 +70,12 @@ export function WeekView({ events, date, onEventDrop, onEventClick }: WeekViewPr
   // Find which day is today for the now indicator
   const todayIndex = days.findIndex((d) => isToday(d))
 
+  // Compute weekend column indices (Saturday=5, Sunday=6 in Mon-start week)
+  const weekendColumns = useMemo(
+    () => days.reduce<number[]>((acc, day, i) => isWeekend(day) ? [...acc, i] : acc, []),
+    [days],
+  )
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <TimeGrid
@@ -77,6 +83,7 @@ export function WeekView({ events, date, onEventDrop, onEventClick }: WeekViewPr
         columnCount={7}
         columnHeaders={columnHeaders}
         dateKeys={days.map(formatDateKey)}
+        weekendColumns={weekendColumns}
         onEventDrop={onEventDrop}
         onEventClick={onEventClick}
         eventContent={

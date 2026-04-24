@@ -143,7 +143,8 @@ export async function rescheduleAppointment(
   appointmentId: string,
   newDate: string, // YYYY-MM-DD
   newTime: string, // HH:MM
-  notifyPatient: boolean = true
+  notifyPatient: boolean = true,
+  newDentistId?: string
 ): Promise<{ success: boolean; error?: string; newScheduledAt?: Date }> {
   const supabase = await createTypedClient()
 
@@ -157,6 +158,7 @@ export async function rescheduleAppointment(
   }
 
   const newScheduledAt = new Date(`${newDate}T${newTime}:00`)
+  const effectiveDentistId = newDentistId || appointment.dentistId
 
   // Validate new date is in the future
   if (newScheduledAt <= new Date()) {
@@ -169,7 +171,7 @@ export async function rescheduleAppointment(
     {
       p_appointment_id:   appointmentId,
       p_clinic_id:        appointment.clinicId,
-      p_dentist_id:       appointment.dentistId || null,
+      p_dentist_id:       effectiveDentistId || null,
       p_scheduled_at:     newScheduledAt.toISOString(),
       p_duration_minutes: appointment.durationMinutes,
     }
@@ -182,6 +184,18 @@ export async function rescheduleAppointment(
 
   if (!rescheduleResult.success) {
     return { success: false, error: rescheduleResult.error }
+  }
+
+  // Update dentist_id when professional changed
+  if (newDentistId && newDentistId !== appointment.dentistId) {
+    const { error: dentistUpdateError } = await (supabase
+      .from('appointments') as any)
+      .update({ dentist_id: newDentistId })
+      .eq('id', appointmentId)
+
+    if (dentistUpdateError) {
+      dbLogger.error('Error updating dentist on reschedule', dentistUpdateError)
+    }
   }
 
   dbLogger.info(`Appointment ${appointmentId} rescheduled`, {
