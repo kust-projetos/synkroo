@@ -1,0 +1,218 @@
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - banner [ref=e6]:
+        - button [ref=e7] [cursor=pointer]:
+          - img
+        - generic [ref=e8]: Synkroo
+      - main [ref=e9]:
+        - generic [ref=e11]:
+          - generic [ref=e12]:
+            - generic [ref=e13]:
+              - button "Hoje" [ref=e14] [cursor=pointer]
+              - generic [ref=e15]:
+                - button "Anterior" [ref=e16] [cursor=pointer]:
+                  - img [ref=e17]
+                - button "Proximo" [ref=e19] [cursor=pointer]:
+                  - img [ref=e20]
+              - heading "abril de 2026" [level=2] [ref=e583]
+            - generic [ref=e23]:
+              - button "Dia" [ref=e24] [cursor=pointer]:
+                - img [ref=e25]
+                - generic [ref=e27]: Dia
+              - button "Semana" [ref=e28] [cursor=pointer]:
+                - img [ref=e29]
+                - generic [ref=e31]: Semana
+              - button "Mes" [active] [ref=e32] [cursor=pointer]:
+                - img [ref=e33]
+                - generic [ref=e35]: Mes
+              - button "Profissionais" [ref=e36] [cursor=pointer]:
+                - img [ref=e37]
+                - generic [ref=e39]: Profissionais
+              - button "Lista" [ref=e40] [cursor=pointer]:
+                - img [ref=e41]
+                - generic [ref=e43]: Lista
+          - generic [ref=e584]:
+            - generic [ref=e585]:
+              - generic [ref=e586]: Seg
+              - generic [ref=e587]: Ter
+              - generic [ref=e588]: Qua
+              - generic [ref=e589]: Qui
+              - generic [ref=e590]: Sex
+              - generic [ref=e591]: Sab
+              - generic [ref=e592]: Dom
+            - generic [ref=e594]:
+              - generic [ref=e595]:
+                - generic [ref=e597] [cursor=pointer]: "30"
+                - generic [ref=e600] [cursor=pointer]: "31"
+                - generic [ref=e603] [cursor=pointer]: "1"
+                - generic [ref=e605] [cursor=pointer]:
+                  - generic [ref=e606]: "2"
+                  - generic [ref=e607]:
+                    - generic [ref=e609]: 10:51 Thales Medeiros
+                    - generic [ref=e611]: 11:59 Eva Bentes
+                    - generic [ref=e613]: 12:02 Olga Monteiro
+                    - generic [ref=e614]: +2 mais
+                - generic [ref=e615] [cursor=pointer]:
+                  - generic [ref=e616]: "3"
+                  - generic [ref=e617]:
+                    - generic [ref=e619]: 11:22 Helena Gouveia
+                    - generic [ref=e621]: 11:47 Quentin Torres
+                    - generic [ref=e623]: 13:29 Ulisses Barros
+                    - generic [ref=e624]: +1 mais
+                - generic [ref=e625] [cursor=pointer]:
+                  - generic [ref=e626]: "4"
+                  - generic [ref=e627]:
+                    - generic [ref=e629]: 11:06 Tiago Almeida (filho)
+                    - generic [ref=e631]: 12:15 Wanda Martins
+                    - generic [ref=e633]: 13:49 Regina Lemos
+                    - generic [ref=e634]: +3 mais
+                - generic [ref=e635] [cursor=pointer]:
+                  - generic [ref=e636]: "5"
+                  - generic [ref=e637]:
+                    - generic [ref=e639]: 16:18 Mariana Gravida
+                    - generic [ref=e641]: 16:34 Renato Filipe
+              - generic [ref=e642]:
+                - generic [ref=e643] [cursor=pointer]:
+                  - generic [ref=e644]: "6"
+                  - generic [ref=e645]:
+                    - generic [ref=e647]: 10:50 Bianca Teles
+                    - generic [ref=e649]: 11:27 Bianca Teles
+                    - generic [ref=e651]: 12:07 Quentin Torres
+                    - generic [ref=e652]: +3 mais
+                - generic [ref=e653] [cursor=pointer]:
+                  - generic [ref=e654]: "7"
+                  - generic [ref=e655]:
+                    - generic [ref=e657]: 08:00 Ulisses Barros
+                    - generic [ref=e659]: 08:00 Cássia Mello
+                    - generic [ref=e661]: 08:30 Nelson Prado
+                    - generic [ref=e662]: +14 mais
+                - generic [ref=e663] [cursor=pointer]:
+                  - generic [ref=e664]: "8"
+                  - generic [ref=e665]:
+                    - generic [ref=e667]: 08:00 Breno Aguiar
+                    - generic [ref=e669]: 08:08 Jorge Rangel
+                    - generic [ref=e671]: 08:30 Osvaldo Menezes
+                    - generic [ref=e672]: +23 mais
+                - generic [ref=e673] [cursor=pointer]:
+                  - generic [ref=e674]: "9"
+                  - generic [ref=e675]:
+                    - generic [ref=e677]: 08:00 Renato Filipe
+                    - generic [ref=e679]: 08:07 Solange Martins
+                    - generic [ref=e681]: 08:30 William Brandão
+                    - generic [ref=e682]: +24 mais
+                - generic [ref=e683] [cursor=pointer]:
+                  - generic [ref=e684]: "10"
+                  - generic [ref=e685]:
+                    - generic [ref=e687]: 08:00 Alberto Lage
+                    - generic [ref=e689]: 08:00 Samuel Cavalcanti
+                    - generic [ref=e691]: 08:30 Xavier Cunha
+                    - generic [ref=e692]: +20 mais
+                - generic [ref=e693] [cursor=pointer]:
+                  - generic [ref=e694]: "11"
+                  - generic [ref=e695]:
+                    - generic [ref=e697]: 08:00 Nelson Prado
+                    - generic [ref=e699]: 08:00 Renato Filipe
+                    - generic [ref=e701]: 08:00 Regina Lemos
+                    - generic [ref=e702]: +16 mais
+                - generic [ref=e703] [cursor=pointer]:
+                  - generic [ref=e704]: "12"
+                  - generic [ref=e707]: 17:32 Yuri Machado
+              - generic [ref=e708]:
+                - generic [ref=e709] [cursor=pointer]:
+                  - generic [ref=e710]: "13"
+                  - generic [ref=e711]:
+                    - generic [ref=e713]: 08:00 José Américo
+                    - generic [ref=e715]: 08:30 Cesar Mourão
+                    - generic [ref=e717]: 09:00 Hector Basílio
+                    - generic [ref=e718]: +19 mais
+                - generic [ref=e719] [cursor=pointer]:
+                  - generic [ref=e720]: "14"
+                  - generic [ref=e721]:
+                    - generic [ref=e723]: 08:30 Quentin Torres
+                    - generic [ref=e725]: 09:30 Fábio Correia
+                    - generic [ref=e727]: 09:30 Bruno Augusto
+                    - generic [ref=e728]: +17 mais
+                - generic [ref=e729] [cursor=pointer]:
+                  - generic [ref=e730]: "15"
+                  - generic [ref=e731]:
+                    - generic [ref=e733]: 08:00 Mariana Gravida
+                    - generic [ref=e735]: 09:00 Hector Basílio
+                    - generic [ref=e737]: 10:00 Paulo Diabético
+                    - generic [ref=e738]: +12 mais
+                - generic [ref=e739] [cursor=pointer]:
+                  - generic [ref=e740]: "16"
+                  - generic [ref=e741]:
+                    - generic [ref=e743]: 08:00 Tatiane Viana
+                    - generic [ref=e745]: 08:00 Zilda Fontes
+                    - generic [ref=e747]: 08:00 Valéria Soares
+                    - generic [ref=e748]: +21 mais
+                - generic [ref=e749] [cursor=pointer]:
+                  - generic [ref=e750]: "17"
+                  - generic [ref=e751]:
+                    - generic [ref=e753]: 08:00 Rodrigo Palmeira
+                    - generic [ref=e755]: 09:00 Alberto Lage
+                    - generic [ref=e757]: 09:00 Samuel Cavalcanti
+                    - generic [ref=e758]: +20 mais
+                - generic [ref=e759] [cursor=pointer]:
+                  - generic [ref=e760]: "18"
+                  - generic [ref=e761]:
+                    - generic [ref=e763]: 07:45 Zilda Fontes
+                    - generic [ref=e765]: 08:45 Marlene Bittencourt
+                    - generic [ref=e767]: 17:30 Queila Furtado
+                - generic [ref=e769] [cursor=pointer]: "19"
+              - generic [ref=e771]:
+                - generic [ref=e772] [cursor=pointer]:
+                  - generic [ref=e773]: "20"
+                  - generic [ref=e776]: 11:00 Sônia Viana
+                - generic [ref=e777] [cursor=pointer]:
+                  - generic [ref=e778]: "21"
+                  - generic [ref=e781]: 16:21 Adriana Figueiredo
+                - generic [ref=e782] [cursor=pointer]:
+                  - generic [ref=e783]: "22"
+                  - generic [ref=e784]:
+                    - generic [ref=e786]: 08:30 Túlio Marques
+                    - generic [ref=e788]: 15:06 Ursula Marinho
+                - generic [ref=e789] [cursor=pointer]:
+                  - generic [ref=e790]: "23"
+                  - generic [ref=e791]:
+                    - generic [ref=e793]: 08:26 Wagner Macedo
+                    - generic [ref=e795]: 08:30 Eva Bentes
+                - generic [ref=e796] [cursor=pointer]:
+                  - generic [ref=e797]: "24"
+                  - generic [ref=e798]:
+                    - generic [ref=e800]: 08:30 Marlene Bittencourt
+                    - generic [ref=e802]: 08:48 Marlene Bittencourt
+                - generic [ref=e804] [cursor=pointer]: "25"
+                - generic [ref=e807] [cursor=pointer]: "26"
+              - generic [ref=e809]:
+                - generic [ref=e810] [cursor=pointer]:
+                  - generic [ref=e811]: "27"
+                  - generic [ref=e812]:
+                    - generic [ref=e814]: 08:18 Wanda Martins
+                    - generic [ref=e816]: 09:51 Paulo Diabético
+                - generic [ref=e817] [cursor=pointer]:
+                  - generic [ref=e818]: "28"
+                  - generic [ref=e819]:
+                    - generic [ref=e821]: 11:51 Tatiane Viana
+                    - generic [ref=e823]: 13:34 Debora Accioly
+                    - generic [ref=e825]: 14:10 Regina Lemos
+                - generic [ref=e826] [cursor=pointer]:
+                  - generic [ref=e827]: "29"
+                  - generic [ref=e828]:
+                    - generic [ref=e830]: 10:46 Zilda Fontes
+                    - generic [ref=e832]: 12:44 Flora Diniz
+                    - generic [ref=e834]: 17:13 Karen Braga
+                - generic [ref=e836] [cursor=pointer]: "30"
+                - generic [ref=e838] [cursor=pointer]:
+                  - generic [ref=e839]: "1"
+                  - generic [ref=e840]:
+                    - generic [ref=e842]: 10:31 Zuleica Ferri
+                    - generic [ref=e844]: 12:35 Wanda Martins
+                - generic [ref=e846] [cursor=pointer]: "2"
+                - generic [ref=e849] [cursor=pointer]: "3"
+    - button "Abrir chat" [ref=e570] [cursor=pointer]:
+      - img [ref=e571]
+  - button "Open Next.js Dev Tools" [ref=e578] [cursor=pointer]:
+    - img [ref=e579]
+  - alert [ref=e582]
