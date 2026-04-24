@@ -4,6 +4,8 @@ import { getPixelOffsetFor, getPixelHeight, formatTime } from '../utils/date-uti
 import { eventCardVariants } from './event-styles'
 import { EventTooltip } from './EventTooltip'
 import { useCalendarStore } from '../store/calendar-store'
+import { getDentistColors } from '../utils/dentist-colors'
+import { cn } from '@/lib/utils'
 import type { LaidOutEvent } from '../utils/types'
 import type { AppointmentStatus } from '@/lib/supabase/database.types'
 
@@ -38,17 +40,19 @@ export function EventCard({
   const openEditDialog = useCalendarStore((s) => s.openEditDialog)
   const startHour = useCalendarStore((s) => s.startHour)
   const canDrag = isDraggableStatus(event.status)
+  const dentistColors = getDentistColors(event.dentistId)
 
   const columnWidth = 100 / totalGridColumns
   const baseLeft = gridColumn * columnWidth
   const subWidth = columnWidth / totalColumns
-  const left = baseLeft + column * subWidth
+  const left = baseLeft + column * subWidth + 0.15
 
   const top = getPixelOffsetFor(event.start, startHour)
   const height = getPixelHeight(event.durationMinutes)
 
-  const showTime = height >= 16
-  const showTitle = height >= 28
+  const showTime = height >= 18
+  const showTitle = height >= 30
+  const showDentist = height >= 38
   const showProcedure = height >= 48
 
   const handlePointerDown = (e: React.PointerEvent) => {
@@ -78,13 +82,16 @@ export function EventCard({
   return (
     <EventTooltip event={event}>
       <div
-        className={eventCardVariants({ status: event.status as AppointmentStatus })}
+        className={cn(
+          eventCardVariants({ status: event.status as AppointmentStatus }),
+          dentistColors.border,
+        )}
         style={{
           position: 'absolute',
           top,
           height: Math.max(height, 18),
           left: `${left}%`,
-          width: `${subWidth - 0.5}%`,
+          width: `${subWidth - 0.3}%`,
           zIndex: 10,
           opacity: isDraggingThis ? 0.3 : 1,
           cursor: canDrag && onPointerDown ? 'grab' : 'pointer',
@@ -98,17 +105,23 @@ export function EventCard({
         aria-label={`${event.title} - ${formatTime(event.start)}`}
       >
         {showTime && (
-          <span className="font-semibold block text-[10px] leading-tight">
+          <span className="font-semibold block text-[12px] leading-tight whitespace-nowrap flex items-center gap-1">
+            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", dentistColors.dot)} />
             {formatTime(event.start)}{showTitle ? '' : ` ${event.title}`}
           </span>
         )}
         {showTitle && (
-          <span className="block font-medium text-[10px] leading-tight">
+          <span className="block font-medium text-[12px] leading-tight truncate">
             {event.title}
           </span>
         )}
+        {showDentist && (
+          <span className="block opacity-60 text-[11px] leading-tight truncate">
+            {event.dentistName}
+          </span>
+        )}
         {showProcedure && (
-          <span className="block opacity-70 text-[9px] leading-tight">
+          <span className="block opacity-70 text-[11px] leading-tight truncate">
             {event.procedureName}
           </span>
         )}

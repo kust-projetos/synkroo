@@ -17,7 +17,7 @@ import type { CalendarView } from './utils/types'
 const VIEW_OPTIONS: { view: CalendarView; label: string; icon: React.ReactNode }[] = [
   { view: 'day', label: 'Dia', icon: <SunIcon className="h-4 w-4" /> },
   { view: 'week', label: 'Semana', icon: <ViewColumnsIcon className="h-4 w-4" /> },
-  { view: 'month', label: 'Mes', icon: <CalendarDaysIcon className="h-4 w-4" /> },
+  { view: 'month', label: 'Mês', icon: <CalendarDaysIcon className="h-4 w-4" /> },
   { view: 'professionals', label: 'Profissionais', icon: <UserGroupIcon className="h-4 w-4" /> },
   { view: 'list', label: 'Lista', icon: <ClipboardDocumentListIcon className="h-4 w-4" /> },
 ]
@@ -32,7 +32,7 @@ export function CalendarToolbar() {
       <div className="flex items-center gap-2">
         <button
           onClick={goToday}
-          className="px-3 py-1.5 text-sm font-medium rounded-md border border-border hover:bg-muted transition-colors"
+          className="px-3 py-1.5 text-sm font-semibold rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
         >
           Hoje
         </button>
@@ -54,7 +54,7 @@ export function CalendarToolbar() {
         </div>
 
         {/* Title */}
-        <h2 className="text-lg font-semibold capitalize ml-2">{title}</h2>
+        <h2 className="text-lg font-semibold ml-2">{title}</h2>
       </div>
 
       {/* Right: View switcher */}

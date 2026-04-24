@@ -14,7 +14,7 @@ export function HorizontalLines({ hours, totalHeight }: HorizontalLinesProps) {
       {hours.map((hour, i) => (
         <div
           key={`hour-${hour}`}
-          className="absolute left-0 right-0 border-t border-border"
+          className="absolute left-0 right-0 border-t border-border/80"
           style={{ top: i * HOUR_SIZE }}
         />
       ))}
@@ -26,7 +26,7 @@ export function HorizontalLines({ hours, totalHeight }: HorizontalLinesProps) {
           return (
             <div
               key={`sub-${hour}-${slotIndex}`}
-              className="absolute left-0 right-0 border-t border-dashed border-border/50"
+              className="absolute left-0 right-0 border-t border-dashed border-border/40"
               style={{ top: offset }}
             />
           )
