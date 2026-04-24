@@ -1,0 +1,344 @@
+- generic:
+  - generic:
+    - generic:
+      - banner:
+        - button:
+          - img
+        - generic: Synkroo
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - button: Hoje
+                - generic:
+                  - button:
+                    - img
+                  - button:
+                    - img
+                - heading [level=2]: abril de 2026
+              - generic:
+                - button:
+                  - img
+                  - generic: Dia
+                - button:
+                  - img
+                  - generic: Semana
+                - button:
+                  - img
+                  - generic: Mes
+                - button:
+                  - img
+                  - generic: Profissionais
+                - button:
+                  - img
+                  - generic: Lista
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Seg
+                  - generic: Ter
+                  - generic: Qua
+                  - generic: Qui
+                  - generic: Sex
+                  - generic: Sab
+                  - generic: Dom
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - generic: "30"
+                      - generic:
+                        - generic: "31"
+                      - generic:
+                        - generic: "1"
+                      - generic:
+                        - generic: "2"
+                        - generic:
+                          - generic:
+                            - generic: 10:51 Thales Medeiros
+                          - generic:
+                            - generic: 11:59 Eva Bentes
+                          - generic:
+                            - generic: 12:02 Olga Monteiro
+                          - generic: +2 mais
+                      - generic:
+                        - generic: "3"
+                        - generic:
+                          - generic:
+                            - generic: 11:22 Helena Gouveia
+                          - generic:
+                            - generic: 11:47 Quentin Torres
+                          - generic:
+                            - generic: 13:29 Ulisses Barros
+                          - generic: +1 mais
+                      - generic:
+                        - generic: "4"
+                        - generic:
+                          - generic:
+                            - generic: 11:06 Tiago Almeida (filho)
+                          - generic:
+                            - generic: 12:15 Wanda Martins
+                          - generic:
+                            - generic: 13:49 Regina Lemos
+                          - generic: +3 mais
+                      - generic:
+                        - generic: "5"
+                        - generic:
+                          - generic:
+                            - generic: 16:18 Mariana Gravida
+                          - generic:
+                            - generic: 16:34 Renato Filipe
+                    - generic:
+                      - generic:
+                        - generic: "6"
+                        - generic:
+                          - generic:
+                            - generic: 10:50 Bianca Teles
+                          - generic:
+                            - generic: 11:27 Bianca Teles
+                          - generic:
+                            - generic: 12:07 Quentin Torres
+                          - generic: +3 mais
+                      - generic:
+                        - generic: "7"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Ulisses Barros
+                          - generic:
+                            - generic: 08:00 Cássia Mello
+                          - generic:
+                            - generic: 08:30 Nelson Prado
+                          - generic: +14 mais
+                      - generic:
+                        - generic: "8"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Breno Aguiar
+                          - generic:
+                            - generic: 08:08 Jorge Rangel
+                          - generic:
+                            - generic: 08:30 Osvaldo Menezes
+                          - generic: +23 mais
+                      - generic:
+                        - generic: "9"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Renato Filipe
+                          - generic:
+                            - generic: 08:07 Solange Martins
+                          - generic:
+                            - generic: 08:30 William Brandão
+                          - generic: +24 mais
+                      - generic:
+                        - generic: "10"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Alberto Lage
+                          - generic:
+                            - generic: 08:00 Samuel Cavalcanti
+                          - generic:
+                            - generic: 08:30 Xavier Cunha
+                          - generic: +20 mais
+                      - generic:
+                        - generic: "11"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Nelson Prado
+                          - generic:
+                            - generic: 08:00 Renato Filipe
+                          - generic:
+                            - generic: 08:00 Regina Lemos
+                          - generic: +16 mais
+                      - generic:
+                        - generic: "12"
+                        - generic:
+                          - generic:
+                            - generic: 17:32 Yuri Machado
+                    - generic:
+                      - generic:
+                        - generic: "13"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 José Américo
+                          - generic:
+                            - generic: 08:30 Cesar Mourão
+                          - generic:
+                            - generic: 09:00 Hector Basílio
+                          - generic: +19 mais
+                      - generic:
+                        - generic: "14"
+                        - generic:
+                          - generic:
+                            - generic: 08:30 Quentin Torres
+                          - generic:
+                            - generic: 09:30 Fábio Correia
+                          - generic:
+                            - generic: 09:30 Bruno Augusto
+                          - generic: +17 mais
+                      - generic:
+                        - generic: "15"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Mariana Gravida
+                          - generic:
+                            - generic: 09:00 Hector Basílio
+                          - generic:
+                            - generic: 10:00 Paulo Diabético
+                          - generic: +12 mais
+                      - generic:
+                        - generic: "16"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Tatiane Viana
+                          - generic:
+                            - generic: 08:00 Zilda Fontes
+                          - generic:
+                            - generic: 08:00 Valéria Soares
+                          - generic: +21 mais
+                      - generic:
+                        - generic: "17"
+                        - generic:
+                          - generic:
+                            - generic: 08:00 Rodrigo Palmeira
+                          - generic:
+                            - generic: 09:00 Alberto Lage
+                          - generic:
+                            - generic: 09:00 Samuel Cavalcanti
+                          - generic: +20 mais
+                      - generic:
+                        - generic: "18"
+                        - generic:
+                          - generic:
+                            - generic: 07:45 Zilda Fontes
+                          - generic:
+                            - generic: 08:45 Marlene Bittencourt
+                          - generic:
+                            - generic: 17:30 Queila Furtado
+                      - generic:
+                        - generic: "19"
+                    - generic:
+                      - generic:
+                        - generic: "20"
+                        - generic:
+                          - generic:
+                            - generic: 11:00 Sônia Viana
+                      - generic:
+                        - generic: "21"
+                        - generic:
+                          - generic:
+                            - generic: 16:21 Adriana Figueiredo
+                      - generic:
+                        - generic: "22"
+                        - generic:
+                          - generic:
+                            - generic: 08:30 Túlio Marques
+                          - generic:
+                            - generic: 15:06 Ursula Marinho
+                      - generic:
+                        - generic: "23"
+                        - generic:
+                          - generic:
+                            - generic: 08:26 Wagner Macedo
+                          - generic:
+                            - generic: 08:30 Eva Bentes
+                      - generic:
+                        - generic: "24"
+                        - generic:
+                          - generic:
+                            - generic: 08:30 Marlene Bittencourt
+                          - generic:
+                            - generic: 08:48 Marlene Bittencourt
+                      - generic:
+                        - generic: "25"
+                      - generic:
+                        - generic: "26"
+                    - generic:
+                      - generic:
+                        - generic: "27"
+                        - generic:
+                          - generic:
+                            - generic: 08:18 Wanda Martins
+                          - generic:
+                            - generic: 09:51 Paulo Diabético
+                      - generic:
+                        - generic: "28"
+                        - generic:
+                          - generic:
+                            - generic: 11:51 Tatiane Viana
+                          - generic:
+                            - generic: 13:34 Debora Accioly
+                          - generic:
+                            - generic: 14:10 Regina Lemos
+                      - generic:
+                        - generic: "29"
+                        - generic:
+                          - generic:
+                            - generic: 10:46 Zilda Fontes
+                          - generic:
+                            - generic: 12:44 Flora Diniz
+                          - generic:
+                            - generic: 17:13 Karen Braga
+                      - generic:
+                        - generic: "30"
+                      - generic:
+                        - generic: "1"
+                        - generic:
+                          - generic:
+                            - generic: 10:31 Zuleica Ferri
+                          - generic:
+                            - generic: 12:35 Wanda Martins
+                      - generic:
+                        - generic: "2"
+                      - generic:
+                        - generic: "3"
+    - button:
+      - img
+  - button "Open Next.js Dev Tools" [ref=e321] [cursor=pointer]:
+    - img [ref=e322]
+  - alert
+  - dialog "Editar Agendamento" [ref=e326]:
+    - heading "Editar Agendamento" [level=2] [ref=e328]
+    - generic [ref=e329]:
+      - generic [ref=e330]:
+        - generic [ref=e331]: Paciente
+        - textbox "Paciente" [active] [ref=e332]:
+          - /placeholder: Nome do paciente
+      - generic [ref=e333]:
+        - generic [ref=e334]: Telefone
+        - textbox "Telefone" [ref=e335]:
+          - /placeholder: (00) 00000-0000
+      - generic [ref=e336]:
+        - generic [ref=e337]: Dentista
+        - combobox [ref=e338] [cursor=pointer]:
+          - generic: Selecionar dentista
+          - img [ref=e339]
+      - generic [ref=e341]:
+        - generic [ref=e342]: Procedimento
+        - combobox [ref=e343] [cursor=pointer]:
+          - generic: Selecionar procedimento
+          - img [ref=e344]
+      - generic [ref=e346]:
+        - generic [ref=e347]:
+          - generic [ref=e348]: Data
+          - textbox "Data" [ref=e349]
+        - generic [ref=e350]:
+          - generic [ref=e351]: Hora
+          - combobox [ref=e352] [cursor=pointer]:
+            - generic: 09:00
+            - img [ref=e353]
+        - generic [ref=e355]:
+          - generic [ref=e356]: Duracao
+          - combobox [ref=e357] [cursor=pointer]:
+            - generic: 30 min
+            - img [ref=e358]
+      - generic [ref=e360]:
+        - generic [ref=e361]: Observacoes
+        - textbox "Observacoes" [ref=e362]:
+          - /placeholder: Notas opcionais...
+    - generic [ref=e363]:
+      - button "Cancelar" [ref=e364] [cursor=pointer]
+      - button "Salvar" [disabled]
+    - button "Close" [ref=e365] [cursor=pointer]:
+      - img [ref=e366]
+      - generic [ref=e369]: Close
