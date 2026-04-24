@@ -12,11 +12,13 @@ Transform Synkroo from a calendar/WhatsApp app into a complete CRM for dental cl
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation & Contacts** - Database schema fixes, RLS consolidation, LGPD consent table, contact list/detail UI with search, filters, tags, and interaction timeline
-- [ ] **Phase 2: Pipeline & Sales** - Kanban board with drag-and-drop, custom pipeline stages, lead management with scoring, lead-to-patient conversion
-- [ ] **Phase 3: WhatsApp CRM** - In-app WhatsApp messaging, automated appointment reminders, message templates, campaign builder with scheduling
+**Existing UI Baseline:** Dashboard already has pages for leads, pacientes, campanhas, conversas, lista-espera, dentistas, procedimentos. Phases 1-3 are EXTEND/REFACTOR, not greenfield builds.
+
+- [ ] **Phase 1: Foundation & Contacts** - RLS consolidation (5 fix migrations), schema additions (pipeline_stages, custom fields, consent), expand existing pacientes/leads pages with search, filters, tags, custom fields, and interaction timeline
+- [ ] **Phase 2: Pipeline & Sales** - Kanban board with drag-and-drop (@hello-pangea/dnd), custom pipeline stages, expand existing leads page with scoring and lead-to-patient conversion
+- [ ] **Phase 3: WhatsApp CRM** - Expand existing conversas page with in-app messaging, expand existing campanhas page with reminders, templates, and campaign scheduling
 - [ ] **Phase 4: Patient Records & Finance** - Treatment plans with progress tracking, budgets with itemized procedures, payment plans, financial summary per patient
-- [ ] **Phase 5: Integration & Analytics** - Calendar-CRM bidirectional linking, waitlist management, pipeline reports, financial reports, LGPD data export/anonymization
+- [ ] **Phase 5: Integration & Analytics** - Calendar-CRM bidirectional linking, expand existing lista-espera with auto-fill, pipeline reports, financial reports (jspdf for PDF), LGPD data export/anonymization
 
 ## Phase Details
 
@@ -49,7 +51,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 3: WhatsApp CRM
 **Goal**: Users can communicate with contacts via WhatsApp directly from the CRM, with automated appointment reminders and scheduled marketing campaigns
-**Depends on**: Phase 1, Phase 2
+**Depends on**: Phase 1 (contacts needed for messaging context)
 **Requirements**: WHATS-01, WHATS-02, WHATS-03, WHATS-04, WHATS-05, WHATS-06, WHATS-07
 **Success Criteria** (what must be TRUE):
   1. User can view WhatsApp conversation history within a contact profile and send messages directly from the CRM
