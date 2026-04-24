@@ -49,9 +49,11 @@ Clínicas conseguem gerenciar todo o relacionamento com pacientes — do primeir
 
 - **Stack:** Next.js 15, React 19, Supabase (PostgreSQL), Tailwind CSS, Radix UI, Zustand, TanStack Query
 - **Calendário:** @event-calendar/core (Month/Week/Day views)
-- **WhatsApp:** Custom bot com qrcode-terminal
+- **WhatsApp:** Custom bot com Evolution API (não qrcode-terminal)
 - **Auth:** Supabase Auth com middleware
-- **Banco:** Supabase com tabelas events, profiles já existentes
+- **Banco:** Supabase com tabelas existentes: events, profiles, patients, leads, lead_activities, dentists, procedures, campaigns, campaign_recipients, conversations, messages, whatsapp_instances, follow_ups, follow_up_configs, appointments, waitlist, multi_agent_queue, knowledge_base
+- **UI existente:** Dashboard com páginas para leads, pacientes, campanhas, conversas, lista-espera, dentistas, procedimentos, analytics, agendamentos
+- **Dependências relevantes:** jspdf + jspdf-autotable (PDF), cmdk (command palette), @radix-ui/react-tabs, lucide-react, date-fns, recharts 3.x
 - **Nicho inicial:** Clínicas de odontologia (diversos portes)
 - **Modularidade:** Arquitetura deve permitir migração para outros nichos
 - **Futuro:** Instagram, call center, agent SDK — CRM deve ser base para essas features
@@ -60,7 +62,7 @@ Clínicas conseguem gerenciar todo o relacionamento com pacientes — do primeir
 
 - **Tech stack:** Next.js 15 + Supabase + Tailwind (manter consistência)
 - **Database:** PostgreSQL via Supabase (RLS obrigatório)
-- **WhatsApp:** Usar infra existente do bot (qrcode-terminal)
+- **WhatsApp:** Usar infra existente do Evolution API (já integrado)
 - **Modularidade:** Componentes devem ser reutilizáveis por nicho
 - **UX:** Interface em português, voltada para profissionais de saúde
 

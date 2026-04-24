@@ -17,4 +17,4 @@
 ## v0.2.0 — CRM Completo (Odontologia)
 
 **Started:** 2026-04-24
-**Status:** Defining requirements
+**Status:** Roadmap approved, ready to plan Phase 1

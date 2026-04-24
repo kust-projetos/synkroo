@@ -53,7 +53,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- RLS has 4 existing fix migrations -- must consolidate helper functions (get_user_clinic) before adding new tables
+- RLS has 5 existing fix migrations -- must consolidate helper functions (get_user_clinic) before adding new tables
 - leads.status is hardcoded CHECK constraint -- migration to pipeline_stages.id must preserve existing data
 - Evolution API rate limiting needs careful implementation before campaigns (Phase 3)
 
