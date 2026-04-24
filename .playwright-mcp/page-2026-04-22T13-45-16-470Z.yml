@@ -1,0 +1,110 @@
+- generic [ref=e1]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - banner [ref=e7]:
+        - button [ref=e8] [cursor=pointer]:
+          - img
+        - generic [ref=e9]: Synkroo
+      - main [ref=e10]:
+        - generic [ref=e12]:
+          - generic [ref=e13]:
+            - generic [ref=e14]:
+              - button "Hoje" [ref=e15] [cursor=pointer]
+              - generic [ref=e16]:
+                - button "Anterior" [ref=e17] [cursor=pointer]:
+                  - img [ref=e18]
+                - button "Proximo" [ref=e20] [cursor=pointer]:
+                  - img [ref=e21]
+              - heading "20 - 26 de abril" [level=2] [ref=e370]
+            - generic [ref=e24]:
+              - button "Dia" [ref=e25] [cursor=pointer]:
+                - img [ref=e26]
+                - generic [ref=e28]: Dia
+              - button "Semana" [active] [ref=e29] [cursor=pointer]:
+                - img [ref=e30]
+                - generic [ref=e32]: Semana
+              - button "Mes" [ref=e33] [cursor=pointer]:
+                - img [ref=e34]
+                - generic [ref=e36]: Mes
+              - button "Profissionais" [ref=e37] [cursor=pointer]:
+                - img [ref=e38]
+                - generic [ref=e40]: Profissionais
+              - button "Lista" [ref=e41] [cursor=pointer]:
+                - img [ref=e42]
+                - generic [ref=e44]: Lista
+          - generic [ref=e372]:
+            - generic [ref=e375]:
+              - generic [ref=e376]:
+                - generic [ref=e377]: segunda
+                - generic [ref=e378]: "20"
+              - generic [ref=e379]:
+                - generic [ref=e380]: terça
+                - generic [ref=e381]: "21"
+              - generic [ref=e382]:
+                - generic [ref=e383]: quarta
+                - generic [ref=e384]: "22"
+              - generic [ref=e385]:
+                - generic [ref=e386]: quinta
+                - generic [ref=e387]: "23"
+              - generic [ref=e388]:
+                - generic [ref=e389]: sexta
+                - generic [ref=e390]: "24"
+              - generic [ref=e391]:
+                - generic [ref=e392]: sábado
+                - generic [ref=e393]: "25"
+              - generic [ref=e394]:
+                - generic [ref=e395]: domingo
+                - generic [ref=e396]: "26"
+            - generic [ref=e397]:
+              - generic [ref=e399]:
+                - generic [ref=e400]: 06:00
+                - generic [ref=e401]: 07:00
+                - generic [ref=e402]: 08:00
+                - generic [ref=e403]: 09:00
+                - generic [ref=e404]: 10:00
+                - generic [ref=e405]: 11:00
+                - generic [ref=e406]: 12:00
+                - generic [ref=e407]: 13:00
+                - generic [ref=e408]: 14:00
+                - generic [ref=e409]: 15:00
+                - generic [ref=e410]: 16:00
+                - generic [ref=e411]: 17:00
+                - generic [ref=e412]: 18:00
+                - generic [ref=e413]: 19:00
+                - generic [ref=e414]: 20:00
+                - generic [ref=e415]: 21:00
+              - generic [ref=e866]:
+                - button "Sônia Viana - 11:00" [ref=e867]:
+                  - generic [ref=e868]: 11:00
+                  - generic [ref=e869]: Sônia Viana
+                - button "Adriana Figueiredo - 16:21" [ref=e870]:
+                  - generic [ref=e871]: 16:21
+                  - generic [ref=e872]: Adriana Figueiredo
+                  - generic [ref=e873]: Faceta de Porcelana
+                - button "Túlio Marques - 08:30" [ref=e874]:
+                  - generic [ref=e875]: 08:30
+                  - generic [ref=e876]: Túlio Marques
+                  - generic [ref=e877]: Limpeza Profissional
+                - button "Ursula Marinho - 15:06" [ref=e878]:
+                  - generic [ref=e879]: 15:06
+                  - generic [ref=e880]: Ursula Marinho
+                  - generic [ref=e881]: Faceta de Porcelana
+                - button "Wagner Macedo - 08:26" [ref=e882]:
+                  - generic [ref=e883]: 08:26
+                  - generic [ref=e884]: Wagner Macedo
+                  - generic [ref=e885]: Prótese Total
+                - button "Eva Bentes - 08:30" [ref=e886]:
+                  - generic [ref=e887]: 08:30
+                  - generic [ref=e888]: Eva Bentes
+                  - generic [ref=e889]: Prótese Total
+                - button "Marlene Bittencourt - 08:30" [ref=e890]:
+                  - generic [ref=e891]: 08:30 Marlene Bittencourt
+                - button "Marlene Bittencourt - 08:48" [ref=e892]:
+                  - generic [ref=e893]: 08:48
+                  - generic [ref=e894]: Marlene Bittencourt
+                  - generic [ref=e895]: Profilaxia com AirFlow
+    - button "Abrir chat" [ref=e313] [cursor=pointer]:
+      - img [ref=e314]
+  - button "Open Next.js Dev Tools" [ref=e321] [cursor=pointer]:
+    - img [ref=e322]
+  - alert [ref=e4]
