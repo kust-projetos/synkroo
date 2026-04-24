@@ -28,6 +28,8 @@ export const queryKeys = {
   appointment: (id: string) => ['appointments', id] as const,
   lead: (id: string) => ['leads', id] as const,
   campaign: (id: string) => ['campaigns', id] as const,
+  contacts: (params?: string) => ['contacts', params] as const,
+  contact: (id: string, type: string) => ['contacts', id, type] as const,
   calendarEvents: (params?: string) => ['calendar-events', params] as const,
 }
 
@@ -282,5 +284,42 @@ export function useClinicSettings() {
     queryKey: queryKeys.settings,
     queryFn: () => fetcher<any>('/api/clinics/settings'),
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Contacts list — cached for 1 min
+ */
+export function useContacts(params?: Record<string, string>) {
+  const qs = params ? new URLSearchParams(params).toString() : ''
+
+  return useQuery({
+    queryKey: queryKeys.contacts(qs),
+    queryFn: () => fetcher<any>(`/api/contacts${qs ? `?${qs}` : ''}`),
+    staleTime: 60 * 1000,
+  })
+}
+
+/**
+ * Single contact by ID and type
+ */
+export function useContact(id: string, type: string) {
+  return useQuery({
+    queryKey: queryKeys.contact(id, type),
+    queryFn: () => fetcher<any>(`/api/contacts/${id}?type=${type}`),
+    enabled: !!id && !!type,
+    staleTime: 60 * 1000,
+  })
+}
+
+/**
+ * Contact notes
+ */
+export function useContactNotes(id: string, type: string) {
+  return useQuery({
+    queryKey: ['contacts', id, 'notes', type],
+    queryFn: () => fetcher<any>(`/api/contacts/${id}/notes?type=${type}`),
+    enabled: !!id && !!type,
+    staleTime: 30 * 1000,
   })
 }
