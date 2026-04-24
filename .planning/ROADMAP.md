@@ -32,7 +32,15 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. User can see a chronological interaction timeline per contact aggregating appointments, messages, notes, and status changes
   4. User can define custom field definitions (text, number, date, select, checkbox), fill them on contacts, and search/filter by custom field values
   5. User can record patient consent (data collection, marketing, WhatsApp) and the system maintains an audit log of consent changes
-**Plans**: TBD
+**Plans**: 6 plans
+
+Plans:
+- [ ] 01-01-PLAN.md -- Database migrations: RLS consolidation, pipeline_stages, custom fields, consents, clinic_tags
+- [ ] 01-02-PLAN.md -- Unified contacts API: service, routes, hooks for list/search/CRUD/notes
+- [ ] 01-03-PLAN.md -- Custom fields API: definitions CRUD, values read/write, search, import/export
+- [ ] 01-04-PLAN.md -- Timeline and consents API: aggregation service, consent management, hooks
+- [ ] 01-05-PLAN.md -- Contacts split-view UI: master-detail layout, list panel, detail panel, create dialog, tags
+- [ ] 01-06-PLAN.md -- Detail panel tabs UI: timeline, notes, custom fields, consent section
 
 **UI hint**: yes
 
@@ -96,7 +104,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Contacts | 0/TBD | Not started | - |
+| 1. Foundation & Contacts | 0/6 | Planning complete | - |
 | 2. Pipeline & Sales | 0/TBD | Not started | - |
 | 3. WhatsApp CRM | 0/TBD | Not started | - |
 | 4. Patient Records & Finance | 0/TBD | Not started | - |
