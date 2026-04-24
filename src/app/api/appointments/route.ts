@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         *,
         patients (id, name, phone),
         dentists (id, name, specialty),
-        procedures (id, name, duration_minutes, price)
+        procedures (id, name, duration_minutes, price, category)
       `, { count: 'exact' })
       .eq('clinic_id', clinicId)
       .order('scheduled_at', { ascending: true })

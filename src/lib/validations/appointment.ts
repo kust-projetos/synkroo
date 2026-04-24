@@ -16,4 +16,5 @@ export const rescheduleSchema = z.object({
   new_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'new_date must be in YYYY-MM-DD format'),
   new_time: z.string().regex(/^\d{2}:\d{2}$/, 'new_time must be in HH:MM format'),
   notify_patient: z.boolean().optional(),
+  dentist_id: uuidSchema.optional(),
 })

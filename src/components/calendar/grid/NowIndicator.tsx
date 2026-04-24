@@ -1,5 +1,6 @@
-// NowIndicator — red line showing current time position
+// NowIndicator — red line showing current time position (auto-updates every 60s)
 
+import { useState, useEffect } from 'react'
 import { HOUR_SIZE, MINUTE_HEIGHT, isToday } from '../utils/date-utils'
 
 interface NowIndicatorProps {
@@ -9,6 +10,13 @@ interface NowIndicatorProps {
 }
 
 export function NowIndicator({ date, startHour, endHour }: NowIndicatorProps) {
+  const [, setTick] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+
   if (!isToday(date)) return null
 
   const now = new Date()

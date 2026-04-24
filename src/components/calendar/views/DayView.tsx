@@ -41,11 +41,14 @@ export function DayView({ events, date, onEventDrop, onEventClick }: DayViewProp
         isToday(date) && 'text-teal-600 dark:text-teal-400 font-bold',
         isWeekend(date) && !isToday(date) && 'text-muted-foreground',
       )}>
-        <div className="text-xs uppercase">{getShortDayName(date)}</div>
+        <div className="text-xs font-medium capitalize">{getShortDayName(date)}</div>
         <div className="text-lg">{getDayNumber(date)}</div>
       </div>
     </div>
   )
+
+  // Weekend shading for single column
+  const weekendCols = isWeekend(date) ? [0] : []
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -54,6 +57,7 @@ export function DayView({ events, date, onEventDrop, onEventClick }: DayViewProp
         columnCount={1}
         columnHeaders={columnHeaders}
         dateKeys={[formatDateKey(date)]}
+        weekendColumns={weekendCols}
         onEventDrop={onEventDrop}
         onEventClick={onEventClick}
         eventContent={<EventLayer eventsByColumn={eventsByColumn} totalGridColumns={1} />}

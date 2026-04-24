@@ -16,7 +16,7 @@ interface AppointmentRow {
   notes: string | null
   patients?: { id: string; name: string; phone: string } | null
   dentists?: { id: string; name: string; specialty?: string } | null
-  procedures?: { id: string; name: string; duration_minutes: number } | null
+  procedures?: { id: string; name: string; duration_minutes: number; category?: string } | null
 }
 
 interface UseCalendarEventsResult {
@@ -84,7 +84,9 @@ export function useCalendarEvents(): UseCalendarEventsResult {
         end,
         dentistId: apt.dentists?.id || '',
         dentistName: apt.dentists?.name || 'Sem dentista',
+        dentistSpecialty: apt.dentists?.specialty || undefined,
         procedureName: apt.procedures?.name || '',
+        procedureCategory: apt.procedures?.category || undefined,
         status: apt.status as CalendarEvent['status'],
         durationMinutes: apt.duration_minutes,
         notes: apt.notes,
