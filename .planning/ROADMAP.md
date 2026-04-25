@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 **Existing UI Baseline:** Dashboard already has pages for leads, pacientes, campanhas, conversas, lista-espera, dentistas, procedimentos. Phases 1-3 are EXTEND/REFACTOR, not greenfield builds.
 
-- [ ] **Phase 1: Foundation & Contacts** - RLS consolidation (5 fix migrations), schema additions (pipeline_stages, custom fields, consent), expand existing pacientes/leads pages with search, filters, tags, custom fields, and interaction timeline
+- [x] **Phase 1: Foundation & Contacts** - RLS consolidation (5 fix migrations), schema additions (pipeline_stages, custom fields, consent), expand existing pacientes/leads pages with search, filters, tags, custom fields, and interaction timeline
 - [ ] **Phase 2: Pipeline & Sales** - Kanban board with drag-and-drop (@hello-pangea/dnd), custom pipeline stages, expand existing leads page with scoring and lead-to-patient conversion
 - [ ] **Phase 3: WhatsApp CRM** - Expand existing conversas page with in-app messaging, expand existing campanhas page with reminders, templates, and campaign scheduling
 - [ ] **Phase 4: Patient Records & Finance** - Treatment plans with progress tracking, budgets with itemized procedures, payment plans, financial summary per patient
@@ -35,12 +35,12 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 6 plans
 
 Plans:
-- [ ] 01-01-PLAN.md -- Database migrations: RLS consolidation, pipeline_stages, custom fields, consents, clinic_tags
-- [ ] 01-02-PLAN.md -- Unified contacts API: service, routes, hooks for list/search/CRUD/notes
-- [ ] 01-03-PLAN.md -- Custom fields API: definitions CRUD, values read/write, search, import/export
-- [ ] 01-04-PLAN.md -- Timeline and consents API: aggregation service, consent management, hooks
-- [ ] 01-05-PLAN.md -- Contacts split-view UI: master-detail layout, list panel, detail panel, create dialog, tags
-- [ ] 01-06-PLAN.md -- Detail panel tabs UI: timeline, notes, custom fields, consent section
+- [x] 01-01-PLAN.md -- Database migrations: RLS consolidation, pipeline_stages, custom fields, consents, clinic_tags
+- [x] 01-02-PLAN.md -- Unified contacts API: service, routes, hooks for list/search/CRUD/notes
+- [x] 01-03-PLAN.md -- Custom fields API: definitions CRUD, values read/write, search, import/export
+- [x] 01-04-PLAN.md -- Timeline and consents API: aggregation service, consent management, hooks
+- [x] 01-05-PLAN.md -- Contacts split-view UI: master-detail layout, list panel, detail panel, create dialog, tags
+- [x] 01-06-PLAN.md -- Detail panel tabs UI: timeline, notes, custom fields, consent section
 
 **UI hint**: yes
 
@@ -53,7 +53,11 @@ Plans:
   2. User can create, edit, reorder, and delete pipeline stages with a default odontologia template seeded for new clinics
   3. User can create leads manually with source tracking and see leads automatically captured from WhatsApp conversations
   4. User can see a lead score calculated from interactions and convert a lead to active patient when an appointment is confirmed
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md -- Database migration (leads.stage_id, source_type, score, calculate_lead_score function) + Stage service + Stage API routes
+- [ ] 02-02-PLAN.md -- Kanban board UI (useKanban hook, KanbanBoard, StageColumn, LeadCard components) + Lead stage DnD endpoint + Lead convert endpoint
 
 **UI hint**: yes
 
@@ -66,7 +70,12 @@ Plans:
   2. User can configure automatic appointment reminders with customizable timing and message templates containing variable placeholders (name, date, time)
   3. User can see reminder delivery status (sent, delivered, read) for each appointment
   4. User can create WhatsApp campaigns (reactivation, follow-up, birthday), schedule them, and track delivery metrics
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 03-01-PLAN.md -- WhatsApp tab in contact profile: MessageBubble, MessageStatusBadge, MessageComposer, useWhatsAppMessages hook
+- [ ] 03-02-PLAN.md -- Appointment reminder configuration: procedure-specific timing, template placeholders, settings page
+- [ ] 03-03-PLAN.md -- Campaign wizard with smart filters and campaign dashboard with metrics
 
 **UI hint**: yes
 
@@ -104,8 +113,11 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation & Contacts | 0/6 | Planning complete | - |
-| 2. Pipeline & Sales | 0/TBD | Not started | - |
-| 3. WhatsApp CRM | 0/TBD | Not started | - |
+| 1. Foundation & Contacts | 6/6 | **COMPLETE** | 2026-04-24 |
+| 2. Pipeline & Sales | 0/2 | Not started | - |
+| 3. WhatsApp CRM | 0/3 | Not started | - |
 | 4. Patient Records & Finance | 0/TBD | Not started | - |
 | 5. Integration & Analytics | 0/TBD | Not started | - |
+
+---
+*Last updated: 2026-04-25*
