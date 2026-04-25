@@ -35,6 +35,7 @@ export const queryKeys = {
   customFieldDefinitions: (clinicId?: string) => ['custom-field-definitions', clinicId] as const,
   customFieldValues: (contactId: string, contactType: string) => ['custom-field-values', contactId, contactType] as const,
   consents: (contactId: string, contactType: string) => ['consents', contactId, contactType] as const,
+  whatsappMessages: (contactId: string) => ['whatsapp-messages', contactId] as const,
   kanbanLeads: (clinicId: string) => ['kanban-leads', clinicId] as const,
   pipelineStages: (clinicId: string) => ['pipeline-stages', clinicId] as const,
 }
