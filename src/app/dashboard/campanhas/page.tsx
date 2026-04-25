@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
 import { useCampaigns } from '@/lib/hooks/use-queries'
 import { useToast } from '@/lib/ui/toast'
+import { CampaignWizard } from '@/components/campaigns/campaign-wizard'
 
 interface Campaign {
   id: string
@@ -29,6 +30,7 @@ export default function CampaignsPage() {
   const { profile, loading: authLoading } = useAuth()
   const toast = useToast()
   const [filterStatus, setFilterStatus] = useState<string | null>(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
 
   const clinicId = profile?.clinic_id
 
@@ -130,15 +132,15 @@ export default function CampaignsPage() {
               <h1 className="text-2xl font-bold text-foreground">Campanhas</h1>
               <p className="text-sm text-muted-foreground">Gerencie campanhas de reativação e follow-up</p>
             </div>
-            <Link
-              href="/dashboard/campanhas/nova"
+            <button
+              onClick={() => setWizardOpen(true)}
               className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600 text-white px-4 py-2 rounded-lg transition flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Nova Campanha
-            </Link>
+              Criar Campanha
+            </button>
           </div>
         </div>
 
@@ -277,6 +279,13 @@ export default function CampaignsPage() {
             </div>
           )}
       </div>
+
+      {/* Campaign Wizard Dialog */}
+      <CampaignWizard
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onComplete={() => fetchCampaigns()}
+      />
     </div>
   )
 }
