@@ -1,6 +1,8 @@
 import { createTypedClient } from '@/lib/supabase/typed'
 import { sendWhatsAppMessage, sendWhatsAppButtons } from '@/services/whatsapp'
 import { dbLogger, whatsappLogger } from '@/lib/logger'
+import { fillTemplate } from '@/services/whatsapp/message-templates.service'
+import { getEffectiveConfig } from './procedure-reminder-config.service'
 
 /**
  * Reminder Service
@@ -11,9 +13,10 @@ import { dbLogger, whatsappLogger } from '@/lib/logger'
 type ReminderAppointment = {
   id: string
   scheduled_at: string
+  clinic_id: string
   patients: { id: string; name: string; phone: string } | null
   dentists: { name: string } | null
-  procedures: { name: string } | null
+  procedures: { id: string; name: string } | null
   clinics: { name: string; phone: string } | null
 }
 
@@ -35,7 +38,9 @@ export interface AppointmentReminder {
   patientPhone: string
   scheduledAt: Date
   dentistName?: string
+  procedureId?: string
   procedureName?: string
+  clinicId: string
   clinicName: string
   clinicPhone: string
 }
@@ -75,10 +80,10 @@ export async function getAppointmentsNeedingReminders(
     .select(`
       id,
       scheduled_at,
+      clinics!inner (id, name, phone),
       patients!inner (id, name, phone),
       dentists (name),
-      procedures (name),
-      clinics!inner (id, name, phone)
+      procedures (id, name)
     `)
     .in('status', hoursBefore === 24 ? ['confirmed', 'scheduled'] : ['confirmed'])
     .gte('scheduled_at', windowStart.toISOString())
@@ -107,7 +112,9 @@ export async function getAppointmentsNeedingReminders(
       patientPhone: apt.patients?.phone || '',
       scheduledAt: new Date(apt.scheduled_at),
       dentistName: apt.dentists?.name,
+      procedureId: apt.procedures?.id,
       procedureName: apt.procedures?.name,
+      clinicId: apt.clinics?.id || '',
       clinicName: apt.clinics?.name || '',
       clinicPhone: apt.clinics?.phone || '',
     }))
@@ -208,6 +215,7 @@ export async function recordReminderSent(
 
 /**
  * Process reminders for a specific time window
+ * Uses procedure-specific configs with D-05 defaults
  */
 export async function processReminders(hoursBefore: number): Promise<{
   processed: number
@@ -222,6 +230,36 @@ export async function processReminders(hoursBefore: number): Promise<{
   let failed = 0
 
   for (const appointment of appointments) {
+    // Get procedure-specific config or use default
+    const effectiveConfig = await getEffectiveConfig(
+      appointment.clinicId,
+      appointment.procedureId || '',
+      appointment.procedureName || ''
+    )
+
+    // Format placeholder values
+    const dataStr = appointment.scheduledAt.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+    const horarioStr = appointment.scheduledAt.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+
+    // Replace placeholders in custom template
+    const filledMessage = fillTemplate(
+      { body: effectiveConfig.message_template } as any,
+      {
+        paciente_nome: appointment.patientName,
+        data: dataStr,
+        horario: horarioStr,
+        dentista: appointment.dentistName || '',
+        procedimento: appointment.procedureName || '',
+      }
+    )
+
     let result: { success: boolean; messageId?: string; error?: string }
 
     if (hoursBefore === 24) {
@@ -256,9 +294,8 @@ export async function processReminders(hoursBefore: number): Promise<{
         ]
       )
     } else {
-      // Other reminders (2h): send plain text
-      const message = formatReminderMessage(appointment, hoursBefore)
-      result = await sendWhatsAppReminder(appointment.patientPhone, message)
+      // Use custom template with replaced placeholders
+      result = await sendWhatsAppReminder(appointment.patientPhone, filledMessage)
     }
 
     await recordReminderSent(
