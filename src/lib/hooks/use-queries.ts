@@ -1,6 +1,7 @@
 'use client'
 
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import { createTypedClient } from '@/lib/supabase/typed'
 
 /**
  * Shared query keys for cache invalidation
@@ -31,6 +32,11 @@ export const queryKeys = {
   contacts: (params?: string) => ['contacts', params] as const,
   contact: (id: string, type: string) => ['contacts', id, type] as const,
   calendarEvents: (params?: string) => ['calendar-events', params] as const,
+  customFieldDefinitions: (clinicId?: string) => ['custom-field-definitions', clinicId] as const,
+  customFieldValues: (contactId: string, contactType: string) => ['custom-field-values', contactId, contactType] as const,
+  consents: (contactId: string, contactType: string) => ['consents', contactId, contactType] as const,
+  kanbanLeads: (clinicId: string) => ['kanban-leads', clinicId] as const,
+  pipelineStages: (clinicId: string) => ['pipeline-stages', clinicId] as const,
 }
 
 /**
@@ -42,6 +48,62 @@ async function fetcher<T>(url: string): Promise<T> {
     throw new Error(`API error: ${response.status}`)
   }
   return response.json()
+}
+
+/**
+ * Fetch kanban leads for pipeline
+ */
+export async function fetchKanbanLeads(clinicId: string) {
+  const supabase = await createTypedClient()
+  const { data, error } = await supabase
+    .from('leads')
+    .select(`
+      id, name, phone, email, source, temperature, score,
+      stage_id, interest, last_contact_at, created_at, updated_at,
+      pipeline_stages (id, name, color, sort_order)
+    `)
+    .eq('clinic_id', clinicId)
+    .order('score', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Kanban leads query
+ */
+export function useKanbanLeads(clinicId: string) {
+  return useQuery({
+    queryKey: queryKeys.kanbanLeads(clinicId),
+    queryFn: () => fetchKanbanLeads(clinicId),
+    enabled: !!clinicId,
+  })
+}
+
+/**
+ * Fetch pipeline stages for kanban
+ */
+export async function fetchPipelineStages(clinicId: string) {
+  const supabase = await createTypedClient()
+  const { data, error } = await supabase
+    .from('pipeline_stages')
+    .select('*')
+    .eq('clinic_id', clinicId)
+    .order('sort_order', { ascending: true })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Pipeline stages query
+ */
+export function usePipelineStages(clinicId: string) {
+  return useQuery({
+    queryKey: queryKeys.pipelineStages(clinicId),
+    queryFn: () => fetchPipelineStages(clinicId),
+    enabled: !!clinicId,
+  })
 }
 
 /**
@@ -321,5 +383,103 @@ export function useContactNotes(id: string, type: string) {
     queryFn: () => fetcher<any>(`/api/contacts/${id}/notes?type=${type}`),
     enabled: !!id && !!type,
     staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Custom field definitions — cached for 5 min
+ */
+export function useCustomFieldDefinitions(clinicId?: string) {
+  return useQuery({
+    queryKey: queryKeys.customFieldDefinitions(clinicId),
+    queryFn: () => fetcher<any>(`/api/custom-fields/definitions${clinicId ? `?clinic_id=${clinicId}` : ''}`),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!clinicId,
+  })
+}
+
+/**
+ * Custom field values for a contact — cached for 1 min
+ */
+export function useCustomFieldValues(contactId: string, contactType: 'patient' | 'lead') {
+  return useQuery({
+    queryKey: queryKeys.customFieldValues(contactId, contactType),
+    queryFn: () => fetcher<any>(`/api/custom-fields/values?contact_id=${contactId}&contact_type=${contactType}`),
+    staleTime: 60 * 1000,
+    enabled: !!contactId && !!contactType,
+  })
+}
+
+/**
+ * Contact timeline — infinite query with cursor pagination
+ */
+export function useContactTimeline(id: string, type: 'patient' | 'lead', sourceFilter?: string) {
+  return useInfiniteQuery({
+    queryKey: ['contacts', id, 'timeline', type, sourceFilter],
+    queryFn: async ({ pageParam }: { pageParam?: string }) => {
+      const params = new URLSearchParams({ type })
+      if (pageParam) params.set('cursor', pageParam)
+      if (sourceFilter) params.set('source', sourceFilter)
+      const res = await fetch(`/api/contacts/${id}/timeline?${params}`)
+      if (!res.ok) throw new Error('Failed to fetch timeline')
+      return res.json()
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage.next_cursor ?? undefined,
+    enabled: !!id && !!type,
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Contact consents
+ */
+export function useContactConsents(contactId: string, contactType: 'patient' | 'lead') {
+  return useQuery({
+    queryKey: queryKeys.consents(contactId, contactType),
+    queryFn: () => fetcher<any>(`/api/consents?contact_id=${contactId}&contact_type=${contactType}`),
+    enabled: !!contactId && !!contactType,
+  })
+}
+
+/**
+ * Grant consent mutation
+ */
+export function useGrantConsent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { contact_id: string; contact_type: 'patient' | 'lead'; purpose: string; channel?: string; notes?: string }) => {
+      const res = await fetch('/api/consents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) throw new Error('Failed to grant consent')
+      return res.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.consents(variables.contact_id, variables.contact_type) })
+    },
+  })
+}
+
+/**
+ * Revoke consent mutation
+ */
+export function useRevokeConsent() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { contact_id: string; contact_type: 'patient' | 'lead'; purpose: string; channel?: string; notes?: string }) => {
+      const res = await fetch('/api/consents', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) throw new Error('Failed to revoke consent')
+      return res.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.consents(variables.contact_id, variables.contact_type) })
+    },
   })
 }
