@@ -15,6 +15,7 @@ const budgetItemSchema = z.object({
 
 export const createBudgetSchema = z.object({
   patient_id: z.string().uuid(),
+  treatment_plan_id: z.string().uuid().optional(),
   appointment_id: z.string().uuid().optional(),
   title: z.string().max(200).optional(),
   description: z.string().max(1000).optional(),
@@ -30,4 +31,5 @@ export const updateBudgetSchema = z.object({
   notes: z.string().max(1000).optional(),
   valid_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   discount_percent: z.number().min(0).max(100).optional(),
+  treatment_plan_id: z.string().uuid().optional(),
 })
