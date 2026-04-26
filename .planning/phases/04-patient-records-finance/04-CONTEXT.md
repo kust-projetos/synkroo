@@ -55,12 +55,18 @@ Users can manage multi-session treatment plans with progress tracking and handle
 - **D-15:** Sessions can be linked to existing appointments (reuses appointment data)
 - **D-16:** Phase 5 (Integration & Analytics) will handle bidirectional calendar-CRM linking
 
+### Budget Document Layout
+- **D-17:** **Duas colunas no desktop** — itens do orçamento (procedures, quantities, prices) à esquerda, parcelas à direita. No mobile, empilhado verticalmente.
+
+### Financial Summary Charts
+- **D-18:** **Barras simples** — barras horizontais mostrando total billed, paid, owed. Recharts já instalado (`BarChart`). Não usar linhas nem gráficos complexos.
+
+### Installment UI
+- **D-19:** **Gerador + edição manual** — dentista define quantidade de parcelas e valor total, sistema sugere parcelas iguais, dentista edita valores individuais antes de confirmar.
+
 ### Claude's Discretion
-- Budget document layout and visual design
-- Progress bar colors (green/yellow/red thresholds)
-- Installment schedule UI (due date picker, amount inputs)
-- Payment recording form layout
-- Summary chart types (bars, lines, totals)
+- Layout visual exato do documento de orçamento (cores, tipografia de seções)
+- Cores específicas das barras no resumo (usar thresholds definidos no UI-SPEC)
 </decisions>
 
 <canonical_refs>
