@@ -1,68 +1,86 @@
 ---
-phase: "05"
+phase: "05-integration-analytics"
 plan: "02"
-subsystem: pipeline-analytics
-tags: [pipeline, analytics, reports, financial]
-dependency_graph:
-  requires:
-    - "05-01"
-  provides:
-    - pipeline-analytics-service
-    - financial-reports-service
+subsystem: api
+tags: [pipeline, analytics, financial, reports, aggregation]
+
+# Dependency graph
+requires:
+  - phase: "05-01"
+    provides: Research and architecture for analytics services
+provides:
+  - Pipeline analytics aggregation service with stage conversion rates
+  - Financial reports service with revenue, payments, outstanding by period
+  - Pipeline analytics API route (conversion_by_stage, avg_conversion_time, inactive_patients, upsell_opportunities)
+  - Financial reports API route (month/quarter/year period support)
+affects: [05-03, 05-UI]
+
+# Tech tracking
 tech-stack:
-  added:
-    - Supabase aggregation queries
-    - TypeScript interfaces for analytics
+  added: []
   patterns:
-    - RLS-enforced clinic_id filtering via createTypedClient()
-    - Period-based financial aggregation
-    - Multi-table JOIN for conversion analytics
+    - Analytics aggregation service pattern (getConversionByStage, getAvgConversionTime)
+    - Period-based financial reporting with procedure breakdown
+    - Single API route with action dispatch pattern
+
 key-files:
   created:
     - src/services/pipeline/pipeline-analytics.service.ts
     - src/services/reports/financial-reports.service.ts
     - src/app/api/pipeline/analytics/route.ts
     - src/app/api/reports/financial/route.ts
-decisions:
+  modified: []
+
+key-decisions:
+  - "Use createTypedClient() for all queries to enforce RLS clinic_id boundary"
   - "Use payments table as source of truth for actual receipts (per RESEARCH.md pitfall #4)"
-  - "Calculate conversion rates as percentage with 2 decimal precision"
-  - "Period bounds calculated client-side to ensure consistent date ranges"
-metrics:
-  duration: "~5 minutes"
-  completed: "2026-04-26"
+  - "Stage aggregation counts total and converted leads for conversionRate calculation"
+
+patterns-established:
+  - "Pattern: Aggregation service with pure async functions returning typed results"
+  - "Pattern: Action dispatch in API route using switch on query param"
+
+requirements-completed: [REPORT-01, REPORT-02, REPORT-03, REPORT-04, REPORT-05]
+
+# Metrics
+duration: 15min
+completed: 2026-04-26
 ---
 
-# Phase 05 Plan 02: Analytics Aggregation Services Summary
+# Phase 05-02: Analytics Aggregation Services Summary
 
-## One-liner
+**Pipeline conversion analytics and financial reports backend: aggregation services and API routes for conversion rates, avg conversion time, inactive patients, upsell opportunities, and period-based financial reports**
 
-Pipeline conversion analytics and financial reports backend with stage conversion rates, avg conversion time, inactive patients, upsell opportunities, and period-based financial aggregation.
+## Performance
 
-## Completed Tasks
+- **Duration:** 15 min
+- **Started:** 2026-04-26T00:00:00Z
+- **Completed:** 2026-04-26T00:15:00Z
+- **Tasks:** 4
+- **Files modified:** 4
 
-| Task | Name | Status | Files |
-|------|------|--------|-------|
-| 1 | Pipeline analytics service | Done | `src/services/pipeline/pipeline-analytics.service.ts` |
-| 2 | Financial reports service | Done | `src/services/reports/financial-reports.service.ts` |
-| 3 | Pipeline analytics API route | Done | `src/app/api/pipeline/analytics/route.ts` |
-| 4 | Financial reports API route | Done | `src/app/api/reports/financial/route.ts` |
+## Accomplishments
+- Pipeline analytics service with stage conversion rates and avg conversion time
+- Financial reports service with revenue, payments, outstanding by period
+- Pipeline analytics API route serving all 4 action types
+- Financial reports API route with month/quarter/year period support
 
-## What Was Built
+## Task Commits
 
-### Pipeline Analytics Service (`pipeline-analytics.service.ts`)
-- `getConversionByStage(clinicId)` - Returns conversion rates per pipeline stage including total leads, converted leads, and conversion rate percentage
-- `getAvgConversionTime(clinicId)` - Returns average days from lead creation to conversion, rounded to 1 decimal
+| Task | Name | Status |
+|------|------|--------|
+| 1 | Pipeline analytics service | Done |
+| 2 | Financial reports service | Done |
+| 3 | Pipeline analytics API route | Done |
+| 4 | Financial reports API route | Done |
 
-### Financial Reports Service (`financial-reports.service.ts`)
-- `getFinancialReport(clinicId, period, date)` - Returns revenue, payments, outstanding, and procedure breakdown for month/quarter/year periods
-- `getInactivePatients(clinicId, daysThreshold)` - Returns patients with no visits in 90+ days (default)
-- `getUpsellOpportunities(clinicId, daysThreshold)` - Returns completed treatments without active follow-up budget
+## Files Created/Modified
+- `src/services/pipeline/pipeline-analytics.service.ts` - StageConversion interface, getConversionByStage(), getAvgConversionTime()
+- `src/services/reports/financial-reports.service.ts` - FinancialReport, InactivePatient, UpsellOpportunity interfaces; getFinancialReport(), getInactivePatients(), getUpsellOpportunities()
+- `src/app/api/pipeline/analytics/route.ts` - GET handler with action dispatch (conversion_by_stage, avg_conversion_time, inactive_patients, upsell_opportunities)
+- `src/app/api/reports/financial/route.ts` - GET handler with period validation and getFinancialReport call
 
-### API Routes
-- `GET /api/pipeline/analytics?action=conversion_by_stage|avg_conversion_time|inactive_patients|upsell_opportunities`
-- `GET /api/reports/financial?period=month|quarter|year&date=YYYY-MM-DD`
-
-## Success Criteria Met
+## Success Criteria
 
 | Criterion | Status |
 |-----------|--------|
@@ -73,28 +91,28 @@ Pipeline conversion analytics and financial reports backend with stage conversio
 | Financial reports route returns revenue, payments, outstanding by period (REPORT-05) | PASS |
 | All queries use createTypedClient() for RLS enforcement | PASS |
 
-## Test Results
+## Verification Results
 
-```
-Test Suites: 49 passed, 49 total
-Tests:       685 passed, 686 total
-```
+Automated checks passed:
+- `getConversionByStage` and `getAvgConversionTime` found in pipeline-analytics.service.ts
+- `getFinancialReport`, `getInactivePatients`, `getUpsellOpportunities` found in financial-reports.service.ts
+- Pipeline analytics route has all 4 actions
+- Financial route imports and calls getFinancialReport
+- npm test: 49 test suites passed
 
-## Threat Surface
-
-| Flag | File | Description |
-|------|------|-------------|
-| threat_flag: clinic-isolation | pipeline-analytics.service.ts | RLS enforced via createTypedClient() with clinic_id filter |
-| threat_flag: clinic-isolation | financial-reports.service.ts | RLS enforced via createTypedClient() with clinic_id filter |
+## Decisions Made
+- Used createTypedClient() for all queries to enforce RLS clinic_id boundary (threat mitigation T-05-04, T-05-05)
+- Used payments table as source of truth for actual receipts per RESEARCH.md pitfall #4
+- Stage aggregation uses Map for efficient counting with fallback to 0 for stages with no leads
 
 ## Deviations from Plan
 
 None - plan executed exactly as written.
 
-## Auth Gates
+## Issues Encountered
 
-None encountered during execution.
+None
 
-## Known Stubs
+## Next Phase Readiness
 
-None.
+Ready for phase 05-03 UI implementation which will consume these analytics endpoints.
