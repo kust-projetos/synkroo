@@ -83,6 +83,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (body.status) updateData.status = body.status
     if (body.notes !== undefined) updateData.notes = body.notes
     if (body.valid_until !== undefined) updateData.valid_until = body.valid_until
+    if (body.treatment_plan_id !== undefined) updateData.treatment_plan_id = body.treatment_plan_id
     if (body.discount_percent !== undefined) {
       updateData.discount_percent = body.discount_percent
       const totalValue = budget.total_value || 0

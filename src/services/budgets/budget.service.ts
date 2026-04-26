@@ -25,6 +25,7 @@ export interface Budget {
   id?: string
   clinic_id: string
   patient_id: string
+  treatment_plan_id?: string | null
   appointment_id?: string | null
   title?: string | null
   description?: string | null
@@ -45,6 +46,7 @@ export interface Budget {
   created_at?: string
   updated_at?: string
   items?: BudgetItem[]
+  installments?: BudgetInstallment[]
   patient?: {
     id: string
     name: string
@@ -52,9 +54,22 @@ export interface Budget {
   }
 }
 
+export interface BudgetInstallment {
+  id?: string
+  budget_id: string
+  amount: number
+  due_date: string
+  status: string
+  paid_at?: string | null
+  payment_id?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
 export interface CreateBudgetInput {
   clinic_id: string
   patient_id: string
+  treatment_plan_id?: string
   appointment_id?: string
   title?: string
   description?: string
@@ -112,6 +127,7 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
     .insert({
       clinic_id: input.clinic_id,
       patient_id: input.patient_id,
+      treatment_plan_id: input.treatment_plan_id,
       appointment_id: input.appointment_id,
       title: input.title,
       description: input.description,
@@ -440,4 +456,53 @@ export async function getBudgetStats(clinicId: string): Promise<{
   stats.conversion_rate = totalResponded > 0 ? (stats.converted / totalResponded) * 100 : 0
 
   return stats
+}
+
+/**
+ * Get budgets by treatment plan ID (per D-05: one budget per master plan)
+ */
+export async function getBudgetsByTreatmentPlan(treatmentPlanId: string): Promise<Budget[]> {
+  const supabase = await createTypedClient()
+
+  const { data, error } = await supabase
+    .from('budgets')
+    .select(`
+      *,
+      patients (id, name, phone),
+      budget_items (*)
+    `)
+    .eq('treatment_plan_id', treatmentPlanId)
+    .is('deleted_at', null)
+
+  if (error) {
+    dbLogger.error('Error fetching budgets by treatment plan', error)
+    return []
+  }
+
+  return data as Budget[]
+}
+
+/**
+ * Get budget with installments list
+ */
+export async function getBudgetWithInstallments(budgetId: string): Promise<Budget | null> {
+  const supabase = await createTypedClient()
+
+  const { data: budget, error } = await supabase
+    .from('budgets')
+    .select(`
+      *,
+      patients (id, name, phone),
+      budget_items (*),
+      budget_installments (*)
+    `)
+    .eq('id', budgetId)
+    .single()
+
+  if (error) {
+    dbLogger.error('Error fetching budget with installments', error)
+    return null
+  }
+
+  return budget as Budget
 }
