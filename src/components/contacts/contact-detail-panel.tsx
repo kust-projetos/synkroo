@@ -13,6 +13,7 @@ import { PencilIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline'
 import { ContactTimelineTab } from './contact-timeline-tab'
 import { ContactNotesTab } from './contact-notes-tab'
 import { ContactCustomFieldsTab } from './contact-custom-fields-tab'
+import { ContactFinancialTab } from './contact-financial-tab'
 import { ConsentSection } from './consent-section'
 import { MessageBubble } from '@/components/whatsapp/message-bubble'
 import { MessageComposer } from '@/components/whatsapp/message-composer'
@@ -175,6 +176,7 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
           <TabsTrigger value="notes">Notas</TabsTrigger>
           <TabsTrigger value="custom">Campos</TabsTrigger>
           <TabsTrigger value="whatsapp" className="data-[state=active]:text-teal-600">WhatsApp</TabsTrigger>
+          <TabsTrigger value="financeiro" className="data-[state=active]:text-teal-600">Financeiro</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -213,6 +215,9 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
         )}
         {activeTab === 'whatsapp' && (
           <WhatsAppTab contactPhone={contact?.phone} contactId={contactId!} />
+        )}
+        {activeTab === 'financeiro' && (
+          <ContactFinancialTab contactId={contactId!} />
         )}
       </div>
     </div>
