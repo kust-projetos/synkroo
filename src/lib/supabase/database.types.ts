@@ -1759,6 +1759,76 @@ export interface Database {
           updated_at?: string
         }
       }
+      budget_installments: {
+        Row: {
+          id: string
+          budget_id: string
+          amount: number
+          due_date: string
+          status: string
+          paid_at: string | null
+          payment_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          budget_id: string
+          amount: number
+          due_date: string
+          status?: string
+          paid_at?: string | null
+          payment_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          budget_id?: string
+          amount?: number
+          due_date?: string
+          status?: string
+          paid_at?: string | null
+          payment_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      payments: {
+        Row: {
+          id: string
+          budget_id: string | null
+          amount: number
+          payment_method: string
+          paid_at: string
+          notes: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          budget_id?: string | null
+          amount: number
+          payment_method: string
+          paid_at?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          budget_id?: string | null
+          amount?: number
+          payment_method?: string
+          paid_at?: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Functions: {
       get_availability: {
@@ -1901,3 +1971,5 @@ export type Waitlist = Database['public']['Tables']['waitlist']['Row']
 export type PendingAction = Database['public']['Tables']['pending_actions']['Row']
 export type DecisionLog = Database['public']['Tables']['decision_logs']['Row']
 export type ConversationMemory = Database['public']['Tables']['conversation_memories']['Row']
+export type BudgetInstallment = Database['public']['Tables']['budget_installments']['Row']
+export type Payment = Database['public']['Tables']['payments']['Row']
