@@ -51,6 +51,10 @@ export interface DialogState {
   slotInfo?: DialogSlotInfo
   eventId?: string
   rescheduleInfo?: RescheduleInfo
+  // Pre-fill fields for contact/lead booking
+  defaultPatientId?: string
+  defaultLeadName?: string
+  defaultLeadPhone?: string
 }
 
 /** Laid-out event after overlap calculation */
