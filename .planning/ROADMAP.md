@@ -107,7 +107,12 @@ Plans:
   3. User can view pipeline conversion rates by stage, average lead-to-patient conversion time, and identify inactive patients and upsell opportunities
   4. User can view financial reports (revenue, payments, outstanding) by period and export report data as CSV or PDF
   5. User can export all patient data in portable format (LGPD data portability) and process data deletion requests with anonymization and audit trail
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 05-01-PLAN.md -- Calendar-CRM linking: book from contact/lead, waitlist auto-fill, appointments tab
+- [ ] 05-02-PLAN.md -- Analytics backend services: pipeline analytics + financial reports services
+- [ ] 05-03-PLAN.md -- Analytics dashboards UI + LGPD export/anonymize dialogs
 
 **UI hint**: yes
 
@@ -122,7 +127,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 2. Pipeline & Sales | 0/2 | Not started | - |
 | 3. WhatsApp CRM | 0/3 | Not started | - |
 | 4. Patient Records & Finance | 3/3 | **COMPLETE** | 2026-04-26 |
-| 5. Integration & Analytics | 0/TBD | Not started | - |
+| 5. Integration & Analytics | 0/3 | Not started | - |
 
 ---
 *Last updated: 2026-04-26*
