@@ -88,7 +88,12 @@ Plans:
   2. User can create treatment budgets with itemized procedures and costs, and define payment plans (installments, due dates)
   3. User can record payments against budgets and track outstanding balances per patient
   4. User can view a basic financial summary per patient showing total billed, total paid, and amount owed
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md -- Database schema (installments, payments, treatment_plan FK) + Treatment Plan service + API routes
+- [ ] 04-02-PLAN.md -- Installment service + Payment service (D-09 auto-complete, D-11 budget status) + Financial Summary API
+- [ ] 04-03-PLAN.md -- Financial Tab UI (progress bars, budget detail panel, installment list, payment recorder, Recharts bars)
 
 **UI hint**: yes
 
@@ -116,8 +121,8 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
 | 1. Foundation & Contacts | 6/6 | **COMPLETE** | 2026-04-24 |
 | 2. Pipeline & Sales | 0/2 | Not started | - |
 | 3. WhatsApp CRM | 0/3 | Not started | - |
-| 4. Patient Records & Finance | 0/TBD | Not started | - |
+| 4. Patient Records & Finance | 0/3 | Not started | - |
 | 5. Integration & Analytics | 0/TBD | Not started | - |
 
 ---
-*Last updated: 2026-04-25*
+*Last updated: 2026-04-26*
