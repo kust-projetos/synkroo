@@ -56,7 +56,7 @@ export function AppointmentDialog() {
     notes: '',
   })
 
-  // Pre-fill form when dialog opens
+  // Pre-fill form when dialog opens with slot info
   useEffect(() => {
     if (dialog.open && dialog.mode === 'create' && dialog.slotInfo) {
       const { date, hour, minute, dentistId } = dialog.slotInfo
@@ -70,6 +70,42 @@ export function AppointmentDialog() {
         dentistId: dentistId || prev.dentistId,
       }))
     }
+  }, [dialog])
+
+  // Pre-fill from contact/lead context
+  useEffect(() => {
+    if (!dialog.open || dialog.mode !== 'create') return
+
+    const { defaultPatientId, defaultLeadName, defaultLeadPhone } = dialog
+    if (!defaultPatientId && !defaultLeadName) return
+
+    const prefill = async () => {
+      if (defaultPatientId) {
+        // Fetch patient data
+        const res = await fetch(`/api/patients/${defaultPatientId}`)
+        const data = await res.json()
+        const patient = data?.patient
+        if (patient) {
+          setForm((prev) => ({
+            ...prev,
+            patientName: patient.name || '',
+            patientPhone: patient.phone || '',
+          }))
+        }
+      } else if (defaultLeadName) {
+        // Use lead data directly
+        setForm((prev) => ({
+          ...prev,
+          patientName: defaultLeadName,
+          patientPhone: defaultLeadPhone || '',
+        }))
+      }
+
+      // Clear pre-fill state after using it
+      useCalendarStore.getState().clearPrefill()
+    }
+
+    prefill()
   }, [dialog])
 
   // Update duration when procedure changes

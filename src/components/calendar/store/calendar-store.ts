@@ -33,6 +33,9 @@ interface CalendarStore {
   openRescheduleDialog: (info: RescheduleInfo) => void
   closeDialog: () => void
   setBusinessHours: (startHour: number, endHour: number) => void
+  prefillFromPatient: (patientId: string) => void
+  prefillFromLead: (name: string, phone: string) => void
+  clearPrefill: () => void
 
   // URL sync
   syncFromURL: (params: URLSearchParams) => void
@@ -102,6 +105,25 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
 
   closeDialog: () => {
     set({ dialog: { open: false, mode: 'create' } })
+  },
+
+  prefillFromPatient: (patientId) => {
+    set({ dialog: { open: true, mode: 'create', defaultPatientId: patientId } })
+  },
+
+  prefillFromLead: (name, phone) => {
+    set({ dialog: { open: true, mode: 'create', defaultLeadName: name, defaultLeadPhone: phone } })
+  },
+
+  clearPrefill: () => {
+    set((state) => ({
+      dialog: {
+        ...state.dialog,
+        defaultPatientId: undefined,
+        defaultLeadName: undefined,
+        defaultLeadPhone: undefined,
+      },
+    }))
   },
 
   setBusinessHours: (startHour, endHour) => {
