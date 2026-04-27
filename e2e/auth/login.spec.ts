@@ -25,7 +25,7 @@ test.describe('Login Page', () => {
     await page.fill('#email', testCredentials.email)
     await page.fill('#password', 'wrongpassword')
     await page.click('button[type="submit"]')
-    await expect(page.locator('[class*="destructive"]')).toBeVisible({ timeout: 10000 })
+    await expect(page.locator('[class*="destructive"]').first()).toBeVisible({ timeout: 10000 })
   })
   test('empty fields prevent submission', async ({ page }) => {
     await page.click('button[type="submit"]')

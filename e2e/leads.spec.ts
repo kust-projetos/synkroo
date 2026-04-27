@@ -3,15 +3,24 @@ import { test, expect, Page } from '@playwright/test'
 const BASE_URL = 'http://localhost:3003'
 
 async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
-  const loginResult = await page.evaluate(async () => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'admin@clinicademo.com', password: 'demo123' }),
+  try {
+    await page.goto(`${BASE_URL}/login`, { timeout: 15000 })
+  } catch {
+    // Page may already be closed, ignore
+  }
+  let loginResult = false
+  try {
+    loginResult = await page.evaluate(async () => {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'admin@clinicademo.com', password: 'demo123' }),
+      })
+      return response.ok
     })
-    return response.ok
-  })
+  } catch {
+    loginResult = false
+  }
   expect(loginResult).toBe(true)
 }
 
@@ -48,6 +57,7 @@ test.describe('Leads Page', () => {
     const addLink = page.locator('a[href*="leads/novo"]').first()
     if (await addLink.count() > 0) {
       await addLink.click()
+      await page.waitForURL(/.*leads\/novo/, { timeout: 10000 }).catch(() => {})
       await expect(page).toHaveURL(/.*leads\/novo/)
     }
   })
@@ -68,16 +78,13 @@ test.describe('Leads Page', () => {
   })
 
   test('should open lead creation form with name, phone, source fields', async ({ page }) => {
-    const addLink = page.locator('a[href*="leads/novo"]').first()
-    if (await addLink.count() > 0) {
-      await addLink.click()
-      await page.waitForLoadState('networkidle')
-      await page.waitForSelector('input, form', { timeout: 15000 }).catch(() => {})
-      const hasForm = await page.locator('form').count() > 0
-      const hasNameField = await page.locator('input[name*="name"], input[placeholder*="nome"], input[placeholder*="Nome"]').count() > 0
-      const hasPhoneField = await page.locator('input[name*="phone"], input[placeholder*="telefone"], input[placeholder*="Telefone"]').count() > 0
-      expect(hasForm || hasNameField || hasPhoneField).toBeTruthy()
-    }
+    await page.goto(`${BASE_URL}/dashboard/leads/novo`)
+    await page.waitForLoadState('networkidle')
+    await page.waitForSelector('input, form', { timeout: 15000 }).catch(() => {})
+    const hasForm = await page.locator('form').count() > 0
+    const hasNameField = await page.locator('input[name*="name"], input[placeholder*="nome"], input[placeholder*="Nome"]').count() > 0
+    const hasPhoneField = await page.locator('input[name*="phone"], input[placeholder*="telefone"], input[placeholder*="Telefone"]').count() > 0
+    expect(hasForm || hasNameField || hasPhoneField).toBeTruthy()
   })
 })
 

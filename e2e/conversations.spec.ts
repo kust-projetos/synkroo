@@ -3,7 +3,7 @@ import { test, expect, Page } from '@playwright/test'
 const BASE_URL = 'http://localhost:3003'
 
 async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
+  await page.goto(`${BASE_URL}/login`).catch(() => {})
   const loginResult = await page.evaluate(async () => {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
@@ -11,7 +11,7 @@ async function login(page: Page) {
       body: JSON.stringify({ email: 'admin@clinicademo.com', password: 'demo123' }),
     })
     return response.ok
-  })
+  }).catch(() => false)
   expect(loginResult).toBe(true)
 }
 
@@ -29,7 +29,7 @@ test.describe('Conversations Page', () => {
   test('should have conversation list or empty state', async ({ page }) => {
     await page.waitForSelector('[class*="conversation"], [class*="chat"], button, text=/nenhuma|sem conversas/i', { timeout: 15000 }).catch(() => {})
     const hasConversations = await page.locator('[class*="conversation"], [class*="chat-item"], [class*="message"]').count() > 0
-    const hasEmptyState = await page.locator('text=/nenhuma conversa|sem conversas|Nenhuma/i').count() > 0
+    const hasEmptyState = await page.locator('text=/nenhuma|sem conversas|Nenhuma/i').count() > 0
     const hasButtons = await page.locator('button').count() > 0
     expect(hasConversations || hasEmptyState || hasButtons).toBeTruthy()
   })
@@ -108,14 +108,14 @@ test.describe('Campaign List', () => {
 
   test('should display campaign list or empty state', async ({ page }) => {
     await expect(page.locator('h1, h2')).toContainText(/campanha/i)
-    await page.waitForSelector('table, [data-testid*="campaign"], [class*="campaign"], text=/sem|nenhum|vazio/i', { timeout: 15000 }).catch(() => {})
+    await page.waitForSelector('table, [data-testid*="campaign"], [class*="campaign"]', { timeout: 15000 }).catch(() => {})
     const hasList = await page.locator('table').count() > 0
     const hasEmpty = await page.locator('text=/sem|nenhum|vazio/i').count() > 0
     expect(hasList || hasEmpty).toBeTruthy()
   })
 
   test('should show campaign status or empty state', async ({ page }) => {
-    const hasStatus = await page.locator('text=/ativa|pausada|concluída/i').count() > 0
+    const hasStatus = await page.locator('text=/ativa|pausada|concluíd/i').count() > 0
     const hasEmpty = await page.locator('text=/sem|nenhum|vazio/i').count() > 0
     expect(hasStatus || hasEmpty).toBeTruthy()
   })
