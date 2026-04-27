@@ -433,6 +433,100 @@ export async function getHotLeads(clinicId: string, limit: number = 10): Promise
 }
 
 /**
+ * Lead capture result from WhatsApp
+ */
+export interface LeadCaptureResult {
+  created: boolean
+  leadId: string
+  score: number
+  wasExisting: boolean
+}
+
+/**
+ * Extract keywords from WhatsApp message for scoring
+ */
+function extractWhatsAppKeywords(text: string): string[] {
+  const lower = text.toLowerCase()
+  const keywords: string[] = []
+
+  if (/\b(orçamento|preço|quanto custa|valor)\b/.test(lower)) keywords.push('budget')
+  if (/\b(consulta|agendar|marcar|horário)\b/.test(lower)) keywords.push('appointment')
+  if (/\b(tratamento|procedimento|dentista)\b/.test(lower)) keywords.push('treatment')
+
+  return keywords
+}
+
+/**
+ * Calculate lead score from WhatsApp keywords
+ */
+function calculateWhatsAppLeadScore(keywords: string[]): number {
+  if (keywords.includes('budget')) return 30
+  if (keywords.includes('appointment')) return 25
+  if (keywords.includes('treatment')) return 20
+  return 5
+}
+
+/**
+ * Capture a lead from WhatsApp inbound message
+ * Creates new lead if phone not found, updates existing lead otherwise
+ */
+export async function captureLeadFromWhatsApp(
+  phone: string,
+  messageText: string,
+  clinicId: string
+): Promise<LeadCaptureResult> {
+  const { getDefaultStageId } = await import('@/services/pipeline/stages.service')
+  const supabase = createTypedClient()
+
+  const messageKeywords = extractWhatsAppKeywords(messageText)
+  const score = calculateWhatsAppLeadScore(messageKeywords)
+  const defaultStageId = await getDefaultStageId(clinicId)
+
+  // Check if lead already exists for this phone
+  const { data: existingLead } = await supabase
+    .from('leads')
+    .select('id')
+    .eq('phone', phone)
+    .eq('clinic_id', clinicId)
+    .single()
+
+  if (existingLead) {
+    // Update last_contact and recalculate score if keywords found
+    await supabase
+      .from('leads')
+      .update({
+        last_contact_at: new Date().toISOString(),
+        score: messageKeywords.length > 0 ? score : undefined,
+      })
+      .eq('id', existingLead.id)
+
+    return { created: false, leadId: existingLead.id, score, wasExisting: true }
+  }
+
+  // Create new lead
+  const { data: newLead, error } = await supabase
+    .from('leads')
+    .insert({
+      phone,
+      name: 'Desconhecido',
+      source: 'whatsapp',
+      stage_id: defaultStageId,
+      score,
+      clinic_id: clinicId,
+      last_contact_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single()
+
+  if (error || !newLead) {
+    dbLogger.error('Failed to capture lead from WhatsApp', error)
+    return { created: false, leadId: '', score, wasExisting: false }
+  }
+
+  return { created: true, leadId: newLead.id, score, wasExisting: false }
+}
+
+/**
  * Convert lead to patient
  */
 export async function convertLeadToPatient(
