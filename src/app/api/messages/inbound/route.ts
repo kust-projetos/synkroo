@@ -73,6 +73,14 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
+    // Capture lead from WhatsApp (best-effort, does not block message flow)
+    try {
+      const { captureLeadFromWhatsApp } = await import('@/services/leads/leads.service')
+      await captureLeadFromWhatsApp(from, message, clinicId)
+    } catch (leadError) {
+      console.error('Lead capture failed:', leadError)
+    }
+
     // Process message with AI
     const llm = getLLMProvider()
     // 1. Classify intent
