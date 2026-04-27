@@ -143,10 +143,10 @@ Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5
 |-------|----------------|--------|-----------|
 | 1. Foundation & Contacts | 6/6 | **COMPLETE** | 2026-04-24 |
 | 2. Pipeline & Sales | 2/2 | **COMPLETE** | 2026-04-25 |
-| 2.1 WhatsApp Lead Capture | 0/1 | **Not started** | - |
+| 2.1 WhatsApp Lead Capture | 1/1 | **COMPLETE** | 2026-04-27 |
 | 3. WhatsApp CRM | 3/3 | **COMPLETE** | 2026-04-25 |
 | 4. Patient Records & Finance | 3/3 | **COMPLETE** | 2026-04-26 |
 | 5. Integration & Analytics | 3/3 | **COMPLETE** | 2026-04-26 |
 
 ---
-*Last updated: 2026-04-27 (reactivated)*
+*Last updated: 2026-04-27*
