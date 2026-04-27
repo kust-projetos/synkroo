@@ -15,9 +15,10 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Existing UI Baseline:** Dashboard already has pages for leads, pacientes, campanhas, conversas, lista-espera, dentistas, procedimentos. Phases 1-3 are EXTEND/REFACTOR, not greenfield builds.
 
 - [x] **Phase 1: Foundation & Contacts** - RLS consolidation (5 fix migrations), schema additions (pipeline_stages, custom fields, consent), expand existing pacientes/leads pages with search, filters, tags, custom fields, and interaction timeline
-- [ ] **Phase 2: Pipeline & Sales** - Kanban board with drag-and-drop (@hello-pangea/dnd), custom pipeline stages, expand existing leads page with scoring and lead-to-patient conversion
-- [ ] **Phase 3: WhatsApp CRM** - Expand existing conversas page with in-app messaging, expand existing campanhas page with reminders, templates, and campaign scheduling
-- [ ] **Phase 4: Patient Records & Finance** - Treatment plans with progress tracking, budgets with itemized procedures, payment plans, financial summary per patient
+- [x] **Phase 2: Pipeline & Sales** - Kanban board with drag-and-drop (@hello-pangea/dnd), custom pipeline stages, expand existing leads page with scoring and lead-to-patient conversion
+- [ ] **Phase 2.1: WhatsApp Lead Capture (PIPE-05)** - Automatic lead creation from inbound WhatsApp messages with keyword-based scoring
+- [x] **Phase 3: WhatsApp CRM** - Expand existing conversas page with in-app messaging, expand existing campanhas page with reminders, templates, and campaign scheduling
+- [x] **Phase 4: Patient Records & Finance** - Treatment plans with progress tracking, budgets with itemized procedures, payment plans, financial summary per patient
 - [ ] **Phase 5: Integration & Analytics** - Calendar-CRM bidirectional linking, expand existing lista-espera with auto-fill, pipeline reports, financial reports (jspdf for PDF), LGPD data export/anonymization
 
 ## Phase Details
@@ -56,10 +57,26 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- Database migration (leads.stage_id, source_type, score, calculate_lead_score function) + Stage service + Stage API routes
-- [ ] 02-02-PLAN.md -- Kanban board UI (useKanban hook, KanbanBoard, StageColumn, LeadCard components) + Lead stage DnD endpoint + Lead convert endpoint
+- [x] 02-01-PLAN.md -- Database migration (leads.stage_id, source_type, score, calculate_lead_score function) + Stage service + Stage API routes
+- [x] 02-02-PLAN.md -- Kanban board UI (useKanban hook, KanbanBoard, StageColumn, LeadCard components) + Lead stage DnD endpoint + Lead convert endpoint
 
 **UI hint**: yes
+
+### Phase 2.1: WhatsApp Lead Capture (PIPE-05)
+**Goal**: Leads are automatically created when an inbound WhatsApp message arrives from an unknown phone number, with keyword-based initial scoring
+**Depends on**: Phase 2 (Kanban board must exist for leads to appear)
+**Requirements**: PIPE-05
+**Success Criteria** (what must be TRUE):
+  1. Inbound WhatsApp webhook creates a lead automatically when sender phone is unknown
+  2. Lead is assigned source_type='whatsapp' and placed in the default pipeline stage
+  3. Initial score is calculated from message keywords (intention detection)
+  4. If phone already exists as a contact, only last_contact is updated and score recalculated
+**Plans**: 1 plan
+
+Plans:
+- [ ] 02-03-PLAN.md -- WhatsApp lead capture: inbound webhook modification, keyword scoring, lead creation service
+
+**UI hint**: no
 
 ### Phase 3: WhatsApp CRM
 **Goal**: Users can communicate with contacts via WhatsApp directly from the CRM, with automated appointment reminders and scheduled marketing campaigns
@@ -74,9 +91,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- WhatsApp tab in contact profile: MessageBubble, MessageStatusBadge, MessageComposer, useWhatsAppMessages hook
-- [ ] 03-02-PLAN.md -- Appointment reminder configuration: procedure-specific timing, template placeholders, settings page
-- [ ] 03-03-PLAN.md -- Campaign wizard with smart filters and campaign dashboard with metrics
+- [x] 03-01-PLAN.md -- WhatsApp tab in contact profile: MessageBubble, MessageStatusBadge, MessageComposer, useWhatsAppMessages hook
+- [x] 03-02-PLAN.md -- Appointment reminder configuration: procedure-specific timing, template placeholders, settings page
+- [x] 03-03-PLAN.md -- Campaign wizard with smart filters and campaign dashboard with metrics
 
 **UI hint**: yes
 
@@ -120,15 +137,16 @@ Plans:
 ## Progress
 
 **Execution Order:**
-Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5
+Phases execute in numeric order: 1 -> 2 -> 2.1 -> 3 -> 4 -> 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation & Contacts | 6/6 | **COMPLETE** | 2026-04-24 |
-| 2. Pipeline & Sales | 0/2 | **Not started** | - |
-| 3. WhatsApp CRM | 0/3 | Not started | - |
+| 2. Pipeline & Sales | 2/2 | **COMPLETE** | 2026-04-25 |
+| 2.1 WhatsApp Lead Capture | 0/1 | **Not started** | - |
+| 3. WhatsApp CRM | 3/3 | **COMPLETE** | 2026-04-25 |
 | 4. Patient Records & Finance | 3/3 | **COMPLETE** | 2026-04-26 |
-| 5. Integration & Analytics | 0/3 | Not started | - |
+| 5. Integration & Analytics | 3/3 | **COMPLETE** | 2026-04-26 |
 
 ---
 *Last updated: 2026-04-27 (reactivated)*
