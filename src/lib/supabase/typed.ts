@@ -2,36 +2,35 @@
  * Supabase Typed Client Helpers
  * Provides type-safe database operations with RLS enforcement
  *
- * IMPORTANT: Uses SSR client (anon key + cookies) — NOT service role.
+ * IMPORTANT: Uses browser client (anon key) — NOT service role.
  * This ensures Row-Level Security policies are enforced at the database level.
  */
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient as createBrowserClient } from '@supabase/supabase-js'
 import type { Database } from './database.types'
-import type { SupabaseClient } from '@supabase/supabase-js'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 /**
  * Typed Supabase client that respects RLS
- * Uses anon key + user cookies for row-level security
+ * Uses anon key for browser-side row-level security
  */
-export type TypedSupabaseClient = ReturnType<typeof createClient> extends Promise<infer T> ? T : ReturnType<typeof createClient>
+export type TypedSupabaseClient = ReturnType<typeof createBrowserClient<Database>>
 
 /**
  * Create a typed Supabase client with RLS enforcement
  * Use this instead of `createServerClient() as any`
- *
- * This returns a client scoped to the authenticated user's session,
- * so Row-Level Security policies are enforced at the database level.
+ * Browser-safe version for client components
  */
-export async function createTypedClient(): Promise<TypedSupabaseClient> {
-  return createClient()
+export function createTypedClient(): TypedSupabaseClient {
+  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey)
 }
 
 /**
- * Convenience function for services
- * Returns a pre-typed RLS-aware client
+ * Get a typed client (alias for use in hooks)
  */
-export async function getTypedClient(): Promise<TypedSupabaseClient> {
+export function getTypedClient(): TypedSupabaseClient {
   return createTypedClient()
 }
 

@@ -54,9 +54,9 @@ async function fetcher<T>(url: string): Promise<T> {
 /**
  * Fetch kanban leads for pipeline
  */
-export async function fetchKanbanLeads(clinicId: string) {
-  const supabase = await createTypedClient()
-  const { data, error } = await supabase
+export function fetchKanbanLeads(clinicId: string) {
+  const supabase = createTypedClient()
+  const { data, error } = supabase
     .from('leads')
     .select(`
       id, name, phone, email, source, temperature, score,
@@ -84,9 +84,9 @@ export function useKanbanLeads(clinicId: string) {
 /**
  * Fetch pipeline stages for kanban
  */
-export async function fetchPipelineStages(clinicId: string) {
-  const supabase = await createTypedClient()
-  const { data, error } = await supabase
+export function fetchPipelineStages(clinicId: string) {
+  const supabase = createTypedClient()
+  const { data, error } = supabase
     .from('pipeline_stages')
     .select('*')
     .eq('clinic_id', clinicId)

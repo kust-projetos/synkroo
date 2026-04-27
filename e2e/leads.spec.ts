@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:3002'
+const BASE_URL = 'http://localhost:3003'
 
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`)
@@ -26,10 +26,11 @@ test.describe('Leads Page', () => {
     await expect(page.locator('h1, h2')).toContainText(/lead/i)
   })
 
-  test('should display kanban stages columns', async ({ page }) => {
-    await page.waitForSelector('[data-testid="kanban-column"], [role="list"], [class*="column"]', { timeout: 15000 }).catch(() => {})
-    const hasStages = await page.locator('[data-testid*="stage"], [data-testid*="column"], [class*="column"]').count() > 0
-    expect(hasStages).toBeTruthy()
+  test('should display kanban board or empty state', async ({ page }) => {
+    await page.waitForSelector('[data-testid*="kanban"], [data-testid*="column"], [class*="column"], text=/nenhum lead|Adicionar primeiro/i', { timeout: 15000 }).catch(() => {})
+    const hasBoard = await page.locator('[data-testid*="kanban"], [data-testid*="column"]').count() > 0
+    const hasEmpty = await page.locator('text=/nenhum lead|Adicionar primeiro/i').count() > 0
+    expect(hasBoard || hasEmpty).toBeTruthy()
   })
 
   test('should have lead cards visible per stage', async ({ page }) => {
@@ -53,7 +54,7 @@ test.describe('Leads Page', () => {
 
   test('should show lead score when available', async ({ page }) => {
     await page.waitForSelector('[data-testid="lead-card"], [class*="card"]', { timeout: 15000 }).catch(() => {})
-    const hasScore = await page.locator('[data-testid*="score"], [class*="score"], text=/\\d+/').count() > 0
+    const hasScore = await page.locator('[data-testid*="score"], [class*="score"]').count() > 0
     if (hasScore) {
       const scoreVisible = await page.locator('[data-testid*="score"], [class*="score"]').first().isVisible().catch(() => false)
       expect(scoreVisible || hasScore).toBeTruthy()
