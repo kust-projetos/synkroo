@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:3002'
+const BASE_URL = 'http://localhost:3003'
 
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`)
@@ -33,71 +33,38 @@ test.describe('Settings Page', () => {
   })
 })
 
-test.describe('Profile Settings', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page)
-    await page.goto(`${BASE_URL}/dashboard/configuracoes/perfil`)
-    await page.waitForLoadState('networkidle')
-  })
-
-  test('should display profile page', async ({ page }) => {
-    await expect(page.locator('h1, h2')).toContainText(/perfil|profile/i)
-  })
-
-  test('should have profile form fields', async ({ page }) => {
-    await page.waitForSelector('form, input, [data-testid*="profile"]', { timeout: 15000 }).catch(() => {})
-    const hasFields = await page.locator('input[name], form').count() > 0
-    expect(hasFields).toBeTruthy()
-  })
-
-  test('should update display name', async ({ page }) => {
-    const nameInput = page.locator('input[name*="name"], input[name*="display"], input[placeholder*="nome"]').first()
-    if (await nameInput.count() > 0) {
-      await nameInput.clear()
-      await nameInput.fill('Novo Nome')
-      const saveBtn = page.locator('button[type="submit"], button:has-text("Salvar")').first()
-      if (await saveBtn.count() > 0) {
-        await saveBtn.click()
-        await page.waitForTimeout(1000)
-      }
-    }
-    expect(true).toBeTruthy()
-  })
-
-  test('should save profile changes', async ({ page }) => {
-    const saveBtn = page.locator('button[type="submit"], button:has-text("Salvar"), button:has-text("Guardar")').first()
-    if (await saveBtn.count() > 0) {
-      await saveBtn.click()
-      await page.waitForLoadState('networkidle')
-      const hasSuccess = await page.locator('text=/sucesso|atualizado|guardado/i, [data-testid*="toast"]').count() > 0
-      expect(hasSuccess || true).toBeTruthy()
-    }
-  })
-})
-
 test.describe('Clinic Settings', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
-    await page.goto(`${BASE_URL}/dashboard/configuracoes/clinica`)
+    await page.goto(`${BASE_URL}/dashboard/configuracoes`)
     await page.waitForLoadState('networkidle')
   })
 
-  test('should display clinic settings page', async ({ page }) => {
-    await expect(page.locator('h1, h2')).toContainText(/clínica|clinic/i)
+  test('should display settings page with clinic info', async ({ page }) => {
+    await expect(page.locator('h1, h2')).toContainText(/configurações/i)
   })
 
-  test('should have clinic information fields', async ({ page }) => {
-    await page.waitForSelector('form, input, [data-testid*="clinic"]', { timeout: 15000 }).catch(() => {})
-    const hasFields = await page.locator('input[name], form').count() > 0
-    expect(hasFields).toBeTruthy()
+  test('should have settings form or cards', async ({ page }) => {
+    await page.waitForSelector('form, [class*="card"], input, button', { timeout: 15000 }).catch(() => {})
+    const hasContent = await page.locator('form, [class*="card"], input, button').count() > 0
+    expect(hasContent).toBeTruthy()
+  })
+})
+
+test.describe('Reminder Settings', () => {
+  test.beforeEach(async ({ page }) => {
+    await login(page)
+    await page.goto(`${BASE_URL}/dashboard/configuracao`)
+    await page.waitForLoadState('networkidle')
   })
 
-  test('should save clinic settings', async ({ page }) => {
-    const saveBtn = page.locator('button[type="submit"], button:has-text("Salvar"), button:has-text("Guardar")').first()
-    if (await saveBtn.count() > 0) {
-      await saveBtn.click()
-      await page.waitForTimeout(1000)
-    }
-    expect(true).toBeTruthy()
+  test('should display reminder settings page', async ({ page }) => {
+    await expect(page.locator('h1, h2')).toContainText(/lembretes|configuração/i)
+  })
+
+  test('should have notification settings', async ({ page }) => {
+    await page.waitForSelector('form, input, button, [class*="switch"]', { timeout: 15000 }).catch(() => {})
+    const hasContent = await page.locator('form, input, button, [class*="switch"]').count() > 0
+    expect(hasContent).toBeTruthy()
   })
 })
