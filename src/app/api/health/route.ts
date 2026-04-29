@@ -50,22 +50,26 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Check environment variables
-  const envVars = {
+  // Check environment variables (critical vs optional)
+  const criticalEnvVars = {
     NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+  }
+  const optionalEnvVars = {
     MINIMAX_API_KEY: !!process.env.MINIMAX_API_KEY,
   }
 
-  const allEnvVarsSet = Object.values(envVars).every(Boolean)
+  const allCriticalSet = Object.values(criticalEnvVars).every(Boolean)
+  const allOptionalSet = Object.values(optionalEnvVars).every(Boolean)
 
   checks.environment = {
-    status: allEnvVarsSet ? 'ok' : 'error',
-    ...envVars,
+    status: allCriticalSet ? (allOptionalSet ? 'ok' : 'warning') : 'error',
+    ...criticalEnvVars,
+    ...optionalEnvVars,
   }
 
-  // Overall status
+  // Overall status — only critical failures cause 503
   const allChecksPassed = Object.values(checks).every(
     (check) => check.status === 'ok' || check.status === 'warning'
   )
