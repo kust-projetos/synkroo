@@ -67,10 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initial session check
   useEffect(() => {
+    let cancelled = false
+
     const initAuth = async () => {
       setLoading(true)
       await fetchProfile()
-      setLoading(false)
+      if (!cancelled) {
+        setLoading(false)
+      }
     }
 
     initAuth()
@@ -89,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     )
 
     return () => {
+      cancelled = true
       subscription.unsubscribe()
     }
   }, [router])
