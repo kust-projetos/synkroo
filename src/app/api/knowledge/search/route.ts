@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { embeddingService } from '@/services/rag'
 import { handleApiError, DatabaseError } from '@/lib/errors'
 
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     const { embedding } = await embeddingService.generateEmbedding(query)
 
     // Search using RPC function
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
     const { data, error } = await (supabase as any).rpc('search_knowledge_base', {
       query_embedding: embedding,
       p_clinic_id: clinicId,

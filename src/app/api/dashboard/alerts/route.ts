@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete-treatment.service'
 import { getHotLeads } from '@/services/leads/leads.service'
 import { findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const alerts: Array<{
       id: string

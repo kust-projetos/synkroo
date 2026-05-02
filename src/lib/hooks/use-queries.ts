@@ -17,6 +17,7 @@ export const queryKeys = {
   leads: (params?: string) => ['leads', params] as const,
   leadStats: ['leads', 'stats'] as const,
   leadNotifications: ['leads', 'notifications'] as const,
+  crmStats: ['crm', 'stats'] as const,
   campaigns: (params?: string) => ['campaigns', params] as const,
   conversations: (params?: string) => ['conversations', params] as const,
   conversation: (id: string) => ['conversations', id] as const,
@@ -237,6 +238,16 @@ export function useLeadStats() {
   return useQuery({
     queryKey: queryKeys.leadStats,
     queryFn: () => fetcher<any>('/api/leads/stats'),
+  })
+}
+
+/**
+ * CRM stats — cross-module stats for hub
+ */
+export function useCrmStats() {
+  return useQuery({
+    queryKey: queryKeys.crmStats,
+    queryFn: () => fetcher<any>('/api/crm/stats'),
   })
 }
 

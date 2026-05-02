@@ -26,8 +26,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const clinicId = authResult.profile!.clinic_id
 
-    const { createTypedClient } = await import('@/lib/supabase/typed')
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data: lead, error } = await supabase
       .from('leads')
@@ -96,8 +95,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     // General update
-    const { createTypedClient } = await import('@/lib/supabase/typed')
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
@@ -141,8 +139,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       )
     }
 
-    const { createTypedClient } = await import('@/lib/supabase/typed')
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { error } = await (supabase
       .from('leads') as any)

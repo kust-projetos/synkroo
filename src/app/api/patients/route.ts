@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { createPatientSchema } from '@/lib/validations'
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100)
     const offset = (page - 1) * limit
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Build query
     let query = supabase
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
     const cleanPhone = phone.replace(/\D/g, '')
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Check if patient with same phone already exists for this clinic
     const { data: existingPatient } = await supabase

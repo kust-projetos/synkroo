@@ -28,7 +28,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Generate anonymized name prefix
     const anonymizedHex = crypto.randomUUID().replace(/-/g, '').substring(0, 8)

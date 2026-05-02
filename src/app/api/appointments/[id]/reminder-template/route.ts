@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
 import { getEffectiveConfig, replacePlaceholders } from '@/services/reminders/procedure-reminder-config.service'
 import { handleApiError } from '@/lib/errors'
@@ -29,7 +29,7 @@ export async function GET(
     }
 
     const { id } = await params
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Fetch appointment with related data
     const { data: appointment, error } = await (supabase
@@ -112,7 +112,7 @@ export async function POST(
     }
 
     const { id } = await params
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Fetch appointment with related data
     const { data: appointment, error } = await (supabase

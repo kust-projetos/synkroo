@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
 import { getPatientHistory } from '@/services/patients/patient-history.service'
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Verify patient belongs to user's clinic
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
     const { data: patient } = await supabase
       .from('patients')
       .select('id')

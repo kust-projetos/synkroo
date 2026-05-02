@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { createServerClient } from '@/lib/supabase'
 import { handleApiError } from '@/lib/errors'
 import { whatsappLogger } from '@/lib/logger'

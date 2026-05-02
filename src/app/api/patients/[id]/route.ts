@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { updatePatientSchema } from '@/lib/validations'
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Patient ID is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Get patient with appointment history (scoped to user's clinic)
     const { data: patient, error } = await supabase
@@ -82,7 +82,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const rawBody = await request.json()
     const { name, phone, email, cpf, birth_date, notes, tags } = updatePatientSchema.parse(rawBody)
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Verify patient belongs to user's clinic before updating
     const { data: existing } = await supabase
@@ -152,7 +152,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Patient ID is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Verify patient belongs to user's clinic before deleting
     const { data: existing } = await supabase

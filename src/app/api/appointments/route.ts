@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError, ValidationError } from '@/lib/errors'
 import { createAppointmentSchema } from '@/lib/validations'
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     const defaultLimit = isCalendarRange ? '999' : '50'
     const limit = Math.min(parseInt(searchParams.get('limit') || defaultLimit), 999)
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Build query
     let query = supabase
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
       return handleApiError(new ValidationError('Appointment must be scheduled for a future date'))
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Get procedure duration if not provided
     let duration = duration_minutes || 30
