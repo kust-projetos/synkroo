@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
 import { dbLogger } from '@/lib/logger'
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const today = new Date().toISOString().split('T')[0]
     const thirtyDaysAgo = new Date()

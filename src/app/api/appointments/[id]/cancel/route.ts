@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError, ValidationError } from '@/lib/errors'
 import { cancelAppointment } from '@/services/appointments/appointment-actions.service'
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Verify appointment belongs to user's clinic
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
     const { data: appointment } = await supabase
       .from('appointments')
       .select('id')

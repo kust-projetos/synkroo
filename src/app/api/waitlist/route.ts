@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 import {
@@ -147,7 +147,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     // Verify the waitlist entry belongs to the clinic before canceling
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
     const { data: entry, error: fetchError } = await (supabase as any)
       .from('waitlist')
       .select('clinic_id')

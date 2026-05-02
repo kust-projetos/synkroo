@@ -21,7 +21,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Fetch all patient data in parallel
     const [patientResult, appointmentsResult, budgetsResult, paymentsResult, consentsResult] = await Promise.all([

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
 
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Contact ID is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('appointments')

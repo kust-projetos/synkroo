@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
 
 /**
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
     const searchParams = new URL(request.url).searchParams
 
     const startDate = searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]

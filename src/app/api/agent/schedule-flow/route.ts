@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
     // Step 1: Classify intent via provider factory
     const llm = getLLMProvider()
     const classification = await llm.classifyIntent(message)

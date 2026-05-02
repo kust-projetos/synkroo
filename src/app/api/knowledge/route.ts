@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { ragService } from '@/services/rag'
 import { handleApiError, DatabaseError } from '@/lib/errors'
 
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
 
     const category = searchParams.get('category')

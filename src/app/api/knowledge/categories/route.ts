@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { handleApiError, DatabaseError } from '@/lib/errors'
 
 /**
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('knowledge_base')

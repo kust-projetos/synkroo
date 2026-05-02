@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
 
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data: appointment, error } = await supabase
       .from('appointments')
@@ -97,7 +97,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       notes,
     } = body
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Get current appointment (verify clinic ownership)
     const { data } = await supabase
@@ -189,7 +189,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Check if appointment exists and can be cancelled (verify clinic ownership)
     const { data } = await supabase

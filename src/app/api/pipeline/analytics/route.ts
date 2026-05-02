@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { getConversionByStage, getAvgConversionTime } from '@/services/pipeline/pipeline-analytics.service'
 import { getInactivePatients, getUpsellOpportunities } from '@/services/reports/financial-reports.service'
 
