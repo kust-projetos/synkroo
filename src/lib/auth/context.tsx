@@ -71,9 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const initAuth = async () => {
       setLoading(true)
-      await fetchProfile()
-      if (!cancelled) {
-        setLoading(false)
+      try {
+        await fetchProfile()
+      } catch (error) {
+        console.error('Auth init error:', error)
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
