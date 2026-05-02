@@ -62,7 +62,7 @@ export function fetchKanbanLeads(clinicId: string) {
     .select(`
       id, name, phone, email, source, temperature, score,
       stage_id, interest, last_contact_at, created_at, updated_at,
-      pipeline_stages (id, name, color, sort_order)
+      pipeline_stages (id, name, color, position)
     `)
     .eq('clinic_id', clinicId)
     .order('score', { ascending: false })
