@@ -54,6 +54,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, section: "principal" },
+  { name: "CRM", href: "/dashboard/crm", icon: ChartBarIcon, section: "principal" },
+  { name: "Pipeline", href: "/dashboard/crm/pipeline", icon: Squares2X2Icon, section: "principal" },
   { name: "Pacientes", href: "/dashboard/pacientes", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "zinc" } },
   { name: "Agendamentos", href: "/dashboard/agendamentos", icon: CalendarDaysIcon, section: "principal", badge: { count: 0, variant: "teal" } },
   { name: "Lista de Espera", href: "/dashboard/lista-espera", icon: ClockIcon, section: "principal" },
