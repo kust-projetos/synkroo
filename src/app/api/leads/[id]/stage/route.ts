@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserProfile } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 
 // PATCH /api/leads/[id]/stage -- update lead's stage_id with version-based conflict detection
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: 'stage_id is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Verify the stage belongs to the user's clinic
     const { data: stage, error: stageError } = await supabase

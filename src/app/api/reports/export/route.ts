@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const sourceFilter = searchParams.get('source')
     const tagsFilter = searchParams.get('tags')
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     let data: any[] = []
     let headers: string[] = []

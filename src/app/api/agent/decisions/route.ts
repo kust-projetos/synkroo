@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import type { DecisionLog } from '@/lib/supabase/database.types'
 
 /**
@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const days = parseInt(searchParams.get('days') || '7')
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import {
   getBudgetById,
   deleteBudget,
@@ -74,7 +74,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const rawBody = await request.json()
     const body = updateBudgetSchema.parse(rawBody)
 
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),

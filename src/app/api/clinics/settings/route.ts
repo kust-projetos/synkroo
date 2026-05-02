@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { clinicSettingsSchema } from '@/lib/validations'
 import { handleApiError } from '@/lib/errors'
 
@@ -20,7 +20,7 @@ export async function GET() {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data: clinic, error } = await supabase
       .from('clinics')
@@ -55,7 +55,7 @@ export async function PUT(request: NextRequest) {
     const clinicId = authResult.profile!.clinic_id
     const rawBody = await request.json()
     const body = clinicSettingsSchema.parse(rawBody)
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const updateData: Record<string, unknown> = {}
     if (body.name) updateData.name = body.name

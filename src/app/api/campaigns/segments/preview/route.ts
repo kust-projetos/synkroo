@@ -65,8 +65,7 @@ export async function GET(request: NextRequest) {
 
     if (campaignType === 'birthday') {
       // Special handling for birthday - query patients with birthday this week
-      const { createTypedClient } = await import('@/lib/supabase/typed')
-      const supabase = await createTypedClient()
+      const supabase = await createClient()
 
       const now = new Date()
       const currentDayOfWeek = now.getDay()
@@ -102,8 +101,7 @@ export async function GET(request: NextRequest) {
 
     } else if (campaignType === 'promotional') {
       // All active patients (not inactive)
-      const { createTypedClient } = await import('@/lib/supabase/typed')
-      const supabase = await createTypedClient()
+      const supabase = await createClient()
 
       const { count: activeCount } = await supabase
         .from('patients')

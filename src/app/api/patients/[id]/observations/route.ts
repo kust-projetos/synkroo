@@ -97,8 +97,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id
 
     // Verify the patient belongs to the user's clinic
-    const { createTypedClient } = await import('@/lib/supabase/typed')
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data: patient, error: patientError } = await supabase
       .from('patients')

@@ -28,8 +28,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id: planId } = await params
 
     // Get the plan to verify clinic ownership
-    const { createTypedClient } = await import('@/lib/supabase/typed')
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data: plan } = await supabase
       .from('treatment_plans')
@@ -83,8 +82,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const { id: planId } = await params
 
     // Verify clinic ownership
-    const { createTypedClient } = await import('@/lib/supabase/typed')
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data: plan } = await supabase
       .from('treatment_plans')

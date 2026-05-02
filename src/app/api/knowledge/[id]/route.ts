@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { ragService, embeddingService } from '@/services/rag'
 import { handleApiError, DatabaseError } from '@/lib/errors'
 
@@ -23,7 +23,7 @@ export async function GET(
 
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { data, error } = await supabase
       .from('knowledge_base')
@@ -62,7 +62,7 @@ export async function PUT(
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
     const body = await request.json()
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { category, question, answer, keywords, is_active } = body
 
@@ -129,7 +129,7 @@ export async function DELETE(
 
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     const { error } = await supabase
       .from('knowledge_base')

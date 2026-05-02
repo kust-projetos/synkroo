@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { createClient } from '@/lib/supabase/server'
 import { dbLogger } from '@/lib/logger'
 import type { PendingAction, AppointmentStatus } from '@/lib/supabase/database.types'
 
@@ -19,7 +19,7 @@ export async function GET(_request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const supabase = await createClient()
 
     // Get executed actions still within undo window
     const { data: actions, error } = await supabase
@@ -66,7 +66,7 @@ export async function POST(_request: NextRequest) {
       return NextResponse.json({ error: 'action_id is required' }, { status: 400 })
     }
 
-    const supabase = await createTypedClient() as any
+    const supabase = await createClient() as any
 
     // Verify action belongs to this clinic and is undoable
     const { data: action, error: fetchError } = await supabase
