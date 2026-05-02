@@ -91,7 +91,8 @@ export function fetchPipelineStages(clinicId: string) {
     .from('pipeline_stages')
     .select('*')
     .eq('clinic_id', clinicId)
-    .order('sort_order', { ascending: true })
+    .order('position', { ascending: true })
+    .order('name', { ascending: true })
 
   if (error) throw error
   return data ?? []
