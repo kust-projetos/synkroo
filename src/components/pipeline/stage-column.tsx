@@ -9,7 +9,7 @@ interface StageColumnProps {
     id: string
     name: string
     color: string
-    sort_order: number
+    position: number
   }
   leads: any[]
 }
