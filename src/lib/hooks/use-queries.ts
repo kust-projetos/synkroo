@@ -1,7 +1,6 @@
 'use client'
 
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
-import { createTypedClient } from '@/lib/supabase/typed'
 
 /**
  * Shared query keys for cache invalidation
@@ -56,19 +55,7 @@ async function fetcher<T>(url: string): Promise<T> {
  * Fetch kanban leads for pipeline
  */
 export function fetchKanbanLeads(clinicId: string) {
-  const supabase = createTypedClient()
-  const { data, error } = supabase
-    .from('leads')
-    .select(`
-      id, name, phone, email, source, temperature, score,
-      stage_id, interest, last_contact_at, created_at, updated_at,
-      pipeline_stages (id, name, color, position)
-    `)
-    .eq('clinic_id', clinicId)
-    .order('score', { ascending: false })
-
-  if (error) throw error
-  return data ?? []
+  return fetcher<any[]>(`/api/leads/kanban?clinic_id=${clinicId}`).then(r => r.leads ?? [])
 }
 
 /**
@@ -86,16 +73,7 @@ export function useKanbanLeads(clinicId: string) {
  * Fetch pipeline stages for kanban
  */
 export function fetchPipelineStages(clinicId: string) {
-  const supabase = createTypedClient()
-  const { data, error } = supabase
-    .from('pipeline_stages')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('position', { ascending: true })
-    .order('name', { ascending: true })
-
-  if (error) throw error
-  return data ?? []
+  return fetcher<any[]>(`/api/pipeline/stages?clinic_id=${clinicId}`).then(r => r.data ?? [])
 }
 
 /**

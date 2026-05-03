@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserProfile } from '@/lib/supabase/server'
-import { getPipelineStages, createPipelineStage } from '@/services/pipeline/stages.service'
+import { getUserProfile, createClient } from '@/lib/supabase/server'
 
 // GET /api/pipeline/stages -- list all stages for clinic
 export async function GET(req: NextRequest) {
@@ -11,8 +10,16 @@ export async function GET(req: NextRequest) {
     const clinicId = profile.clinic_id
     if (!clinicId) return NextResponse.json({ error: 'Clinic not found' }, { status: 404 })
 
-    const stages = await getPipelineStages(clinicId)
-    return NextResponse.json({ data: stages })
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('pipeline_stages')
+      .select('*')
+      .eq('clinic_id', clinicId)
+      .order('sort_order', { ascending: true })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({ data: data ?? [] })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
@@ -31,14 +38,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'name and color are required' }, { status: 400 })
     }
 
-    const stage = await createPipelineStage({
-      clinicId: profile.clinic_id,
-      name,
-      color,
-      sortOrder: sort_order,
-    })
+    const supabase = await createClient()
 
-    return NextResponse.json({ data: stage }, { status: 201 })
+    // Check for name conflict
+    const { data: existing } = await supabase
+      .from('pipeline_stages')
+      .select('id')
+      .eq('clinic_id', profile.clinic_id)
+      .eq('name', name)
+      .single()
+
+    if (existing) {
+      return NextResponse.json({ error: `Stage with name "${name}" already exists` }, { status: 409 })
+    }
+
+    let sortOrder = sort_order
+    if (sortOrder === undefined) {
+      const { data: lastStage } = await supabase
+        .from('pipeline_stages')
+        .select('sort_order')
+        .eq('clinic_id', profile.clinic_id)
+        .order('sort_order', { ascending: false })
+        .limit(1)
+
+      sortOrder = (lastStage?.[0]?.sort_order ?? -1) + 1
+    }
+
+    const { data, error } = await supabase
+      .from('pipeline_stages')
+      .insert({
+        clinic_id: profile.clinic_id,
+        name,
+        color,
+        sort_order: sortOrder,
+        is_default: false,
+        is_system: false,
+      })
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({ data }, { status: 201 })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
