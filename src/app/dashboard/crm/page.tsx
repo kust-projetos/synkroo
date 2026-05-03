@@ -8,8 +8,6 @@ import {
   MegaphoneIcon,
   ChatBubbleLeftRightIcon,
   ArrowTrendingUpIcon,
-  PlusIcon,
-  CalendarIcon,
   ArrowRightIcon,
   FireIcon,
 } from '@heroicons/react/24/outline'
@@ -89,41 +87,6 @@ export default function CrmPage() {
           </CardContent>
         </Card>
       </div>
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-lg">Ações Rápidas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
-              <Link href="/dashboard/leads/novo">
-                <PlusIcon className="h-5 w-5" />
-                <span className="text-sm font-medium">Novo Lead</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
-              <Link href="/dashboard/agendamentos/novo">
-                <CalendarIcon className="h-5 w-5" />
-                <span className="text-sm font-medium">Agendar</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
-              <Link href="/dashboard/campanhas/nova">
-                <MegaphoneIcon className="h-5 w-5" />
-                <span className="text-sm font-medium">Campanha</span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="h-auto py-4 flex-col gap-2" asChild>
-              <Link href="/dashboard/crm/pipeline">
-                <ChartBarIcon className="h-5 w-5" />
-                <span className="text-sm font-medium">Pipeline</span>
-              </Link>
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Hot Leads Alert */}
       {(hotLeads > 0) && (

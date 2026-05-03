@@ -68,7 +68,7 @@ export async function GET() {
     const AVG_PATIENT_VALUE = 500 // BRL default estimate
     const campaignConversions = campaignStats.totalConversions || 0
     const campaignRoi = campaignStats.totalSent > 0
-      ? Math.round(((campaignConversions * AVG_PATIENT_VALUE) / (campaignStats.totalSent * 0.5))
+      ? Math.round(((campaignConversions * AVG_PATIENT_VALUE) / (campaignStats.totalSent * 0.5)))
       : 0
 
     const conversionRate = leadStats.conversionRate || 0
