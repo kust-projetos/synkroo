@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
 
     const clinicId = authResult.profile!.clinic_id
     const rawBody = await request.json()
-    const { name, phone, email, source, interest, patientId, notes } = createLeadSchema.parse(rawBody)
+    const { name, phone, email, source, interest, patientId, notes, deal_value } = createLeadSchema.parse(rawBody)
 
     const lead = await createLead({
       clinicId,
@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
       interest: interest ?? undefined,
       patientId: patientId ?? undefined,
       notes: notes ?? undefined,
+      deal_value: deal_value ?? undefined,
     })
 
     if (!lead) {

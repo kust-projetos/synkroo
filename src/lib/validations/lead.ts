@@ -19,6 +19,7 @@ export const createLeadSchema = z.object({
   interest: z.string().max(500).optional().nullable(),
   patientId: z.string().uuid().optional().nullable(),
   notes: z.string().max(2000).optional().nullable(),
+  deal_value: z.number().min(0).max(999999999999).optional(),
 })
 
 // --- Update lead ---
@@ -28,4 +29,5 @@ export const updateLeadSchema = z.object({
   hasBudget: z.boolean().optional(),
   hasTimeline: z.boolean().optional(),
   interest: z.string().max(500).optional().nullable(),
+  deal_value: z.number().min(0).max(999999999999).optional().nullable(),
 })

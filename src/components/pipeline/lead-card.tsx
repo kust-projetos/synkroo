@@ -26,6 +26,7 @@ interface LeadCardProps {
     score: number
     interest?: string | null
     last_contact_at?: string | null
+    deal_value?: number
   }
   index: number
   onConvert?: (leadId: string, patientData: { name: string; phone: string; email?: string }) => void
@@ -136,6 +137,13 @@ export function LeadCard({ lead, index, onConvert }: LeadCardProps) {
                 />
               </div>
             </div>
+
+            {/* Deal value */}
+            {(lead.deal_value ?? 0) > 0 && (
+              <div className="text-sm font-medium text-teal-600 dark:text-teal-400">
+                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(lead.deal_value!)}
+              </div>
+            )}
           </div>
         )}
       </Draggable>
