@@ -15,7 +15,7 @@ export interface StageConversion {
   stageId: string
   stageName: string
   stageColor: string
-  position: number
+  sortOrder: number
   totalLeads: number
   convertedLeads: number
   conversionRate: number // 0-100
@@ -30,7 +30,7 @@ export interface StageConversion {
  * to calculate per-stage conversion rates.
  *
  * @param clinicId - The clinic's UUID
- * @returns Array of StageConversion sorted by stage position
+ * @returns Array of StageConversion sorted by sort_order
  */
 export async function getConversionByStage(clinicId: string): Promise<StageConversion[]> {
   const supabase = await createTypedClient()
@@ -39,9 +39,9 @@ export async function getConversionByStage(clinicId: string): Promise<StageConve
     // Get all pipeline stages for the clinic
     const { data: stages, error: stagesError } = await supabase
       .from('pipeline_stages')
-      .select('id, name, color, position')
+      .select('id, name, color, sort_order')
       .eq('clinic_id', clinicId)
-      .order('position', { ascending: true })
+      .order('sort_order', { ascending: true })
 
     if (stagesError) {
       dbLogger.error('Error fetching pipeline stages', stagesError)
@@ -95,7 +95,7 @@ export async function getConversionByStage(clinicId: string): Promise<StageConve
         stageId: stage.id,
         stageName: stage.name,
         stageColor: stage.color || '#6366f1',
-        position: stage.position,
+        sortOrder: stage.sort_order,
         totalLeads: counts.total,
         convertedLeads: counts.converted,
         conversionRate,
