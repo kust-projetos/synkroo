@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v0.3.0
 milestone_name: milestone
-status: in_progress
-last_updated: "2026-05-03T14:45:21.515Z"
+status: completed
+last_updated: "2026-05-03T19:23:32.111Z"
 progress:
   total_phases: 6
   completed_phases: 3
@@ -28,7 +28,7 @@ Bug identificado: pipeline_stages usa coluna `position`, código usa `sort_order
 
 ## Session Continuity
 
-**Last session:** 2026-05-03T14:45:21.318Z
+**Last session:** 2026-05-03T19:23:32.075Z
 **Session report:** `.planning/sessions/2026-05-02-crm-pipeline-debug.md`
 **Resumo:** Commits feitos, AuthProvider corrigido, CRM sidebar adicionada, mas pipeline vazio por schema mismatch
 
@@ -47,7 +47,7 @@ Bug identificado: pipeline_stages usa coluna `position`, código usa `sort_order
 | Issue | Status | Priority |
 |-------|--------|----------|
 | Pipeline vazio (schema mismatch) | RESOLVED | DONE |
-| E2E tests: 3 PASS, 2 FAIL | ONGOING | HIGH |
+| E2E tests: 3 PASS, 2 FAIL | RESOLVED | DONE |
 | CRM sidebar items | COMPLETE | DONE |
 | AuthProvider fix | COMPLETE | DONE |
 
