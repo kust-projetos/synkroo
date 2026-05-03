@@ -11,6 +11,14 @@ interface KanbanBoardProps {
   clinicId: string
 }
 
+interface StageOperations {
+  onRenameStage: (id: string, name: string) => void
+  onDeleteStage: (id: string) => void
+  onChangeStageColor: (id: string, color: string) => void
+  onAddStage: (afterId: string) => void
+  refetchStages: () => void
+}
+
 interface ErrorState {
   hasError: boolean
   message?: string
@@ -44,10 +52,51 @@ class KanbanErrorBoundary extends Component<{ children: ReactNode }, ErrorState>
   }
 }
 
-export function KanbanBoard({ clinicId }: KanbanBoardProps) {
+export function KanbanBoard({ clinicId, operations }: KanbanBoardProps & { operations?: StageOperations }) {
   const { onDragEnd } = useKanbanBoard()
-  const { data: stages = [], isLoading: stagesLoading } = usePipelineStages(clinicId)
+  const { data: stages = [], isLoading: stagesLoading, refetch: refetchStages } = usePipelineStages(clinicId)
   const { data: leads = [], isLoading: leadsLoading } = useKanbanLeads(clinicId)
+
+  const ops = operations || {}
+
+  const handleRename = async (id: string, name: string) => {
+    await fetch(`/api/pipeline/stages/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })
+    ops.onRenameStage?.(id, name)
+    refetchStages()
+  }
+
+  const handleDelete = async (id: string) => {
+    await fetch(`/api/pipeline/stages/${id}`, { method: 'DELETE' })
+    ops.onDeleteStage?.(id)
+    refetchStages()
+  }
+
+  const handleChangeColor = async (id: string, color: string) => {
+    await fetch(`/api/pipeline/stages/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ color }),
+    })
+    ops.onChangeStageColor?.(id, color)
+    refetchStages()
+  }
+
+  const handleAddStage = async (afterId: string) => {
+    const afterStage = stages.find(s => s.id === afterId)
+    const newPosition = (afterStage?.position ?? 0) + 1
+    const response = await fetch('/api/pipeline/stages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Nova Etapa', position: newPosition, color: '#10B981' }),
+    })
+    if (response.ok) {
+      refetchStages()
+    }
+  }
 
   if (stagesLoading || leadsLoading) {
     return (
@@ -66,6 +115,10 @@ export function KanbanBoard({ clinicId }: KanbanBoardProps) {
               key={stage.id}
               stage={stage}
               leads={leads.filter((l: any) => l.stage_id === stage.id)}
+              onRename={handleRename}
+              onDelete={handleDelete}
+              onChangeColor={handleChangeColor}
+              onAddStage={handleAddStage}
             />
           ))}
         </div>
