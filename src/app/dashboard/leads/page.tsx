@@ -12,9 +12,21 @@ import { StatsGrid } from '@/components/ui/stats-grid'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'converted' | 'lost'
 type LeadTemperature = 'cold' | 'warm' | 'hot'
+type LeadSource = 'whatsapp' | 'instagram' | 'web' | 'referral' | 'campaign' | 'other'
+
+const sourceLabels: Record<LeadSource, string> = {
+  whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
+  web: 'Website',
+  referral: 'Indicação',
+  campaign: 'Campanha',
+  other: 'Outro',
+}
 
 interface Lead {
   id: string
@@ -84,6 +96,17 @@ export default function LeadsPage() {
   const { profile } = useAuth()
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all')
   const [temperatureFilter, setTemperatureFilter] = useState<LeadTemperature | 'all'>('all')
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    source: 'whatsapp' as LeadSource,
+    interest: '',
+    notes: '',
+  })
 
   const leadsParams = useMemo(() => {
     const params: Record<string, string> = {}
@@ -160,17 +183,44 @@ export default function LeadsPage() {
 
   const hotLeads = leads.filter((l) => l.temperature === 'hot')
 
+  const handleSubmit = async () => {
+    if (!formData.name || !formData.phone) {
+      setError('Nome e telefone são obrigatórios')
+      return
+    }
+    try {
+      setSubmitting(true)
+      setError(null)
+      const response = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+      if (response.ok) {
+        setDialogOpen(false)
+        setFormData({ name: '', phone: '', email: '', source: 'whatsapp', interest: '', notes: '' })
+        refetchLeads()
+      } else {
+        const data = await response.json()
+        setError(data.error || 'Erro ao criar lead')
+      }
+    } catch {
+      setError('Erro ao criar lead')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   return (
+    <>
     <div className="p-4 lg:p-8 space-y-6">
       <PageHeader
         title="Leads"
         description="Gerencie seu pipeline de vendas"
         action={
-          <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
-            <Link href="/dashboard/leads/novo">
-              <PlusIcon className="h-4 w-4 mr-2" />
-              Novo Lead
-            </Link>
+          <Button onClick={() => setDialogOpen(true)} className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
+            <PlusIcon className="h-4 w-4 mr-2" />
+            Novo Lead
           </Button>
         }
       />
@@ -409,5 +459,64 @@ export default function LeadsPage() {
         </Card>
       )}
     </div>
+
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Novo Lead</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          {error && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              {error}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium mb-1">Nome *</label>
+            <Input value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="Nome completo" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Telefone *</label>
+            <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="(11) 99999-9999" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Email</label>
+            <Input value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="email@exemplo.com" />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Origem</label>
+            <select
+              value={formData.source}
+              onChange={(e) => setFormData({ ...formData, source: e.target.value as LeadSource })}
+              className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm"
+            >
+              {Object.entries(sourceLabels).map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Interesse</label>
+            <Input value={formData.interest} onChange={(e) => setFormData({ ...formData, interest: e.target.value })} placeholder="Ex: Clareamento, Implante..." />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Observações</label>
+            <textarea
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 min-h-[80px]"
+              placeholder="Informações adicionais..."
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+          <Button onClick={handleSubmit} disabled={submitting} className="bg-teal-600 hover:bg-teal-700">
+            {submitting ? 'Salvando...' : 'Salvar Lead'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

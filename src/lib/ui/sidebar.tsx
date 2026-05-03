@@ -54,15 +54,15 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, section: "principal" },
-  { name: "CRM", href: "/dashboard/crm", icon: ChartBarIcon, section: "principal" },
-  { name: "Pipeline", href: "/dashboard/crm/pipeline", icon: Squares2X2Icon, section: "principal" },
+  { name: "CRM", href: "/dashboard/crm", icon: ChartBarIcon, section: "crm" },
+  { name: "Pipeline", href: "/dashboard/crm/pipeline", icon: Squares2X2Icon, section: "crm" },
+  { name: "Leads", href: "/dashboard/leads", icon: FlagIcon, section: "crm" },
+  { name: "Campanhas", href: "/dashboard/campanhas", icon: MegaphoneIcon, section: "crm" },
+  { name: "Conversas", href: "/dashboard/conversas", icon: ChatBubbleLeftRightIcon, section: "crm", badge: { count: 0, variant: "pill-teal" } },
   { name: "Pacientes", href: "/dashboard/pacientes", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "zinc" } },
   { name: "Agendamentos", href: "/dashboard/agendamentos", icon: CalendarDaysIcon, section: "principal", badge: { count: 0, variant: "teal" } },
   { name: "Lista de Espera", href: "/dashboard/lista-espera", icon: ClockIcon, section: "principal" },
   { name: "Inativos", href: "/dashboard/pacientes/inativos", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "amber" } },
-  { name: "Conversas", href: "/dashboard/conversas", icon: ChatBubbleLeftRightIcon, section: "comunicacao", badge: { count: 0, variant: "pill-teal" } },
-  { name: "Campanhas", href: "/dashboard/campanhas", icon: MegaphoneIcon, section: "comunicacao", badge: { count: 0, variant: "blue" } },
-  { name: "Leads", href: "/dashboard/leads", icon: FlagIcon, section: "comunicacao", badge: { count: 0, variant: "red" } },
   { name: "Analytics", href: "/dashboard/analytics", icon: ChartBarIcon, section: "gestao" },
   { name: "Dentistas", href: "/dashboard/dentistas", icon: IdentificationIcon, section: "gestao" },
   { name: "Procedimentos", href: "/dashboard/procedimentos", icon: WrenchScrewdriverIcon, section: "gestao" },
@@ -71,7 +71,7 @@ const navItems: NavItem[] = [
 
 const sectionLabels = {
   principal: "Principal",
-  comunicacao: "Comunicacao",
+  crm: "CRM",
   gestao: "Gestao",
 }
 
@@ -150,7 +150,7 @@ function SidebarContent({
   const { profile, logout } = useAuth()
   const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"
 
-  const sections = ["principal", "comunicacao", "gestao"] as const
+  const sections = ["principal", "crm", "gestao"] as const
 
   return (
     <div className={cn(
