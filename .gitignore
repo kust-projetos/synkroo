@@ -71,6 +71,15 @@ supabase/config.toml
 # Claude Code (local config can contain sensitive paths)
 /.claude/graphify-out/
 
+# Playwright MCP debug snapshots
+.playwright-mcp/
+
+# Temp directories
+tmp/
+
+# GitNexus
+.gitnexus/
+
 # Worktrees (isolated workspaces for parallel development)
 /.worktrees/
 e2e/.auth/

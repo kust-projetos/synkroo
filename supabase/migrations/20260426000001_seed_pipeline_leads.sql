@@ -10,34 +10,25 @@ INSERT INTO pipeline_stages (clinic_id, name, color, sort_order, created_at, upd
 ('1e211b5d-d8a9-44ef-a5c7-5ce6c583218a', 'Fechado', '#22c55e', 5, NOW(), NOW()),
 ('1e211b5d-d8a9-44ef-a5c7-5ce6c583218a', 'Perdido', '#ef4444', 6, NOW(), NOW());
 
--- Get stage IDs
-DO $$
-DECLARE
-  novos_id UUID;
-  qualificados_id UUID;
-  proposta_id UUID;
-  negociacao_id UUID;
-  fechado_id UUID;
-  perdido_id UUID;
-  demo_clinic_id UUID := '1e211b5d-d8a9-44ef-a5c7-5ce6c583218a';
-BEGIN
-  SELECT id INTO novos_id FROM pipeline_stages WHERE clinic_id = demo_clinic_id AND name = 'Novos';
-  SELECT id INTO qualificados_id FROM pipeline_stages WHERE clinic_id = demo_clinic_id AND name = 'Qualificados';
-  SELECT id INTO proposta_id FROM pipeline_stages WHERE clinic_id = demo_clinic_id AND name = 'Proposta';
-  SELECT id INTO negociacao_id FROM pipeline_stages WHERE clinic_id = demo_clinic_id AND name = 'Negociação';
-  SELECT id INTO fechado_id FROM pipeline_stages WHERE clinic_id = demo_clinic_id AND name = 'Fechado';
-  SELECT id INTO perdido_id FROM pipeline_stages WHERE clinic_id = demo_clinic_id AND name = 'Perdido';
-
-  -- Demo leads
-  INSERT INTO leads (clinic_id, name, phone, email, source, temperature, score, stage_id, interest, last_contact_at, status, created_at, updated_at)
-  VALUES
-  (demo_clinic_id, 'Maria Silva', '+5511999999001', 'maria.silva@email.com', 'instagram', 'hot', 95, novos_id, 'Implante dentário', NOW() - INTERVAL '1 day', 'new', NOW() - INTERVAL '2 days', NOW()),
-  (demo_clinic_id, 'João Santos', '+5511999999002', 'joao.santos@email.com', 'google', 'hot', 88, novos_id, 'Clareamento dental', NOW() - INTERVAL '3 days', 'new', NOW() - INTERVAL '5 days', NOW()),
-  (demo_clinic_id, 'Ana Oliveira', '+5511999999003', 'ana.oliveira@email.com', 'whatsapp', 'warm', 72, qualificados_id, 'Aparelho ortodôntico', NOW() - INTERVAL '7 days', 'qualified', NOW() - INTERVAL '10 days', NOW()),
-  (demo_clinic_id, 'Carlos Ferreira', '+5511999999004', 'carlos.ferreira@email.com', 'indicação', 'warm', 65, qualificados_id, 'Restauração estética', NOW() - INTERVAL '14 days', 'qualified', NOW() - INTERVAL '20 days', NOW()),
-  (demo_clinic_id, 'Fernanda Costa', '+5511999999005', 'fernanda.costa@email.com', 'facebook', 'hot', 82, proposta_id, 'Protocolo protocol', NOW() - INTERVAL '5 days', 'proposal', NOW() - INTERVAL '8 days', NOW()),
-  (demo_clinic_id, 'Ricardo Lima', '+5511999999006', 'ricardo.lima@email.com', 'google', 'warm', 58, proposta_id, 'Lente de contato dental', NOW() - INTERVAL '10 days', 'proposal', NOW() - INTERVAL '15 days', NOW()),
-  (demo_clinic_id, 'Patricia Almeida', '+5511999999007', 'patricia.almeida@email.com', 'instagram', 'hot', 91, negociacao_id, 'Implante + clareamento', NOW() - INTERVAL '2 days', 'negotiation', NOW() - INTERVAL '3 days', NOW()),
-  (demo_clinic_id, 'Lucas Mendes', '+5511999999008', 'lucas.mendes@email.com', 'whatsapp', 'warm', 55, negociacao_id, 'Facetas de porcelana', NOW() - INTERVAL '8 days', 'negotiation', NOW() - INTERVAL '12 days', NOW()),
-  (demo_clinic_id, 'Juliana Rocha', '+5511999999009', 'juliana.rocha@email.com', 'indicação', 'cold', 30, perdido_id, 'Tratamento geral', NOW() - INTERVAL '30 days', 'lost', NOW() - INTERVAL '45 days', NOW());
-END $$;
+-- Demo leads (CTE to get stage IDs)
+WITH stages AS (
+  SELECT id, name FROM pipeline_stages
+  WHERE clinic_id = '1e211b5d-d8a9-44ef-a5c7-5ce6c583218a'
+)
+INSERT INTO leads (clinic_id, name, phone, email, source, temperature, score, stage_id, interest, last_contact_at, status, created_at, updated_at)
+SELECT
+  '1e211b5d-d8a9-44ef-a5c7-5ce6c583218a',
+  t.name, t.phone, t.email, t.source, t.temperature, t.score,
+  s.id, t.interest, t.last_contact, t.status, t.created, NOW()
+FROM (VALUES
+  ('Maria Silva', '+5511999999001', 'maria.silva@email.com', 'instagram', 'hot', 95, 'Implante dentário', NOW()-INTERVAL '1 day', 'new', NOW()-INTERVAL '2 day'),
+  ('João Santos', '+5511999999002', 'joao.santos@email.com', 'google', 'hot', 88, 'Clareamento dental', NOW()-INTERVAL '3 day', 'new', NOW()-INTERVAL '5 day'),
+  ('Ana Oliveira', '+5511999999003', 'ana.oliveira@email.com', 'whatsapp', 'warm', 72, 'Aparelho ortodôntico', NOW()-INTERVAL '7 day', 'qualified', NOW()-INTERVAL '10 day'),
+  ('Carlos Ferreira', '+5511999999004', 'carlos.ferreira@email.com', 'indicação', 'warm', 65, 'Restauração estética', NOW()-INTERVAL '14 day', 'qualified', NOW()-INTERVAL '20 day'),
+  ('Fernanda Costa', '+5511999999005', 'fernanda.costa@email.com', 'facebook', 'hot', 82, 'Protocolo', NOW()-INTERVAL '5 day', 'proposal', NOW()-INTERVAL '8 day'),
+  ('Ricardo Lima', '+5511999999006', 'ricardo.lima@email.com', 'google', 'warm', 58, 'Lente de contato dental', NOW()-INTERVAL '10 day', 'proposal', NOW()-INTERVAL '15 day'),
+  ('Patricia Almeida', '+5511999999007', 'patricia.almeida@email.com', 'instagram', 'hot', 91, 'Implante + clareamento', NOW()-INTERVAL '2 day', 'negotiation', NOW()-INTERVAL '3 day'),
+  ('Lucas Mendes', '+5511999999008', 'lucas.mendes@email.com', 'whatsapp', 'warm', 55, 'Facetas de porcelana', NOW()-INTERVAL '8 day', 'negotiation', NOW()-INTERVAL '12 day'),
+  ('Juliana Rocha', '+5511999999009', 'juliana.rocha@email.com', 'indicação', 'cold', 30, 'Tratamento geral', NOW()-INTERVAL '30 day', 'lost', NOW()-INTERVAL '45 day')
+) AS t(name, phone, email, source, temperature, score, interest, last_contact, status, created)
+JOIN stages s ON s.name = t.stage;
