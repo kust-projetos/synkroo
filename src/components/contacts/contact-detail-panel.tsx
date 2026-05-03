@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { useContact, useContactNotes } from '@/lib/hooks/use-queries'
+import Link from 'next/link'
+import { useContact, useContactNotes, useLeadsByPatient } from '@/lib/hooks/use-queries'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { PencilIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline'
@@ -199,6 +201,11 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
                 )}
               </div>
             </div>
+            {contactType === 'patient' && (
+              <div className="border-t border-border pt-4">
+                <RelatedLeadsSection contactId={contactId!} />
+              </div>
+            )}
             <div className="border-t border-border pt-4">
               <ConsentSection contactId={contactId!} contactType={contactType!} />
             </div>
@@ -220,6 +227,44 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
           <ContactFinancialTab contactId={contactId!} />
         )}
       </div>
+    </div>
+  )
+}
+
+function RelatedLeadsSection({ contactId }: { contactId: string }) {
+  const { data: leadsData, isLoading } = useLeadsByPatient(contactId)
+
+  if (isLoading) {
+    return <Skeleton className="h-20 w-full" />
+  }
+
+  const leads = leadsData?.leads || []
+
+  if (leads.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-medium text-foreground">Leads Vinculados</h3>
+      <div className="space-y-2">
+        {leads.slice(0, 5).map((lead: any) => (
+          <div key={lead.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <div>
+              <div className="font-medium text-sm">{lead.name}</div>
+              <div className="text-xs text-muted-foreground">{lead.status} - {lead.score}%</div>
+            </div>
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/dashboard/leads/${lead.id}`}>
+                Ver Lead
+              </Link>
+            </Button>
+          </div>
+        ))}
+      </div>
+      {leads.length > 5 && (
+        <p className="text-xs text-muted-foreground">+{leads.length - 5} mais leads</p>
+      )}
     </div>
   )
 }

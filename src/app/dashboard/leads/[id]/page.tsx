@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ContactTimelineTab } from '@/components/contacts/contact-timeline-tab'
 
 type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'converted' | 'lost'
 type LeadTemperature = 'cold' | 'warm' | 'hot'
@@ -81,6 +82,7 @@ export default function LeadDetailPage() {
   const [dataLoading, setDataLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const [notes, setNotes] = useState('')
+  const [activeTab, setActiveTab] = useState<'detalhes' | 'atividades'>('detalhes')
 
   const fetchLead = useCallback(async () => {
     try {
@@ -168,155 +170,201 @@ export default function LeadDetailPage() {
       backHref="/dashboard/leads"
       status={{ type: statusColor, label: statusLabel }}
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Info */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Contact Card */}
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Informações de Contato</h2>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-sm text-muted-foreground">Telefone</div>
-                <div className="font-medium flex items-center gap-2">
-                  <PhoneIcon className="h-4 w-4 text-muted-foreground" />
-                  {lead.phone}
-                </div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Email</div>
-                <div className="font-medium">{lead.email || '-'}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Origem</div>
-                <div className="font-medium capitalize">{lead.source}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Interesse</div>
-                <div className="font-medium">{lead.interest || '-'}</div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Notes */}
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Observações</h2>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[120px]"
-              rows={4}
-              placeholder="Adicione observações sobre o lead..."
-            />
-            <Button
-              onClick={saveNotes}
-              disabled={updating}
-              variant="outline"
-              className="mt-2"
-            >
-              Salvar Observações
-            </Button>
-          </Card>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Score Card */}
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-              <ChartBarIcon className="h-5 w-5 text-muted-foreground" />
-              Score & Temperatura
-            </h2>
-            <div className="text-center mb-4">
-              <div className="text-4xl font-bold text-foreground">{lead.score}%</div>
-              <div className="text-sm text-muted-foreground">Score do Lead</div>
-            </div>
-
-            {/* Score Bar */}
-            <div className="w-full bg-muted rounded-full h-3 mb-4 overflow-hidden">
-              <div
-                className={`h-3 rounded-full transition-all ${getScoreColor(lead.score)}`}
-                style={{ width: `${lead.score}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${temperatureColors[lead.temperature]}`} />
-              <span className="font-medium">{temperatureLabels[lead.temperature]}</span>
-            </div>
-          </Card>
-
-          {/* Actions */}
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Ações</h2>
-            <div className="space-y-2">
-              <select
-                value={lead.status}
-                onChange={(e) => updateStatus(e.target.value as LeadStatus)}
-                disabled={updating}
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-              >
-                {Object.entries(statusLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-
-              <a
-                href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full text-center bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-              >
-                💬 Abrir no WhatsApp
-              </a>
-
-              {lead.email && (
-                <a
-                  href={`mailto:${lead.email}`}
-                  className="block w-full text-center bg-muted text-foreground px-4 py-2 rounded-lg hover:bg-muted/70 transition-colors flex items-center justify-center gap-2"
-                >
-                  <EnvelopeIcon className="h-4 w-4" />
-                  Enviar Email
-                </a>
-              )}
-            </div>
-          </Card>
-
-          {/* Dates */}
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Datas</h2>
-            <div className="space-y-3 text-sm">
-              <div>
-                <div className="text-muted-foreground">Criado em</div>
-                <div className="font-medium">
-                  {new Date(lead.created_at).toLocaleDateString('pt-BR', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                  })}
-                </div>
-              </div>
-              {lead.last_contact_at && (
-                <div>
-                  <div className="text-muted-foreground">Último contato</div>
-                  <div className="font-medium">
-                    {new Date(lead.last_contact_at).toLocaleDateString('pt-BR')}
-                  </div>
-                </div>
-              )}
-              {lead.next_followup_at && (
-                <div>
-                  <div className="text-muted-foreground">Próximo follow-up</div>
-                  <div className="font-medium">
-                    {new Date(lead.next_followup_at).toLocaleDateString('pt-BR')}
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
+      {/* Tabs */}
+      <div className="flex gap-1 mb-6 border-b border-border">
+        <button
+          onClick={() => setActiveTab('detalhes')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'detalhes'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Detalhes
+        </button>
+        <button
+          onClick={() => setActiveTab('atividades')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'atividades'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Atividades
+        </button>
       </div>
+
+      {activeTab === 'detalhes' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Info */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Contact Card */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Informações de Contato</h2>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">Telefone</div>
+                  <div className="font-medium flex items-center gap-2">
+                    <PhoneIcon className="h-4 w-4 text-muted-foreground" />
+                    {lead.phone}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Email</div>
+                  <div className="font-medium">{lead.email || '-'}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Origem</div>
+                  <div className="font-medium capitalize">{lead.source}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Interesse</div>
+                  <div className="font-medium">{lead.interest || '-'}</div>
+                </div>
+              </div>
+            </Card>
+
+            {/* Notes */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Observações</h2>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[120px]"
+                rows={4}
+                placeholder="Adicione observações sobre o lead..."
+              />
+              <Button
+                onClick={saveNotes}
+                disabled={updating}
+                variant="outline"
+                className="mt-2"
+              >
+                Salvar Observações
+              </Button>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Score Card */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                <ChartBarIcon className="h-5 w-5 text-muted-foreground" />
+                Score & Temperatura
+              </h2>
+              <div className="text-center mb-4">
+                <div className="text-4xl font-bold text-foreground">{lead.score}%</div>
+                <div className="text-sm text-muted-foreground">Score do Lead</div>
+              </div>
+
+              {/* Score Bar */}
+              <div className="w-full bg-muted rounded-full h-3 mb-4 overflow-hidden">
+                <div
+                  className={`h-3 rounded-full transition-all ${getScoreColor(lead.score)}`}
+                  style={{ width: `${lead.score}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-center gap-2">
+                <div className={`w-3 h-3 rounded-full ${temperatureColors[lead.temperature]}`} />
+                <span className="font-medium">{temperatureLabels[lead.temperature]}</span>
+              </div>
+            </Card>
+
+            {/* Actions */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Ações</h2>
+              <div className="space-y-2">
+                <select
+                  value={lead.status}
+                  onChange={(e) => updateStatus(e.target.value as LeadStatus)}
+                  disabled={updating}
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  {Object.entries(statusLabels).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+
+                <a
+                  href={`https://wa.me/55${lead.phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full text-center bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Abrir no WhatsApp
+                </a>
+
+                {lead.email && (
+                  <a
+                    href={`mailto:${lead.email}`}
+                    className="block w-full text-center bg-muted text-foreground px-4 py-2 rounded-lg hover:bg-muted/70 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <EnvelopeIcon className="h-4 w-4" />
+                    Enviar Email
+                  </a>
+                )}
+              </div>
+            </Card>
+
+            {/* Patient/Contact Link */}
+            {lead.patients && (
+              <Card className="p-6">
+                <h2 className="text-lg font-semibold text-foreground mb-4">Paciente Vinculado</h2>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">{lead.patients.name}</div>
+                    <div className="text-sm text-muted-foreground">Paciente cadastrado</div>
+                  </div>
+                  <Button variant="outline" asChild>
+                    <Link href={`/dashboard/pacientes/${lead.patients.id}`}>
+                      Ver Paciente
+                    </Link>
+                  </Button>
+                </div>
+              </Card>
+            )}
+
+            {/* Dates */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Datas</h2>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <div className="text-muted-foreground">Criado em</div>
+                  <div className="font-medium">
+                    {new Date(lead.created_at).toLocaleDateString('pt-BR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })}
+                  </div>
+                </div>
+                {lead.last_contact_at && (
+                  <div>
+                    <div className="text-muted-foreground">Último contato</div>
+                    <div className="font-medium">
+                      {new Date(lead.last_contact_at).toLocaleDateString('pt-BR')}
+                    </div>
+                  </div>
+                )}
+                {lead.next_followup_at && (
+                  <div>
+                    <div className="text-muted-foreground">Próximo follow-up</div>
+                    <div className="font-medium">
+                      {new Date(lead.next_followup_at).toLocaleDateString('pt-BR')}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <ContactTimelineTab contactId={lead.id} contactType="lead" />
+      )}
     </DetailPage>
   )
 }

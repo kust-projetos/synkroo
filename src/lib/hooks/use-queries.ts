@@ -284,6 +284,18 @@ export function useLead(id: string) {
   })
 }
 
+/**
+ * Leads filtered by patient_id (for contact detail page)
+ */
+export function useLeadsByPatient(patientId: string | null) {
+  const qs = patientId ? new URLSearchParams({ patient_id: patientId }).toString() : ''
+  return useQuery({
+    queryKey: ['leads', 'by-patient', patientId],
+    queryFn: () => fetcher<any>(`/api/leads?${qs}`),
+    enabled: !!patientId,
+  })
+}
+
 export function useCampaign(id: string) {
   return useQuery({
     queryKey: queryKeys.campaign(id),
@@ -418,6 +430,131 @@ export function useContactTimeline(id: string, type: 'patient' | 'lead', sourceF
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage.next_cursor ?? undefined,
     enabled: !!id && !!type,
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Tasks hooks for CRM task management
+ */
+export function useTasks(filters?: { status?: string; priority?: string; lead_id?: string }) {
+  const params = new URLSearchParams()
+  if (filters?.status && filters.status !== 'all') params.set('status', filters.status)
+  if (filters?.priority && filters.priority !== 'all') params.set('priority', filters.priority)
+  if (filters?.lead_id) params.set('lead_id', filters.lead_id)
+
+  return useQuery({
+    queryKey: ['tasks', filters],
+    queryFn: () => fetcher<{ tasks: Task[] }>(`/api/tasks?${params}`),
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useCreateTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: CreateTaskInput) => {
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) throw new Error('Failed to create task')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export function useUpdateTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: UpdateTaskInput) => {
+      const res = await fetch('/api/tasks', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!res.ok) throw new Error('Failed to update task')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+export function useDeleteTask() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (taskId: string) => {
+      const res = await fetch(`/api/tasks?id=${taskId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete task')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+}
+
+interface Task {
+  id: string
+  title: string
+  description: string | null
+  due_date: string | null
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
+  lead_id: string | null
+  lead_name?: string
+  created_at: string
+  updated_at: string
+}
+
+interface CreateTaskInput {
+  title: string
+  description?: string
+  due_date?: string
+  priority?: string
+  lead_id?: string
+}
+
+interface UpdateTaskInput {
+  id: string
+  status?: string
+  priority?: string
+  title?: string
+  description?: string
+  due_date?: string
+  lead_id?: string
+}
+
+/**
+ * All activities across all contacts — infinite query with cursor pagination
+ */
+export function useAllActivities(options?: {
+  sourceFilter?: string
+  contactId?: string
+  startDate?: string
+  endDate?: string
+}) {
+  return useInfiniteQuery({
+    queryKey: ['activities', 'all', options?.sourceFilter, options?.contactId, options?.startDate, options?.endDate],
+    queryFn: async ({ pageParam }: { pageParam?: string }) => {
+      const params = new URLSearchParams()
+      if (pageParam) params.set('cursor', pageParam)
+      if (options?.sourceFilter) params.set('source', options.sourceFilter)
+      if (options?.contactId) params.set('contact_id', options.contactId)
+      if (options?.startDate) params.set('start_date', options.startDate)
+      if (options?.endDate) params.set('end_date', options.endDate)
+      const res = await fetch(`/api/activities?${params}`)
+      if (!res.ok) throw new Error('Failed to fetch activities')
+      return res.json()
+    },
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage.next_cursor ?? undefined,
     staleTime: 30 * 1000,
   })
 }

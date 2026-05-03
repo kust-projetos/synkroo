@@ -24,6 +24,7 @@ import {
   ChevronDoubleLeftIcon,
   ChevronDoubleRightIcon,
   Bars3Icon,
+  CheckCircleIcon,
 } from "@heroicons/react/24/outline"
 import {
   Sheet,
@@ -45,7 +46,7 @@ interface NavItem {
   name: string
   href: string
   icon: React.ForwardRefExoticComponent<React.SVGProps<SVGSVGElement>>
-  section: "principal" | "comunicacao" | "gestao"
+  section: "principal" | "comunicacao" | "gestao" | "crm"
   badge?: {
     count: number
     variant: "zinc" | "teal" | "amber" | "blue" | "red" | "pill-teal"
@@ -58,6 +59,9 @@ const navItems: NavItem[] = [
   { name: "Pipeline", href: "/dashboard/crm/pipeline", icon: Squares2X2Icon, section: "crm" },
   { name: "Leads", href: "/dashboard/leads", icon: FlagIcon, section: "crm" },
   { name: "Campanhas", href: "/dashboard/campanhas", icon: MegaphoneIcon, section: "crm" },
+  { name: "Contatos", href: "/dashboard/contatos", icon: UsersIcon, section: "crm" },
+  { name: "Atividades", href: "/dashboard/atividades", icon: ClockIcon, section: "crm" },
+  { name: "Tarefas", href: "/dashboard/tarefas", icon: CheckCircleIcon, section: "crm" },
   { name: "Conversas", href: "/dashboard/conversas", icon: ChatBubbleLeftRightIcon, section: "crm", badge: { count: 0, variant: "pill-teal" } },
   { name: "Pacientes", href: "/dashboard/pacientes", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "zinc" } },
   { name: "Agendamentos", href: "/dashboard/agendamentos", icon: CalendarDaysIcon, section: "principal", badge: { count: 0, variant: "teal" } },

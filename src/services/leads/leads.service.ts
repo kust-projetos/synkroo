@@ -28,6 +28,7 @@ export interface Lead {
   next_followup_at: string | null
   converted_at: string | null
   lost_reason: string | null
+  deal_value: number | null // value of the deal/business
   created_at: string
   updated_at: string
 }
@@ -169,6 +170,7 @@ export async function createLead(params: {
   interest?: string
   patientId?: string
   notes?: string
+  deal_value?: number
 }): Promise<Lead | null> {
   const supabase = await createTypedClient()
 
@@ -199,6 +201,7 @@ export async function createLead(params: {
         score: scoreResult.score,
         interest: params.interest || null,
         notes: params.notes || null,
+        deal_value: params.deal_value || null,
       })
       .select()
       .single()

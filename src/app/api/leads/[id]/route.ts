@@ -67,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const rawBody = await request.json()
-    const { status, notes, hasBudget, hasTimeline, interest } = updateLeadSchema.parse(rawBody)
+    const { status, notes, hasBudget, hasTimeline, interest, deal_value } = updateLeadSchema.parse(rawBody)
 
     // Handle qualification
     if (hasBudget !== undefined || hasTimeline !== undefined) {
@@ -103,6 +103,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     if (notes !== undefined) updateData.notes = notes
     if (interest !== undefined) updateData.interest = interest
+    if (deal_value !== undefined) updateData.deal_value = deal_value
 
     const { data: lead, error } = await (supabase
       .from('leads') as any)
