@@ -10,6 +10,9 @@ import {
   ArrowTrendingUpIcon,
   ArrowRightIcon,
   FireIcon,
+  PhoneIcon,
+  ClockIcon,
+  CurrencyDollarIcon,
 } from '@heroicons/react/24/outline'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -24,24 +27,19 @@ export default function CrmPage() {
   const campaignRoi = crm?.campaignRoi ?? 0
   const hotLeads = crm?.leadsByTemperature?.hot ?? 0
   const activeLeads = crm?.activeLeads ?? 0
+  const campaignsActive = crm?.campaignsActive ?? 0
+  const totalLeads = crm?.leadsTotal ?? 0
+  const leadsInNegotiation = (crm?.leadsByStatus?.negotiation ?? 0) + (crm?.leadsByStatus?.proposal ?? 0)
 
   return (
     <div className="p-4 lg:p-8 space-y-6">
       <PageHeader
         title="CRM"
         description="Central de vendas e relacionamento"
-        action={
-          <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
-            <Link href="/dashboard/crm/pipeline">
-              <ChartBarIcon className="h-4 w-4 mr-2" />
-              Ver Pipeline
-            </Link>
-          </Button>
-        }
       />
 
       {/* Cross-Module KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -65,10 +63,10 @@ export default function CrmPage() {
                 <p className="text-3xl font-bold">R$ {pipelineValue.toLocaleString('pt-BR')}</p>
               </div>
               <div className="h-12 w-12 rounded-xl bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
-                <ChartBarIcon className="h-6 w-6 text-teal-600" />
+                <CurrencyDollarIcon className="h-6 w-6 text-teal-600" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Oportunidades ativas</p>
+            <p className="text-xs text-muted-foreground mt-2">{activeLeads} oportunidades</p>
           </CardContent>
         </Card>
 
@@ -83,7 +81,22 @@ export default function CrmPage() {
                 <MegaphoneIcon className="h-6 w-6 text-purple-600" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Retorno sobre investimento</p>
+            <p className="text-xs text-muted-foreground mt-2">{campaignsActive} ativas</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Leads em Negociação</p>
+                <p className="text-3xl font-bold">{leadsInNegotiation}</p>
+              </div>
+              <div className="h-12 w-12 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <ClockIcon className="h-6 w-6 text-amber-600" />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">proposta + negociação</p>
           </CardContent>
         </Card>
       </div>
