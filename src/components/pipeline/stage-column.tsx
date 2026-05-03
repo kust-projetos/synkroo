@@ -61,6 +61,9 @@ export function StageColumn({ stage, leads, onRename, onDelete, onChangeColor, o
   const colors = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
   const [showColorPicker, setShowColorPicker] = useState(false)
 
+  // Calculate total pipeline value for this stage
+  const stageTotal = leads.reduce((sum: number, lead: any) => sum + (lead.deal_value || 0), 0)
+
   return (
     <div className="w-72 flex-shrink-0 flex flex-col bg-muted/40 rounded-lg">
       {/* Header */}
@@ -72,6 +75,11 @@ export function StageColumn({ stage, leads, onRename, onDelete, onChangeColor, o
             onClick={() => onChangeColor && onChangeColor(stage.id, stage.color)}
           />
           <h3 className="font-medium text-sm">{stage.name}</h3>
+          {stageTotal > 0 && (
+            <span className="text-sm font-medium text-muted-foreground ml-2">
+              ({stageTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
