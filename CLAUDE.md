@@ -258,15 +258,21 @@ profiles (
 )
 ```
 
-### Comandos Úteis
+### Comandos Úteis (Supabase)
 
 ```bash
-# Gerar tipos TypeScript do banco
-npm run db:types
+# Supabase CLI - caminho absoluto
+/c/Users/walis/supabase-cli/supabase.exe migration list  # Listar migrations
+/c/Users/walis/supabase-cli/supabase.exe db push         # Push para remote (requer --include-all)
+/c/Users/walis/supabase-cli/supabase.exe db reset        # Reset local
 
-# Verificar conexão
-npm run health
+# npm scripts (funcionam via npx para CLI global)
+npm run db:types       # Gerar tipos TypeScript do banco
+npm run db:push        # Push schema (requer link via CLI)
+/c/Users/walis/supabase-cli/supabase.exe db push --include-all  # Push todas migrations
 ```
+
+**Remote:** `jlkifrngxxayjrfunuuz` | **CLI path:** `C:\Users\walis\supabase-cli\supabase.exe`
 
 ---
 
