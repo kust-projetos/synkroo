@@ -5,6 +5,7 @@ import { handleApiError } from '@/lib/errors'
 import { whatsappLogger } from '@/lib/logger'
 import { sendWhatsAppMessage } from '@/services/whatsapp'
 import { getLLMProvider } from '@/lib/llm'
+import { captureLeadFromWhatsApp } from '@/services/leads/leads.service'
 import {
   processConfirmationResponse,
   processWaitlistConfirmation,
@@ -291,6 +292,16 @@ export async function POST(request: NextRequest) {
       await sendWhatsAppMessage(phone, waitlistResult.responseMessage)
       lastResponseTime.set(phone, Date.now())
       return NextResponse.json({ success: true, processed: true, action: 'waitlist' })
+    }
+
+    // Capture lead from WhatsApp message (automatic lead creation)
+    const leadCaptureResult = await captureLeadFromWhatsApp(phone, content, clinicId)
+    if (leadCaptureResult.created) {
+      whatsappLogger.info('Lead created from WhatsApp', {
+        leadId: leadCaptureResult.leadId,
+        score: leadCaptureResult.score,
+        phone,
+      })
     }
 
     // Process with AI agent
