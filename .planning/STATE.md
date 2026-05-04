@@ -50,6 +50,7 @@ Bug identificado: pipeline_stages usa coluna `position`, código usa `sort_order
 | E2E tests: 3 PASS, 2 FAIL | RESOLVED | DONE |
 | CRM sidebar items | COMPLETE | DONE |
 | AuthProvider fix | COMPLETE | DONE |
+| Phase 2.1: WhatsApp Lead Capture | COMPLETE | DONE |
 
 ## Root Cause: Pipeline Vazio
 
