@@ -28,20 +28,21 @@ export function ChatWidget({
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
-  const [visitorId] = useState(() => {
-    // Generate or retrieve visitor ID
+  const [visitorId, setVisitorId] = useState<string>('')
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // Generate visitor ID on client only
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       let vid = localStorage.getItem('synkroo_visitor_id')
       if (!vid) {
         vid = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         localStorage.setItem('synkroo_visitor_id', vid)
       }
-      return vid
+      setVisitorId(vid)
     }
-    return ''
-  })
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  }, [])
 
   // Scroll to bottom on new message
   useEffect(() => {

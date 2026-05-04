@@ -58,6 +58,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       id: string
       scheduled_at: string
       status: string
+      clinic_id: string
       patients: { id: string; name: string; phone: string } | null
       dentists: { name: string } | null
       procedures: { name: string } | null
@@ -83,6 +84,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       procedureName: appointment.procedures?.name,
       clinicName: appointment.clinics?.name || '',
       clinicPhone: appointment.clinics?.phone || '',
+      clinicId: appointment.clinic_id,
     }
 
     const message = formatReminderMessage(reminder, hoursBefore)

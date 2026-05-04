@@ -43,7 +43,7 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
     [dayEvents, dentistIds],
   )
 
-  // Column headers with dentist names and colors
+  // Column headers with dentist names and colors - defined before early return to maintain hook order
   const columnHeaders = (
     <>
       {resources.map((resource) => {
@@ -70,6 +70,9 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
     </>
   )
 
+  const dateKey = formatDateKey(date)
+  const dateKeys = useMemo(() => Array(columnCount).fill(dateKey), [dateKey, columnCount])
+
   if (resources.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground">
@@ -77,9 +80,6 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
       </div>
     )
   }
-
-  const dateKey = formatDateKey(date)
-  const dateKeys = useMemo(() => Array(columnCount).fill(dateKey), [dateKey, columnCount])
 
   return (
     <div className="flex-1 flex flex-col min-h-0">

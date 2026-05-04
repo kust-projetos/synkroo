@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
         email: null,
         cpf: null,
         birth_date: null,
-      })
+      } as never)
       .eq('id', patientId)
       .eq('clinic_id', clinicId)
 
@@ -83,14 +83,14 @@ export async function POST(request: NextRequest) {
     // Step 2: Update appointments notes
     await supabase
       .from('appointments')
-      .update({ notes: '[ANONYMIZED]' })
+      .update({ notes: '[ANONYMIZED]' } as never)
       .eq('patient_id', patientId)
       .eq('clinic_id', clinicId)
 
     // Step 3: Update budgets notes
     await supabase
       .from('budgets')
-      .update({ notes: '[ANONYMIZED]' })
+      .update({ notes: '[ANONYMIZED]' } as never)
       .eq('patient_id', patientId)
       .eq('clinic_id', clinicId)
 
@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
         name: '[ANONYMIZED]',
         phone: null,
         email: null,
-      })
+      } as never)
       .eq('patient_id', patientId)
       .eq('clinic_id', clinicId)
 
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
           originalPatientId: patientId,
           anonymizedAt: new Date().toISOString(),
         }),
-      })
+      } as never)
 
     if (auditError) {
       console.error('Error creating audit log:', auditError)
