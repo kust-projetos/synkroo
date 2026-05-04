@@ -91,7 +91,11 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
 
   const handleEventDoubleClick = (e: React.MouseEvent, eventId: string) => {
     e.stopPropagation()
-    onEventClick ? onEventClick(eventId) : openEditDialog(eventId)
+    if (onEventClick) {
+      onEventClick(eventId)
+    } else {
+      openEditDialog(eventId)
+    }
   }
 
   const handleDayContextMenu = useCallback((e: React.MouseEvent, day: Date) => {

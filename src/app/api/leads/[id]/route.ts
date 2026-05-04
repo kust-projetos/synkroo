@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { createClient, validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { updateLeadStatus, qualifyLead, LeadStatus } from '@/services/leads/leads.service'
 import { updateLeadSchema } from '@/lib/validations'

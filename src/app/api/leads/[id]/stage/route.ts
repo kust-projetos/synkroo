@@ -32,20 +32,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     // Version-based conflict detection (optimistic locking)
     if (version) {
-      const { data: currentLead } = await supabase
+      const result = await supabase
         .from('leads')
         .select('id, updated_at')
         .eq('id', id)
         .eq('clinic_id', profile.clinic_id)
-        .single()
+        .single() as { data: { id: string; updated_at: string } | null }
 
-      if (currentLead && currentLead.updated_at && version !== currentLead.updated_at) {
+      if (result.data && result.data.updated_at && version !== result.data.updated_at) {
         // Client version doesn't match server version - concurrent modification detected
         return NextResponse.json(
           {
             error: 'Lead was modified by another user',
             conflict: true,
-            currentState: currentLead
+            currentState: result.data
           },
           { status: 409 }
         )
@@ -53,19 +53,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
 
     // Update lead's stage
-    const { data: lead, error: leadError } = await supabase
+    const leadResult = await supabase
       .from('leads')
-      .update({ stage_id, updated_at: new Date().toISOString() })
+      .update({ stage_id, updated_at: new Date().toISOString() } as never)
       .eq('id', id)
       .eq('clinic_id', profile.clinic_id)
       .select()
-      .single()
+      .single() as { data: { id: string; stage_id: string } | null; error: null }
 
-    if (leadError || !lead) {
+    if (leadResult.error || !leadResult.data) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ data: lead })
+    return NextResponse.json({ data: leadResult.data })
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }

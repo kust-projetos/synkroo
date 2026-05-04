@@ -1,6 +1,6 @@
 'use client'
 
-import { CheckIcon, ChecksIcon, EyeIcon, XCircleIcon } from '@heroicons/react/24/outline'
+import { CheckIcon, EyeIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { Badge } from '@/components/ui/badge'
 
 export type MessageStatus = 'sent' | 'delivered' | 'read' | 'failed'
@@ -16,7 +16,7 @@ const statusConfig: Record<MessageStatus, { icon: React.ReactNode; label: string
     variant: 'outline',
   },
   delivered: {
-    icon: <ChecksIcon className="w-3 h-3" />,
+    icon: <CheckIcon className="w-3 h-3" />,
     label: 'Entregue',
     variant: 'outline',
   },

@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const rawBody = await request.json()
     const body = createInstallmentsSchema.parse(rawBody)
 
-    const installments = await createInstallments(id, body.installments)
+    const installments = await createInstallments(id, body.installments.map(i => ({ ...i, budget_id: id })))
 
     return NextResponse.json({ installments }, { status: 201 })
   } catch (error) {
