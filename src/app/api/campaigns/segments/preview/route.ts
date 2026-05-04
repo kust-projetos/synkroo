@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth, createClient } from '@/lib/supabase/server'
 import { previewSegmentSize, getSegmentPatients } from '@/services/followup/segmentation.service'
 import { handleApiError } from '@/lib/errors'
 

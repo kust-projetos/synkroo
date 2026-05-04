@@ -11,7 +11,7 @@ interface AppointmentWithDetails {
   patients: { id: string; name: string; phone: string } | null
   dentists: { name: string } | null
   procedures: { id: string; name: string } | null
-  clinics: { name: string; phone: string } | null
+  clinics: { id: string; name: string; phone: string } | null
 }
 
 /**

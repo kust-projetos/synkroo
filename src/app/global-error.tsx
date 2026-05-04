@@ -10,33 +10,30 @@ export default function GlobalError({
   reset: () => void
 }) {
   useEffect(() => {
-    // Log the error to an error reporting service
     console.error('Global error:', error)
   }, [error])
 
   return (
     <html lang="pt-BR">
       <body>
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
-          <div className="max-w-md w-full mx-4 text-center">
-            <div className="bg-white rounded-2xl shadow-xl p-8">
-              <div className="text-6xl mb-4">⚠️</div>
-              <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                Algo deu errado
-              </h1>
-              <p className="text-gray-600 mb-6">
-                Ocorreu um erro inesperado. Nossa equipe foi notificada.
-              </p>
-              <button
-                onClick={reset}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg transition-colors"
-              >
-                Tentar novamente
-              </button>
-            </div>
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mt-4 p-4 bg-red-50 rounded-lg text-left">
-                <p className="text-xs font-mono text-red-700 break-all">
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', fontFamily: 'system-ui, sans-serif' }}>
+          <div style={{ maxWidth: '28rem', width: '100%', margin: '0 auto', padding: '1rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', color: '#111827' }}>
+              Algo deu errado
+            </h1>
+            <p style={{ color: '#6b7280', marginBottom: '1.5rem' }}>
+              Ocorreu um erro inesperado.
+            </p>
+            <button
+              onClick={reset}
+              style={{ width: '100%', padding: '0.75rem 1rem', background: '#4f46e5', color: 'white', fontWeight: 500, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }}
+            >
+              Tentar novamente
+            </button>
+            {process.env.NODE_ENV === 'development' && error?.message && (
+              <div style={{ marginTop: '1rem', padding: '1rem', background: '#fef2f2', borderRadius: '0.5rem', textAlign: 'left' }}>
+                <p style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: '#dc2626', wordBreak: 'break-all' }}>
                   {error.message}
                 </p>
               </div>
