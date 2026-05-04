@@ -16,7 +16,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation & Contacts** - RLS consolidation (5 fix migrations), schema additions (pipeline_stages, custom fields, consent), expand existing pacientes/leads pages with search, filters, tags, custom fields, and interaction timeline
 - [x] **Phase 2: Pipeline & Sales** - Kanban board with drag-and-drop (@hello-pangea/dnd), custom pipeline stages, expand existing leads page with scoring and lead-to-patient conversion
-- [ ] **Phase 2.1: WhatsApp Lead Capture (PIPE-05)** - Automatic lead creation from inbound WhatsApp messages with keyword-based scoring
+- [x] **Phase 2.1: WhatsApp Lead Capture (PIPE-05)** - Automatic lead creation from inbound WhatsApp messages with keyword-based scoring
 - [x] **Phase 3: WhatsApp CRM** - Expand existing conversas page with in-app messaging, expand existing campanhas page with reminders, templates, and campaign scheduling
 - [x] **Phase 4: Patient Records & Finance** - Treatment plans with progress tracking, budgets with itemized procedures, payment plans, financial summary per patient
 - [ ] **Phase 5: Integration & Analytics** - Calendar-CRM bidirectional linking, expand existing lista-espera with auto-fill, pipeline reports, financial reports (jspdf for PDF), LGPD data export/anonymization

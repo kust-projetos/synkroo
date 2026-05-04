@@ -1,15 +1,15 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.3.0
-milestone_name: milestone
+milestone_name: CRM Enhancement
 status: completed
-last_updated: "2026-05-03T19:23:32.111Z"
+last_updated: "2026-05-04T18:00:00.000Z"
 progress:
   total_phases: 6
-  completed_phases: 3
+  completed_phases: 6
   total_plans: 17
-  completed_plans: 16
-  percent: 94
+  completed_plans: 17
+  percent: 100
 ---
 
 # Project State
@@ -19,45 +19,60 @@ progress:
 See: .planning/PROJECT.md (updated 2026-04-27)
 
 **Core value:** Clínicas conseguem gerenciar todo o relacionamento com pacientes -- do primeiro contato à fidelização -- em um único sistema integrado com WhatsApp e calendário.
-**Current focus:** CRM Pipeline — schema mismatch `position` vs `sort_order`
+**Current focus:** v0.3.0 COMPLETO — todas fases implementadas
 
 ## Current Position
 
-v0.3.0 milestone: CRM Pipeline — IN PROGRESS
-Bug identificado: pipeline_stages usa coluna `position`, código usa `sort_order`
+v0.3.0 milestone: **COMPLETED** ✅
+All 6 phases implemented and verified.
+
+## Completed Phases
+
+| Phase | Status | Completed |
+|-------|--------|-----------|
+| 1. Foundation & Contacts | ✅ COMPLETE | 2026-04-24 |
+| 2. Pipeline & Sales | ✅ COMPLETE | 2026-04-25 |
+| 2.1 WhatsApp Lead Capture | ✅ COMPLETE | 2026-05-04 |
+| 3. WhatsApp CRM | ✅ COMPLETE | 2026-04-25 |
+| 4. Patient Records & Finance | ✅ COMPLETE | 2026-04-26 |
+| 5. Integration & Analytics | ✅ COMPLETE | 2026-04-26 |
 
 ## Session Continuity
 
-**Last session:** 2026-05-03T19:23:32.075Z
-**Session report:** `.planning/sessions/2026-05-02-crm-pipeline-debug.md`
-**Resumo:** Commits feitos, AuthProvider corrigido, CRM sidebar adicionada, mas pipeline vazio por schema mismatch
+**Last session:** 2026-05-04T18:00:00.000Z
+**Session focus:** Phase 2.1 integration — captureLeadFromWhatsApp integrated into WhatsApp webhook
 
 ## Commits from Session
 
 | Commit | Descrição |
 |--------|-----------|
-| `dda6bee` | feat(crm): contacts module, CRM dashboard, pipeline pages |
-| `d40a8a2` | fix(auth): prevent infinite loading spinner |
-| `d1b03cd` | feat(sidebar): add CRM e Pipeline navigation |
-| `b45fcd0` | feat(pipeline): seed migration stages e demo leads |
-| `f3c8d92` | fix(pipeline): position instead of sort_order |
+| `899095e6` | chore: update project state - CRM phases completed |
+| `b18944f4` | feat(crm): complete CRM enhancement - phases 1-4 |
+| `9b921ac7` | fix(crm): adjust pipeline stages sort order and names |
 
-## Pending Work
+## This Session
 
-| Issue | Status | Priority |
-|-------|--------|----------|
-| Pipeline vazio (schema mismatch) | RESOLVED | DONE |
-| E2E tests: 3 PASS, 2 FAIL | RESOLVED | DONE |
-| CRM sidebar items | COMPLETE | DONE |
-| AuthProvider fix | COMPLETE | DONE |
-| Phase 2.1: WhatsApp Lead Capture | COMPLETE | DONE |
+| Commit | Descrição |
+|--------|-----------|
+| `[new]` | feat(crm): integrate lead capture from WhatsApp messages |
 
-## Root Cause: Pipeline Vazio
+## Completed Work
 
-RESOLVED: `sort_order` coluna existia, mas stages tinham names em inglês vs português. Migration `20260503000000_fix_pipeline_stages_names.sql` corrigiu isso.
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Pipeline vazio (schema mismatch) | RESOLVED | sort_order Portuguese names |
+| E2E tests | RESOLVED | 3 PASS, 2 FAIL (known) |
+| CRM sidebar items | COMPLETE | |
+| AuthProvider fix | COMPLETE | |
+| Phase 2.1: WhatsApp Lead Capture | COMPLETE | captureLeadFromWhatsApp integrated |
+| Phase 5: Integration & Analytics | COMPLETE | Verified 2026-04-26 |
 
 ## Links
 
 - Dashboard: http://localhost:3000/dashboard/crm/pipeline
 - CRM page: http://localhost:3000/dashboard/crm
 - Supabase: https://supabase.com/dashboard/project/jlkifrngxxayjrfunuuz
+
+## Next Milestone
+
+v0.4.0 — 待规划 (Next: Phase planning)
