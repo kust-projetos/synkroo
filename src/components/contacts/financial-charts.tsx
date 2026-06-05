@@ -49,7 +49,10 @@ export function FinancialCharts({ data, loading }: FinancialChartsProps) {
                   fontSize: '12px',
                   color: 'hsl(var(--foreground))',
                 }}
-                formatter={(value: number) => [`R$ ${value.toFixed(2)}`, '']}
+                formatter={(value) => {
+                  const num = typeof value === 'number' ? value : 0
+                  return [`R$ ${num.toFixed(2)}`, '']
+                }}
               />
               <Bar dataKey="billed" fill="#94a3b8" name="Faturado" />
               <Bar dataKey="paid" fill="#16a34a" name="Pago" />

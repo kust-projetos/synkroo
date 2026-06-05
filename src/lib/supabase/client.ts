@@ -4,6 +4,8 @@ import type { Database } from './database.types'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const isConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
+const isBrowser = typeof window !== 'undefined'
 
 // Lazy client - only initialized when actually needed
 let _supabase: ReturnType<typeof createClient<Database>> | null = null
@@ -17,9 +19,9 @@ function getSupabase() {
 
   _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
-      detectSessionInUrl: true,
+      persistSession: isBrowser && !isTestEnv,
+      autoRefreshToken: isBrowser && !isTestEnv,
+      detectSessionInUrl: isBrowser && !isTestEnv,
     },
   })
 

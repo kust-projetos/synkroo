@@ -11,12 +11,14 @@ import type { Database } from './database.types'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
+const isBrowser = typeof window !== 'undefined'
 
 /**
  * Typed Supabase client that respects RLS
  * Uses anon key for browser-side row-level security
  */
-export type TypedSupabaseClient = ReturnType<typeof createBrowserClient<Database>>
+export type TypedSupabaseClient = ReturnType<typeof createBrowserClient<Database>> | any
 
 /**
  * Create a typed Supabase client with RLS enforcement
@@ -24,7 +26,13 @@ export type TypedSupabaseClient = ReturnType<typeof createBrowserClient<Database
  * Browser-safe version for client components
  */
 export function createTypedClient(): TypedSupabaseClient {
-  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey)
+  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: isBrowser && !isTestEnv,
+      autoRefreshToken: isBrowser && !isTestEnv,
+      detectSessionInUrl: isBrowser && !isTestEnv,
+    },
+  }) as any
 }
 
 /**

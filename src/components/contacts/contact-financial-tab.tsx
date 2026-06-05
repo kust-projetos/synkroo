@@ -14,6 +14,38 @@ interface ContactFinancialTabProps {
   contactId: string
 }
 
+interface BudgetDetail {
+  id: string
+  title?: string | null
+  total_value: number
+  discount_value: number
+  final_value: number
+  status: string
+  items?: Array<{
+    id?: string
+    procedure_name: string
+    quantity: number
+    unit_price: number
+    discount_percent: number
+    total_price: number
+  }>
+  installments?: Array<{
+    id?: string
+    budget_id: string
+    amount: number
+    due_date: string
+    status: string
+    paid_at?: string | null
+  }>
+  payments?: Array<{
+    id: string
+    amount: number
+    payment_method: string
+    paid_at: string
+    notes: string | null
+  }>
+}
+
 function formatCurrency(value: number) {
   return `R$ ${value.toFixed(2).replace('.', ',')}`
 }
@@ -128,9 +160,12 @@ export function ContactFinancialTab({ contactId }: ContactFinancialTabProps) {
     )
   }
 
-  const selectedBudget = selectedBudgetId
-    ? data.plans.find((p) => p.budget?.id === selectedBudgetId)?.budget || null
-    : null
+  const selectedBudget: BudgetDetail | null = (() => {
+    if (!selectedBudgetId) return null
+    const found = data.plans.find((p) => p.budget?.id === selectedBudgetId)?.budget
+    if (!found || !found.id) return null
+    return found as unknown as BudgetDetail
+  })()
 
   return (
     <div className="space-y-4 p-4">

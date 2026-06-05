@@ -73,6 +73,7 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: []
       }
       users: {
         Row: {
@@ -117,6 +118,7 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: []
       }
       patients: {
         Row: {
@@ -182,6 +184,7 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: []
       }
       dentists: {
         Row: {
@@ -229,6 +232,7 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: []
       }
       procedures: {
         Row: {
@@ -270,6 +274,7 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: []
       }
       appointments: {
         Row: {
@@ -320,6 +325,36 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: [
+          {
+            foreignKeyName: 'appointments_clinic_id_fkey'
+            columns: ['clinic_id']
+            isOneToOne: false
+            referencedRelation: 'clinics'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'appointments_patient_id_fkey'
+            columns: ['patient_id']
+            isOneToOne: false
+            referencedRelation: 'patients'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'appointments_dentist_id_fkey'
+            columns: ['dentist_id']
+            isOneToOne: false
+            referencedRelation: 'dentists'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'appointments_procedure_id_fkey'
+            columns: ['procedure_id']
+            isOneToOne: false
+            referencedRelation: 'procedures'
+            referencedColumns: ['id']
+          }
+        ]
       }
       conversations: {
         Row: {
@@ -364,6 +399,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       messages: {
         Row: {
@@ -414,6 +450,7 @@ export interface Database {
           read_at?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       knowledge_base: {
         Row: {
@@ -449,6 +486,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       message_templates: {
         Row: {
@@ -457,6 +495,8 @@ export interface Database {
           name: string
           category: string
           content: string
+          body: string
+          language: string
           variables: string[] | null
           meta_template_id: string | null
           status: string
@@ -468,7 +508,9 @@ export interface Database {
           clinic_id: string
           name: string
           category: string
-          content: string
+          content?: string
+          body: string
+          language?: string
           variables?: string[] | null
           meta_template_id?: string | null
           status?: string
@@ -481,12 +523,23 @@ export interface Database {
           name?: string
           category?: string
           content?: string
+          body?: string
+          language?: string
           variables?: string[] | null
           meta_template_id?: string | null
           status?: string
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'message_templates_clinic_id_fkey'
+            columns: ['clinic_id']
+            isOneToOne: false
+            referencedRelation: 'clinics'
+            referencedColumns: ['id']
+          }
+        ]
       }
       budgets: {
         Row: {
@@ -494,6 +547,7 @@ export interface Database {
           clinic_id: string
           patient_id: string
           appointment_id: string | null
+          treatment_plan_id: string | null
           title: string | null
           description: string | null
           total_value: number
@@ -503,6 +557,7 @@ export interface Database {
           status: string
           valid_until: string | null
           sent_at: string | null
+          accepted_at: string | null
           responded_at: string | null
           converted_at: string | null
           conversion_appointment_id: string | null
@@ -518,6 +573,7 @@ export interface Database {
           clinic_id: string
           patient_id: string
           appointment_id?: string | null
+          treatment_plan_id?: string | null
           title?: string | null
           description?: string | null
           total_value: number
@@ -527,6 +583,7 @@ export interface Database {
           status?: string
           valid_until?: string | null
           sent_at?: string | null
+          accepted_at?: string | null
           responded_at?: string | null
           converted_at?: string | null
           conversion_appointment_id?: string | null
@@ -542,6 +599,7 @@ export interface Database {
           clinic_id?: string
           patient_id?: string
           appointment_id?: string | null
+          treatment_plan_id?: string | null
           title?: string | null
           description?: string | null
           total_value?: number
@@ -551,6 +609,7 @@ export interface Database {
           status?: string
           valid_until?: string | null
           sent_at?: string | null
+          accepted_at?: string | null
           responded_at?: string | null
           converted_at?: string | null
           conversion_appointment_id?: string | null
@@ -561,6 +620,15 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'budget_items_budget_id_fkey'
+            columns: ['id']
+            isOneToOne: false
+            referencedRelation: 'budget_items'
+            referencedColumns: ['budget_id']
+          }
+        ]
       }
       budget_items: {
         Row: {
@@ -599,6 +667,15 @@ export interface Database {
           notes?: string | null
           created_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'budget_items_budget_id_fkey'
+            columns: ['budget_id']
+            isOneToOne: false
+            referencedRelation: 'budgets'
+            referencedColumns: ['id']
+          }
+        ]
       }
       campaigns: {
         Row: {
@@ -667,6 +744,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       leads: {
         Row: {
@@ -693,6 +771,8 @@ export interface Database {
           lost_reason: string | null
           lost_at: string | null
           notes: string | null
+          deal_value: number | null
+          stage_id: string | null
           created_at: string
           updated_at: string
         }
@@ -720,6 +800,8 @@ export interface Database {
           lost_reason?: string | null
           lost_at?: string | null
           notes?: string | null
+          deal_value?: number | null
+          stage_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -747,9 +829,27 @@ export interface Database {
           lost_reason?: string | null
           lost_at?: string | null
           notes?: string | null
+          deal_value?: number | null
+          stage_id?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'leads_clinic_id_fkey'
+            columns: ['clinic_id']
+            isOneToOne: false
+            referencedRelation: 'clinics'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'leads_stage_id_fkey'
+            columns: ['stage_id']
+            isOneToOne: false
+            referencedRelation: 'pipeline_stages'
+            referencedColumns: ['id']
+          }
+        ]
       }
       schedule_blocks: {
         Row: {
@@ -785,6 +885,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       follow_ups: {
         Row: {
@@ -829,6 +930,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       whatsapp_instances: {
         Row: {
@@ -870,6 +972,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       patient_risk_scores: {
         Row: {
@@ -893,6 +996,7 @@ export interface Database {
           factors?: Json | null
           calculated_at?: string
         }
+        Relationships: []
       }
       audit_logs: {
         Row: {
@@ -934,6 +1038,7 @@ export interface Database {
           user_agent?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       waitlist: {
         Row: {
@@ -978,6 +1083,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       procedure_guidelines: {
         Row: {
@@ -1025,6 +1131,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       patient_feedback: {
         Row: {
@@ -1072,6 +1179,7 @@ export interface Database {
           channel?: string
           created_at?: string
         }
+        Relationships: []
       }
       campaign_recipients: {
         Row: {
@@ -1116,6 +1224,7 @@ export interface Database {
           error_message?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       treatment_plans: {
         Row: {
@@ -1175,6 +1284,15 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: [
+          {
+            foreignKeyName: 'treatment_plans_patient_id_fkey'
+            columns: ['patient_id']
+            isOneToOne: false
+            referencedRelation: 'patients'
+            referencedColumns: ['id']
+          }
+        ]
       }
       treatment_plan_items: {
         Row: {
@@ -1216,6 +1334,7 @@ export interface Database {
           notes?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       follow_up_configs: {
         Row: {
@@ -1260,6 +1379,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       lead_activities: {
         Row: {
@@ -1292,6 +1412,7 @@ export interface Database {
           metadata?: Json | null
           created_at?: string
         }
+        Relationships: []
       }
       conversation_memories: {
         Row: {
@@ -1327,6 +1448,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       conversation_sessions: {
         Row: {
@@ -1353,6 +1475,7 @@ export interface Database {
           created_at?: string
           last_activity_at?: string
         }
+        Relationships: []
       }
       pending_actions: {
         Row: {
@@ -1427,6 +1550,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       decision_logs: {
         Row: {
@@ -1489,6 +1613,7 @@ export interface Database {
           llm_model?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       smart_trigger_log: {
         Row: {
@@ -1536,6 +1661,7 @@ export interface Database {
           patient_response?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       agent_logs: {
         Row: {
@@ -1571,6 +1697,7 @@ export interface Database {
           escalation?: boolean
           created_at?: string
         }
+        Relationships: []
       }
       appointment_reminders: {
         Row: {
@@ -1606,6 +1733,7 @@ export interface Database {
           sent_at?: string
           created_at?: string
         }
+        Relationships: []
       }
       campaign_segments: {
         Row: {
@@ -1644,6 +1772,7 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: []
       }
       lead_notifications: {
         Row: {
@@ -1694,6 +1823,7 @@ export interface Database {
           lead_interest?: string | null
           created_at?: string
         }
+        Relationships: []
       }
       patient_observations: {
         Row: {
@@ -1732,6 +1862,7 @@ export interface Database {
           updated_at?: string
           deleted_at?: string | null
         }
+        Relationships: []
       }
       patient_preferences: {
         Row: {
@@ -1758,6 +1889,7 @@ export interface Database {
           clinic_id?: string
           updated_at?: string
         }
+        Relationships: []
       }
       budget_installments: {
         Row: {
@@ -1793,6 +1925,7 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       payments: {
         Row: {
@@ -1828,8 +1961,275 @@ export interface Database {
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
+      }
+      pipeline_stages: {
+        Row: {
+          id: string
+          clinic_id: string
+          name: string
+          color: string
+          sort_order: number
+          is_default: boolean
+          is_system: boolean
+          system_key: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          name: string
+          color: string
+          sort_order: number
+          is_default?: boolean
+          is_system?: boolean
+          system_key?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          name?: string
+          color?: string
+          sort_order?: number
+          is_default?: boolean
+          is_system?: boolean
+          system_key?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          id: string
+          clinic_id: string
+          title: string
+          description: string | null
+          due_date: string | null
+          priority: string
+          status: string
+          lead_id: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          title: string
+          description?: string | null
+          due_date?: string | null
+          priority?: string
+          status?: string
+          lead_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          title?: string
+          description?: string | null
+          due_date?: string | null
+          priority?: string
+          status?: string
+          lead_id?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'tasks_lead_id_fkey'
+            columns: ['lead_id']
+            isOneToOne: false
+            referencedRelation: 'leads'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      procedure_types: {
+        Row: {
+          id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      appointment_reminder_configs: {
+        Row: {
+          id: string
+          clinic_id: string
+          procedure_type_id: string
+          hours_before: number
+          message_template: string
+          enabled: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          procedure_type_id: string
+          hours_before: number
+          message_template: string
+          enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          procedure_type_id?: string
+          hours_before?: number
+          message_template?: string
+          enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'appointment_reminder_configs_clinic_id_fkey'
+            columns: ['clinic_id']
+            isOneToOne: false
+            referencedRelation: 'clinics'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'appointment_reminder_configs_procedure_type_id_fkey'
+            columns: ['procedure_type_id']
+            isOneToOne: false
+            referencedRelation: 'procedure_types'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      custom_field_definitions: {
+        Row: {
+          id: string
+          clinic_id: string
+          name: string
+          field_type: string
+          options: Json | null
+          required: boolean
+          sort_order: number
+          is_active: boolean
+          applies_to: string[] | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          clinic_id: string
+          name: string
+          field_type: string
+          options?: Json | null
+          required?: boolean
+          sort_order?: number
+          is_active?: boolean
+          applies_to?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          clinic_id?: string
+          name?: string
+          field_type?: string
+          options?: Json | null
+          required?: boolean
+          sort_order?: number
+          is_active?: boolean
+          applies_to?: string[] | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'custom_field_definitions_clinic_id_fkey'
+            columns: ['clinic_id']
+            isOneToOne: false
+            referencedRelation: 'clinics'
+            referencedColumns: ['id']
+          }
+        ]
+      }
+      custom_field_values: {
+        Row: {
+          id: string
+          definition_id: string
+          contact_id: string
+          contact_type: string
+          clinic_id: string
+          value_text: string | null
+          value_number: number | null
+          value_date: string | null
+          value_boolean: boolean | null
+          value_json: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          definition_id: string
+          contact_id: string
+          contact_type: string
+          clinic_id: string
+          value_text?: string | null
+          value_number?: number | null
+          value_date?: string | null
+          value_boolean?: boolean | null
+          value_json?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          definition_id?: string
+          contact_id?: string
+          contact_type?: string
+          clinic_id?: string
+          value_text?: string | null
+          value_number?: number | null
+          value_date?: string | null
+          value_boolean?: boolean | null
+          value_json?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'custom_field_values_definition_id_fkey'
+            columns: ['definition_id']
+            isOneToOne: false
+            referencedRelation: 'custom_field_definitions'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'custom_field_values_clinic_id_fkey'
+            columns: ['clinic_id']
+            isOneToOne: false
+            referencedRelation: 'clinics'
+            referencedColumns: ['id']
+          }
+        ]
       }
     }
+    Views: { [_ in never]: never }
     Functions: {
       get_availability: {
         Args: {
@@ -1938,6 +2338,8 @@ export interface Database {
         Returns: undefined
       }
     }
+    Enums: Record<string, never>
+    CompositeTypes: Record<string, never>
   }
 }
 

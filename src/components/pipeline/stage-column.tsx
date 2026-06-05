@@ -31,7 +31,7 @@ interface ColumnErrorState {
 }
 
 class StageColumnErrorBoundary extends Component<{ children: ReactNode }, ColumnErrorState> {
-  constructor(props: Record<string, unknown>) {
+  constructor(props: { children: ReactNode }) {
     super(props)
     this.state = { hasError: false }
   }

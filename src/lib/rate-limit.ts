@@ -18,7 +18,7 @@ interface RateLimitConfig {
 const store = new Map<string, RateLimitEntry>()
 
 // Cleanup old entries every minute
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now()
   for (const [key, entry] of store.entries()) {
     if (entry.resetTime < now) {
@@ -26,6 +26,8 @@ setInterval(() => {
     }
   }
 }, 60000)
+
+cleanupInterval.unref?.()
 
 /**
  * Check rate limit for a given key

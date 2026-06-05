@@ -153,7 +153,7 @@ export async function getFinancialReport(
       revenue += budget.final_value || 0
 
       // Aggregate by procedure
-      for (const item of budget.budget_items || []) {
+      for (const item of (Array.isArray(budget.budget_items) ? budget.budget_items : budget.budget_items ? [budget.budget_items] : [])) {
         const procId = item.procedure_id || 'unknown'
         const procName = item.procedure_name || 'Procedimento'
 
@@ -178,9 +178,9 @@ export async function getFinancialReport(
 
       // If payment is linked to a budget, attribute to procedure
       if (payment.budget_id) {
-        const budget = acceptedBudgets?.find(b => b.id === payment.budget_id)
+        const budget = acceptedBudgets?.find((b: { id: string }) => b.id === payment.budget_id)
         if (budget) {
-          for (const item of budget.budget_items || []) {
+          for (const item of (Array.isArray(budget.budget_items) ? budget.budget_items : budget.budget_items ? [budget.budget_items] : [])) {
             const procId = item.procedure_id || 'unknown'
             const breakdown = procedureMap.get(procId)
             if (breakdown) {
@@ -245,7 +245,7 @@ export async function getInactivePatients(
     // Get patients with no appointments after threshold date
     const { data: patients, error } = await supabase
       .from('patients')
-      .select('id, name, phone, last_visit_at')
+      .select('id, name, phone, last_visit_at, created_at')
       .eq('clinic_id', clinicId)
       .is('deleted_at', null)
       .or(`last_visit_at.lt.${thresholdStr},last_visit_at.is.null`)

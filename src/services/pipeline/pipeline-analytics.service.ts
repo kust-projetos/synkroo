@@ -85,7 +85,7 @@ export async function getConversionByStage(clinicId: string): Promise<StageConve
     }
 
     // Build result array with conversion rates
-    const result: StageConversion[] = stages.map((stage) => {
+    const result: StageConversion[] = stages.map((stage: { id: string; name: string; color: string | null; sort_order: number }) => {
       const counts = stageMap.get(stage.id) || { total: 0, converted: 0 }
       const conversionRate = counts.total > 0
         ? Math.round((counts.converted / counts.total) * 10000) / 100 // 2 decimal places

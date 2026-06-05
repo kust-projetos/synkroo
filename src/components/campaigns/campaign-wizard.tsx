@@ -484,9 +484,12 @@ Que tal agendar uma consulta de retorno? Sua saúde bucal agradece! 🦷
             <Button
               onClick={handleSubmit}
               disabled={!canProceed() || loading}
-              loading={loading}
             >
-              {formData.startImmediately ? 'Iniciar Campanha' : 'Agendar Campanha'}
+              {loading
+                ? 'Criando...'
+                : formData.startImmediately
+                  ? 'Iniciar Campanha'
+                  : 'Agendar Campanha'}
             </Button>
           )}
         </DialogFooter>
