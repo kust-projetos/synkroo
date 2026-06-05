@@ -55,7 +55,7 @@ async function fetcher<T>(url: string): Promise<T> {
  * Fetch kanban leads for pipeline
  */
 export function fetchKanbanLeads(clinicId: string) {
-  return fetcher<any[]>(`/api/leads/kanban?clinic_id=${clinicId}`).then(r => r.leads ?? [])
+  return fetcher<{ leads?: any[] }>(`/api/leads/kanban?clinic_id=${clinicId}`).then(r => r.leads ?? [])
 }
 
 /**
@@ -73,7 +73,7 @@ export function useKanbanLeads(clinicId: string) {
  * Fetch pipeline stages for kanban
  */
 export function fetchPipelineStages(clinicId: string) {
-  return fetcher<any[]>(`/api/pipeline/stages?clinic_id=${clinicId}`).then(r => r.data ?? [])
+  return fetcher<{ data?: any[] }>(`/api/pipeline/stages?clinic_id=${clinicId}`).then(r => r.data ?? [])
 }
 
 /**

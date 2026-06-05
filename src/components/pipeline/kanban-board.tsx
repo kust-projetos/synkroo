@@ -54,10 +54,13 @@ class KanbanErrorBoundary extends Component<{ children: ReactNode }, ErrorState>
 
 export function KanbanBoard({ clinicId, operations }: KanbanBoardProps & { operations?: StageOperations }) {
   const { onDragEnd } = useKanbanBoard()
-  const { data: stages = [], isLoading: stagesLoading, refetch: refetchStages } = usePipelineStages(clinicId)
-  const { data: leads = [], isLoading: leadsLoading } = useKanbanLeads(clinicId)
+  const { data: stagesData, isLoading: stagesLoading, refetch: refetchStages } = usePipelineStages(clinicId)
+  const { data: leadsData, isLoading: leadsLoading } = useKanbanLeads(clinicId)
 
-  const ops = operations || {}
+  const stages = (stagesData ?? []) as Array<{ id: string; name: string; color: string; position: number }>
+  const leads = (leadsData ?? []) as Array<{ id: string; stage_id: string; deal_value?: number | null }>
+
+  const ops: Partial<StageOperations> = operations ?? {}
 
   const handleRename = async (id: string, name: string) => {
     await fetch(`/api/pipeline/stages/${id}`, {
@@ -86,7 +89,7 @@ export function KanbanBoard({ clinicId, operations }: KanbanBoardProps & { opera
   }
 
   const handleAddStage = async (afterId: string) => {
-    const afterStage = stages.find(s => s.id === afterId)
+    const afterStage = stages.find((s: { id: string }) => s.id === afterId)
     const newPosition = (afterStage?.position ?? 0) + 1
     const response = await fetch('/api/pipeline/stages', {
       method: 'POST',
@@ -110,11 +113,11 @@ export function KanbanBoard({ clinicId, operations }: KanbanBoardProps & { opera
     <KanbanErrorBoundary>
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex gap-4 overflow-x-auto pb-4 min-h-[500px]">
-          {stages.map((stage) => (
+          {stages.map((stage: { id: string; name: string; color: string; position: number }) => (
             <StageColumn
               key={stage.id}
               stage={stage}
-              leads={leads.filter((l: any) => l.stage_id === stage.id)}
+              leads={leads.filter((l: { id: string; stage_id: string; deal_value?: number | null }) => l.stage_id === stage.id)}
               onRename={handleRename}
               onDelete={handleDelete}
               onChangeColor={handleChangeColor}

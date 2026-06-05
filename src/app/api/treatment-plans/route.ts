@@ -84,7 +84,11 @@ export async function POST(request: NextRequest) {
       expected_completion_at: body.expected_completion_at,
       notes: body.notes,
       created_by: userId,
-      items: body.items,
+      items: body.items.map((item, index) => ({
+        ...item,
+        session_number: item.session_number ?? index + 1,
+        status: 'pending',
+      })),
     })
 
     return NextResponse.json({ treatment_plan: plan }, { status: 201 })

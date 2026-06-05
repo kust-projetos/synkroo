@@ -175,11 +175,12 @@ export function PipelineAnalyticsDashboard() {
               borderRadius: '8px',
               fontSize: '12px',
             }}
-            formatter={(value: number, name: string) => {
-              if (name === 'taxa') return [`${value}%`, 'Taxa de Conversao']
-              if (name === 'total') return [value, 'Total Leads']
-              if (name === 'convertido') return [value, 'Convertidos']
-              return [value, name]
+            formatter={(value, name) => {
+              const num = typeof value === 'number' ? value : 0
+              if (name === 'taxa') return [`${num}%`, 'Taxa de Conversao']
+              if (name === 'total') return [num, 'Total Leads']
+              if (name === 'convertido') return [num, 'Convertidos']
+              return [String(value ?? ''), String(name ?? '')]
             }}
           />
           <Bar dataKey="taxa" fill="#3b82f6" name="Taxa de Conversao %" radius={[4, 4, 0, 0]} />

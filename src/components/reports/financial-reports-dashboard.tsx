@@ -95,11 +95,12 @@ export function FinancialReportsDashboard() {
               borderRadius: '8px',
               fontSize: '12px',
             }}
-            formatter={(value: number, name: string) => {
-              if (name === 'receita') return [formatCurrency(value), 'Receita']
-              if (name === 'pagamentos') return [formatCurrency(value), 'Pagamentos']
-              if (name === 'receber') return [formatCurrency(value), 'Em Aberto']
-              return [value, name]
+            formatter={(value, name) => {
+              const num = typeof value === 'number' ? value : 0
+              if (name === 'receita') return [formatCurrency(num), 'Receita']
+              if (name === 'pagamentos') return [formatCurrency(num), 'Pagamentos']
+              if (name === 'receber') return [formatCurrency(num), 'Em Aberto']
+              return [String(value ?? ''), String(name ?? '')]
             }}
           />
           <Bar dataKey="receita" fill="#16a34a" name="Receita" radius={[4, 4, 0, 0]} />

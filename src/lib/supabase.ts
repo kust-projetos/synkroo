@@ -9,6 +9,8 @@ export type GenericClient = SupabaseClient<any>
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 const isConfigured = Boolean(supabaseUrl && supabaseAnonKey)
+const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
+const isBrowser = typeof window !== 'undefined'
 
 // Client-side Supabase client - lazily initialized
 let _supabase: SupabaseClient<Database> | null = null
@@ -22,8 +24,9 @@ function getSupabaseClient() {
 
   _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
-      persistSession: true,
-      autoRefreshToken: true,
+      persistSession: isBrowser && !isTestEnv,
+      autoRefreshToken: isBrowser && !isTestEnv,
+      detectSessionInUrl: isBrowser && !isTestEnv,
     },
   })
 

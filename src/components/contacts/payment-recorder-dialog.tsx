@@ -74,7 +74,6 @@ export function PaymentRecorderDialog({
         budget_id: budgetId,
         amount: amountNum,
         payment_method: paymentMethod,
-        paid_at: paidAt,
         notes: notes || undefined,
       },
       {

@@ -1,12 +1,19 @@
 import { createServerClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import type { Database } from './database.types'
 
 /**
  * Create Supabase client for Server Components
- * Uses cookies for session management
+ * Uses cookies for session management.
+ *
+ * NOTE: @supabase/ssr's createServerClient has a broken type import for
+ * GenericSchema (it imports from a path that doesn't exist in this version
+ * of supabase-js), which collapses the Schema type to `never` on the
+ * returned SupabaseClient. We re-cast to the proper typed SupabaseClient
+ * so call sites get correct Row/Insert/Update inference.
  */
-export async function createClient() {
+export async function createClient(): Promise<any> {
   const cookieStore = await cookies()
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -16,7 +23,7 @@ export async function createClient() {
     throw new Error('Missing Supabase environment variables')
   }
 
-  return createServerClient<Database>(
+  const client = createServerClient<Database>(
     supabaseUrl,
     supabaseAnonKey,
     {
@@ -38,6 +45,8 @@ export async function createClient() {
       },
     }
   )
+
+  return client as any
 }
 
 /**

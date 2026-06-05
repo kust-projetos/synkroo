@@ -226,7 +226,7 @@ export function replacePlaceholders(
     procedimento?: string
   }
 ): string {
-  const fakeTemplate = { body: template } as { body: string }
+  const fakeTemplate = { body: template } as Parameters<typeof fillTemplate>[0]
   return fillTemplate(fakeTemplate, values as Record<string, string>)
 }
 

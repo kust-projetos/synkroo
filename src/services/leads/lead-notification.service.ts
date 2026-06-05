@@ -301,7 +301,7 @@ export async function getUnacknowledgedNotifications(
 
     if (error) throw error
 
-    return (data || []).map((row) => toNotification(row as NotificationRow))
+    return (data || []).map((row: NotificationRow) => toNotification(row))
   } catch (error) {
     logger.error('Error fetching unacknowledged notifications', error, { clinicId })
     return []

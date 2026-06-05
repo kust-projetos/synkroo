@@ -46,7 +46,7 @@ export function TemplateEditor({ value, onChange, errors = [] }: TemplateEditorP
         textarea.setSelectionRange(start + placeholder.length + 4, start + placeholder.length + 4)
       }, 0)
     } else {
-      onChange((prev) => prev + `{{${placeholder}}}`)
+      onChange(value + `{{${placeholder}}}`)
     }
   }
 

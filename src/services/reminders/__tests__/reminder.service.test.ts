@@ -13,6 +13,7 @@ describe('ReminderService', () => {
     scheduledAt: new Date('2026-03-29T14:00:00'),
     dentistName: 'Dra. Maria',
     procedureName: 'Limpeza',
+    clinicId: 'clinic-123',
     clinicName: 'Clínica Sorriso',
     clinicPhone: '1133333333',
   }
@@ -104,6 +105,7 @@ describe('ReminderService', () => {
         patientName: 'Test Patient',
         patientPhone: '11999999999',
         scheduledAt: new Date(),
+        clinicId: 'clinic-123',
         clinicName: 'Test Clinic',
         clinicPhone: '1133333333',
       }
