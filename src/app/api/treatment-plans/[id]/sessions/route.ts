@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { createClient, validateApiAuth } from '@/lib/supabase/server'
 import {
   updateSessionProgress,
   getTreatmentPlanProgress,

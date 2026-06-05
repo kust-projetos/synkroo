@@ -58,6 +58,7 @@ function createMockLead(overrides: Partial<Lead> = {}): Lead {
     assigned_to: null,
     interest: 'Implante Dentário',
     notes: 'Paciente muito interessado',
+    deal_value: null,
     last_contact_at: null,
     next_followup_at: null,
     converted_at: null,
