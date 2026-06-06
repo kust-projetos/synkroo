@@ -27,7 +27,11 @@ function daysFromNow(d: number) {
 
 export async function GET(request: NextRequest) {
   const secret = request.nextUrl.searchParams.get('secret')
-  if (secret !== 'synkroo-seed-2026') {
+  const seedSecret = process.env.SEED_SECRET
+  if (!seedSecret) {
+    return NextResponse.json({ error: 'SEED_SECRET not configured' }, { status: 403 })
+  }
+  if (secret !== seedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
