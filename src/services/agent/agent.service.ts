@@ -86,9 +86,9 @@ export class AgentService {
           // Update conversation with new patient if created
           if (registration.patientId) {
             await ((await this.serverClient)
-              .from('conversations') as any)
+              .from('conversations')
               .update({ patient_id: registration.patientId })
-              .eq('id', conversationId)
+              .eq('id', conversationId))
           }
         }
         dbLogger.info('Patient registration flow', {
@@ -361,9 +361,9 @@ export class AgentService {
     status: Conversation['status']
   ): Promise<void> {
     await ((await this.serverClient)
-      .from('conversations') as any)
+      .from('conversations')
       .update({ status })
-      .eq('id', conversationId)
+      .eq('id', conversationId))
   }
 
   /**
@@ -390,7 +390,7 @@ export class AgentService {
 
     // Store message in database
     const { data, error } = await ((await this.serverClient)
-      .from('messages') as any)
+      .from('messages')
       .insert({
         conversation_id: conversationId,
         direction,
@@ -401,7 +401,7 @@ export class AgentService {
         confidence: options.confidence || null,
         is_ai: options.isAi ?? direction === 'outbound',
       })
-      .single()
+      .single())
 
     if (error) {
       dbLogger.error('Error storing message', error, { conversationId, direction })
