@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { createPatientSchema } from '@/lib/validations'
+import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
  * GET /api/patients
@@ -12,6 +13,15 @@ import { createPatientSchema } from '@/lib/validations'
  */
 export async function GET(request: NextRequest) {
   try {
+    const clientId = getClientIdentifier(request)
+    const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
+    }
+
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
@@ -67,6 +77,15 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const clientId = getClientIdentifier(request)
+    const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
+    }
+
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
