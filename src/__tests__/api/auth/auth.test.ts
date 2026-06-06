@@ -88,6 +88,23 @@ const mockServerModule = () => ({
 // Mock the module before imports
 jest.mock('@/lib/supabase/server', () => mockServerModule())
 
+// Mock rate-limit module to bypass rate limiting in tests
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn(() => ({
+    allowed: true,
+    remaining: 10,
+    resetTime: Date.now() + 60000,
+  })),
+  getClientIdentifier: jest.fn(() => 'test-client'),
+  rateLimitPresets: {
+    auth: { windowMs: 60000, maxRequests: 10 },
+    messages: { windowMs: 60000, maxRequests: 30 },
+    webhook: { windowMs: 60000, maxRequests: 100 },
+    api: { windowMs: 60000, maxRequests: 60 },
+  },
+  createRateLimitHeaders: jest.fn(() => ({})),
+}))
+
 // Import route handlers after mocks
 import { POST as LoginPOST } from '@/app/api/auth/login/route'
 import { POST as LogoutPOST } from '@/app/api/auth/logout/route'
