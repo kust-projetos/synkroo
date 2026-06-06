@@ -1,345 +1,112 @@
-# CLAUDE.md - Synkroo
+# AGENTS.md — Synkroo
 
-**Projeto:** Synkroo - Calendário Kanban com WhatsApp Bot
-**Versão:** 0.1.0
-**Última atualização:** 2026-04-15
-**Idioma:** Português Brasil
+## Projeto
+SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, agente IA conversacional, LGPD.
 
----
+## Stack
+| Camada | Tecnologia |
+|---|---|
+| Framework | Next.js 15 (App Router) + React 19 + TypeScript 5.6 |
+| DB/Auth | Supabase (PostgreSQL + RLS + pgvector + Auth SSR) |
+| State | Zustand 5 (local) + TanStack Query 5 (server) |
+| UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
+| LLM | MiniMax / OpenAI / OpenRouter (factory em `src/lib/llm/`) |
+| WhatsApp | Evolution API v2.3.7 + Playwright fallback |
+| Testes | Jest (unit) + Playwright (E2E) |
+| CI | GitHub Actions (lint → tsc → test → build) |
 
-## Visão Geral
+## Comandos
+| Comando | Função |
+|---|---|
+| `npm run dev` | Dev server (porta 3000) |
+| `npm run build` | Production build (NÃO ignora erros TS/lint) |
+| `npm run lint` | ESLint |
+| `npm test` | Jest unit/integration tests |
+| `npm run test:e2e` | Playwright E2E |
+| `npm run db:push` | Push schema Supabase |
+| `npm run db:reset` | Reset local DB |
+| `npm run whatsapp:start` | WhatsApp CLI (QR code) |
+| `npm run health` | Health check |
 
-Synkroo é um aplicativo de calendário/kanban com integração WhatsApp. Permite gerenciar eventos, tarefas e communicate via chatbot.
-
-**Stack Principal:**
-- **Frontend:** Next.js 15 (React 19)
-- **Database:** Supabase (PostgreSQL)
-- **Styling:** Tailwind CSS + Radix UI
-- **State:** Zustand + TanStack Query
-- **WhatsApp:** Custom bot com qrcode-terminal
-
----
-
-## Estrutura do Projeto
-
+## Estrutura
 ```
-synkroo/
-├── src/
-│   ├── app/                    # Next.js App Router
-│   │   ├── api/                # API routes
-│   │   ├── dashboard/           # Dashboard pages
-│   │   ├── login/              # Auth pages
-│   │   ├── signup/
-│   │   ├── complete-profile/
-│   │   ├── layout.tsx           # Root layout
-│   │   ├── page.tsx            # Landing page
-│   │   └── providers.tsx       # Context providers
-│   │
-│   ├── components/
-│   │   ├── calendar/            # Calendar components (@event-calendar/core)
-│   │   ├── charts/             # Recharts visualizations
-│   │   ├── chat-widget/        # WhatsApp chat interface
-│   │   ├── notifications/      # Toast notifications
-│   │   └── ui/                 # Radix UI primitives (Button, Dialog, etc.)
-│   │
-│   ├── hooks/                  # Custom React hooks
-│   ├── lib/                    # Utilities, Supabase client
-│   ├── services/               # Business logic services
-│   └── types/                  # TypeScript types
-│
-├── public/                     # Static assets
-├── e2e/                       # Playwright E2E tests
-├── graphify-out/               # Code knowledge graph
-├── screenshots/               # App screenshots
-└── package.json
-```
-
----
-
-## Comandos Principais
-
-```bash
-# Desenvolvimento
-npm run dev                    # Next.js dev server (port 3000)
-npm run build                  # Production build
-npm run lint                   # ESLint
-
-# Database (Supabase CLI)
-npm run db:setup              # Setup database
-npm run db:push               # Push schema changes
-npm run db:pull               # Pull remote schema
-npm run db:reset              # Reset local database
-npm run db:seed               # Seed database
-npm run supabase:start         # Start local Supabase
-npm run supabase:stop         # Stop local Supabase
-
-# WhatsApp Bot
-npm run whatsapp:start        # Start WhatsApp CLI (generates QR)
-
-# Testes
-npm test                      # Jest tests
-npm run test:watch           # Watch mode
-
-# Health check
-curl -s http://localhost:3000/api/health | jq .
+src/
+├── app/
+│   ├── api/          # 34 módulos de API (~207 arquivos)
+│   ├── dashboard/    # 18 páginas protegidas
+│   ├── login/        # Auth pages
+│   └── signup/
+├── components/       # UI por domínio (calendar, contacts, pipeline, whatsapp, reports, ui/)
+├── hooks/            # 5 hooks custom (kanban, toast, financial, payments, treatment)
+├── lib/
+│   ├── supabase/     # Client, server, admin, typed, database.types
+│   ├── llm/          # Factory multi-provider
+│   ├── validations/  # 10 Zod schemas por domínio
+│   ├── auth/         # Auth context
+│   └── env.ts        # Validação de env vars (fail-fast em prod)
+├── services/         # 22 domínios de lógica de negócio
+│   ├── agent/        # AgentService + risk scoring + pending actions
+│   ├── agents/       # Multi-agent: router, scheduler, sales, generalist
+│   ├── memory/       # L1-L5 memory layers
+│   ├── rag/          # Embedding + RAG retrieval
+│   ├── whatsapp/     # WhatsApp service + Evolution API + templates
+│   └── [17 mais]
+└── middleware.ts     # Auth SSR (Supabase cookies)
 ```
 
----
+## Convenções
+- **Componentes:** PascalCase (`AppointmentDialog.tsx`)
+- **Hooks:** camelCase com `use` (`useKanban.ts`)
+- **Utilidades:** kebab-case (`rate-limit.ts`)
+- **Imports:** alias `@/` → `src/`
+- **Validação:** Zod schemas em `src/lib/validations/`
+- **DB types:** `src/lib/supabase/database.types.ts` (gerado via `npm run db:types`)
 
-## Variáveis de Ambiente
+## API Modules
+| Módulo | Caminho | Descrição |
+|---|---|---|
+| Agent | `/api/agent/*` | Classificação, mensagens, pending actions, schedule flow |
+| Appointments | `/api/appointments/*` | CRUD, disponibilidade, confirmação |
+| Auth | `/api/auth/*` | Login, logout, signup, session |
+| Budgets | `/api/budgets/*` | Orçamentos, aceitação, follow-up |
+| Campaigns | `/api/campaigns/*` | Campanhas, segmentação |
+| Contacts | `/api/contacts/*` | CRM contatos |
+| Conversations | `/api/conversations/*` | Chat conversas |
+| Cron | `/api/cron/*` | Jobs: cleanup, followups, reminders, smart-triggers (CRON_SECRET + timingSafeEqual) |
+| Leads | `/api/leads/*` | CRM leads |
+| Messages | `/api/messages/*` | Inbound (WEBHOOK_SECRET), send (rate-limited), history |
+| Patients | `/api/patients/*` | Gestão pacientes, dedup, preferências |
+| WhatsApp | `/api/whatsapp/*` | Webhook, send, evolution, templates, QR |
+| Analytics | `/api/analytics/*` | Métricas, no-show prediction, ROI |
 
-```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_PROJECT_ID=
+## Env vars obrigatórias
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `JWT_SECRET` (≥16 chars)
 
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-JWT_SECRET=
+## Env vars opcionais por feature
+- `MINIMAX_API_KEY` / `OPENAI_API_KEY` → LLM
+- `EVOLUTION_API_URL` + `EVOLUTION_API_KEY` → WhatsApp
+- `WEBHOOK_SECRET` → validação de webhook inbound
+- `CRON_SECRET` → auth de cron jobs
+- `SEED_SECRET` → seed endpoint
 
-# WhatsApp
-WHATSAPP_SESSION_NAME=synkroo-session
-```
-
----
-
-## Arquitetura
-
-### Autenticação
-
-- **Método:** Supabase Auth com middleware de proteção
-- **Arquivos-chave:** `src/middleware.ts`, `src/lib/supabase/`
-- **Rotas protegidas:** `/dashboard/*`, `/api/*`
-
-### Estado da Aplicação
-
-| Estado | Biblioteca | Persistência |
-|--------|-------------|---------------|
-| **Server State** | TanStack Query | Supabase (remote) |
-| **UI State** | Zustand | Memory (local) |
-| **Theme** | next-themes | localStorage |
-
-### Calendário
-
-- **Biblioteca:** `@event-calendar/core`
-- **Views:** Month, Week, Day
-- **Eventos:** Supabase `events` table
-- **Componentes:** `src/components/calendar/`
-
----
-
-## Convenções de Código
-
-### Nomenclatura
-
-- **Arquivos de componente:** PascalCase (`CalendarView.tsx`)
-- **Hooks:** camelCase com prefixo `use` (`useCalendar.ts`)
-- **Utilidades:** kebab-case (`date-utils.ts`)
-- **Types/Interfaces:** PascalCase
-
-### Estrutura de Componente
-
-```typescript
-// src/components/ui/Button.tsx
-import { Slot } from '@radix-ui/react-slot';
-import { cva, type VariantProps } from 'class-variance-authority';
-import { cn } from '@/lib/utils';
-
-const buttonVariants = cva('...', {
-  variants: { variant: { default: '...', destructive: '...' } },
-  defaultVariants: { variant: 'default' },
-});
-
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean;
-}
-
-export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : 'button';
-    return <Comp className={cn(buttonVariants({ variant }), className)} ref={ref} {...props} />;
-  }
-);
-```
-
-### Import Paths
-
-```typescript
-// Use @/ alias
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-import { useCalendarStore } from '@/hooks/useCalendar';
-```
-
----
-
-## Cores e Temas
-
-### Light/Dark Mode
-
-O projeto usa `next-themes` com Tailwind `darkMode: 'class'`.
-
-**CSS Variables (em `globals.css`):**
-```css
-:root {
-  --background: 0 0% 100%;
-  --foreground: 222.2 84% 4.9%;
-}
-.dark {
-  --background: 222.2 84% 4.9%;
-  --foreground: 210 40% 98%;
-}
-```
-
-### Paleta de Cores
-
-| Token | Light | Dark |
-|-------|-------|------|
-| `primary` | blue-600 | blue-500 |
-| `secondary` | slate-100 | slate-800 |
-| `accent` | indigo-500 | indigo-400 |
-| `destructive` | red-500 | red-400 |
-| `muted` | slate-100 | slate-800 |
-
----
-
-## Componentes Principais
-
-### UI Primitives (Radix UI)
-
-| Componente | Import | Props principais |
-|------------|--------|------------------|
-| `Button` | `@/components/ui/button` | variant, size, asChild |
-| `Card` | `@/components/ui/card` | title, padding, footer |
-| `Dialog` | `@/components/ui/dialog` | open, onOpenChange |
-| `DropdownMenu` | `@/components/ui/dropdown-menu` | trigger, children |
-| `Select` | `@/components/ui/select` | value, onValueChange |
-| `Toast` | `@/components/ui/toast` | title, description |
-| `Tooltip` | `@/components/ui/tooltip` | content, children |
-
-### Componentes de Feature
-
-| Componente | Local | Descrição |
-|------------|-------|-----------|
-| `CalendarView` | `components/calendar/` | Wrapper @event-calendar |
-| `EventCard` | `components/calendar/` | Card para eventos |
-| `CashFlowChart` | `components/charts/` | Gráfico de receitas/despesas |
-| `ChatWidget` | `components/chat-widget/` | Interface WhatsApp |
-| `NotificationToast` | `components/notifications/` | Toast notifications |
-
----
-
-## Banco de Dados (Supabase)
-
-### Tabelas Principais
-
-```sql
--- Events (calendário)
-events (
-  id UUID PRIMARY KEY,
-  title TEXT,
-  description TEXT,
-  start_date TIMESTAMP,
-  end_date TIMESTAMP,
-  user_id UUID REFERENCES auth.users,
-  created_at TIMESTAMP DEFAULT now()
-)
-
--- Users (perfil estendido)
-profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users,
-  display_name TEXT,
-  avatar_url TEXT,
-  created_at TIMESTAMP DEFAULT now()
-)
-```
-
-### Comandos Úteis (Supabase)
-
-```bash
-# Supabase CLI - caminho absoluto
-/c/Users/walis/supabase-cli/supabase.exe migration list  # Listar migrations
-/c/Users/walis/supabase-cli/supabase.exe db push         # Push para remote (requer --include-all)
-/c/Users/walis/supabase-cli/supabase.exe db reset        # Reset local
-
-# npm scripts (funcionam via npx para CLI global)
-npm run db:types       # Gerar tipos TypeScript do banco
-npm run db:push        # Push schema (requer link via CLI)
-/c/Users/walis/supabase-cli/supabase.exe db push --include-all  # Push todas migrations
-```
-
-**Remote:** `jlkifrngxxayjrfunuuz` | **CLI path:** `C:\Users\walis\supabase-cli\supabase.exe`
-
----
+## Segurança
+- Middleware protege rotas com Supabase Auth SSR
+- `/api/seed` público só em dev
+- `/api/cron/*` usa `crypto.timingSafeEqual` para CRON_SECRET
+- `/api/messages/inbound` usa `crypto.timingSafeEqual` para WEBHOOK_SECRET
+- Rate limiting ativo em: auth/login, agent/classify, leads, messages/send, instagram/webhook
+- `exec_sql` RPC desativado (rota retorna 403)
 
 ## Testes
+- Unit/Integration: Jest (`src/**/__tests__/`) — 53 suites
+- E2E: Playwright (`e2e/`) — 41 specs
+- Coverage threshold: 70% global (branches, functions, lines, statements)
 
-### Unit Tests (Jest)
-
-```bash
-npm test                    # Run all tests
-npm run test:watch         # Watch mode
-```
-
-### E2E Tests (Playwright)
-
-```bash
-# Setup
-npx playwright install
-
-# Run
-npx playwright test
-
-# UI Mode
-npx playwright test --ui
-```
-
-**Arquivos E2E:** `e2e/` com spec files por feature.
-
----
-
-## Debugging
-
-### Performance
-
-```bash
-# Lighthouse audit
-npx lighthouse http://localhost:3000 --output=json --output-path=./perf.json
-```
-
-### Screenshot Debug
-
-```javascript
-// Chrome DevTools MCP
-take_screenshot(filePath: "screenshots/debug-calendar.png")
-
-// Playwright MCP
-browser_take_screenshot(filename: "screenshots/debug-calendar.png")
-```
-
----
-
-## Graphify
-
-Este projeto possui knowledge graph em `graphify-out/`.
-
-**Rebuild após mudanças:**
-```bash
-python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"
-```
-
----
-
-## Recursos Adicionais
-
-| Recurso | Local |
-|---------|-------|
-| README | `README.md` |
-| Screenshots | `screenshots/` |
-| E2E Report | `playwright-report/` |
-| Code Graph | `graphify-out/GRAPH_REPORT.md` |
-| UX Analysis | `ux-analysis.md` |
+## Supabase CLI
+- Caminho: `C:\Users\walis\supabase-cli\supabase.exe`
+- Remote project: `jlkifrngxxayjrfunuuz`
+- Migrations: `supabase/migrations/` (44 arquivos)
+- Push com include-all: `supabase db push --include-all`
