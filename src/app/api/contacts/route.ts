@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
 import { searchContacts, createContact } from '@/services/contacts/contacts.service'
 import { z } from 'zod'
+import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 
 const createContactSchema = z.object({
   type: z.enum(['patient', 'lead']),
@@ -17,6 +18,15 @@ const createContactSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
+  const clientId = getClientIdentifier(request)
+  const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+    )
+  }
+
   const auth = await validateApiAuth()
   if (!auth.success) {
     return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
@@ -43,6 +53,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const clientId = getClientIdentifier(request)
+  const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+    )
+  }
+
   const auth = await validateApiAuth()
   if (!auth.success) {
     return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
