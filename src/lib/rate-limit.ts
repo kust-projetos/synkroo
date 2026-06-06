@@ -108,6 +108,9 @@ export const rateLimitPresets = {
 
   // For message sending (prevent spam)
   messages: { windowMs: 60000, maxRequests: 30 },
+
+  // For cron job endpoints (moderate, authenticated via CRON_SECRET)
+  cron: { windowMs: 60000, maxRequests: 20 },
 } as const
 
 /**
