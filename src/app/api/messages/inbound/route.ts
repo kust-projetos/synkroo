@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { createServerClient } from '@/lib/supabase'
 import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
 import type { Message } from '@/lib/supabase/database.types'
+
+/**
+ * Verify webhook secret using timing-safe comparison
+ */
+function verifyWebhookSecret(request: NextRequest): boolean {
+  const webhookSecret = process.env.WEBHOOK_SECRET
+  if (!webhookSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[messages/inbound] WEBHOOK_SECRET not configured in production')
+      return false
+    }
+    console.warn('[messages/inbound] WEBHOOK_SECRET not configured — allowing request in dev')
+    return true
+  }
+  const provided = request.headers.get('X-Webhook-Secret') || ''
+  if (provided.length !== webhookSecret.length ||
+      !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(webhookSecret))) {
+    return false
+  }
+  return true
+}
 
 interface InboundMessage {
   clinicId: string
@@ -18,6 +40,11 @@ interface InboundMessage {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Verify webhook secret
+    if (!verifyWebhookSecret(request)) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body: InboundMessage = await request.json()
     const { clinicId, from, message, channel = 'whatsapp', metadata } = body
 
