@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { createClient } from '@/lib/supabase/server'
 import { loginSchema } from '@/lib/validations'
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  rateLimitPresets,
+  createRateLimitHeaders,
+} from '@/lib/rate-limit'
 
 /**
  * POST /api/auth/login
@@ -9,6 +15,25 @@ import { loginSchema } from '@/lib/validations'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const clientId = getClientIdentifier(request)
+    const rateLimit = checkRateLimit(clientId, {
+      ...rateLimitPresets.auth,
+      keyPrefix: 'auth-login',
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+            ...createRateLimitHeaders(rateLimit.remaining, rateLimit.resetTime, rateLimitPresets.auth.maxRequests),
+          },
+        }
+      )
+    }
+
     const rawBody = await request.json()
     const { email, password } = loginSchema.parse(rawBody)
 
