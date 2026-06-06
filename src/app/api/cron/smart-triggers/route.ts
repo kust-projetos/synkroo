@@ -13,7 +13,7 @@ import { handleApiError } from '@/lib/errors'
 export async function POST(request: NextRequest) {
   try {
     // Verify cron secret
-    const authHeader = request.headers.get('authorization') || ''
+    const authHeader = request.headers.get('Authorization') || ''
     const cronSecret = process.env.CRON_SECRET
     const expectedSecret = cronSecret ? `Bearer ${cronSecret}` : ''
 
