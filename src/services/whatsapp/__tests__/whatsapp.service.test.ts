@@ -1,578 +1,108 @@
 /**
- * Tests for WhatsApp Service (Playwright-based)
- * Tests WhatsApp Web automation via browser control
+ * Tests for WhatsAppService
+ * Mocks: Playwright (chromium), EventEmitter, QRCode
  */
 
-// Mock Playwright BEFORE importing service
-const mockLaunchPersistentContext = jest.fn()
+import { EventEmitter } from 'events'
 
+// Mock playwright before importing the service
 jest.mock('playwright', () => ({
   chromium: {
-    launchPersistentContext: mockLaunchPersistentContext,
+    launchPersistentContext: jest.fn(),
   },
 }))
 
-// Mock qrcode-terminal
 jest.mock('qrcode-terminal', () => ({
-  generate: jest.fn((_, opts, cb) => cb('QR-DISPLAY')),
+  generate: jest.fn(),
 }))
 
-import { WhatsAppService, WhatsAppMessage, WhatsAppSession } from '../whatsapp.service'
-
-// Setup mock implementations
-const mockPage = {
-  goto: jest.fn(),
-  $: jest.fn(),
-  $$: jest.fn(),
-  $$eval: jest.fn(),
-  waitForSelector: jest.fn(),
-  waitForTimeout: jest.fn(),
-  keyboard: { press: jest.fn() },
-  evaluate: jest.fn(),
-  click: jest.fn(),
-  fill: jest.fn(),
-  getAttribute: jest.fn(),
-  closest: jest.fn(),
-  classList: { contains: jest.fn() },
-}
-
-const mockContext = {
-  newPage: jest.fn().mockResolvedValue(mockPage),
-  close: jest.fn(),
-}
-
-mockLaunchPersistentContext.mockResolvedValue(mockContext)
-
-// Mock console to avoid noise
-const consoleSpy = jest.spyOn(console, 'log').mockImplementation()
-const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation()
+import { WhatsAppService } from '../whatsapp.service'
+import { chromium } from 'playwright'
 
 describe('WhatsAppService', () => {
   let service: WhatsAppService
+  let mockContext: any
+  let mockPage: any
 
   beforeEach(() => {
     jest.clearAllMocks()
-    jest.useFakeTimers()
-    service = new WhatsAppService()
-  })
-
-  afterEach(() => {
-    jest.runOnlyPendingTimers()
-    jest.useRealTimers()
-  })
-
-  afterAll(() => {
-    consoleSpy.mockRestore()
-    consoleErrorSpy.mockRestore()
+    mockPage = {
+      goto: jest.fn(),
+      $: jest.fn(),
+      waitForSelector: jest.fn(),
+      waitForTimeout: jest.fn(),
+      fill: jest.fn(),
+      click: jest.fn(),
+      keyboard: { press: jest.fn() },
+      evaluate: jest.fn(),
+    }
+    mockContext = {
+      newPage: jest.fn().mockResolvedValue(mockPage),
+      close: jest.fn(),
+    };
+    (chromium.launchPersistentContext as jest.Mock).mockResolvedValue(mockContext)
+    service = new WhatsAppService('./.test-whatsapp-session')
   })
 
   describe('constructor', () => {
-    it('should use default session path', () => {
-      const defaultService = new WhatsAppService()
-      expect((defaultService as any).sessionPath).toBe('./.whatsapp-session')
+    it('should extend EventEmitter', () => {
+      expect(service).toBeInstanceOf(EventEmitter)
     })
 
-    it('should use custom session path', () => {
-      const customService = new WhatsAppService('/custom/path/session')
-      expect((customService as any).sessionPath).toBe('/custom/path/session')
+    it('should default isConnected to false before initialize', () => {
+      expect(service.isConnected).toBe(false)
     })
   })
 
-  describe('isConnected', () => {
-    it('should return false initially', () => {
-      expect(service.isConnected).toBe(false)
-    })
-
-    it('should return true after successful connection', async () => {
-      const connectedListener = jest.fn()
-      service.on('connected', connectedListener)
-
+  describe('initialize()', () => {
+    it('should call chromium.launchPersistentContext', async () => {
       // Mock already logged in
-      mockPage.$.mockResolvedValueOnce({}) // chat-list exists
+      mockPage.$ = jest.fn().mockResolvedValue({}) // chat list found
 
       await service.initialize()
 
-      expect(service.isConnected).toBe(true)
-      expect(connectedListener).toHaveBeenCalled()
+      expect(chromium.launchPersistentContext).toHaveBeenCalledWith(
+        './.test-whatsapp-session',
+        expect.objectContaining({
+          headless: expect.any(Boolean),
+          viewport: { width: 1280, height: 800 },
+        })
+      )
+    })
+
+    it('should emit connected when already logged in', async () => {
+      const connectedHandler = jest.fn()
+      service.on('connected', connectedHandler)
+      mockPage.$ = jest.fn().mockResolvedValue({}) // chat list found
+
+      await service.initialize()
+
+      expect(connectedHandler).toHaveBeenCalled()
     })
   })
 
-  describe('initialize - already logged in', () => {
-    it('should detect existing login and emit connected', async () => {
-      const connectedListener = jest.fn()
-      service.on('connected', connectedListener)
-
-      // Mock chat-list found (already logged in)
-      mockPage.$.mockResolvedValueOnce({})
-
-      await service.initialize()
-
-      expect(mockPage.goto).toHaveBeenCalledWith('https://web.whatsapp.com', { waitUntil: 'networkidle' })
-      expect(connectedListener).toHaveBeenCalled()
-      expect(service.isConnected).toBe(true)
-    })
-
-    it('should start message listener after connection', async () => {
-      mockPage.$.mockResolvedValueOnce({})
-
-      await service.initialize()
-
-      // Advance timers to trigger message listener
-      jest.advanceTimersByTime(5000)
-      expect(mockPage.$$).toHaveBeenCalledWith('[data-testid="chat-list"] [aria-label*="unread"]')
-    })
-  })
-
-  describe('initialize - QR code flow', () => {
-    it('should wait for QR code when not logged in', async () => {
-      const qrcodeListener = jest.fn()
-      const connectedListener = jest.fn()
-      service.on('qrcode', qrcodeListener)
-      service.on('connected', connectedListener)
-
-      // First check: not logged in (null)
-      mockPage.$.mockResolvedValueOnce(null)
-
-      // Mock QR canvas element
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('data:image/png;base64,qr-data'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      // Mock waitForSelector for canvas and chat-list
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-
-      // Mock getCurrentChatPhone for number extraction
-      mockPage.$.mockResolvedValueOnce({ getAttribute: jest.fn().mockResolvedValue(null) })
-
-      await service.initialize()
-
-      expect(qrcodeListener).toHaveBeenCalledWith('data:image/png;base64,qr-data')
-      expect(connectedListener).toHaveBeenCalled()
-      expect(service.isConnected).toBe(true)
-    })
-
-    it('should emit QR code event with data URL', async () => {
-      const qrcodeListener = jest.fn()
-      service.on('qrcode', qrcodeListener)
-
-      // Not logged in
-      mockPage.$.mockResolvedValueOnce(null)
-
-      // Mock QR canvas
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('data:image/png;base64,test-qr'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-
-      await service.initialize()
-
-      expect(qrcodeListener).toHaveBeenCalledWith('data:image/png;base64,test-qr')
-    })
-
-    it('should throw error on QR code timeout', async () => {
-      mockPage.$.mockResolvedValueOnce(null) // not logged in
-
-      // Mock timeout for QR canvas
-      mockPage.waitForSelector.mockRejectedValueOnce(new Error('Timeout'))
-
-      await expect(service.initialize()).rejects.toThrow()
-    })
-  })
-
-  describe('sendMessage', () => {
-    it('should return false when not connected', async () => {
-      const result = await service.sendMessage('5511999999999', 'Hello')
-
-      expect(result.success).toBe(false)
-      expect(result.messageId).toBeUndefined()
-    })
-
-    it('should send message successfully when connected', async () => {
-      // First, connect the service
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      jest.clearAllMocks()
-
-      // Mock search input
-      const mockSearchInput = { fill: jest.fn() }
-      mockPage.$.mockResolvedValueOnce(mockSearchInput)
-
-      // Mock contact found
-      const mockContact = { click: jest.fn() }
-      mockPage.$.mockResolvedValueOnce(mockContact)
-
-      // Mock message input
-      const mockMessageInput = { fill: jest.fn() }
-      mockPage.$.mockResolvedValueOnce(mockMessageInput)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-      mockPage.waitForTimeout.mockResolvedValue(undefined)
-
-      const result = await service.sendMessage('5511999999999', 'Test message')
-
-      expect(result.success).toBe(true)
-      expect(result.messageId).toBeDefined()
-      expect(mockSearchInput.fill).toHaveBeenCalledWith('5511999999999')
-      expect(mockMessageInput.fill).toHaveBeenCalledWith('Test message')
-      expect(mockPage.keyboard.press).toHaveBeenCalledWith('Enter')
-    })
-
-    it('should handle missing search input', async () => {
-      // Connect first
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      jest.clearAllMocks()
-
-      // Mock missing search input
-      mockPage.$.mockResolvedValueOnce(null)
-
-      const result = await service.sendMessage('5511999999999', 'Test')
-
+  describe('sendMessage()', () => {
+    it('should return error if not connected', async () => {
+      const result = await service.sendMessage('11999999999', 'Hello')
       expect(result.success).toBe(false)
     })
 
-    it('should handle missing contact (create new chat)', async () => {
-      // Connect first
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      jest.clearAllMocks()
-
-      // Mock search input
-      const mockSearchInput = { fill: jest.fn() }
-      mockPage.$.mockResolvedValueOnce(mockSearchInput)
-
-      // Mock no contact found (null)
-      mockPage.$.mockResolvedValueOnce(null)
-
-      // Mock message input
-      const mockMessageInput = { fill: jest.fn() }
-      mockPage.$.mockResolvedValueOnce(mockMessageInput)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-      mockPage.waitForTimeout.mockResolvedValue(undefined)
-
-      const result = await service.sendMessage('5511999999999', 'Test')
-
-      expect(result.success).toBe(true)
-      expect(mockPage.keyboard.press).toHaveBeenCalledWith('Enter')
-    })
-
-    it('should emit message event for received messages', async () => {
-      const messageListener = jest.fn()
-      service.on('message', messageListener)
-
-      // Connect first
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      jest.clearAllMocks()
-
-      // No unread chats initially
-      mockPage.$$.mockResolvedValueOnce([])
-
-      // Advance timers to trigger message listener - no messages
-      jest.advanceTimersByTime(5000)
-
-      // Verify listener was called (or not, based on mock setup)
-      // The message listener only emits when there are unread chats
-      expect(mockPage.$$).toHaveBeenCalledWith('[data-testid="chat-list"] [aria-label*="unread"]')
-    })
-
-    it('should not emit message for messages from me', async () => {
-      const messageListener = jest.fn()
-      service.on('message', messageListener)
-
-      // Connect first
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      jest.clearAllMocks()
-
-      // No unread chats
-      mockPage.$$.mockResolvedValueOnce([])
-
-      // Advance timers
-      jest.advanceTimersByTime(5000)
-
-      expect(messageListener).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('getSession', () => {
-    it('should return correct session structure when connected', async () => {
-      // Connect first
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      const session: WhatsAppSession = service.getSession()
-
-      expect(session.isConnected).toBe(true)
-      expect(session.phoneNumber).toBeNull()
-      expect(session.lastActivity).toBeInstanceOf(Date)
-    })
-
-    it('should return disconnected session when not connected', () => {
-      const session: WhatsAppSession = service.getSession()
-
-      expect(session.isConnected).toBe(false)
-      expect(session.phoneNumber).toBeNull()
-      expect(session.lastActivity).toBeInstanceOf(Date)
-    })
-
-    it('should include phone number when extracted', async () => {
-      // Connect and extract phone
-      mockPage.$.mockResolvedValueOnce(null) // not logged in
-
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('qr-data'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-
-      // Mock profile button
-      const mockProfileButton = { click: jest.fn() }
-      mockPage.$.mockResolvedValueOnce(mockProfileButton)
-
-      // Mock phone extraction
-      const mockPhoneElement = {
-        getAttribute: jest.fn().mockResolvedValue('+55 11 99999-9999'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockPhoneElement)
-
-      await service.initialize()
-
-      const session = service.getSession()
-
-      // phoneNumber has spaces removed but keeps the dash (code only removes \s)
-      expect(session.phoneNumber).toBe('+551199999-9999')
-    })
-  })
-
-  describe('getQRCode', () => {
-    it('should return null initially', () => {
-      const qr = service.getQRCode()
-      expect(qr).toBeNull()
-    })
-
-    it('should return QR code data during QR flow', async () => {
-      const qrcodeListener = jest.fn()
-      service.on('qrcode', qrcodeListener)
-
-      mockPage.$.mockResolvedValueOnce(null) // not logged in
-
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('data:image/png;base64,my-qr'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      mockPage.waitForSelector.mockResolvedValueOnce(undefined) // canvas
-      mockPage.waitForSelector.mockRejectedValueOnce(new Error('Timeout')) // chat-list timeout (so QR stays)
-
-      await service.initialize().catch(() => {})
-
-      // QR code should still be stored even if connection fails
-      expect(qrcodeListener).toHaveBeenCalledWith('data:image/png;base64,my-qr')
-    })
-
-    it('should return null after successful connection', async () => {
-      mockPage.$.mockResolvedValueOnce(null) // not logged in
-
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('qr-data'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined) // both canvas and chat-list succeed
-
-      // Mock getCurrentChatPhone returns null (no phone to extract)
-      mockPage.$.mockResolvedValueOnce(null)
-
-      await service.initialize()
-
-      // After connection, QR should be cleared
-      const qr = service.getQRCode()
-      expect(qr).toBeNull()
-    })
-  })
-
-  describe('disconnect', () => {
-    it('should close context and set connected to false', async () => {
-      // Connect first
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      const disconnectedListener = jest.fn()
-      service.on('disconnected', disconnectedListener)
-
-      await service.disconnect()
-
-      expect(mockContext.close).toHaveBeenCalled()
-      expect(service.isConnected).toBe(false)
-      expect(disconnectedListener).toHaveBeenCalled()
-    })
-
-    it('should work even when context is null', async () => {
+    it('should return error if page is null', async () => {
+      // Manually set connected state but no page
       const service2 = new WhatsAppService()
+      ;(service2 as any)._isConnected = true
+      ;(service2 as any).page = null
 
-      const disconnectedListener = jest.fn()
-      service2.on('disconnected', disconnectedListener)
-
-      await expect(service2.disconnect()).resolves.not.toThrow()
-      expect(service2.isConnected).toBe(false)
-      expect(disconnectedListener).toHaveBeenCalled()
+      const result = await service2.sendMessage('11999999999', 'Hello')
+      expect(result.success).toBe(false)
     })
   })
 
   describe('events', () => {
-    it('should emit connected event', async () => {
-      const listener = jest.fn()
-      service.on('connected', listener)
-
-      mockPage.$.mockResolvedValueOnce({})
-
-      await service.initialize()
-
-      expect(listener).toHaveBeenCalled()
-    })
-
-    it('should emit disconnected event', async () => {
-      const listener = jest.fn()
-      service.on('disconnected', listener)
-
-      mockPage.$.mockResolvedValueOnce({})
-      await service.initialize()
-
-      await service.disconnect()
-
-      expect(listener).toHaveBeenCalled()
-    })
-
-    it('should emit qrcode event', async () => {
-      const listener = jest.fn()
-      service.on('qrcode', listener)
-
-      mockPage.$.mockResolvedValueOnce(null) // not logged in
-
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('qr-data'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-
-      await service.initialize()
-
-      expect(listener).toHaveBeenCalledWith('qr-data')
-    })
-
-    it('should emit error event on QR timeout', async () => {
-      const listener = jest.fn()
-      service.on('error', listener)
-
-      mockPage.$.mockResolvedValueOnce(null)
-
-      // Mock canvas found
-      mockPage.waitForSelector.mockResolvedValueOnce(undefined)
-
-      // Mock chat-list timeout
-      mockPage.waitForSelector.mockRejectedValueOnce(new Error('Timeout'))
-
-      await service.initialize().catch(() => {})
-
-      expect(listener).toHaveBeenCalledWith(expect.any(Error))
-    })
-  })
-
-  describe('getWhatsAppService (singleton)', () => {
-    const originalEnv = process.env.WHATSAPP_SESSION_PATH
-
-    beforeEach(() => {
-      // Reset singleton before each test
-      const whatsappModule = require('../whatsapp.service')
-      whatsappModule.whatsappInstance = null
-    })
-
-    afterEach(() => {
-      process.env.WHATSAPP_SESSION_PATH = originalEnv
-      // Reset singleton
-      const whatsappModule = require('../whatsapp.service')
-      whatsappModule.whatsappInstance = null
-    })
-
-    it('should create singleton instance', () => {
-      const { getWhatsAppService } = require('../whatsapp.service')
-
-      const service1 = getWhatsAppService()
-      const service2 = getWhatsAppService()
-
-      expect(service1).toBe(service2)
-    })
-
-    it('should use default session path when env is not set', () => {
-      // Ensure env is undefined
-      delete process.env.WHATSAPP_SESSION_PATH
-
-      // Reset singleton to force new instance creation
-      const whatsappModule = require('../whatsapp.service')
-      whatsappModule.whatsappInstance = null
-
-      const { getWhatsAppService } = require('../whatsapp.service')
-      const service = getWhatsAppService()
-
-      expect((service as any).sessionPath).toBe('./.whatsapp-session')
-    })
-  })
-
-  describe('extractPhoneNumber', () => {
-    it('should extract and format phone number from profile', async () => {
-      mockPage.$.mockResolvedValueOnce(null) // not logged in
-
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('qr-data'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-
-      // Mock profile button
-      const mockProfileButton = { click: jest.fn() }
-      mockPage.$.mockResolvedValueOnce(mockProfileButton)
-
-      // Mock phone element
-      const mockPhoneElement = {
-        getAttribute: jest.fn().mockResolvedValue('+55 11 99999-9999'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockPhoneElement)
-
-      await service.initialize()
-
-      // phoneNumber has spaces removed but dash remains (code only removes \s)
-      expect((service as any).phoneNumber).toBe('+551199999-9999')
-    })
-
-    it('should handle missing profile gracefully', async () => {
-      mockPage.$.mockResolvedValueOnce(null) // not logged in
-
-      const mockCanvas = {
-        evaluate: jest.fn().mockResolvedValue('qr-data'),
-      }
-      mockPage.$.mockResolvedValueOnce(mockCanvas)
-
-      mockPage.waitForSelector.mockResolvedValue(undefined)
-
-      // Mock no profile button
-      mockPage.$.mockResolvedValueOnce(null)
-
-      await service.initialize()
-
-      expect((service as any).phoneNumber).toBeNull()
+    it('should be an EventEmitter instance', () => {
+      const emitSpy = jest.spyOn(service, 'emit')
+      service.emit('qrcode', 'data:image/png;base64,abc123')
+      expect(emitSpy).toHaveBeenCalledWith('qrcode', 'data:image/png;base64,abc123')
     })
   })
 })

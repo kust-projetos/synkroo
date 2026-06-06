@@ -4,13 +4,24 @@ import { handleApiError } from '@/lib/errors'
 import { getLeadStats } from '@/services/leads/leads.service'
 import { getCampaigns } from '@/services/followup/campaign.service'
 import { createTypedClient } from '@/lib/supabase/typed'
+import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
  * GET /api/crm/stats
  * Cross-module CRM stats for hub page
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // Rate limit CRM stats endpoint
+    const clientId = getClientIdentifier(request as any)
+    const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
+    }
+
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json(
