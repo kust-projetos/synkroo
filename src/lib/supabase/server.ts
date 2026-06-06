@@ -1,17 +1,38 @@
 import { createServerClient } from '@supabase/ssr'
-import type { SupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 import type { Database } from './database.types'
+
+/**
+ * User profile with clinic info
+ * Used throughout the app for auth context
+ */
+export interface UserProfile {
+  id: string
+  email: string
+  name: string
+  role: string
+  phone: string | null
+  avatar_url: string | null
+  is_active: boolean
+  clinic_id: string
+  clinics: {
+    id: string
+    name: string
+    slug: string
+    phone: string | null
+    email: string | null
+    settings: Record<string, unknown> | null
+  } | null
+}
 
 /**
  * Create Supabase client for Server Components
  * Uses cookies for session management.
  *
  * NOTE: @supabase/ssr's createServerClient has a broken type import for
- * GenericSchema (it imports from a path that doesn't exist in this version
- * of supabase-js), which collapses the Schema type to `never` on the
- * returned SupabaseClient. We re-cast to the proper typed SupabaseClient
- * so call sites get correct Row/Insert/Update inference.
+ * GenericSchema — the returned client has type `never` for Schema.
+ * We cast to `any` as a known workaround; call sites use Database types
+ * explicitly where needed.
  */
 export async function createClient(): Promise<any> {
   const cookieStore = await cookies()
@@ -97,14 +118,14 @@ export async function getUserProfile() {
       )
     `)
     .eq('id', user.id)
-    .single() as { data: Record<string, any> | null; error: any }
+    .single() as { data: UserProfile | null; error: any }
 
   if (error) {
     console.error('Error getting user profile:', error)
     return null
   }
 
-  return profile as Record<string, any>
+  return profile as UserProfile
 }
 
 /**
@@ -189,7 +210,7 @@ export async function validateApiAuth(): Promise<AuthResult> {
     return {
       success: true,
       user: { id: profile.id, email: profile.email },
-      profile: profile as any,
+      profile: profile as UserProfile,
     }
   } catch (error) {
     return {
