@@ -84,7 +84,7 @@ export async function getCurrentClinicId(): Promise<string | null> {
   const user = await getCurrentUser()
   if (!user) return null
 
-  const { data: profile, error } = await (supabase as any)
+  const { data: profile, error } = await supabase
     .from('users')
     .select('clinic_id')
     .eq('id', user.id)

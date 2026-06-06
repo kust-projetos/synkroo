@@ -66,13 +66,13 @@ export async function storeMessage(
   content: string,
   metadata?: Record<string, unknown>
 ): Promise<string> {
-  const { data, error } = await (supabaseAdmin as any)
+  const { data, error } = await supabaseAdmin
     .from('messages')
     .insert({
       conversation_id: conversationId,
       direction,
       content,
-      metadata,
+      metadata: metadata as any,
     })
     .select('id')
     .single()
@@ -133,7 +133,7 @@ export async function getAvailableSlots(
  * Get clinic configuration
  */
 export async function getClinicConfig(clinicId: string) {
-  const { data, error } = await (supabaseAdmin as any)
+  const { data, error } = await supabaseAdmin
     .from('clinics')
     .select('*')
     .eq('id', clinicId)
@@ -152,7 +152,7 @@ export async function searchKnowledgeBase(
 ): Promise<Array<{ question: string; answer: string; relevance: number }>> {
   // Using simple text search for now
   // Could be enhanced with vector similarity search
-  const { data, error } = await (supabaseAdmin as any)
+  const { data, error } = await supabaseAdmin
     .from('knowledge_base')
     .select('question, answer, keywords')
     .eq('clinic_id', clinicId)
