@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth, createClient } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
+import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
  * GET /api/conversations
@@ -8,6 +9,15 @@ import { handleApiError } from '@/lib/errors'
  */
 export async function GET(request: NextRequest) {
   try {
+    const clientId = getClientIdentifier(request)
+    const rateLimit = checkRateLimit(clientId, rateLimitPresets.messages)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
+    }
+
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
