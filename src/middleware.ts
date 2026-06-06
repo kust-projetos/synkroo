@@ -51,7 +51,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Public paths that don't require authentication
-  const publicPaths = [
+  const publicPaths: string[] = [
     '/login',
     '/signup',
     '/auth/callback',
@@ -63,8 +63,11 @@ export async function middleware(request: NextRequest) {
     '/api/messages',
     '/api/agent',
     '/api/cron', // Cron endpoints use CRON_SECRET for auth
-    '/api/seed', // Seed endpoints use secret param for auth
   ]
+  // Seed route is only public in development (requires SEED_SECRET in production)
+  if (process.env.NODE_ENV === 'development') {
+    publicPaths.push('/api/seed')
+  }
 
   const pathname = request.nextUrl.pathname
   const isPublicPath = pathname === '/' || publicPaths.some(path =>
