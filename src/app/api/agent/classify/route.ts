@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getLLMProvider } from '@/lib/llm'
 import { aiLogger } from '@/lib/logger'
 import { validateApiAuth } from '@/lib/supabase/server'
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  rateLimitPresets,
+  createRateLimitHeaders,
+} from '@/lib/rate-limit'
 
 /**
  * POST /api/agent/classify
@@ -9,6 +15,25 @@ import { validateApiAuth } from '@/lib/supabase/server'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limiting
+    const clientId = getClientIdentifier(request)
+    const rateLimit = checkRateLimit(clientId, {
+      ...rateLimitPresets.messages,
+      keyPrefix: 'agent-classify',
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(rateLimit.retryAfter),
+            ...createRateLimitHeaders(rateLimit.remaining, rateLimit.resetTime, rateLimitPresets.messages.maxRequests),
+          },
+        }
+      )
+    }
+
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
