@@ -85,24 +85,33 @@ export function getEnv(): Env {
       .map((i) => i.path.join('.'))
       .join(', ')
 
-    // In development, warn instead of crash
-    if (process.env.NODE_ENV === 'development') {
+    // Warn in development but still throw for critical vars
+    // Empty strings for required vars (SUPABASE_URL, SERVICE_ROLE_KEY, JWT_SECRET)
+    // would cause silent connection failures — fail fast always.
+    const criticalVars = ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET']
+    const hasCriticalMissing = criticalVars.some(c =>
+      result.error.issues.some(i => i.path.join('.') === c && i.message.includes('string'))
+    )
+
+    if (process.env.NODE_ENV === 'development' && !hasCriticalMissing) {
       console.warn(
         `[ENV] Missing or invalid env vars: ${missing}. ` +
         `Some features may not work. Fix your .env.local file.`
       )
-      // Return partial with defaults for dev
-      _env = {
-        NODE_ENV: 'development',
+      // In dev, allow app to start with missing optional vars but NOT critical ones
+      // Merge validated data with env vars (using actual values, not empty defaults)
+      const partial = {
+        NODE_ENV: (process.env.NODE_ENV || 'development') as Env['NODE_ENV'],
         NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
         NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
         SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
         JWT_SECRET: process.env.JWT_SECRET || '',
         MINIMAX_API_KEY: process.env.MINIMAX_API_KEY || '',
-        WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || 'dev-only-token',
-        WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET || 'dev-only-secret',
+        WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || '',
+        WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET || '',
         EVOLUTION_INSTANCE_NAME: 'synkroo',
-      } as Env
+      }
+      _env = partial as Env
       return _env
     }
 
