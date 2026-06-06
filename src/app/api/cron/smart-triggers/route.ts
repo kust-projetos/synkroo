@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { dbLogger } from '@/lib/logger'
 import { handleApiError } from '@/lib/errors'
 
@@ -12,10 +13,14 @@ import { handleApiError } from '@/lib/errors'
 export async function POST(request: NextRequest) {
   try {
     // Verify cron secret
-    const authHeader = request.headers.get('authorization')
+    const authHeader = request.headers.get('authorization') || ''
     const cronSecret = process.env.CRON_SECRET
+    const expectedSecret = cronSecret ? `Bearer ${cronSecret}` : ''
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    if (cronSecret && (
+      authHeader.length !== expectedSecret.length ||
+      !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedSecret))
+    )) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
