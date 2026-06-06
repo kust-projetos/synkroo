@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { processAllReminders } from '@/services/reminders/reminder.service'
 import { handleApiError } from '@/lib/errors'
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
  * POST /api/cron/reminders
@@ -14,6 +15,15 @@ import { handleApiError } from '@/lib/errors'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit cron endpoints
+    const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
+    }
+
     // Verify cron secret for security
     const cronSecret = request.headers.get('Authorization') || ''
     const expectedSecret = `Bearer ${process.env.CRON_SECRET}`

@@ -5,6 +5,7 @@ import { runInactivityDetection } from '@/services/followup/inactive-patient.ser
 import { processScheduledCampaigns } from '@/services/followup/campaign.service'
 import { checkAllClinicsHotLeads } from '@/services/leads/lead-notification.service'
 import { handleApiError } from '@/lib/errors'
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
  * POST /api/cron/followups
@@ -20,6 +21,18 @@ import { handleApiError } from '@/lib/errors'
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit cron endpoints (authenticated but protect against misconfiguration)
+    const rateLimit = checkRateLimit('cron', {
+      ...rateLimitPresets.cron,
+      maxRequests: 30,
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
+    }
+
     // Verify cron secret for security
     const cronSecret = request.headers.get('Authorization') || ''
     const expectedSecret = `Bearer ${process.env.CRON_SECRET}`

@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { createServerClient } from '@/lib/supabase'
 import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
+import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 import type { Message } from '@/lib/supabase/database.types'
 
 /**
@@ -40,6 +41,19 @@ interface InboundMessage {
  */
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit by webhook source IP or clinic
+    const clientId = getClientIdentifier(request)
+    const rateLimit = checkRateLimit(clientId, {
+      ...rateLimitPresets.webhook,
+      maxRequests: 120, // Higher limit for inbound webhooks
+    })
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
+    }
+
     // Verify webhook secret
     if (!verifyWebhookSecret(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
