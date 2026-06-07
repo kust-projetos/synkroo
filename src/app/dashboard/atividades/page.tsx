@@ -39,7 +39,7 @@ const SOURCE_OPTIONS = [
 
 export default function AtividadesPage() {
   const [sourceFilter, setSourceFilter] = useState('')
-  const [contactFilter, setContactFilter] = useState('')
+  const [contactFilter, setContactFilter] = useState('all')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -47,7 +47,7 @@ export default function AtividadesPage() {
   const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage, isError, refetch } =
     useAllActivities({
       sourceFilter: sourceFilter || undefined,
-      contactId: contactFilter || undefined,
+      contactId: contactFilter === 'all' ? undefined : contactFilter || undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
     })
@@ -136,7 +136,7 @@ export default function AtividadesPage() {
                   <SelectValue placeholder="Filtrar por lead/contato" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todos os contatos</SelectItem>
+                  <SelectItem value="all">Todos os contatos</SelectItem>
                   {/* Contact options would be loaded from API if needed */}
                 </SelectContent>
               </Select>

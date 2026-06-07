@@ -20,6 +20,7 @@ import { ConsentSection } from './consent-section'
 import { MessageBubble } from '@/components/whatsapp/message-bubble'
 import { MessageComposer } from '@/components/whatsapp/message-composer'
 import { useWhatsAppMessages } from '@/lib/hooks/use-whatsapp-messages'
+import { getContactOwnershipCopy } from '@/lib/domain-boundaries'
 
 interface ContactDetailPanelProps {
   contactId?: string | null
@@ -118,6 +119,8 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
     }
   }
 
+  const ownershipCopy = getContactOwnershipCopy(contact.type)
+
   return (
     <div className="flex flex-col h-full bg-card">
       <div className="p-4 border-b border-border">
@@ -136,6 +139,11 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
               <ArchiveBoxIcon className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+
+        <div className="mb-4 rounded-lg border border-sky-200/70 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/20">
+          <p className="text-sm font-semibold text-sky-700 dark:text-sky-300">{ownershipCopy.title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{ownershipCopy.description}</p>
         </div>
 
         {isEditing ? (
