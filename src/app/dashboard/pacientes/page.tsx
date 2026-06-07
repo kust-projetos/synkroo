@@ -12,6 +12,7 @@ import { SearchInput } from '@/components/ui/search-input'
 import { DataTable, type Column } from '@/components/ui/data-table'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Badge } from '@/components/ui/badge'
+import { patientDomainBoundary } from '@/lib/domain-boundaries'
 
 interface PatientWithAppointments extends Patient {
   appointments?: Array<{
@@ -146,8 +147,8 @@ export default function PatientsPage() {
   return (
     <div className="p-4 lg:p-8 space-y-6">
       <PageHeader
-        title="Pacientes"
-        description="Gerencie os pacientes da clínica"
+        title={patientDomainBoundary.title}
+        description={patientDomainBoundary.description}
         action={
           <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
             <Link href="/dashboard/pacientes/novo">

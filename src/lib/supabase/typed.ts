@@ -18,6 +18,8 @@ const isBrowser = typeof window !== 'undefined'
  * Typed Supabase client that respects RLS
  * Uses anon key for browser-side row-level security
  */
+// Supabase SSR generic schema limitation: createServerClient returns Schema type 'never'
+// We use the properly typed client directly for all typed operations.
 export type TypedSupabaseClient = ReturnType<typeof createBrowserClient<Database>> | any
 
 /**

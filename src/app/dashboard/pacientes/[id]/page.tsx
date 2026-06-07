@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Patient, Appointment } from '@/lib/supabase/database.types'
+import { patientDomainBoundary, relationshipDomainBoundary } from '@/lib/domain-boundaries'
 
 interface PatientWithDetails extends Patient {
   appointments?: Array<Appointment & {
@@ -156,6 +157,15 @@ export default function PatientDetailPage() {
       backHref="/dashboard/pacientes"
       actions={actions}
     >
+      <div className="rounded-lg border border-teal-200/60 bg-teal-50/50 p-4 dark:border-teal-900 dark:bg-teal-950/20">
+        <p className="text-sm font-semibold text-teal-700 dark:text-teal-300">
+          {patientDomainBoundary.title}
+        </p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {patientDomainBoundary.description}
+        </p>
+      </div>
+
       <Tabs defaultValue="info" className="w-full">
         <TabsList>
           <TabsTrigger value="info">Informações</TabsTrigger>
@@ -224,6 +234,15 @@ export default function PatientDetailPage() {
                 <p className="text-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-lg">{patient.notes}</p>
               </div>
             )}
+
+            <div className="mt-6 rounded-lg border border-teal-200/60 bg-teal-50/50 p-4 dark:border-teal-900 dark:bg-teal-950/20">
+              <p className="text-sm font-semibold text-teal-700 dark:text-teal-300">
+                {relationshipDomainBoundary.title}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {relationshipDomainBoundary.description}
+              </p>
+            </div>
           </Card>
         </TabsContent>
 
