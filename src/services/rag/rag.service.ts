@@ -1,11 +1,13 @@
 /**
  * RAG Service for Synkroo Agent
  * Provides Retrieval-Augmented Generation capabilities
+ * Migrated from Supabase to Drizzle repositories
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
 import { embeddingService, EmbeddingService } from './embedding.service'
 import { dbLogger } from '@/lib/logger'
+import * as knowledgeRepo from '@/repositories/knowledge'
+import * as memoryRepo from '@/repositories/memory'
 
 export interface KnowledgeResult {
   id: string
@@ -18,7 +20,7 @@ export interface KnowledgeResult {
 export interface MemoryResult {
   id: string
   conversationId: string
-  patientId: string | null
+  patientId: string | undefined
   content: string
   contentType: string
   similarity: number
@@ -36,12 +38,6 @@ export interface RAGContext {
  * Handles semantic search and context retrieval for the AI agent
  */
 export class RAGService {
-  private serverClient: Promise<import('@/lib/supabase/typed').TypedSupabaseClient>
-
-  constructor() {
-    this.serverClient = createTypedClient()
-  }
-
   /**
    * Get relevant context for a query
    */
@@ -63,13 +59,10 @@ export class RAGService {
       maxMemories = 10,
     } = options
 
-    // Generate embedding for query
-    const { embedding } = await embeddingService.generateEmbedding(query)
-
     // Run searches in parallel
     const [knowledge, memories] = await Promise.all([
-      this.searchKnowledgeBase(embedding, clinicId, knowledgeThreshold, maxKnowledge),
-      this.searchMemories(embedding, clinicId, patientId, memoryThreshold, maxMemories),
+      this.searchKnowledgeBase(query, clinicId, knowledgeThreshold, maxKnowledge),
+      this.searchMemories(query, clinicId, patientId, memoryThreshold, maxMemories),
     ])
 
     // Build combined context string
@@ -83,61 +76,44 @@ export class RAGService {
   }
 
   /**
-   * Search knowledge base with semantic similarity
+   * Search knowledge base (keyword fallback when vector search unavailable)
    */
   async searchKnowledgeBase(
-    embedding: number[],
+    query: string,
     clinicId: string,
-    threshold: number = 0.7,
-    limit: number = 5
+    threshold = 0.7,
+    limit = 5
   ): Promise<KnowledgeResult[]> {
     try {
-      const { data, error } = await (await this.serverClient).rpc('search_knowledge_base', {
-        query_embedding: embedding,
-        p_clinic_id: clinicId,
-        match_threshold: threshold,
-        match_count: limit,
-      } as any) as any
-
-      if (error) {
-        dbLogger.error('Knowledge base search error', error)
-        return []
-      }
-
-      return data || []
+      const results = await knowledgeRepo.searchKnowledgeBase(clinicId, query, limit)
+      return results.map(r => ({
+        id: r.id,
+        category: r.category,
+        question: r.question,
+        answer: r.answer,
+        similarity: r.relevance >= threshold ? r.relevance : 0,
+      })).filter(r => r.similarity > 0)
     } catch (error) {
-      dbLogger.error('Knowledge base search failed', error)
+      dbLogger.error('Knowledge base search error', error)
       return []
     }
   }
 
   /**
-   * Search conversation memories with semantic similarity
+   * Search conversation memories (keyword fallback when vector search unavailable)
    */
   async searchMemories(
-    embedding: number[],
+    query: string,
     clinicId: string,
     patientId?: string,
-    threshold: number = 0.6,
-    limit: number = 10
+    threshold = 0.6,
+    limit = 10
   ): Promise<MemoryResult[]> {
     try {
-      const { data, error } = await (await this.serverClient).rpc('search_conversation_memories', {
-        query_embedding: embedding,
-        p_clinic_id: clinicId,
-        p_patient_id: patientId || null,
-        match_threshold: threshold,
-        match_count: limit,
-      } as any) as any
-
-      if (error) {
-        dbLogger.error('Memory search error', error)
-        return []
-      }
-
-      return data || []
+      const results = await memoryRepo.searchMemories(clinicId, query, patientId, limit)
+      return results.filter(r => r.similarity >= threshold)
     } catch (error) {
-      dbLogger.error('Memory search failed', error)
+      dbLogger.error('Memory search error', error)
       return []
     }
   }
@@ -158,22 +134,14 @@ export class RAGService {
       // Generate embedding
       const { embedding } = await embeddingService.generateEmbedding(content)
 
-      // Store with embedding
-      const { data, error } = await (await this.serverClient).rpc('store_message_with_embedding', {
-        p_conversation_id: conversationId,
-        p_direction: direction,
-        p_content: content,
-        p_embedding: embedding,
-        p_intent: options.intent || null,
-        p_entities: options.entities || {},
-      } as any) as any
-
-      if (error) {
-        dbLogger.error('Store message with embedding error', error)
-        return null
-      }
-
-      return data
+      return await memoryRepo.storeMessageWithEmbedding({
+        conversationId,
+        direction,
+        content,
+        embedding,
+        intent: options.intent || null,
+        entities: options.entities || {},
+      })
     } catch (error) {
       dbLogger.error('Store message with embedding failed', error)
       return null
@@ -188,21 +156,7 @@ export class RAGService {
     summary: string
   ): Promise<string | null> {
     try {
-      // Generate embedding for summary
-      const { embedding } = await embeddingService.generateEmbedding(summary)
-
-      const { data, error } = await (await this.serverClient).rpc('summarize_conversation', {
-        p_conversation_id: conversationId,
-        p_summary: summary,
-        p_embedding: embedding,
-      } as any) as any
-
-      if (error) {
-        dbLogger.error('Store summary error', error)
-        return null
-      }
-
-      return data
+      return await memoryRepo.storeSummary(conversationId, summary)
     } catch (error) {
       dbLogger.error('Store summary failed', error)
       return null
@@ -220,29 +174,14 @@ export class RAGService {
     keywords: string[] = []
   ): Promise<string | null> {
     try {
-      // Generate embedding from question + answer
-      const text = `${question}\n${answer}`
-      const { embedding } = await embeddingService.generateEmbedding(text)
-
-      const { data, error } = await ((await this.serverClient).from('knowledge_base') as any)
-        .insert({
-          clinic_id: clinicId,
-          category,
-          question,
-          answer,
-          keywords,
-          embedding,
-          is_active: true,
-        })
-        .select('id')
-        .single()
-
-      if (error) {
-        dbLogger.error('Add knowledge entry error', error)
-        return null
-      }
-
-      return data.id
+      const entry = await knowledgeRepo.createKnowledgeEntry({
+        clinicId,
+        category,
+        question,
+        answer,
+        keywords,
+      })
+      return entry.id
     } catch (error) {
       dbLogger.error('Add knowledge entry failed', error)
       return null
@@ -277,12 +216,12 @@ export class RAGService {
   }
 
   /**
-   * Get embedding dimension
+   * Get embedding dimension for text-embedding-3-small (1536)
    */
-  static getEmbeddingDimension(): number {
+  getEmbeddingDimension(): number {
     return 1536
   }
 }
 
-// Singleton instance
+// Singleton
 export const ragService = new RAGService()

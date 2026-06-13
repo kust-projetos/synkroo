@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { validateTemplate, type ReminderConfigPerProcedure } from '@/services/reminders/procedure-reminder-config.service'
+import { validateTemplate, type ReminderConfigPerProcedure } from './reminder-config-types'
 
 interface ProcedureType {
   id: string

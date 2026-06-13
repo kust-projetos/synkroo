@@ -1,17 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
+import { eq, and, inArray } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
+import { handleApiError, ValidationError, DatabaseError, NotFoundError } from '@/lib/errors'
 import { updatePatientSchema } from '@/lib/validations'
+import * as patientRepo from '@/repositories/patients'
+import * as appointmentRepo from '@/repositories/appointments'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
+/** Map patient repo row to API snake_case shape */
+function toApiShape(patient: NonNullable<Awaited<ReturnType<typeof patientRepo.findByIdWithAppointments>>>) {
+  const { appointments: apts, ...rest } = patient
+  return {
+    ...rest,
+    clinic_id: rest.clinicId,
+    birth_date: rest.birthDate,
+    last_visit_at: rest.lastVisitAt,
+    created_at: rest.createdAt,
+    risk_score: rest.riskScore,
+    tags: rest.tags || [],
+    appointments: (apts || []).map(a => ({
+      id: a.id,
+      scheduled_at: a.scheduledAt,
+      duration_minutes: a.durationMinutes,
+      status: a.status,
+      notes: a.notes,
+      procedures: null,
+      dentists: null,
+    })),
+  }
+}
+
 /**
  * GET /api/patients/[id]
- * Get a specific patient by ID
+ * Get a specific patient by ID with appointment history
  */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
@@ -27,35 +52,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Patient ID is required' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const patient = await patientRepo.findByIdWithAppointments(id, clinicId)
 
-    // Get patient with appointment history (scoped to user's clinic)
-    const { data: patient, error } = await supabase
-      .from('patients')
-      .select(`
-        *,
-        appointments (
-          id,
-          scheduled_at,
-          duration_minutes,
-          status,
-          notes,
-          procedures (name),
-          dentists (name)
-        )
-      `)
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
-      }
-      return handleApiError(new DatabaseError('Failed to fetch patient', error))
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ patient })
+    return NextResponse.json({ patient: toApiShape(patient) })
   } catch (error) {
     return handleApiError(error)
   }
@@ -82,16 +85,8 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const rawBody = await request.json()
     const { name, phone, email, cpf, birth_date, notes, tags } = updatePatientSchema.parse(rawBody)
 
-    const supabase = await createClient()
-
     // Verify patient belongs to user's clinic before updating
-    const { data: existing } = await supabase
-      .from('patients')
-      .select('id')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
+    const existing = await patientRepo.findByIdScoped(id, clinicId)
     if (!existing) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
@@ -105,26 +100,33 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
     if (email !== undefined) updateData.email = email?.trim() || null
     if (cpf !== undefined) updateData.cpf = cpf?.replace(/\D/g, '') || null
-    if (birth_date !== undefined) updateData.birth_date = birth_date || null
+    if (birth_date !== undefined) updateData.birthDate = birth_date || null
     if (notes !== undefined) updateData.notes = notes?.trim() || null
     if (tags !== undefined) updateData.tags = tags
 
-    const { data: patient, error } = await (supabase
-      .from('patients') as any)
-      .update(updateData)
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
-      }
-      return handleApiError(new DatabaseError('Failed to update patient', error))
+    const updated = await patientRepo.update(id, updateData as Parameters<typeof patientRepo.update>[1])
+    if (!updated) {
+      return handleApiError(new NotFoundError('Patient'))
     }
 
-    return NextResponse.json({ patient })
+    // Return snake_case shape matching original contract
+    return NextResponse.json({
+      patient: {
+        id: updated.id,
+        clinic_id: updated.clinicId,
+        name: updated.name,
+        phone: updated.phone,
+        email: updated.email,
+        cpf: updated.cpf,
+        birth_date: updated.birthDate,
+        gender: updated.gender,
+        notes: updated.notes,
+        tags: updated.tags || [],
+        risk_score: updated.riskScore,
+        last_visit_at: updated.lastVisitAt,
+        created_at: updated.createdAt,
+      },
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
@@ -135,8 +137,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
 /**
  * DELETE /api/patients/[id]
- * Soft delete a patient (set is_active = false or similar)
- * Note: For this implementation, we'll archive by clearing sensitive data
+ * Soft delete a patient (anonymize sensitive data)
  */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
@@ -152,29 +153,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Patient ID is required' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
     // Verify patient belongs to user's clinic before deleting
-    const { data: existing } = await supabase
-      .from('patients')
-      .select('id')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
+    const existing = await patientRepo.findByIdScoped(id, clinicId)
     if (!existing) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
 
     // Check if patient has active appointments
-    const { data: activeAppointments } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('patient_id', id)
-      .in('status', ['scheduled', 'confirmed', 'in_progress'])
-      .limit(1)
-
-    if (activeAppointments && activeAppointments.length > 0) {
+    const activeApts = await appointmentRepo.findByPatient(clinicId, id, { limit: 1 })
+    const hasActive = activeApts.some(a => ['scheduled', 'confirmed', 'in_progress'].includes(a.status))
+    if (hasActive) {
       return NextResponse.json(
         { error: 'Cannot delete patient with active appointments. Cancel appointments first.' },
         { status: 400 }
@@ -182,21 +170,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Soft delete by anonymizing sensitive data
-    const { error } = await (supabase
-      .from('patients') as any)
-      .update({
-        name: '[Deleted Patient]',
-        phone: '00000000000',
-        email: null,
-        cpf: null,
-        notes: null,
-      })
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-
-    if (error) {
-      return handleApiError(new DatabaseError('Failed to delete patient', error))
-    }
+    await patientRepo.softDelete(id)
 
     return NextResponse.json({ success: true, message: 'Patient deleted successfully' })
   } catch (error) {

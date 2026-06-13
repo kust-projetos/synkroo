@@ -1,26 +1,15 @@
 /**
  * Tests for Leads Service
- * Mocks: Supabase client (createTypedClient)
+ * Migrated from Supabase to Drizzle
+ * Pure function tests (no DB needed) + mocked repository tests
  */
 
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn().mockResolvedValue({
-    from: jest.fn().mockReturnValue({
-      select: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          order: jest.fn().mockReturnValue({
-            range: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        }),
-      }),
-      insert: jest.fn().mockReturnValue({
-        select: jest.fn().mockReturnValue({ single: jest.fn() }),
-      }),
-      update: jest.fn().mockReturnValue({
-        eq: jest.fn().mockResolvedValue({ data: null, error: null }),
-      }),
-    }),
-  }),
+jest.mock('@/lib/db/client', () => ({
+  getDb: jest.fn(),
+}))
+
+jest.mock('@/lib/logger', () => ({
+  dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
 import {
@@ -86,6 +75,35 @@ describe('Leads Service', () => {
       })
       expect(typeof result.recommendation).toBe('string')
     })
+
+    it('should cap score at 100', () => {
+      const result = calculateLeadScore({
+        source: 'referral',
+        hasPhone: true,
+        hasEmail: true,
+        expressedInterest: true,
+        hasBudget: true,
+        hasTimeline: true,
+        respondedToFollowup: true,
+        previousPatient: true,
+      })
+      expect(result.score).toBeLessThanOrEqual(100)
+    })
+
+    it('should give 20 points for referral source', () => {
+      const result = calculateLeadScore({
+        source: 'referral',
+        hasPhone: false,
+        hasEmail: false,
+        expressedInterest: false,
+        hasBudget: null,
+        hasTimeline: null,
+        respondedToFollowup: false,
+        previousPatient: false,
+      })
+      const sourceFactor = result.factors.find(f => f.name === 'source')
+      expect(sourceFactor?.points).toBe(20)
+    })
   })
 
   describe('getTemperatureFromScore()', () => {
@@ -102,6 +120,10 @@ describe('Leads Service', () => {
     it('should return cold for score < 40', () => {
       expect(getTemperatureFromScore(30)).toBe('cold')
       expect(getTemperatureFromScore(0)).toBe('cold')
+    })
+
+    it('should return hot for score 100', () => {
+      expect(getTemperatureFromScore(100)).toBe('hot')
     })
   })
 })

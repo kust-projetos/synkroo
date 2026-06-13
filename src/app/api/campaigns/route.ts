@@ -6,7 +6,7 @@ import {
   createReactivationCampaign,
 } from '@/services/followup/campaign.service'
 import { getInactivityStats } from '@/services/followup/inactive-patient.service'
-import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
 import { createCampaignSchema } from '@/lib/validations'
 import { handleApiError, ValidationError } from '@/lib/errors'
 

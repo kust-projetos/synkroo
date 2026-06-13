@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import {
   getTreatmentPlanById,
   updateTreatmentPlan,

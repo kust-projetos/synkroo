@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { eq, and } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
-import { reactivateAppointment } from '@/services/appointments/appointment-actions.service'
+import { getDb } from '@/lib/db/client'
+import { appointments } from '@/lib/db/schema'
+import * as appointmentRepo from '@/repositories/appointments'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-/**
- * POST /api/appointments/[id]/reactivate
- * Reactivate a cancelled appointment back to scheduled
- */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth()
@@ -19,32 +17,22 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
     const clinicId = authResult.profile!.clinic_id
-
     const { id } = await params
 
-    if (!id) {
-      return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 })
-    }
-
-    // Verify appointment belongs to user's clinic
-    const supabase = await createClient()
-    const { data: appointment } = await supabase
-      .from('appointments')
-      .select('id')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (!appointment) {
+    const db = getDb()
+    const [appt] = await db
+      .select({ id: appointments.id, status: appointments.status })
+      .from(appointments)
+      .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
+      .limit(1)
+    if (!appt) {
       return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
     }
-
-    const result = await reactivateAppointment(id)
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 })
+    if (appt.status !== 'cancelled') {
+      return NextResponse.json({ error: 'Only cancelled appointments can be reactivated' }, { status: 400 })
     }
 
+    await appointmentRepo.updateStatus(id, 'scheduled')
     return NextResponse.json({ success: true })
   } catch (error) {
     return handleApiError(error)

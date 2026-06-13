@@ -101,7 +101,7 @@ export async function PUT(
       .single()
 
     if (error) {
-      return handleApiError(new DatabaseError('Failed to update entry', error))
+      return handleApiError(new DatabaseError('Failed to update entry', error as any))
     }
 
     return NextResponse.json({ success: true, data })
@@ -138,7 +138,7 @@ export async function DELETE(
       .eq('clinic_id', clinicId)
 
     if (error) {
-      return handleApiError(new DatabaseError('Failed to delete entry', error))
+      return handleApiError(new DatabaseError('Failed to delete entry', error as any))
     }
 
     return NextResponse.json({ success: true })

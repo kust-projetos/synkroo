@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import { embeddingService } from '@/services/rag'
-import { handleApiError, DatabaseError } from '@/lib/errors'
+import { handleApiError } from '@/lib/errors'
+import { searchKnowledgeBase } from '@/repositories/knowledge'
 
 /**
  * POST /api/knowledge/search
- * Semantic search in knowledge base using RAG
+ * Search knowledge base using keyword matching
+ * (Vector similarity search requires pgvector integration)
  */
 export async function POST(request: NextRequest) {
   try {
@@ -29,26 +29,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generate embedding for query
-    const { embedding } = await embeddingService.generateEmbedding(query)
+    const results = await searchKnowledgeBase(
+      clinicId,
+      query,
+      limit || 5
+    )
 
-    // Search using RPC function
-    const supabase = await createClient()
-    const { data, error } = await (supabase as any).rpc('search_knowledge_base', {
-      query_embedding: embedding,
-      p_clinic_id: clinicId,
-      match_threshold: threshold || 0.7,
-      match_count: limit || 5,
-    })
-
-    if (error) {
-      return handleApiError(new DatabaseError('Search failed', error))
-    }
+    const filtered = threshold
+      ? results.filter(r => r.relevance >= threshold)
+      : results
 
     return NextResponse.json({
       query,
-      results: data || [],
-      count: data?.length || 0,
+      results: filtered,
+      count: filtered.length,
     })
   } catch (error) {
     return handleApiError(error)

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { addCampaignRecipients, startCampaign } from '@/services/followup/campaign.service'
+import { addCampaignRecipients } from '@/services/followup/campaign.service'
 import { getPatientsForReactivation } from '@/services/followup/inactive-patient.service'
-import { validateApiAuth, hasRequiredRole, createClient } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
 import { handleApiError, ValidationError } from '@/lib/errors'
+import * as campaignRepo from '@/repositories/campaigns'
 
 /**
  * POST /api/campaigns/[id]/recipients
@@ -17,7 +18,6 @@ export async function POST(
     const { id: campaignId } = await params
     const body = await request.json()
 
-    // Validate authentication
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json(
@@ -26,7 +26,6 @@ export async function POST(
       )
     }
 
-    // Only owner and admin can add recipients
     if (!hasRequiredRole(authResult.profile!, ['owner', 'admin'])) {
       return NextResponse.json(
         { error: 'Only owners and admins can add recipients' },
@@ -34,32 +33,16 @@ export async function POST(
       )
     }
 
-    // Verify campaign belongs to user's clinic
-    const supabase = await createClient()
-    const campaignResult = await supabase
-      .from('campaigns')
-      .select('clinic_id')
-      .eq('id', campaignId)
-      .single() as { data: { clinic_id: string } | null; error: any }
-    const campaign = campaignResult.data
-    const campaignError = campaignResult.error
-
-    if (campaignError || !campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+    const campaign = await campaignRepo.findCampaignById(campaignId)
+    if (!campaign) {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.clinic_id !== authResult.profile!.clinic_id) {
-      return NextResponse.json(
-        { error: 'Access denied to this campaign' },
-        { status: 403 }
-      )
+    if (campaign.clinicId !== authResult.profile!.clinic_id) {
+      return NextResponse.json({ error: 'Access denied to this campaign' }, { status: 403 })
     }
 
     if (body.auto_detect && body.target_segment) {
-      // Auto-detect patients for reactivation
       const patients = await getPatientsForReactivation(
         authResult.profile!.clinic_id,
         body.target_segment
@@ -81,7 +64,6 @@ export async function POST(
       return NextResponse.json(result)
     }
 
-    // Manual patient list
     if (!body.patient_ids || !Array.isArray(body.patient_ids)) {
       return handleApiError(new ValidationError('patient_ids array is required'))
     }

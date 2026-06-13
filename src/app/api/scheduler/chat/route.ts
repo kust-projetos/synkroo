@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth, createClient } from '@/lib/supabase/server'
+import { eq } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
+import { getDb } from '@/lib/db/client'
+import { patients, conversationStates } from '@/lib/db/schema'
 import { handleApiError } from '@/lib/errors'
 import {
   processSchedulingRequest,
@@ -30,7 +33,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = await createClient()
+    const db = getDb()
 
     // Get or create conversation context
     let context: SchedulerContext = {
@@ -41,12 +44,13 @@ export async function POST(request: NextRequest) {
 
     // Get patient info if patientId provided
     if (patientId) {
-      const { data: patient } = await supabase
-        .from('patients')
-        .select('id, name, phone, email')
-        .eq('id', patientId)
-        .single() as { data: { id: string; name: string; phone: string; email: string | null } | null }
+      const patientRows = await db
+        .select({ id: patients.id, name: patients.name, phone: patients.phone, email: patients.email })
+        .from(patients)
+        .where(eq(patients.id, patientId))
+        .limit(1)
 
+      const patient = patientRows[0]
       if (patient) {
         context.patientInfo = {
           name: patient.name,
@@ -58,12 +62,13 @@ export async function POST(request: NextRequest) {
 
     // Get conversation state if exists
     if (conversationId) {
-      const { data: conversationState } = await supabase
-        .from('conversation_states')
-        .select('state')
-        .eq('conversation_id', conversationId)
-        .single() as { data: { state: Record<string, any> } | null }
+      const stateRows = await db
+        .select({ state: conversationStates.state })
+        .from(conversationStates)
+        .where(eq(conversationStates.conversationId, conversationId))
+        .limit(1)
 
+      const conversationState = stateRows[0]
       if (conversationState?.state) {
         context = { ...context, ...(conversationState.state as any) }
       }
@@ -80,17 +85,37 @@ export async function POST(request: NextRequest) {
 
     // Save conversation state
     if (conversationId) {
-      await (supabase
-        .from('conversation_states') as any)
-        .upsert({
-          conversation_id: conversationId,
-          state: {
-            ...context,
-            lastMessage: message,
-            lastResult: result,
-          },
-          updated_at: new Date().toISOString(),
-        })
+      // Check if state entry exists
+      const existingRows = await db
+        .select({ id: conversationStates.id })
+        .from(conversationStates)
+        .where(eq(conversationStates.conversationId, conversationId))
+        .limit(1)
+
+      if (existingRows[0]) {
+        await db
+          .update(conversationStates)
+          .set({
+            state: {
+              ...context,
+              lastMessage: message,
+              lastResult: result,
+            } as any,
+            updatedAt: new Date(),
+          } as any)
+          .where(eq(conversationStates.conversationId, conversationId))
+      } else {
+        await db
+          .insert(conversationStates)
+          .values({
+            conversationId,
+            state: {
+              ...context,
+              lastMessage: message,
+              lastResult: result,
+            } as any,
+          } as any)
+      }
     }
 
     return NextResponse.json(result)

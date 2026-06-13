@@ -1,10 +1,13 @@
-import { createTypedClient } from '@/lib/supabase/typed'
+import { getDb } from '@/lib/db/client'
+import { clinics, appointments, dentists, procedures } from '@/lib/db/schema'
+import { eq, and, gte, lte, inArray, ilike } from 'drizzle-orm'
 import { getLLMProvider } from '@/lib/llm'
 import { dbLogger } from '@/lib/logger'
 
 /**
  * Scheduler Agent
  * Intelligent appointment booking through natural language conversation
+ * Migrated from Supabase to Drizzle ORM
  */
 
 export interface SchedulerContext {
@@ -185,16 +188,16 @@ export async function getAvailableSlots(
   durationMinutes: number = 30,
   dentistId?: string
 ): Promise<SlotInfo[]> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   // Get clinic settings
-  const { data: clinic } = await supabase
-    .from('clinics')
-    .select('settings')
-    .eq('id', clinicId)
-    .single() as any
+  const clinicRows = await db
+    .select({ settings: clinics.settings })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+    .limit(1)
 
-  const defaultHours = {
+  const defaultHours: OperatingHours = {
     start: '08:00',
     end: '18:00',
     lunchStart: '12:00',
@@ -202,41 +205,54 @@ export async function getAvailableSlots(
     workDays: [1, 2, 3, 4, 5],
   }
 
-  const settings = (clinic?.settings as ClinicSettings | null)?.operating_hours || defaultHours
+  const clinicSettings = (clinicRows[0]?.settings as ClinicSettings | null)
+  const operatingHours = clinicSettings?.operating_hours || defaultHours
 
   // Get existing appointments
   const startOfDay = new Date(`${date}T00:00:00Z`)
   const endOfDay = new Date(`${date}T23:59:59Z`)
 
-  let query = supabase
-    .from('appointments')
-    .select('scheduled_at, duration_minutes, dentist_id')
-    .eq('clinic_id', clinicId)
-    .gte('scheduled_at', startOfDay.toISOString())
-    .lte('scheduled_at', endOfDay.toISOString())
-    .in('status', ['scheduled', 'confirmed', 'in_progress'])
-
+  const appointmentConditions = [
+    eq(appointments.clinicId, clinicId),
+    gte(appointments.scheduledAt, startOfDay),
+    lte(appointments.scheduledAt, endOfDay),
+    inArray(appointments.status, ['scheduled', 'confirmed', 'in_progress']),
+  ]
   if (dentistId) {
-    query = query.eq('dentist_id', dentistId)
+    appointmentConditions.push(eq(appointments.dentistId, dentistId))
   }
 
-  const { data: existingAppointments } = await query
+  const existingAppointments = await db
+    .select({
+      scheduledAt: appointments.scheduledAt,
+      durationMinutes: appointments.durationMinutes,
+      dentistId: appointments.dentistId,
+    })
+    .from(appointments)
+    .where(and(...appointmentConditions))
 
   // Get dentists for reference
-  const { data: dentists } = await supabase
-    .from('dentists')
-    .select('id, name')
-    .eq('clinic_id', clinicId)
-    .eq('is_active', true) as any
+  const dentistRows = await db
+    .select({ id: dentists.id, name: dentists.name })
+    .from(dentists)
+    .where(and(
+      eq(dentists.clinicId, clinicId),
+      eq(dentists.isActive, true)
+    ))
 
-  const dentistMap = new Map<string, string>(dentists?.map((d: any) => [d.id, d.name]) || [])
+  const dentistMap = new Map<string, string>(dentistRows.map(d => [d.id, d.name]))
 
   // Generate slots
   const slots: SlotInfo[] = []
-  const [startHour] = settings.start.split(':').map(Number)
-  const [endHour] = settings.end.split(':').map(Number)
-  const [lunchStartHour] = settings.lunchStart.split(':').map(Number)
-  const [lunchEndHour] = settings.lunchEnd.split(':').map(Number)
+  const start = operatingHours.start
+  const end = operatingHours.end
+  const lunchStart = operatingHours.lunchStart
+  const lunchEnd = operatingHours.lunchEnd
+
+  const [startHour] = start.split(':').map(Number)
+  const [endHour] = end.split(':').map(Number)
+  const [lunchStartHour] = lunchStart.split(':').map(Number)
+  const [lunchEndHour] = lunchEnd.split(':').map(Number)
 
   for (let hour = startHour; hour < endHour; hour++) {
     // Skip lunch
@@ -251,9 +267,9 @@ export async function getAvailableSlots(
       const slotEndTime = new Date(slotTime.getTime() + durationMinutes * 60000)
 
       // Check conflicts
-      const hasConflict = (existingAppointments || []).some((apt: any) => {
-        const aptStart = new Date(apt.scheduled_at)
-        const aptEnd = new Date(aptStart.getTime() + apt.duration_minutes * 60000)
+      const hasConflict = existingAppointments.some(apt => {
+        const aptStart = new Date(apt.scheduledAt)
+        const aptEnd = new Date(aptStart.getTime() + (apt.durationMinutes ?? 30) * 60000)
         return slotTime < aptEnd && slotEndTime > aptStart
       })
 
@@ -352,7 +368,7 @@ export async function processSchedulingRequest(
 export async function createAppointmentFromContext(
   context: SchedulerContext
 ): Promise<SchedulingResult> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   if (!context.patientId || !context.appointmentRequest?.date || !context.appointmentRequest?.time) {
     return {
@@ -367,44 +383,49 @@ export async function createAppointmentFromContext(
     // Get procedure if specified
     let procedureId: string | null = null
     if (context.appointmentRequest.procedure) {
-      const { data: procedure } = await supabase
-        .from('procedures')
-        .select('id')
-        .eq('clinic_id', context.clinicId)
-        .ilike('name', `%${context.appointmentRequest.procedure.replace(/[%_\\]/g, '\\$&')}%`)
-        .single() as any
-      procedureId = procedure?.id || null
+      const procedureRows = await db
+        .select({ id: procedures.id })
+        .from(procedures)
+        .where(and(
+          eq(procedures.clinicId, context.clinicId),
+          ilike(procedures.name, `%${context.appointmentRequest.procedure}%`)
+        ))
+        .limit(1)
+      procedureId = procedureRows[0]?.id || null
     }
 
     // Get dentist if specified
     let dentistId: string | null = null
     if (context.appointmentRequest.dentist) {
-      const { data: dentist } = await supabase
-        .from('dentists')
-        .select('id')
-        .eq('clinic_id', context.clinicId)
-        .ilike('name', `%${context.appointmentRequest.dentist.replace(/[%_\\]/g, '\\$&')}%`)
-        .single() as any
-      dentistId = dentist?.id || null
+      const dentistRows = await db
+        .select({ id: dentists.id })
+        .from(dentists)
+        .where(and(
+          eq(dentists.clinicId, context.clinicId),
+          ilike(dentists.name, `%${context.appointmentRequest.dentist}%`)
+        ))
+        .limit(1)
+      dentistId = dentistRows[0]?.id || null
     }
 
-    const { data: appointment, error } = await (supabase
-      .from('appointments') as any)
-      .insert({
-        clinic_id: context.clinicId,
-        patient_id: context.patientId,
-        dentist_id: dentistId,
-        procedure_id: procedureId,
-        scheduled_at: scheduledAt.toISOString(),
-        duration_minutes: 30,
-        status: 'scheduled',
-        notes: context.appointmentRequest.notes,
-      })
-      .select()
-      .single()
+    const appointmentResult = await db
+      .insert(appointments)
+      .values({
+        clinicId: context.clinicId,
+        patientId: context.patientId,
+        dentistId: dentistId ?? null,
+        procedureId: procedureId ?? null,
+        scheduledAt,
+        durationMinutes: 30,
+        status: 'scheduled' as any,
+        notes: context.appointmentRequest.notes ?? null,
+      } as any)
+      .returning()
 
-    if (error) {
-      dbLogger.error('Error creating appointment', error)
+    const appointment = appointmentResult[0]
+
+    if (!appointment) {
+      dbLogger.error('Error creating appointment', { context })
       return {
         success: false,
         message: 'Não foi possível criar o agendamento. Por favor, tente novamente.',

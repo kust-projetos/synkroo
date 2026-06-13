@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase'
-import { agent } from '@/services/agent/agent.service'
-import { handleApiError, DatabaseError } from '@/lib/errors'
+import { handleApiError, ValidationError } from '@/lib/errors'
 import { dbLogger } from '@/lib/logger'
+import * as conversationRepo from '@/repositories/conversations'
+import * as messageRepo from '@/repositories/conversations'
+import { getLLMProvider } from '@/lib/llm'
 
 /**
  * GET /api/widget/messages
@@ -21,54 +22,30 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const supabase = createServerClient() as any
-
-    // Find or create conversation for this visitor
     const externalId = `widget_${visitorId}`
 
-    let { data: conversation } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('clinic_id', clinicId)
-      .eq('external_id', externalId)
-      .single()
+    // Find existing conversation
+    const existingConvs = await conversationRepo.findByExternalId(clinicId, 'web', externalId)
+    let conversationId: string
 
-    if (!conversation) {
+    if (existingConvs.length > 0) {
+      conversationId = existingConvs[0].id
+    } else {
       // Create new conversation
-      const { data: newConversation, error: createError } = await supabase
-        .from('conversations')
-        .insert({
-          clinic_id: clinicId,
-          channel: 'web',
-          external_id: externalId,
-          status: 'active',
-        })
-        .select('id')
-        .single()
-
-      if (createError) {
-        dbLogger.error('Error creating conversation', createError)
-        return NextResponse.json({ messages: [] })
-      }
-      conversation = newConversation
+      conversationId = await conversationRepo.getOrCreateConversation(clinicId, 'web', externalId)
     }
 
     // Get messages
-    const { data: messages, error } = await supabase
-      .from('messages')
-      .select('id, content, direction, created_at')
-      .eq('conversation_id', conversation.id)
-      .order('created_at', { ascending: true })
-      .limit(50)
-
-    if (error) {
-      dbLogger.error('Error fetching messages', error)
-      return NextResponse.json({ messages: [] })
-    }
+    const msgs = await messageRepo.findMessagesByConversation(conversationId, { limit: 50 })
 
     return NextResponse.json({
-      conversation_id: conversation.id,
-      messages: messages || [],
+      conversation_id: conversationId,
+      messages: msgs.map(m => ({
+        id: m.id,
+        content: m.content,
+        direction: m.direction,
+        created_at: m.createdAt,
+      })),
     })
   } catch (error) {
     return handleApiError(error)
@@ -91,70 +68,65 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const supabase = createServerClient() as any
+    const externalId = `widget_${visitor_id}`
+    let convId = conversation_id
 
     // Find or create conversation
-    let convId = conversation_id
-    const externalId = `widget_${visitor_id}`
-
     if (!convId) {
-      const { data: existingConversation } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('clinic_id', clinic_id)
-        .eq('external_id', externalId)
-        .single()
-
-      if (existingConversation) {
-        convId = existingConversation.id
+      const existingConvs = await conversationRepo.findByExternalId(clinic_id, 'web', externalId)
+      if (existingConvs.length > 0) {
+        convId = existingConvs[0].id
       } else {
-        const { data: newConversation, error: createError } = await supabase
-          .from('conversations')
-          .insert({
-            clinic_id,
-            channel: 'web',
-            external_id: externalId,
-            status: 'active',
-          })
-          .select('id')
-          .single()
-
-        if (createError) {
-          return handleApiError(new DatabaseError('Failed to create conversation', createError))
-        }
-        convId = newConversation.id
+        convId = await conversationRepo.getOrCreateConversation(clinic_id, 'web', externalId)
       }
     }
 
-    // Store user message
-    const userMessage = await agent.storeMessage(convId, 'inbound', message, {
+    // Store user message (Drizzle — no Supabase)
+    const userMsg = await messageRepo.createMessage({
+      conversationId: convId,
+      direction: 'inbound',
+      content: message,
       isAi: false,
     })
 
-    // Process with AI agent
-    const response = await agent.processMessage(convId, message, {
-      channel: 'web',
-      visitor_id,
+    // Update conversation metadata
+    await conversationRepo.updateConversation(convId, {
+      lastMessageAt: new Date(),
+      messageCountIncrement: 1,
     })
 
-    // Store bot response
-    const botMessage = await agent.storeMessage(convId, 'outbound', response.message, {
-      intent: response.intent,
-      entities: response.entities,
-      confidence: response.confidence,
+    // Generate AI response via LLM directly (no Supabase dependency)
+    const llm = getLLMProvider()
+    const { intent, confidence, entities } = await llm.classifyIntent(message)
+    const context = await conversationRepo.getConversationContext(convId, 10)
+    const responseText = await llm.generateResponse(message, {
+      intent,
+      entities,
+      conversationHistory: context.map(c => ({
+        role: c.role as 'user' | 'assistant',
+        content: c.content,
+      })),
+    })
+
+    // Store bot response (Drizzle — no Supabase)
+    const botMsg = await messageRepo.createMessage({
+      conversationId: convId,
+      direction: 'outbound',
+      content: responseText,
+      intent,
+      entities,
+      confidence: String(confidence),
       isAi: true,
     })
 
     return NextResponse.json({
       conversation_id: convId,
-      user_message: {
-        id: userMessage?.id,
-        content: message,
-      },
+      user_message: { id: userMsg.id, content: message },
       bot_response: {
-        id: botMessage?.id,
-        content: response.message,
-        intent: response.intent,
+        id: botMsg.id,
+        content: responseText,
+        intent,
+        confidence,
       },
     })
   } catch (error) {

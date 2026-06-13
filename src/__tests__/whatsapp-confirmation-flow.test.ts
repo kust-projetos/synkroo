@@ -1,146 +1,92 @@
 /**
  * Integration Tests for WhatsApp Confirmation Flow
  * Tests the complete flow from intent classification to appointment confirmation
+ * Migrated from Supabase mock to Drizzle repository mocks
  */
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-import { confirmAppointment, cancelAppointment, rescheduleAppointment } from '@/services/appointments/appointment-actions.service'
+import {
+  confirmAppointment,
+  cancelAppointment,
+  rescheduleAppointment,
+} from '@/services/appointments/appointment-actions.service'
 
-// Mock Supabase
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn(),
+// Mock appointments repository — the service now uses this instead of Supabase
+jest.mock('@/repositories/appointments', () => ({
+  findById: jest.fn(),
+  updateStatus: jest.fn(),
+  update: jest.fn(),
+  rescheduleAppointmentSlot: jest.fn(),
 }))
 
 // Mock waitlist service
-jest.mock('@/services/waitlist/waitlist.service', () => ({
-  processWaitlistOnCancellation: jest.fn().mockResolvedValue({ notified: 0 }),
+jest.mock('@/services/waitlist/waitlist.service', () => {
+  const mockFn = jest.fn().mockResolvedValue({ notified: 0 })
+  return { processWaitlistOnCancellation: mockFn }
+})
+
+// Mock logger
+jest.mock('@/lib/logger', () => ({
+  dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+  whatsappLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
 // Mock fetch for WhatsApp notifications
 global.fetch = jest.fn().mockResolvedValue({ ok: true })
 
-const mockSupabase = {
-  from: jest.fn(),
-  rpc: jest.fn(),
-}
-
-beforeEach(() => {
-  jest.resetAllMocks()
-  const { createTypedClient } = require('@/lib/supabase/typed')
-  createTypedClient.mockReturnValue(mockSupabase)
-  const { processWaitlistOnCancellation } = require('@/services/waitlist/waitlist.service')
-  processWaitlistOnCancellation.mockResolvedValue({ notified: 0 })
-})
+const {
+  findById,
+  updateStatus,
+  update,
+  rescheduleAppointmentSlot,
+} = require('@/repositories/appointments')
 
 describe('WhatsApp Confirmation Flow', () => {
-  const mockAppointment = {
+  const mockAppointmentRow = {
     id: 'apt-123',
-    clinic_id: 'clinic-123',
-    patient_id: 'patient-123',
-    dentist_id: 'dentist-123',
-    scheduled_at: new Date(Date.now() + 86400000).toISOString(),
-    duration_minutes: 60,
+    clinicId: 'clinic-123',
+    patientId: 'patient-123',
+    dentistId: 'dentist-123',
+    procedureId: null,
+    scheduledAt: new Date(Date.now() + 86400000),
+    durationMinutes: 60,
     status: 'scheduled',
-    patients: { id: 'patient-123', name: 'João Silva', phone: '11999999999' },
-    dentists: { name: 'Dra. Maria' },
-    procedures: { name: 'Limpeza' },
+    notes: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
   }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(findById as jest.Mock).mockResolvedValue(mockAppointmentRow)
+    ;(updateStatus as jest.Mock).mockResolvedValue({ id: 'apt-123' })
+    ;(update as jest.Mock).mockResolvedValue({ id: 'apt-123' })
+    ;(rescheduleAppointmentSlot as jest.Mock).mockResolvedValue({ success: true })
+    ;(global.fetch as jest.Mock).mockResolvedValue({ ok: true })
+    // Re-require to get fresh reference after clearAllMocks
+    const { processWaitlistOnCancellation } = require('@/services/waitlist/waitlist.service')
+    ;(processWaitlistOnCancellation as jest.Mock).mockResolvedValue({ notified: 0 })
+  })
 
   describe('Intent-Based Actions', () => {
     it('should confirm appointment when patient sends confirmation intent', async () => {
-      // Simulate: Patient sends "Confirmar consulta" via WhatsApp
-      // System classifies intent as 'confirmacao'
-      // System confirms the appointment
-
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-
       const result = await confirmAppointment('apt-123', 'whatsapp')
-
       expect(result.success).toBe(true)
+      expect(updateStatus).toHaveBeenCalledWith('apt-123', 'confirmed')
     })
 
     it('should cancel appointment when patient sends cancellation intent', async () => {
-      // Simulate: Patient sends "Cancelar consulta" via WhatsApp
-      // System classifies intent as 'cancelamento'
-      // System cancels the appointment and notifies waitlist
-
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-
       const result = await cancelAppointment('apt-123', 'Solicitado via WhatsApp', 'patient')
-
       expect(result.success).toBe(true)
+      expect(updateStatus).toHaveBeenCalledWith('apt-123', 'cancelled', expect.any(Object))
     })
 
     it('should reschedule appointment when patient sends reschedule intent', async () => {
-      // Simulate: Patient sends "Remarcar para dia 15" via WhatsApp
-      // System classifies intent as 'reagendamento'
-      // System reschedules the appointment
-
       const newDate = new Date(Date.now() + 172800000)
       const dateStr = newDate.toISOString().split('T')[0]
       const timeStr = '14:00'
 
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              in: jest.fn().mockReturnValue({
-                neq: jest.fn().mockReturnValue({
-                  or: jest.fn().mockResolvedValue({ data: [], error: null }),
-                }),
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-      mockSupabase.rpc.mockResolvedValueOnce({
-        data: { success: true },
-        error: null,
-      })
+      ;(findById as jest.Mock).mockResolvedValue(mockAppointmentRow)
+      ;(rescheduleAppointmentSlot as jest.Mock).mockResolvedValue({ success: true })
 
       const result = await rescheduleAppointment('apt-123', dateStr, timeStr)
 
@@ -151,49 +97,29 @@ describe('WhatsApp Confirmation Flow', () => {
 
   describe('WhatsApp Notification Flow', () => {
     it('should track confirmation source as whatsapp', async () => {
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-
       const result = await confirmAppointment('apt-123', 'whatsapp')
-
       expect(result.success).toBe(true)
     })
 
     it('should track cancellation source as patient', async () => {
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: mockAppointment,
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-
       const result = await cancelAppointment('apt-123', 'Cancelado pelo paciente', 'patient')
-
       expect(result.success).toBe(true)
+    })
+
+    it('should return error when appointment not found', async () => {
+      ;(findById as jest.Mock).mockResolvedValue(null)
+
+      const result = await confirmAppointment('nonexistent', 'whatsapp')
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Appointment not found')
+    })
+
+    it('should return error when cancelling already completed appointment', async () => {
+      ;(findById as jest.Mock).mockResolvedValue({ ...mockAppointmentRow, status: 'completed' })
+
+      const result = await cancelAppointment('apt-123', 'test', 'patient')
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('Only scheduled or confirmed')
     })
   })
 })

@@ -6,17 +6,9 @@
 import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
 import { fillTemplate } from '@/services/whatsapp/message-templates.service'
+import { type ReminderConfigPerProcedure } from '@/components/whatsapp/reminder-config-types'
 
-export interface ReminderConfigPerProcedure {
-  id?: string
-  procedure_type_id: string
-  procedure_type_name: string
-  hours_before: number // 24, 48, or 168 (1 week)
-  message_template: string
-  enabled: boolean
-  created_at?: string
-  updated_at?: string
-}
+export type { ReminderConfigPerProcedure }
 
 interface ReminderConfigRow {
   id: string

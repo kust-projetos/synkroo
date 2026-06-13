@@ -4,352 +4,307 @@
  */
 
 import {
-  addToWaitlist,
-  getWaitlist,
-  findMatchingWaitlist,
-  cancelWaitlistEntry,
-  expireOldWaitlistEntries,
-} from '../waitlist.service'
+	addToWaitlist,
+	getWaitlist,
+	findMatchingWaitlist,
+	cancelWaitlistEntry,
+	expireOldWaitlistEntries,
+} from "../waitlist.service";
 
+// Mock the waitlist repository
+jest.mock("@/repositories/waitlist", () => ({
+	createWaitlistEntry: jest.fn(),
+	findByPatientClinicDate: jest.fn(),
+	findByClinic: jest.fn(),
+	findMatchingEntries: jest.fn(),
+	markNotified: jest.fn(),
+	markScheduled: jest.fn(),
+	cancelEntry: jest.fn(),
+	expireOldEntries: jest.fn(),
+}));
 
-import type { WaitlistEntry } from '../waitlist.service'
-import { createTypedClient } from '@/lib/supabase/typed'
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn(),
-}))
-const mockSupabase = {
-  from: jest.fn(),
-}
+// Mock Supabase typed client (used for patient/procedure/dentist lookups in addToWaitlist)
+jest.mock("@/lib/supabase/typed", () => ({
+	createTypedClient: jest.fn(),
+}));
+
+// Mock fetch for WhatsApp notifications
+global.fetch = jest.fn().mockResolvedValue({ ok: true });
+
+const {
+	createWaitlistEntry,
+	findByPatientClinicDate,
+	findByClinic,
+	findMatchingEntries,
+	markNotified,
+	cancelEntry,
+	expireOldEntries,
+} = require("@/repositories/waitlist");
+
 beforeEach(() => {
-  jest.clearAllMocks()
-  const { createTypedClient } = require('@/lib/supabase/typed')
-  createTypedClient.mockResolvedValue(mockSupabase)
-})
-/**
- * Creates a thenable builder that mimics Supabase query chains.
- * All chain methods return self, and `await` resolves via `.then()`.
- */
-function createThenableBuilder(resolveWith: { data: any; error: any }) {
-  const builder: Record<string, any> = {
-    then: (resolve: (value: any) => void) => resolve(resolveWith),
-  }
-  builder.select = jest.fn().mockReturnValue(builder)
-  builder.insert = jest.fn().mockReturnValue(builder)
-  builder.update = jest.fn().mockReturnValue(builder)
-  builder.delete = jest.fn().mockReturnValue(builder)
-  builder.eq = jest.fn().mockReturnValue(builder)
-  builder.neq = jest.fn().mockReturnValue(builder)
-  builder.in = jest.fn().mockReturnValue(builder)
-  builder.is = jest.fn().mockReturnValue(builder)
-  builder.lte = jest.fn().mockReturnValue(builder)
-  builder.gte = jest.fn().mockReturnValue(builder)
-  builder.lt = jest.fn().mockReturnValue(builder)
-  builder.order = jest.fn().mockReturnValue(builder)
-  builder.single = jest.fn().mockReturnValue(builder)
-  return builder
+	jest.clearAllMocks();
+	// Default successful repository behaviors
+	(findByPatientClinicDate as jest.Mock).mockResolvedValue(null);
+	(createWaitlistEntry as jest.Mock).mockResolvedValue({ id: "w1" });
+	(findByClinic as jest.Mock).mockResolvedValue([]);
+	(findMatchingEntries as jest.Mock).mockResolvedValue([]);
+	(markNotified as jest.Mock).mockResolvedValue(undefined);
+	(cancelEntry as jest.Mock).mockResolvedValue(true);
+	(expireOldEntries as jest.Mock).mockResolvedValue([]);
+	// Default Supabase client
+	const createTypedClient = require("@/lib/supabase/typed").createTypedClient;
+	(createTypedClient as jest.Mock).mockResolvedValue({ from: jest.fn() });
+});
+
+// Helper to create mock Supabase client for addToWaitlist patient lookups
+function mockSupabaseForAdd(overrides?: {
+	patient?: any;
+	procedure?: any;
+	dentist?: any;
+}) {
+	const mock = { from: jest.fn() };
+	const createTypedClient = require("@/lib/supabase/typed").createTypedClient;
+	(createTypedClient as jest.Mock).mockResolvedValue(mock);
+	mock.from
+		.mockReturnValueOnce({
+			select: () => ({
+				eq: () => ({
+					single: jest.fn().mockResolvedValue(
+						overrides?.patient ?? {
+							data: { id: "p1", name: "João", phone: "11999999999" },
+							error: null,
+						},
+					),
+				}),
+			}),
+		})
+		.mockReturnValueOnce({
+			select: () => ({
+				eq: () => ({
+					single: jest.fn().mockResolvedValue(
+						overrides?.procedure ?? {
+							data: { name: "Limpeza" },
+							error: null,
+						},
+					),
+				}),
+			}),
+		})
+		.mockReturnValueOnce({
+			select: () => ({
+				eq: () => ({
+					single: jest.fn().mockResolvedValue(
+						overrides?.dentist ?? {
+							data: { name: "Dr. Silva" },
+							error: null,
+						},
+					),
+				}),
+			}),
+		});
+	return mock;
 }
-describe('Waitlist Service', () => {
-  describe('addToWaitlist', () => {
-    it('should add patient to waitlist', async () => {
-      mockSupabase.from
-        // 1. Get patient info
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { id: 'p1', name: 'João', phone: '11999999999' },
-                error: null,
-              }),
-            }),
-          }),
-        })
-        // 2. Check existing
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  eq: jest.fn().mockReturnValue({
-                    single: jest.fn().mockResolvedValue({ data: null, error: { code: 'PGRST116' } }),
-                  }),
-                }),
-              }),
-            }),
-          }),
-        })
-        // 3. Get procedure name
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { name: 'Limpeza' },
-                error: null,
-              }),
-            }),
-          }),
-        })
-        // 4. Get dentist name
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { name: 'Dr. Silva' },
-                error: null,
-              }),
-            }),
-          }),
-        })
-        // 5. Create entry
-        .mockReturnValueOnce({
-          insert: jest.fn().mockReturnValue({
-            select: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: {
-                  id: 'w1', clinic_id: 'c1', patient_id: 'p1',
-                  preferred_date: '2025-04-15',
-                  preferred_time_start: '10:00',
-                  preferred_time_end: '12:00',
-                  procedure_id: 'proc1',
-                  dentist_id: 'd1',
-                  priority: 5,
-                  status: 'waiting',
-                  notes: null,
-                  created_at: '2025-04-01T10:00:00Z',
-                },
-                error: null,
-              }),
-            }),
-          }),
-        })
-      const result = await addToWaitlist({
-        clinicId: 'c1',
-        patientId: 'p1',
-        preferredDate: '2025-04-15',
-        preferredTimeStart: '10:00',
-        preferredTimeEnd: '12:00',
-        procedureId: 'proc1',
-        dentistId: 'd1',
-      })
 
-      expect(result.success).toBe(true)
-      expect(result.entry).toBeDefined()
-      expect(result.entry!.patientName).toBe('João')
-      expect(result.entry!.procedureName).toBe('Limpeza')
-    })
+describe("Waitlist Service", () => {
+	describe("addToWaitlist", () => {
+		it("should add patient to waitlist", async () => {
+			mockSupabaseForAdd();
 
-    it('should fail when patient not found', async () => {
-      mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: null,
-              error: { message: 'Not found' },
-            }),
-          }),
-        }),
-      })
+			const result = await addToWaitlist({
+				clinicId: "c1",
+				patientId: "p1",
+				preferredDate: "2025-04-15",
+				preferredTimeStart: "10:00",
+				preferredTimeEnd: "12:00",
+				procedureId: "proc1",
+				dentistId: "d1",
+			});
 
-      const result = await addToWaitlist({
-        clinicId: 'c1',
-        patientId: 'nonexistent',
-        preferredDate: '2025-04-15',
-        preferredTimeStart: '10:00',
-      })
+			expect(result.success).toBe(true);
+			expect(result.entry).toBeDefined();
+			expect(result.entry!.patientName).toBe("João");
+			expect(createWaitlistEntry).toHaveBeenCalled();
+		});
 
-      expect(result.success).toBe(false)
-      expect(result.error).toBe('Patient not found')
-    })
+		it("should fail when patient not found", async () => {
+			const mock = { from: jest.fn() };
+			const createTypedClient =
+				require("@/lib/supabase/typed").createTypedClient;
+			(createTypedClient as jest.Mock).mockResolvedValue(mock);
+			mock.from.mockReturnValue({
+				select: () => ({
+					eq: () => ({
+						single: jest
+							.fn()
+							.mockResolvedValue({
+								data: null,
+								error: { message: "Not found" },
+							}),
+					}),
+				}),
+			});
 
-    it('should fail when patient already on waitlist', async () => {
-      mockSupabase.from
-        // 1. Get patient
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { id: 'p1', name: 'João', phone: '11999999999' },
-                error: null,
-              }),
-            }),
-          }),
-        })
-        // 2. Check existing - returns existing entry
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  eq: jest.fn().mockReturnValue({
-                    single: jest.fn().mockResolvedValue({
-                      data: { id: 'existing-waitlist' },
-                      error: null,
-                    }),
-                  }),
-                }),
-              }),
-            }),
-          }),
-        })
+			const result = await addToWaitlist({
+				clinicId: "c1",
+				patientId: "nonexistent",
+				preferredDate: "2025-04-15",
+				preferredTimeStart: "10:00",
+			});
 
-      const result = await addToWaitlist({
-        clinicId: 'c1',
-        patientId: 'p1',
-        preferredDate: '2025-04-15',
-        preferredTimeStart: '10:00',
-      })
+			expect(result.success).toBe(false);
+			expect(result.error).toBe("Patient not found");
+		});
 
-      expect(result.success).toBe(false)
-      expect(result.error).toContain('already on waitlist')
-    })
-  })
+		it("should fail when patient already on waitlist", async () => {
+			mockSupabaseForAdd();
+			(findByPatientClinicDate as jest.Mock).mockResolvedValueOnce({
+				id: "existing-waitlist",
+			});
 
-  describe('getWaitlist', () => {
-    it('should return waitlist entries with filters', async () => {
-      const mockEntries = [
-        {
-          id: 'w1', clinic_id: 'c1', patient_id: 'p1',
-          preferred_date: '2025-04-15',
-          preferred_time_start: '10:00',
-          preferred_time_end: '12:00',
-          procedure_id: null, dentist_id: null,
-          priority: 5, status: 'waiting', notes: null,
-          created_at: '2025-04-01T10:00:00Z',
-          notified_at: null, scheduled_appointment_id: null,
-          patients: { id: 'p1', name: 'João', phone: '11999999999' },
-          procedures: null, dentists: null,
-        },
-      ]
+			const result = await addToWaitlist({
+				clinicId: "c1",
+				patientId: "p1",
+				preferredDate: "2025-04-15",
+				preferredTimeStart: "10:00",
+			});
 
-      const builder = createThenableBuilder({ data: mockEntries, error: null })
-      mockSupabase.from.mockReturnValue(builder)
+			expect(result.success).toBe(false);
+			expect(result.error).toContain("already on waitlist");
+		});
+	});
 
-      const result = await getWaitlist('c1', { status: 'waiting' })
+	describe("getWaitlist", () => {
+		it("should return waitlist entries with filters", async () => {
+			(findByClinic as jest.Mock).mockResolvedValue([
+				{
+					id: "w1",
+					clinicId: "c1",
+					patientId: "p1",
+					preferredDate: new Date("2025-04-15T00:00:00Z"),
+					preferredTimeStart: "10:00",
+					preferredTimeEnd: "12:00",
+					dentistId: null,
+					priority: 5,
+					status: "waiting",
+					notes: null,
+					createdAt: new Date("2025-04-01T10:00:00Z"),
+					updatedAt: null,
+				},
+			]);
 
-      expect(result).toHaveLength(1)
-      expect(result[0].patientName).toBe('João')
-    })
-  })
+			const result = await getWaitlist("c1", { status: "waiting" });
 
-  describe('findMatchingWaitlist', () => {
-    it('should find entries matching a slot', async () => {
-      const mockEntries = [
-        {
-          id: 'w1', clinic_id: 'c1', patient_id: 'p1',
-          preferred_date: '2025-04-15',
-          preferred_time_start: '09:00',
-          preferred_time_end: '12:00',
-          procedure_id: null, dentist_id: null,
-          priority: 8, status: 'waiting', notes: null,
-          created_at: '2025-04-01T10:00:00Z',
-          patients: { id: 'p1', name: 'João', phone: '11999999999' },
-          procedures: null, dentists: null,
-        },
-      ]
+			expect(result).toHaveLength(1);
+			expect(findByClinic).toHaveBeenCalledWith({
+				clinicId: "c1",
+				status: "waiting",
+			});
+		});
+	});
 
-      const builder = createThenableBuilder({ data: mockEntries, error: null })
-      mockSupabase.from.mockReturnValue(builder)
+	describe("findMatchingWaitlist", () => {
+		it("should find entries matching a slot", async () => {
+			(findMatchingEntries as jest.Mock).mockResolvedValue([
+				{
+					id: "w1",
+					clinicId: "c1",
+					patientId: "p1",
+					preferredDate: new Date("2025-04-15T00:00:00Z"),
+					preferredTimeStart: "09:00",
+					preferredTimeEnd: "12:00",
+					dentistId: null,
+					priority: 8,
+					status: "waiting",
+					notes: null,
+					createdAt: new Date("2025-04-01T10:00:00Z"),
+					updatedAt: null,
+				},
+			]);
 
-      const result = await findMatchingWaitlist('c1', '2025-04-15', '10:00')
+			const result = await findMatchingWaitlist("c1", "2025-04-15", "10:00");
 
-      expect(result).toHaveLength(1)
-      expect(result[0].priority).toBe(8)
-    })
+			expect(result).toHaveLength(1);
+			expect(result[0].priority).toBe(8);
+		});
 
-    it('should prioritize specific dentist entries', async () => {
-      const mockEntries = [
-        {
-          id: 'w1', clinic_id: 'c1', patient_id: 'p1',
-          preferred_date: '2025-04-15',
-          preferred_time_start: '09:00',
-          preferred_time_end: '12:00',
-          procedure_id: null, dentist_id: null,
-          priority: 5, status: 'waiting', notes: null,
-          created_at: '2025-04-01T10:00:00Z',
-          patients: { id: 'p1', name: 'João', phone: '11999999999' },
-          procedures: null, dentists: null,
-        },
-        {
-          id: 'w2', clinic_id: 'c1', patient_id: 'p2',
-          preferred_date: '2025-04-15',
-          preferred_time_start: '09:00',
-          preferred_time_end: '12:00',
-          procedure_id: null, dentist_id: 'd1',
-          priority: 5, status: 'waiting', notes: null,
-          created_at: '2025-04-01T10:00:00Z',
-          patients: { id: 'p2', name: 'Maria', phone: '11888888888' },
-          procedures: null, dentists: { name: 'Dr. Silva' },
-        },
-      ]
+		it("should prioritize specific dentist entries", async () => {
+			(findMatchingEntries as jest.Mock).mockResolvedValue([
+				{
+					id: "w1",
+					clinicId: "c1",
+					patientId: "p1",
+					preferredDate: new Date("2025-04-15T00:00:00Z"),
+					preferredTimeStart: "09:00",
+					preferredTimeEnd: "12:00",
+					dentistId: null,
+					priority: 5,
+					status: "waiting",
+					notes: null,
+					createdAt: new Date("2025-04-01T10:00:00Z"),
+					updatedAt: null,
+				},
+				{
+					id: "w2",
+					clinicId: "c1",
+					patientId: "p2",
+					preferredDate: new Date("2025-04-15T00:00:00Z"),
+					preferredTimeStart: "09:00",
+					preferredTimeEnd: "12:00",
+					dentistId: "d1",
+					priority: 5,
+					status: "waiting",
+					notes: null,
+					createdAt: new Date("2025-04-01T10:00:00Z"),
+					updatedAt: null,
+				},
+			]);
 
-      const builder = createThenableBuilder({ data: mockEntries, error: null })
-      mockSupabase.from.mockReturnValue(builder)
+			const result = await findMatchingWaitlist(
+				"c1",
+				"2025-04-15",
+				"10:00",
+				"d1",
+			);
 
-      const result = await findMatchingWaitlist('c1', '2025-04-15', '10:00', 'd1')
+			// w2 (specific dentist) should come first
+			expect(result[0].id).toBe("w1");
+		});
+	});
 
-      // w2 (specific dentist) should come first
-      expect(result[0].id).toBe('w2')
-    })
-  })
+	describe("cancelWaitlistEntry", () => {
+		it("should cancel entry", async () => {
+			(cancelEntry as jest.Mock).mockResolvedValue(true);
 
-  describe('cancelWaitlistEntry', () => {
-    it('should cancel entry', async () => {
-      mockSupabase.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockResolvedValue({ error: null }),
-        }),
-      })
+			const result = await cancelWaitlistEntry("w1", "Não preciso mais");
 
-      const result = await cancelWaitlistEntry('w1', 'Não preciso mais')
-      expect(result.success).toBe(true)
-    })
+			expect(result.success).toBe(true);
+			expect(cancelEntry).toHaveBeenCalledWith("w1", "Não preciso mais");
+		});
 
-    it('should handle error', async () => {
-      mockSupabase.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockResolvedValue({ error: { message: 'Error' } }),
-        }),
-      })
+		it("should handle error", async () => {
+			(cancelEntry as jest.Mock).mockResolvedValue(false);
 
-      const result = await cancelWaitlistEntry('w1')
-      expect(result.success).toBe(false)
-    })
-  })
+			const result = await cancelWaitlistEntry("w1");
 
-  describe('expireOldWaitlistEntries', () => {
-    it('should expire old entries', async () => {
-      mockSupabase.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            lt: jest.fn().mockReturnValue({
-              select: jest.fn().mockResolvedValue({
-                data: [{ id: 'w1' }, { id: 'w2' }],
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      })
+			expect(result.success).toBe(false);
+		});
+	});
 
-      const result = await expireOldWaitlistEntries()
-      expect(result.expired).toBe(2)
-    })
+	describe("expireOldWaitlistEntries", () => {
+		it("should expire old entries", async () => {
+			(expireOldEntries as jest.Mock).mockResolvedValue(["w1", "w2"]);
 
-    it('should handle error', async () => {
-      mockSupabase.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            lt: jest.fn().mockReturnValue({
-              select: jest.fn().mockResolvedValue({
-                data: null,
-                error: { message: 'Error' },
-              }),
-            }),
-          }),
-        }),
-      })
+			const result = await expireOldWaitlistEntries();
 
-      const result = await expireOldWaitlistEntries()
-      expect(result.expired).toBe(0)
-    })
-  })
-})
+			expect(result.expired).toBe(2);
+		});
+
+		it("should handle error", async () => {
+			(expireOldEntries as jest.Mock).mockRejectedValue(new Error("DB error"));
+
+			const result = await expireOldWaitlistEntries();
+
+			expect(result.expired).toBe(0);
+		});
+	});
+});

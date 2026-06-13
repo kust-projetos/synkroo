@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and, gte, lte, ne, isNotNull, inArray, desc } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
+import { getDb } from '@/lib/db/client'
+import { leads, patients, leadActivities, messages, conversations, appointments, patientObservations } from '@/lib/db/schema'
 import type { TimelineSourceType } from '@/services/contacts/timeline.service'
 
 interface AllActivitiesResponse {
@@ -51,199 +53,166 @@ export async function GET(request: NextRequest) {
   const endDate = searchParams.get('end_date') || undefined
 
   try {
-    const supabase = createTypedClient()
+    const db = getDb()
 
     const allEvents: ActivityEvent[] = []
 
     // Fetch all leads for the clinic to get contact names
-    const { data: leads } = await (supabase
-      .from('leads') as any)
-      .select('id, name')
-      .eq('clinic_id', clinicId)
+    const leadRows = await db
+      .select({ id: leads.id, name: leads.name })
+      .from(leads)
+      .where(eq(leads.clinicId, clinicId))
 
     const leadNames: Record<string, string> = {}
-    if (leads) {
-      for (const lead of leads as any[]) {
-        leadNames[lead.id] = lead.name
-      }
+    for (const lead of leadRows) {
+      leadNames[lead.id] = lead.name
     }
 
     // Fetch all patients for the clinic to get contact names
-    const { data: patients } = await (supabase
-      .from('patients') as any)
-      .select('id, name')
-      .eq('clinic_id', clinicId)
+    const patientRows = await db
+      .select({ id: patients.id, name: patients.name })
+      .from(patients)
+      .where(eq(patients.clinicId, clinicId))
 
     const patientNames: Record<string, string> = {}
-    if (patients) {
-      for (const patient of patients as any[]) {
-        patientNames[patient.id] = patient.name
-      }
+    for (const patient of patientRows) {
+      patientNames[patient.id] = patient.name
     }
 
-    // Source 1: Lead activities
-    let leadActivitiesQuery = (supabase
-      .from('lead_activities') as any)
-      .select('id, lead_id, activity_type, description, performed_at, metadata, created_at')
-      .eq('clinic_id', clinicId)
+    // Source 1: Lead activities (via leads -> clinicId)
+    const clinicLeads = await db
+      .select({ id: leads.id })
+      .from(leads)
+      .where(eq(leads.clinicId, clinicId))
+    const leadIds = clinicLeads.map(l => l.id)
 
-    if (contactFilter) {
-      leadActivitiesQuery = leadActivitiesQuery.eq('lead_id', contactFilter)
-    }
-    if (startDate) {
-      leadActivitiesQuery = leadActivitiesQuery.gte('performed_at', startDate)
-    }
-    if (endDate) {
-      leadActivitiesQuery = leadActivitiesQuery.lte('performed_at', endDate)
-    }
+    const leadActivityRows = leadIds.length > 0
+      ? await db
+          .select({
+            id: leadActivities.id,
+            leadId: leadActivities.leadId,
+            activityType: leadActivities.activityType,
+            description: leadActivities.description,
+            performedAt: leadActivities.performedAt,
+            metadata: leadActivities.metadata,
+            createdAt: leadActivities.createdAt,
+          })
+          .from(leadActivities)
+          .where(inArray(leadActivities.leadId, leadIds))
+      : []
 
-    const { data: activities } = await leadActivitiesQuery
-
-    if (activities) {
-      for (const act of activities as any[]) {
-        allEvents.push({
-          id: act.id,
-          source: 'lead_activity',
-          event_type: act.activity_type || 'note',
-          description: act.description || '',
-          event_timestamp: act.performed_at || act.created_at,
-          contact_id: act.lead_id,
-          contact_type: 'lead',
-          contact_name: leadNames[act.lead_id] || 'Lead',
-          metadata: act.metadata || {},
-        })
-      }
-    }
-
-    // Source 2: Messages via conversations (all leads and patients)
-    let messagesQuery = (supabase
-      .from('messages') as any)
-      .select(`
-        id,
-        conversation_id,
-        content,
-        direction,
-        message_type,
-        created_at,
-        conversations!inner(lead_id, patient_id, clinic_id)
-      `)
-      .eq('conversations.clinic_id', clinicId)
-
-    if (contactFilter) {
-      // Filter by lead_id or patient_id in conversations
-      const { data: convData } = await (supabase
-        .from('conversations') as any)
-        .select('id')
-        .eq('clinic_id', clinicId)
-        .or(`lead_id.eq.${contactFilter},patient_id.eq.${contactFilter}`)
-
-      if (convData && convData.length > 0) {
-        const convIds = (convData as any[]).map((c: any) => c.id)
-        messagesQuery = messagesQuery.in('conversation_id', convIds)
-      } else {
-        messagesQuery = messagesQuery.eq('id', 'none') // No conversations match
-      }
+    for (const act of leadActivityRows) {
+      const ts = act.performedAt || act.createdAt || new Date()
+      allEvents.push({
+        id: act.id,
+        source: 'lead_activity',
+        event_type: act.activityType || 'note',
+        description: act.description || '',
+        event_timestamp: ts instanceof Date ? ts.toISOString() : String(ts),
+        contact_id: act.leadId,
+        contact_type: 'lead',
+        contact_name: leadNames[act.leadId] || 'Lead',
+        metadata: (act.metadata as Record<string, unknown>) || {},
+      })
     }
 
-    if (startDate) {
-      messagesQuery = messagesQuery.gte('created_at', startDate)
-    }
-    if (endDate) {
-      messagesQuery = messagesQuery.lte('created_at', endDate)
-    }
+    // Source 2: Messages via conversations
+    const clinicConversations = await db
+      .select({ id: conversations.id, patientId: conversations.patientId })
+      .from(conversations)
+      .where(eq(conversations.clinicId, clinicId))
+    const convIds = clinicConversations.map(c => c.id)
+    const convPatientMap = new Map(clinicConversations.map(c => [c.id, c.patientId]))
 
-    const { data: messages } = await messagesQuery
+    const messageRows = convIds.length > 0
+      ? await db
+          .select({
+            id: messages.id,
+            conversationId: messages.conversationId,
+            content: messages.content,
+            direction: messages.direction,
+            messageType: messages.messageType,
+            createdAt: messages.createdAt,
+          })
+          .from(messages)
+          .where(inArray(messages.conversationId, convIds))
+      : []
 
-    if (messages) {
-      for (const msg of messages as any[]) {
-        const conv = msg.conversations
-        const contactId = conv.lead_id || conv.patient_id
-        const contactType = conv.lead_id ? 'lead' : 'patient'
-        const contactName = conv.lead_id
-          ? leadNames[conv.lead_id] || 'Lead'
-          : patientNames[conv.patient_id] || 'Paciente'
+    for (const msg of messageRows) {
+      const patientId = convPatientMap.get(msg.conversationId)
+      const contactName = patientId ? patientNames[patientId] || 'Paciente' : 'Unknown'
+      const ts = msg.createdAt || new Date()
 
-        allEvents.push({
-          id: msg.id,
-          source: 'message',
-          event_type: msg.direction === 'inbound' ? 'received' : 'sent',
-          description: msg.content || '',
-          event_timestamp: msg.created_at,
-          contact_id: contactId,
-          contact_type: contactType,
-          contact_name: contactName,
-          metadata: { message_type: msg.message_type, conversation_id: msg.conversation_id },
-        })
-      }
+      allEvents.push({
+        id: msg.id,
+        source: 'message',
+        event_type: msg.direction === 'inbound' ? 'received' : 'sent',
+        description: msg.content || '',
+        event_timestamp: ts instanceof Date ? ts.toISOString() : String(ts),
+        contact_id: patientId || '',
+        contact_type: 'patient',
+        contact_name: contactName,
+        metadata: { message_type: msg.messageType, conversation_id: msg.conversationId },
+      })
     }
 
     // Source 3: Appointments (patients)
-    let appointmentsQuery = (supabase
-      .from('appointments') as any)
-      .select('id, patient_id, lead_id, title, status, scheduled_at, dentist_id, created_at')
-      .eq('clinic_id', clinicId)
-      .not('patient_id', 'is', null)
+    const appointmentRows = await db
+      .select({
+        id: appointments.id,
+        patientId: appointments.patientId,
+        status: appointments.status,
+        scheduledAt: appointments.scheduledAt,
+        dentistId: appointments.dentistId,
+        notes: appointments.notes,
+        createdAt: appointments.createdAt,
+      })
+      .from(appointments)
+      .where(and(
+        eq(appointments.clinicId, clinicId),
+        isNotNull(appointments.patientId)
+      ))
 
-    if (contactFilter) {
-      appointmentsQuery = appointmentsQuery.eq('patient_id', contactFilter)
-    }
-    if (startDate) {
-      appointmentsQuery = appointmentsQuery.gte('scheduled_at', startDate)
-    }
-    if (endDate) {
-      appointmentsQuery = appointmentsQuery.lte('scheduled_at', endDate)
-    }
-
-    const { data: appointments } = await appointmentsQuery
-
-    if (appointments) {
-      for (const apt of appointments as any[]) {
-        allEvents.push({
-          id: apt.id,
-          source: 'appointment',
-          event_type: apt.status || 'created',
-          description: apt.title || 'Appointment',
-          event_timestamp: apt.scheduled_at || apt.created_at,
-          contact_id: apt.patient_id,
-          contact_type: 'patient',
-          contact_name: patientNames[apt.patient_id] || 'Paciente',
-          metadata: { dentist_id: apt.dentist_id, status: apt.status },
-        })
-      }
+    for (const apt of appointmentRows) {
+      const ts = apt.scheduledAt || apt.createdAt || new Date()
+      allEvents.push({
+        id: apt.id,
+        source: 'appointment',
+        event_type: apt.status || 'created',
+        description: apt.notes || 'Appointment',
+        event_timestamp: ts instanceof Date ? ts.toISOString() : String(ts),
+        contact_id: apt.patientId,
+        contact_type: 'patient',
+        contact_name: patientNames[apt.patientId] || 'Paciente',
+        metadata: { dentist_id: apt.dentistId, status: apt.status },
+      })
     }
 
     // Source 4: Patient observations (notes)
-    let observationsQuery = (supabase
-      .from('patient_observations') as any)
-      .select('id, patient_id, content, created_by, created_at')
-      .eq('clinic_id', clinicId)
+    const observationRows = await db
+      .select({
+        id: patientObservations.id,
+        patientId: patientObservations.patientId,
+        content: patientObservations.content,
+        createdBy: patientObservations.createdBy,
+        createdAt: patientObservations.createdAt,
+      })
+      .from(patientObservations)
+      .where(eq(patientObservations.clinicId, clinicId))
 
-    if (contactFilter) {
-      observationsQuery = observationsQuery.eq('patient_id', contactFilter)
-    }
-    if (startDate) {
-      observationsQuery = observationsQuery.gte('created_at', startDate)
-    }
-    if (endDate) {
-      observationsQuery = observationsQuery.lte('created_at', endDate)
-    }
-
-    const { data: observations } = await observationsQuery
-
-    if (observations) {
-      for (const obs of observations as any[]) {
-        allEvents.push({
-          id: obs.id,
-          source: 'note',
-          event_type: 'note',
-          description: obs.content || '',
-          event_timestamp: obs.created_at,
-          contact_id: obs.patient_id,
-          contact_type: 'patient',
-          contact_name: patientNames[obs.patient_id] || 'Paciente',
-          metadata: { created_by: obs.created_by },
-        })
-      }
+    for (const obs of observationRows) {
+      const ts = obs.createdAt || new Date()
+      allEvents.push({
+        id: obs.id,
+        source: 'note',
+        event_type: 'note',
+        description: obs.content || '',
+        event_timestamp: ts instanceof Date ? ts.toISOString() : String(ts),
+        contact_id: obs.patientId,
+        contact_type: 'patient',
+        contact_name: patientNames[obs.patientId] || 'Paciente',
+        metadata: { created_by: obs.createdBy },
+      })
     }
 
     // Apply source filter if provided
