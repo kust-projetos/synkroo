@@ -1,0 +1,29 @@
+{
+  "id": "0001_patient_preferences_migration",
+  "prevId": "066bcc37-28de-48c0-9eac-28a60ac47a9b",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.patient_preferences": {
+      "name": "patient_preferences",
+      "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "uuid", "primaryKey": true, "notNull": true, "default": "gen_random_uuid()" },
+        "patient_id": { "name": "patient_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "clinic_id": { "name": "clinic_id", "type": "uuid", "primaryKey": false, "notNull": true },
+        "key": { "name": "key", "type": "text", "primaryKey": false, "notNull": true },
+        "value": { "name": "value", "type": "text", "primaryKey": false, "notNull": true },
+        "category": { "name": "category", "type": "text", "primaryKey": false, "notNull": true },
+        "updated_at": { "name": "updated_at", "type": "timestamp with time zone", "primaryKey": false, "notNull": false, "default": "now()" }
+      },
+      "indexes": {
+        "patient_preferences_patient_id_idx": { "name": "patient_preferences_patient_id_idx", "columns": ["patient_id"] },
+        "patient_preferences_clinic_id_idx": { "name": "patient_preferences_clinic_id_idx", "columns": ["clinic_id"] },
+        "patient_preferences_category_idx": { "name": "patient_preferences_category_idx", "columns": ["category"] }
+      },
+      "constraints": {
+        "patient_preferences_patient_key_uniq": { "name": "patient_preferences_patient_key_uniq", "columns": ["patient_id", "key"] }
+      }
+    }
+  }
+}
