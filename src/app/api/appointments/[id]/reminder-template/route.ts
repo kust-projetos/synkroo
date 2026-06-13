@@ -1,85 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
-import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { eq, and, sql } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
 import { getEffectiveConfig, replacePlaceholders } from '@/services/reminders/procedure-reminder-config.service'
 import { handleApiError } from '@/lib/errors'
+import { getDb } from '@/lib/db/client'
+import { appointments, patients, dentists, procedures, clinics } from '@/lib/db/schema'
 
-interface AppointmentWithDetails {
-  id: string
-  scheduled_at: string
-  patients: { id: string; name: string; phone: string } | null
-  dentists: { name: string } | null
-  procedures: { id: string; name: string } | null
-  clinics: { id: string; name: string; phone: string } | null
+function formatAppointmentsQuery(db: ReturnType<typeof getDb>, id: string) {
+  return db
+    .select({
+      id: appointments.id,
+      scheduledAt: appointments.scheduledAt,
+      patient: { id: patients.id, name: patients.name, phone: patients.phone },
+      dentist: { name: dentists.name },
+      procedure: { id: procedures.id, name: procedures.name },
+      clinic: { id: clinics.id, name: clinics.name, phone: clinics.phone },
+    })
+    .from(appointments)
+    .innerJoin(clinics, eq(clinics.id, appointments.clinicId))
+    .leftJoin(patients, eq(patients.id, appointments.patientId))
+    .leftJoin(dentists, eq(dentists.id, appointments.dentistId))
+    .leftJoin(procedures, eq(procedures.id, appointments.procedureId))
+    .where(eq(appointments.id, id))
+    .limit(1)
 }
 
 /**
  * GET /api/appointments/[id]/reminder-template
- * Get the reminder template for a specific appointment based on its procedure type
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
-
-    const { id } = await params
-    const supabase = await createClient()
-
-    // Fetch appointment with related data
-    const { data: appointment, error } = await (supabase
-      .from('appointments') as any)
-      .select(`
-        id,
-        scheduled_at,
-        patients (id, name, phone),
-        dentists (name),
-        procedures (id, name),
-        clinics!inner (id, name, phone)
-      `)
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
-    }
-
-    const apt = appointment as AppointmentWithDetails
     const clinicId = authResult.profile!.clinic_id
+    const { id } = await params
 
-    // Verify clinic access
-    if (apt.clinics?.id !== clinicId) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
-    }
+    const db = getDb()
+    const rows = await formatAppointmentsQuery(db, id)
+    if (rows.length === 0) return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
 
-    // Get effective config for this procedure type
-    const procedureTypeId = apt.procedures?.id || ''
-    const procedureTypeName = apt.procedures?.name || ''
+    const apt = rows[0]
+    if (apt.clinic.id !== clinicId) return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
+
+    const procedureTypeId = apt.procedure?.id || ''
+    const procedureTypeName = apt.procedure?.name || ''
     const config = await getEffectiveConfig(clinicId, procedureTypeId, procedureTypeName)
 
-    // Format appointment data
-    const scheduledAt = new Date(apt.scheduled_at)
-    const dataStr = scheduledAt.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
-    const horarioStr = scheduledAt.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-
-    // Replace placeholders
+    const scheduledAt = new Date(apt.scheduledAt)
     const filledMessage = replacePlaceholders(config.message_template, {
-      paciente_nome: apt.patients?.name || '',
-      data: dataStr,
-      horario: horarioStr,
-      dentista: apt.dentists?.name || '',
+      paciente_nome: apt.patient?.name || '',
+      data: scheduledAt.toLocaleDateString('pt-BR'),
+      horario: scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      dentista: apt.dentist?.name || '',
       procedimento: procedureTypeName,
     })
 
@@ -98,71 +72,33 @@ export async function GET(
 }
 
 /**
- * POST /api/appointments/[id]/reminder-template
- * Preview the filled template for an appointment
+ * POST /api/appointments/[id]/reminder-template (preview)
  */
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
-
-    const { id } = await params
-    const supabase = await createClient()
-
-    // Fetch appointment with related data
-    const { data: appointment, error } = await (supabase
-      .from('appointments') as any)
-      .select(`
-        id,
-        scheduled_at,
-        patients (id, name, phone),
-        dentists (name),
-        procedures (id, name),
-        clinics!inner (id, name, phone)
-      `)
-      .eq('id', id)
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
-    }
-
-    const apt = appointment as AppointmentWithDetails
     const clinicId = authResult.profile!.clinic_id
+    const { id } = await params
 
-    // Verify clinic access
-    if (apt.clinics?.id !== clinicId) {
-      return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
-    }
+    const db = getDb()
+    const rows = await formatAppointmentsQuery(db, id)
+    if (rows.length === 0) return NextResponse.json({ error: 'Agendamento não encontrado' }, { status: 404 })
 
-    // Get effective config for this procedure type
-    const procedureTypeId = apt.procedures?.id || ''
-    const procedureTypeName = apt.procedures?.name || ''
-    const config = await getEffectiveConfig(clinicId, procedureTypeId, procedureTypeName)
+    const apt = rows[0]
+    if (apt.clinic.id !== clinicId) return NextResponse.json({ error: 'Acesso negado' }, { status: 403 })
 
-    // Format appointment data
-    const scheduledAt = new Date(apt.scheduled_at)
-    const dataStr = scheduledAt.toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
-    const horarioStr = scheduledAt.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const procedureTypeName = apt.procedure?.name || ''
+    const config = await getEffectiveConfig(clinicId, apt.procedure?.id || '', procedureTypeName)
 
-    // Replace placeholders
+    const scheduledAt = new Date(apt.scheduledAt)
     const filledMessage = replacePlaceholders(config.message_template, {
-      paciente_nome: apt.patients?.name || '',
-      data: dataStr,
-      horario: horarioStr,
-      dentista: apt.dentists?.name || '',
+      paciente_nome: apt.patient?.name || '',
+      data: scheduledAt.toLocaleDateString('pt-BR'),
+      horario: scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      dentista: apt.dentist?.name || '',
       procedimento: procedureTypeName,
     })
 
@@ -171,10 +107,10 @@ export async function POST(
         original_template: config.message_template,
         filled_message: filledMessage,
         placeholders: {
-          paciente_nome: apt.patients?.name || '',
-          data: dataStr,
-          horario: horarioStr,
-          dentista: apt.dentists?.name || '',
+          paciente_nome: apt.patient?.name || '',
+          data: scheduledAt.toLocaleDateString('pt-BR'),
+          horario: scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          dentista: apt.dentist?.name || '',
           procedimento: procedureTypeName,
         },
       },

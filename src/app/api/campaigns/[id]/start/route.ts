@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { startCampaign } from '@/services/followup/campaign.service'
-import { validateApiAuth, hasRequiredRole, createClient } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
 import { handleApiError } from '@/lib/errors'
+import * as campaignRepo from '@/repositories/campaigns'
 
 /**
  * POST /api/campaigns/[id]/start
@@ -15,7 +16,6 @@ export async function POST(
   try {
     const { id: campaignId } = await params
 
-    // Validate authentication
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json(
@@ -24,7 +24,6 @@ export async function POST(
       )
     }
 
-    // Only owner and admin can start campaigns
     if (!hasRequiredRole(authResult.profile!, ['owner', 'admin'])) {
       return NextResponse.json(
         { error: 'Only owners and admins can start campaigns' },
@@ -32,26 +31,13 @@ export async function POST(
       )
     }
 
-    // Verify campaign belongs to user's clinic
-    const supabase = await createClient()
-    const { data: campaign, error: campaignError } = await supabase
-      .from('campaigns')
-      .select('clinic_id, status')
-      .eq('id', campaignId)
-      .single() as { data: { clinic_id: string; status: string } | null; error: any }
-
-    if (campaignError || !campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+    const campaign = await campaignRepo.findCampaignById(campaignId)
+    if (!campaign) {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.clinic_id !== authResult.profile!.clinic_id) {
-      return NextResponse.json(
-        { error: 'Access denied to this campaign' },
-        { status: 403 }
-      )
+    if (campaign.clinicId !== authResult.profile!.clinic_id) {
+      return NextResponse.json({ error: 'Access denied to this campaign' }, { status: 403 })
     }
 
     if (campaign.status !== 'draft' && campaign.status !== 'scheduled') {
@@ -64,16 +50,10 @@ export async function POST(
     const result = await startCampaign(campaignId)
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: result.error }, { status: 400 })
     }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Campaign started successfully',
-    })
+    return NextResponse.json({ success: true, message: 'Campaign started successfully' })
   } catch (error) {
     return handleApiError(error)
   }

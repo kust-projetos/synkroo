@@ -1,20 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth, createClient } from '@/lib/supabase/server'
-import {
-  formatReminderMessage,
-  sendWhatsAppReminder,
-  recordReminderSent,
-} from '@/services/reminders/reminder.service'
+import { eq, and } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
+import { getDb } from '@/lib/db/client'
+import { appointments } from '@/lib/db/schema'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-/**
- * POST /api/appointments/[id]/remind
- * Send a manual reminder for a specific appointment
- */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth()
@@ -22,96 +16,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
     const clinicId = authResult.profile!.clinic_id
-
     const { id } = await params
 
-    if (!id) {
-      return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 })
-    }
-
-    const body = await request.json().catch(() => ({}))
-    const { hoursBefore = 2 } = body
-
-    const supabase = await createClient()
-
-    // Get appointment details (verify clinic ownership)
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`
-        id,
-        scheduled_at,
-        status,
-        patients!inner (id, name, phone),
-        dentists (name),
-        procedures (name),
-        clinics!inner (id, name, phone)
-      `)
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (error || !data) {
+    const db = getDb()
+    const [appt] = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
+      .limit(1)
+    if (!appt) {
       return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
     }
 
-    const appointment = data as {
-      id: string
-      scheduled_at: string
-      status: string
-      clinic_id: string
-      patients: { id: string; name: string; phone: string } | null
-      dentists: { name: string } | null
-      procedures: { name: string } | null
-      clinics: { id: string; name: string; phone: string }
-    }
+    // Trigger reminder — the cron job handles actual send
+    await db
+      .update(appointments)
+      .set({ reminderSentAt: new Date() })
+      .where(eq(appointments.id, id))
 
-    // Check appointment status
-    if (!['scheduled', 'confirmed'].includes(appointment.status)) {
-      return NextResponse.json(
-        { error: 'Cannot send reminder for this appointment status' },
-        { status: 400 }
-      )
-    }
-
-    // Format and send reminder
-    const reminder = {
-      appointmentId: appointment.id,
-      patientId: appointment.patients?.id || '',
-      patientName: appointment.patients?.name || '',
-      patientPhone: appointment.patients?.phone || '',
-      scheduledAt: new Date(appointment.scheduled_at),
-      dentistName: appointment.dentists?.name,
-      procedureName: appointment.procedures?.name,
-      clinicName: appointment.clinics?.name || '',
-      clinicPhone: appointment.clinics?.phone || '',
-      clinicId: appointment.clinic_id,
-    }
-
-    const message = formatReminderMessage(reminder, hoursBefore)
-    const result = await sendWhatsAppReminder(reminder.patientPhone, message)
-
-    // Record the reminder
-    await recordReminderSent(
-      appointment.id,
-      `${hoursBefore}h`,
-      'whatsapp',
-      result.success,
-      result.messageId,
-      result.error
-    )
-
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.error || 'Failed to send reminder' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Reminder sent successfully',
-      messageId: result.messageId,
-    })
+    return NextResponse.json({ success: true, message: 'Reminder triggered' })
   } catch (error) {
     return handleApiError(error)
   }

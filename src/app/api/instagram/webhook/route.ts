@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
-import { createServerClient } from '@/lib/supabase'
+import { eq, and, asc, sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { clinics, conversations, messages } from '@/lib/db/schema'
+import { channelType, messageDirection, messageType } from '@/lib/db/schema/enums'
 import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
 import {
@@ -84,7 +87,7 @@ export async function POST(request: NextRequest) {
     }
 
     const entries = payload.entry || []
-    const serverClient = createServerClient()
+    const db = getDb()
     const processedMessages: Array<{ from: string; message: string }> = []
 
     for (const entry of entries) {
@@ -111,7 +114,7 @@ export async function POST(request: NextRequest) {
 
         // Get message content
         let content = ''
-        let messageType: 'text' | 'image' | 'audio' | 'document' = 'text'
+        let msgMessageType: typeof messageType.enumName = 'text'
 
         if (message.text) {
           content = message.text
@@ -119,10 +122,10 @@ export async function POST(request: NextRequest) {
           const attachment = message.attachments[0]
           if (attachment.type === 'image') {
             content = '[Image]'
-            messageType = 'image'
+            msgMessageType = 'image'
           } else if (attachment.type === 'audio') {
             content = '[Audio]'
-            messageType = 'audio'
+            msgMessageType = 'audio'
           } else if (attachment.type === 'video') {
             content = '[Video]'
           } else {
@@ -133,7 +136,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get clinic ID from Instagram account
-        const clinicId = await getClinicIdByInstagramAccount(serverClient, recipientId)
+        const clinicId = await getClinicIdByInstagramAccount(db, recipientId)
 
         if (!clinicId) {
           console.error(`Clinic not found for Instagram account: ${recipientId}`)
@@ -141,28 +144,29 @@ export async function POST(request: NextRequest) {
         }
 
         // Get or create conversation
-        let conversation: any = null
-        const { data: existingConv } = await serverClient
-          .from('conversations')
-          .select('*')
-          .eq('clinic_id', clinicId)
-          .eq('channel', 'instagram')
-          .eq('external_id', senderId)
-          .single()
-        conversation = existingConv
+        const existingConvs = await db
+          .select()
+          .from(conversations)
+          .where(and(
+            eq(conversations.clinicId, clinicId),
+            eq(conversations.channel, 'instagram' as any),
+            eq(conversations.externalId, senderId)
+          ))
+          .limit(1)
+
+        let conversation = existingConvs[0] || null
 
         if (!conversation) {
-          const { data: newConv } = await serverClient
-            .from('conversations')
-            .insert({
-              clinic_id: clinicId,
-              channel: 'instagram',
-              external_id: senderId,
+          const newConvs = await db
+            .insert(conversations)
+            .values({
+              clinicId,
+              channel: 'instagram' as any,
+              externalId: senderId,
               status: 'active',
-            } as never)
-            .select()
-            .single()
-          conversation = newConv
+            } as any)
+            .returning()
+          conversation = newConvs[0] || null
         }
 
         if (!conversation) {
@@ -171,24 +175,23 @@ export async function POST(request: NextRequest) {
         }
 
         // Store inbound message
-        const { data: savedMessage } = await serverClient
-          .from('messages')
-          .insert({
-            conversation_id: conversation.id,
-            direction: 'inbound',
+        const savedMessages = await db
+          .insert(messages)
+          .values({
+            conversationId: conversation.id,
+            direction: 'inbound' as any,
             content,
-            message_type: messageType,
+            messageType: msgMessageType as any,
             metadata: {
               instagram_message_id: message.mid,
               instagram_sender_id: senderId,
               timestamp,
             },
-            is_ai: false,
-          } as never)
-          .select()
-          .single()
+            isAi: false,
+          } as any)
+          .returning()
 
-        if (!savedMessage) {
+        if (!savedMessages[0]) {
           console.error('Failed to save message')
           continue
         }
@@ -199,39 +202,39 @@ export async function POST(request: NextRequest) {
         const extractedEntities = await llm.extractEntities(content)
 
         // Update message with intent and entities
-        await serverClient
-          .from('messages')
-          .update({
+        await db
+          .update(messages)
+          .set({
             intent,
             entities: { ...entities, ...extractedEntities },
-            confidence,
-          } as never)
-          .eq('id', (savedMessage as any).id)
+            confidence: confidence ? String(confidence) : null,
+          } as any)
+          .where(eq(messages.id, savedMessages[0].id))
 
         // Check if escalation needed
         const shouldEscalate = await llm.shouldEscalate(content, intent)
 
         if (shouldEscalate) {
-          await serverClient
-            .from('conversations')
-            .update({ status: 'escalated' } as never)
-            .eq('id', conversation.id)
+          await db
+            .update(conversations)
+            .set({ status: 'escalated' } as any)
+            .where(eq(conversations.id, conversation.id))
 
           await sendInstagramMessage(recipientId, senderId,
             'Entendi! Vou transferir você para um atendente humano. Aguarde um momento, por favor.')
         } else {
           // Get conversation history
-          const { data: history } = await serverClient
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', conversation.id)
-            .order('created_at', { ascending: true })
+          const history = await db
+            .select()
+            .from(messages)
+            .where(eq(messages.conversationId, conversation.id))
+            .orderBy(asc(messages.createdAt))
             .limit(10)
 
-          const conversationHistory = (history || []).map((msg: any) => ({
-            role: msg.direction === 'inbound' ? 'user' : 'assistant',
+          const conversationHistory = history.map((msg) => ({
+            role: msg.direction === 'inbound' ? 'user' as const : 'assistant' as const,
             content: msg.content,
-          })) as Array<{ role: 'user' | 'assistant'; content: string }>
+          }))
 
           // Generate AI response
           const aiResponse = await llm.generateResponse(content, {
@@ -241,27 +244,27 @@ export async function POST(request: NextRequest) {
           })
 
           // Store AI response
-          await serverClient
-            .from('messages')
-            .insert({
-              conversation_id: conversation.id,
-              direction: 'outbound',
+          await db
+            .insert(messages)
+            .values({
+              conversationId: conversation.id,
+              direction: 'outbound' as any,
               content: aiResponse,
-              message_type: 'text',
+              messageType: 'text',
               intent,
               entities: extractedEntities,
-              confidence,
-              is_ai: true,
-            } as never)
+              confidence: confidence ? String(confidence) : null,
+              isAi: true,
+            } as any)
 
           // Send response via Instagram
           await sendInstagramMessage(recipientId, senderId, aiResponse)
 
           // Update conversation
-          await serverClient
-            .from('conversations')
-            .update({ last_message_at: new Date().toISOString() } as never)
-            .eq('id', conversation.id)
+          await db
+            .update(conversations)
+            .set({ lastMessageAt: new Date() } as any)
+            .where(eq(conversations.id, conversation.id))
         }
 
         processedMessages.push({ from: senderId, message: content })
@@ -282,18 +285,18 @@ export async function POST(request: NextRequest) {
  * Get clinic ID by Instagram account ID
  */
 async function getClinicIdByInstagramAccount(
-  client: ReturnType<typeof createServerClient>,
+  db: ReturnType<typeof getDb>,
   instagramAccountId: string | undefined
 ): Promise<string | null> {
   if (!instagramAccountId) return null
 
-  const { data } = await client
-    .from('clinics')
-    .select('id')
-    .contains('settings', { instagram_account_id: instagramAccountId })
-    .single()
+  // Use raw SQL for JSONB contains query
+  const clinicResult = await db.execute(
+    sql`SELECT id FROM clinics WHERE settings->>'instagram_account_id' = ${instagramAccountId} LIMIT 1`
+  )
 
-  return (data as any)?.id || null
+  const rows = clinicResult.rows as Array<{ id: string }>
+  return rows[0]?.id || null
 }
 
 /**

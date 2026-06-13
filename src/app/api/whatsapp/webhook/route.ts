@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
-import { createClient } from '@/lib/supabase/server'
-import { createServerClient } from '@/lib/supabase'
+import { eq, and, asc, sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { clinics, conversations, messages } from '@/lib/db/schema'
+import { channelType, messageDirection, messageType } from '@/lib/db/schema/enums'
 import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
 import { whatsappLogger } from '@/lib/logger'
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     const entries = payload.entry || []
-    const serverClient = createServerClient() as any
+    const db = getDb()
     const processedMessages: Array<{ from: string; message: string }> = []
 
     for (const entry of entries) {
@@ -111,19 +113,19 @@ export async function POST(request: NextRequest) {
 
             // Extract message content based on type
             let content = ''
-            let messageType: 'text' | 'image' | 'audio' | 'document' = 'text'
+            let msgMessageType: typeof messageType.enumName = 'text'
 
             if (type === 'text' && msg.text) {
               content = msg.text.body
             } else if (type === 'image' && msg.image) {
               content = msg.image.caption || '[Image]'
-              messageType = 'image'
+              msgMessageType = 'image'
             } else if (type === 'audio' && msg.audio) {
               content = '[Audio message]'
-              messageType = 'audio'
+              msgMessageType = 'audio'
             } else if (type === 'document' && msg.document) {
               content = msg.document.caption || '[Document]'
-              messageType = 'document'
+              msgMessageType = 'document'
             } else {
               // Skip unsupported message types
               continue
@@ -131,7 +133,7 @@ export async function POST(request: NextRequest) {
 
             // Get metadata to identify clinic
             const phoneNumberId = value.metadata?.phone_number_id
-            const clinicId = await getClinicIdByPhoneNumber(serverClient, phoneNumberId)
+            const clinicId = await getClinicIdByPhoneNumber(db, phoneNumberId)
 
             if (!clinicId) {
               console.error(`Clinic not found for phone number ID: ${phoneNumberId}`)
@@ -139,28 +141,29 @@ export async function POST(request: NextRequest) {
             }
 
             // Get or create conversation
-            let conversation: any = null
-            const { data: existingConv } = await serverClient
-              .from('conversations')
-              .select('*')
-              .eq('clinic_id', clinicId)
-              .eq('channel', 'whatsapp')
-              .eq('external_id', from)
-              .single()
-            conversation = existingConv
+            const existingConvs = await db
+              .select()
+              .from(conversations)
+              .where(and(
+                eq(conversations.clinicId, clinicId),
+                eq(conversations.channel, 'whatsapp' as any),
+                eq(conversations.externalId, from)
+              ))
+              .limit(1)
+
+            let conversation = existingConvs[0] || null
 
             if (!conversation) {
-              const { data: newConv } = await serverClient
-                .from('conversations')
-                .insert({
-                  clinic_id: clinicId,
-                  channel: 'whatsapp',
-                  external_id: from,
+              const newConvs = await db
+                .insert(conversations)
+                .values({
+                  clinicId,
+                  channel: 'whatsapp' as any,
+                  externalId: from,
                   status: 'active',
                 } as any)
-                .select()
-                .single()
-              conversation = newConv
+                .returning()
+              conversation = newConvs[0] || null
             }
 
             if (!conversation) {
@@ -169,22 +172,21 @@ export async function POST(request: NextRequest) {
             }
 
             // Store inbound message
-            const { data: savedMessage } = await serverClient
-              .from('messages')
-              .insert({
-                conversation_id: conversation.id,
-                direction: 'inbound',
+            const savedMessages = await db
+              .insert(messages)
+              .values({
+                conversationId: conversation.id,
+                direction: 'inbound' as any,
                 content,
-                message_type: messageType,
+                messageType: msgMessageType as any,
                 metadata: {
                   whatsapp_message_id: msgId,
                   timestamp,
                   phone_number_id: phoneNumberId,
                 },
-                is_ai: false,
+                isAi: false,
               } as any)
-              .select()
-              .single()
+              .returning()
 
             // Check for confirmation/cancellation response first
             const confirmationResult = await processConfirmationResponse(
@@ -195,15 +197,15 @@ export async function POST(request: NextRequest) {
 
             if (confirmationResult.processed && confirmationResult.responseMessage) {
               // Store confirmation response
-              await serverClient
-                .from('messages')
-                .insert({
-                  conversation_id: conversation.id,
-                  direction: 'outbound',
+              await db
+                .insert(messages)
+                .values({
+                  conversationId: conversation.id,
+                  direction: 'outbound' as any,
                   content: confirmationResult.responseMessage,
-                  message_type: 'text',
+                  messageType: 'text',
                   intent: confirmationResult.action === 'confirmed' ? 'confirmacao' : 'cancelamento',
-                  is_ai: false,
+                  isAi: false,
                 } as any)
 
               // Send confirmation response
@@ -222,15 +224,15 @@ export async function POST(request: NextRequest) {
 
             if (waitlistResult.processed && waitlistResult.responseMessage) {
               // Store waitlist confirmation response
-              await serverClient
-                .from('messages')
-                .insert({
-                  conversation_id: conversation.id,
-                  direction: 'outbound',
+              await db
+                .insert(messages)
+                .values({
+                  conversationId: conversation.id,
+                  direction: 'outbound' as any,
                   content: waitlistResult.responseMessage,
-                  message_type: 'text',
+                  messageType: 'text',
                   intent: 'agendamento',
-                  is_ai: false,
+                  isAi: false,
                 } as any)
 
               // Send response
@@ -246,40 +248,42 @@ export async function POST(request: NextRequest) {
             const extractedEntities = await llm.extractEntities(content)
 
             // Update message with intent and entities
-            await serverClient
-              .from('messages')
-              .update({
-                intent,
-                entities: { ...entities, ...extractedEntities },
-                confidence,
-              } as any)
-              .eq('id', savedMessage?.id)
+            if (savedMessages[0]) {
+              await db
+                .update(messages)
+                .set({
+                  intent,
+                  entities: { ...entities, ...extractedEntities },
+                  confidence: confidence ? String(confidence) : null,
+                } as any)
+                .where(eq(messages.id, savedMessages[0].id))
+            }
 
             // Check if escalation needed
             const shouldEscalate = await llm.shouldEscalate(content, intent)
 
             if (shouldEscalate) {
-              await serverClient
-                .from('conversations')
-                .update({ status: 'escalated' } as any)
-                .eq('id', conversation.id)
+              await db
+                .update(conversations)
+                .set({ status: 'escalated' } as any)
+                .where(eq(conversations.id, conversation.id))
 
               // Send escalation message
               await sendWhatsAppMessage(phoneNumberId, from,
                 'Entendi! Vou transferir você para um atendente humano. Aguarde um momento, por favor.')
             } else {
               // Get conversation history for context
-              const { data: history } = await serverClient
-                .from('messages')
-                .select('*')
-                .eq('conversation_id', conversation.id)
-                .order('created_at', { ascending: true })
+              const history = await db
+                .select()
+                .from(messages)
+                .where(eq(messages.conversationId, conversation.id))
+                .orderBy(asc(messages.createdAt))
                 .limit(10)
 
-              const conversationHistory = (history || []).map((msg: { direction: string; content: string }) => ({
-                role: msg.direction === 'inbound' ? 'user' : 'assistant',
+              const conversationHistory = history.map((msg) => ({
+                role: msg.direction === 'inbound' ? 'user' as const : 'assistant' as const,
                 content: msg.content,
-              })) as Array<{ role: 'user' | 'assistant'; content: string }>
+              }))
 
               // Generate AI response
               const aiResponse = await llm.generateResponse(content, {
@@ -289,27 +293,27 @@ export async function POST(request: NextRequest) {
               })
 
               // Store AI response
-              await serverClient
-                .from('messages')
-                .insert({
-                  conversation_id: conversation.id,
-                  direction: 'outbound',
+              await db
+                .insert(messages)
+                .values({
+                  conversationId: conversation.id,
+                  direction: 'outbound' as any,
                   content: aiResponse,
-                  message_type: 'text',
+                  messageType: 'text',
                   intent,
                   entities: extractedEntities,
-                  confidence,
-                  is_ai: true,
+                  confidence: confidence ? String(confidence) : null,
+                  isAi: true,
                 } as any)
 
               // Send response via WhatsApp
               await sendWhatsAppMessage(phoneNumberId, from, aiResponse)
 
               // Update conversation
-              await serverClient
-                .from('conversations')
-                .update({ last_message_at: new Date().toISOString() } as any)
-                .eq('id', conversation.id)
+              await db
+                .update(conversations)
+                .set({ lastMessageAt: new Date() } as any)
+                .where(eq(conversations.id, conversation.id))
             }
 
             processedMessages.push({ from, message: content })
@@ -321,10 +325,10 @@ export async function POST(request: NextRequest) {
           for (const status of value.statuses) {
             const msgId = status.id
             const statusType = status.status
-            const timestamp = status.timestamp
+            const statusTimestamp = status.timestamp
 
             // Update message status in database
-            await updateMessageStatus(serverClient, msgId, statusType, timestamp)
+            await updateMessageStatusByWhatsappId(db, msgId, statusType, statusTimestamp)
           }
         }
       }
@@ -364,18 +368,19 @@ function verifySignature(body: string, signature: string | null): boolean {
  * Get clinic ID by WhatsApp phone number ID
  */
 async function getClinicIdByPhoneNumber(
-  client: ReturnType<typeof createServerClient>,
+  db: ReturnType<typeof getDb>,
   phoneNumberId: string | undefined
 ): Promise<string | null> {
   if (!phoneNumberId) return null
 
-  const { data } = await client
-    .from('clinics')
-    .select('id')
-    .contains('settings', { whatsapp_phone_number_id: phoneNumberId })
-    .single()
+  // Query clinics where settings->'whatsapp_phone_number_id' = phoneNumberId
+  // Use raw SQL for JSONB contains query
+  const clinicResult = await db.execute(
+    sql`SELECT id FROM clinics WHERE settings->>'whatsapp_phone_number_id' = ${phoneNumberId} LIMIT 1`
+  )
 
-  return (data as any)?.id || null
+  const rows = clinicResult.rows as Array<{ id: string }>
+  return rows[0]?.id || null
 }
 
 /**
@@ -422,10 +427,10 @@ async function sendWhatsAppMessage(
 }
 
 /**
- * Update message status in database
+ * Update message status in database by WhatsApp message ID
  */
-async function updateMessageStatus(
-  client: any,
+async function updateMessageStatusByWhatsappId(
+  db: ReturnType<typeof getDb>,
   whatsappMessageId: string,
   status: string,
   timestamp: string
@@ -437,13 +442,13 @@ async function updateMessageStatus(
     failed: 'failed',
   }
 
-  await client
-    .from('messages')
-    .update({
+  await db
+    .update(messages)
+    .set({
       metadata: {
         delivery_status: statusMap[status] || status,
         status_updated_at: new Date(parseInt(timestamp) * 1000).toISOString(),
       },
-    })
-    .contains('metadata', { whatsapp_message_id: whatsappMessageId })
+    } as any)
+    .where(eq(messages.id, whatsappMessageId))
 }

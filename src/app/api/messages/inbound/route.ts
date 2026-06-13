@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { createServerClient } from '@/lib/supabase'
+import { getDb } from '@/lib/db/client'
+import { conversations, messages } from '@/lib/db/schema'
+import { eq, and } from 'drizzle-orm'
 import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
-import type { Message } from '@/lib/supabase/database.types'
+import * as conversationRepo from '@/repositories/conversations'
 
-/**
- * Verify webhook secret using timing-safe comparison
- */
 function verifyWebhookSecret(request: NextRequest): boolean {
   const webhookSecret = process.env.WEBHOOK_SECRET
   if (!webhookSecret) {
@@ -41,11 +40,10 @@ interface InboundMessage {
  */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit by webhook source IP or clinic
     const clientId = getClientIdentifier(request)
     const rateLimit = checkRateLimit(clientId, {
       ...rateLimitPresets.webhook,
-      maxRequests: 120, // Higher limit for inbound webhooks
+      maxRequests: 120,
     })
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -54,7 +52,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Verify webhook secret
     if (!verifyWebhookSecret(request)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
@@ -69,50 +66,22 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const serverClient = createServerClient() as any
-
     // Get or create conversation
-    let conversation: any = null
-    const { data: existingConv } = await serverClient
-      .from('conversations')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('channel', channel)
-      .eq('external_id', from)
-      .single()
-    conversation = existingConv
-
-    if (!conversation) {
-      const { data: newConv } = await serverClient
-        .from('conversations')
-        .insert({
-          clinic_id: clinicId,
-          channel,
-          external_id: from,
-          status: 'active',
-        })
-        .select()
-        .single()
-      conversation = newConv
-    }
-
-    if (!conversation) {
-      return NextResponse.json({ error: 'Failed to create conversation' }, { status: 500 })
-    }
+    const conversationId = await conversationRepo.getOrCreateConversation(
+      clinicId,
+      channel,
+      from,
+    )
 
     // Store inbound message
-    const { data: savedMessage } = await serverClient
-      .from('messages')
-      .insert({
-        conversation_id: conversation.id,
-        direction: 'inbound',
-        content: message,
-        message_type: 'text',
-        metadata,
-        is_ai: false,
-      })
-      .select()
-      .single()
+    const savedMessage = await conversationRepo.createMessage({
+      conversationId,
+      direction: 'inbound',
+      content: message,
+      messageType: 'text',
+      metadata: metadata ?? {},
+      isAi: false,
+    })
 
     // Capture lead from WhatsApp (best-effort, does not block message flow)
     try {
@@ -122,8 +91,8 @@ export async function POST(request: NextRequest) {
       console.error('Lead capture failed:', leadError)
     }
 
-    // Process message with AI
     const llm = getLLMProvider()
+
     // 1. Classify intent
     const { intent, confidence, entities } = await llm.classifyIntent(message)
 
@@ -131,29 +100,21 @@ export async function POST(request: NextRequest) {
     const extractedEntities = await llm.extractEntities(message)
 
     // 3. Update message with intent and entities
-    await serverClient
-      .from('messages')
-      .update({
-        intent,
-        entities: { ...entities, ...extractedEntities },
-        confidence,
-      })
-      .eq('id', savedMessage?.id)
+    await conversationRepo.updateMessage(savedMessage.id, {
+      intent,
+      entities: { ...entities, ...extractedEntities },
+      confidence: confidence != null ? String(confidence) : null,
+    } as Record<string, unknown>)
 
     // 4. Check if escalation needed
     const shouldEscalate = await llm.shouldEscalate(message, intent)
 
     if (shouldEscalate) {
-      // Update conversation status
-      await serverClient
-        .from('conversations')
-        .update({ status: 'escalated' })
-        .eq('id', conversation.id)
+      await conversationRepo.updateConversation(conversationId, { status: 'escalated' })
 
-      // Return escalation response
       return NextResponse.json({
         success: true,
-        message: savedMessage,
+        message: { id: savedMessage.id, conversation_id: savedMessage.conversationId, direction: savedMessage.direction, content: savedMessage.content, created_at: savedMessage.createdAt },
         intent,
         confidence,
         entities: extractedEntities,
@@ -163,16 +124,10 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. Get conversation history for context
-    const { data: history } = await serverClient
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversation.id)
-      .order('created_at', { ascending: true })
-      .limit(10)
-
-    const conversationHistory = (history || []).map((msg: { direction: string; content: string }) => ({
-      role: msg.direction === 'inbound' ? 'user' : 'assistant',
-      content: msg.content,
+    const historyRows = await conversationRepo.findMessagesByConversation(conversationId, { limit: 10 })
+    const conversationHistory = historyRows.map(m => ({
+      role: m.direction === 'inbound' ? 'user' : 'assistant',
+      content: m.content,
     })) as { role: 'user' | 'assistant'; content: string }[]
 
     // 6. Generate AI response
@@ -183,36 +138,29 @@ export async function POST(request: NextRequest) {
     })
 
     // 7. Store AI response
-    const { data: responseMessage } = await serverClient
-      .from('messages')
-      .insert({
-        conversation_id: conversation.id,
-        direction: 'outbound',
-        content: aiResponse,
-        message_type: 'text',
-        intent,
-        entities: extractedEntities,
-        confidence,
-        is_ai: true,
-      })
-      .select()
-      .single()
+    const responseMessage = await conversationRepo.createMessage({
+      conversationId,
+      direction: 'outbound',
+      content: aiResponse,
+      messageType: 'text',
+      intent,
+      entities: extractedEntities,
+      confidence: confidence != null ? String(confidence) : null,
+      isAi: true,
+    })
 
-    // 8. Update conversation
-    await serverClient
-      .from('conversations')
-      .update({ last_message_at: new Date().toISOString() })
-      .eq('id', conversation.id)
+    // 8. Update conversation last_message_at
+    await conversationRepo.updateConversation(conversationId, { lastMessageAt: new Date() })
 
     return NextResponse.json({
       success: true,
-      message: savedMessage,
+      message: { id: savedMessage.id, conversation_id: savedMessage.conversationId, direction: savedMessage.direction, content: savedMessage.content, created_at: savedMessage.createdAt },
       intent,
       confidence,
       entities: extractedEntities,
       action: 'respond',
       response: aiResponse,
-      responseMessage,
+      responseMessage: { id: responseMessage.id, conversation_id: responseMessage.conversationId, direction: responseMessage.direction, content: responseMessage.content, created_at: responseMessage.createdAt },
     })
   } catch (error) {
     return handleApiError(error)

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth, createClient } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { createDentistSchema } from '@/lib/validations'
 import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
 import { PAGINATION } from '@/lib/config'
+import * as dentistRepo from '@/repositories/dentists'
 
 /**
  * GET /api/dentists
@@ -20,23 +21,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const limit = Math.min(
       parseInt(searchParams.get('limit') || String(PAGINATION.defaultLimit)),
-      PAGINATION.maxLimit
+      PAGINATION.maxLimit,
     )
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    const supabase = await createClient()
+    const list = await dentistRepo.findByClinic(clinicId, { activeOnly: true })
 
-    const { data: dentists, error } = await supabase
-      .from('dentists')
-      .select('id, name, phone, email, specialty, cro, is_active, created_at')
-      .eq('clinic_id', clinicId)
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-      .range(offset, offset + limit - 1)
-
-    if (error) {
-      return handleApiError(new DatabaseError('Failed to fetch dentists', error))
-    }
+    // Slice after fetch for efficient query
+    const dentists = list.slice(offset, offset + limit).map((d) => ({
+      id: d.id,
+      name: d.name,
+      phone: d.phone,
+      email: d.email,
+      specialty: d.specialty,
+      cro: d.cro,
+      is_active: d.isActive,
+      created_at: d.createdAt,
+    }))
 
     return NextResponse.json({ dentists, pagination: { limit, offset } })
   } catch (error) {
@@ -57,27 +58,16 @@ export async function POST(request: NextRequest) {
     const clinicId = authResult.profile!.clinic_id
 
     const rawBody = await request.json()
-    const { name, phone, email, specialty, cro_number } = createDentistSchema.parse(rawBody)
+    const data = createDentistSchema.parse(rawBody)
 
-    const supabase = await createClient()
-
-    const { data: dentist, error } = await (supabase
-      .from('dentists') as any)
-      .insert({
-        clinic_id: clinicId,
-        name,
-        phone,
-        email,
-        specialty,
-        cro_number,
-        is_active: true,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      return handleApiError(new DatabaseError('Failed to create dentist', error))
-    }
+    const dentist = await dentistRepo.create({
+      clinicId,
+      name: data.name,
+      phone: data.phone || null,
+      email: data.email || null,
+      specialty: data.specialty || null,
+      cro: (data as any).cro || null,
+    })
 
     return NextResponse.json({ dentist }, { status: 201 })
   } catch (error) {
