@@ -2,7 +2,9 @@
 
 /**
  * Synkroo - Database Setup Script
- * Configura e verifica o banco de dados Supabase
+ *
+ * Verifica e configura o ambiente PostgreSQL local com pgvector.
+ * Requirements: Docker, Docker Compose, DATABASE_URL configurada.
  */
 
 const { execSync } = require('child_process');
@@ -27,105 +29,123 @@ function checkEnvFile() {
 
   if (!fs.existsSync(envPath)) {
     log('❌ Arquivo .env.local não encontrado!', 'red');
-
     if (fs.existsSync(envExamplePath)) {
       log('📋 Copiando .env.example para .env.local...', 'yellow');
       fs.copyFileSync(envExamplePath, envPath);
-      log('✅ Arquivo criado. Configure suas variáveis de ambiente!', 'green');
-    } else {
-      log('📝 Criando .env.local com template...', 'yellow');
-      const template = `# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-
-# MiniMax API
-MINIMAX_API_KEY=your-minimax-api-key
-MINIMAX_API_URL=https://api.minimax.io/v1/text/chatcompletion_v2
-MINIMAX_MODEL=MiniMax-M2.7
-
-# WhatsApp
-WHATSAPP_HEADLESS=false
-WHATSAPP_SESSION_PATH=./.whatsapp-session
-`;
-      fs.writeFileSync(envPath, template);
-      log('✅ Arquivo criado. Configure suas variáveis de ambiente!', 'green');
+      log('✅ .env.local criado. Edite e configure as variáveis!', 'green');
     }
     return false;
   }
+  log('✅ .env.local encontrado', 'green');
 
-  log('✅ Arquivo .env.local encontrado', 'green');
+  // Load env
+  require('dotenv').config({ path: envPath });
   return true;
 }
 
-function checkSupabaseCLI() {
+function checkDocker() {
   try {
-    const version = execSync('npx supabase --version', { encoding: 'utf-8' }).trim();
-    log(`✅ Supabase CLI: ${version}`, 'green');
+    execSync('docker info', { stdio: 'pipe' });
+    log('✅ Docker está rodando', 'green');
     return true;
-  } catch (error) {
-    log('❌ Supabase CLI não encontrado', 'red');
-    log('   Instale com: npm install -g supabase', 'yellow');
+  } catch {
+    log('❌ Docker não está rodando', 'red');
+    log('   Instale e inicie o Docker Desktop ou engine', 'yellow');
     return false;
   }
 }
 
-function checkMigrations() {
-  const migrationsPath = path.join(__dirname, '..', 'supabase', 'migrations');
+function checkDockerCompose() {
+  try {
+    execSync('docker compose version', { stdio: 'pipe' });
+    log('✅ Docker Compose disponível', 'green');
+    return true;
+  } catch {
+    log('❌ Docker Compose não encontrado', 'red');
+    log('   docker compose faz parte do Docker Desktop', 'yellow');
+    return false;
+  }
+}
 
-  if (!fs.existsSync(migrationsPath)) {
-    log('❌ Pasta de migrations não encontrada', 'red');
+function checkDatabaseUrl() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    log('❌ DATABASE_URL não configurada', 'red');
+    log('   Adicione DATABASE_URL ao .env.local', 'yellow');
     return false;
   }
 
-  const migrations = fs.readdirSync(migrationsPath).filter(f => f.endsWith('.sql'));
-  log(`✅ ${migrations.length} migrations encontradas`, 'green');
+  // Basic sanity: must be a postgres:// URL
+  if (!dbUrl.startsWith('postgres://') && !dbUrl.startsWith('postgresql://')) {
+    log(`❌ DATABASE_URL inválida: ${dbUrl}`, 'red');
+    log('   Deve começar com postgres:// ou postgresql://', 'yellow');
+    return false;
+  }
 
-  migrations.forEach(m => {
-    log(`   - ${m}`, 'blue');
-  });
-
+  log(`✅ DATABASE_URL configurada`, 'green');
   return true;
 }
 
-function checkSupabaseConnection() {
+function checkContainer() {
   try {
-    // Tenta carregar variáveis de ambiente
-    require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
+    const status = execSync(
+      'docker compose ps --format json postgres 2>nul',
+      { encoding: 'utf-8', stdio: 'pipe' },
+    ).trim();
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (status && status.includes('"State":"running"')) {
+      log('✅ Container PostgreSQL está rodando', 'green');
+      return true;
+    }
 
-    if (!supabaseUrl || !supabaseKey) {
-      log('❌ Variáveis Supabase não configuradas', 'red');
+    if (status && status.includes('"State"')) {
+      // Container exists but not running
+      log('⚠️  Container PostgreSQL existe mas não está rodando', 'yellow');
+      log('   Execute: docker compose up -d', 'blue');
       return false;
     }
 
-    if (supabaseUrl.includes('your-project')) {
-      log('❌ Configure NEXT_PUBLIC_SUPABASE_URL no .env.local', 'red');
-      return false;
-    }
+    log('⚠️  Container PostgreSQL não iniciado', 'yellow');
+    log('   Execute: docker compose up -d', 'blue');
+    return false;
+  } catch {
+    log('⚠️  Container PostgreSQL não encontrado', 'yellow');
+    log('   Execute: docker compose up -d', 'blue');
+    return false;
+  }
+}
 
-    log(`✅ Supabase URL: ${supabaseUrl}`, 'green');
-    return true;
-  } catch (error) {
-    log('❌ Erro ao verificar conexão', 'red');
+function checkPgvector() {
+  try {
+    const result = execSync(
+      `docker compose exec -T postgres psql -U ${process.env.POSTGRES_USER || 'synkroo'} -d ${process.env.POSTGRES_DB || 'synkroo'} -c "SELECT extname FROM pg_extension WHERE extname = 'vector';" 2>/dev/null`,
+      { encoding: 'utf-8', stdio: 'pipe' },
+    ).trim();
+    if (result.includes('vector')) {
+      log('✅ pgvector extension disponível', 'green');
+      return true;
+    }
+    log('⚠️  pgvector não detectado (será ativado nas migrations)', 'yellow');
+    return false;
+  } catch {
+    log('⚠️  Não foi possível verificar pgvector', 'yellow');
     return false;
   }
 }
 
 async function main() {
-  log('\n🔍 Verificando configuração do Synkroo...\n', 'blue');
+  log('\n🔍 Verificando ambiente PostgreSQL do Synkroo...\n', 'blue');
 
   const checks = [
-    { name: 'Arquivo .env.local', fn: checkEnvFile },
-    { name: 'Supabase CLI', fn: checkSupabaseCLI },
-    { name: 'Migrations', fn: checkMigrations },
-    { name: 'Conexão Supabase', fn: checkSupabaseConnection },
+    { name: '.env.local', fn: checkEnvFile },
+    { name: 'Docker', fn: checkDocker },
+    { name: 'Docker Compose', fn: checkDockerCompose },
+    { name: 'DATABASE_URL', fn: checkDatabaseUrl },
+    { name: 'Container PostgreSQL', fn: checkContainer },
+    { name: 'pgvector extension', fn: checkPgvector },
   ];
 
   const results = [];
-
   for (const check of checks) {
     log(`\n📋 ${check.name}:`, 'blue');
     const result = check.fn();
@@ -140,18 +160,23 @@ async function main() {
   const total = results.length;
 
   results.forEach(r => {
-    const icon = r.passed ? '✅' : '❌';
-    const color = r.passed ? 'green' : 'red';
+    const icon = r.passed ? '✅' : '⚠️ ';
+    const color = r.passed ? 'green' : 'yellow';
     log(`${icon} ${r.name}`, color);
   });
 
-  log(`\n${passed}/${total} verificações passaram`, passed === total ? 'green' : 'yellow');
+  log(`\n${passed}/${total} verificações OK`, passed === total ? 'green' : 'yellow');
 
   if (passed === total) {
     log('\n🚀 Tudo pronto! Execute:', 'green');
-    log('   npx supabase db push    # Para aplicar migrations', 'blue');
+    log('   npm run db:migrate    # Aplicar migrations', 'blue');
+    log('   npm run db:seed       # Popular dados de exemplo', 'blue');
   } else {
     log('\n⚠️  Corrija os problemas acima antes de continuar', 'yellow');
+    log('\n   Comandos úteis:', 'blue');
+    log('   docker compose up -d                         # Iniciar PostgreSQL', 'blue');
+    log('   docker compose ps                            # Ver status', 'blue');
+    log('   DATABASE_URL=postgres://... npm run db:migrate  # Migrar', 'blue');
   }
 }
 
