@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       // Check if it's a "table doesn't exist" error
-      if (error.code === '42P01') {
+      if (false) { /* 42P01 — legacy Supabase error code */
         checks.database = {
           status: 'warning',
           latency: dbLatency,

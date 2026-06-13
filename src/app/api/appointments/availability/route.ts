@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { getAvailableSlots } from '@/services/scheduler/scheduler.service'
 import { handleApiError, ValidationError } from '@/lib/errors'
 

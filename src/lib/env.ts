@@ -9,12 +9,22 @@ const envSchema = z.object({
   // Node
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
 
-  // Supabase (required)
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  // PostgreSQL / Drizzle (new stack)
+  DATABASE_URL: z.string().url().optional(),
+  POSTGRES_HOST: z.string().min(1).optional(),
+  POSTGRES_PORT: z.coerce.number().int().positive().optional(),
+  POSTGRES_DB: z.string().min(1).optional(),
+  POSTGRES_USER: z.string().min(1).optional(),
+  POSTGRES_PASSWORD: z.string().min(1).optional(),
+
+  // Supabase (CUTOVER COMPLETE — kept as optional for backward compat with scripts)
+  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
 
   // Auth (required)
+  AUTH_SECRET: z.string().min(32).optional(),
+  AUTH_URL: z.string().url().optional(),
   JWT_SECRET: z.string().min(16),
 
   // LLM (required for AI features)
@@ -59,9 +69,17 @@ export function getEnv(): Env {
 
   const result = envSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
+    DATABASE_URL: process.env.DATABASE_URL,
+    POSTGRES_HOST: process.env.POSTGRES_HOST,
+    POSTGRES_PORT: process.env.POSTGRES_PORT,
+    POSTGRES_DB: process.env.POSTGRES_DB,
+    POSTGRES_USER: process.env.POSTGRES_USER,
+    POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    AUTH_SECRET: process.env.AUTH_SECRET,
+    AUTH_URL: process.env.AUTH_URL,
     JWT_SECRET: process.env.JWT_SECRET,
     MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
     WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
@@ -86,9 +104,7 @@ export function getEnv(): Env {
       .join(', ')
 
     // Warn in development but still throw for critical vars
-    // Empty strings for required vars (SUPABASE_URL, SERVICE_ROLE_KEY, JWT_SECRET)
-    // would cause silent connection failures — fail fast always.
-    const criticalVars = ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET']
+    const criticalVars = ['JWT_SECRET']
     const hasCriticalMissing = criticalVars.some(c =>
       result.error.issues.some(i => i.path.join('.') === c && i.message.includes('string'))
     )
@@ -102,9 +118,17 @@ export function getEnv(): Env {
       // Merge validated data with env vars (using actual values, not empty defaults)
       const partial = {
         NODE_ENV: (process.env.NODE_ENV || 'development') as Env['NODE_ENV'],
-        NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
-        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
+        DATABASE_URL: process.env.DATABASE_URL,
+        POSTGRES_HOST: process.env.POSTGRES_HOST,
+        POSTGRES_PORT: process.env.POSTGRES_PORT ? Number(process.env.POSTGRES_PORT) : undefined,
+        POSTGRES_DB: process.env.POSTGRES_DB,
+        POSTGRES_USER: process.env.POSTGRES_USER,
+        POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
+        NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        AUTH_SECRET: process.env.AUTH_SECRET,
+        AUTH_URL: process.env.AUTH_URL,
         JWT_SECRET: process.env.JWT_SECRET || '',
         MINIMAX_API_KEY: process.env.MINIMAX_API_KEY || '',
         WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || '',

@@ -1,9 +1,12 @@
 /**
  * Patient Tags Service
- * Manages tags for patient segmentation and filtering
+ * Manages tags for patient segmentation and filtering using Drizzle
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and, sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { patients } from '@/lib/db/schema'
+import * as patientRepo from '@/repositories/patients'
 import { dbLogger } from '@/lib/logger'
 
 export const DEFAULT_TAGS = [
@@ -37,21 +40,18 @@ export interface PatientWithTags {
  * Get all tags used in a clinic
  */
 export async function getClinicTags(clinicId: string): Promise<string[]> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   try {
-    const { data: patients, error } = await supabase
-      .from('patients')
-      .select('tags')
-      .eq('clinic_id', clinicId)
-
-    if (error) throw error
+    const rows = await db
+      .select({ tags: patients.tags })
+      .from(patients)
+      .where(and(eq(patients.clinicId, clinicId), sql`${patients.deletedAt} IS NULL`))
 
     const tagSet = new Set<string>()
-    for (const patient of patients || []) {
-      const tags = (patient as any).tags as string[] | null
-      if (tags) {
-        for (const tag of tags) {
+    for (const row of rows) {
+      if (row.tags) {
+        for (const tag of row.tags) {
           tagSet.add(tag)
         }
       }
@@ -80,29 +80,14 @@ export async function addPatientTag(
   patientId: string,
   tag: string
 ): Promise<boolean> {
-  const supabase = await createTypedClient()
-
   try {
-    const { data: patient, error: fetchError } = await supabase
-      .from('patients')
-      .select('tags')
-      .eq('id', patientId)
-      .single()
+    const patient = await patientRepo.findById(patientId)
+    if (!patient) return false
 
-    if (fetchError) throw fetchError
-
-    const currentTags: string[] = (patient as any).tags || []
+    const currentTags = patient.tags || []
     if (currentTags.includes(tag)) return true
 
-    const newTags = [...currentTags, tag]
-
-    const { error: updateError } = await (supabase
-      .from('patients') as any)
-      .update({ tags: newTags, updated_at: new Date().toISOString() })
-      .eq('id', patientId)
-
-    if (updateError) throw updateError
-
+    await patientRepo.update(patientId, { tags: [...currentTags, tag] })
     return true
   } catch (error) {
     dbLogger.error('Error adding patient tag', error)
@@ -117,27 +102,12 @@ export async function removePatientTag(
   patientId: string,
   tag: string
 ): Promise<boolean> {
-  const supabase = await createTypedClient()
-
   try {
-    const { data: patient, error: fetchError } = await supabase
-      .from('patients')
-      .select('tags')
-      .eq('id', patientId)
-      .single()
+    const patient = await patientRepo.findById(patientId)
+    if (!patient) return false
 
-    if (fetchError) throw fetchError
-
-    const currentTags: string[] = (patient as any).tags || []
-    const newTags = currentTags.filter((t) => t !== tag)
-
-    const { error: updateError } = await (supabase
-      .from('patients') as any)
-      .update({ tags: newTags, updated_at: new Date().toISOString() })
-      .eq('id', patientId)
-
-    if (updateError) throw updateError
-
+    const currentTags = patient.tags || []
+    await patientRepo.update(patientId, { tags: currentTags.filter((t) => t !== tag) })
     return true
   } catch (error) {
     dbLogger.error('Error removing patient tag', error)
@@ -152,16 +122,8 @@ export async function setPatientTags(
   patientId: string,
   tags: string[]
 ): Promise<boolean> {
-  const supabase = await createTypedClient()
-
   try {
-    const { error } = await (supabase
-      .from('patients') as any)
-      .update({ tags, updated_at: new Date().toISOString() })
-      .eq('id', patientId)
-
-    if (error) throw error
-
+    await patientRepo.update(patientId, { tags })
     return true
   } catch (error) {
     dbLogger.error('Error setting patient tags', error)
@@ -176,18 +138,18 @@ export async function getPatientsByTag(
   clinicId: string,
   tag: string
 ): Promise<Array<{ id: string; name: string; phone: string; tags: string[] }>> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   try {
-    const { data: patients, error } = await supabase
-      .from('patients')
-      .select('id, name, phone, tags')
-      .eq('clinic_id', clinicId)
-      .contains('tags', [tag])
+    const rows = await db
+      .select({ id: patients.id, name: patients.name, phone: patients.phone, tags: patients.tags })
+      .from(patients)
+      .where(and(eq(patients.clinicId, clinicId), sql`${patients.deletedAt} IS NULL`))
 
-    if (error) throw error
-
-    return (patients || []) as any[]
+    // Filter in-memory since Drizzle doesn't have a native array contains for PG
+    return rows
+      .filter(r => r.tags && r.tags.includes(tag))
+      .map(r => ({ id: r.id, name: r.name, phone: r.phone, tags: r.tags || [] }))
   } catch (error) {
     dbLogger.error('Error fetching patients by tag', error)
     return []

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth, createClient } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
+import * as conversationRepo from '@/repositories/conversations'
 
 /**
  * GET /api/conversations
- * List conversations with filters
+ * List conversations with filters + last message enrichment
  */
 export async function GET(request: NextRequest) {
   try {
@@ -30,66 +31,39 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const offset = parseInt(searchParams.get('offset') || '0')
 
-    const serverClient = await createClient()
+    const rows = await conversationRepo.findByClinic(clinicId, {
+      status: status ?? undefined,
+      channel: channel ?? undefined,
+      limit,
+      offset,
+    })
 
-    let query = serverClient
-      .from('conversations')
-      .select(`
-        id,
-        channel,
-        status,
-        external_id,
-        last_message_at,
-        message_count,
-        created_at,
-        updated_at,
-        patient:patients(id, name, phone),
-        assigned_user:users(id, name)
-      `)
-      .eq('clinic_id', clinicId)
-      .order('last_message_at', { ascending: false })
-      .range(offset, offset + limit - 1)
-
-    if (status) {
-      query = query.eq('status', status)
-    }
-
-    if (channel) {
-      query = query.eq('channel', channel)
-    }
-
-    const { data: conversations, error } = await query
-
-    if (error) {
-      console.error('Error fetching conversations:', error)
-      return NextResponse.json(
-        { error: 'Failed to fetch conversations' },
-        { status: 500 }
-      )
-    }
-
-    // Get last message for each conversation
-    const conversationsWithLastMessage = await Promise.all(
-      (conversations || []).map(async (conv: any) => {
-        const { data: lastMessage } = await serverClient
-          .from('messages')
-          .select('content, direction, intent, created_at')
-          .eq('conversation_id', conv.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single()
-
+    // Enrich each conversation with last message
+    const withLastMessage = await Promise.all(
+      rows.map(async (conv) => {
+        const lastMsg = await conversationRepo.getLastMessage(conv.id)
         return {
-          ...conv,
-          last_message: lastMessage || null,
+          id: conv.id,
+          channel: conv.channel,
+          status: conv.status,
+          external_id: conv.externalId,
+          last_message_at: conv.lastMessageAt,
+          message_count: conv.messageCount,
+          created_at: conv.createdAt,
+          updated_at: conv.updatedAt,
+          patients: conv.patient,
+          assigned_user: conv.assignedUser,
+          last_message: lastMsg
+            ? { content: lastMsg.content, direction: lastMsg.direction, intent: lastMsg.intent, created_at: lastMsg.createdAt }
+            : null,
         }
       })
     )
 
     return NextResponse.json({
       success: true,
-      conversations: conversationsWithLastMessage,
-      total: conversationsWithLastMessage.length,
+      conversations: withLastMessage,
+      total: withLastMessage.length,
     })
   } catch (error) {
     return handleApiError(error)

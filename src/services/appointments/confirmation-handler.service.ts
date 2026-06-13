@@ -1,9 +1,12 @@
-import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger, whatsappLogger } from '@/lib/logger'
+import { eq, and, gte, inArray } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { patients, appointments, waitlist } from '@/lib/db/schema'
+import { dbLogger } from '@/lib/logger'
 
 /**
  * Confirmation Response Handler
  * Handles automatic appointment confirmation from patient WhatsApp responses
+ * Migrated from Supabase to Drizzle ORM
  */
 
 // Confirmation keywords in Portuguese
@@ -42,7 +45,6 @@ export function detectConfirmationIntent(message: string): {
   // Check for confirmation keywords
   for (const keyword of CONFIRMATION_KEYWORDS) {
     if (lowerMessage === keyword || lowerMessage.includes(keyword)) {
-      // Higher confidence for exact matches
       const confidence = lowerMessage === keyword ? 0.95 : 0.8
       return { isConfirmation: true, isCancellation: false, confidence }
     }
@@ -60,32 +62,40 @@ export function detectConfirmationIntent(message: string): {
 }
 
 /**
+ * Normalize phone number for matching
+ */
+function normalizePhone(phone: string): string {
+  let normalized = phone.replace(/\D/g, '')
+  if (normalized.startsWith('55')) {
+    normalized = normalized.substring(2)
+  }
+  return normalized
+}
+
+/**
  * Find pending appointment for a patient phone number
  */
 export async function findPendingAppointment(
   clinicId: string,
   patientPhone: string
 ): Promise<AppointmentMatch | null> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   // Normalize phone number
-  let normalizedPhone = patientPhone.replace(/\D/g, '')
-  if (normalizedPhone.startsWith('55')) {
-    normalizedPhone = normalizedPhone.substring(2)
-  }
+  const normalizedPhone = normalizePhone(patientPhone)
 
-  // Find patient by phone
-  const { data: patients } = await supabase
-    .from('patients')
-    .select('id, name, phone')
-    .eq('clinic_id', clinicId)
+  // Find patients by clinic
+  const patientRows = await db
+    .select({ id: patients.id, name: patients.name, phone: patients.phone })
+    .from(patients)
+    .where(eq(patients.clinicId, clinicId))
 
   // Match patient by phone (flexible matching)
-  const patient = (patients || []).find((p: any) => {
-    const patientPhone = p.phone?.replace(/\D/g, '').replace(/^55/, '')
-    return patientPhone === normalizedPhone ||
-           normalizedPhone.includes(patientPhone) ||
-           patientPhone.includes(normalizedPhone)
+  const patient = patientRows.find(p => {
+    const patientPhoneNorm = normalizePhone(p.phone || '')
+    return patientPhoneNorm === normalizedPhone ||
+           normalizedPhone.includes(patientPhoneNorm) ||
+           patientPhoneNorm.includes(normalizedPhone)
   })
 
   if (!patient) {
@@ -94,26 +104,40 @@ export async function findPendingAppointment(
 
   // Find upcoming appointment for this patient
   const now = new Date()
-  const { data: appointments } = await supabase
-    .from('appointments')
-    .select('id, scheduled_at, status, clinic_id')
-    .eq('patient_id', (patient as any).id)
-    .in('status', ['scheduled', 'confirmed'])
-    .gte('scheduled_at', now.toISOString())
-    .order('scheduled_at', { ascending: true })
-    .limit(1) as any
+  const appointmentRows = await db
+    .select({
+      id: appointments.id,
+      scheduledAt: appointments.scheduledAt,
+      status: appointments.status,
+      clinicId: appointments.clinicId,
+    })
+    .from(appointments)
+    .where(and(
+      eq(appointments.patientId, patient.id),
+      gte(appointments.scheduledAt, now)
+    ))
 
-  if (!appointments || (appointments as any[]).length === 0) {
+  // Filter to pending status and get earliest
+  const pendingAppointments = appointmentRows.filter(a =>
+    a.status === 'scheduled' || a.status === 'confirmed'
+  )
+
+  if (pendingAppointments.length === 0) {
     return null
   }
 
-  const apt = (appointments as any[])[0]
+  // Sort by scheduledAt ascending and get first
+  pendingAppointments.sort((a, b) =>
+    new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
+  )
+
+  const apt = pendingAppointments[0]
 
   return {
     appointmentId: apt.id,
-    scheduledAt: new Date(apt.scheduled_at),
-    patientName: (patient as any).name,
-    clinicId: apt.clinic_id,
+    scheduledAt: new Date(apt.scheduledAt),
+    patientName: patient.name,
+    clinicId: apt.clinicId,
     status: apt.status,
   }
 }
@@ -143,19 +167,14 @@ export async function processConfirmationResponse(
     return { processed: false, action: 'no_action' }
   }
 
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   if (intent.isConfirmation) {
     // Confirm the appointment
-    const { error } = await (supabase
-      .from('appointments') as any)
-      .update({ status: 'confirmed' })
-      .eq('id', appointment.appointmentId)
-
-    if (error) {
-      dbLogger.error('Error confirming appointment', error)
-      return { processed: false, action: 'no_action' }
-    }
+    await db
+      .update(appointments)
+      .set({ status: 'confirmed' as any })
+      .where(eq(appointments.id, appointment.appointmentId))
 
     const dateStr = appointment.scheduledAt.toLocaleDateString('pt-BR', {
       weekday: 'long',
@@ -188,18 +207,13 @@ Você receberá um lembrete no dia anterior. Até logo!`,
 
   if (intent.isCancellation) {
     // Cancel the appointment
-    const { error } = await (supabase
-      .from('appointments') as any)
-      .update({
-        status: 'cancelled',
+    await db
+      .update(appointments)
+      .set({
+        status: 'cancelled' as any,
         notes: 'Cancelado pelo paciente via WhatsApp',
-      })
-      .eq('id', appointment.appointmentId)
-
-    if (error) {
-      dbLogger.error('Error cancelling appointment', error)
-      return { processed: false, action: 'no_action' }
-    }
+      } as any)
+      .where(eq(appointments.id, appointment.appointmentId))
 
     dbLogger.info(`Appointment ${appointment.appointmentId} cancelled via WhatsApp`, {
       patientName: appointment.patientName,
@@ -230,95 +244,98 @@ export async function processWaitlistConfirmation(
   scheduled?: boolean
   responseMessage?: string
 }> {
-  const supabase = await createTypedClient()
+  const db = getDb()
   const lowerMessage = message.toLowerCase().trim()
 
-  // Check for "SIM" to confirm waitlist slot
+  // Check for confirmation keyword
   if (!CONFIRMATION_KEYWORDS.some(kw => lowerMessage.includes(kw))) {
     return { processed: false }
   }
 
-  // Find notified waitlist entry for this patient
-  let normalizedPhone = patientPhone.replace(/\D/g, '')
-  if (normalizedPhone.startsWith('55')) {
-    normalizedPhone = normalizedPhone.substring(2)
-  }
+  // Normalize phone
+  const normalizedPhone = normalizePhone(patientPhone)
 
-  // Find patient
-  const { data: patients } = await supabase
-    .from('patients')
-    .select('id, name')
-    .eq('clinic_id', clinicId)
+  // Find patient by phone
+  const patientRows = await db
+    .select({ id: patients.id, name: patients.name, phone: patients.phone })
+    .from(patients)
+    .where(eq(patients.clinicId, clinicId))
 
-  const patient = (patients || []).find((p: any) => {
-    // Need to get phone from patients table
-    return true // We'll match via waitlist
+  const patient = patientRows.find(p => {
+    const patientPhoneNorm = normalizePhone(p.phone || '')
+    return patientPhoneNorm === normalizedPhone ||
+           normalizedPhone.includes(patientPhoneNorm) ||
+           patientPhoneNorm.includes(normalizedPhone)
   })
 
   if (!patient) {
     return { processed: false }
   }
 
-  // Find notified waitlist entry
-  const { data: waitlistEntries } = await supabase
-    .from('waitlist')
-    .select(`
-      id,
-      patient_id,
-      preferred_date,
-      preferred_time_start,
-      procedure_id,
-      dentist_id,
-      patients (name, phone)
-    `)
-    .eq('clinic_id', clinicId)
-    .eq('status', 'notified')
-    .order('notified_at', { ascending: false })
+  // Find notified waitlist entry for this patient
+  const waitlistRows = await db
+    .select({
+      id: waitlist.id,
+      patientId: waitlist.patientId,
+      preferredDate: waitlist.preferredDate,
+      preferredTimeStart: waitlist.preferredTimeStart,
+      procedureId: waitlist.procedureId,
+      dentistId: waitlist.dentistId,
+      status: waitlist.status,
+      notifiedAt: waitlist.notifiedAt,
+    })
+    .from(waitlist)
+    .where(and(
+      eq(waitlist.clinicId, clinicId),
+      eq(waitlist.status, 'notified'),
+      eq(waitlist.patientId, patient.id)
+    ))
+    .orderBy(waitlist.notifiedAt)
     .limit(1)
 
-  if (!waitlistEntries || waitlistEntries.length === 0) {
+  if (waitlistRows.length === 0) {
     return { processed: false }
   }
 
-  const entry = waitlistEntries[0] as any
+  const entry = waitlistRows[0]
 
-  // Verify phone matches
-  const entryPhone = entry.patients?.phone?.replace(/\D/g, '').replace(/^55/, '')
-  if (entryPhone !== normalizedPhone && !normalizedPhone.includes(entryPhone)) {
-    return { processed: false }
-  }
+  // Build scheduledAt from preferred_date and preferred_time_start
+  const prefDate = entry.preferredDate instanceof Date
+    ? entry.preferredDate
+    : entry.preferredDate ? new Date(entry.preferredDate) : new Date()
+  const prefTime = entry.preferredTimeStart || '09:00'
+  const scheduledAt = new Date(`${prefDate.toISOString().split('T')[0]}T${prefTime}:00`)
 
   // Create appointment from waitlist
-  const scheduledAt = new Date(`${(entry as any).preferred_date}T${(entry as any).preferred_time_start}:00`)
-
-  const { data: appointment, error: aptError } = await (supabase
-    .from('appointments') as any)
-    .insert({
-      clinic_id: clinicId,
-      patient_id: (entry as any).patient_id,
-      dentist_id: (entry as any).dentist_id,
-      procedure_id: (entry as any).procedure_id,
-      scheduled_at: scheduledAt.toISOString(),
-      duration_minutes: 30,
-      status: 'confirmed',
+  const appointmentResult = await db
+    .insert(appointments)
+    .values({
+      clinicId,
+      patientId: entry.patientId,
+      dentistId: entry.dentistId ?? null,
+      procedureId: entry.procedureId ?? null,
+      scheduledAt,
+      durationMinutes: 30,
+      status: 'confirmed' as any,
       notes: 'Agendado via lista de espera',
-    })
-    .select()
-    .single()
+    } as any)
+    .returning()
 
-  if (aptError) {
-    dbLogger.error('Error creating appointment from waitlist', aptError)
+  const appointment = appointmentResult[0]
+
+  if (!appointment) {
+    dbLogger.error('Error creating appointment from waitlist', { entry })
     return { processed: false }
   }
 
   // Update waitlist entry
-  await (supabase
-    .from('waitlist') as any)
-    .update({
+  await db
+    .update(waitlist)
+    .set({
       status: 'scheduled',
-      scheduled_appointment_id: (appointment as any).id,
-    })
-    .eq('id', (entry as any).id)
+      scheduledAppointmentId: appointment.id,
+    } as any)
+    .where(eq(waitlist.id, entry.id))
 
   const dateStr = scheduledAt.toLocaleDateString('pt-BR', {
     weekday: 'long',
@@ -330,12 +347,12 @@ export async function processWaitlistConfirmation(
     minute: '2-digit',
   })
 
-  dbLogger.info(`Waitlist appointment created for ${entry.patients?.name}`)
+  dbLogger.info(`Waitlist appointment created for ${patient.name}`)
 
   return {
     processed: true,
     scheduled: true,
-    responseMessage: `✅ Perfeito, ${entry.patients?.name}!
+    responseMessage: `✅ Perfeito, ${patient.name}!
 
 Sua consulta está confirmada:
 

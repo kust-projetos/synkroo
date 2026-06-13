@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { eq, and, not, inArray } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { getLeadStats } from '@/services/leads/leads.service'
 import { getCampaigns } from '@/services/followup/campaign.service'
-import { createTypedClient } from '@/lib/supabase/typed'
+import { getDb } from '@/lib/db/client'
+import { leads } from '@/lib/db/schema'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
@@ -31,7 +33,7 @@ export async function GET(request: Request) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createTypedClient()
+    const db = getDb()
 
     // Get lead stats
     const leadStats = await getLeadStats(clinicId)
@@ -56,21 +58,21 @@ export async function GET(request: Request) {
       // Campaign stats optional, continue without
     }
 
-    // Calculate pipeline value (sum of estimated values from leads in active stages)
+    // Calculate pipeline value (sum of deal values from leads not converted/lost)
     let pipelineValue = 0
     try {
-      const { data: leadsWithValue } = await supabase
-        .from('leads')
-        .select('estimated_value')
-        .eq('clinic_id', clinicId)
-        .not('status', 'in', '(converted,lost)')
+      const leadsWithValue = await db
+        .select({ dealValue: leads.dealValue })
+        .from(leads)
+        .where(and(
+          eq(leads.clinicId, clinicId),
+          not(inArray(leads.status, ['converted', 'lost']))
+        ))
 
-      if (leadsWithValue) {
-        pipelineValue = leadsWithValue.reduce(
-          (sum: number, lead: { estimated_value?: number }) => sum + (lead.estimated_value || 0),
-          0
-        )
-      }
+      pipelineValue = leadsWithValue.reduce(
+        (sum, lead) => sum + (Number(lead.dealValue) || 0),
+        0
+      )
     } catch {
       // Pipeline value calculation optional
     }

@@ -7,7 +7,7 @@ import {
   validateTemplate,
   type ReminderConfigPerProcedure,
 } from '@/services/reminders/procedure-reminder-config.service'
-import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
 import { handleApiError, ValidationError } from '@/lib/errors'
 
 const saveConfigSchema = z.object({

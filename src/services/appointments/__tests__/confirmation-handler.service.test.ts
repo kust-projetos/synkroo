@@ -1,11 +1,8 @@
 /**
  * Tests for Confirmation Handler Service
  * Tests appointment confirmation/cancellation intent detection
+ * Migrated from Supabase mock to Drizzle mock
  */
-
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn(),
-}))
 
 jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -16,39 +13,7 @@ import {
   processConfirmationResponse,
 } from '../confirmation-handler.service'
 
-function setupPatientChain(data: any): any {
-  return {
-    select: jest.fn().mockReturnValue({
-      eq: jest.fn().mockResolvedValue({ data, error: null }),
-    }),
-  }
-}
-
-function setupAppointmentChain(data: any): any {
-  return {
-    select: jest.fn().mockReturnValue({
-      eq: jest.fn().mockReturnValue({
-        in: jest.fn().mockReturnValue({
-          gte: jest.fn().mockReturnValue({
-            order: jest.fn().mockReturnValue({
-              limit: jest.fn().mockResolvedValue({ data, error: null }),
-            }),
-          }),
-        }),
-      }),
-    }),
-  }
-}
-
 describe('Confirmation Handler Service', () => {
-  const mockClient = { from: jest.fn() } as { from: jest.Mock }
-
-  beforeEach(() => {
-    jest.clearAllMocks()
-    const { createTypedClient } = require('@/lib/supabase/typed')
-    createTypedClient.mockResolvedValue(mockClient)
-  })
-
   describe('detectConfirmationIntent', () => {
     it('should detect "sim" as confirmation', () => {
       const result = detectConfirmationIntent('sim')
@@ -107,23 +72,59 @@ describe('Confirmation Handler Service', () => {
   })
 
   describe('processConfirmationResponse', () => {
-    it('should confirm appointment', async () => {
-      // findPendingAppointment: patients query → appointments query
-      // processConfirmation: update appointment
-      const patientData = { id: 'patient-1', name: 'João', phone: '11999999999' }
-      const appointmentData = { id: 'apt-123', status: 'scheduled', scheduled_at: new Date().toISOString(), clinic_id: 'clinic-1', patient_id: 'patient-1' }
+    beforeEach(() => {
+      jest.clearAllMocks()
+    })
 
-      mockClient.from
-        // findPendingAppointment - patients query
-        .mockReturnValueOnce(setupPatientChain([patientData]))
-        // findPendingAppointment - appointments query
-        .mockReturnValueOnce(setupAppointmentChain([appointmentData]))
-        // confirm - update appointments
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
+    function makeMockDb(patientRows: unknown[], appointmentRows: unknown[]) {
+      // Patient query: select().where() → thenable
+      const patientWhereFn = jest.fn().mockImplementation(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r: any = Promise.resolve(patientRows)
+        r.limit = jest.fn().mockReturnValue(r)
+        r.orderBy = jest.fn().mockReturnValue(r)
+        return r
+      })
+      const patientFromFn = jest.fn().mockImplementation(() => ({
+        where: patientWhereFn,
+      }))
+      const patientSelectFn = jest.fn().mockImplementation(() => ({ from: patientFromFn }))
+
+      // Appointment query: select().where() → thenable
+      const apptWhereFn = jest.fn().mockImplementation(() => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const r: any = Promise.resolve(appointmentRows)
+        r.limit = jest.fn().mockReturnValue(r)
+        r.orderBy = jest.fn().mockReturnValue(r)
+        return r
+      })
+      const apptFromFn = jest.fn().mockImplementation(() => ({ where: apptWhereFn }))
+      const apptSelectFn = jest.fn().mockImplementation(() => ({ from: apptFromFn }))
+
+      // Counter-based select
+      let selectCount = 0
+      const selectFn = jest.fn().mockImplementation(() => {
+        selectCount++
+        if (selectCount === 1) return { from: patientFromFn }
+        return { from: apptFromFn }
+      })
+
+      return {
+        select: selectFn,
+        from: jest.fn().mockImplementation(() => ({ where: patientWhereFn })),
+        insert: jest.fn().mockReturnValue({ returning: jest.fn().mockResolvedValue([]) }),
+        update: jest.fn().mockReturnValue({
+          set: jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue([]) }),
+        }),
+      }
+    }
+
+    it('should confirm appointment', async () => {
+      const patientData = { id: 'patient-1', name: 'João', phone: '11999999999' }
+      const appointmentData = { id: 'apt-123', status: 'scheduled', scheduledAt: new Date(), clinicId: 'clinic-1', patientId: 'patient-1' }
+
+      const mockDb = makeMockDb([patientData], [appointmentData])
+      jest.spyOn(require('@/lib/db/client'), 'getDb').mockReturnValue(mockDb)
 
       const result = await processConfirmationResponse('clinic-1', '11999999999', 'sim')
 
@@ -135,16 +136,10 @@ describe('Confirmation Handler Service', () => {
 
     it('should cancel appointment', async () => {
       const patientData = { id: 'patient-1', name: 'Maria', phone: '11988888888' }
-      const appointmentData = { id: 'apt-456', status: 'confirmed', scheduled_at: new Date().toISOString(), clinic_id: 'clinic-1', patient_id: 'patient-1' }
+      const appointmentData = { id: 'apt-456', status: 'confirmed', scheduledAt: new Date(), clinicId: 'clinic-1', patientId: 'patient-1' }
 
-      mockClient.from
-        .mockReturnValueOnce(setupPatientChain([patientData]))
-        .mockReturnValueOnce(setupAppointmentChain([appointmentData]))
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
+      const mockDb = makeMockDb([patientData], [appointmentData])
+      jest.spyOn(require('@/lib/db/client'), 'getDb').mockReturnValue(mockDb)
 
       const result = await processConfirmationResponse('clinic-1', '11988888888', 'não')
       expect(result.processed).toBe(true)
@@ -153,9 +148,8 @@ describe('Confirmation Handler Service', () => {
     })
 
     it('should handle no pending appointment', async () => {
-      mockClient.from
-        .mockReturnValueOnce(setupPatientChain(null)) // no patients
-        .mockReturnValueOnce(setupAppointmentChain([])) // no appointments
+      const mockDb = makeMockDb([], [])
+      jest.spyOn(require('@/lib/db/client'), 'getDb').mockReturnValue(mockDb)
 
       const result = await processConfirmationResponse('clinic-1', '11999999999', 'sim')
       expect(result.processed).toBe(false)
