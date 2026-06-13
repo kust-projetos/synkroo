@@ -2,10 +2,11 @@
  * L2 Patient Memory Service
  * PostgreSQL-based patient data retrieval
  * Provides persistent patient information across sessions
+ * Migrated from Supabase to Drizzle repositories
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
+import * as patientRepo from '@/repositories/patients'
 
 // L2 Patient preferences structure
 export interface L2PatientPreferences {
@@ -51,97 +52,66 @@ export class L2PatientService {
    */
   async getById(patientId: string): Promise<L2Patient | null> {
     try {
-      const supabase = await createTypedClient()
-
       // Get patient data
-      const { data: patient, error: patientError } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('id', patientId)
-        .single() as any
-
-      if (patientError || !patient) {
+      const patient = await patientRepo.findPatientById(patientId)
+      if (!patient) {
         dbLogger.debug('Patient not found by ID', { patientId })
         return null
       }
 
       // Get patient preferences
-      const { data: preferences } = await supabase
-        .from('patient_preferences')
-        .select('key, value, category')
-        .eq('patient_id', patientId) as any
+      const prefs = await patientRepo.getPatientPreferences(patientId)
 
       // Build preferences object
       const preferencias: L2PatientPreferences = {}
-      if (preferences) {
-        for (const pref of preferences) {
-          try {
-            preferencias[pref.key] = pref.value ? JSON.parse(pref.value) : null
-          } catch {
-            preferencias[pref.key] = pref.value
-          }
+      for (const pref of prefs) {
+        try {
+          preferencias[pref.key] = pref.value ? JSON.parse(pref.value) : null
+        } catch {
+          preferencias[pref.key] = pref.value
         }
       }
 
       // Get patient risk score
-      const { data: riskData } = await supabase
-        .from('patient_risk_scores')
-        .select('score, calculated_at')
-        .eq('patient_id', patientId)
-        .order('calculated_at', { ascending: false })
-        .limit(1)
-        .single() as any
+      const riskData = await patientRepo.getLatestRiskScore(patientId)
 
       // Get recent appointments (history)
-      const { data: appointments } = await supabase
-        .from('appointments')
-        .select(`
-          id,
-          scheduled_at,
-          status,
-          notes,
-          procedures:procedures(name),
-          dentists:dentists(name)
-        `)
-        .eq('patient_id', patientId)
-        .order('scheduled_at', { ascending: false })
-        .limit(10) as any
+      const appts = await patientRepo.getRecentAppointments(patientId, 10)
 
       // Build history entries
-      const historico: L2PatientHistoryEntry[] = (appointments || []).map((apt: any) => ({
-        date: apt.scheduled_at,
-        procedure: apt.procedures?.name,
-        dentist: apt.dentists?.name,
+      const historico: L2PatientHistoryEntry[] = appts.map(apt => ({
+        date: apt.scheduledAt instanceof Date ? apt.scheduledAt.toISOString() : String(apt.scheduledAt),
+        procedure: apt.procedureName ?? undefined,
+        dentist: apt.dentistName ?? undefined,
         status: apt.status,
-        notes: apt.notes,
+        notes: apt.notes ?? undefined,
       }))
 
       // Calculate inactive days
       let inactiveDays = 0
-      if (patient.last_visit_at) {
-        const lastVisit = new Date(patient.last_visit_at)
-        inactiveDays = Math.floor((Date.now() - lastVisit.getTime()) / (1000 * 60 * 60 * 24))
+      if (patient.lastVisitAt) {
+        inactiveDays = Math.floor((Date.now() - patient.lastVisitAt.getTime()) / (1000 * 60 * 60 * 24))
       }
 
       // Get opt-out settings
-      if (patient.opt_out_marketing !== undefined) {
-        preferencias.optOutMarketing = patient.opt_out_marketing
+      if (patient.optOutMarketing !== undefined && patient.optOutMarketing !== null) {
+        preferencias.optOutMarketing = patient.optOutMarketing
       }
-      if (patient.opt_out_reminders !== undefined) {
-        preferencias.optOutReminders = patient.opt_out_reminders
+      if (patient.optOutReminders !== undefined && patient.optOutReminders !== null) {
+        preferencias.optOutReminders = patient.optOutReminders
       }
 
       return {
         patientId: patient.id,
-        clinicId: patient.clinic_id,
+        clinicId: patient.clinicId,
         nome: patient.name,
         telefone: patient.phone,
-        email: patient.email,
-        cpf: patient.cpf,
+        email: patient.email ?? undefined,
+        cpf: patient.cpf ?? undefined,
         preferencias,
         historico,
-        riskScore: riskData?.score ?? patient.risk_score ?? 0,
-        ultimaVisita: patient.last_visit_at ? new Date(patient.last_visit_at) : undefined,
+        riskScore: riskData?.score ? Number(riskData.score) : (patient.riskScore ?? 0),
+        ultimaVisita: patient.lastVisitAt ?? undefined,
         inactiveDays,
       }
     } catch (error) {
@@ -155,20 +125,12 @@ export class L2PatientService {
    */
   async getByPhone(telefone: string, clinicId: string): Promise<L2Patient | null> {
     try {
-      const supabase = await createTypedClient()
-
       // Normalize phone number (remove non-digits)
       const normalizedPhone = telefone.replace(/\D/g, '')
 
       // Get patient by phone and clinic
-      const { data: patient, error: patientError } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('clinic_id', clinicId)
-        .eq('phone', normalizedPhone)
-        .single() as any
-
-      if (patientError || !patient) {
+      const patient = await patientRepo.findPatientByPhone(normalizedPhone, clinicId)
+      if (!patient) {
         dbLogger.debug('Patient not found by phone', { telefone: normalizedPhone, clinicId })
         return null
       }

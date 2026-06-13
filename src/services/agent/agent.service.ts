@@ -6,14 +6,13 @@
 
 import { getLLMProvider } from '@/lib/llm'
 import type { LLMProvider } from '@/lib/llm'
-import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
 import { ragService } from '@/services/rag'
 import { processRegistrationFlow } from '@/services/agent/patient-registration.service'
 import { riskScoringService } from '@/services/agent/risk-scoring.service'
 import { pendingActionsService } from '@/services/agent/pending-actions.service'
 import { decisionLogService } from '@/services/agent/decision-log.service'
-import type { Message, Conversation } from '@/lib/supabase/database.types'
+import { findById, findMessagesByConversation, createMessage, updateConversation } from '@/repositories/conversations'
 
 export interface AgentContext {
   conversationId: string
@@ -56,11 +55,9 @@ export interface AgentResponse {
 }
 
 export class AgentService {
-  private serverClient: Promise<import('@/lib/supabase/typed').TypedSupabaseClient>
   private llm: LLMProvider
 
   constructor() {
-    this.serverClient = createTypedClient()
     this.llm = getLLMProvider()
   }
   async processMessage(
@@ -85,10 +82,7 @@ export class AgentService {
           registrationOverride = registration.suggestedReply
           // Update conversation with new patient if created
           if (registration.patientId) {
-            await ((await this.serverClient)
-              .from('conversations')
-              .update({ patient_id: registration.patientId })
-              .eq('id', conversationId))
+            await updateConversation(conversationId, { patientId: registration.patientId })
           }
         }
         dbLogger.info('Patient registration flow', {
@@ -214,42 +208,26 @@ export class AgentService {
     metadata?: Record<string, unknown>
   ): Promise<AgentContext> {
     // Get conversation
-    const convResult = await (await this.serverClient)
-      .from('conversations')
-      .select('*')
-      .eq('id', conversationId)
-      .single() as { data: Record<string, any> | null; error: any }
-    const conversation = convResult.data
-    const convError = convResult.error
-
-    if (convError || !conversation) {
-      dbLogger.error('Conversation not found', convError, { conversationId })
+    const conversation = await findById(conversationId)
+    if (!conversation) {
+      dbLogger.error('Conversation not found', { conversationId })
       throw new Error(`Conversation not found: ${conversationId}`)
     }
 
     // Get recent messages
-    const { data: messages, error: msgError } = await (await this.serverClient)
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(20)
+    const messageRows = await findMessagesByConversation(conversationId, { limit: 20 })
 
-    if (msgError) {
-      dbLogger.error('Error loading messages', msgError, { conversationId })
-    }
-
-    const history = (messages || []).map((msg: { direction: string; content: string; created_at: string }) => ({
+    const history = messageRows.map((msg) => ({
       role: (msg.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
       content: msg.content,
-      timestamp: msg.created_at,
+      timestamp: msg.createdAt instanceof Date ? msg.createdAt.toISOString() : String(msg.createdAt),
     }))
 
     // Build context without RAG first
     const baseContext: AgentContext = {
       conversationId,
-      clinicId: conversation.clinic_id,
-      patientId: conversation.patient_id || undefined,
+      clinicId: conversation.clinicId,
+      patientId: conversation.patientId || undefined,
       history,
       metadata,
     }
@@ -261,8 +239,8 @@ export class AgentService {
         if (lastUserMessage) {
           const ragContext = await ragService.getContext(
             lastUserMessage.content,
-            conversation.clinic_id,
-            conversation.patient_id || undefined
+            conversation.clinicId,
+            conversation.patientId || undefined
           )
 
           baseContext.ragContext = {
@@ -358,12 +336,9 @@ export class AgentService {
    */
   private async updateConversationStatus(
     conversationId: string,
-    status: Conversation['status']
+    status: string
   ): Promise<void> {
-    await ((await this.serverClient)
-      .from('conversations')
-      .update({ status })
-      .eq('id', conversationId))
+    await updateConversation(conversationId, { status })
   }
 
   /**
@@ -379,7 +354,7 @@ export class AgentService {
       confidence?: number
       isAi?: boolean
     } = {}
-  ): Promise<Message> {
+  ): Promise<{ id: string }> {
     // Try to store with embedding via RAG service (non-blocking)
     ragService.storeMessage(conversationId, direction, content, {
       intent: options.intent,
@@ -389,25 +364,18 @@ export class AgentService {
     })
 
     // Store message in database
-    const { data, error } = await ((await this.serverClient)
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        direction,
-        content,
-        message_type: 'text',
-        intent: options.intent || null,
-        entities: options.entities || {},
-        confidence: options.confidence || null,
-        is_ai: options.isAi ?? direction === 'outbound',
-      })
-      .single())
+    const msg = await createMessage({
+      conversationId,
+      direction,
+      content,
+      messageType: 'text',
+      intent: options.intent || null,
+      entities: options.entities || {},
+      confidence: options.confidence != null ? String(options.confidence) : null,
+      isAi: options.isAi ?? direction === 'outbound',
+    })
 
-    if (error) {
-      dbLogger.error('Error storing message', error, { conversationId, direction })
-      throw error
-    }
-    return data
+    return { id: msg.id }
   }
 }
 

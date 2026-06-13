@@ -2,8 +2,6 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import type { User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
 
 export interface UserProfile {
   id: string
@@ -25,7 +23,7 @@ export interface UserProfile {
 }
 
 interface AuthContextType {
-  user: User | null
+  user: { id: string; email: string } | null
   profile: UserProfile | null
   loading: boolean
   isAuthenticated: boolean
@@ -38,7 +36,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
@@ -67,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Initial session check
   useEffect(() => {
+    // eslint-disable-next-line prefer-const
     let cancelled = false
 
     const initAuth = async () => {
@@ -84,23 +83,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     initAuth()
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event) => {
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          await fetchProfile()
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null)
-          setProfile(null)
-          router.push('/login')
-        }
-      }
-    )
-
     return () => {
       cancelled = true
-      subscription.unsubscribe()
     }
+
+    // Auth state refresh driven by session endpoint + router refresh.
+    // No Supabase onAuthStateChange subscription needed.
   }, [router])
 
   // Login function

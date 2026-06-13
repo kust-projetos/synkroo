@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { getAttendanceMetrics } from '@/services/analytics/attendance-metrics.service'
 import { handleApiError } from '@/lib/errors'
 

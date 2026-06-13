@@ -83,3 +83,10 @@ tmp/
 # Worktrees (isolated workspaces for parallel development)
 /.worktrees/
 e2e/.auth/
+
+# Local planner runtime files
+.pi/
+.claude/napkin.md
+planner.bat
+reviewer.bat
+worker1.bat

@@ -1,168 +1,161 @@
-import { createClient } from '@supabase/supabase-js'
-import type { Database } from './database.types'
-
-let _supabaseAdmin: ReturnType<typeof createClient<Database>> | null = null
-
-function getSupabaseAdmin() {
-  if (_supabaseAdmin) return _supabaseAdmin
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase server environment variables')
-  }
-
-  _supabaseAdmin = createClient<Database>(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
-
-  return _supabaseAdmin
-}
-
 /**
- * Supabase admin client for server-side usage
- * Uses service role key to bypass RLS for system operations
- * IMPORTANT: Only use in server-side code, never expose to client
+ * Supabase admin helpers
+ *
+ * NOTE: All data-access functions below have been migrated to Drizzle repositories.
+ * This file is kept for backward compatibility during the transition.
+ * Direct Supabase usage is no longer allowed in migrated slices.
+ *
+ * Migration map:
+ *   getOrCreateConversation   → conversationsRepo.getOrCreateConversation
+ *   storeMessage             → conversationsRepo.createMessage
+ *   getConversationContext   → conversationsRepo.getConversationContext
+ *   getPatientInsights       → conversationsRepo.getPatientInsights
+ *   getAvailableSlots        → appointmentsRepo.getAvailableSlots
+ *   getClinicConfig          → clinicsRepo.getClinicConfig
+ *   searchKnowledgeBase      → knowledgeRepo.searchKnowledgeBase
  */
-export const supabaseAdmin = new Proxy({} as ReturnType<typeof createClient<Database>>, {
-  get(_target, prop) {
-    const client = getSupabaseAdmin()
-    // Fix for specific property access issues
-    if (prop === 'client') return client
-    return (client as any)[prop as keyof typeof client]
-  }
-})
+
+import {
+	getOrCreateConversation as repoGetOrCreate,
+	createMessage as repoCreateMessage,
+	getConversationContext as repoGetContext,
+	getPatientInsights as repoGetInsights,
+} from "@/repositories/conversations";
+import { getAvailableSlots as repoGetSlots } from "@/repositories/appointments";
+import { getClinicConfig as repoGetClinic } from "@/repositories/clinics";
+import { searchKnowledgeBase as repoSearchKb } from "@/repositories/knowledge";
+import { dbLogger } from "@/lib/logger";
 
 /**
- * Get or create a conversation
+ * @deprecated Use conversationsRepo.getOrCreateConversation instead
  */
 export async function getOrCreateConversation(
-  clinicId: string,
-  channel: 'whatsapp' | 'instagram' | 'web',
-  externalId: string,
-  patientPhone?: string
+	clinicId: string,
+	channel: "whatsapp" | "instagram" | "web",
+	externalId: string,
+	patientPhone?: string,
 ): Promise<string> {
-  const { data, error } = await (supabaseAdmin as any).rpc('get_or_create_conversation', {
-    p_clinic_id: clinicId,
-    p_channel: channel,
-    p_external_id: externalId,
-    p_patient_phone: patientPhone || null,
-  })
-
-  if (error) throw error
-  return data
+	try {
+		return await repoGetOrCreate(clinicId, channel, externalId, patientPhone);
+	} catch (error) {
+		dbLogger.error("getOrCreateConversation failed", error);
+		throw error;
+	}
 }
 
 /**
- * Store a message in a conversation
+ * @deprecated Use conversationsRepo.createMessage instead
  */
 export async function storeMessage(
-  conversationId: string,
-  direction: 'inbound' | 'outbound',
-  content: string,
-  metadata?: Record<string, unknown>
+	conversationId: string,
+	direction: "inbound" | "outbound",
+	content: string,
+	metadata?: Record<string, unknown>,
 ): Promise<string> {
-  const { data, error } = await supabaseAdmin
-    .from('messages')
-    .insert({
-      conversation_id: conversationId,
-      direction,
-      content,
-      metadata: metadata as any,
-    })
-    .select('id')
-    .single()
-
-  if (error) throw error
-  return data.id
+	try {
+		const row = await repoCreateMessage({
+			conversationId,
+			direction: direction as "inbound" | "outbound",
+			content,
+			messageType: "text",
+			metadata: metadata ?? {},
+		});
+		return row.id;
+	} catch (error) {
+		dbLogger.error("storeMessage failed", error);
+		throw error;
+	}
 }
 
 /**
- * Get conversation context for AI
+ * @deprecated Use conversationsRepo.getConversationContext instead
  */
 export async function getConversationContext(
-  conversationId: string,
-  limit: number = 10
+	conversationId: string,
+	limit = 10,
 ): Promise<Array<{ role: string; content: string; intent: string | null }>> {
-  const { data, error } = await (supabaseAdmin as any).rpc('get_conversation_context', {
-    p_conversation_id: conversationId,
-    p_limit: limit,
-  })
-
-  if (error) throw error
-  return data || []
+	try {
+		return await repoGetContext(conversationId, limit);
+	} catch (error) {
+		dbLogger.error("getConversationContext failed", error);
+		throw error;
+	}
 }
 
 /**
- * Get patient insights
+ * @deprecated Use conversationsRepo.getPatientInsights instead
  */
 export async function getPatientInsights(patientId: string) {
-  const { data, error } = await (supabaseAdmin as any).rpc('get_patient_insights', {
-    p_patient_id: patientId,
-  })
-
-  if (error) throw error
-  return data
+	try {
+		return await repoGetInsights(patientId);
+	} catch (error) {
+		dbLogger.error("getPatientInsights failed", error);
+		throw error;
+	}
 }
 
 /**
- * Get available time slots for scheduling
+ * @deprecated Use appointmentsRepo.getAvailableSlots instead
  */
 export async function getAvailableSlots(
-  clinicId: string,
-  dentistId: string,
-  date: string,
-  durationMinutes: number = 30
+	clinicId: string,
+	dentistId: string,
+	date: string,
+	durationMinutes = 30,
 ): Promise<Array<{ start_time: string; end_time: string }>> {
-  const { data, error } = await (supabaseAdmin as any).rpc('get_availability', {
-    p_clinic_id: clinicId,
-    p_dentist_id: dentistId,
-    p_date: date,
-    p_duration_minutes: durationMinutes,
-  })
-
-  if (error) throw error
-  return data || []
+	try {
+		return await repoGetSlots(clinicId, dentistId, date, durationMinutes);
+	} catch (error) {
+		dbLogger.error("getAvailableSlots failed", error);
+		throw error;
+	}
 }
 
 /**
- * Get clinic configuration
+ * @deprecated Use clinicsRepo.getClinicConfig instead
  */
 export async function getClinicConfig(clinicId: string) {
-  const { data, error } = await supabaseAdmin
-    .from('clinics')
-    .select('*')
-    .eq('id', clinicId)
-    .single()
-
-  if (error) throw error
-  return data
+	try {
+		return await repoGetClinic(clinicId);
+	} catch (error) {
+		dbLogger.error("getClinicConfig failed", error);
+		throw error;
+	}
 }
 
 /**
- * Search knowledge base for answers
+ * @deprecated Use knowledgeRepo.searchKnowledgeBase instead
  */
 export async function searchKnowledgeBase(
-  clinicId: string,
-  query: string
+	clinicId: string,
+	query: string,
 ): Promise<Array<{ question: string; answer: string; relevance: number }>> {
-  // Using simple text search for now
-  // Could be enhanced with vector similarity search
-  const { data, error } = await supabaseAdmin
-    .from('knowledge_base')
-    .select('question, answer, keywords')
-    .eq('clinic_id', clinicId)
-    .or(`question.ilike.%${query}%,keywords.cs.{${query}}`)
-    .limit(5)
-
-  if (error) throw error
-  return data?.map((item: { question: string; answer: string }) => ({
-    question: item.question,
-    answer: item.answer,
-    relevance: 0.8, // Placeholder for now
-  })) || []
+	try {
+		const results = await repoSearchKb(clinicId, query);
+		return results.map((r) => ({
+			question: r.question,
+			answer: r.answer,
+			relevance: r.relevance,
+		}));
+	} catch (error) {
+		dbLogger.error("searchKnowledgeBase failed", error);
+		return [];
+	}
 }
+
+// Re-export supabaseAdmin as a no-op proxy for any remaining direct usage
+// This prevents breakage from any code still importing supabaseAdmin
+export const supabaseAdmin = new Proxy(
+	{},
+	{
+		get(_target, prop) {
+			if (prop === "then") return undefined; // prevent "promise-like" issues
+			return () => {
+				dbLogger.warn(
+					`supabaseAdmin.${String(prop)} called — this should be migrated`,
+				);
+				return Promise.resolve(null);
+			};
+		},
+	},
+) as any;

@@ -25,6 +25,7 @@ describe('WhatsAppService', () => {
   let mockPage: any
 
   beforeEach(() => {
+    jest.useFakeTimers()
     jest.clearAllMocks()
     mockPage = {
       goto: jest.fn(),
@@ -42,6 +43,17 @@ describe('WhatsAppService', () => {
     };
     (chromium.launchPersistentContext as jest.Mock).mockResolvedValue(mockContext)
     service = new WhatsAppService('./.test-whatsapp-session')
+  })
+
+  afterEach(() => {
+    service.removeAllListeners()
+    jest.useRealTimers()
+    jest.restoreAllMocks()
+    jest.clearAllMocks()
+  })
+
+  afterAll(() => {
+    jest.clearAllMocks()
   })
 
   describe('constructor', () => {
@@ -89,20 +101,23 @@ describe('WhatsAppService', () => {
 
     it('should return error if page is null', async () => {
       // Manually set connected state but no page
-      const service2 = new WhatsAppService()
+      const service2 = new WhatsAppService('./.test-whatsapp-session')
       ;(service2 as any)._isConnected = true
       ;(service2 as any).page = null
 
       const result = await service2.sendMessage('11999999999', 'Hello')
       expect(result.success).toBe(false)
+      service2.removeAllListeners()
     })
   })
 
   describe('events', () => {
     it('should be an EventEmitter instance', () => {
-      const emitSpy = jest.spyOn(service, 'emit')
+      service.on('qrcode', jest.fn())
+      const emitted = jest.fn()
+      service.on('qrcode', emitted)
       service.emit('qrcode', 'data:image/png;base64,abc123')
-      expect(emitSpy).toHaveBeenCalledWith('qrcode', 'data:image/png;base64,abc123')
+      expect(emitted).toHaveBeenCalledWith('data:image/png;base64,abc123')
     })
   })
 })

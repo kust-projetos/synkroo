@@ -1,77 +1,71 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { createServerClient } from '@/lib/supabase'
+import { lt } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { appointmentReminders, conversationStates, waitlist, conversationSessions } from '@/lib/db/schema'
 import { handleApiError } from '@/lib/errors'
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
  * POST /api/cron/cleanup
- * Cron job endpoint to clean up old data
- *
- * Runs daily at 3 AM to:
- * - Remove old reminders (> 30 days)
- * - Archive old conversations (> 90 days)
- * - Clean up expired sessions
- *
- * Security: Requires CRON_SECRET header for authentication
+ * Cron job endpoint to clean up old data.
+ * Runs daily to remove old reminders, expired sessions, etc.
  */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit cron endpoints
     const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
       )
     }
 
-    // Verify cron secret for security
     const cronSecret = request.headers.get('Authorization') || ''
     const expectedSecret = `Bearer ${process.env.CRON_SECRET}`
-
-    if (!process.env.CRON_SECRET ||
-        cronSecret.length !== expectedSecret.length ||
-        !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))) {
+    if (
+      !process.env.CRON_SECRET ||
+      cronSecret.length !== expectedSecret.length ||
+      !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
+    ) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = createServerClient() as any
+    const db = getDb()
     const results: Record<string, unknown> = {}
+    const now = new Date()
 
     // Clean up old reminders (> 30 days)
-    const { data: deletedReminders, error: remindersError } = await supabase
-      .rpc('cleanup_old_reminders')
-      .catch(() => ({ data: null, error: 'Function not found' }))
-
-    if (!remindersError) {
-      results.reminders = 'cleaned'
-    }
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const deletedReminders = await db
+      .delete(appointmentReminders)
+      .where(lt(appointmentReminders.createdAt, thirtyDaysAgo))
+    results.reminders = 'cleaned'
 
     // Clean up old conversation states (> 7 days inactive)
-    const { error: statesError } = await supabase
-      .from('conversation_states')
-      .delete()
-      .lt('updated_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    await db
+      .delete(conversationStates)
+      .where(lt(conversationStates.updatedAt, sevenDaysAgo))
+    results.conversationStates = 'cleaned'
 
-    if (!statesError) {
-      results.conversationStates = 'cleaned'
-    }
+    // Clean up expired conversation sessions (> 30 minutes)
+    const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000)
+    await db
+      .delete(conversationSessions)
+      .where(lt(conversationSessions.lastActivityAt, thirtyMinAgo))
+    results.conversationSessions = 'cleaned'
 
-    // Clean up expired waitlist entries (> 30 days)
-    const { error: waitlistError } = await supabase
-      .from('waitlist')
-      .delete()
-      .eq('status', 'expired')
-      .lt('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    // Clean up expired waitlist entries
+    await db
+      .delete(waitlist)
+      .where(lt(waitlist.createdAt, thirtyDaysAgo))
 
-    if (!waitlistError) {
-      results.waitlist = 'cleaned'
-    }
+    results.waitlist = 'cleaned'
 
     return NextResponse.json({
       success: true,
-      timestamp: new Date().toISOString(),
+      timestamp: now.toISOString(),
       results,
     })
   } catch (error) {
@@ -79,10 +73,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * GET /api/cron/cleanup
- * Health check for cron endpoint
- */
 export async function GET() {
   return NextResponse.json({
     status: 'ok',

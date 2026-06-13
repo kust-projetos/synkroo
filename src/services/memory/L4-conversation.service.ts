@@ -2,11 +2,12 @@
  * L4 Conversation Memory Service
  * PostgreSQL-based conversation data retrieval
  * Provides persistent conversation history and status
+ * Migrated from Supabase to Drizzle repositories
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
-import type { ConversationStatus, ChannelType } from '@/lib/supabase/database.types'
+import { findById, findMessagesByConversation, updateConversation } from '@/repositories/conversations'
+import type { ChannelType } from '@/lib/supabase/database.types'
 
 // L4 Conversation message structure
 export interface L4ConversationMessage {
@@ -26,7 +27,7 @@ export interface L4Conversation {
   visitorId?: string
   channel: ChannelType
   messages: L4ConversationMessage[]
-  status: ConversationStatus
+  status: string
   createdAt: Date
   updatedAt: Date
 }
@@ -37,57 +38,97 @@ export interface L4Conversation {
  */
 export class L4ConversationService {
   /**
+   * Get basic conversation info (no messages)
+   */
+  async getBasicById(conversationId: string): Promise<{
+    conversationId: string
+    clinicId: string
+    patientId?: string
+    channel: ChannelType
+    status: string
+    createdAt: Date
+    updatedAt: Date
+  } | null> {
+    try {
+      const conversation = await findById(conversationId)
+      if (!conversation) return null
+      return {
+        conversationId: conversation.id,
+        clinicId: conversation.clinicId,
+        patientId: conversation.patientId ?? undefined,
+        channel: conversation.channel as ChannelType,
+        status: conversation.status,
+        createdAt: conversation.createdAt ?? new Date(0),
+        updatedAt: conversation.updatedAt ?? new Date(0),
+      }
+    } catch (error) {
+      dbLogger.error('Error fetching conversation basic info', error, { conversationId })
+      return null
+    }
+  }
+
+  /**
    * Get conversation by ID with messages
    */
   async getById(conversationId: string): Promise<L4Conversation | null> {
     try {
-      const supabase = await createTypedClient()
-
       // Get conversation
-      const { data: conversation, error: convError } = await supabase
-        .from('conversations')
-        .select('*')
-        .eq('id', conversationId)
-        .single() as any
-
-      if (convError || !conversation) {
+      const conversation = await findById(conversationId)
+      if (!conversation) {
         dbLogger.debug('Conversation not found', { conversationId })
         return null
       }
 
       // Get messages
-      const { data: messages, error: msgError } = await supabase
-        .from('messages')
-        .select('id, direction, content, created_at, intent, entities')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true }) as any
+      const msgs = await findMessagesByConversation(conversationId, { limit: 50 })
 
-      if (msgError) {
-        dbLogger.warn('Error fetching messages', { error: msgError, conversationId })
-      }
-
-      const formattedMessages: L4ConversationMessage[] = (messages || []).map((m: any) => ({
+      const messages: L4ConversationMessage[] = msgs.map(m => ({
         id: m.id,
-        direction: m.direction,
+        direction: m.direction as 'inbound' | 'outbound',
         content: m.content,
-        timestamp: m.created_at,
-        intent: m.intent || undefined,
-        entities: m.entities || undefined,
+        timestamp: m.createdAt instanceof Date ? m.createdAt.toISOString() : String(m.createdAt),
+        intent: m.intent ?? undefined,
+        entities: m.entities ?? undefined,
       }))
 
       return {
         conversationId: conversation.id,
-        clinicId: conversation.clinic_id,
-        patientId: conversation.patient_id || undefined,
-        visitorId: conversation.external_id || undefined,
-        channel: conversation.channel,
-        messages: formattedMessages,
+        clinicId: conversation.clinicId,
+        patientId: conversation.patientId ?? undefined,
+        visitorId: conversation.externalId ?? undefined,
+        channel: conversation.channel as ChannelType,
+        messages,
         status: conversation.status,
-        createdAt: new Date(conversation.created_at),
-        updatedAt: new Date(conversation.updated_at),
+        createdAt: conversation.createdAt ?? new Date(0),
+        updatedAt: conversation.updatedAt ?? new Date(0),
       }
     } catch (error) {
-      dbLogger.error('Error fetching conversation', error, { conversationId })
+      dbLogger.error('Error fetching conversation by ID', error, { conversationId })
+      return null
+    }
+  }
+
+  /**
+   * Get conversation summary (last message only)
+   */
+  async getSummary(conversationId: string): Promise<{
+    lastMessage: string
+    lastMessageAt: string
+    status: string
+  } | null> {
+    try {
+      const msgs = await findMessagesByConversation(conversationId, { limit: 1 })
+      const conversation = await findById(conversationId)
+      if (!conversation || msgs.length === 0) return null
+
+      const lastMsg = msgs[0]
+      return {
+        lastMessage: lastMsg.content,
+        lastMessageAt: lastMsg.createdAt instanceof Date ? lastMsg.createdAt.toISOString() : String(lastMsg.createdAt),
+        status: conversation.status,
+      }
+    } catch (error) {
+      dbLogger.error('Error fetching conversation summary', error, { conversationId })
       return null
     }
   }
@@ -95,103 +136,13 @@ export class L4ConversationService {
   /**
    * Update conversation status
    */
-  async updateStatus(conversationId: string, status: ConversationStatus): Promise<boolean> {
+  async updateStatus(conversationId: string, status: string): Promise<boolean> {
     try {
-      const supabase = await createTypedClient()
-
-      const { error } = await (supabase
-        .from('conversations') as any)
-        .update({
-          status,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', conversationId)
-
-      if (error) {
-        dbLogger.error('Error updating conversation status', error, { conversationId, status })
-        return false
-      }
-
-      dbLogger.debug('Conversation status updated', { conversationId, status })
+      await updateConversation(conversationId, { status })
       return true
     } catch (error) {
       dbLogger.error('Error updating conversation status', error, { conversationId, status })
       return false
-    }
-  }
-
-  /**
-   * Get conversation without messages (lightweight)
-   */
-  async getBasicById(conversationId: string): Promise<{
-    conversationId: string
-    clinicId: string
-    patientId?: string
-    channel: ChannelType
-    status: ConversationStatus
-    createdAt: Date
-    updatedAt: Date
-  } | null> {
-    try {
-      const supabase = await createTypedClient()
-
-      const { data: conversation, error } = await supabase
-        .from('conversations')
-        .select('id, clinic_id, patient_id, channel, status, created_at, updated_at')
-        .eq('id', conversationId)
-        .single() as any
-
-      if (error || !conversation) {
-        return null
-      }
-
-      return {
-        conversationId: conversation.id,
-        clinicId: conversation.clinic_id,
-        patientId: conversation.patient_id || undefined,
-        channel: conversation.channel,
-        status: conversation.status,
-        createdAt: new Date(conversation.created_at),
-        updatedAt: new Date(conversation.updated_at),
-      }
-    } catch (error) {
-      dbLogger.error('Error fetching basic conversation', error, { conversationId })
-      return null
-    }
-  }
-
-  /**
-   * Get recent conversations for a patient
-   */
-  async getRecentByPatient(patientId: string, limit: number = 5): Promise<L4Conversation[]> {
-    try {
-      const supabase = await createTypedClient()
-
-      const { data: conversations, error } = await supabase
-        .from('conversations')
-        .select('id, clinic_id, channel, status, created_at, updated_at')
-        .eq('patient_id', patientId)
-        .order('created_at', { ascending: false })
-        .limit(limit) as any
-
-      if (error) {
-        dbLogger.error('Error fetching recent conversations', error, { patientId })
-        return []
-      }
-
-      const result: L4Conversation[] = []
-
-      for (const conv of (conversations || [])) {
-        const fullConv = await this.getById(conv.id)
-        if (fullConv) {
-          result.push(fullConv)
-        }
-      }
-
-      return result
-    } catch (error) {
-      dbLogger.error('Error fetching recent conversations', error, { patientId })
-      return []
     }
   }
 }

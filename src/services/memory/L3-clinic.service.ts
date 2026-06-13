@@ -4,8 +4,11 @@
  * Provides persistent clinic configuration and metadata
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
+import { findClinicById } from '@/repositories/clinics'
+import { findByClinic as findDentistsByClinic } from '@/repositories/dentists'
+import { findByClinic as findProceduresByClinic } from '@/repositories/procedures'
+import { getScheduleBlocks } from '@/repositories/appointments'
 
 // Clinic address structure
 export interface L3ClinicAddress {
@@ -98,67 +101,44 @@ export class L3ClinicService {
     dbLogger.debug('L3 clinic cache miss, fetching from DB', { clinicId })
 
     try {
-      const supabase = await createTypedClient()
-
       // Get clinic data
-      const { data: clinic, error: clinicError } = await supabase
-        .from('clinics')
-        .select('*')
-        .eq('id', clinicId)
-        .single() as any
-
-      if (clinicError || !clinic) {
+      const clinic = await findClinicById(clinicId)
+      if (!clinic) {
         dbLogger.debug('Clinic not found', { clinicId })
         return null
       }
 
       // Parse address
-      const endereco: L3ClinicAddress = clinic.address
-        ? typeof clinic.address === 'string'
-          ? JSON.parse(clinic.address)
-          : clinic.address
+      const endereco: L3ClinicAddress = typeof clinic.address === 'object' && clinic.address !== null
+        ? clinic.address as L3ClinicAddress
         : {}
 
       // Get dentists (professionals)
-      const { data: dentists } = await supabase
-        .from('dentists')
-        .select('id, name, specialty, cro')
-        .eq('clinic_id', clinicId)
-        .eq('is_active', true) as any
-
-      const profissionais: L3ClinicProfessional[] = (dentists || []).map((d: any) => ({
+      const dentists = await findDentistsByClinic(clinicId, { activeOnly: true })
+      const profissionais: L3ClinicProfessional[] = dentists.map(d => ({
         id: d.id,
         name: d.name,
-        specialty: d.specialty,
-        cro: d.cro,
+        specialty: d.specialty ?? undefined,
+        cro: d.cro ?? undefined,
       }))
 
       // Get procedures
-      const { data: procedures } = await supabase
-        .from('procedures')
-        .select('id, name, duration_minutes, price, category')
-        .eq('clinic_id', clinicId)
-        .eq('is_active', true) as any
-
-      const procedimentos: L3ClinicProcedure[] = (procedures || []).map((p: any) => ({
+      const procedures = await findProceduresByClinic(clinicId, { activeOnly: true })
+      const procedimentos: L3ClinicProcedure[] = procedures.map(p => ({
         id: p.id,
         name: p.name,
-        duration: p.duration_minutes,
-        price: p.price,
-        category: p.category,
+        duration: p.durationMinutes ?? undefined,
+        price: p.price ? Number(p.price) : undefined,
+        category: p.category ?? undefined,
       }))
 
       // Get working hours from schedule_blocks
-      const { data: scheduleBlocks } = await supabase
-        .from('schedule_blocks')
-        .select('day_of_week, start_time, end_time, is_available')
-        .eq('clinic_id', clinicId) as any
-
-      const horarios: L3ClinicHours[] = (scheduleBlocks || []).map((b: any) => ({
-        dayOfWeek: b.day_of_week,
-        openTime: b.start_time,
-        closeTime: b.end_time,
-        isAvailable: b.is_available,
+      const blocks = await getScheduleBlocks(clinicId)
+      const horarios: L3ClinicHours[] = blocks.map(b => ({
+        dayOfWeek: b.dayOfWeek ?? 0,
+        openTime: b.startTime,
+        closeTime: b.endTime,
+        isAvailable: b.isAvailable ?? true,
       }))
 
       // Parse settings for cancellation policy
@@ -167,15 +147,12 @@ export class L3ClinicService {
         allowCancellation: true,
       }
 
-      if (clinic.settings) {
-        const settings = typeof clinic.settings === 'string'
-          ? JSON.parse(clinic.settings)
-          : clinic.settings
-
-        if (settings.cancellationPolicy) {
+      if (clinic.settings && typeof clinic.settings === 'object') {
+        const settings = clinic.settings as Record<string, unknown>
+        if (settings.cancellationPolicy && typeof settings.cancellationPolicy === 'object') {
           cancelamentoPolicy = {
             ...cancelamentoPolicy,
-            ...settings.cancellationPolicy,
+            ...(settings.cancellationPolicy as unknown as L3CancellationPolicy),
           }
         }
       }

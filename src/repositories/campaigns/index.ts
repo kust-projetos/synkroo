@@ -1,0 +1,284 @@
+/**
+ * Campaigns Repository
+ * Data access layer for campaigns using Drizzle
+ */
+
+import { eq, and, desc, sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { campaigns, campaignRecipients } from '@/lib/db/schema'
+import { dbLogger } from '@/lib/logger'
+
+// ─── Types ────────────────────────────────────────────────────
+
+export type CampaignType = 'reactivation' | 'retention' | 'promotional' | 'follow_up'
+export type CampaignStatus = 'draft' | 'scheduled' | 'running' | 'paused' | 'completed' | 'cancelled'
+
+export interface CampaignRow {
+  id: string
+  clinicId: string
+  name: string
+  description: string | null
+  campaignType: string
+  targetSegment: string | null
+  messageTemplate: string
+  channel: string
+  status: string
+  scheduledAt: Date | null
+  startedAt: Date | null
+  completedAt: Date | null
+  totalRecipients: number
+  sentCount: number
+  responseCount: number
+  conversionCount: number
+  optOutCount: number
+  createdBy: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface CampaignRecipientRow {
+  id: string
+  campaignId: string
+  patientId: string
+  status: string
+  sentAt: Date | null
+  deliveredAt: Date | null
+  respondedAt: Date | null
+  responseContent: string | null
+  convertedAt: Date | null
+  conversionAppointmentId: string | null
+  errorMessage: string | null
+  createdAt: Date
+}
+
+// ─── Create ───────────────────────────────────────────────────
+
+export async function createCampaign(params: {
+  clinicId: string
+  name: string
+  campaignType: string
+  messageTemplate: string
+  description?: string
+  targetSegment?: string
+  channel?: string
+  scheduledAt?: Date
+  createdBy?: string
+}): Promise<CampaignRow | null> {
+  const db = getDb()
+  try {
+    const [campaign] = await db
+      .insert(campaigns)
+      .values({
+        clinicId: params.clinicId,
+        name: params.name,
+        campaignType: params.campaignType,
+        messageTemplate: params.messageTemplate,
+        description: params.description ?? null,
+        targetSegment: params.targetSegment ?? null,
+        channel: params.channel ?? 'whatsapp',
+        scheduledAt: params.scheduledAt ?? null,
+        createdBy: params.createdBy ?? null,
+        status: params.scheduledAt ? 'scheduled' : 'draft',
+      })
+      .returning()
+    return campaign as CampaignRow
+  } catch (error) {
+    dbLogger.error('Error creating campaign', error)
+    return null
+  }
+}
+
+export async function addCampaignRecipients(params: {
+  campaignId: string
+  patientIds: string[]
+}): Promise<number> {
+  const db = getDb()
+  try {
+    const values = params.patientIds.map(patientId => ({
+      campaignId: params.campaignId,
+      patientId,
+      status: 'pending',
+    }))
+    await db.insert(campaignRecipients).values(values)
+
+    // Update total_recipients count
+    await db
+      .update(campaigns)
+      .set({ totalRecipients: params.patientIds.length })
+      .where(eq(campaigns.id, params.campaignId))
+
+    return params.patientIds.length
+  } catch (error) {
+    dbLogger.error('Error adding campaign recipients', error)
+    return 0
+  }
+}
+
+// ─── Read ─────────────────────────────────────────────────────
+
+export async function findCampaignById(id: string): Promise<CampaignRow | null> {
+  const db = getDb()
+  const [campaign] = await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.id, id))
+    .limit(1)
+  return campaign as CampaignRow | null
+}
+
+export async function findCampaignsByClinic(clinicId: string): Promise<CampaignRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(campaigns)
+    .where(eq(campaigns.clinicId, clinicId))
+    .orderBy(desc(campaigns.createdAt))
+  return rows as CampaignRow[]
+}
+
+export async function findCampaignRecipients(campaignId: string): Promise<CampaignRecipientRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(campaignRecipients)
+    .where(eq(campaignRecipients.campaignId, campaignId))
+  return rows as CampaignRecipientRow[]
+}
+
+export async function findPendingRecipients(campaignId: string): Promise<CampaignRecipientRow[]> {
+  const db = getDb()
+  const rows = await db
+    .select()
+    .from(campaignRecipients)
+    .where(and(
+      eq(campaignRecipients.campaignId, campaignId),
+      eq(campaignRecipients.status, 'pending')
+    ))
+  return rows as CampaignRecipientRow[]
+}
+
+export async function countCampaignRecipients(campaignId: string): Promise<number> {
+  const db = getDb()
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignRecipients)
+    .where(eq(campaignRecipients.campaignId, campaignId))
+  return row?.count ?? 0
+}
+
+// ─── Update ───────────────────────────────────────────────────
+
+export async function updateCampaignStatus(id: string, status: string): Promise<CampaignRow | null> {
+  const db = getDb()
+  const updateData: Record<string, unknown> = { status, updatedAt: new Date() }
+
+  if (status === 'running' || status === 'started') {
+    updateData.startedAt = new Date()
+  }
+  if (status === 'completed') {
+    updateData.completedAt = new Date()
+  }
+
+  const [campaign] = await db
+    .update(campaigns)
+    .set(updateData as any)
+    .where(eq(campaigns.id, id))
+    .returning()
+  return campaign as CampaignRow | null
+}
+
+export async function updateCampaign(
+  id: string,
+  data: Partial<{
+    name: string
+    description: string | null
+    campaignType: string
+    targetSegment: string | null
+    messageTemplate: string
+    status: string
+    scheduledAt: Date | null
+  }>
+): Promise<CampaignRow | null> {
+  const db = getDb()
+  const [campaign] = await db
+    .update(campaigns)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(campaigns.id, id))
+    .returning()
+  return campaign as CampaignRow | null
+}
+
+export async function updateCampaignCounts(id: string): Promise<void> {
+  const db = getDb()
+
+  const [sentCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignRecipients)
+    .where(and(eq(campaignRecipients.campaignId, id), sql`sent_at IS NOT NULL`))
+
+  const [responseCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignRecipients)
+    .where(and(eq(campaignRecipients.campaignId, id), sql`responded_at IS NOT NULL`))
+
+  const [conversionCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignRecipients)
+    .where(and(eq(campaignRecipients.campaignId, id), sql`converted_at IS NOT NULL`))
+
+  await db
+    .update(campaigns)
+    .set({
+      sentCount: sentCountRow?.count ?? 0,
+      responseCount: responseCountRow?.count ?? 0,
+      conversionCount: conversionCountRow?.count ?? 0,
+      updatedAt: new Date(),
+    })
+    .where(eq(campaigns.id, id))
+}
+
+export async function updateRecipientStatus(
+  id: string,
+  data: Partial<{
+    status: string
+    sentAt: Date | null
+    deliveredAt: Date | null
+    respondedAt: Date | null
+    responseContent: string | null
+    convertedAt: Date | null
+    conversionAppointmentId: string | null
+    errorMessage: string | null
+  }>
+): Promise<CampaignRecipientRow | null> {
+  const db = getDb()
+  const [recipient] = await db
+    .update(campaignRecipients)
+    .set(data as any)
+    .where(eq(campaignRecipients.id, id))
+    .returning()
+  return recipient as CampaignRecipientRow | null
+}
+
+export async function markRecipientSent(id: string): Promise<CampaignRecipientRow | null> {
+  return updateRecipientStatus(id, { status: 'sent', sentAt: new Date() })
+}
+
+export async function markRecipientDelivered(id: string): Promise<CampaignRecipientRow | null> {
+  return updateRecipientStatus(id, { status: 'delivered', deliveredAt: new Date() })
+}
+
+export async function markRecipientResponded(id: string, content: string): Promise<CampaignRecipientRow | null> {
+  return updateRecipientStatus(id, { status: 'responded', respondedAt: new Date(), responseContent: content })
+}
+
+export async function markRecipientConverted(id: string, appointmentId?: string): Promise<CampaignRecipientRow | null> {
+  return updateRecipientStatus(id, {
+    status: 'converted',
+    convertedAt: new Date(),
+    conversionAppointmentId: appointmentId ?? null,
+  })
+}
+
+export async function markRecipientError(id: string, errorMessage: string): Promise<CampaignRecipientRow | null> {
+  return updateRecipientStatus(id, { status: 'failed', errorMessage })
+}

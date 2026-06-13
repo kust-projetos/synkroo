@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { handleApiError } from '@/lib/errors'
+import { eq } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
+import { handleApiError, NotFoundError } from '@/lib/errors'
+import { getDb } from '@/lib/db/client'
+import { patients } from '@/lib/db/schema'
+import * as appointmentRepo from '@/repositories/appointments'
+import { appointmentToApi } from '../route'
 
 interface RouteParams {
   params: Promise<{ id: string }>
-}
-
-type AppointmentStatus = 'scheduled' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'
-
-interface AppointmentData {
-  id: string
-  clinic_id: string
-  patient_id: string
-  dentist_id: string | null
-  procedure_id: string | null
-  scheduled_at: string
-  duration_minutes: number
-  status: AppointmentStatus
-  notes: string | null
-  created_at: string
-  updated_at: string
 }
 
 /**
@@ -41,28 +29,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const appointment = await appointmentRepo.findByIdWithJoins(id, clinicId)
 
-    const { data: appointment, error } = await supabase
-      .from('appointments')
-      .select(`
-        *,
-        patients (id, name, phone, email),
-        dentists (id, name, phone),
-        procedures (id, name, duration_minutes, price)
-      `)
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
-      }
-      return handleApiError(error)
+    if (!appointment) {
+      return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
     }
 
-    return NextResponse.json({ appointment })
+    return NextResponse.json({ appointment: appointmentToApi(appointment) })
   } catch (error) {
     return handleApiError(error)
   }
@@ -97,19 +70,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       notes,
     } = body
 
-    const supabase = await createClient()
-
-    // Get current appointment (verify clinic ownership)
-    const { data } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    const currentAppointment = data as AppointmentData | null
-
-    if (!currentAppointment) {
+    // Verify ownership
+    const current = await appointmentRepo.findByIdWithJoins(id, clinicId)
+    if (!current) {
       return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
     }
 
@@ -123,49 +86,47 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       no_show: [],
     }
 
-    if (status && !validTransitions[currentAppointment.status]?.includes(status)) {
+    if (status && !validTransitions[current.status]?.includes(status)) {
       return NextResponse.json(
-        { error: `Cannot transition from ${currentAppointment.status} to ${status}` },
+        { error: `Cannot transition from ${current.status} to ${status}` },
         { status: 400 }
       )
     }
 
-    // Build update object
+    // Build update object (camelCase for Drizzle)
     const updateData: Record<string, unknown> = {}
-    if (patient_id !== undefined) updateData.patient_id = patient_id
-    if (dentist_id !== undefined) updateData.dentist_id = dentist_id
-    if (procedure_id !== undefined) updateData.procedure_id = procedure_id
-    if (scheduled_at !== undefined) updateData.scheduled_at = scheduled_at
-    if (duration_minutes !== undefined) updateData.duration_minutes = duration_minutes
+    if (patient_id !== undefined) updateData.patientId = patient_id
+    if (dentist_id !== undefined) updateData.dentistId = dentist_id
+    if (procedure_id !== undefined) updateData.procedureId = procedure_id
+    if (scheduled_at !== undefined) updateData.scheduledAt = new Date(scheduled_at)
+    if (duration_minutes !== undefined) updateData.durationMinutes = duration_minutes
     if (status !== undefined) updateData.status = status
     if (notes !== undefined) updateData.notes = notes
 
-    const { data: appointment, error } = await (supabase
-      .from('appointments') as any)
-      .update(updateData)
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .select(`
-        *,
-        patients (id, name, phone),
-        dentists (id, name),
-        procedures (id, name)
-      `)
-      .single()
-
-    if (error) {
-      return handleApiError(error)
-    }
+    const updated = await appointmentRepo.update(id, updateData)
 
     // Update patient's last_visit if completed
-    if (status === 'completed' && appointment) {
-      await (supabase as any)
-        .from('patients')
-        .update({ last_visit: appointment.scheduled_at })
-        .eq('id', appointment.patient_id)
+    if (status === 'completed' && patient_id) {
+      const db = getDb()
+      await db
+        .update(patients)
+        .set({ lastVisitAt: new Date(scheduled_at) })
+        .where(eq(patients.id, patient_id))
+    } else if (status === 'completed' && current.patientId) {
+      const db = getDb()
+      await db
+        .update(patients)
+        .set({ lastVisitAt: current.scheduledAt })
+        .where(eq(patients.id, current.patientId))
     }
 
-    return NextResponse.json({ appointment })
+    // Fetch updated with joins
+    const refreshed = await appointmentRepo.findByIdWithJoins(id, clinicId)
+    if (!refreshed) {
+      return handleApiError(new NotFoundError('Appointment'))
+    }
+
+    return NextResponse.json({ appointment: appointmentToApi(refreshed) })
   } catch (error) {
     return handleApiError(error)
   }
@@ -189,19 +150,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Appointment ID is required' }, { status: 400 })
     }
 
-    const supabase = await createClient()
-
     // Check if appointment exists and can be cancelled (verify clinic ownership)
-    const { data } = await supabase
-      .from('appointments')
-      .select('id, status, scheduled_at')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
+    const appointment = await appointmentRepo.findById(id)
 
-    const appointment = data as { id: string; status: AppointmentStatus; scheduled_at: string } | null
-
-    if (!appointment) {
+    if (!appointment || appointment.clinicId !== clinicId) {
       return NextResponse.json({ error: 'Appointment not found' }, { status: 404 })
     }
 
@@ -213,15 +165,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Cancel the appointment
-    const { error } = await (supabase as any)
-      .from('appointments')
-      .update({ status: 'cancelled' })
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-
-    if (error) {
-      return handleApiError(error)
-    }
+    await appointmentRepo.updateStatus(id, 'cancelled')
 
     return NextResponse.json({ success: true, message: 'Appointment cancelled successfully' })
   } catch (error) {

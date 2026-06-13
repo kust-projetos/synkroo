@@ -1,626 +1,481 @@
 /**
  * Leads Service
  * Manages lead capture, scoring, qualification, and pipeline for sales conversion
+ * Migrated from Supabase to Drizzle
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger } from '@/lib/logger'
+import { dbLogger } from "@/lib/logger";
+import * as leadRepo from "@/repositories/leads";
 
-export type LeadSource = 'whatsapp' | 'instagram' | 'web' | 'referral' | 'campaign' | 'other'
-export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'converted' | 'lost'
-export type LeadTemperature = 'cold' | 'warm' | 'hot'
+export type LeadSource =
+	| "whatsapp"
+	| "instagram"
+	| "web"
+	| "referral"
+	| "campaign"
+	| "other";
+export type LeadStatus =
+	| "new"
+	| "contacted"
+	| "qualified"
+	| "proposal"
+	| "negotiation"
+	| "converted"
+	| "lost";
+export type LeadTemperature = "cold" | "warm" | "hot";
 
 export interface Lead {
-  id: string
-  clinic_id: string
-  patient_id: string | null
-  name: string
-  phone: string
-  email: string | null
-  source: LeadSource
-  status: LeadStatus
-  temperature: LeadTemperature
-  score: number // 0-100
-  interest: string | null // procedure they're interested in
-  notes: string | null
-  assigned_to: string | null // user/dentist assigned
-  last_contact_at: string | null
-  next_followup_at: string | null
-  converted_at: string | null
-  lost_reason: string | null
-  deal_value: number | null // value of the deal/business
-  created_at: string
-  updated_at: string
+	id: string;
+	clinic_id: string;
+	patient_id: string | null;
+	name: string;
+	phone: string;
+	email: string | null;
+	source: LeadSource;
+	status: LeadStatus;
+	temperature: LeadTemperature;
+	score: number;
+	interest: string | null;
+	notes: string | null;
+	assigned_to: string | null;
+	last_contact_at: string | null;
+	next_followup_at: string | null;
+	converted_at: string | null;
+	lost_reason: string | null;
+	deal_value: number | null;
+	created_at: string;
+	updated_at: string;
 }
 
 export interface LeadScore {
-  score: number
-  factors: ScoreFactor[]
-  recommendation: string
+	score: number;
+	factors: ScoreFactor[];
+	recommendation: string;
 }
 
 export interface ScoreFactor {
-  name: string
-  points: number
-  description: string
+	name: string;
+	points: number;
+	description: string;
 }
 
 export interface LeadQualification {
-  is_qualified: boolean
-  temperature: LeadTemperature
-  score: number
-  missing_info: string[]
-  next_steps: string[]
+	is_qualified: boolean;
+	temperature: LeadTemperature;
+	score: number;
+	missing_info: string[];
+	next_steps: string[];
 }
 
-/**
- * Calculate lead score based on various factors
- */
+// ─── Score Calculation ───────────────────────────────────────
+
 export function calculateLeadScore(params: {
-  source: LeadSource
-  hasPhone: boolean
-  hasEmail: boolean
-  expressedInterest: boolean
-  hasBudget: boolean | null
-  hasTimeline: boolean | null
-  respondedToFollowup: boolean
-  previousPatient: boolean
+	source: LeadSource;
+	hasPhone: boolean;
+	hasEmail: boolean;
+	expressedInterest: boolean;
+	hasBudget: boolean | null;
+	hasTimeline: boolean | null;
+	respondedToFollowup: boolean;
+	previousPatient: boolean;
 }): LeadScore {
-  const factors: ScoreFactor[] = []
-  let totalScore = 0
+	const factors: ScoreFactor[] = [];
+	let totalScore = 0;
 
-  // Source scoring (max 20 points)
-  const sourceScores: Record<LeadSource, number> = {
-    whatsapp: 18, // Direct messaging, high intent
-    instagram: 15,
-    web: 12,
-    referral: 20, // Best source
-    campaign: 10,
-    other: 5,
-  }
-  factors.push({
-    name: 'source',
-    points: sourceScores[params.source],
-    description: `Origem: ${params.source}`,
-  })
-  totalScore += sourceScores[params.source]
+	const sourceScores: Record<LeadSource, number> = {
+		whatsapp: 18,
+		instagram: 15,
+		web: 12,
+		referral: 20,
+		campaign: 10,
+		other: 5,
+	};
+	factors.push({
+		name: "source",
+		points: sourceScores[params.source],
+		description: `Origem: ${params.source}`,
+	});
+	totalScore += sourceScores[params.source];
 
-  // Contact info completeness (max 15 points)
-  if (params.hasPhone) {
-    factors.push({ name: 'phone', points: 10, description: 'Telefone fornecido' })
-    totalScore += 10
-  }
-  if (params.hasEmail) {
-    factors.push({ name: 'email', points: 5, description: 'Email fornecido' })
-    totalScore += 5
-  }
+	if (params.hasPhone) {
+		factors.push({
+			name: "phone",
+			points: 10,
+			description: "Telefone fornecido",
+		});
+		totalScore += 10;
+	}
+	if (params.hasEmail) {
+		factors.push({ name: "email", points: 5, description: "Email fornecido" });
+		totalScore += 5;
+	}
 
-  // Interest and intent (max 25 points)
-  if (params.expressedInterest) {
-    factors.push({ name: 'interest', points: 15, description: 'Demonstrou interesse em procedimento' })
-    totalScore += 15
-  }
-  if (params.hasBudget === true) {
-    factors.push({ name: 'budget', points: 10, description: 'Orçamento compatível' })
-    totalScore += 10
-  } else if (params.hasBudget === null) {
-    factors.push({ name: 'budget_unknown', points: 5, description: 'Orçamento não informado' })
-    totalScore += 5
-  }
+	if (params.expressedInterest) {
+		factors.push({
+			name: "interest",
+			points: 15,
+			description: "Demonstrou interesse em procedimento",
+		});
+		totalScore += 15;
+	}
+	if (params.hasBudget === true) {
+		factors.push({
+			name: "budget",
+			points: 10,
+			description: "Orçamento compatível",
+		});
+		totalScore += 10;
+	} else if (params.hasBudget === null) {
+		factors.push({
+			name: "budget_unknown",
+			points: 5,
+			description: "Orçamento não informado",
+		});
+		totalScore += 5;
+	}
 
-  // Timeline (max 15 points)
-  if (params.hasTimeline === true) {
-    factors.push({ name: 'timeline', points: 15, description: 'Tem urgência definida' })
-    totalScore += 15
-  } else if (params.hasTimeline === null) {
-    factors.push({ name: 'timeline_unknown', points: 5, description: 'Timeline não informada' })
-    totalScore += 5
-  }
+	if (params.hasTimeline === true) {
+		factors.push({
+			name: "timeline",
+			points: 15,
+			description: "Tem urgência definida",
+		});
+		totalScore += 15;
+	} else if (params.hasTimeline === null) {
+		factors.push({
+			name: "timeline_unknown",
+			points: 5,
+			description: "Timeline não informada",
+		});
+		totalScore += 5;
+	}
 
-  // Engagement (max 15 points)
-  if (params.respondedToFollowup) {
-    factors.push({ name: 'engagement', points: 15, description: 'Respondeu ao follow-up' })
-    totalScore += 15
-  }
+	if (params.respondedToFollowup) {
+		factors.push({
+			name: "engagement",
+			points: 15,
+			description: "Respondeu ao follow-up",
+		});
+		totalScore += 15;
+	}
 
-  // Previous relationship (max 10 points)
-  if (params.previousPatient) {
-    factors.push({ name: 'previous_patient', points: 10, description: 'Paciente anterior' })
-    totalScore += 10
-  }
+	if (params.previousPatient) {
+		factors.push({
+			name: "previous_patient",
+			points: 10,
+			description: "Paciente anterior",
+		});
+		totalScore += 10;
+	}
 
-  // Normalize to 0-100
-  const normalizedScore = Math.min(totalScore, 100)
+	const normalizedScore = Math.min(totalScore, 100);
 
-  // Generate recommendation
-  let recommendation = ''
-  if (normalizedScore >= 70) {
-    recommendation = 'Lead quente! Priorizar contato imediato e agendar avaliação.'
-  } else if (normalizedScore >= 40) {
-    recommendation = 'Lead morno. Enviar mais informações e fazer follow-up em 2 dias.'
-  } else {
-    recommendation = 'Lead frio. Adicionar à sequência de nurturing.'
-  }
+	let recommendation = "";
+	if (normalizedScore >= 70) {
+		recommendation =
+			"Lead quente! Priorizar contato imediato e agendar avaliação.";
+	} else if (normalizedScore >= 40) {
+		recommendation =
+			"Lead morno. Enviar mais informações e fazer follow-up em 2 dias.";
+	} else {
+		recommendation = "Lead frio. Adicionar à sequência de nurturing.";
+	}
 
-  return {
-    score: normalizedScore,
-    factors,
-    recommendation,
-  }
+	return {
+		score: normalizedScore,
+		factors,
+		recommendation,
+	};
 }
 
-/**
- * Get temperature from score
- */
 export function getTemperatureFromScore(score: number): LeadTemperature {
-  if (score >= 70) return 'hot'
-  if (score >= 40) return 'warm'
-  return 'cold'
+	if (score >= 70) return "hot";
+	if (score >= 40) return "warm";
+	return "cold";
 }
 
-/**
- * Create a new lead
- */
+// ─── Repository-to-Service type adapters ─────────────────────
+
+function repoLeadToService(r: leadRepo.LeadRow): Lead {
+	return {
+		id: r.id,
+		clinic_id: r.clinicId,
+		patient_id: r.patientId,
+		name: r.name,
+		phone: r.phone,
+		email: r.email,
+		source: r.source as LeadSource,
+		status: r.status as LeadStatus,
+		temperature: r.temperature as LeadTemperature,
+		score: r.score,
+		interest: r.interest,
+		notes: r.notes,
+		assigned_to: r.assignedTo,
+		last_contact_at: r.lastContactAt?.toISOString() ?? null,
+		next_followup_at: r.nextFollowupAt?.toISOString() ?? null,
+		converted_at: r.convertedAt?.toISOString() ?? null,
+		lost_reason: r.lostReason,
+		deal_value: r.dealValue ? parseFloat(r.dealValue) : null,
+		created_at: r.createdAt.toISOString(),
+		updated_at: r.updatedAt.toISOString(),
+	};
+}
+
+// ─── Service Methods ───────────────────────────────────────────
+
 export async function createLead(params: {
-  clinicId: string
-  name: string
-  phone: string
-  email?: string
-  source: LeadSource
-  interest?: string
-  patientId?: string
-  notes?: string
-  deal_value?: number
+	clinicId: string;
+	name: string;
+	phone: string;
+	email?: string;
+	source: LeadSource;
+	interest?: string;
+	patientId?: string;
+	notes?: string;
+	deal_value?: number;
 }): Promise<Lead | null> {
-  const supabase = await createTypedClient()
+	const scoreResult = calculateLeadScore({
+		source: params.source,
+		hasPhone: !!params.phone,
+		hasEmail: !!params.email,
+		expressedInterest: !!params.interest,
+		hasBudget: null,
+		hasTimeline: null,
+		respondedToFollowup: false,
+		previousPatient: !!params.patientId,
+	});
 
-  try {
-    // Calculate initial score
-    const scoreResult = calculateLeadScore({
-      source: params.source,
-      hasPhone: !!params.phone,
-      hasEmail: !!params.email,
-      expressedInterest: !!params.interest,
-      hasBudget: null,
-      hasTimeline: null,
-      respondedToFollowup: false,
-      previousPatient: !!params.patientId,
-    })
+	const temperature = getTemperatureFromScore(scoreResult.score);
 
-    const { data: lead, error } = await (supabase
-      .from('leads') as any)
-      .insert({
-        clinic_id: params.clinicId,
-        patient_id: params.patientId || null,
-        name: params.name,
-        phone: params.phone,
-        email: params.email || null,
-        source: params.source,
-        status: 'new',
-        temperature: getTemperatureFromScore(scoreResult.score),
-        score: scoreResult.score,
-        interest: params.interest || null,
-        notes: params.notes || null,
-        deal_value: params.deal_value || null,
-      })
-      .select()
-      .single()
+	const lead = await leadRepo.createLead({
+		clinicId: params.clinicId,
+		name: params.name,
+		phone: params.phone,
+		email: params.email,
+		source: params.source,
+		interest: params.interest,
+		patientId: params.patientId,
+		notes: params.notes,
+		dealValue: params.deal_value,
+		score: scoreResult.score,
+		temperature,
+	});
 
-    if (error) throw error
+	if (!lead) return null;
 
-    // Log lead creation
-    dbLogger.info('Lead created', {
-      leadId: lead.id,
-      score: scoreResult.score,
-      temperature: getTemperatureFromScore(scoreResult.score),
-    })
+	dbLogger.info("Lead created", {
+		leadId: lead.id,
+		score: scoreResult.score,
+		temperature,
+	});
 
-    return lead as Lead
-  } catch (error) {
-    dbLogger.error('Error creating lead', error)
-    return null
-  }
+	return repoLeadToService(lead);
 }
 
-/**
- * Get leads for a clinic with filters
- */
 export async function getLeads(params: {
-  clinicId: string
-  status?: LeadStatus
-  temperature?: LeadTemperature
-  minScore?: number
-  assignedTo?: string
-  limit?: number
-  offset?: number
+	clinicId: string;
+	status?: LeadStatus;
+	temperature?: LeadTemperature;
+	minScore?: number;
+	assignedTo?: string;
+	limit?: number;
+	offset?: number;
 }): Promise<{ leads: Lead[]; total: number }> {
-  const supabase = await createTypedClient()
+	const result = await leadRepo.findLeads({
+		clinicId: params.clinicId,
+		status: params.status,
+		temperature: params.temperature,
+		minScore: params.minScore,
+		assignedTo: params.assignedTo,
+		limit: params.limit,
+		offset: params.offset,
+	});
 
-  try {
-    let query = supabase
-      .from('leads')
-      .select('*', { count: 'exact' })
-      .eq('clinic_id', params.clinicId)
-      .order('score', { ascending: false })
-
-    if (params.status) {
-      query = query.eq('status', params.status)
-    }
-    if (params.temperature) {
-      query = query.eq('temperature', params.temperature)
-    }
-    if (params.minScore !== undefined) {
-      query = query.gte('score', params.minScore)
-    }
-    if (params.assignedTo) {
-      query = query.eq('assigned_to', params.assignedTo)
-    }
-
-    const limit = params.limit || 50
-    const offset = params.offset || 0
-    query = query.range(offset, offset + limit - 1)
-
-    const { data, error, count } = await query
-
-    if (error) throw error
-
-    return {
-      leads: (data || []) as Lead[],
-      total: count || 0,
-    }
-  } catch (error) {
-    dbLogger.error('Error fetching leads', error)
-    return { leads: [], total: 0 }
-  }
+	return {
+		leads: result.leads.map(repoLeadToService),
+		total: result.total,
+	};
 }
 
-/**
- * Update lead status
- */
 export async function updateLeadStatus(
-  leadId: string,
-  status: LeadStatus,
-  notes?: string
+	leadId: string,
+	status: LeadStatus,
+	notes?: string,
 ): Promise<Lead | null> {
-  const supabase = await createTypedClient()
-
-  try {
-    const updateData: Record<string, unknown> = {
-      status,
-      updated_at: new Date().toISOString(),
-    }
-
-    if (status === 'converted') {
-      updateData.converted_at = new Date().toISOString()
-    }
-    if (notes) {
-      updateData.notes = notes
-    }
-
-    const { data: lead, error } = await (supabase
-      .from('leads') as any)
-      .update(updateData)
-      .eq('id', leadId)
-      .select()
-      .single()
-
-    if (error) throw error
-
-    return lead as Lead
-  } catch (error) {
-    dbLogger.error('Error updating lead status', error)
-    return null
-  }
+	const lead = await leadRepo.updateLeadStatus(leadId, status, notes);
+	return lead ? repoLeadToService(lead) : null;
 }
 
-/**
- * Qualify a lead
- */
 export async function qualifyLead(
-  leadId: string,
-  qualification: {
-    hasBudget?: boolean
-    hasTimeline?: boolean
-    interest?: string
-    notes?: string
-  }
+	leadId: string,
+	qualification: {
+		hasBudget?: boolean;
+		hasTimeline?: boolean;
+		interest?: string;
+		notes?: string;
+	},
 ): Promise<LeadQualification | null> {
-  const supabase = await createTypedClient()
+	const currentLead = await leadRepo.findLeadById(leadId);
+	if (!currentLead) return null;
 
-  try {
-    // Get current lead
-    const { data: lead, error: fetchError } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single()
+	const previousScore = currentLead.score;
 
-    if (fetchError || !lead) {
-      throw fetchError || new Error('Lead not found')
-    }
+	const scoreResult = calculateLeadScore({
+		source: currentLead.source as LeadSource,
+		hasPhone: !!currentLead.phone,
+		hasEmail: !!currentLead.email,
+		expressedInterest: !!qualification.interest || !!currentLead.interest,
+		hasBudget: qualification.hasBudget ?? null,
+		hasTimeline: qualification.hasTimeline ?? null,
+		respondedToFollowup: currentLead.status !== "new",
+		previousPatient: !!currentLead.patientId,
+	});
 
-    const currentLead = lead as Lead
-    const previousScore = currentLead.score
+	const temperature = getTemperatureFromScore(scoreResult.score);
+	const isQualified = scoreResult.score >= 50;
 
-    // Recalculate score with new info
-    const scoreResult = calculateLeadScore({
-      source: currentLead.source,
-      hasPhone: !!currentLead.phone,
-      hasEmail: !!currentLead.email,
-      expressedInterest: !!qualification.interest || !!currentLead.interest,
-      hasBudget: qualification.hasBudget ?? null,
-      hasTimeline: qualification.hasTimeline ?? null,
-      respondedToFollowup: currentLead.status !== 'new',
-      previousPatient: !!currentLead.patient_id,
-    })
+	const missingInfo: string[] = [];
+	if (!currentLead.email) missingInfo.push("email");
+	if (!qualification.hasBudget && !currentLead.interest)
+		missingInfo.push("orçamento");
+	if (!qualification.hasTimeline) missingInfo.push("urgência");
 
-    const temperature = getTemperatureFromScore(scoreResult.score)
-    const isQualified = scoreResult.score >= 50
+	const nextSteps: string[] = [];
+	if (temperature === "hot") {
+		nextSteps.push("Agendar avaliação imediatamente");
+		nextSteps.push("Enviar propostas personalizadas");
+	} else if (temperature === "warm") {
+		nextSteps.push("Enviar mais informações sobre procedimentos");
+		nextSteps.push("Follow-up em 2-3 dias");
+	} else {
+		nextSteps.push("Adicionar à sequência de nurturing");
+		nextSteps.push("Enviar conteúdo educativo");
+	}
 
-    // Determine missing info
-    const missingInfo: string[] = []
-    if (!currentLead.email) missingInfo.push('email')
-    if (!qualification.hasBudget && !currentLead.interest) missingInfo.push('orçamento')
-    if (!qualification.hasTimeline) missingInfo.push('urgência')
+	await leadRepo.updateLead(leadId, {
+		score: scoreResult.score,
+		temperature,
+		status: isQualified ? "qualified" : currentLead.status,
+		interest: qualification.interest ?? currentLead.interest ?? undefined,
+		notes: qualification.notes ?? currentLead.notes ?? undefined,
+	});
 
-    // Determine next steps
-    const nextSteps: string[] = []
-    if (temperature === 'hot') {
-      nextSteps.push('Agendar avaliação imediatamente')
-      nextSteps.push('Enviar propostas personalizadas')
-    } else if (temperature === 'warm') {
-      nextSteps.push('Enviar mais informações sobre procedimentos')
-      nextSteps.push('Follow-up em 2-3 dias')
-    } else {
-      nextSteps.push('Adicionar à sequência de nurturing')
-      nextSteps.push('Enviar conteúdo educativo')
-    }
+	if (previousScore < 70 && scoreResult.score >= 70) {
+		import("@/services/leads/lead-notification.service")
+			.then(({ notifyHotLead }) => notifyHotLead(leadId))
+			.catch((err) => {
+				dbLogger.error("Background notification failed", err, { leadId });
+			});
+	}
 
-    // Update lead
-    const updateData: Record<string, unknown> = {
-      score: scoreResult.score,
-      temperature,
-      status: isQualified ? 'qualified' : currentLead.status,
-      interest: qualification.interest || currentLead.interest,
-      notes: qualification.notes || currentLead.notes,
-      updated_at: new Date().toISOString(),
-    }
-
-    await (supabase.from('leads') as any).update(updateData).eq('id', leadId)
-
-    // Trigger hot lead notification if score crossed threshold
-    if (previousScore < 70 && scoreResult.score >= 70) {
-      import('@/services/leads/lead-notification.service').then(
-        ({ notifyHotLead }) => notifyHotLead(leadId)
-      ).catch((err) => {
-        dbLogger.error('Background notification failed', err, { leadId })
-      })
-    }
-
-    return {
-      is_qualified: isQualified,
-      temperature,
-      score: scoreResult.score,
-      missing_info: missingInfo,
-      next_steps: nextSteps,
-    }
-  } catch (error) {
-    dbLogger.error('Error qualifying lead', error)
-    return null
-  }
+	return {
+		is_qualified: isQualified,
+		temperature,
+		score: scoreResult.score,
+		missing_info: missingInfo,
+		next_steps: nextSteps,
+	};
 }
 
-/**
- * Get hot leads (for notifications)
- */
-export async function getHotLeads(clinicId: string, limit: number = 10): Promise<Lead[]> {
-  const supabase = await createTypedClient()
-
-  try {
-    const { data: leads, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('temperature', 'hot')
-      .in('status', ['new', 'contacted', 'qualified'])
-      .order('score', { ascending: false })
-      .limit(limit)
-
-    if (error) throw error
-
-    return (leads || []) as Lead[]
-  } catch (error) {
-    dbLogger.error('Error fetching hot leads', error)
-    return []
-  }
+export async function getHotLeads(
+	clinicId: string,
+	limit: number = 10,
+): Promise<Lead[]> {
+	const rows = await leadRepo.findHotLeads(clinicId, limit);
+	return rows.map(repoLeadToService);
 }
 
-/**
- * Lead capture result from WhatsApp
- */
 export interface LeadCaptureResult {
-  created: boolean
-  leadId: string
-  score: number
-  wasExisting: boolean
+	created: boolean;
+	leadId: string;
+	score: number;
+	wasExisting: boolean;
 }
 
-/**
- * Extract keywords from WhatsApp message for scoring
- */
 function extractWhatsAppKeywords(text: string): string[] {
-  const lower = text.toLowerCase()
-  const keywords: string[] = []
-
-  if (/\b(orçamento|preço|quanto custa|valor)\b/.test(lower)) keywords.push('budget')
-  if (/\b(consulta|agendar|marcar|horário)\b/.test(lower)) keywords.push('appointment')
-  if (/\b(tratamento|procedimento|dentista)\b/.test(lower)) keywords.push('treatment')
-
-  return keywords
+	const lower = text.toLowerCase();
+	const keywords: string[] = [];
+	if (/\b(orçamento|preço|quanto custa|valor)\b/.test(lower))
+		keywords.push("budget");
+	if (/\b(consulta|agendar|marcar|horário)\b/.test(lower))
+		keywords.push("appointment");
+	if (/\b(tratamento|procedimento|dentista)\b/.test(lower))
+		keywords.push("treatment");
+	return keywords;
 }
 
-/**
- * Calculate lead score from WhatsApp keywords
- */
 function calculateWhatsAppLeadScore(keywords: string[]): number {
-  if (keywords.includes('budget')) return 30
-  if (keywords.includes('appointment')) return 25
-  if (keywords.includes('treatment')) return 20
-  return 5
+	if (keywords.includes("budget")) return 30;
+	if (keywords.includes("appointment")) return 25;
+	if (keywords.includes("treatment")) return 20;
+	return 5;
 }
 
-/**
- * Capture a lead from WhatsApp inbound message
- * Creates new lead if phone not found, updates existing lead otherwise
- */
 export async function captureLeadFromWhatsApp(
-  phone: string,
-  messageText: string,
-  clinicId: string
+	phone: string,
+	messageText: string,
+	clinicId: string,
 ): Promise<LeadCaptureResult> {
-  const { getDefaultStageId } = await import('@/services/pipeline/stages.service')
-  const supabase = createTypedClient()
+	const defaultStageId = await leadRepo.getDefaultStageId(clinicId);
+	const messageKeywords = extractWhatsAppKeywords(messageText);
+	const score = calculateWhatsAppLeadScore(messageKeywords);
 
-  const messageKeywords = extractWhatsAppKeywords(messageText)
-  const score = calculateWhatsAppLeadScore(messageKeywords)
-  const defaultStageId = await getDefaultStageId(clinicId)
+	const existingLead = await leadRepo.findLeadByPhone(phone, clinicId);
 
-  // Check if lead already exists for this phone
-  const { data: existingLead } = await supabase
-    .from('leads')
-    .select('id')
-    .eq('phone', phone)
-    .eq('clinic_id', clinicId)
-    .single()
+	if (existingLead) {
+		await leadRepo.updateLeadLastContact(
+			existingLead.id,
+			messageKeywords.length > 0 ? score : undefined,
+		);
+		return {
+			created: false,
+			leadId: existingLead.id,
+			score,
+			wasExisting: true,
+		};
+	}
 
-  if (existingLead) {
-    // Update last_contact and recalculate score if keywords found
-    await supabase
-      .from('leads')
-      .update({
-        last_contact_at: new Date().toISOString(),
-        score: messageKeywords.length > 0 ? score : undefined,
-      })
-      .eq('id', existingLead.id)
+	const newLead = await leadRepo.createLead({
+		clinicId,
+		phone,
+		name: "Desconhecido",
+		source: "whatsapp",
+		stageId: defaultStageId ?? undefined,
+		score,
+	});
 
-    return { created: false, leadId: existingLead.id, score, wasExisting: true }
-  }
+	if (!newLead) {
+		dbLogger.error(
+			"Failed to capture lead from WhatsApp",
+			new Error("null result"),
+		);
+		return { created: false, leadId: "", score, wasExisting: false };
+	}
 
-  // Create new lead
-  const { data: newLead, error } = await supabase
-    .from('leads')
-    .insert({
-      phone,
-      name: 'Desconhecido',
-      source: 'whatsapp',
-      stage_id: defaultStageId,
-      score,
-      clinic_id: clinicId,
-      last_contact_at: new Date().toISOString(),
-    })
-    .select('id')
-    .single()
-
-  if (error || !newLead) {
-    dbLogger.error('Failed to capture lead from WhatsApp', error)
-    return { created: false, leadId: '', score, wasExisting: false }
-  }
-
-  return { created: true, leadId: newLead.id, score, wasExisting: false }
+	return { created: true, leadId: newLead.id, score, wasExisting: false };
 }
 
-/**
- * Convert lead to patient
- */
 export async function convertLeadToPatient(
-  leadId: string,
-  patientId: string
+	leadId: string,
+	patientId: string,
 ): Promise<boolean> {
-  const supabase = await createTypedClient()
-
-  try {
-    const { error } = await (supabase
-      .from('leads') as any)
-      .update({
-        patient_id: patientId,
-        status: 'converted',
-        converted_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', leadId)
-
-    if (error) throw error
-
-    return true
-  } catch (error) {
-    dbLogger.error('Error converting lead to patient', error)
-    return false
-  }
+	const lead = await leadRepo.convertLeadToPatient(leadId, patientId);
+	return lead !== null;
 }
 
-/**
- * Get lead statistics for dashboard
- */
 export async function getLeadStats(clinicId: string): Promise<{
-  total: number
-  byStatus: Record<LeadStatus, number>
-  byTemperature: Record<LeadTemperature, number>
-  conversionRate: number
-  avgScore: number
+	total: number;
+	byStatus: Record<LeadStatus, number>;
+	byTemperature: Record<LeadTemperature, number>;
+	conversionRate: number;
+	avgScore: number;
 }> {
-  const supabase = await createTypedClient()
-
-  try {
-    const { data: leads, error } = await supabase
-      .from('leads')
-      .select('status, temperature, score')
-      .eq('clinic_id', clinicId) as any
-
-    if (error) throw error
-
-    const byStatus: Record<LeadStatus, number> = {
-      new: 0,
-      contacted: 0,
-      qualified: 0,
-      proposal: 0,
-      negotiation: 0,
-      converted: 0,
-      lost: 0,
-    }
-
-    const byTemperature: Record<LeadTemperature, number> = {
-      cold: 0,
-      warm: 0,
-      hot: 0,
-    }
-
-    let totalScore = 0
-    let converted = 0
-
-    for (const lead of (leads as any[]) || []) {
-      byStatus[lead.status as LeadStatus]++
-      byTemperature[lead.temperature as LeadTemperature]++
-      totalScore += lead.score || 0
-      if (lead.status === 'converted') converted++
-    }
-
-    const total = (leads as any[])?.length || 0
-
-    return {
-      total,
-      byStatus,
-      byTemperature,
-      conversionRate: total > 0 ? Math.round((converted / total) * 100) : 0,
-      avgScore: total > 0 ? Math.round(totalScore / total) : 0,
-    }
-  } catch (error) {
-    dbLogger.error('Error fetching lead stats', error)
-    return {
-      total: 0,
-      byStatus: { new: 0, contacted: 0, qualified: 0, proposal: 0, negotiation: 0, converted: 0, lost: 0 },
-      byTemperature: { cold: 0, warm: 0, hot: 0 },
-      conversionRate: 0,
-      avgScore: 0,
-    }
-  }
+	const stats = await leadRepo.getLeadStats(clinicId);
+	return {
+		total: stats.total,
+		byStatus: stats.byStatus as Record<LeadStatus, number>,
+		byTemperature: stats.byTemperature as Record<LeadTemperature, number>,
+		conversionRate: stats.conversionRate,
+		avgScore: stats.avgScore,
+	};
 }

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { getPatientHistory } from '@/services/patients/patient-history.service'
+import * as patientRepo from '@/repositories/patients'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -27,14 +27,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Verify patient belongs to user's clinic
-    const supabase = await createClient()
-    const { data: patient } = await supabase
-      .from('patients')
-      .select('id')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
+    const patient = await patientRepo.findByIdScoped(id, clinicId)
     if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }

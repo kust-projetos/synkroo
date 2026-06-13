@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getOrCreateConversation, storeMessage } from '@/lib/supabase/admin'
+import { getOrCreateConversation, createMessage } from '@/repositories/conversations'
 import { agent } from '@/services/agent/agent.service'
 import { dbLogger } from '@/lib/logger'
 import type { ChannelType } from '@/lib/supabase/database.types'
@@ -69,7 +69,13 @@ export async function POST(request: NextRequest) {
 
     // Store inbound message
     try {
-      await storeMessage(convId, 'inbound', message)
+      await createMessage({
+        conversationId: convId,
+        direction: 'inbound',
+        content: message,
+        messageType: 'text',
+        metadata: {},
+      })
     } catch (error) {
       dbLogger.error('Failed to store inbound message', error)
       // Continue processing even if storing fails

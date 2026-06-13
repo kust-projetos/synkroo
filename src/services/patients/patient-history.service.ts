@@ -1,41 +1,25 @@
-import { createTypedClient } from '@/lib/supabase/typed'
-import { dbLogger } from '@/lib/logger'
-
 /**
  * Patient History Service
- * Provides comprehensive patient attendance history
+ * Provides comprehensive patient attendance history using Drizzle
  */
+
+import { eq, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { patients, clinics, appointments, procedures, dentists } from '@/lib/db/schema'
+import * as patientRepo from '@/repositories/patients'
+import * as appointmentRepo from '@/repositories/appointments'
+import { dbLogger } from '@/lib/logger'
 
 export interface PatientHistoryEntry {
   id: string
   scheduledAt: Date
-  durationMinutes: number
+  durationMinutes: number | null
   status: string
   procedureName?: string
   dentistName?: string
-  notes?: string
+  notes?: string | null
   clinicName?: string
 }
-
-/** Appointment row returned by Supabase query with joins */
-type AppointmentWithJoins = {
-  id: string
-  scheduled_at: string
-  duration_minutes: number
-  status: string
-  notes: string | null
-  procedures: { name: string } | null
-  dentists: { name: string } | null
-}
-
-/** Minimal appointment row for status queries */
-type AppointmentStatusRow = {
-  scheduled_at: string
-  status: string
-}
-
-/** Clinic data from Supabase join (can be array or single object) */
-type ClinicJoin = { name: string }
 
 export interface PatientHistory {
   patientId: string
@@ -58,92 +42,80 @@ export interface PatientHistory {
 export async function getPatientHistory(
   patientId: string
 ): Promise<{ success: boolean; history?: PatientHistory; error?: string }> {
-  const supabase = await createTypedClient()
-
   try {
-    // Get patient info
-    const { data: patient, error: patientError } = await supabase
-      .from('patients')
-      .select(`
-        id,
-        name,
-        phone,
-        last_visit,
-        clinics (name)
-      `)
-      .eq('id', patientId)
-      .single() as any
+    const db = getDb()
 
-    if (patientError || !patient) {
+    // Get patient with clinic (without specifying clinicId here — caller should verify)
+    const patientRows = await db
+      .select({ patient: patients, clinic: { name: clinics.name } })
+      .from(patients)
+      .leftJoin(clinics, eq(clinics.id, patients.clinicId))
+      .where(eq(patients.id, patientId))
+      .limit(1)
+
+    const patientRow = patientRows[0]
+    if (!patientRow) {
       return { success: false, error: 'Patient not found' }
     }
 
-    // Get all appointments
-    const { data: appointments, error: appointmentsError } = await supabase
-      .from('appointments')
-      .select(`
-        id,
-        scheduled_at,
-        duration_minutes,
-        status,
-        notes,
-        procedures (name),
-        dentists (name)
-      `)
-      .eq('patient_id', patientId)
-      .order('scheduled_at', { ascending: false }) as any
+    const patient = patientRow.patient
+    const clinicName = patientRow.clinic?.name
 
-    if (appointmentsError) {
-      dbLogger.error('Error fetching patient appointments', appointmentsError)
-      return { success: false, error: 'Failed to fetch appointments' }
-    }
+    // Get all appointments for patient with joins
+    const aptRows = await db
+      .select({
+        id: appointments.id,
+        scheduledAt: appointments.scheduledAt,
+        durationMinutes: appointments.durationMinutes,
+        status: appointments.status,
+        notes: appointments.notes,
+        procedure: { name: procedures.name },
+        dentist: { name: dentists.name },
+      })
+      .from(appointments)
+      .leftJoin(procedures, eq(procedures.id, appointments.procedureId))
+      .leftJoin(dentists, eq(dentists.id, appointments.dentistId))
+      .where(eq(appointments.patientId, patientId))
+      .orderBy(desc(appointments.scheduledAt))
 
-    // Calculate statistics
-    const totalVisits = (appointments as any[])?.length || 0
-    const completedVisits = (appointments as any[])?.filter((a: AppointmentWithJoins) => a.status === 'completed').length || 0
-    const cancelledVisits = (appointments as any[])?.filter((a: AppointmentWithJoins) => a.status === 'cancelled').length || 0
-    const noShowCount = (appointments as any[])?.filter((a: AppointmentWithJoins) => a.status === 'no_show').length || 0
+    const totalVisits = aptRows.length
+    const completedVisits = aptRows.filter(a => a.status === 'completed').length
+    const cancelledVisits = aptRows.filter(a => a.status === 'cancelled').length
+    const noShowCount = aptRows.filter(a => a.status === 'no_show').length
 
     // Last completed visit
-    const lastCompleted = (appointments as any[])?.find((a: AppointmentWithJoins) => a.status === 'completed')
-    const lastVisit = lastCompleted ? new Date(lastCompleted.scheduled_at) : undefined
+    const lastCompleted = aptRows.find(a => a.status === 'completed')
+    const lastVisit = lastCompleted?.scheduledAt
 
-    // Next appointment
+    // Next appointment (scheduled/confirmed in the future)
     const now = new Date()
-    const nextApt = (appointments as any[])
-      ?.filter((a: AppointmentWithJoins) => ['scheduled', 'confirmed'].includes(a.status))
-      .find((a: AppointmentWithJoins) => new Date(a.scheduled_at) > now)
-    const nextAppointment = nextApt ? new Date(nextApt.scheduled_at) : undefined
+    const nextApt = aptRows.find(a =>
+      ['scheduled', 'confirmed'].includes(a.status) && a.scheduledAt > now
+    )
+    const nextAppointment = nextApt?.scheduledAt
 
     // Procedure frequency
     const procedureCounts: Record<string, number> = {}
-    appointments
-      ?.filter((a: AppointmentWithJoins) => a.status === 'completed')
-      .forEach((a: AppointmentWithJoins) => {
-        const procName = a.procedures?.name
-        if (procName) {
-          procedureCounts[procName] = (procedureCounts[procName] || 0) + 1
-        }
-      })
-
-    const procedures = Object.entries(procedureCounts)
+    for (const a of aptRows) {
+      if (a.status === 'completed' && a.procedure?.name) {
+        procedureCounts[a.procedure.name] = (procedureCounts[a.procedure.name] || 0) + 1
+      }
+    }
+    const procedureSummary = Object.entries(procedureCounts)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
 
     // Format appointment history
-    const historyEntries: PatientHistoryEntry[] = (appointments || []).map((a: AppointmentWithJoins) => ({
+    const historyEntries: PatientHistoryEntry[] = aptRows.map(a => ({
       id: a.id,
-      scheduledAt: new Date(a.scheduled_at),
-      durationMinutes: a.duration_minutes,
+      scheduledAt: a.scheduledAt,
+      durationMinutes: a.durationMinutes,
       status: a.status,
-      procedureName: a.procedures?.name,
-      dentistName: a.dentists?.name,
+      procedureName: a.procedure?.name,
+      dentistName: a.dentist?.name,
       notes: a.notes,
+      clinicName,
     }))
-
-    // Extract clinic name - handle both array and object from join
-    const clinicData = (patient as any).clinics as ClinicJoin | ClinicJoin[] | null
-    const clinicName = Array.isArray(clinicData) ? clinicData[0]?.name : clinicData?.name
 
     return {
       success: true,
@@ -157,7 +129,7 @@ export async function getPatientHistory(
         noShowCount,
         lastVisit,
         nextAppointment,
-        procedures,
+        procedures: procedureSummary,
         appointments: historyEntries,
         clinicName,
       },
@@ -179,30 +151,32 @@ export async function getPatientVisitSummary(
   nextAppointment?: Date
   noShowRate: number
 }> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
-  const { data: appointments } = await supabase
-    .from('appointments')
-    .select('scheduled_at, status')
-    .eq('patient_id', patientId) as any
+  const rows = await db
+    .select({
+      scheduledAt: appointments.scheduledAt,
+      status: appointments.status,
+    })
+    .from(appointments)
+    .where(eq(appointments.patientId, patientId))
 
-  const total = (appointments as any[])?.length || 0
-  const noShows = (appointments as any[])?.filter((a: AppointmentStatusRow) => a.status === 'no_show').length || 0
+  const total = rows.length
+  const noShows = rows.filter(a => a.status === 'no_show').length
 
-  const lastCompleted = (appointments as any[])
-    ?.filter((a: AppointmentStatusRow) => a.status === 'completed')
-    .sort((a: AppointmentStatusRow, b: AppointmentStatusRow) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())[0]
+  const lastCompleted = rows
+    .filter(a => a.status === 'completed')
+    .sort((a, b) => b.scheduledAt.getTime() - a.scheduledAt.getTime())[0]
 
   const now = new Date()
-  const nextApt = (appointments as any[])
-    ?.filter((a: AppointmentStatusRow) => ['scheduled', 'confirmed'].includes(a.status))
-    .filter((a: AppointmentStatusRow) => new Date(a.scheduled_at) > now)
-    .sort((a: AppointmentStatusRow, b: AppointmentStatusRow) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())[0]
+  const nextApt = rows
+    .filter(a => ['scheduled', 'confirmed'].includes(a.status) && a.scheduledAt > now)
+    .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())[0]
 
   return {
     totalVisits: total,
-    lastVisit: lastCompleted ? new Date(lastCompleted.scheduled_at) : undefined,
-    nextAppointment: nextApt ? new Date(nextApt.scheduled_at) : undefined,
+    lastVisit: lastCompleted?.scheduledAt,
+    nextAppointment: nextApt?.scheduledAt,
     noShowRate: total > 0 ? noShows / total : 0,
   }
 }
