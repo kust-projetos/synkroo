@@ -1,60 +1,30 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextResponse, type NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt';
+import { NextResponse, type NextRequest } from 'next/server';
+
+const AUTH_SECRET = process.env.AUTH_SECRET;
 
 /**
- * Middleware for authentication and session refresh
- * Runs on every request to protected routes
+ * Middleware for authentication — validates Auth.js JWT.
+ * Edge-compatible: uses next-auth/jwt getToken instead of auth().
  */
 export async function middleware(request: NextRequest) {
-  // Dev bypass: skip auth entirely when Supabase env vars are missing
-  if (
-    process.env.NODE_ENV === 'development' &&
-    (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  ) {
-    console.warn('[middleware] Supabase env vars missing — skipping auth in development')
-    return NextResponse.next({ request })
+  const pathname = request.nextUrl.pathname;
+
+  // Dev bypass: skip auth when AUTH_SECRET is missing
+  if (process.env.NODE_ENV === 'development' && !AUTH_SECRET) {
+    return NextResponse.next({ request });
   }
 
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet: Array<{ name: string; value: string; options?: any }>) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          )
-          supabaseResponse = NextResponse.next({
-            request,
-          })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          )
-        },
-      },
-    }
-  )
-
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Decode and verify the session JWT from request cookies
+  const token = await getToken({
+    req: request,
+    secret: AUTH_SECRET,
+  });
 
   // Public paths that don't require authentication
   const publicPaths: string[] = [
     '/login',
     '/signup',
-    '/auth/callback',
     '/api/auth',
     '/api/health',
     '/api/webhook',
@@ -62,72 +32,36 @@ export async function middleware(request: NextRequest) {
     '/api/instagram',
     '/api/messages',
     '/api/agent',
-    '/api/cron', // Cron endpoints use CRON_SECRET for auth
-  ]
-  // Seed route is only public in development (requires SEED_SECRET in production)
+    '/api/cron',
+  ];
   if (process.env.NODE_ENV === 'development') {
-    publicPaths.push('/api/seed')
+    publicPaths.push('/api/seed');
   }
 
-  const pathname = request.nextUrl.pathname
-  const isPublicPath = pathname === '/' || publicPaths.some(path =>
-    pathname.startsWith(path)
-  )
+  const isPublicPath =
+    pathname === '/' ||
+    publicPaths.some((path) => pathname.startsWith(path));
 
-  // If no user and trying to access protected route
-  if (!user && !isPublicPath) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return NextResponse.redirect(url)
-  }
-
-  // If user exists but no profile in users table, redirect to complete profile
-  // Uses cookie flag to avoid DB query on every request
-  if (user && request.nextUrl.pathname !== '/complete-profile') {
-    const hasProfile = request.cookies.get('sb-profile-complete')
-
-    if (!hasProfile) {
-      const { data: profile } = await (supabase as any)
-        .from('users')
-        .select('id')
-        .eq('id', user.id)
-        .single()
-
-      if (profile) {
-        // Profile exists — set cookie so we skip this check next time
-        supabaseResponse.cookies.set('sb-profile-complete', '1', {
-          maxAge: 60 * 60 * 24 * 7, // 7 days
-          path: '/',
-          sameSite: 'lax',
-        })
-      } else if (!request.nextUrl.pathname.startsWith('/api/')) {
-        const url = request.nextUrl.clone()
-        url.pathname = '/complete-profile'
-        return NextResponse.redirect(url)
-      }
-    }
+  // If no session and trying to access protected route
+  if (!token && !isPublicPath) {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
+    url.searchParams.set('redirectTo', pathname);
+    return NextResponse.redirect(url);
   }
 
   // If logged in and trying to access login page, redirect to dashboard
-  if (user && request.nextUrl.pathname === '/login') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  if (token && pathname === '/login') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
+    return NextResponse.redirect(url);
   }
 
-  return supabaseResponse
+  return NextResponse.next({ request });
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
-}
+};

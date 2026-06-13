@@ -1,119 +1,96 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { validateApiAuth, createClient } from '@/lib/supabase/server'
-import { updateDentistSchema } from '@/lib/validations'
-import { handleApiError, ValidationError } from '@/lib/errors'
+import { validateApiAuth } from '@/lib/auth/session'
+import { handleApiError, NotFoundError } from '@/lib/errors'
+import * as dentistRepo from '@/repositories/dentists'
+import * as appointmentRepo from '@/repositories/appointments'
+
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
 
 /**
  * GET /api/dentists/[id]
  * Get a specific dentist
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
     const clinicId = authResult.profile!.clinic_id
-    const { id: dentistId } = await params
+    const { id } = await params
 
-    const supabase = await createClient()
-
-    const { data: dentist, error } = await supabase
-      .from('dentists')
-      .select('*')
-      .eq('id', dentistId)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: 'Dentist not found' }, { status: 404 })
+    const dentist = await dentistRepo.findById(id)
+    if (!dentist || dentist.clinicId !== clinicId) {
+      return handleApiError(new NotFoundError('Dentist not found'))
     }
 
-    return NextResponse.json({ dentist })
+    return NextResponse.json({
+      dentist: {
+        id: dentist.id,
+        name: dentist.name,
+        phone: dentist.phone,
+        email: dentist.email,
+        specialty: dentist.specialty,
+        cro: dentist.cro,
+        is_active: dentist.isActive,
+        working_hours: dentist.workingHours,
+        created_at: dentist.createdAt,
+      },
+    })
   } catch (error) {
     return handleApiError(error)
   }
 }
 
 /**
- * PUT /api/dentists/[id]
+ * PATCH /api/dentists/[id]
  * Update a dentist
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
     const clinicId = authResult.profile!.clinic_id
-    const { id: dentistId } = await params
-    const rawBody = await request.json()
-    const body = updateDentistSchema.parse(rawBody)
+    const { id } = await params
 
-    const supabase = await createClient()
-
-    const { data: dentist, error } = await (supabase
-      .from('dentists') as any)
-      .update({
-        name: body.name,
-        phone: body.phone,
-        email: body.email,
-        specialty: body.specialty,
-        cro_number: body.cro_number,
-      })
-      .eq('id', dentistId)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
-
-    if (error) {
-      return NextResponse.json({ error: 'Failed to update dentist' }, { status: 500 })
+    // Verify ownership
+    const existing = await dentistRepo.findById(id)
+    if (!existing || existing.clinicId !== clinicId) {
+      return handleApiError(new NotFoundError('Dentist not found'))
     }
+
+    const body = await request.json()
+    const dentist = await dentistRepo.update(id, body)
 
     return NextResponse.json({ dentist })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
-    }
     return handleApiError(error)
   }
 }
 
 /**
  * DELETE /api/dentists/[id]
- * Soft delete a dentist (set is_active = false)
+ * Soft-delete a dentist
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
     const clinicId = authResult.profile!.clinic_id
-    const { id: dentistId } = await params
+    const { id } = await params
 
-    const supabase = await createClient()
-
-    const { error } = await (supabase
-      .from('dentists') as any)
-      .update({ is_active: false })
-      .eq('id', dentistId)
-      .eq('clinic_id', clinicId)
-
-    if (error) {
-      return NextResponse.json({ error: 'Failed to delete dentist' }, { status: 500 })
+    const existing = await dentistRepo.findById(id)
+    if (!existing || existing.clinicId !== clinicId) {
+      return handleApiError(new NotFoundError('Dentist not found'))
     }
 
+    await dentistRepo.remove(id)
     return NextResponse.json({ success: true })
   } catch (error) {
     return handleApiError(error)

@@ -1,10 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { createClient } from '@/lib/supabase/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { eq, and, gte, lte, inArray, sql } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError, ValidationError } from '@/lib/errors'
 import { createAppointmentSchema } from '@/lib/validations'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
+import { getDb } from '@/lib/db/client'
+import { appointments } from '@/lib/db/schema'
+import * as appointmentRepo from '@/repositories/appointments'
+import * as procedureRepo from '@/repositories/procedures'
+
+/** Shared appointment-to-API mapper — consistent contract across list and detail. */
+export function appointmentToApi(
+  row: NonNullable<Awaited<ReturnType<typeof appointmentRepo.findByIdWithJoins>>>
+) {
+  return {
+    id: row.id,
+    clinic_id: row.clinicId,
+    patient_id: row.patientId,
+    dentist_id: row.dentistId,
+    procedure_id: row.procedureId,
+    scheduled_at: row.scheduledAt,
+    duration_minutes: row.durationMinutes,
+    status: row.status,
+    notes: row.notes,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+    patients: row.patient
+      ? { id: row.patient.id, name: row.patient.name, phone: row.patient.phone, email: row.patient.email ?? null }
+      : null,
+    dentists: row.dentist
+      ? { id: row.dentist.id, name: row.dentist.name, phone: row.dentist.phone ?? null, specialty: row.dentist.specialty ?? null }
+      : null,
+    procedures: row.procedure
+      ? { id: row.procedure.id, name: row.procedure.name, duration_minutes: row.procedure.durationMinutes, price: row.procedure.price, category: row.procedure.category }
+      : null,
+  }
+}
 
 /**
  * GET /api/appointments
@@ -31,75 +63,39 @@ export async function GET(request: NextRequest) {
     const patientId = searchParams.get('patient_id')
     const dentistId = searchParams.get('dentist_id')
     const status = searchParams.get('status')
-    const date = searchParams.get('date') // YYYY-MM-DD
+    const date = searchParams.get('date')
     const startDate = searchParams.get('start_date')
     const endDate = searchParams.get('end_date')
-    const dentistIds = searchParams.getAll('dentist_ids')  // repeated param: ?dentist_ids=a&dentist_ids=b
-    const specialty = searchParams.get('specialty')
+    const dentistIds = searchParams.getAll('dentist_ids')
     const page = parseInt(searchParams.get('page') || '1')
-    // Calendar views need all events in a date range, not paginated chunks
     const isCalendarRange = startDate && endDate
     const defaultLimit = isCalendarRange ? '999' : '50'
     const limit = Math.min(parseInt(searchParams.get('limit') || defaultLimit), 999)
-
-    const supabase = await createClient()
-
-    // Build query
-    let query = supabase
-      .from('appointments')
-      .select(`
-        *,
-        patients (id, name, phone),
-        dentists (id, name, specialty),
-        procedures (id, name, duration_minutes, price, category)
-      `, { count: 'exact' })
-      .eq('clinic_id', clinicId)
-      .order('scheduled_at', { ascending: true })
-
-    // Apply filters
-    if (patientId) query = query.eq('patient_id', patientId)
-    if (dentistId) query = query.eq('dentist_id', dentistId)
-    if (status) query = query.eq('status', status)
-
-    // Multi-dentist filter (repeated params)
-    if (dentistIds.length > 0) {
-      query = query.in('dentist_id', dentistIds)
-    }
-
-    // Specialty filter — join on dentists table
-    if (specialty) {
-      query = query.eq('dentists.specialty', specialty)
-    }
-
-    // Date filters — use UTC to avoid local timezone offset issues
-    if (date) {
-      const start = new Date(date + 'T00:00:00Z')
-      const end = new Date(date + 'T23:59:59.999Z')
-      query = query.gte('scheduled_at', start.toISOString()).lte('scheduled_at', end.toISOString())
-    } else if (startDate && endDate) {
-      const start = new Date(startDate + 'T00:00:00Z')
-      const end = new Date(endDate + 'T23:59:59.999Z')
-      query = query.gte('scheduled_at', start.toISOString()).lte('scheduled_at', end.toISOString())
-    }
-
-    // Pagination
     const offset = (page - 1) * limit
-    query = query.range(offset, offset + limit - 1)
 
-    const { data: appointments, error, count } = await query
-
-    if (error) {
-      return handleApiError(error)
+    const repoOpts = {
+      patientId: patientId || undefined,
+      dentistId: dentistId || undefined,
+      status: status || undefined,
+      date: date || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      dentistIds: dentistIds.length > 0 ? dentistIds : undefined,
+      limit,
+      offset,
     }
+
+    const rows = await appointmentRepo.findByClinicWithJoins(clinicId, repoOpts)
+
+    // Real total: count-only query (no JOINs, same filter conditions)
+    const total = await appointmentRepo.findByClinicWithJoins(clinicId, { ...repoOpts, count: true })
+
+    const mapped = rows.map(appointmentToApi)
+    const totalPages = Math.ceil(total / limit)
 
     return NextResponse.json({
-      appointments,
-      pagination: {
-        page,
-        limit,
-        total: count || 0,
-        totalPages: Math.ceil((count || 0) / limit),
-      },
+      appointments: mapped,
+      pagination: { page, limit, total, totalPages },
     })
   } catch (error) {
     return handleApiError(error)
@@ -137,64 +133,64 @@ export async function POST(request: NextRequest) {
       notes,
     } = createAppointmentSchema.parse(rawBody)
 
-    // Validate scheduled_at is in the future
     const scheduledDate = new Date(scheduled_at)
     if (scheduledDate <= new Date()) {
       return handleApiError(new ValidationError('Appointment must be scheduled for a future date'))
     }
 
-    const supabase = await createClient()
-
     // Get procedure duration if not provided
     let duration = duration_minutes || 30
     if (procedure_id && !duration_minutes) {
-      const { data: procedure } = await supabase
-        .from('procedures')
-        .select('duration_minutes')
-        .eq('id', procedure_id)
-        .single() as { data: { duration_minutes: number } | null }
-      if (procedure) duration = procedure.duration_minutes
+      const proc = await procedureRepo.findById(procedure_id)
+      if (proc) duration = proc.durationMinutes || 30
     }
 
-    // Call atomic RPC to reserve slot — conflict check + insert in single transaction
-    const { data: result, error: rpcError } = await (supabase as any).rpc(
-      'reserve_appointment_slot',
-      {
-        p_clinic_id:        clinicId,
-        p_patient_id:       patient_id,
-        p_dentist_id:       dentist_id,
-        p_procedure_id:     procedure_id || null,
-        p_scheduled_at:      scheduledDate.toISOString(),
-        p_duration_minutes: duration,
-        p_notes:           notes || null,
-      }
-    )
+    // Interval overlap check: existing.start < new.end AND existing.end > new.start.
+    // This correctly blocks both "existing starts inside new" and "existing contains new" cases.
+    const endTime = new Date(scheduledDate.getTime() + duration * 60000)
+    const db = getDb()
 
-    if (rpcError) {
-      return handleApiError(rpcError)
+    const conflictConditions: (ReturnType<typeof eq> | ReturnType<typeof inArray> | ReturnType<typeof sql>)[] = [
+      eq(appointments.clinicId, clinicId),
+      inArray(appointments.status, ['scheduled', 'confirmed', 'in_progress'] as any),
+      // existing.start < new.end
+      sql`${appointments.scheduledAt} < ${endTime.toISOString()}::timestamptz`,
+      // existing.end > new.start  (COALESCE handles null duration as 0)
+      sql`${appointments.scheduledAt} + (COALESCE(${appointments.durationMinutes}, 0) || ' minutes')::interval > ${scheduledDate.toISOString()}::timestamptz`,
+      sql`${appointments.deletedAt} IS NULL`,
+    ]
+    if (dentist_id != null) {
+      conflictConditions.push(eq(appointments.dentistId, dentist_id))
     }
 
-    if (!result.success) {
-      return handleApiError(new ValidationError(result.error))
+    const conflicts = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(and(...conflictConditions))
+      .limit(1)
+
+    if (conflicts.length > 0) {
+      return handleApiError(new ValidationError('Horário indisponível. Já existe um agendamento neste horário.'))
     }
 
-    // Fetch full appointment with joins for response
-    const { data: appointment, error: fetchError } = await (supabase
-      .from('appointments') as any)
-      .select(`
-        *,
-        patients (id, name, phone),
-        dentists (id, name, specialty),
-        procedures (id, name)
-      `)
-      .eq('id', result.appointment_id)
-      .single()
+    // Create the appointment
+    const appointment = await appointmentRepo.create({
+      clinicId,
+      patientId: patient_id,
+      dentistId: dentist_id ?? null,
+      procedureId: procedure_id ?? null,
+      scheduledAt: scheduledDate,
+      durationMinutes: duration,
+      notes: notes ?? null,
+    })
 
-    if (fetchError) {
-      return handleApiError(fetchError)
+    // Fetch full appointment with joins
+    const created = await appointmentRepo.findByIdWithJoins(appointment.id, clinicId)
+    if (!created) {
+      return handleApiError(new Error('Failed to fetch created appointment'))
     }
 
-    return NextResponse.json({ appointment }, { status: 201 })
+    return NextResponse.json({ appointment: appointmentToApi(created) }, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))

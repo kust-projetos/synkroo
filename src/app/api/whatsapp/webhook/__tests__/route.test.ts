@@ -15,48 +15,55 @@ function computeSignature(body: string): string {
 process.env.WHATSAPP_APP_SECRET = TEST_APP_SECRET
 
 jest.mock('@/lib/logger', () => ({
+  logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() },
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   whatsappLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
-// Simple recursive Supabase mock — each method returns a thenable object
-function createChain(data: any): any {
-  const obj: any = {
-    then(resolve?: (v: any) => void) {
-      return resolve?.({ data, error: null })
-    },
-    single() {
-      return Promise.resolve({ data, error: null })
-    },
-    from(table: string) {
-      const tableData = table === 'clinics' ? { id: 'clinic-123' }
-        : table === 'conversations' ? { id: 'conv-123', clinic_id: 'clinic-123' }
-        : table === 'messages' ? []
-        : { id: 'test-id' }
-      return createChain(tableData)
-    },
-    select() { return obj },
-    insert() { return createChain(data) },
-    update() { return obj },
-    eq() { return obj },
-    neq() { return obj },
-    order() { return obj },
-    limit() { return obj },
-    contains() { return obj },
-    delete() { return obj },
+// Mock getDb for Drizzle — proper chain simulation
+jest.mock('@/lib/db/client', () => {
+  const mockConversations = [
+    { id: 'conv-123', clinicId: 'clinic-123', patientId: null, channel: 'whatsapp', externalId: '5511999999999', status: 'active', assignedTo: null, lastMessageAt: null, messageCount: 0, metadata: {}, createdAt: new Date(), updatedAt: new Date() },
+  ]
+
+  function makeQueryBuilder(result: unknown[]) {
+    const builder: any = {
+      from: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      and: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue(result),
+      returning: jest.fn().mockImplementation(() => Promise.resolve([{ id: 'conv-123' }])),
+    }
+    return builder
   }
-  return obj
-}
 
-const mockSupabase = createChain(null)
+  function makeInsertBuilder(result: unknown[]) {
+    return {
+      values: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockImplementation(() => Promise.resolve(result)),
+    }
+  }
 
-jest.mock('@/lib/supabase', () => ({
-  createServerClient: () => mockSupabase,
-}))
+  function makeUpdateBuilder() {
+    return {
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+    }
+  }
 
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: () => mockSupabase,
-}))
+  return {
+    getDb: jest.fn(() => ({
+      select: jest.fn().mockImplementation(() => makeQueryBuilder(mockConversations)),
+      from: jest.fn().mockImplementation(() => makeQueryBuilder(mockConversations)),
+      insert: jest.fn().mockImplementation(() => makeInsertBuilder([{ id: 'msg-123', conversationId: 'conv-123' }])),
+      update: jest.fn().mockImplementation(() => makeUpdateBuilder()),
+      execute: jest.fn().mockImplementation(() => Promise.resolve({ rows: [{ id: 'clinic-123' }] })),
+    })),
+  }
+})
 
 jest.mock('@/lib/llm', () => ({
   getLLMProvider: () => ({
@@ -72,22 +79,12 @@ jest.mock('@/lib/llm', () => ({
 }))
 
 jest.mock('@/services/appointments/confirmation-handler.service', () => ({
-  processConfirmationResponse: jest.fn().mockResolvedValue({
-    processed: false,
-    responseMessage: null,
-  }),
-  processWaitlistConfirmation: jest.fn().mockResolvedValue({
-    processed: false,
-    responseMessage: null,
-  }),
+  processConfirmationResponse: jest.fn().mockResolvedValue({ processed: false, responseMessage: null }),
+  processWaitlistConfirmation: jest.fn().mockResolvedValue({ processed: false, responseMessage: null }),
 }))
 
 jest.mock('@/lib/rate-limit', () => ({
-  checkRateLimit: jest.fn(() => ({
-    allowed: true,
-    remaining: 99,
-    resetTime: Date.now() + 60000,
-  })),
+  checkRateLimit: jest.fn(() => ({ allowed: true, remaining: 99, resetTime: Date.now() + 60000 })),
   getClientIdentifier: jest.fn(() => 'test-client'),
   rateLimitPresets: {
     webhook: { windowMs: 60000, maxRequests: 100 },

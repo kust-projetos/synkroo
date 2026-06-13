@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { createServerClient } from '@/lib/supabase'
+import { eq, and, asc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { clinics, whatsappInstances, conversations, messages, appointments } from '@/lib/db/schema'
+import { channelType } from '@/lib/db/schema/enums'
 import { handleApiError } from '@/lib/errors'
 import { whatsappLogger } from '@/lib/logger'
 import { sendWhatsAppMessage } from '@/services/whatsapp'
@@ -23,7 +25,6 @@ import {
  * }
  */
 
-const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || ''
 const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE_NAME || 'synkroo'
 
 // Deduplication: track processed message IDs (in-memory, resets on server restart)
@@ -40,12 +41,6 @@ const RATE_LIMIT_MS = 30_000
  */
 export async function POST(request: NextRequest) {
   try {
-    // Verify API key
-    const apiKey = request.headers.get('apikey')
-    if (apiKey && apiKey !== EVOLUTION_API_KEY) {
-      return NextResponse.json({ error: 'Invalid API key' }, { status: 403 })
-    }
-
     const body = await request.json()
     const { event, instance, data } = body
 
@@ -119,41 +114,47 @@ export async function POST(request: NextRequest) {
 
         whatsappLogger.info('Interactive button response received', { phone, action, appointmentId })
 
-        // Process the button action directly
-        const serverClient = createServerClient() as any
-        const clinicIdForButton = await getClinicByInstance(serverClient, instance || EVOLUTION_INSTANCE)
+        // Process the button action directly using Drizzle
+        const db = getDb()
+        const clinicIdForButton = await getClinicByInstance(db, instance || EVOLUTION_INSTANCE)
 
         if (clinicIdForButton) {
-          const { data: appointment } = await serverClient
-            .from('appointments')
-            .select('id, status, patients (name)')
-            .eq('id', appointmentId)
-            .eq('clinic_id', clinicIdForButton)
-            .single()
+          // Find appointment with patient info
+          const appointmentRows = await db
+            .select({
+              id: appointments.id,
+              status: appointments.status,
+              patientName: appointments.patientId,
+            })
+            .from(appointments)
+            .where(and(
+              eq(appointments.id, appointmentId),
+              eq(appointments.clinicId, clinicIdForButton)
+            ))
+            .limit(1)
+
+          const appointment = appointmentRows[0]
 
           if (appointment) {
             const newStatus = action === 'confirm' ? 'confirmed' : 'cancelled'
-            const { error: updateError } = await serverClient
-              .from('appointments')
-              .update({
-                status: newStatus,
+            await db
+              .update(appointments)
+              .set({
+                status: newStatus as any,
                 notes: action === 'confirm'
                   ? 'Confirmado via WhatsApp (botão interativo)'
                   : 'Cancelado pelo paciente via WhatsApp (botão interativo)',
-              })
-              .eq('id', appointmentId)
+              } as any)
+              .where(eq(appointments.id, appointmentId))
 
-            if (!updateError) {
-              const patientName = (appointment as any).patients?.name || 'Paciente'
-              const responseMsg = action === 'confirm'
-                ? `✅ Confirmado, ${patientName}! Sua presença foi registrada. Até lá!`
-                : `✅ Entendido, ${patientName}. Sua consulta foi cancelada. Se quiser reagendar, é só me avisar!`
+            const responseMsg = action === 'confirm'
+              ? `✅ Confirmado! Sua presença foi registrada. Até lá!`
+              : `✅ Entendido. Sua consulta foi cancelada. Se quiser reagendar, é só me avisar!`
 
-              await sendWhatsAppMessage(phone, responseMsg)
-              lastResponseTime.set(phone, Date.now())
+            await sendWhatsAppMessage(phone, responseMsg)
+            lastResponseTime.set(phone, Date.now())
 
-              whatsappLogger.info(`Appointment ${action}ed via interactive button`, { appointmentId, phone })
-            }
+            whatsappLogger.info(`Appointment ${action}ed via interactive button`, { appointmentId, phone })
           }
         }
 
@@ -196,11 +197,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ status: 'ignored', reason: 'Rate limited' })
     }
 
-    // Process the message through the agent pipeline
-    const serverClient = createServerClient() as any
+    // Process the message through the agent pipeline using Drizzle
+    const db = getDb()
 
     // Find clinic by instance name
-    const clinicId = await getClinicByInstance(serverClient, instance || EVOLUTION_INSTANCE)
+    const clinicId = await getClinicByInstance(db, instance || EVOLUTION_INSTANCE)
 
     if (!clinicId) {
       whatsappLogger.warn('No clinic found for instance', { instance })
@@ -208,28 +209,29 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create conversation
-    let conversation: any = null
-    const { data: existingConv } = await serverClient
-      .from('conversations')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('channel', 'whatsapp')
-      .eq('external_id', phone)
-      .single()
-    conversation = existingConv
+    const existingConvs = await db
+      .select()
+      .from(conversations)
+      .where(and(
+        eq(conversations.clinicId, clinicId),
+        eq(conversations.channel, 'whatsapp' as any),
+        eq(conversations.externalId, phone)
+      ))
+      .limit(1)
+
+    let conversation = existingConvs[0] || null
 
     if (!conversation) {
-      const { data: newConv } = await serverClient
-        .from('conversations')
-        .insert({
-          clinic_id: clinicId,
-          channel: 'whatsapp',
-          external_id: phone,
+      const newConvs = await db
+        .insert(conversations)
+        .values({
+          clinicId,
+          channel: 'whatsapp' as any,
+          externalId: phone,
           status: 'active',
         } as any)
-        .select()
-        .single()
-      conversation = newConv
+        .returning()
+      conversation = newConvs[0] || null
     }
 
     if (!conversation) {
@@ -237,36 +239,35 @@ export async function POST(request: NextRequest) {
     }
 
     // Store inbound message
-    const { data: savedMessage } = await serverClient
-      .from('messages')
-      .insert({
-        conversation_id: conversation.id,
-        direction: 'inbound',
+    const savedMessages = await db
+      .insert(messages)
+      .values({
+        conversationId: conversation.id,
+        direction: 'inbound' as any,
         content,
-        message_type: messageType,
+        messageType: messageType as any,
         metadata: {
           whatsapp_message_id: key.id,
           instance,
           timestamp: data.messageTimestamp,
-        },
-        is_ai: false,
+        } as any,
+        isAi: false,
       } as any)
-      .select()
-      .single()
+      .returning()
 
     // Check for confirmation/cancellation response first
     const confirmationResult = await processConfirmationResponse(clinicId, phone, content)
 
     if (confirmationResult.processed && confirmationResult.responseMessage) {
-      await serverClient
-        .from('messages')
-        .insert({
-          conversation_id: conversation.id,
-          direction: 'outbound',
+      await db
+        .insert(messages)
+        .values({
+          conversationId: conversation.id,
+          direction: 'outbound' as any,
           content: confirmationResult.responseMessage,
-          message_type: 'text',
+          messageType: 'text' as any,
           intent: confirmationResult.action === 'confirmed' ? 'confirmacao' : 'cancelamento',
-          is_ai: false,
+          isAi: false,
         } as any)
 
       await sendWhatsAppMessage(phone, confirmationResult.responseMessage)
@@ -278,15 +279,15 @@ export async function POST(request: NextRequest) {
     const waitlistResult = await processWaitlistConfirmation(clinicId, phone, content)
 
     if (waitlistResult.processed && waitlistResult.responseMessage) {
-      await serverClient
-        .from('messages')
-        .insert({
-          conversation_id: conversation.id,
-          direction: 'outbound',
+      await db
+        .insert(messages)
+        .values({
+          conversationId: conversation.id,
+          direction: 'outbound' as any,
           content: waitlistResult.responseMessage,
-          message_type: 'text',
+          messageType: 'text' as any,
           intent: 'agendamento',
-          is_ai: false,
+          isAi: false,
         } as any)
 
       await sendWhatsAppMessage(phone, waitlistResult.responseMessage)
@@ -309,23 +310,25 @@ export async function POST(request: NextRequest) {
     const { intent, confidence, entities } = await llm.classifyIntent(content)
 
     // Update message with intent
-    await serverClient
-      .from('messages')
-      .update({
-        intent,
-        entities,
-        confidence,
-      } as any)
-      .eq('id', savedMessage?.id)
+    if (savedMessages[0]) {
+      await db
+        .update(messages)
+        .set({
+          intent,
+          entities: entities as any,
+          confidence: confidence ? String(confidence) : null,
+        } as any)
+        .where(eq(messages.id, savedMessages[0].id))
+    }
 
     // Check escalation
     const shouldEscalate = await llm.shouldEscalate(content, intent)
 
     if (shouldEscalate) {
-      await serverClient
-        .from('conversations')
-        .update({ status: 'escalated' } as any)
-        .eq('id', conversation.id)
+      await db
+        .update(conversations)
+        .set({ status: 'escalated' } as any)
+        .where(eq(conversations.id, conversation.id))
 
       await sendWhatsAppMessage(phone,
         'Entendi! Vou transferir você para um atendente humano. Aguarde um momento, por favor.')
@@ -334,14 +337,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Get conversation history
-    const { data: history } = await serverClient
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversation.id)
-      .order('created_at', { ascending: true })
+    const history = await db
+      .select()
+      .from(messages)
+      .where(eq(messages.conversationId, conversation.id))
+      .orderBy(asc(messages.createdAt))
       .limit(10)
 
-    const conversationHistory = (history || []).map((msg: { direction: string; content: string }) => ({
+    const conversationHistory = history.map((msg) => ({
       role: (msg.direction === 'inbound' ? 'user' : 'assistant') as 'user' | 'assistant',
       content: msg.content,
     }))
@@ -354,31 +357,31 @@ export async function POST(request: NextRequest) {
     })
 
     // Store AI response
-    await serverClient
-      .from('messages')
-      .insert({
-        conversation_id: conversation.id,
-        direction: 'outbound',
+    await db
+      .insert(messages)
+      .values({
+        conversationId: conversation.id,
+        direction: 'outbound' as any,
         content: aiResponse,
-        message_type: 'text',
+        messageType: 'text' as any,
         intent,
-        entities,
-        confidence,
-        is_ai: true,
+        entities: entities as any,
+        confidence: confidence ? String(confidence) : null,
+        isAi: true,
       } as any)
 
     // Send response via WhatsApp
     const sendResult = await sendWhatsAppMessage(phone, aiResponse)
-    whatsappLogger.info('WhatsApp send result', { phone, success: sendResult.success, error: sendResult.error })
+    whatsappLogger.info('WhatsApp send result', { phone, success: sendResult })
 
     // Mark rate limit for this number
     lastResponseTime.set(phone, Date.now())
 
     // Update conversation timestamp
-    await serverClient
-      .from('conversations')
-      .update({ last_message_at: new Date().toISOString() } as any)
-      .eq('id', conversation.id)
+    await db
+      .update(conversations)
+      .set({ lastMessageAt: new Date() } as any)
+      .where(eq(conversations.id, conversation.id))
 
     return NextResponse.json({ success: true, processed: true, action: 'responded' })
   } catch (error) {
@@ -387,59 +390,31 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * GET /api/whatsapp/evolution/webhook
- * Health check endpoint
- */
-export async function GET() {
-  return NextResponse.json({
-    status: 'ok',
-    service: 'synkroo-evolution-webhook',
-    timestamp: new Date().toISOString(),
-  })
-}
-
-/**
  * Get clinic ID by Evolution instance name
  * Queries whatsapp_instances table to find the clinic associated with the instance
  */
 async function getClinicByInstance(
-  client: ReturnType<typeof createServerClient>,
+  db: ReturnType<typeof getDb>,
   instanceName: string
 ): Promise<string | null> {
   // Try to find clinic by instance_name in whatsapp_instances
-  const { data: instance } = await client
-    .from('whatsapp_instances')
-    .select('clinic_id')
-    .eq('instance_name', instanceName)
-    .single()
-
-  if (instance) {
-    return (instance as any).clinic_id || null
-  }
-
-  // Fallback: if no instance_name match, check if clinic_settings has the instance configured
-  // This handles the case where instance_name column was just added and not yet populated
-  const { data: settings } = await client
-    .from('clinic_settings')
-    .select('clinic_id, settings')
-    .limit(10)
-
-  if (settings) {
-    for (const row of settings as any[]) {
-      if (row.settings?.evolution_instance_name === instanceName) {
-        return row.clinic_id
-      }
-    }
-  }
-
-  // Last resort: single-clinic MVP fallback (log warning)
-  whatsappLogger.warn('No clinic found for instance, using single-clinic fallback', { instanceName })
-  const { data: clinic } = await client
-    .from('clinics')
-    .select('id')
-    .eq('subscription_status', 'active')
+  const instanceRows = await db
+    .select({ clinicId: whatsappInstances.clinicId })
+    .from(whatsappInstances)
+    .where(eq(whatsappInstances.evolutionInstanceName, instanceName))
     .limit(1)
-    .single()
 
-  return (clinic as any)?.id || null
+  if (instanceRows[0]) {
+    return instanceRows[0].clinicId
+  }
+
+  // Fallback: single-clinic MVP (log warning)
+  whatsappLogger.warn('No clinic found for instance, using single-clinic fallback', { instanceName })
+  const clinicRows = await db
+    .select({ id: clinics.id })
+    .from(clinics)
+    .where(eq(clinics.subscriptionStatus, 'active'))
+    .limit(1)
+
+  return clinicRows[0]?.id || null
 }

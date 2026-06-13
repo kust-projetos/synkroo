@@ -1,11 +1,12 @@
 /**
  * Conversation Context Service
- * Manages short-term memory for conversations via Supabase persistence.
+ * Manages short-term memory for conversations via Drizzle persistence.
  * Replaces in-memory Map to survive serverless cold starts.
+ * Migrated from Supabase to Drizzle repositories.
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
+import * as sessionRepo from '@/repositories/conversation-sessions'
 
 interface ContextEntry {
   role: 'user' | 'assistant' | 'system'
@@ -36,27 +37,25 @@ export class ConversationContext {
 
   /**
    * Get or create a session for a conversation.
-   * Loads from Supabase, falls back to empty session.
+   * Loads from DB, falls back to empty session.
    */
   async getSession(conversationId: string): Promise<ConversationSession> {
     const now = new Date()
 
-    // Try loading from Supabase
-    const supabase = await createTypedClient()
-    const { data, error } = await supabase
-      .from('conversation_sessions')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .single()
-
-    if (!error && data) {
-      const session = this.deserializeSession(data)
-      // Check expiry
-      if (now.getTime() - session.lastActivityAt.getTime() < this.SESSION_TIMEOUT_MS) {
-        return session
+    // Try loading from DB
+    try {
+      const row = await sessionRepo.findByConversationId(conversationId)
+      if (row) {
+        const session = this.deserializeSession(row)
+        // Check expiry
+        if (now.getTime() - session.lastActivityAt.getTime() < this.SESSION_TIMEOUT_MS) {
+          return session
+        }
+        // Expired — clear and recreate
+        await this.deleteSessionFromDb(conversationId)
       }
-      // Expired — clear and recreate
-      await this.deleteSessionFromDb(conversationId)
+    } catch (err) {
+      dbLogger.warn('Failed to load conversation session', { error: String(err) })
     }
 
     return this.createSession(conversationId)
@@ -77,7 +76,7 @@ export class ConversationContext {
   }
 
   /**
-   * Add a message to the context and persist to Supabase
+   * Add a message to the context and persist to DB
    */
   async addMessage(
     conversationId: string,
@@ -112,7 +111,7 @@ export class ConversationContext {
       this.extractImportantInfo(session, metadata.entities)
     }
 
-    // Persist to Supabase
+    // Persist to DB
     await this.persistSession(session)
   }
 
@@ -160,46 +159,53 @@ export class ConversationContext {
   }
 
   /**
-   * Clear a specific session
+   * Delete session (from memory and DB)
    */
-  async clearSession(conversationId: string): Promise<void> {
+  async deleteSession(conversationId: string): Promise<void> {
+    // Remove from memory cache
+    this.sessions.delete(conversationId)
+    // Remove from DB
     await this.deleteSessionFromDb(conversationId)
   }
 
+  // In-memory cache for hot paths
+  private sessions = new Map<string, ConversationSession>()
+
   /**
-   * Build context summary for AI
+   * Persist session to database
    */
-  async buildContextSummary(conversationId: string): Promise<string> {
-    const session = await this.getSession(conversationId)
-    if (session.entries.length === 0) {
-      return 'Nova conversa sem histórico.'
-    }
-
-    const info = session.extractedInfo
-    const infoParts: string[] = []
-
-    if (info.patientName) infoParts.push(`Nome: ${info.patientName}`)
-    if (info.requestedDate) infoParts.push(`Data desejada: ${info.requestedDate}`)
-    if (info.requestedTime) infoParts.push(`Horário desejado: ${info.requestedTime}`)
-    if (info.procedure) infoParts.push(`Procedimento: ${info.procedure}`)
-
-    if (infoParts.length > 0) {
-      return `Informações coletadas: ${infoParts.join(', ')}`
-    }
-
-    return 'Nenhuma informação específica coletada ainda.'
-  }
-
-  // ─── Persistence helpers ────────────────────────────────────────────
-
   private async persistSession(session: ConversationSession): Promise<void> {
     try {
-      const supabase = await createTypedClient()
       const serialized = this.serializeSession(session)
-
-      await (supabase
-        .from('conversation_sessions') as any)
-        .upsert(serialized, { onConflict: 'conversation_id' })
+      const existing = await sessionRepo.findByConversationId(session.id)
+      if (existing) {
+        await sessionRepo.updateSession(session.id, {
+          entries: session.entries.map(e => ({
+            role: e.role,
+            content: e.content,
+            timestamp: e.timestamp instanceof Date ? e.timestamp.toISOString() : e.timestamp,
+            intent: e.intent,
+            entities: e.entities,
+          })),
+          extractedInfo: session.extractedInfo,
+          lastActivityAt: session.lastActivityAt,
+        })
+      } else {
+        await sessionRepo.createSession(session.id)
+        await sessionRepo.updateSession(session.id, {
+          entries: session.entries.map(e => ({
+            role: e.role,
+            content: e.content,
+            timestamp: e.timestamp instanceof Date ? e.timestamp.toISOString() : e.timestamp,
+            intent: e.intent,
+            entities: e.entities,
+          })),
+          extractedInfo: session.extractedInfo,
+          lastActivityAt: session.lastActivityAt,
+        })
+      }
+      // Update memory cache
+      this.sessions.set(session.id, session)
     } catch (err) {
       dbLogger.warn('Failed to persist conversation session', { error: String(err) })
     }
@@ -207,11 +213,7 @@ export class ConversationContext {
 
   private async deleteSessionFromDb(conversationId: string): Promise<void> {
     try {
-      const supabase = await createTypedClient()
-      await supabase
-        .from('conversation_sessions')
-        .delete()
-        .eq('conversation_id', conversationId)
+      await sessionRepo.deleteSession(conversationId)
     } catch (err) {
       dbLogger.warn('Failed to delete conversation session', { error: String(err) })
     }
@@ -219,36 +221,33 @@ export class ConversationContext {
 
   private serializeSession(session: ConversationSession): Record<string, unknown> {
     return {
-      conversation_id: session.id,
-      entries: JSON.stringify(session.entries.map(e => ({
+      conversationId: session.id,
+      entries: session.entries.map(e => ({
         role: e.role,
         content: e.content,
         timestamp: e.timestamp.toISOString(),
         intent: e.intent,
         entities: e.entities,
-      }))),
-      extracted_info: JSON.stringify(session.extractedInfo),
-      created_at: session.createdAt.toISOString(),
-      last_activity_at: session.lastActivityAt.toISOString(),
+      })),
+      extractedInfo: session.extractedInfo,
+      createdAt: session.createdAt.toISOString(),
+      lastActivityAt: session.lastActivityAt.toISOString(),
     }
   }
 
-  private deserializeSession(data: Record<string, unknown>): ConversationSession {
-    const entries = typeof data.entries === 'string' ? JSON.parse(data.entries) : (data.entries || [])
-    const extractedInfo = typeof data.extracted_info === 'string' ? JSON.parse(data.extracted_info) : (data.extracted_info || {})
-
+  private deserializeSession(row: sessionRepo.SessionRow): ConversationSession {
     return {
-      id: data.conversation_id as string,
-      createdAt: new Date(data.created_at as string),
-      lastActivityAt: new Date(data.last_activity_at as string),
-      entries: entries.map((e: Record<string, unknown>) => ({
+      id: row.conversationId,
+      createdAt: row.createdAt,
+      lastActivityAt: row.lastActivityAt,
+      entries: (row.entries || []).map((e) => ({
         role: e.role as 'user' | 'assistant' | 'system',
-        content: e.content as string,
-        timestamp: new Date(e.timestamp as string),
-        intent: e.intent as string | undefined,
-        entities: e.entities as Record<string, unknown> | undefined,
+        content: e.content,
+        timestamp: new Date(e.timestamp),
+        intent: e.intent,
+        entities: e.entities,
       })),
-      extractedInfo,
+      extractedInfo: row.extractedInfo || {},
     }
   }
 }

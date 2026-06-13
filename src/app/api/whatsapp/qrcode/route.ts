@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getWhatsAppService } from '@/services/whatsapp'
-import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 
 /**

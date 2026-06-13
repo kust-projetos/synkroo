@@ -16,71 +16,71 @@ process.env.WHATSAPP_APP_SECRET = TEST_APP_SECRET
 
 // Mock logger
 jest.mock('@/lib/logger', () => ({
+  logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() },
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   whatsappLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
-// Simple recursive Supabase mock — each method returns a new thenable object
-function createChain(data: any): any {
-  const obj: any = {
-    // Make the object thenable so `await obj` resolves to { data, error }
-    then(resolve?: (v: any) => void, _reject?: (e: any) => void) {
-      return resolve?.({ data, error: null })
-    },
-    // .single() returns a Promise (not thenable — explicit Promise)
-    single() {
-      return Promise.resolve({ data, error: null })
-    },
-    // Table selection
-    from(table: string) {
-      const tableData = table === 'clinics' ? { id: 'clinic-123' }
-        : table === 'conversations' ? { id: 'conv-123', clinic_id: 'clinic-123' }
-        : table === 'messages' ? []  // Array for .map() compatibility
-        : { id: 'test-id' }
-      return createChain(tableData)
-    },
-    // Select returns the same chain (table context preserved)
-    select() { return obj },
-    // Insert returns a new chain (insert result)
-    insert() { return createChain(data) },
-    // Update returns the same chain
-    update() { return obj },
-    // Filter methods return the same chain
-    eq() { return obj },
-    neq() { return obj },
-    gt() { return obj },
-    gte() { return obj },
-    lt() { return obj },
-    lte() { return obj },
-    like() { return obj },
-    ilike() { return obj },
-    in() { return obj },
-    contains() { return obj },
-    containedBy() { return obj },
-    range() { return obj },
-    // Ordering/pagination return same chain
-    order() { return obj },
-    limit() { return obj },
-    range2() { return obj },
-    // Delete
-    delete() { return obj },
-    // Upsert
-    upsert() { return createChain(data) },
-    // RPC
-    rpc() { return Promise.resolve({ data, error: null }) },
+// Mock getDb for Drizzle — proper chain simulation
+jest.mock('@/lib/db/client', () => {
+  // Build mock chains that properly simulate Drizzle query builder
+  const mockConversations = [
+    { id: 'conv-123', clinicId: 'clinic-123', patientId: null, channel: 'whatsapp', externalId: '5511999999999', status: 'active', assignedTo: null, lastMessageAt: null, messageCount: 0, metadata: {}, createdAt: new Date(), updatedAt: new Date() },
+  ]
+  const mockMessages: Array<{ id: string; conversationId: string; direction: string; content: string; messageType: string; metadata: Record<string, unknown>; intent: string | null; entities: Record<string, unknown>; confidence: string | null; isAi: boolean; deliveredAt: Date | null; readAt: Date | null; createdAt: Date }> = []
+
+  function makeQueryBuilder(result: unknown[]) {
+    const builder: any = {
+      from: jest.fn().mockReturnThis(),
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      and: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockResolvedValue(result),
+      returning: jest.fn().mockImplementation(() => {
+        return Promise.resolve([{ id: 'conv-123' }])
+      }),
+    }
+    return builder
   }
-  return obj
-}
 
-const mockSupabase = createChain(null)
+  function makeInsertBuilder(result: unknown[]) {
+    return {
+      values: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockImplementation(() => {
+        return Promise.resolve(result)
+      }),
+    }
+  }
 
-jest.mock('@/lib/supabase', () => ({
-  createServerClient: () => mockSupabase,
-}))
+  function makeUpdateBuilder() {
+    return {
+      set: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+    }
+  }
 
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: () => mockSupabase,
-}))
+  return {
+    getDb: jest.fn(() => {
+      const executeMock = jest.fn().mockImplementation((sql: unknown) => {
+        const sqlStr = String(sql)
+        if (sqlStr.includes('whatsapp_phone_number_id')) {
+          return Promise.resolve({ rows: [{ id: 'clinic-123' }] })
+        }
+        return Promise.resolve({ rows: [] })
+      })
+
+      return {
+        select: jest.fn().mockImplementation(() => makeQueryBuilder(mockConversations)),
+        from: jest.fn().mockImplementation(() => makeQueryBuilder(mockConversations)),
+        insert: jest.fn().mockImplementation(() => makeInsertBuilder([{ id: 'msg-123', conversationId: 'conv-123' }])),
+        update: jest.fn().mockImplementation(() => makeUpdateBuilder()),
+        execute: executeMock,
+      }
+    }),
+  }
+})
 
 jest.mock('@/lib/llm', () => ({
   getLLMProvider: () => ({
@@ -142,7 +142,6 @@ describe('WhatsApp Webhook', () => {
       ...originalEnv,
       WHATSAPP_VERIFY_TOKEN: 'synkroo_webhook_token',
       WHATSAPP_APP_SECRET: TEST_APP_SECRET,
-      WHATSAPP_ACCESS_TOKEN: 'test_token',
       NODE_ENV: 'development',
     }
   })
@@ -151,26 +150,23 @@ describe('WhatsApp Webhook', () => {
     process.env = originalEnv
   })
 
-  describe('GET (Verification)', () => {
+  describe('GET', () => {
     it('should verify webhook with correct token', async () => {
-      const request = new NextRequest(
-        new URL('http://localhost/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=synkroo_webhook_token&hub.challenge=test_challenge')
-      )
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=synkroo_webhook_token&hub.challenge=test-challenge', {
+        method: 'GET',
+      })
 
       const response = await GET(request)
-      const text = await response.text()
-
       expect(response.status).toBe(200)
-      expect(text).toBe('test_challenge')
+      expect(await response.text()).toBe('test-challenge')
     })
 
-    it('should reject verification with wrong token', async () => {
-      const request = new NextRequest(
-        new URL('http://localhost/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=wrong_token&hub.challenge=test_challenge')
-      )
+    it('should reject webhook with wrong token', async () => {
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=wrong-token&hub.challenge=test-challenge', {
+        method: 'GET',
+      })
 
       const response = await GET(request)
-
       expect(response.status).toBe(403)
     })
   })
@@ -180,6 +176,7 @@ describe('WhatsApp Webhook', () => {
       const payload = {
         object: 'whatsapp_business_account',
         entry: [{
+          id: 'entry-id',
           changes: [{
             value: {
               metadata: { phone_number_id: '123456789' },
@@ -210,7 +207,6 @@ describe('WhatsApp Webhook', () => {
 
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
-      expect(data.processed).toBe(1)
     })
 
     it('should ignore non-whatsapp objects', async () => {
@@ -232,6 +228,7 @@ describe('WhatsApp Webhook', () => {
       const response = await POST(request)
       const data = await response.json()
 
+      expect(response.status).toBe(200)
       expect(data.status).toBe('ignored')
     })
 

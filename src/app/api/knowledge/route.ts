@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      return handleApiError(new DatabaseError('Failed to fetch knowledge base', error))
+      return handleApiError(new DatabaseError('Failed to fetch knowledge base', error as any))
     }
 
     return NextResponse.json({ data })

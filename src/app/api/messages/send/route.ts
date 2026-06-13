@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth, createClient } from '@/lib/supabase/server'
-import type { Message } from '@/lib/supabase/database.types'
+import { validateApiAuth } from '@/lib/auth/session'
+import { handleApiError, ValidationError } from '@/lib/errors'
 import {
   checkRateLimit,
   getClientIdentifier,
   rateLimitPresets,
   createRateLimitHeaders,
 } from '@/lib/rate-limit'
-import { handleApiError } from '@/lib/errors'
+import * as conversationRepo from '@/repositories/conversations'
 
 interface SendMessageRequest {
   to: string
@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
     }
     const clinicId = authResult.profile!.clinic_id
 
-    // Rate limiting check
     const clientId = getClientIdentifier(request)
     const rateLimit = checkRateLimit(clientId, {
       ...rateLimitPresets.messages,
@@ -58,53 +57,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create conversation
-    const serverClient = await createClient()
-
-    let conversation: any = null
-    const { data: existingConv, error: convError } = await serverClient
-      .from('conversations')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('channel', channel)
-      .eq('external_id', to)
-      .single()
-    conversation = existingConv
-
-    if (!conversation) {
-      // Create new conversation
-      const { data: newConv, error: createError } = await (serverClient
-        .from('conversations') as any)
-        .insert({
-          clinic_id: clinicId,
-          channel,
-          external_id: to,
-          status: 'active',
-        })
-        .select()
-        .single()
-
-      if (createError) throw createError
-      conversation = newConv
-    }
-
-    if (!conversation) {
-      throw new Error('Failed to create conversation')
-    }
+    const conversationId = await conversationRepo.getOrCreateConversation(
+      clinicId,
+      channel,
+      to,
+    )
 
     // Store outbound message
-    const { data: savedMessage, error: msgError } = await (serverClient
-      .from('messages') as any)
-      .insert({
-        conversation_id: conversation.id,
-        direction: 'outbound',
-        content: message,
-        message_type: 'text',
-        is_ai: true,
-      })
-      .select()
-      .single()
-
-    if (msgError) throw msgError
+    const savedMessage = await conversationRepo.createMessage({
+      conversationId,
+      direction: 'outbound',
+      content: message,
+      messageType: 'text',
+      isAi: true,
+    })
 
     // Send via WhatsApp service if channel is whatsapp
     let deliveryStatus = 'pending'
@@ -135,27 +101,27 @@ export async function POST(request: NextRequest) {
 
     // Update message with delivery status
     if (deliveryStatus !== 'pending') {
-      await (serverClient
-        .from('messages') as any)
-        .update({
-          metadata: {
-            delivery_status: deliveryStatus,
-            delivery_error: deliveryError,
-            delivered_at: deliveryStatus === 'sent' ? new Date().toISOString() : null,
-          },
-        })
-        .eq('id', savedMessage?.id)
+      await conversationRepo.updateMessage(savedMessage.id, {
+        metadata: {
+          delivery_status: deliveryStatus,
+          delivery_error: deliveryError,
+          delivered_at: deliveryStatus === 'sent' ? new Date().toISOString() : null,
+        },
+      })
     }
 
     // Update conversation last_message_at
-    await (serverClient
-      .from('conversations') as any)
-      .update({ last_message_at: new Date().toISOString() })
-      .eq('id', conversation?.id)
+    await conversationRepo.updateConversation(conversationId, { lastMessageAt: new Date() })
 
     return NextResponse.json({
       success: true,
-      message: savedMessage,
+      message: {
+        id: savedMessage.id,
+        conversation_id: savedMessage.conversationId,
+        direction: savedMessage.direction,
+        content: savedMessage.content,
+        created_at: savedMessage.createdAt,
+      },
       deliveryStatus,
       deliveryError,
     })

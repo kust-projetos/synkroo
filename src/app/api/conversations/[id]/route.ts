@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth, createClient } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
+import * as conversationRepo from '@/repositories/conversations'
+
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
 
 /**
  * GET /api/conversations/[id]
  * Get conversation details with messages
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
@@ -17,51 +19,45 @@ export async function GET(
     }
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
-    const serverClient = await createClient()
 
-    // Get conversation WITH clinic scoping
-    const { data: conversation, error: convError } = await serverClient
-      .from('conversations')
-      .select(`
-        id,
-        clinic_id,
-        channel,
-        status,
-        external_id,
-        last_message_at,
-        message_count,
-        created_at,
-        updated_at,
-        patient:patients(id, name, phone, email),
-        assigned_user:users(id, name)
-      `)
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single() as { data: Record<string, any> | null; error: any }
+    const conversation = await conversationRepo.findByIdWithJoins(id, clinicId)
 
-    if (convError || !conversation) {
-      return NextResponse.json(
-        { error: 'Conversation not found' },
-        { status: 404 }
-      )
+    if (!conversation) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
-    // Get messages
-    const { data: messages, error: msgError } = await serverClient
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: true })
-
-    if (msgError) {
-      console.error('Error fetching messages:', msgError)
-    }
+    const msgs = await conversationRepo.findMessagesByConversation(id, { limit: 200 })
 
     return NextResponse.json({
       success: true,
       conversation: {
-        ...conversation,
-        messages: messages || [],
+        id: conversation.id,
+        clinic_id: conversation.clinicId,
+        channel: conversation.channel,
+        status: conversation.status,
+        external_id: conversation.externalId,
+        last_message_at: conversation.lastMessageAt,
+        message_count: conversation.messageCount,
+        created_at: conversation.createdAt,
+        updated_at: conversation.updatedAt,
+        patients: conversation.patient,
+        assigned_user: conversation.assignedUser,
+        messages: msgs.map(m => ({
+          id: m.id,
+          conversation_id: m.conversationId,
+          direction: m.direction,
+          content: m.content,
+          message_type: m.messageType,
+          media_url: m.mediaUrl,
+          metadata: m.metadata,
+          intent: m.intent,
+          entities: m.entities,
+          confidence: m.confidence,
+          is_ai: m.isAi,
+          delivered_at: m.deliveredAt,
+          read_at: m.readAt,
+          created_at: m.createdAt,
+        })),
       },
     })
   } catch (error) {

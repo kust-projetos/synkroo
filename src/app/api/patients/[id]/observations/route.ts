@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import {
   addObservation,
   getObservations,
   deleteObservation,
 } from '@/services/patients/patient-preferences.service'
+import * as patientRepo from '@/repositories/patients'
 
 type RouteParams = {
   params: Promise<{ id: string }>
@@ -23,11 +24,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         { status: authResult.error!.status }
       )
     }
+    const clinicId = authResult.profile!.clinic_id
 
     const { id } = await params
     const searchParams = new URL(request.url).searchParams
     const visibility = searchParams.get('visibility') as 'public' | 'team_only' | null
     const limit = parseInt(searchParams.get('limit') || '50', 10)
+
+    // Verify patient belongs to user's clinic
+    const patient = await patientRepo.findByIdScoped(id, clinicId)
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    }
 
     const observations = await getObservations(id, {
       visibility: visibility || undefined,
@@ -52,6 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         { status: authResult.error!.status }
       )
     }
+    const clinicId = authResult.profile!.clinic_id
 
     const { id } = await params
     const body = await request.json()
@@ -61,9 +70,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 })
     }
 
+    // Verify patient belongs to user's clinic
+    const patient = await patientRepo.findByIdScoped(id, clinicId)
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    }
+
     const observation = await addObservation({
       patientId: id,
-      clinicId: authResult.profile!.clinic_id,
+      clinicId,
       authorId: authResult.profile!.id,
       authorName: authResult.profile!.name || 'Unknown',
       content,
@@ -92,21 +107,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: authResult.error!.status }
       )
     }
-
-    const { id } = await params
     const clinicId = authResult.profile!.clinic_id
 
+    const { id } = await params
+
     // Verify the patient belongs to the user's clinic
-    const supabase = await createClient()
-
-    const { data: patient, error: patientError } = await supabase
-      .from('patients')
-      .select('id')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (patientError || !patient) {
+    const patient = await patientRepo.findByIdScoped(id, clinicId)
+    if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
 

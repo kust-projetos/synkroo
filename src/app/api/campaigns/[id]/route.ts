@@ -1,33 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth, hasRequiredRole, createClient } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
 import { updateCampaignSchema } from '@/lib/validations'
 import { handleApiError, ValidationError } from '@/lib/errors'
-import type { Campaign } from '@/lib/supabase/database.types'
+import * as campaignRepo from '@/repositories/campaigns'
+import { eq, and, sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { campaigns, campaignRecipients, patients } from '@/lib/db/schema'
 
-type RecipientRow = { status: string }
+interface RouteParams {
+  params: Promise<{ id: string }>
+}
 
-type RecipientDetail = {
-  id: string
-  patient_id: string
-  status: string
-  sent_at: string | null
-  delivered_at: string | null
-  error_message: string | null
-  patients: { name: string; phone: string } | null
+function repoCampaignToApi(c: campaignRepo.CampaignRow) {
+  return {
+    id: c.id,
+    clinicId: c.clinicId,
+    name: c.name,
+    description: c.description,
+    campaignType: c.campaignType,
+    targetSegment: c.targetSegment,
+    messageTemplate: c.messageTemplate,
+    channel: c.channel,
+    status: c.status,
+    scheduledAt: c.scheduledAt,
+    startedAt: c.startedAt,
+    completedAt: c.completedAt,
+    createdAt: c.createdAt,
+  }
 }
 
 /**
  * GET /api/campaigns/[id]
  * Get campaign details with recipient stats
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: campaignId } = await params
-
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json(
@@ -36,90 +45,60 @@ export async function GET(
       )
     }
 
-    const supabase = await createClient()
-
-    const { data: campaign, error: campaignError } = await supabase
-      .from('campaigns')
-      .select('*')
-      .eq('id', campaignId)
-      .single() as { data: Campaign | null; error: any }
-
-    if (campaignError || !campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+    const campaign = await campaignRepo.findCampaignById(campaignId)
+    if (!campaign) {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.clinic_id !== authResult.profile!.clinic_id) {
-      return NextResponse.json(
-        { error: 'Access denied to this campaign' },
-        { status: 403 }
-      )
+    if (campaign.clinicId !== authResult.profile!.clinic_id) {
+      return NextResponse.json({ error: 'Access denied to this campaign' }, { status: 403 })
     }
 
     // Get recipient stats
-    const { data: recipientStats } = await supabase
-      .from('campaign_recipients')
-      .select('status')
-      .eq('campaign_id', campaignId)
+    const db = getDb()
+    const recipients = await campaignRepo.findCampaignRecipients(campaignId)
 
-    const rows = (recipientStats || []) as RecipientRow[]
     const stats = {
-      total: rows.length,
-      pending: rows.filter(r => r.status === 'pending').length,
-      sent: rows.filter(r => r.status === 'sent').length,
-      delivered: rows.filter(r => r.status === 'delivered').length,
-      failed: rows.filter(r => r.status === 'failed').length,
-      responded: rows.filter(r => r.status === 'responded').length,
-      converted: rows.filter(r => r.status === 'converted').length,
-      opted_out: rows.filter(r => r.status === 'opted_out').length,
+      total: recipients.length,
+      pending: recipients.filter(r => r.status === 'pending').length,
+      sent: recipients.filter(r => r.status === 'sent').length,
+      delivered: recipients.filter(r => r.status === 'delivered').length,
+      failed: recipients.filter(r => r.status === 'failed').length,
+      responded: recipients.filter(r => r.status === 'responded').length,
+      converted: recipients.filter(r => r.status === 'converted').length,
+      opted_out: recipients.filter(r => r.status === 'opted_out').length,
     }
 
-    // Get recent recipients (last 10)
-    const { data: recentRecipients } = await supabase
-      .from('campaign_recipients')
-      .select(`
-        id,
-        patient_id,
-        status,
-        sent_at,
-        delivered_at,
-        error_message,
-        patients (name, phone)
-      `)
-      .eq('campaign_id', campaignId)
-      .order('created_at', { ascending: false })
+    // Get recent recipients (last 10) with patient info
+    const recentRows = await db
+      .select({
+        id: campaignRecipients.id,
+        patientId: campaignRecipients.patientId,
+        status: campaignRecipients.status,
+        sentAt: campaignRecipients.sentAt,
+        deliveredAt: campaignRecipients.deliveredAt,
+        errorMessage: campaignRecipients.errorMessage,
+        patientName: patients.name,
+        patientPhone: patients.phone,
+      })
+      .from(campaignRecipients)
+      .leftJoin(patients, eq(patients.id, campaignRecipients.patientId))
+      .where(eq(campaignRecipients.campaignId, campaignId))
+      .orderBy(sql`${campaignRecipients.createdAt} desc`)
       .limit(10)
 
-    const recent = (recentRecipients || []) as unknown as RecipientDetail[]
-
     return NextResponse.json({
-      campaign: {
-        id: campaign.id,
-        clinicId: campaign.clinic_id,
-        name: campaign.name,
-        description: campaign.description,
-        campaignType: campaign.campaign_type,
-        targetSegment: campaign.target_segment,
-        messageTemplate: campaign.message_template,
-        channel: campaign.channel,
-        status: campaign.status,
-        scheduledAt: campaign.scheduled_at,
-        startedAt: campaign.started_at,
-        completedAt: campaign.completed_at,
-        createdAt: campaign.created_at,
-      },
+      campaign: repoCampaignToApi(campaign),
       stats,
-      recentRecipients: recent.map(r => ({
+      recentRecipients: recentRows.map(r => ({
         id: r.id,
-        patientId: r.patient_id,
-        patientName: r.patients?.name,
-        patientPhone: r.patients?.phone,
+        patientId: r.patientId,
+        patientName: r.patientName,
+        patientPhone: r.patientPhone,
         status: r.status,
-        sentAt: r.sent_at,
-        deliveredAt: r.delivered_at,
-        errorMessage: r.error_message,
+        sentAt: r.sentAt?.toISOString() ?? null,
+        deliveredAt: r.deliveredAt?.toISOString() ?? null,
+        errorMessage: r.errorMessage,
       })),
     })
   } catch (error) {
@@ -131,13 +110,9 @@ export async function GET(
  * PATCH /api/campaigns/[id]
  * Update campaign (pause, resume, cancel)
  */
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: campaignId } = await params
-
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json(
@@ -156,38 +131,20 @@ export async function PATCH(
     const rawBody = await request.json()
     const body = updateCampaignSchema.parse(rawBody)
 
-    const supabase = await createClient()
-
-    const { data: campaign, error: campaignError } = await supabase
-      .from('campaigns')
-      .select('clinic_id, status')
-      .eq('id', campaignId)
-      .single() as { data: { clinic_id: string; status: string } | null; error: any }
-
-    if (campaignError || !campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+    const campaign = await campaignRepo.findCampaignById(campaignId)
+    if (!campaign) {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.clinic_id !== authResult.profile!.clinic_id) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
+    if (campaign.clinicId !== authResult.profile!.clinic_id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     const { status } = body
-
     if (!status) {
-      return NextResponse.json(
-        { error: 'Status is required' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Status is required' }, { status: 400 })
     }
 
-    // Validate status transition
     const validTransitions: Record<string, string[]> = {
       running: ['paused', 'cancelled'],
       paused: ['running', 'cancelled'],
@@ -202,20 +159,7 @@ export async function PATCH(
       )
     }
 
-    const updateData: Record<string, unknown> = { status }
-
-    if (status === 'paused') {
-      updateData.paused_at = new Date().toISOString()
-    } else if (status === 'cancelled') {
-      updateData.cancelled_at = new Date().toISOString()
-    } else if (status === 'running') {
-      updateData.resumed_at = new Date().toISOString()
-    }
-
-    await (supabase
-      .from('campaigns') as any)
-      .update(updateData)
-      .eq('id', campaignId)
+    await campaignRepo.updateCampaignStatus(campaignId, status)
 
     return NextResponse.json({ success: true, status })
   } catch (error) {
@@ -230,13 +174,9 @@ export async function PATCH(
  * DELETE /api/campaigns/[id]
  * Delete a campaign (only draft or cancelled)
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: campaignId } = await params
-
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json(
@@ -252,26 +192,13 @@ export async function DELETE(
       )
     }
 
-    const supabase = await createClient()
-
-    const { data: campaign, error: campaignError } = await supabase
-      .from('campaigns')
-      .select('clinic_id, status')
-      .eq('id', campaignId)
-      .single() as { data: { clinic_id: string; status: string } | null; error: any }
-
-    if (campaignError || !campaign) {
-      return NextResponse.json(
-        { error: 'Campaign not found' },
-        { status: 404 }
-      )
+    const campaign = await campaignRepo.findCampaignById(campaignId)
+    if (!campaign) {
+      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
     }
 
-    if (campaign.clinic_id !== authResult.profile!.clinic_id) {
-      return NextResponse.json(
-        { error: 'Access denied' },
-        { status: 403 }
-      )
+    if (campaign.clinicId !== authResult.profile!.clinic_id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
     if (!['draft', 'cancelled'].includes(campaign.status)) {
@@ -281,15 +208,10 @@ export async function DELETE(
       )
     }
 
-    await supabase
-      .from('campaign_recipients')
-      .delete()
-      .eq('campaign_id', campaignId)
-
-    await supabase
-      .from('campaigns')
-      .delete()
-      .eq('id', campaignId)
+    // Delete recipients and campaign
+    const db = getDb()
+    await db.delete(campaignRecipients).where(eq(campaignRecipients.campaignId, campaignId))
+    await db.delete(campaigns).where(eq(campaigns.id, campaignId))
 
     return NextResponse.json({ success: true })
   } catch (error) {
