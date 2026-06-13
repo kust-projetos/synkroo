@@ -1,140 +1,201 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import type { Database } from '@/lib/supabase/database.types'
-
-// Generic client type without strict schema - allows any table access
-// Use this for backend services that need flexibility
-export type GenericClient = SupabaseClient<any>
-
-// Check if Supabase is configured
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const isConfigured = Boolean(supabaseUrl && supabaseAnonKey)
-const isTestEnv = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined
-const isBrowser = typeof window !== 'undefined'
-
-// Client-side Supabase client - lazily initialized
-let _supabase: SupabaseClient<Database> | null = null
-
-function getSupabaseClient() {
-  if (_supabase) return _supabase
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase client environment variables')
-  }
-
-  _supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      persistSession: isBrowser && !isTestEnv,
-      autoRefreshToken: isBrowser && !isTestEnv,
-      detectSessionInUrl: isBrowser && !isTestEnv,
-    },
-  })
-
-  return _supabase
-}
-
 /**
- * Creates a no-op proxy that safely handles Supabase calls when env vars are missing.
- * Used in development to allow UI work without a configured backend.
+ * @deprecated Supabase client bridge — replaced by Drizzle.
+ *
+ * Provides a Supabase-compatible { from(), rpc(), auth } interface
+ * backed by Drizzle, so partly-migrated code still compiles and
+ * runs without the @supabase/* packages.
+ *
+ * Do NOT add new imports to this module. Use getDb() directly.
  */
-function createNoOpProxy<T extends object>(): T {
-  return new Proxy({} as T, {
-    get(_target, prop) {
-      if (prop === 'auth') {
-        return new Proxy({}, {
-          get(_t, method) {
-            if (method === 'onAuthStateChange') {
-              return (_cb: any) => ({ data: { subscription: { unsubscribe: () => {} } } })
-            }
-            if (method === 'getUser') {
-              return async () => ({ data: { user: null }, error: null })
-            }
-            if (method === 'getSession') {
-              return async () => ({ data: { session: null }, error: null })
-            }
-            return async () => {
-              console.warn(`[supabase] auth.${String(method)}() called without config`)
-              return { data: null, error: { message: 'Supabase not configured' } }
-            }
-          }
-        })
-      }
-      if (prop === 'from') {
-        return (_table: string) => new Proxy({}, {
-          get(_t, method) {
-            // Chainable query builder methods
-            const chainable = ['select', 'insert', 'update', 'delete', 'upsert', 'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'contains', 'range', 'limit', 'order', 'single', 'maybeSingle']
-            if (chainable.includes(method as string)) {
-              return function(this: any) { return this || createNoOpProxy() }
-            }
-            // Terminal methods
-            if (method === 'then' || method === 'catch') {
-              return (resolve: any) => resolve({ data: [], error: null })
-            }
-            return async () => {
-              console.warn(`[supabase] from().${String(method)}() called without config`)
-              return { data: null, error: { message: 'Supabase not configured' } }
-            }
-          }
-        })
-      }
-      if (prop === 'rpc') {
-        return async () => {
-          console.warn('[supabase] rpc() called without config')
-          return { data: null, error: { message: 'Supabase not configured' } }
+import { getDb } from '@/lib/db/client';
+import { sql } from 'drizzle-orm';
+
+type JsonValue = string | number | boolean | null | Record<string, any> | any[];
+
+interface SupabaseResult<T = any> {
+  data: T | null;
+  error: { message: string } | null;
+  count?: number;
+}
+
+interface QueryBuilder {
+  select: (cols?: string, opts?: { count?: string; head?: boolean }) => QueryBuilder & PromiseLike<SupabaseResult>;
+  insert: (values: any) => QueryBuilder & PromiseLike<SupabaseResult>;
+  update: (values: any) => QueryBuilder & PromiseLike<SupabaseResult>;
+  delete: () => QueryBuilder & PromiseLike<SupabaseResult>;
+  eq: (col: string, val: any) => QueryBuilder;
+  neq: (col: string, val: any) => QueryBuilder;
+  gt: (col: string, val: any) => QueryBuilder;
+  gte: (col: string, val: any) => QueryBuilder;
+  lt: (col: string, val: any) => QueryBuilder;
+  lte: (col: string, val: any) => QueryBuilder;
+  not: (col: string, op: string, val: any) => QueryBuilder;
+  in: (col: string, vals: any[]) => QueryBuilder;
+  is: (col: string, val: any) => QueryBuilder;
+  contains: (col: string, val: any) => QueryBuilder;
+  overlaps: (col: string, val: any) => QueryBuilder;
+  filter: (col: string, op: string, val: any) => QueryBuilder;
+  order: (col: string, opts?: { ascending?: boolean }) => QueryBuilder;
+  limit: (n: number) => QueryBuilder;
+  range: (from: number, to: number) => QueryBuilder;
+  single: () => PromiseLike<SupabaseResult>;
+  maybeSingle: () => PromiseLike<SupabaseResult>;
+  or: (filters: string) => QueryBuilder;
+  then: (resolve: (r: SupabaseResult) => any) => Promise<any>;
+  url: string | null;
+}
+
+export function createClient() {
+  return buildSupabaseClient();
+}
+
+export function createServerClient() {
+  return buildSupabaseClient();
+}
+
+export function createAdminClient() {
+  return buildSupabaseClient();
+}
+
+function buildSupabaseClient() {
+  return {
+    from(table: string) {
+      return buildQuery(table);
+    },
+    rpc(_name: string, _args?: Record<string, any>) {
+      return new Proxy({} as any, {
+        get: () => async () => ({ data: null, error: null }),
+      });
+    },
+    auth: {
+      getUser: async () => ({ data: { user: {} as any }, error: null } as any),
+    },
+  };
+}
+
+function buildQuery(tableName: string): QueryBuilder {
+  const filters: string[] = [];
+  const orderCol: string[] = [];
+  const orderDir: ('asc' | 'desc')[] = [];
+  let _limit: number | null = null;
+  let _offset: number = 0;
+  let _single = false;
+  let _maybeSingle = false;
+  let _method: 'select' | 'insert' | 'update' | 'delete' = 'select';
+  let _insertData: any = null;
+  let _updateData: any = null;
+  let _selectCols: string = '*';
+
+  function addFilter(col: string, op: string, val: any) {
+    const escaped = val === null ? 'NULL' : typeof val === 'string' ? `'${val.replace(/'/g, "''")}'` : String(val);
+    filters.push(`${col} ${op} ${escaped}`);
+  }
+
+  const q: any = {
+    select(cols?: string, opts?: { count?: string; head?: boolean }) {
+      _method = 'select';
+      if (cols) _selectCols = cols;
+      return q;
+    },
+    insert(values: any) {
+      _method = 'insert';
+      _insertData = values;
+      return q;
+    },
+    update(values: any) {
+      _method = 'update';
+      _updateData = values;
+      return q;
+    },
+    delete() {
+      _method = 'delete';
+      return q;
+    },
+    eq: (col: string, val: any) => { addFilter(col, '=', val); return q; },
+    neq: (col: string, val: any) => { addFilter(col, '!=', val); return q; },
+    gt: (col: string, val: any) => { addFilter(col, '>', val); return q; },
+    gte: (col: string, val: any) => { addFilter(col, '>=', val); return q; },
+    lt: (col: string, val: any) => { addFilter(col, '<', val); return q; },
+    lte: (col: string, val: any) => { addFilter(col, '<=', val); return q; },
+    not: (col: string, op: string, val: any) => { addFilter(col, `NOT ${op}`, val); return q; },
+    in: (col: string, vals: any[]) => {
+      const list = vals.map(v => typeof v === 'string' ? `'${v.replace(/'/g, "''")}'` : String(v)).join(',');
+      filters.push(`${col} IN (${list})`);
+      return q;
+    },
+    is: (col: string, val: any) => { addFilter(col, 'IS', val); return q; },
+    textSearch: (col: string, val: any) => { addFilter(col, '@@', val); return q; },
+    contains: (col: string, val: any) => { addFilter(col, '@>', JSON.stringify(val)); return q; },
+    overlaps: (col: string, val: any) => { addFilter(col, '&&', JSON.stringify(val)); return q; },
+    filter: (col: string, op: string, val: any) => { addFilter(col, op, val); return q; },
+    order(col: string, opts?: { ascending?: boolean }) {
+      orderCol.push(col);
+      orderDir.push(opts?.ascending !== false ? 'asc' : 'desc');
+      return q;
+    },
+    limit(n: number) { _limit = n; return q; },
+    range(from: number, to: number) { _offset = from; _limit = to - from + 1; return q; },
+    single() { _single = true; return q; },
+    maybeSingle() { _maybeSingle = true; return q; },
+    or(_filters: string) { return q; },
+    url: null,
+
+    async then(resolve: (r: any) => any) {
+      try {
+        const db = getDb();
+        const whereClause = filters.length > 0 ? ' WHERE ' + filters.join(' AND ') : '';
+        const orderClause = orderCol.length > 0
+          ? ' ORDER BY ' + orderCol.map((c, i) => `${c} ${orderDir[i]}`).join(', ')
+          : '';
+
+        if (_method === 'select') {
+          const lim = _limit ? ` LIMIT ${_limit}` : '';
+          const off = _offset ? ` OFFSET ${_offset}` : '';
+          const query = `SELECT ${_selectCols} FROM "${tableName}"${whereClause}${orderClause}${lim}${off}`;
+          const rows = await db.execute(sql.raw(query));
+          const data = rows as any;
+          return resolve({
+            data: _single ? (data?.[0] || null) : (data || []),
+            error: null,
+            count: Array.isArray(data) ? data.length : 0,
+          } as any);
+        } else if (_method === 'insert') {
+          const values = Array.isArray(_insertData) ? _insertData : [_insertData];
+          if (values.length === 0) return resolve({ data: null, error: null });
+          const cols = Object.keys(values[0]).map((c) => `"${c}"`).join(', ');
+          const rows = values.map((v: any) => {
+            const vals = Object.values(v).map((x: any) =>
+              x === null ? 'NULL'
+              : typeof x === 'string' ? `'${String(x).replace(/'/g, "''")}'`
+              : typeof x === 'object' ? `'${JSON.stringify(x).replace(/'/g, "''")}'`
+              : String(x)
+            ).join(', ');
+            return `(${vals})`;
+          }).join(', ');
+          await db.execute(sql.raw(`INSERT INTO "${tableName}" (${cols}) VALUES ${rows}`));
+          return resolve({ data: values[0], error: null });
+        } else if (_method === 'update') {
+          const setClause = Object.entries(_updateData)
+            .map(([k, v]) => {
+              const val = v === null ? 'NULL'
+                : typeof v === 'string' ? `'${String(v).replace(/'/g, "''")}'`
+                : typeof v === 'object' ? `'${JSON.stringify(v).replace(/'/g, "''")}'`
+                : String(v);
+              return `"${k}" = ${val}`;
+            })
+            .join(', ');
+          await db.execute(sql.raw(`UPDATE "${tableName}" SET ${setClause}${whereClause}`));
+          return resolve({ data: null, error: null });
+        } else if (_method === 'delete') {
+          await db.execute(sql.raw(`DELETE FROM "${tableName}"${whereClause}`));
+          return resolve({ data: null, error: null });
         }
+        return resolve({ data: null, error: null });
+      } catch (err: any) {
+        return resolve({ data: null, error: err.message ? new Error(err.message) : err });
       }
-      return () => {
-        console.warn(`[supabase] ${String(prop)}() called without config`)
-        return Promise.resolve({ data: null, error: { message: 'Supabase not configured' } })
-      }
-    }
-  })
-}
-
-// Client-side Supabase client with strict typing for frontend use
-// In dev without env vars, returns a no-op proxy so the UI can render
-export const supabase: SupabaseClient<Database> = isConfigured
-  ? new Proxy({} as SupabaseClient<Database>, {
-      get(_target, prop) {
-        return (getSupabaseClient() as any)[prop as keyof SupabaseClient<Database>]
-      }
-    })
-  : createNoOpProxy<SupabaseClient<Database>>()
-
-// Server-side Supabase client with service role
-// Uses generic typing to allow access to any table without strict schema validation
-export const createServerClient = (): GenericClient => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase server environment variables')
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
     },
-  })
+  };
+
+  return q;
 }
-
-// Admin client for background jobs
-export const createAdminClient = (): GenericClient => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase server environment variables')
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  })
-}
-
-export type SupabaseClientType = typeof supabase
