@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient, validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { setPreference, getPreferences } from '@/services/patients/patient-preferences.service'
+import * as patientRepo from '@/repositories/patients'
 
 type RouteParams = {
   params: Promise<{ id: string }>
@@ -24,16 +25,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id
 
     // Verify the patient belongs to the user's clinic
-    const supabase = await createClient()
-
-    const { data: patient, error: patientError } = await supabase
-      .from('patients')
-      .select('id')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (patientError || !patient) {
+    const patient = await patientRepo.findByIdScoped(id, clinicId)
+    if (!patient) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
     }
 
@@ -64,6 +57,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const { id } = await params
+    const clinicId = authResult.profile!.clinic_id
+
+    // Verify the patient belongs to the user's clinic
+    const patient = await patientRepo.findByIdScoped(id, clinicId)
+    if (!patient) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    }
+
     const body = await request.json()
     const { key, value, category } = body
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const preference = await setPreference({
       patientId: id,
-      clinicId: authResult.profile!.clinic_id,
+      clinicId,
       key,
       value,
       category,

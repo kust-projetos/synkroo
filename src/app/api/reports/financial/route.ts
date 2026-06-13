@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { getFinancialReport, type PeriodType } from '@/services/reports/financial-reports.service'
 
 const VALID_PERIODS: PeriodType[] = ['month', 'quarter', 'year']

@@ -1,9 +1,11 @@
 /**
  * Patient Deduplication Service
- * Detects and merges duplicate patient records
+ * Detects and merges duplicate patient records using Drizzle
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and, inArray, sql, isNull } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { patients, appointments, conversations, leads } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
 export interface DuplicatePair {
@@ -13,7 +15,7 @@ export interface DuplicatePair {
     phone: string
     email: string | null
     cpf: string | null
-    created_at: string
+    created_at: Date
     appointment_count: number
   }
   secondary: {
@@ -22,47 +24,53 @@ export interface DuplicatePair {
     phone: string
     email: string | null
     cpf: string | null
-    created_at: string
+    created_at: Date
     appointment_count: number
   }
   match_reason: 'phone' | 'cpf' | 'name_phone'
-  confidence: number // 0-1
+  confidence: number
 }
 
 /**
  * Detect duplicate patients for a clinic
  */
 export async function detectDuplicates(clinicId: string): Promise<DuplicatePair[]> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   try {
-    const { data: patients, error } = await supabase
-      .from('patients')
-      .select('id, name, phone, email, cpf, created_at')
-      .eq('clinic_id', clinicId)
-      .is('deleted_at', null)
+    // Get active patients for the clinic
+    const patientRows = await db
+      .select({
+        id: patients.id,
+        name: patients.name,
+        phone: patients.phone,
+        email: patients.email,
+        cpf: patients.cpf,
+        createdAt: patients.createdAt,
+      })
+      .from(patients)
+      .where(and(eq(patients.clinicId, clinicId), sql`${patients.deletedAt} IS NULL`))
 
-    if (error) throw error
+    // Get appointment counts
+    const aptRows = await db
+      .select({ patientId: appointments.patientId })
+      .from(appointments)
+      .where(eq(appointments.clinicId, clinicId))
+
+    const countMap = new Map<string, number>()
+    for (const apt of aptRows) {
+      if (apt.patientId) {
+        countMap.set(apt.patientId, (countMap.get(apt.patientId) || 0) + 1)
+      }
+    }
 
     const duplicates: DuplicatePair[] = []
     const processed = new Set<string>()
 
-    // Get appointment counts
-    const { data: appointmentCounts } = await supabase
-      .from('appointments')
-      .select('patient_id')
-      .eq('clinic_id', clinicId)
-
-    const countMap = new Map<string, number>()
-    for (const apt of appointmentCounts || []) {
-      const pid = (apt as any).patient_id
-      countMap.set(pid, (countMap.get(pid) || 0) + 1)
-    }
-
-    for (let i = 0; i < (patients || []).length; i++) {
-      for (let j = i + 1; j < (patients || []).length; j++) {
-        const a = (patients || [])[i] as any
-        const b = (patients || [])[j] as any
+    for (let i = 0; i < patientRows.length; i++) {
+      for (let j = i + 1; j < patientRows.length; j++) {
+        const a = patientRows[i]
+        const b = patientRows[j]
         const pairKey = [a.id, b.id].sort().join('_')
 
         if (processed.has(pairKey)) continue
@@ -77,7 +85,6 @@ export async function detectDuplicates(clinicId: string): Promise<DuplicatePair[
         }
         // Phone match
         else if (a.phone && b.phone && normalizePhone(a.phone) === normalizePhone(b.phone)) {
-          // Also check name similarity
           const nameSimilarity = calculateNameSimilarity(a.name, b.name)
           if (nameSimilarity > 0.6) {
             matchReason = 'name_phone'
@@ -91,12 +98,10 @@ export async function detectDuplicates(clinicId: string): Promise<DuplicatePair[
         if (matchReason) {
           processed.add(pairKey)
 
-          // Determine primary (more data / older / more appointments)
           const aCount = countMap.get(a.id) || 0
           const bCount = countMap.get(b.id) || 0
           const aData = (a.email ? 1 : 0) + (a.cpf ? 1 : 0)
           const bData = (b.email ? 1 : 0) + (b.cpf ? 1 : 0)
-
           const aIsPrimary = aCount > bCount || (aCount === bCount && aData >= bData)
 
           const primary = aIsPrimary ? a : b
@@ -109,7 +114,7 @@ export async function detectDuplicates(clinicId: string): Promise<DuplicatePair[
               phone: primary.phone,
               email: primary.email,
               cpf: primary.cpf,
-              created_at: primary.created_at,
+              created_at: primary.createdAt ?? new Date(0),
               appointment_count: countMap.get(primary.id) || 0,
             },
             secondary: {
@@ -118,7 +123,7 @@ export async function detectDuplicates(clinicId: string): Promise<DuplicatePair[
               phone: secondary.phone,
               email: secondary.email,
               cpf: secondary.cpf,
-              created_at: secondary.created_at,
+              created_at: secondary.createdAt ?? new Date(0),
               appointment_count: countMap.get(secondary.id) || 0,
             },
             match_reason: matchReason,
@@ -143,87 +148,71 @@ export async function mergePatients(
   secondaryId: string,
   clinicId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   try {
     // Get both patients
-    const { data: patients, error: fetchError } = await supabase
-      .from('patients')
-      .select('*')
-      .in('id', [primaryId, secondaryId])
-      .eq('clinic_id', clinicId)
+    const patientRows = await db
+      .select()
+      .from(patients)
+      .where(and(inArray(patients.id, [primaryId, secondaryId]), eq(patients.clinicId, clinicId)))
 
-    if (fetchError) throw fetchError
-
-    const primary = (patients || []).find((p: any) => p.id === primaryId) as any
-    const secondary = (patients || []).find((p: any) => p.id === secondaryId) as any
+    const primary = patientRows.find(p => p.id === primaryId)
+    const secondary = patientRows.find(p => p.id === secondaryId)
 
     if (!primary || !secondary) {
       return { success: false, error: 'Patient not found' }
     }
 
     // Merge data: keep most complete info
-    const mergedData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    }
-
-    // Take secondary's data if primary's is empty
+    const mergedData: Record<string, unknown> = { updatedAt: new Date() }
     if (!primary.email && secondary.email) mergedData.email = secondary.email
     if (!primary.cpf && secondary.cpf) mergedData.cpf = secondary.cpf
-    if (!primary.birth_date && secondary.birth_date) mergedData.birth_date = secondary.birth_date
-    if (!primary.address && secondary.address) mergedData.address = secondary.address
+    if (!primary.birthDate && secondary.birthDate) mergedData.birthDate = secondary.birthDate
 
     // Merge tags
-    const primaryTags: string[] = primary.tags || []
-    const secondaryTags: string[] = secondary.tags || []
+    const primaryTags = primary.tags || []
+    const secondaryTags = secondary.tags || []
     mergedData.tags = [...new Set([...primaryTags, ...secondaryTags])]
 
     // Update primary patient with merged data
-    const { error: updateError } = await (supabase
-      .from('patients') as any)
-      .update(mergedData)
-      .eq('id', primaryId)
-
-    if (updateError) throw updateError
+    await db.update(patients).set(mergedData as any).where(eq(patients.id, primaryId))
 
     // Reassign all appointments from secondary to primary
-    const { error: aptError } = await (supabase
-      .from('appointments') as any)
-      .update({ patient_id: primaryId })
-      .eq('patient_id', secondaryId)
+    await db
+      .update(appointments)
+      .set({ patientId: primaryId, updatedAt: new Date() })
+      .where(eq(appointments.patientId, secondaryId))
 
-    if (aptError) throw aptError
-
-    // Reassign conversations
-    const { error: convError } = await (supabase
-      .from('conversations') as any)
-      .update({ patient_id: primaryId })
-      .eq('patient_id', secondaryId)
-
-    if (convError) {
-      dbLogger.warn('Error reassigning conversations', { message: convError.message, code: convError.code })
+    // Reassign conversations (non-fatal on failure)
+    try {
+      await db
+        .update(conversations)
+        .set({ patientId: primaryId, updatedAt: new Date() })
+        .where(eq(conversations.patientId, secondaryId))
+    } catch (warn) {
+      dbLogger.warn('Error reassigning conversations', { message: (warn as Error).message })
     }
 
-    // Reassign leads
-    const { error: leadError } = await (supabase
-      .from('leads') as any)
-      .update({ patient_id: primaryId })
-      .eq('patient_id', secondaryId)
-
-    if (leadError) {
-      dbLogger.warn('Error reassigning leads', { message: leadError.message, code: leadError.code })
+    // Reassign leads (non-fatal on failure)
+    try {
+      await db
+        .update(leads)
+        .set({ patientId: primaryId })
+        .where(eq(leads.patientId, secondaryId))
+    } catch (warn) {
+      dbLogger.warn('Error reassigning leads', { message: (warn as Error).message })
     }
 
     // Soft-delete secondary patient
-    const { error: deleteError } = await (supabase
-      .from('patients') as any)
-      .update({
-        deleted_at: new Date().toISOString(),
+    await db
+      .update(patients)
+      .set({
+        deletedAt: new Date(),
         name: `[MERGED INTO ${primaryId}] ${secondary.name}`,
-      })
-      .eq('id', secondaryId)
-
-    if (deleteError) throw deleteError
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(patients.id, secondaryId))
 
     dbLogger.info('Patients merged', { primaryId, secondaryId })
 
@@ -234,27 +223,18 @@ export async function mergePatients(
   }
 }
 
-/**
- * Normalize phone number for comparison
- */
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '').replace(/^55/, '')
 }
 
-/**
- * Calculate name similarity (Levenshtein-based ratio)
- */
 function calculateNameSimilarity(a: string, b: string): number {
   const normalize = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ')
   const na = normalize(a)
   const nb = normalize(b)
 
   if (na === nb) return 1
-
-  // Check if one name contains the other
   if (na.includes(nb) || nb.includes(na)) return 0.8
 
-  // Simple character overlap ratio
   const setA = new Set(na.split(''))
   const setB = new Set(nb.split(''))
   const intersection = [...setA].filter((c) => setB.has(c)).length

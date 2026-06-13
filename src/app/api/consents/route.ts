@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { getConsentsForContact, grantConsent, revokeConsent } from '@/services/contacts/consents.service'
 import type { ConsentPurpose, ConsentChannel } from '@/services/contacts/consents.service'
 import { z } from 'zod'

@@ -1,45 +1,46 @@
 /**
  * Tests for Patient Deduplication Service
- * Covers detectDuplicates and mergePatients with Supabase mocks
+ * Migrated from Supabase mock to Drizzle mock
  */
 
-import { detectDuplicates, mergePatients } from '../patient-dedup.service'
-
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn(),
+jest.mock('@/lib/logger', () => ({
+  dbLogger: {
+    info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
+  },
 }))
 
-const mockSupabase = {
-  from: jest.fn(),
-}
-
-beforeEach(() => {
-  jest.clearAllMocks()
-  const { createTypedClient } = require('@/lib/supabase/typed')
-  createTypedClient.mockResolvedValue(mockSupabase)
-})
+import { detectDuplicates, mergePatients } from '../patient-dedup.service'
+import { mockDb } from '@/test-utils/db-mock'
 
 describe('Patient Dedup Service', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    ;(mockDb.select as jest.Mock).mockReset()
+    ;(mockDb.update as jest.Mock).mockReset()
+    // Default: return safe dummy chain so unexpected calls don't throw
+    const dummyWhere = jest.fn().mockResolvedValue([])
+    const dummyFrom = jest.fn().mockReturnValue({ where: dummyWhere })
+    ;(mockDb.select as jest.Mock).mockReturnValue({ from: dummyFrom })
+    ;(mockDb.update as jest.Mock).mockReturnValue({ set: jest.fn().mockReturnValue({ where: dummyWhere }) })
+  })
+
   describe('detectDuplicates', () => {
     it('should detect duplicate by CPF', async () => {
       const patients = [
-        { id: 'p1', name: 'João Silva', phone: '111', email: null, cpf: '12345678901', created_at: '2025-01-01' },
-        { id: 'p2', name: 'Joao S.', phone: '222', email: null, cpf: '12345678901', created_at: '2025-02-01' },
+        { id: 'p1', name: 'João Silva', phone: '111', email: null, cpf: '12345678901', createdAt: new Date('2025-01-01') },
+        { id: 'p2', name: 'Joao S.', phone: '222', email: null, cpf: '12345678901', createdAt: new Date('2025-02-01') },
       ]
+      const emptyAppointments: { patientId: string }[] = []
 
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              is: jest.fn().mockResolvedValue({ data: patients, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        })
+      // First select: patients
+      const mockWhere1 = jest.fn().mockResolvedValue(patients)
+      const mockFrom1 = jest.fn().mockReturnValue({ where: mockWhere1 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom1 })
+
+      // Second select: appointments
+      const mockWhere2 = jest.fn().mockResolvedValue(emptyAppointments)
+      const mockFrom2 = jest.fn().mockReturnValue({ where: mockWhere2 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom2 })
 
       const duplicates = await detectDuplicates('c1')
 
@@ -50,23 +51,17 @@ describe('Patient Dedup Service', () => {
 
     it('should detect duplicate by phone with similar name', async () => {
       const patients = [
-        { id: 'p1', name: 'João Silva', phone: '11999999999', email: null, cpf: null, created_at: '2025-01-01' },
-        { id: 'p2', name: 'João Silva Souza', phone: '11999999999', email: null, cpf: null, created_at: '2025-02-01' },
+        { id: 'p1', name: 'João Silva', phone: '11999999999', email: null, cpf: null, createdAt: new Date('2025-01-01') },
+        { id: 'p2', name: 'João Silva Souza', phone: '11999999999', email: null, cpf: null, createdAt: new Date('2025-02-01') },
       ]
 
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              is: jest.fn().mockResolvedValue({ data: patients, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        })
+      const mockWhere1 = jest.fn().mockResolvedValue(patients)
+      const mockFrom1 = jest.fn().mockReturnValue({ where: mockWhere1 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom1 })
+
+      const mockWhere2 = jest.fn().mockResolvedValue([])
+      const mockFrom2 = jest.fn().mockReturnValue({ where: mockWhere2 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom2 })
 
       const duplicates = await detectDuplicates('c1')
 
@@ -77,23 +72,17 @@ describe('Patient Dedup Service', () => {
 
     it('should detect duplicate by phone alone', async () => {
       const patients = [
-        { id: 'p1', name: 'João Silva', phone: '11999999999', email: null, cpf: null, created_at: '2025-01-01' },
-        { id: 'p2', name: 'Maria Santos', phone: '11999999999', email: null, cpf: null, created_at: '2025-02-01' },
+        { id: 'p1', name: 'João Silva', phone: '11999999999', email: null, cpf: null, createdAt: new Date('2025-01-01') },
+        { id: 'p2', name: 'Maria Santos', phone: '11999999999', email: null, cpf: null, createdAt: new Date('2025-02-01') },
       ]
 
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              is: jest.fn().mockResolvedValue({ data: patients, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        })
+      const mockWhere1 = jest.fn().mockResolvedValue(patients)
+      const mockFrom1 = jest.fn().mockReturnValue({ where: mockWhere1 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom1 })
+
+      const mockWhere2 = jest.fn().mockResolvedValue([])
+      const mockFrom2 = jest.fn().mockReturnValue({ where: mockWhere2 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom2 })
 
       const duplicates = await detectDuplicates('c1')
 
@@ -104,36 +93,26 @@ describe('Patient Dedup Service', () => {
 
     it('should not detect duplicates when none exist', async () => {
       const patients = [
-        { id: 'p1', name: 'João Silva', phone: '111', email: 'j@e.com', cpf: '111', created_at: '2025-01-01' },
-        { id: 'p2', name: 'Maria Santos', phone: '222', email: 'm@e.com', cpf: '222', created_at: '2025-02-01' },
+        { id: 'p1', name: 'João Silva', phone: '111', email: 'j@e.com', cpf: '111', createdAt: new Date('2025-01-01') },
+        { id: 'p2', name: 'Maria Santos', phone: '222', email: 'm@e.com', cpf: '222', createdAt: new Date('2025-02-01') },
       ]
 
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              is: jest.fn().mockResolvedValue({ data: patients, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        })
+      const mockWhere1 = jest.fn().mockResolvedValue(patients)
+      const mockFrom1 = jest.fn().mockReturnValue({ where: mockWhere1 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom1 })
+
+      const mockWhere2 = jest.fn().mockResolvedValue([])
+      const mockFrom2 = jest.fn().mockReturnValue({ where: mockWhere2 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom2 })
 
       const duplicates = await detectDuplicates('c1')
       expect(duplicates).toHaveLength(0)
     })
 
     it('should handle DB error gracefully', async () => {
-      mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            is: jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }),
-          }),
-        }),
-      })
+      const mockWhere1 = jest.fn().mockRejectedValue(new Error('DB error'))
+      const mockFrom1 = jest.fn().mockReturnValue({ where: mockWhere1 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom1 })
 
       const duplicates = await detectDuplicates('c1')
       expect(duplicates).toEqual([])
@@ -141,26 +120,18 @@ describe('Patient Dedup Service', () => {
 
     it('should choose primary by appointment count', async () => {
       const patients = [
-        { id: 'p1', name: 'João', phone: '11999999999', email: null, cpf: null, created_at: '2025-01-01' },
-        { id: 'p2', name: 'João S.', phone: '11999999999', email: null, cpf: null, created_at: '2025-06-01' },
+        { id: 'p1', name: 'João', phone: '11999999999', email: null, cpf: null, createdAt: new Date('2025-01-01') },
+        { id: 'p2', name: 'João S.', phone: '11999999999', email: null, cpf: null, createdAt: new Date('2025-06-01') },
       ]
+      const appointments = [{ patientId: 'p1' }, { patientId: 'p1' }, { patientId: 'p2' }]
 
-      mockSupabase.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              is: jest.fn().mockResolvedValue({ data: patients, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({
-              data: [{ patient_id: 'p1' }, { patient_id: 'p1' }, { patient_id: 'p2' }],
-              error: null,
-            }),
-          }),
-        })
+      const mockWhere1 = jest.fn().mockResolvedValue(patients)
+      const mockFrom1 = jest.fn().mockReturnValue({ where: mockWhere1 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom1 })
+
+      const mockWhere2 = jest.fn().mockResolvedValue(appointments)
+      const mockFrom2 = jest.fn().mockReturnValue({ where: mockWhere2 })
+      ;(mockDb.select as jest.Mock).mockReturnValueOnce({ from: mockFrom2 })
 
       const duplicates = await detectDuplicates('c1')
 
@@ -171,70 +142,27 @@ describe('Patient Dedup Service', () => {
 
   describe('mergePatients', () => {
     it('should merge secondary into primary', async () => {
-      const primary = {
-        id: 'p1', name: 'João Silva', email: null, cpf: null,
-        birth_date: null, address: null, tags: ['VIP'],
-      }
-      const secondary = {
-        id: 'p2', name: 'Joao', email: 'joao@email.com', cpf: '12345678901',
-        birth_date: '1990-01-01', address: 'Rua A', tags: ['Novo'],
-      }
+      const primary = { id: 'p1', name: 'João Silva', email: null, cpf: null, tags: ['vip'], clinicId: 'c1', phone: '111', birthDate: null, gender: null, notes: null, lastVisitAt: null, optOutMarketing: null, optOutReminders: null, riskScore: null, createdAt: new Date(), updatedAt: new Date() }
+      const secondary = { id: 'p2', name: 'Joao', email: 'joao@email.com', cpf: '12345678901', tags: ['novo'], clinicId: 'c1', phone: '222', birthDate: '1990-01-01' as unknown as null, gender: null, notes: null, lastVisitAt: null, optOutMarketing: null, optOutReminders: null, riskScore: null, createdAt: new Date(), updatedAt: new Date() }
 
-      mockSupabase.from
-        // Get both patients
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({
-                data: [primary, secondary],
-                error: null,
-              }),
-            }),
-          }),
-        })
-        // Update primary with merged data
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-        // Reassign appointments
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-        // Reassign conversations
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-        // Reassign leads
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-        // Soft-delete secondary
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
+      // Select patients
+      const selectWhere = jest.fn().mockResolvedValue([primary, secondary])
+      const selectFrom = jest.fn().mockReturnValue({ where: selectWhere })
+      ;(mockDb.select as jest.Mock).mockReturnValue({ from: selectFrom })
+
+      // Update calls (5x)
+      const updateSet = jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue([]) })
+      const updateWhere = jest.fn().mockReturnValue({ set: updateSet })
+      ;(mockDb.update as jest.Mock).mockReturnValue({ set: updateSet, where: updateWhere })
 
       const result = await mergePatients('p1', 'p2', 'c1')
       expect(result.success).toBe(true)
     })
 
     it('should fail when patient not found', async () => {
-      mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          in: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        }),
-      })
+      const selectWhere = jest.fn().mockResolvedValue([])
+      const selectFrom = jest.fn().mockReturnValue({ where: selectWhere })
+      ;(mockDb.select as jest.Mock).mockReturnValue({ from: selectFrom })
 
       const result = await mergePatients('p1', 'p2', 'c1')
       expect(result.success).toBe(false)
@@ -242,18 +170,13 @@ describe('Patient Dedup Service', () => {
     })
 
     it('should handle DB error gracefully', async () => {
-      mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          in: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }),
-          }),
-        }),
-      })
+      const selectWhere = jest.fn().mockRejectedValue(new Error('DB error'))
+      const selectFrom = jest.fn().mockReturnValue({ where: selectWhere })
+      ;(mockDb.select as jest.Mock).mockReturnValue({ from: selectFrom })
 
       const result = await mergePatients('p1', 'p2', 'c1')
       expect(result.success).toBe(false)
-      // Non-Error thrown objects result in 'Unknown error'
-      expect(result.error).toBe('Unknown error')
+      expect(result.error).toBe('DB error')
     })
   })
 })

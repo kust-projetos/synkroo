@@ -1,19 +1,31 @@
-import { RAGService } from '../rag.service'
-import { EmbeddingService } from '../embedding.service'
+/**
+ * RAG Service Tests
+ * Migrated from Supabase to Drizzle repositories
+ */
 
-// Mock the supabase client
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: () => ({
-    rpc: jest.fn(),
-    from: jest.fn(() => ({
-      insert: jest.fn(() => ({
-        select: jest.fn(() => ({
-          single: jest.fn()
-        }))
-      }))
-    }))
-  })
+// Mock the embedding service
+jest.mock('@/services/rag/embedding.service', () => ({
+  embeddingService: {
+    generateEmbedding: jest.fn().mockResolvedValue({ embedding: new Array(1536).fill(0) }),
+  },
 }))
+
+// Mock repositories
+jest.mock('@/repositories/knowledge', () => ({
+  searchKnowledgeBase: jest.fn(),
+}))
+
+jest.mock('@/repositories/memory', () => ({
+  searchMemories: jest.fn(),
+}))
+
+jest.mock('@/lib/logger', () => ({
+  dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
+}))
+
+import { RAGService } from '../rag.service'
+import * as knowledgeRepo from '@/repositories/knowledge'
+import * as memoryRepo from '@/repositories/memory'
 
 describe('RAGService', () => {
   let service: RAGService
@@ -21,6 +33,12 @@ describe('RAGService', () => {
   beforeEach(() => {
     service = new RAGService()
     jest.clearAllMocks()
+  })
+
+  describe('getEmbeddingDimension', () => {
+    it('should return 1536 for text-embedding-3-small', () => {
+      expect(service.getEmbeddingDimension()).toBe(1536)
+    })
   })
 
   describe('buildCombinedContext', () => {
@@ -41,7 +59,7 @@ describe('RAGService', () => {
     it('should build context with memories only', () => {
       const knowledge: any[] = []
       const memories = [
-        { id: '1', conversationId: 'conv-1', patientId: 'pat-1', content: 'Paciente quer agendar limpeza', contentType: 'message', similarity: 0.75, createdAt: '2026-03-27T10:00:00Z' }
+        { id: '1', conversationId: 'conv-1', patientId: undefined, content: 'Paciente quer agendar limpeza', contentType: 'message', similarity: 0.75, createdAt: '2026-03-27T10:00:00Z' }
       ]
 
       const result = (service as any).buildCombinedContext(knowledge, memories)
@@ -56,7 +74,7 @@ describe('RAGService', () => {
         { id: '1', category: 'horarios', question: 'Qual o horário?', answer: '8h às 18h', similarity: 0.9 }
       ]
       const memories = [
-        { id: '1', conversationId: 'conv-1', patientId: 'pat-1', content: 'Paciente preferiu horário da manhã', contentType: 'message', similarity: 0.8, createdAt: '2026-03-27T10:00:00Z' }
+        { id: '1', conversationId: 'conv-1', patientId: undefined, content: 'Paciente preferiu horário da manhã', contentType: 'message', similarity: 0.8, createdAt: '2026-03-27T10:00:00Z' }
       ]
 
       const result = (service as any).buildCombinedContext(knowledge, memories)
@@ -77,7 +95,7 @@ describe('RAGService', () => {
         {
           id: '1',
           conversationId: 'conv-1',
-          patientId: 'pat-1',
+          patientId: undefined,
           content: 'a'.repeat(300),
           contentType: 'message',
           similarity: 0.8,
@@ -92,28 +110,49 @@ describe('RAGService', () => {
     })
   })
 
-  describe('getEmbeddingDimension', () => {
-    it('should return 1536 for text-embedding-3-small', () => {
-      expect(RAGService.getEmbeddingDimension()).toBe(1536)
-    })
-  })
-
   describe('searchKnowledgeBase', () => {
     it('should return empty array on error', async () => {
-      const embedding = new Array(1536).fill(0)
-      const result = await service.searchKnowledgeBase(embedding, 'clinic-1')
-
-      // With mocked RPC that doesn't return data
+      ;(knowledgeRepo.searchKnowledgeBase as jest.Mock).mockRejectedValue(new Error('DB error'))
+      const result = await service.searchKnowledgeBase('test query', 'clinic-1')
       expect(Array.isArray(result)).toBe(true)
+      expect(result).toHaveLength(0)
+    })
+
+    it('should return results from repository', async () => {
+      const mockResults = [
+        { id: '1', category: 'test', question: 'Test?', answer: 'Answer', relevance: 0.9 }
+      ]
+      ;(knowledgeRepo.searchKnowledgeBase as jest.Mock).mockResolvedValue(mockResults)
+      const result = await service.searchKnowledgeBase('test query', 'clinic-1', 0.7, 5)
+      expect(result).toHaveLength(1)
+      expect(result[0].similarity).toBe(0.9)
+    })
+
+    it('should filter by threshold', async () => {
+      const mockResults = [
+        { id: '1', category: 'test', question: 'Test?', answer: 'Answer', relevance: 0.5 }
+      ]
+      ;(knowledgeRepo.searchKnowledgeBase as jest.Mock).mockResolvedValue(mockResults)
+      const result = await service.searchKnowledgeBase('test query', 'clinic-1', 0.7, 5)
+      expect(result).toHaveLength(0) // below threshold
     })
   })
 
   describe('searchMemories', () => {
     it('should return empty array on error', async () => {
-      const embedding = new Array(1536).fill(0)
-      const result = await service.searchMemories(embedding, 'clinic-1')
-
+      ;(memoryRepo.searchMemories as jest.Mock).mockRejectedValue(new Error('DB error'))
+      const result = await service.searchMemories('test query', 'clinic-1')
       expect(Array.isArray(result)).toBe(true)
+      expect(result).toHaveLength(0)
+    })
+
+    it('should return results from repository', async () => {
+      const mockResults = [
+        { id: '1', conversationId: 'conv-1', patientId: undefined, content: 'Test memory', contentType: 'message', similarity: 0.8, createdAt: '2026-03-27T10:00:00Z' }
+      ]
+      ;(memoryRepo.searchMemories as jest.Mock).mockResolvedValue(mockResults)
+      const result = await service.searchMemories('test query', 'clinic-1', undefined, 0.6, 10)
+      expect(result).toHaveLength(1)
     })
   })
 })

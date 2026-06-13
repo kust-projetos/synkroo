@@ -1,29 +1,105 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-// Service role client - bypasses RLS for seeding
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { clinics, users, leads, leadActivities, campaigns, campaignRecipients, waitlist, patientFeedback, procedureGuidelines, scheduleBlocks, followUpConfigs } from '@/lib/db/schema'
+import * as dentistRepo from '@/repositories/dentists'
+import * as procedureRepo from '@/repositories/procedures'
+import * as patientRepo from '@/repositories/patients'
+import * as appointmentRepo from '@/repositories/appointments'
 
 const CLINIC_SLUG = 'clinica-demo'
 
-function randomPick<T>(arr: T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)]
+// ── Seed result types ─────────────────────────────────────────
+
+interface DomainResult {
+  ok: number
+  err: number
+  errors: string[]
 }
-function randomInt(min: number, max: number) {
+
+// ── Seed data types ──────────────────────────────────────────
+
+interface LeadSeed {
+  name: string
+  phone: string
+  email: string
+  source: string
+  status: string
+  temperature: string
+  score: number
+  interest: string
+  has_budget: boolean
+  has_timeline: boolean
+  notes: string
+  contact_count: number
+  lost_reason?: string
+}
+
+interface CampaignSeed {
+  name: string
+  description: string
+  campaignType: string
+  channel: string
+  status: string
+  messageTemplate: string
+  totalRecipients: number
+  sentCount: number
+  responseCount: number
+  conversionCount: number
+}
+
+interface ProcedureGuidelineSeed {
+  procedureName: string
+  title: string
+  instructions: string
+  emergencyContact: boolean
+  recoveryTimeDays: number
+  restrictions: string[]
+  warningSigns: string[]
+}
+
+interface ScheduleDaySeed {
+  day: number
+  start: string
+  end: string
+  avail: boolean
+}
+
+// ── Helpers ─────────────────────────────────────────────────
+
+function randomPick<T>(arr: readonly T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)] as T
+}
+
+function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
-function hoursAgo(h: number) {
-  return new Date(Date.now() - h * 3600000).toISOString()
+
+function hoursAgo(hours: number): Date {
+  return new Date(Date.now() - hours * 3_600_000)
 }
-function daysAgo(d: number) {
-  return new Date(Date.now() - d * 86400000).toISOString()
+
+function daysAgo(days: number): Date {
+  return new Date(Date.now() - days * 86_400_000)
 }
-function daysFromNow(d: number) {
-  return new Date(Date.now() + d * 86400000).toISOString()
+
+function daysFromNow(days: number): Date {
+  return new Date(Date.now() + days * 86_400_000)
 }
+
+function makeDate(dayOffset: number, time: string): Date {
+  const d = new Date()
+  d.setDate(d.getDate() + dayOffset)
+  const [h, m] = time.split(':').map(Number)
+  d.setHours(h, m, 0, 0)
+  return d
+}
+
+function slotKey(dentistId: string, dayOffset: number, time: string): string {
+  return `${dentistId}-${dayOffset}-${time}`
+}
+
+// ── GET /api/seed ────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
   const secret = request.nextUrl.searchParams.get('secret')
@@ -35,27 +111,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const results: Record<string, { ok: number; err: number; errors: string[] }> = {}
+  const results: Record<string, DomainResult> = {}
+  const db = getDb()
 
   // Get clinic
-  const { data: clinic } = await supabase.from('clinics').select('id').eq('slug', CLINIC_SLUG).single()
+  const clinicRows = await db.select({ id: clinics.id }).from(clinics).where(eq(clinics.slug, CLINIC_SLUG)).limit(1)
+  const clinic = clinicRows[0]
   if (!clinic) return NextResponse.json({ error: 'Clinic not found' }, { status: 404 })
-  const cid = clinic.id
+  const cid: string = clinic.id
 
   // Get admin user
-  const { data: admin } = await supabase.from('users').select('id').eq('clinic_id', cid).limit(1).single()
-  const userId = admin?.id
+  const userRows = await db.select({ id: users.id }).from(users).where(eq(users.clinicId, cid)).limit(1)
+  const admin = userRows[0]
+  const userId: string | undefined = admin?.id
 
   // Get existing data IDs
-  const { data: dentists } = await supabase.from('dentists').select('id').eq('clinic_id', cid).eq('is_active', true)
-  const dentistIds = dentists?.map(d => d.id) || []
-  const { data: procedures } = await supabase.from('procedures').select('id').eq('clinic_id', cid).eq('is_active', true)
-  const procedureIds = procedures?.map(p => p.id) || []
-  const { data: patients } = await supabase.from('patients').select('id').eq('clinic_id', cid)
-  const patientIds = patients?.map(p => p.id) || []
+  const dentistRows = await dentistRepo.findByClinic(cid, { activeOnly: true })
+  const dentistIds: string[] = dentistRows.map((d) => d.id)
+  const procedureRows = await procedureRepo.findByClinic(cid, { activeOnly: true })
+  const procedureIds: string[] = procedureRows.map((p) => p.id)
+  const patientRows = await patientRepo.findByClinic(cid)
+  const patientIds: string[] = patientRows.map((p) => p.id)
+  const procMap = new Map(procedureRows.map((p) => [p.id, p]))
 
-  // === LEADS (30) ===
-  const leadsData = [
+  // ── LEADS ─────────────────────────────────────────────────
+  const leadsData: readonly LeadSeed[] = [
     { name: 'Renata Albuquerque', phone: '11977770031', email: 'renata.albuquerque@email.com', source: 'referral', status: 'proposal', temperature: 'hot', score: 82, interest: 'Implante Dentário', has_budget: true, has_timeline: true, notes: 'Proposta enviada ontem', contact_count: 3 },
     { name: 'Marcos Vinícius', phone: '11977770032', email: 'marcos.vinicius@email.com', source: 'whatsapp', status: 'negotiation', temperature: 'hot', score: 88, interest: 'Aparelho Ortodôntico', has_budget: true, has_timeline: true, notes: 'Negociando valor', contact_count: 4 },
     { name: 'Carla Augusta', phone: '11977770033', email: 'carla.augusta@email.com', source: 'instagram', status: 'qualified', temperature: 'hot', score: 79, interest: 'Clareamento', has_budget: true, has_timeline: false, notes: 'Quer fazer antes do casamento', contact_count: 2 },
@@ -91,19 +171,39 @@ export async function GET(request: NextRequest) {
   results.leads = { ok: 0, err: 0, errors: [] }
   const leadIds: string[] = []
   for (const l of leadsData) {
-    const { data, error } = await supabase.from('leads').insert({
-      clinic_id: cid,
-      ...l,
-      last_contact_at: l.contact_count > 0 ? hoursAgo(randomInt(1, 240)) : null,
-      next_followup_at: ['converted', 'lost'].includes(l.status) ? null : daysFromNow(randomInt(1, 14)),
-      converted_at: l.status === 'converted' ? hoursAgo(randomInt(12, 96)) : null,
-    }).select('id').single()
-    if (error) { results.leads.err++; results.leads.errors.push(`${l.name}: ${error.message}`) }
-    else { results.leads.ok++; leadIds.push(data.id) }
+    try {
+      const [inserted] = await db
+        .insert(leads)
+        .values({
+          clinicId: cid,
+          name: l.name,
+          phone: l.phone,
+          email: l.email,
+          source: l.source,
+          status: l.status,
+          temperature: l.temperature,
+          score: l.score,
+          interest: l.interest,
+          hasBudget: l.has_budget,
+          hasTimeline: l.has_timeline,
+          notes: l.notes,
+          contactCount: l.contact_count,
+          lastContactAt: l.contact_count > 0 ? hoursAgo(randomInt(1, 240)) : null,
+          nextFollowupAt: ['converted', 'lost'].includes(l.status) ? null : daysFromNow(randomInt(1, 14)),
+          convertedAt: l.status === 'converted' ? hoursAgo(randomInt(12, 96)) : null,
+          lostReason: l.lost_reason ?? null,
+        })
+        .returning({ id: leads.id })
+      results.leads.ok++
+      leadIds.push(inserted.id)
+    } catch (err: unknown) {
+      results.leads.err++
+      results.leads.errors.push(`${l.name}: ${(err as Error).message}`)
+    }
   }
 
-  // === LEAD ACTIVITIES (~100+) ===
-  const actTypes = ['call', 'email', 'whatsapp', 'note', 'meeting', 'proposal_sent']
+  // ── LEAD ACTIVITIES ───────────────────────────────────────
+  const actTypes = ['call', 'email', 'whatsapp', 'note', 'meeting', 'proposal_sent'] as const
   const actDescs = [
     'Tentativa de contato por telefone', 'Email enviado com proposta comercial',
     'Mensagem via WhatsApp enviada', 'Nota interna adicionada',
@@ -112,87 +212,117 @@ export async function GET(request: NextRequest) {
     'Ligação atendida - cliente interessado', 'Orçamento detalhado enviado',
     'Cliente pediu mais tempo para decidir', 'Indicação recebida de outro paciente',
     'Agendamento de avaliação confirmado', 'Cliente pediu desconto',
-  ]
+  ] as const
+
   results.lead_activities = { ok: 0, err: 0, errors: [] }
   for (const lid of leadIds) {
     const count = 2 + randomInt(0, 3)
     for (let j = 0; j < count; j++) {
-      const { error } = await supabase.from('lead_activities').insert({
-        lead_id: lid,
-        activity_type: randomPick(actTypes),
-        description: randomPick(actDescs),
-        performed_at: hoursAgo(j * randomInt(1, 48)),
-      })
-      if (error) results.lead_activities.err++; else results.lead_activities.ok++
+      try {
+        await db.insert(leadActivities).values({
+          leadId: lid,
+          activityType: randomPick(actTypes),
+          description: randomPick(actDescs),
+          performedAt: hoursAgo(j * randomInt(1, 48)),
+        })
+        results.lead_activities.ok++
+      } catch {
+        results.lead_activities.err++
+      }
     }
   }
 
-  // === CAMPAIGNS (7) ===
-  const campaignsData = [
-    { name: 'Black Novembro - Implantes', description: 'Promoção black friday para implantes com 40% off', campaign_type: 'promotional', channel: 'whatsapp', status: 'draft', message_template: '🖤 BLACK FRIDAY 🖤 Implante com 40% de desconto! De R$ 4.500 por R$ 2.700. Responda IMPLANTE para agendar.', total_recipients: 0, sent_count: 0, response_count: 0, conversion_count: 0 },
-    { name: 'Volta às Aulas - Jovens', description: 'Campanha para jovens com desconto em aparelho', campaign_type: 'promotional', channel: 'instagram', status: 'scheduled', message_template: '📚 VOLTA ÀS AULAS 📚 Aparelho ortodôntico com entrada facilitada! Parcelamos em até 18x.', total_recipients: 0, sent_count: 0, response_count: 0, conversion_count: 0 },
-    { name: 'Aniversariantes do Mês', description: 'Desconto para pacientes aniversariantes', campaign_type: 'promotional', channel: 'whatsapp', status: 'running', message_template: '🎂 FELIZ ANIVERSÁRIO! 🎂 25% de desconto em procedimentos estéticos! Responda ANIVERSARIO.', total_recipients: 30, sent_count: 18, response_count: 6, conversion_count: 2 },
-    { name: 'Pós-Tratamento Canal', description: 'Follow-up pós-canal', campaign_type: 'follow_up', channel: 'whatsapp', status: 'running', message_template: 'Olá {{patient_name}}! Como está após o tratamento de canal? Se tiver desconforto, entre em contato!', total_recipients: 15, sent_count: 12, response_count: 8, conversion_count: 0 },
-    { name: 'Reativação Q1', description: 'Reativar pacientes inativos', campaign_type: 'reactivation', channel: 'whatsapp', status: 'paused', message_template: 'Olá {{patient_name}}! Sentimos sua falta! 💙 Responda VOLTAR para desconto exclusivo!', total_recipients: 40, sent_count: 10, response_count: 2, conversion_count: 1 },
-    { name: 'Pesquisa de Satisfação Q1', description: 'Coletar feedback Q1', campaign_type: 'follow_up', channel: 'whatsapp', status: 'completed', message_template: 'Olá {{patient_name}}! Responda nossa pesquisa rápida (1 min) e concorra a uma limpeza gratuita!', total_recipients: 90, sent_count: 85, response_count: 52, conversion_count: 0 },
-    { name: 'Dia das Mães - Estética', description: 'Promoção Dia das Mães', campaign_type: 'promotional', channel: 'instagram', status: 'scheduled', message_template: '💐 DIA DAS MÃES 💐 Clareamento + Limpeza com 30% off! Responda MAES.', total_recipients: 0, sent_count: 0, response_count: 0, conversion_count: 0 },
+  // ── CAMPAIGNS ─────────────────────────────────────────────
+  const campaignsData: readonly CampaignSeed[] = [
+    { name: 'Black Novembro - Implantes', description: 'Promoção black friday para implantes com 40% off', campaignType: 'promotional', channel: 'whatsapp', status: 'draft', messageTemplate: '🖤 BLACK FRIDAY 🖤 Implante com 40% de desconto! De R$ 4.500 por R$ 2.700. Responda IMPLANTE para agendar.', totalRecipients: 0, sentCount: 0, responseCount: 0, conversionCount: 0 },
+    { name: 'Volta às Aulas - Jovens', description: 'Campanha para jovens com desconto em aparelho', campaignType: 'promotional', channel: 'instagram', status: 'scheduled', messageTemplate: '📚 VOLTA ÀS AULAS 📚 Aparelho ortodôntico com entrada facilitada! Parcelamos em até 18x.', totalRecipients: 0, sentCount: 0, responseCount: 0, conversionCount: 0 },
+    { name: 'Aniversariantes do Mês', description: 'Desconto para pacientes aniversariantes', campaignType: 'promotional', channel: 'whatsapp', status: 'running', messageTemplate: '🎂 FELIZ ANIVERSÁRIO! 🎂 25% de desconto em procedimentos estéticos! Responda ANIVERSARIO.', totalRecipients: 30, sentCount: 18, responseCount: 6, conversionCount: 2 },
+    { name: 'Pós-Tratamento Canal', description: 'Follow-up pós-canal', campaignType: 'follow_up', channel: 'whatsapp', status: 'running', messageTemplate: 'Olá {{patient_name}}! Como está após o tratamento de canal? Se tiver desconforto, entre em contato!', totalRecipients: 15, sentCount: 12, responseCount: 8, conversionCount: 0 },
+    { name: 'Reativação Q1', description: 'Reativar pacientes inativos', campaignType: 'reactivation', channel: 'whatsapp', status: 'paused', messageTemplate: 'Olá {{patient_name}}! Sentimos sua falta! 💙 Responda VOLTAR para desconto exclusivo!', totalRecipients: 40, sentCount: 10, responseCount: 2, conversionCount: 1 },
+    { name: 'Pesquisa de Satisfação Q1', description: 'Coletar feedback Q1', campaignType: 'follow_up', channel: 'whatsapp', status: 'completed', messageTemplate: 'Olá {{patient_name}}! Responda nossa pesquisa rápida (1 min) e concorra a uma limpeza gratuita!', totalRecipients: 90, sentCount: 85, responseCount: 52, conversionCount: 0 },
+    { name: 'Dia das Mães - Estética', description: 'Promoção Dia das Mães', campaignType: 'promotional', channel: 'instagram', status: 'scheduled', messageTemplate: '💐 DIA DAS MÃES 💐 Clareamento + Limpeza com 30% off! Responda MAES.', totalRecipients: 0, sentCount: 0, responseCount: 0, conversionCount: 0 },
   ]
 
   results.campaigns = { ok: 0, err: 0, errors: [] }
   const campaignIds: string[] = []
   for (const c of campaignsData) {
-    const { data, error } = await supabase.from('campaigns').insert({
-      clinic_id: cid,
-      ...c,
-      created_by: userId,
-      started_at: ['running', 'completed', 'paused'].includes(c.status) ? daysAgo(randomInt(5, 30)) : null,
-      scheduled_at: c.status === 'scheduled' ? daysFromNow(randomInt(10, 30)) : null,
-    }).select('id').single()
-    if (error) { results.campaigns.err++; results.campaigns.errors.push(`${c.name}: ${error.message}`) }
-    else { results.campaigns.ok++; campaignIds.push(data.id) }
-  }
-
-  // === CAMPAIGN RECIPIENTS (~185+) ===
-  results.campaign_recipients = { ok: 0, err: 0, errors: [] }
-  const recStatuses = ['sent', 'delivered', 'delivered', 'responded']
-  for (const campId of campaignIds) {
-    const count = 10 + randomInt(0, 30)
-    for (let j = 0; j < count; j++) {
-      const { error } = await supabase.from('campaign_recipients').insert({
-        campaign_id: campId,
-        patient_id: randomPick(patientIds),
-        status: randomPick(recStatuses),
-        sent_at: hoursAgo(randomInt(1, 168)),
-        delivered_at: hoursAgo(randomInt(0, 160)),
-      })
-      if (error) results.campaign_recipients.err++; else results.campaign_recipients.ok++
+    try {
+      const [inserted] = await db
+        .insert(campaigns)
+        .values({
+          clinicId: cid,
+          name: c.name,
+          description: c.description,
+          campaignType: c.campaignType,
+          channel: c.channel,
+          status: c.status,
+          messageTemplate: c.messageTemplate,
+          totalRecipients: c.totalRecipients,
+          sentCount: c.sentCount,
+          responseCount: c.responseCount,
+          conversionCount: c.conversionCount,
+          createdBy: userId,
+          startedAt: ['running', 'completed', 'paused'].includes(c.status) ? daysAgo(randomInt(5, 30)) : null,
+          scheduledAt: c.status === 'scheduled' ? daysFromNow(randomInt(10, 30)) : null,
+        })
+        .returning({ id: campaigns.id })
+      results.campaigns.ok++
+      campaignIds.push(inserted.id)
+    } catch (err: unknown) {
+      results.campaigns.err++
+      results.campaigns.errors.push(`${c.name}: ${(err as Error).message}`)
     }
   }
 
-  // === WAITLIST (15) ===
+  // ── CAMPAIGN RECIPIENTS ───────────────────────────────────
+  const recStatuses = ['sent', 'delivered', 'delivered', 'responded'] as const
+
+  results.campaign_recipients = { ok: 0, err: 0, errors: [] }
+  for (const campId of campaignIds) {
+    const count = 10 + randomInt(0, 30)
+    for (let j = 0; j < count; j++) {
+      try {
+        await db.insert(campaignRecipients).values({
+          campaignId: campId,
+          patientId: randomPick(patientIds),
+          status: randomPick(recStatuses),
+          sentAt: hoursAgo(randomInt(1, 168)),
+          deliveredAt: hoursAgo(randomInt(0, 160)),
+        })
+        results.campaign_recipients.ok++
+      } catch {
+        results.campaign_recipients.err++
+      }
+    }
+  }
+
+  // ── WAITLIST ──────────────────────────────────────────────
+  const prefTimes = ['08:00:00', '09:00:00', '10:00:00', '11:00:00', '13:00:00', '14:00:00', '15:00:00', '16:00:00'] as const
+
   results.waitlist = { ok: 0, err: 0, errors: [] }
-  const prefTimes = ['08:00:00', '09:00:00', '10:00:00', '11:00:00', '13:00:00', '14:00:00', '15:00:00', '16:00:00']
   for (let i = 0; i < 15; i++) {
     const prefStart = randomPick(prefTimes)
     const startH = parseInt(prefStart.split(':')[0])
     const endH = Math.min(startH + 4, 18)
-    const { error } = await supabase.from('waitlist').insert({
-      clinic_id: cid,
-      patient_id: randomPick(patientIds),
-      dentist_id: randomPick(dentistIds),
-      procedure_id: randomPick(procedureIds),
-      preferred_date: daysFromNow(1 + randomInt(0, 14)).split('T')[0],
-      preferred_time_start: prefStart,
-      preferred_time_end: `${String(endH).padStart(2, '0')}:00:00`,
-      priority: randomInt(1, 5),
-      status: 'waiting',
-      notes: 'Paciente aguardando vaga',
-    })
-    if (error) results.waitlist.err++; else results.waitlist.ok++
+    try {
+      await db.insert(waitlist).values({
+        clinicId: cid,
+        patientId: randomPick(patientIds),
+        dentistId: randomPick(dentistIds),
+        preferredDate: daysFromNow(1 + randomInt(0, 14)),
+        preferredTimeStart: prefStart,
+        preferredTimeEnd: `${String(endH).padStart(2, '0')}:00:00`,
+        priority: randomInt(1, 5),
+        status: 'waiting',
+        notes: 'Paciente aguardando vaga',
+      })
+      results.waitlist.ok++
+    } catch {
+      results.waitlist.err++
+    }
   }
 
-  // === PATIENT FEEDBACK (30) ===
-  results.patient_feedback = { ok: 0, err: 0, errors: [] }
+  // ── PATIENT FEEDBACK ──────────────────────────────────────
   const feedbackComments = [
     'Excelente atendimento! Equipe muito atenciosa.',
     'Gostei do resultado. Recomendo a clínica.',
@@ -202,83 +332,99 @@ export async function GET(request: NextRequest) {
     'Ótima experiência, voltarei com certeza.',
     'Tratamento indolor, muito profissional.',
     'Recepção muito simpática e acolhedora.',
-  ]
-  const feedbackChannels = ['whatsapp', 'email', 'in_person']
-  const feedbackTypes = ['post_appointment', 'general', 'nps']
+  ] as const
+  const feedbackChannels = ['whatsapp', 'email', 'in_person'] as const
+  const feedbackTypes = ['post_appointment', 'general', 'nps'] as const
 
+  results.patient_feedback = { ok: 0, err: 0, errors: [] }
   for (let i = 0; i < 30; i++) {
-    const { error } = await supabase.from('patient_feedback').insert({
-      clinic_id: cid,
-      patient_id: randomPick(patientIds),
-      feedback_type: randomPick(feedbackTypes),
-      rating: randomInt(3, 5),
-      nps_score: randomInt(6, 10),
-      would_recommend: Math.random() > 0.2,
-      comments: randomPick(feedbackComments),
-      improvements: Math.random() > 0.5 ? ['Tempo de espera', 'Estacionamento'] : null,
-      collected_at: hoursAgo(randomInt(1, 720)),
-      channel: randomPick(feedbackChannels),
-    })
-    if (error) results.patient_feedback.err++; else results.patient_feedback.ok++
-  }
-
-  // === PROCEDURE GUIDELINES (4) ===
-  results.procedure_guidelines = { ok: 0, err: 0, errors: [] }
-  const guidelines = [
-    { procedure_name: 'Implante Dentário', title: 'Cuidados Pós-Implante', instructions: 'Mantenha a região limpa com bochechos leves. Evite tocar no local. Use medicação conforme prescrito.', emergency_contact: true, recovery_time_days: 7, restrictions: ['Não fazer força na região', 'Evitar alimentos duros por 7 dias', 'Não fumar por 72 horas'], warning_signs: ['Sangramento excessivo', 'Dor intensa após 48h', 'Inchaço progressivo'] },
-    { procedure_name: 'Aparelho Ortodôntico', title: 'Cuidados com Aparelho', instructions: 'Escove após cada refeição. Use floss ortodôntico diariamente. Evite alimentos pegajosos.', emergency_contact: false, recovery_time_days: 0, restrictions: ['Não mascar chiclete', 'Evitar balas duras', 'Cortar frutas em pedaços pequenos'], warning_signs: ['Fio ou brquete solto', 'Fio cortando a bochecha', 'Dor intensa ao morder'] },
-    { procedure_name: 'Faceta de Porcelana', title: 'Cuidados Pós-Faceta', instructions: 'Evite morder objetos duros. Mantenha higiene normal. Use protetor bucal se pratica esportes.', emergency_contact: false, recovery_time_days: 3, restrictions: ['Evitar abrir embalagens com os dentes', 'Não roer unhas', 'Evitar alimentos duros por 3 dias'], warning_signs: ['Faceta solta ou quebrada', 'Sensibilidade extrema ao frio', 'Dor ao morder'] },
-    { procedure_name: 'Prótese Total', title: 'Adaptação à Prótese', instructions: 'Nos primeiros dias, coma alimentos macios. Leia em voz alta para adaptar a fala. Remova à noite.', emergency_contact: false, recovery_time_days: 14, restrictions: ['Não dormir com a prótese', 'Não usar água quente para limpar', 'Evitar adesivo em excesso'], warning_signs: ['Dor intensa que não melhora', 'Feridas na gengiva', 'Prótese não encaixa mais'] },
-  ]
-  for (const g of guidelines) {
-    const { error } = await supabase.from('procedure_guidelines').insert({ clinic_id: cid, ...g, is_active: true })
-    if (error) results.procedure_guidelines.err++; else results.procedure_guidelines.ok++
-  }
-
-  // === SCHEDULE BLOCKS (per dentist) ===
-  results.schedule_blocks = { ok: 0, err: 0, errors: [] }
-  const scheduleDays = [
-    { day: 0, start: '08:00:00', end: '12:00:00', avail: false }, // Domingo
-    { day: 1, start: '08:00:00', end: '18:00:00', avail: true },  // Segunda
-    { day: 2, start: '08:00:00', end: '18:00:00', avail: true },
-    { day: 3, start: '08:00:00', end: '18:00:00', avail: true },
-    { day: 4, start: '08:00:00', end: '18:00:00', avail: true },
-    { day: 5, start: '08:00:00', end: '12:00:00', avail: true },  // Sexta manhã
-    { day: 6, start: '00:00:00', end: '00:00:00', avail: false }, // Sábado
-  ]
-  for (const did of dentistIds) {
-    for (const s of scheduleDays) {
-      const { error } = await supabase.from('schedule_blocks').insert({
-        clinic_id: cid,
-        dentist_id: did,
-        day_of_week: s.day,
-        start_time: s.start,
-        end_time: s.end,
-        is_available: s.avail,
+    try {
+      await db.insert(patientFeedback).values({
+        clinicId: cid,
+        patientId: randomPick(patientIds),
+        feedbackType: randomPick(feedbackTypes),
+        rating: randomInt(3, 5),
+        npsScore: randomInt(6, 10),
+        wouldRecommend: Math.random() > 0.2,
+        comments: randomPick(feedbackComments),
+        improvements: Math.random() > 0.5 ? (['Tempo de espera', 'Estacionamento'] as const) : null,
+        collectedAt: hoursAgo(randomInt(1, 720)),
+        channel: randomPick(feedbackChannels),
       })
-      if (error) results.schedule_blocks.err++; else results.schedule_blocks.ok++
+      results.patient_feedback.ok++
+    } catch {
+      results.patient_feedback.err++
     }
   }
 
-  // === FOLLOW-UP CONFIGS ===
-  results.follow_up_configs = { ok: 0, err: 0, errors: [] }
-  const fuConfigs = [
-    { config_type: 'post_consultation', delay_hours: 24, message_template: 'Olá {{patient_name}}! Como está após sua consulta de {{procedure}}? Estamos aqui se precisar!', is_active: true },
-    { config_type: 'post_consultation', delay_hours: 168, message_template: 'Olá {{patient_name}}! Já faz 7 dias desde sua consulta. Tudo bem? Agende um retorno se necessário.', is_active: true },
-    { config_type: 'return_reminder', delay_days: 2, message_template: 'Olá {{patient_name}}! Notamos que você não compareceu à consulta. Deseja reagendar?', is_active: true },
-    { config_type: 'return_reminder', delay_months: 6, procedure_name: 'Limpeza', message_template: 'Olá {{patient_name}}! Sentimos sua falta! Que tal agendar uma revisão?', is_active: true },
+  // ── PROCEDURE GUIDELINES ─────────────────────────────────
+  const guidelines: readonly ProcedureGuidelineSeed[] = [
+    { procedureName: 'Implante Dentário', title: 'Cuidados Pós-Implante', instructions: 'Mantenha a região limpa com bochechos leves. Evite tocar no local. Use medicação conforme prescrito.', emergencyContact: true, recoveryTimeDays: 7, restrictions: ['Não fazer força na região', 'Evitar alimentos duros por 7 dias', 'Não fumar por 72 horas'], warningSigns: ['Sangramento excessivo', 'Dor intensa após 48h', 'Inchaço progressivo'] },
+    { procedureName: 'Aparelho Ortodôntico', title: 'Cuidados com Aparelho', instructions: 'Escove após cada refeição. Use floss ortodôntico diariamente. Evite alimentos pegajosos.', emergencyContact: false, recoveryTimeDays: 0, restrictions: ['Não mascar chiclete', 'Evitar balas duras', 'Cortar frutas em pedaços pequenos'], warningSigns: ['Fio ou brquete solto', 'Fio cortando a bochecha', 'Dor intensa ao morder'] },
+    { procedureName: 'Faceta de Porcelana', title: 'Cuidados Pós-Faceta', instructions: 'Evite morder objetos duros. Mantenha higiene normal. Use protetor bucal se pratica esportes.', emergencyContact: false, recoveryTimeDays: 3, restrictions: ['Evitar abrir embalagens com os dentes', 'Não roer unhas', 'Evitar alimentos duros por 3 dias'], warningSigns: ['Faceta solta ou quebrada', 'Sensibilidade extrema ao frio', 'Dor ao morder'] },
+    { procedureName: 'Prótese Total', title: 'Adaptação à Prótese', instructions: 'Nos primeiros dias, coma alimentos macios. Leia em voz alta para adaptar a fala. Remova à noite.', emergencyContact: false, recoveryTimeDays: 14, restrictions: ['Não dormir com a prótese', 'Não usar água quente para limpar', 'Evitar adesivo em excesso'], warningSigns: ['Dor intensa que não melhora', 'Feridas na gengiva', 'Prótese não encaixa mais'] },
   ]
-  for (const fc of fuConfigs) {
-    const { error } = await supabase.from('follow_up_configs').insert({ clinic_id: cid, ...fc })
-    if (error) results.follow_up_configs.err++; else results.follow_up_configs.ok++
+
+  results.procedure_guidelines = { ok: 0, err: 0, errors: [] }
+  for (const g of guidelines) {
+    try {
+      await db.insert(procedureGuidelines).values({ clinicId: cid, ...g, isActive: true })
+      results.procedure_guidelines.ok++
+    } catch {
+      results.procedure_guidelines.err++
+    }
   }
 
-  // === APPOINTMENTS (~40) ===
-  // Generate realistic demo appointments spread across past days, today, and future days
-  results.appointments = { ok: 0, err: 0, errors: [] }
+  // ── SCHEDULE BLOCKS ────────────────────────────────────────
+  const scheduleDays: readonly ScheduleDaySeed[] = [
+    { day: 0, start: '08:00:00', end: '12:00:00', avail: false },
+    { day: 1, start: '08:00:00', end: '18:00:00', avail: true },
+    { day: 2, start: '08:00:00', end: '18:00:00', avail: true },
+    { day: 3, start: '08:00:00', end: '18:00:00', avail: true },
+    { day: 4, start: '08:00:00', end: '18:00:00', avail: true },
+    { day: 5, start: '08:00:00', end: '12:00:00', avail: true },
+    { day: 6, start: '00:00:00', end: '00:00:00', avail: false },
+  ]
 
-  const appointmentStatuses = ['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'] as const
-  const appointmentNotes = [
+  results.schedule_blocks = { ok: 0, err: 0, errors: [] }
+  for (const did of dentistIds) {
+    for (const s of scheduleDays) {
+      try {
+        await db.insert(scheduleBlocks).values({
+          clinicId: cid,
+          dentistId: did,
+          dayOfWeek: s.day,
+          startTime: s.start,
+          endTime: s.end,
+          isAvailable: s.avail,
+        })
+        results.schedule_blocks.ok++
+      } catch {
+        results.schedule_blocks.err++
+      }
+    }
+  }
+
+  // ── FOLLOW-UP CONFIGS ──────────────────────────────────────
+  const fuConfigs = [
+    { configType: 'post_consultation', delayHours: 24, messageTemplate: 'Olá {{patient_name}}! Como está após sua consulta de {{procedure}}? Estamos aqui se precisar!', isActive: true },
+    { configType: 'post_consultation', delayHours: 168, messageTemplate: 'Olá {{patient_name}}! Já faz 7 dias desde sua consulta. Tudo bem? Agende um retorno se necessário.', isActive: true },
+    { configType: 'return_reminder', delayDays: 2, messageTemplate: 'Olá {{patient_name}}! Notamos que você não compareceu à consulta. Deseja reagendar?', isActive: true },
+    { configType: 'return_reminder', delayMonths: 6, procedureName: 'Limpeza', messageTemplate: 'Olá {{patient_name}}! Sentimos sua falta! Que tal agendar uma revisão?', isActive: true },
+  ] as const
+
+  results.follow_up_configs = { ok: 0, err: 0, errors: [] }
+  for (const fc of fuConfigs) {
+    try {
+      await db.insert(followUpConfigs).values({ clinicId: cid, ...fc })
+      results.follow_up_configs.ok++
+    } catch {
+      results.follow_up_configs.err++
+    }
+  }
+
+  // ── APPOINTMENTS ───────────────────────────────────────────
+  const appointmentNotes: readonly (string | null)[] = [
     'Primeira consulta do paciente', 'Retorno para acompanhamento',
     'Avaliação inicial', 'Procedimento agendado pelo WhatsApp',
     'Urgência — dor relatada', 'Check-up de rotina',
@@ -286,101 +432,68 @@ export async function GET(request: NextRequest) {
     null, null, null,
   ]
 
-  // Generate time slots (08:00 to 17:30 in 30-min increments)
   const timeSlots: string[] = []
   for (let h = 8; h <= 17; h++) {
     timeSlots.push(`${String(h).padStart(2, '0')}:00`)
     if (h < 18) timeSlots.push(`${String(h).padStart(2, '0')}:30`)
   }
 
-  const procedureDurations: Record<string, number> = {
-    'Limpeza Profissional': 30, 'Clareamento': 60, 'Restauração': 45,
-    'Restauração Estética': 60, 'Tratamento de Canal': 90, 'Extração': 45,
-    'Extração de Siso': 60, 'Implante Dentário': 120, 'Prótese Total': 90,
-    'Prótese Parcial': 60, 'Aparelho Ortodôntico': 60, 'Faceta de Porcelana': 90,
-    'Lente de Contato Dental': 90, 'Coroa de Porcelana': 60, 'Profilaxia': 30,
-    'Radiografia': 15, 'Avaliação': 30,
-  }
-
-  // Get procedure names for duration lookup
-  const { data: procData } = await supabase.from('procedures').select('id, name, duration_minutes').eq('clinic_id', cid)
-  const procMap = new Map(procData?.map(p => [p.id, p]) || [])
-
-  // Helper: create date for a specific day offset from today at a given time
-  function makeDate(dayOffset: number, time: string): string {
-    const d = new Date()
-    d.setDate(d.getDate() + dayOffset)
-    const [h, m] = time.split(':').map(Number)
-    d.setHours(h, m, 0, 0)
-    return d.toISOString()
-  }
-
-  // Generate appointments: past (-3 to -1 days), today (0), future (+1 to +7 days)
+  results.appointments = { ok: 0, err: 0, errors: [] }
   const dayOffsets = [-3, -2, -1, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 4, 5, 6, 7]
-
-  // Track used slots per dentist per day to avoid conflicts
-  const usedSlots = new Map<string, Set<string>>()
-  function slotKey(dentistId: string, dayOffset: number, time: string) {
-    return `${dentistId}-${dayOffset}-${time}`
-  }
+  const usedSlots = new Map<string, true>()
 
   for (const dayOffset of dayOffsets) {
     if (dentistIds.length === 0 || patientIds.length === 0) break
 
-    // Each day gets 2-4 appointments per dentist
     for (const dentistId of dentistIds) {
       const countThisDay = 2 + randomInt(0, 2)
       const shuffled = [...timeSlots].sort(() => Math.random() - 0.5)
       const dayTimeSlots = shuffled.slice(0, Math.min(countThisDay, shuffled.length))
 
-      for (const time of dayTimeSlots.slice(0, countThisDay)) {
+      for (const time of dayTimeSlots) {
         const key = slotKey(dentistId, dayOffset, time)
         if (usedSlots.has(key)) continue
-        if (!usedSlots.has(`${dentistId}-${dayOffset}`)) {
-          usedSlots.set(`${dentistId}-${dayOffset}`, new Set())
-        }
-        usedSlots.get(`${dentistId}-${dayOffset}`)!.add(time)
+        usedSlots.set(key, true)
 
         const procedureId = randomPick(procedureIds)
         const procInfo = procMap.get(procedureId)
-        const duration = procInfo?.duration_minutes || procedureDurations[procInfo?.name || ''] || 30
+        const duration = procInfo?.durationMinutes || 30
 
-        // Determine status based on day offset
         let status: string
         if (dayOffset < 0) {
-          // Past days: mostly completed, some cancelled/no_show
-          const pastStatuses = ['completed', 'completed', 'completed', 'completed', 'cancelled', 'no_show']
+          const pastStatuses = ['completed', 'completed', 'completed', 'completed', 'cancelled', 'no_show'] as const
           status = randomPick(pastStatuses)
         } else if (dayOffset === 0) {
-          // Today: mix of confirmed, in_progress, scheduled
-          const todayStatuses = ['confirmed', 'confirmed', 'scheduled', 'in_progress']
+          const todayStatuses = ['confirmed', 'confirmed', 'scheduled', 'in_progress'] as const
           status = randomPick(todayStatuses)
         } else {
-          // Future: mostly scheduled and confirmed
-          const futureStatuses = ['scheduled', 'scheduled', 'confirmed', 'confirmed']
+          const futureStatuses = ['scheduled', 'scheduled', 'confirmed', 'confirmed'] as const
           status = randomPick(futureStatuses)
         }
 
         const patientId = randomPick(patientIds)
         const note = randomPick(appointmentNotes)
 
-        const { error } = await supabase.from('appointments').insert({
-          clinic_id: cid,
-          patient_id: patientId,
-          dentist_id: dentistId,
-          procedure_id: procedureId,
-          scheduled_at: makeDate(dayOffset, time),
-          duration_minutes: duration,
-          status: status,
-          notes: note,
-        })
-        if (error) { results.appointments.err++; results.appointments.errors.push(`${dayOffset}d ${time}: ${error.message}`) }
-        else { results.appointments.ok++ }
+        try {
+          await appointmentRepo.create({
+            clinicId: cid,
+            patientId,
+            dentistId,
+            procedureId,
+            scheduledAt: makeDate(dayOffset, time),
+            durationMinutes: duration,
+            notes: note,
+          })
+          results.appointments.ok++
+        } catch (err: unknown) {
+          results.appointments.err++
+          results.appointments.errors.push(`${dayOffset}d ${time}: ${(err as Error).message}`)
+        }
       }
     }
   }
 
-  // === SUMMARY ===
+  // ── SUMMARY ───────────────────────────────────────────────
   const summary: Record<string, number> = {}
   for (const [k, v] of Object.entries(results)) {
     summary[k] = v.ok

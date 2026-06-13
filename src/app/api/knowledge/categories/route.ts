@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       .eq('is_active', true) as { data: Array<{ category: string }> | null; error: any }
 
     if (error) {
-      return handleApiError(new DatabaseError('Failed to fetch categories', error))
+      return handleApiError(new DatabaseError('Failed to fetch categories', error as any))
     }
 
     // Get unique categories with counts
