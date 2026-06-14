@@ -3,6 +3,9 @@
  * Tracks unconverted budgets and sends staged follow-ups via notes
  */
 
+import { eq, inArray, desc, and, asc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { budgets, patients } from '@/lib/db/schema'
 import { createTypedClient } from '@/lib/supabase/typed'
 import { dbLogger } from '@/lib/logger'
 
@@ -25,66 +28,56 @@ const FOLLOWUP_STAGES = [
 ]
 
 /**
- * Find budgets that haven't been converted within expected timeframe
+ * Find budgets that haven't been converted within expected timeframe — Drizzle.
  */
 export async function findUnconvertedBudgets(clinicId: string): Promise<UnconvertedBudget[]> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   try {
-    const { data: budgets, error } = await supabase
-      .from('budgets')
-      .select(`
-        id,
-        patient_id,
-        clinic_id,
-        total_value,
-        status,
-        created_at,
-        notes,
-        patients (name, phone)
-      `)
-      .eq('clinic_id', clinicId)
-      .in('status', ['sent', 'pending'])
-      .order('created_at', { ascending: true }) as any
-
-    if (error) throw error
+    const rows = await db
+      .select()
+      .from(budgets)
+      .leftJoin(patients, eq(budgets.patientId, patients.id))
+      .where(
+        and(
+          eq(budgets.clinicId, clinicId),
+          inArray(budgets.status, ['sent', 'pending']),
+        ),
+      )
+      .orderBy(asc(budgets.createdAt))
 
     const now = new Date()
     const results: UnconvertedBudget[] = []
 
-    for (const budget of (budgets as any[]) || []) {
-      const patient = (budget as any).patients
-      const createdDate = new Date((budget as any).created_at)
+    for (const row of rows) {
+      const budget = row.budgets
+      const patient = row.patients
+      const createdDate = budget.createdAt ?? new Date()
       const daysSinceCreated = Math.floor(
         (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
       )
 
-      // Parse current follow-up stage from notes
-      const notes: string = (budget as any).notes || ''
+      const notes: string = budget.notes || ''
       let followupStage = 0
       const stageMatch = notes.match(/\[followup-stage-(\d+)-date/)
-      if (stageMatch) {
-        followupStage = parseInt(stageMatch[1], 10)
-      }
+      if (stageMatch) followupStage = parseInt(stageMatch[1], 10)
 
-      // Only include if past first follow-up threshold
       if (daysSinceCreated >= FOLLOWUP_STAGES[0].day) {
         results.push({
-          id: (budget as any).id,
-          patient_id: (budget as any).patient_id,
+          id: budget.id,
+          patient_id: budget.patientId,
           patient_name: patient?.name || 'Desconhecido',
           patient_phone: patient?.phone || null,
-          clinic_id: (budget as any).clinic_id,
-          total_value: (budget as any).total_value,
-          created_at: (budget as any).created_at,
+          clinic_id: budget.clinicId,
+          total_value: Number(budget.totalValue),
+          created_at: createdDate.toISOString(),
           days_since_created: daysSinceCreated,
           followup_stage: followupStage,
-          status: (budget as any).status,
+          status: budget.status || '',
         })
       }
     }
 
-    // Sort by urgency (oldest first)
     return results.sort((a, b) => b.days_since_created - a.days_since_created)
   } catch (error) {
     dbLogger.error('Error finding unconverted budgets', error)
