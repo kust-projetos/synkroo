@@ -18,6 +18,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:reset": "docker compose down && docker volume rm synkroo_postgres_data 2>nul & docker compose up -d",
     "db:seed": "npx tsx scripts/seed-database.ts",
+    "db:seed:scale": "npx tsx scripts/seed-local-scale-data.ts --preset large",
     "db:health": "node scripts/check-db.mjs",
     "seed": "npx tsx scripts/seed-database.ts",
     "health": "curl -s http://localhost:3000/api/health | jq .",
