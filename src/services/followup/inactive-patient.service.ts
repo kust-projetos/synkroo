@@ -1,4 +1,7 @@
 import { createTypedClient } from '@/lib/supabase/typed'
+import { getDb } from '@/lib/db/client'
+import { patients } from '@/lib/db/schema'
+import { eq, and, lt, or, isNull, sql } from 'drizzle-orm'
 import { dbLogger } from '@/lib/logger'
 
 /**
@@ -199,33 +202,50 @@ export async function updateInactivePatientTags(
 }
 
 /**
- * Get inactivity statistics for a clinic
+ * Get inactivity statistics for a clinic — migrated to Drizzle.
+ * Used by dashboard/stats route.
+ *
+ * Semantics: cumulative counts per cutoff.
+ *   inactive_30 = lastVisitAt < now-30d OR lastVisitAt IS NULL
+ *   inactive_60 = lastVisitAt < now-60d OR lastVisitAt IS NULL
+ *   inactive_90 = lastVisitAt < now-90d OR lastVisitAt IS NULL
+ *   inactive_180 = lastVisitAt < now-180d OR lastVisitAt IS NULL
  */
 export async function getInactivityStats(clinicId: string): Promise<{
   totalInactive: number
   bySegment: Record<string, number>
   atRiskRevenue: number
 }> {
-  const inactivePatients = await identifyInactivePatients(clinicId, 30)
+  const db = getDb()
+  const now = new Date()
+  const cutoffs = [30, 60, 90, 180] as const
 
   const bySegment: Record<string, number> = {}
   let atRiskRevenue = 0
-
-  // Average patient value per visit (could be from settings)
   const avgVisitValue = 250
 
-  for (const patient of inactivePatients) {
-    const segment = patient.inactivitySegment
-    bySegment[segment] = (bySegment[segment] || 0) + 1
-
-    // Calculate at-risk revenue based on average visits per year
-    const expectedVisitsPerYear = patient.totalVisits > 0 ? 2 : 0
-    const yearsSinceLastVisit = patient.daysSinceLastVisit / 365
-    atRiskRevenue += expectedVisitsPerYear * yearsSinceLastVisit * avgVisitValue
+  for (const days of cutoffs) {
+    const cutoff = new Date(now.getTime() - days * 24 * 3600 * 1000)
+    const [cnt] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(patients)
+      .where(
+        and(
+          eq(patients.clinicId, clinicId),
+          or(
+            isNull(patients.lastVisitAt),
+            lt(patients.lastVisitAt, cutoff),
+          ),
+        ),
+      )
+    const segment = `inactive_${days}`
+    bySegment[segment] = cnt?.count ?? 0
+    atRiskRevenue += (cnt?.count ?? 0) * 2 * avgVisitValue
   }
 
+  // totalInactive = inactive_30 (users inactive for >= 30 days)
   return {
-    totalInactive: inactivePatients.length,
+    totalInactive: bySegment['inactive_30'] ?? 0,
     bySegment,
     atRiskRevenue: Math.round(atRiskRevenue),
   }
