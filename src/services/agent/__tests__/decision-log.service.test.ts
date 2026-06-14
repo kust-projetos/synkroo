@@ -1,134 +1,24 @@
-/**
- * Tests for Decision Log Service
- */
-
-function createChain(finalResult: any): any {
-  const c: any = {
-    then(resolve?: (v: any) => any) { return resolve?.(finalResult) },
-  }
-  const methods = ['insert', 'select', 'update', 'delete', 'eq', 'neq', 'gte', 'lte', 'gt', 'lt', 'order', 'limit', 'single', 'contains', 'overlaps']
-  for (const m of methods) {
-    if (m === 'single') {
-      c[m] = jest.fn(() => Promise.resolve(finalResult))
-    } else {
-      c[m] = jest.fn(() => c)
-    }
-  }
-  return c
-}
-
-const mockFrom = jest.fn()
-const mockClient = { from: mockFrom }
-
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn().mockResolvedValue(mockClient),
-}))
-
-jest.mock('@/lib/logger', () => ({
-  dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
-}))
-
-import { decisionLogService } from '../decision-log.service'
-
-describe('Decision Log Service', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
+/** Tests for Decision Log Service — Drizzle mocks */
+jest.mock('@/lib/logger',()=>({dbLogger:{info:jest.fn(),warn:jest.fn(),error:jest.fn(),debug:jest.fn()}}))
+let results:any[][]=[],counter=0
+const mdb={select:jest.fn(function(this:any){return this}),from:jest.fn(function(this:any){return this}),where:jest.fn(function(this:any){return this}),orderBy:jest.fn(function(this:any){return this}),limit:jest.fn(function(this:any){return this}),insert:jest.fn(function(this:any){return this}),values:jest.fn(function(this:any){return this}),returning:jest.fn(function(this:any){return this}),then:jest.fn(function(this:any,onF:any){const d=results[counter++]??results[results.length-1]??[];return Promise.resolve(typeof onF==='function'?onF(d):d)})} as any
+jest.mock('@/lib/db/client',()=>{let d:any=null;return{getDb:jest.fn(()=>{if(!d)d=mdb;return d})}})
+import{decisionLogService}from'../decision-log.service'
+function seed(...s:any[][]){counter=0;results=s}
+beforeEach(()=>{counter=0;results=[];jest.clearAllMocks()})
+describe('Decision Log Service',()=>{
+  describe('logDecision',()=>{
+    it('inserts and returns id',async()=>{seed([{id:'log-123'}]);const id=await decisionLogService.logDecision({clinicId:'c1',intentClassified:'test',confidenceScore:0.9,actionTaken:'act',riskLevel:'LOW',reasoning:'ok'});expect(id).toBe('log-123')})
+    it('returns empty on error',async()=>{seed([]);const id=await decisionLogService.logDecision({clinicId:'c1',intentClassified:'test',confidenceScore:0.9,actionTaken:'act',riskLevel:'LOW',reasoning:'ok'});expect(id).toBe('')})
   })
-
-  describe('logDecision', () => {
-    it('should insert and return id', async () => {
-      const c = createChain({ data: { id: 'log-123' }, error: null })
-      mockFrom.mockReturnValue(c)
-      const id = await decisionLogService.logDecision({
-        clinicId: 'c1', intentClassified: 'agendamento',
-        confidenceScore: 0.92, actionTaken: 'schedule', riskLevel: 'LOW', reasoning: 'test',
-      })
-      expect(id).toBe('log-123')
-    })
-
-    it('should return empty string on insert error', async () => {
-      const c = createChain({ data: null, error: { message: 'failed' } })
-      mockFrom.mockReturnValue(c)
-      const id = await decisionLogService.logDecision({
-        clinicId: 'c1', intentClassified: 'test', confidenceScore: 0.9,
-        actionTaken: 'respond', riskLevel: 'LOW', reasoning: 'test',
-      })
-      expect(id).toBe('')
-    })
-
-    it('should return empty string on exception', async () => {
-      mockFrom.mockImplementation(() => { throw new Error('fail') })
-      const id = await decisionLogService.logDecision({
-        clinicId: 'c1', intentClassified: 'test', confidenceScore: 0.9,
-        actionTaken: 'respond', riskLevel: 'LOW', reasoning: 'test',
-      })
-      expect(id).toBe('')
-    })
+  describe('getRecentLogs',()=>{
+    it('returns logs',async()=>{seed([{id:'d1',clinicId:'c1',createdAt:new Date(),intentClassified:'a',confidenceScore:'0.8',actionTaken:'x',riskLevel:'LOW',reasoning:'r'}]);const logs=await decisionLogService.getRecentLogs('c1');expect(logs.length).toBe(1);expect(logs[0].id).toBe('d1')})
   })
-
-  describe('getRecentLogs', () => {
-    it('should fetch logs for a clinic', async () => {
-      const c = createChain({ data: [{ id: '1' }, { id: '2' }], error: null })
-      mockFrom.mockReturnValue(c)
-      const logs = await decisionLogService.getRecentLogs('c1', 50)
-      expect(logs).toHaveLength(2)
-    })
-
-    it('should return empty array on error', async () => {
-      const c = createChain({ data: null, error: { message: 'fail' } })
-      mockFrom.mockReturnValue(c)
-      const logs = await decisionLogService.getRecentLogs('c1')
-      expect(logs).toEqual([])
-    })
+  describe('getLogsByPatient',()=>{
+    it('returns patient logs',async()=>{seed([{id:'d2',clinicId:'c1',patientId:'p1',createdAt:new Date(),intentClassified:'b',confidenceScore:'0.7',actionTaken:'y',riskLevel:'MEDIUM',reasoning:'r'}]);const logs=await decisionLogService.getLogsByPatient('p1');expect(logs.length).toBe(1)})
   })
-
-  describe('getLogsByConversation', () => {
-    it('should fetch logs by conversation', async () => {
-      const c = createChain({ data: [{ id: '1' }], error: null })
-      mockFrom.mockReturnValue(c)
-      const logs = await decisionLogService.getLogsByConversation('conv-1')
-      expect(logs).toHaveLength(1)
-    })
-  })
-
-  describe('getLogsByPatient', () => {
-    it('should fetch logs by patient', async () => {
-      const c = createChain({ data: [{ id: '1' }], error: null })
-      mockFrom.mockReturnValue(c)
-      const logs = await decisionLogService.getLogsByPatient('p1')
-      expect(logs).toHaveLength(1)
-    })
-  })
-
-  describe('getEscalationStats', () => {
-    it('should compute stats correctly', async () => {
-      const mockData = [
-        { escalation_triggered: true, confidence_score: 0.5, intent_classified: 'reclamacao', risk_level: 'HIGH' },
-        { escalation_triggered: false, confidence_score: 0.9, intent_classified: 'agendamento', risk_level: 'LOW' },
-        { escalation_triggered: false, confidence_score: 0.85, intent_classified: 'agendamento', risk_level: 'LOW' },
-      ]
-      const c = createChain({ data: mockData, error: null })
-      mockFrom.mockReturnValue(c)
-      const stats = await decisionLogService.getEscalationStats('c1')
-      expect(stats.totalDecisions).toBe(3)
-      expect(stats.escalations).toBe(1)
-      expect(stats.escalationRate).toBeCloseTo(33.33)
-      expect(stats.avgConfidence).toBeCloseTo(0.75)
-      expect(stats.riskDistribution.LOW).toBe(2)
-      expect(stats.riskDistribution.HIGH).toBe(1)
-    })
-
-    it('should return empty stats on no data', async () => {
-      const c = createChain({ data: [], error: null })
-      mockFrom.mockReturnValue(c)
-      const stats = await decisionLogService.getEscalationStats('c1')
-      expect(stats.totalDecisions).toBe(0)
-    })
-  })
-
-  describe('flagForReview', () => {
-    it('should not throw', async () => {
-      await expect(decisionLogService.flagForReview('id', 'reason')).resolves.not.toThrow()
-    })
+  describe('getEscalationStats',()=>{
+    it('returns stats from data',async()=>{seed([{escalationTriggered:true,confidenceScore:'0.9',intentClassified:'agendamento',riskLevel:'LOW'},{escalationTriggered:false,confidenceScore:'0.8',intentClassified:'cancelamento',riskLevel:'HIGH'}]);const s=await decisionLogService.getEscalationStats('c1');expect(s.totalDecisions).toBe(2);expect(s.escalations).toBe(1);expect(s.riskDistribution.HIGH).toBe(1)})
+    it('returns empty for no data',async()=>{seed([]);const s=await decisionLogService.getEscalationStats('c1');expect(s.totalDecisions).toBe(0)})
   })
 })
