@@ -1,11 +1,12 @@
 /**
- * Agent Queue Repository
- * Repository pattern for queue CRUD operations using Supabase
+ * Agent Queue Repository — migrated to Drizzle
+ * Repository pattern for queue CRUD operations
  */
 
-import { createAdminClient } from '@/lib/supabase'
+import { eq, lte, and, asc, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { agentQueue, agentDlq } from '@/lib/db/schema/agent'
 import { dbLogger } from '@/lib/logger'
-import type { Json } from '@/lib/supabase/database.types'
 
 export type QueueStatus = 'pending' | 'processing' | 'done' | 'failed'
 
@@ -13,7 +14,7 @@ export interface QueueEntry {
   id: string
   from_agent: string
   to_agent: string
-  payload: Json
+  payload: unknown
   status: QueueStatus
   retry_count: number
   last_error: string | null
@@ -29,7 +30,7 @@ export interface DLQEntry {
   original_queue_id: string
   from_agent: string
   to_agent: string
-  payload: Json
+  payload: unknown
   error: string
   retry_count: number
   moved_to_dlq_at: string
@@ -54,336 +55,211 @@ export interface GetPendingParams {
   limit?: number
 }
 
-export class AgentQueueRepository {
-  private client() {
-    return createAdminClient()
+// ─── Drizzle camelCase → Supabase snake_case mapper ───
+function toSnakeQueue(r: any): QueueEntry {
+  const now = new Date().toISOString()
+  return {
+    id: r.id,
+    from_agent: r.fromAgent,
+    to_agent: r.toAgent,
+    payload: r.payload,
+    status: r.status as QueueStatus,
+    retry_count: r.retryCount ?? 0,
+    last_error: r.error ?? null,
+    scheduled_for: r.processAfter?.toISOString?.() ?? r.processAfter ?? now,
+    started_at: null,
+    completed_at: r.completedAt?.toISOString?.() ?? null,
+    created_at: r.createdAt?.toISOString?.() ?? now,
+    updated_at: now,
   }
+}
 
-  /**
-   * Enqueue a message for an agent
-   * Returns the queue entry ID
-   */
+function toSnakeDLQ(r: any): DLQEntry {
+  const now = new Date().toISOString()
+  return {
+    id: r.id,
+    original_queue_id: r.originalQueueId,
+    from_agent: r.fromAgent,
+    to_agent: r.toAgent,
+    payload: r.payload,
+    error: r.error,
+    retry_count: r.retryCount ?? 0,
+    moved_to_dlq_at: r.createdAt?.toISOString?.() ?? now,
+    created_at: r.createdAt?.toISOString?.() ?? now,
+  }
+}
+
+export class AgentQueueRepository {
   async enqueue(params: EnqueueParams): Promise<string> {
-    const supabase = this.client()
-    const scheduledFor = params.scheduledFor ?? new Date().toISOString()
+    const db = getDb()
+    const scheduledFor = params.scheduledFor ?? new Date()
 
-    const { data, error } = await (supabase as any)
-      .from('agent_queue')
-      .insert({
-        from_agent: params.fromAgent,
-        to_agent: params.toAgent,
-        payload: params.payload,
-        status: 'pending',
-        retry_count: 0,
-        scheduled_for: scheduledFor,
-      })
-      .select('id')
-      .single()
-
-    if (error) {
-      dbLogger.error('Failed to enqueue message', error, {
+    const [row] = await db
+      .insert(agentQueue)
+      .values({
         fromAgent: params.fromAgent,
         toAgent: params.toAgent,
+        payload: params.payload,
+        status: 'pending',
+        retryCount: 0,
+        processAfter: new Date(scheduledFor),
       })
-      throw error
+      .returning({ id: agentQueue.id })
+
+    if (!row) {
+      dbLogger.error('Failed to enqueue message — no row returned')
+      throw new Error('Failed to enqueue message')
     }
 
-    dbLogger.info('Message enqueued', {
-      queueId: data.id,
-      fromAgent: params.fromAgent,
-      toAgent: params.toAgent,
-    })
-
-    return data.id
+    dbLogger.info('Message enqueued', { queueId: row.id, fromAgent: params.fromAgent, toAgent: params.toAgent })
+    return row.id
   }
 
-  /**
-   * Dequeue the next message for an agent
-   * Returns the queue entry or null if no messages are ready
-   */
   async dequeue(toAgent: string): Promise<QueueEntry | null> {
-    const supabase = this.client()
-    const now = new Date().toISOString()
+    const db = getDb()
+    const now = new Date()
 
-    // Get the next pending message for this agent
-    const { data, error } = await (supabase as any)
-      .from('agent_queue')
-      .select('*')
-      .eq('to_agent', toAgent)
-      .eq('status', 'pending')
-      .lte('scheduled_for', now)
-      .order('created_at', { ascending: true })
+    const [row] = await db
+      .select()
+      .from(agentQueue)
+      .where(and(eq(agentQueue.toAgent, toAgent), eq(agentQueue.status as any, 'pending'), lte(agentQueue.processAfter, now)))
+      .orderBy(asc(agentQueue.createdAt))
       .limit(1)
-      .single()
 
-    if (error && error.code !== 'PGRST116') {
-      // PGRST116 is "no rows returned" which is not an error
-      dbLogger.error('Failed to dequeue message', error, { toAgent })
-      throw error
-    }
+    if (!row) return null
 
-    if (!data) {
-      return null
-    }
+    await this.updateStatus({ id: row.id, status: 'processing' })
 
-    // Mark as processing
-    await this.updateStatus({ id: data.id, status: 'processing' })
-
-    return data as QueueEntry
+    const entry = toSnakeQueue(row)
+    entry.started_at = new Date().toISOString()
+    return entry
   }
 
-  /**
-   * Update the status of a queue entry
-   */
   async updateStatus(params: UpdateStatusParams): Promise<void> {
-    const supabase = this.client()
+    const db = getDb()
+    const updates: any = { status: params.status }
 
-    const updateData: Record<string, unknown> = {
-      status: params.status,
-      updated_at: new Date().toISOString(),
+    if (params.status === 'done') {
+      updates.completedAt = new Date()
+    } else if (params.status === 'failed') {
+      updates.error = params.error ?? null
     }
 
-    if (params.status === 'processing') {
-      updateData.started_at = new Date().toISOString()
-    } else if (params.status === 'done') {
-      updateData.completed_at = new Date().toISOString()
-    } else if (params.status === 'failed' && params.error) {
-      updateData.last_error = params.error
-    }
+    await db.update(agentQueue).set(updates).where(eq(agentQueue.id, params.id))
 
-    const { error } = await (supabase as any)
-      .from('agent_queue')
-      .update(updateData)
-      .eq('id', params.id)
-
-    if (error) {
-      dbLogger.error('Failed to update queue status', error, {
-        queueId: params.id,
-        status: params.status,
-      })
-      throw error
-    }
-
-    dbLogger.debug('Queue status updated', {
-      queueId: params.id,
-      status: params.status,
-    })
+    dbLogger.debug('Queue status updated', { queueId: params.id, status: params.status })
   }
 
-  /**
-   * Increment the retry count and calculate next scheduled time
-   * Uses exponential backoff: 1s -> 2s -> 4s (max 3 retries)
-   */
   async incrementRetry(id: string): Promise<{ retryCount: number; scheduledFor: string }> {
-    const supabase = this.client()
+    const db = getDb()
 
-    // Get current entry
-    const { data: entry, error: fetchError } = await (supabase as any)
-      .from('agent_queue')
-      .select('retry_count')
-      .eq('id', id)
-      .single()
+    const [entry] = await db.select({ retryCount: agentQueue.retryCount }).from(agentQueue).where(eq(agentQueue.id, id))
 
-    if (fetchError || !entry) {
-      dbLogger.error('Failed to get queue entry for retry', fetchError, { queueId: id })
-      throw fetchError
+    if (!entry) {
+      dbLogger.error('Failed to get queue entry for retry', null, { queueId: id })
+      throw new Error(`Queue entry not found: ${id}`)
     }
 
-    const currentRetry = entry.retry_count ?? 0
+    const currentRetry = entry.retryCount ?? 0
     const newRetryCount = currentRetry + 1
 
-    // Calculate backoff delay
-    const BACKOFF_CONFIG = {
-      initialDelay: 1000,
-      multiplier: 2,
-      maxDelay: 16000,
-      maxRetries: 3,
-    }
+    const delay = Math.min(1000 * Math.pow(2, currentRetry), 16000)
+    const scheduledFor = new Date(Date.now() + delay)
 
-    const delay = Math.min(
-      BACKOFF_CONFIG.initialDelay * Math.pow(BACKOFF_CONFIG.multiplier, currentRetry),
-      BACKOFF_CONFIG.maxDelay
-    )
+    await db
+      .update(agentQueue)
+      .set({ retryCount: newRetryCount, processAfter: scheduledFor, status: 'pending' })
+      .where(eq(agentQueue.id, id))
 
-    const scheduledFor = new Date(Date.now() + delay).toISOString()
-
-    const { error } = await (supabase as any)
-      .from('agent_queue')
-      .update({
-        retry_count: newRetryCount,
-        scheduled_for: scheduledFor,
-        status: 'pending',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-
-    if (error) {
-      dbLogger.error('Failed to increment retry count', error, { queueId: id })
-      throw error
-    }
-
-    dbLogger.info('Retry count incremented', {
-      queueId: id,
-      retryCount: newRetryCount,
-      scheduledFor,
-    })
-
-    return { retryCount: newRetryCount, scheduledFor }
+    dbLogger.info('Retry count incremented', { queueId: id, retryCount: newRetryCount, scheduledFor })
+    return { retryCount: newRetryCount, scheduledFor: scheduledFor.toISOString() }
   }
 
-  /**
-   * Get pending messages for an agent that are ready to process
-   */
   async getPending(params: GetPendingParams): Promise<QueueEntry[]> {
-    const supabase = this.client()
-    const now = new Date().toISOString()
-    const limit = params.limit ?? 10
+    const db = getDb()
+    const now = new Date()
 
-    const { data, error } = await (supabase as any)
-      .from('agent_queue')
-      .select('*')
-      .eq('to_agent', params.agent)
-      .eq('status', 'pending')
-      .lte('scheduled_for', now)
-      .order('created_at', { ascending: true })
-      .limit(limit)
+    const rows = await db
+      .select()
+      .from(agentQueue)
+      .where(and(eq(agentQueue.toAgent, params.agent), eq(agentQueue.status as any, 'pending'), lte(agentQueue.processAfter, now)))
+      .orderBy(asc(agentQueue.createdAt))
+      .limit(params.limit ?? 10)
 
-    if (error) {
-      dbLogger.error('Failed to get pending messages', error, { agent: params.agent })
-      throw error
-    }
-
-    return (data ?? []) as QueueEntry[]
+    return rows.map(toSnakeQueue)
   }
 
-  /**
-   * Get a queue entry by ID
-   */
   async getById(id: string): Promise<QueueEntry | null> {
-    const supabase = this.client()
-
-    const { data, error } = await (supabase as any)
-      .from('agent_queue')
-      .select('*')
-      .eq('id', id)
-      .single()
-
-    if (error && error.code !== 'PGRST116') {
-      dbLogger.error('Failed to get queue entry', error, { queueId: id })
-      throw error
-    }
-
-    return data as QueueEntry | null
+    const db = getDb()
+    const [row] = await db.select().from(agentQueue).where(eq(agentQueue.id, id))
+    return row ? toSnakeQueue(row) : null
   }
 
-  /**
-   * Move a queue entry to the Dead Letter Queue
-   */
   async moveToDLQ(queueId: string, error: string): Promise<string> {
-    const supabase = this.client()
-
-    // Get the original entry
+    const db = getDb()
     const entry = await this.getById(queueId)
-    if (!entry) {
-      throw new Error(`Queue entry not found: ${queueId}`)
-    }
 
-    // Insert into DLQ
-    const { data, insertError } = await (supabase as any)
-      .from('agent_dlq')
-      .insert({
-        original_queue_id: queueId,
-        from_agent: entry.from_agent,
-        to_agent: entry.to_agent,
+    if (!entry) throw new Error(`Queue entry not found: ${queueId}`)
+
+    const [dlqRow] = await db
+      .insert(agentDlq)
+      .values({
+        originalQueueId: queueId,
+        fromAgent: entry.from_agent,
+        toAgent: entry.to_agent,
         payload: entry.payload,
         error,
-        retry_count: entry.retry_count,
+        retryCount: entry.retry_count,
       })
-      .select('id')
-      .single()
+      .returning({ id: agentDlq.id })
 
-    if (insertError) {
-      dbLogger.error('Failed to move to DLQ', insertError, { queueId })
-      throw insertError
+    if (!dlqRow) {
+      dbLogger.error('Failed to move to DLQ — no row returned', null, { queueId })
+      throw new Error('Failed to move to DLQ')
     }
 
-    // Delete from main queue
-    await (supabase as any)
-      .from('agent_queue')
-      .delete()
-      .eq('id', queueId)
+    await db.delete(agentQueue).where(eq(agentQueue.id, queueId))
 
-    dbLogger.info('Message moved to DLQ', { queueId, dlqId: data.id })
-
-    return data.id
+    dbLogger.info('Message moved to DLQ', { queueId, dlqId: dlqRow.id })
+    return dlqRow.id
   }
 
-  /**
-   * Get DLQ entries
-   */
   async getDLQEntries(limit: number = 100): Promise<DLQEntry[]> {
-    const supabase = this.client()
-
-    const { data, error } = await (supabase as any)
-      .from('agent_dlq')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(limit)
-
-    if (error) {
-      dbLogger.error('Failed to get DLQ entries', error)
-      throw error
-    }
-
-    return (data ?? []) as DLQEntry[]
+    const db = getDb()
+    const rows = await db.select().from(agentDlq).orderBy(desc(agentDlq.createdAt)).limit(limit)
+    return rows.map(toSnakeDLQ)
   }
 
-  /**
-   * Re-enqueue a message from DLQ
-   */
   async retryFromDLQ(dlqId: string): Promise<string> {
-    const supabase = this.client()
+    const db = getDb()
+    const [dlqEntry] = await db.select().from(agentDlq).where(eq(agentDlq.id, dlqId))
 
-    // Get DLQ entry
-    const { data: dlqEntry, error: fetchError } = await (supabase as any)
-      .from('agent_dlq')
-      .select('*')
-      .eq('id', dlqId)
-      .single()
-
-    if (fetchError || !dlqEntry) {
-      dbLogger.error('Failed to get DLQ entry', fetchError, { dlqId })
-      throw fetchError
+    if (!dlqEntry) {
+      dbLogger.error('Failed to get DLQ entry', null, { dlqId })
+      throw new Error(`DLQ entry not found: ${dlqId}`)
     }
 
-    // Insert back into main queue
-    const { data, insertError } = await (supabase as any)
-      .from('agent_queue')
-      .insert({
-        from_agent: dlqEntry.from_agent,
-        to_agent: dlqEntry.to_agent,
+    const [queueRow] = await db
+      .insert(agentQueue)
+      .values({
+        fromAgent: dlqEntry.fromAgent ?? '',
+        toAgent: dlqEntry.toAgent ?? '',
         payload: dlqEntry.payload,
         status: 'pending',
-        retry_count: 0,
-        scheduled_for: new Date().toISOString(),
+        retryCount: 0,
+        processAfter: new Date(),
       })
-      .select('id')
-      .single()
+      .returning({ id: agentQueue.id })
 
-    if (insertError) {
-      dbLogger.error('Failed to re-enqueue from DLQ', insertError, { dlqId })
-      throw insertError
+    if (!queueRow) {
+      dbLogger.error('Failed to re-enqueue from DLQ — no row returned', null, { dlqId })
+      throw new Error('Failed to re-enqueue from DLQ')
     }
 
-    // Delete from DLQ
-    await (supabase as any)
-      .from('agent_dlq')
-      .delete()
-      .eq('id', dlqId)
+    await db.delete(agentDlq).where(eq(agentDlq.id, dlqId))
 
-    dbLogger.info('Message re-enqueued from DLQ', { dlqId, queueId: data.id })
-
-    return data.id
+    dbLogger.info('Message re-enqueued from DLQ', { dlqId, queueId: queueRow.id })
+    return queueRow.id
   }
 }
 
