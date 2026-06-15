@@ -178,7 +178,6 @@ export async function extractEntitiesTool(
   try {
     const { parseNaturalDate, parseTime } = await import('@/services/scheduler/scheduler.service')
     const { l3ClinicService } = await import('@/services/memory/L3-clinic.service')
-    const { createTypedClient } = await import('@/lib/supabase/typed')
 
     const result: {
       date?: string
