@@ -1,232 +1,85 @@
-/**
- * Installment Service
- * Handles budget installment management
- */
-
-import { createTypedClient } from '@/lib/supabase/typed'
+/** Installment Service — migrated to Drizzle */
+import { eq, and, asc, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { budgetInstallments, budgets } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
 export type InstallmentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled'
 
 export interface BudgetInstallment {
-  id?: string
-  budget_id: string
-  amount: number
-  due_date: string
-  status: InstallmentStatus
-  paid_at?: string | null
-  payment_id?: string | null
-  created_at?: string
-  updated_at?: string
+  id?: string; budget_id: string; amount: number; due_date: string
+  status: InstallmentStatus; paid_at?: string | null; payment_id?: string | null
+  created_at?: string; updated_at?: string
 }
 
-export interface CreateInstallmentInput {
-  budget_id: string
-  amount: number
-  due_date: string
-}
+export interface CreateInstallmentInput { budget_id: string; amount: number; due_date: string }
+export interface UpdateInstallmentInput { amount?: number; due_date?: string }
 
-export interface UpdateInstallmentInput {
-  amount?: number
-  due_date?: string
-}
+const BI = budgetInstallments
 
-/**
- * Create multiple installments for a budget (batch create per D-08)
- */
-export async function createInstallments(
-  budgetId: string,
-  installments: CreateInstallmentInput[]
-): Promise<BudgetInstallment[]> {
-  const supabase = await createTypedClient()
-
-  const installmentsData = installments.map((inst) => ({
-    budget_id: budgetId,
-    amount: inst.amount,
-    due_date: inst.due_date,
-    status: 'pending' as InstallmentStatus,
-  }))
-
-  const { data, error } = await (supabase
-    .from('budget_installments') as any)
-    .insert(installmentsData)
-    .select()
-
-  if (error) {
-    dbLogger.error('Error creating installments', error)
-    throw new Error('Failed to create installments')
+function toSnake(r: any): BudgetInstallment {
+  return {
+    id: r.id, budget_id: r.budgetId, amount: Number(r.amount ?? 0),
+    due_date: r.dueDate?.toISOString?.() ?? r.dueDate ?? '',
+    status: r.status as InstallmentStatus,
+    paid_at: r.paidAt?.toISOString?.() ?? null, payment_id: r.paymentId ?? null,
+    created_at: r.createdAt?.toISOString?.() ?? '', updated_at: r.updatedAt?.toISOString?.() ?? '',
   }
-
-  return data as BudgetInstallment[]
 }
 
-/**
- * Get installments by budget ID with status
- */
+export async function createInstallments(budgetId: string, installments: CreateInstallmentInput[]): Promise<BudgetInstallment[]> {
+  const db = getDb()
+  const rows = installments.map((i) => ({ budgetId, amount: String(i.amount), dueDate: new Date(i.due_date), status: 'pending' }))
+  const data = await db.insert(BI).values(rows as any).returning()
+  return data.map(toSnake)
+}
+
 export async function getInstallmentsByBudget(budgetId: string): Promise<BudgetInstallment[]> {
-  const supabase = await createTypedClient()
-
-  const { data, error } = await supabase
-    .from('budget_installments')
-    .select('*')
-    .eq('budget_id', budgetId)
-    .order('due_date', { ascending: true })
-
-  if (error) {
-    dbLogger.error('Error fetching installments', error)
-    return []
-  }
-
-  // Calculate current status based on date and paid status
+  const db = getDb()
+  const rows = await db.select().from(BI).where(eq(BI.budgetId, budgetId)).orderBy(asc(BI.dueDate))
   const now = new Date()
-  return (data as BudgetInstallment[]).map((inst) => {
-    if (inst.status === 'paid') return inst
-    if (inst.status === 'cancelled') return inst
-    if (new Date(inst.due_date) < now) {
-      return { ...inst, status: 'overdue' as InstallmentStatus }
-    }
+  return rows.map((r) => {
+    const inst = toSnake(r)
+    if (inst.status === 'paid' || inst.status === 'cancelled') return inst
+    if (new Date(inst.due_date) < now) return { ...inst, status: 'overdue' as InstallmentStatus }
     return inst
   })
 }
 
-/**
- * Update installment (amount/due_date) before it is paid
- */
-export async function updateInstallment(
-  id: string,
-  input: UpdateInstallmentInput
-): Promise<BudgetInstallment | null> {
-  const supabase = await createTypedClient()
+export async function updateInstallment(id: string, input: UpdateInstallmentInput): Promise<BudgetInstallment | null> {
+  const db = getDb()
+  const [existing] = await db.select({ status: BI.status }).from(BI).where(eq(BI.id, id))
+  if (existing && existing.status === 'paid') throw new Error('Cannot update a paid installment')
 
-  // Check if installment is already paid
-  const { data: existing } = await supabase
-    .from('budget_installments')
-    .select('status')
-    .eq('id', id)
-    .single()
+  const set: any = { updatedAt: new Date() }
+  if (input.amount !== undefined) set.amount = String(input.amount)
+  if (input.due_date !== undefined) set.dueDate = new Date(input.due_date)
 
-  if (existing && (existing as any).status === 'paid') {
-    throw new Error('Cannot update a paid installment')
-  }
-
-  const updateData: Record<string, unknown> = {
-    updated_at: new Date().toISOString(),
-  }
-
-  if (input.amount !== undefined) updateData.amount = input.amount
-  if (input.due_date !== undefined) updateData.due_date = input.due_date
-
-  const { data, error } = await (supabase
-    .from('budget_installments') as any)
-    .update(updateData)
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
-    dbLogger.error('Error updating installment', error)
-    return null
-  }
-
-  return data as BudgetInstallment
+  const [data] = await db.update(BI).set(set).where(eq(BI.id, id)).returning()
+  return data ? toSnake(data) : null
 }
 
-/**
- * Delete unpaid installment
- */
 export async function deleteInstallment(id: string): Promise<boolean> {
-  const supabase = await createTypedClient()
-
-  // Check if installment is already paid
-  const { data: existing } = await supabase
-    .from('budget_installments')
-    .select('status')
-    .eq('id', id)
-    .single()
-
-  if (existing && (existing as any).status === 'paid') {
-    throw new Error('Cannot delete a paid installment')
-  }
-
-  const { error } = await supabase
-    .from('budget_installments')
-    .delete()
-    .eq('id', id)
-
-  if (error) {
-    dbLogger.error('Error deleting installment', error)
-    return false
-  }
-
+  const db = getDb()
+  const [existing] = await db.select({ status: BI.status }).from(BI).where(eq(BI.id, id))
+  if (existing && existing.status === 'paid') throw new Error('Cannot delete a paid installment')
+  await db.delete(BI).where(eq(BI.id, id))
   return true
 }
 
-/**
- * Mark installment as paid, link payment
- */
-export async function markInstallmentPaid(
-  id: string,
-  paymentId: string
-): Promise<BudgetInstallment | null> {
-  const supabase = await createTypedClient()
-
-  const now = new Date().toISOString()
-
-  const { data, error } = await (supabase
-    .from('budget_installments') as any)
-    .update({
-      status: 'paid',
-      paid_at: now,
-      payment_id: paymentId,
-      updated_at: now,
-    })
-    .eq('id', id)
-    .select()
-    .single()
-
-  if (error) {
-    dbLogger.error('Error marking installment as paid', error)
-    return null
-  }
-
-  return data as BudgetInstallment
+export async function markInstallmentPaid(id: string, paymentId: string): Promise<BudgetInstallment | null> {
+  const db = getDb()
+  const now = new Date()
+  const [data] = await db.update(BI).set({ status: 'paid', paidAt: now, paymentId, updatedAt: now } as any).where(eq(BI.id, id)).returning()
+  return data ? toSnake(data) : null
 }
 
-/**
- * Get remaining balance for a budget
- * Calculates: budget.final_value - sum(paid installments)
- */
 export async function getRemainingBalance(budgetId: string): Promise<number> {
-  const supabase = await createTypedClient()
+  const db = getDb()
+  const [budget] = await db.select({ finalValue: budgets.finalValue }).from(budgets).where(eq(budgets.id, budgetId))
+  if (!budget) return 0
 
-  // Get budget final value
-  const { data: budget, error: budgetError } = await supabase
-    .from('budgets')
-    .select('final_value')
-    .eq('id', budgetId)
-    .single()
-
-  if (budgetError || !budget) {
-    dbLogger.error('Error fetching budget for remaining balance', budgetError)
-    return 0
-  }
-
-  // Get sum of paid installments
-  const { data: paidInstallments, error: installmentsError } = await supabase
-    .from('budget_installments')
-    .select('amount')
-    .eq('budget_id', budgetId)
-    .eq('status', 'paid')
-
-  if (installmentsError) {
-    dbLogger.error('Error fetching paid installments', installmentsError)
-    return (budget as any).final_value || 0
-  }
-
-  const paidSum = (paidInstallments as BudgetInstallment[]).reduce(
-    (sum, inst) => sum + inst.amount,
-    0
-  )
-
-  return Math.max(0, ((budget as any).final_value || 0) - paidSum)
+  const paid = await db.select({ amount: BI.amount }).from(BI).where(and(eq(BI.budgetId, budgetId), eq(BI.status, 'paid')))
+  const paidSum = paid.reduce((s, i) => s + Number(i.amount ?? 0), 0)
+  return Math.max(0, Number(budget.finalValue ?? 0) - paidSum)
 }
