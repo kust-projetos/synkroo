@@ -4,12 +4,10 @@
  * Migrated from Supabase to Drizzle ORM.
  *
  * Uses patients.status (Schema Batch 2) for active/inactive filtering.
- * totalSpentMin/Max preserved in API but no DB filter (appointments.total_value
- * does not exist in Drizzle schema — matches original behavior where these were
- * only used to gate the appointment-based query block, not to filter by amount).
+ * totalSpentMin/Max filter by aggregated appointments.totalValue per patient.
  */
 
-import { eq, and, gte, lte, isNull, ne, inArray, arrayOverlaps, desc } from 'drizzle-orm'
+import { eq, and, gte, lte, isNull, ne, inArray, arrayOverlaps, desc, sum } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { campaignSegments } from '@/lib/db/schema/crm'
 import { patients, clinics } from '@/lib/db/schema/core'
@@ -62,7 +60,6 @@ function buildPatientConditions(clinicId: string, criteria: SegmentCriteria) {
     isNull(patients.deletedAt),
   ]
 
-  // patients.status now available (Schema Batch 2)
   if (criteria.status === 'inactive') {
     conditions.push(eq(patients.status, 'inactive'))
   } else if (criteria.status === 'active') {
@@ -132,23 +129,22 @@ export async function previewSegmentSize(
     let patientCount = rows.length
 
     // For criteria requiring appointment data, do additional filtering
-    // Note: totalSpentMin/Max only gate this block (no actual value filter —
-    // appointments.total_value does not exist in Drizzle). This matches original behavior.
     const needsAppointmentFilter = !!(
       criteria.procedures ||
       criteria.lastVisitMin != null ||
       criteria.lastVisitMax != null ||
-      criteria.totalSpentMin != null
+      criteria.totalSpentMin != null ||
+      criteria.totalSpentMax != null
     )
 
-    if (needsAppointmentFilter) {
+    if (needsAppointmentFilter && rows.length > 0) {
       const patientIds = rows.map((p) => p.id)
-      if (!patientIds.length) return 0
 
       const aptRows = await db.select({
         patientId: appointments.patientId,
         scheduledAt: appointments.scheduledAt,
         procedureName: procedures.name,
+        totalValue: appointments.totalValue,
       })
         .from(appointments)
         .leftJoin(procedures, eq(appointments.procedureId, procedures.id))
@@ -157,6 +153,13 @@ export async function previewSegmentSize(
           eq(appointments.clinicId, clinicId),
           eq(appointments.status, 'completed' as any),
         ))
+
+      // Aggregate totalValue per patient
+      const totalByPatient = new Map<string, number>()
+      for (const apt of aptRows) {
+        const curr = totalByPatient.get(apt.patientId) || 0
+        totalByPatient.set(apt.patientId, curr + Number(apt.totalValue ?? 0))
+      }
 
       const patientMatchSet = new Set<string>()
       for (const apt of aptRows) {
@@ -182,7 +185,19 @@ export async function previewSegmentSize(
         if (matches) patientMatchSet.add(apt.patientId)
       }
 
-      patientCount = patientMatchSet.size
+      // Apply totalSpentMin/Max filter on aggregated values
+      if (criteria.totalSpentMin != null || criteria.totalSpentMax != null) {
+        const filtered = new Set<string>()
+        for (const pid of patientMatchSet) {
+          const total = totalByPatient.get(pid) ?? 0
+          if (criteria.totalSpentMin != null && total < criteria.totalSpentMin) continue
+          if (criteria.totalSpentMax != null && total > criteria.totalSpentMax) continue
+          filtered.add(pid)
+        }
+        patientCount = filtered.size
+      } else {
+        patientCount = patientMatchSet.size
+      }
     }
 
     return patientCount
