@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getOrCreateConversation, createMessage } from '@/repositories/conversations'
 import { agent } from '@/services/agent/agent.service'
 import { dbLogger } from '@/lib/logger'
-import type { ChannelType } from '@/lib/supabase/database.types'
+
+type ChannelType = 'whatsapp' | 'instagram' | 'web'
 
 /**
  * POST /api/agent/messages
