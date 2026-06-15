@@ -11,8 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { getConversionByStage, getAvgConversionTime } from '@/services/pipeline/pipeline-analytics.service'
 import { getInactivePatients, getUpsellOpportunities } from '@/services/reports/financial-reports.service'
 
