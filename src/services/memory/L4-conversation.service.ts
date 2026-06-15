@@ -7,7 +7,8 @@
 
 import { dbLogger } from '@/lib/logger'
 import { findById, findMessagesByConversation, updateConversation } from '@/repositories/conversations'
-import type { ChannelType } from '@/lib/supabase/database.types'
+
+type ChannelType = 'whatsapp' | 'instagram' | 'web'
 
 // L4 Conversation message structure
 export interface L4ConversationMessage {
