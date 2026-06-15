@@ -168,13 +168,29 @@ export async function predictNoShowRisk(patientId: string, scheduledAt: string, 
       .select({ id: patients.id, name: patients.name, riskScore: patients.riskScore })
       .from(patients).where(eq(patients.id, patientId))
 
+    // Patient not found — return default medium risk without timing calculation
+    if (!pt) {
+      return {
+        patient_id: patientId,
+        patient_name: 'Unknown',
+        scheduled_at: scheduledAt,
+        risk_score: 40,
+        riskLevel: 'medium',
+        factors: [
+          { name: 'patient_history', impact: 0.2, description: 'Paciente não encontrado' },
+          { name: 'inactivity', impact: 0.2, description: 'Sem histórico de visitas' },
+        ],
+        recommendations: ['Verificar dados do paciente'],
+      }
+    }
+
     const history = await getPatientHistory(patientId)
     const factors: RiskFactor[] = [
       calculateHistoryRisk(history),
       calculateTimingRisk(scheduledAt),
       calculateInactivityRisk(history.last_visit),
     ]
-    if (pt && Number(pt.riskScore ?? 0) > 0) {
+    if (Number(pt.riskScore ?? 0) > 0) {
       factors.push({ name: 'base_risk', impact: Number(pt.riskScore) / 100, description: `Score de risco base: ${pt.riskScore}` })
     }
     const riskScore = Math.min(Math.round(factors.reduce((s, f) => s + f.impact, 0) * 100), 100)
