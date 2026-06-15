@@ -104,3 +104,22 @@ export const agentDlq = pgTable('agent_dlq', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   manualActionRequired: boolean('manual_action_required').default(true),
 });
+
+// ──────────────────────────────────────────────
+// AGENT LOGS (Intent classification + response tracking)
+// ──────────────────────────────────────────────
+export const agentLogs = pgTable('agent_logs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').notNull(),
+  conversationId: uuid('conversation_id'),
+  intent: text('intent'),
+  confidence: decimal('confidence', { precision: 3, scale: 2 }),
+  responseTimeMs: integer('response_time_ms'),
+  actionTaken: text('action_taken'),
+  escalation: boolean('escalation').default(false),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ──────────────────────────────────────────────
+// SMART TRIGGER LOG (Automated outreach tracking)
+// ──────────────────────────────────────────────
