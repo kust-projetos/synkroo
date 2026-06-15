@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
 import { updateCampaignSchema } from '@/lib/validations'
 import { handleApiError, ValidationError } from '@/lib/errors'
 import * as campaignRepo from '@/repositories/campaigns'
