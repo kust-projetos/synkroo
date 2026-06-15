@@ -1,14 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
+import { eq, and, gte, lt, inArray, desc, asc, sql } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
+import { handleApiError } from '@/lib/errors'
+import { getDb } from '@/lib/db/client'
+import { conversations, appointments, patients } from '@/lib/db/schema'
 import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete-treatment.service'
 import { getHotLeads } from '@/services/leads/leads.service'
 import { findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
-import { handleApiError } from '@/lib/errors'
+
+/** Alert item shape — preserved from original contract. */
+interface Alert {
+  id: string
+  type: 'emergency' | 'hot_lead' | 'incomplete_treatment' | 'budget_followup' | 'noshow_risk' | 'unconfirmed'
+  priority: 'high' | 'medium' | 'low'
+  title: string
+  description: string
+  action_url: string
+  created_at: string
+}
 
 /**
  * GET /api/dashboard/alerts
- * Get consolidated alerts for the dashboard
+ * Consolidated dashboard alerts — migrated from Supabase to Drizzle.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -21,29 +34,28 @@ export async function GET(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createClient()
+    const db = getDb()
 
-    const alerts: Array<{
-      id: string
-      type: 'emergency' | 'hot_lead' | 'incomplete_treatment' | 'budget_followup' | 'noshow_risk' | 'unconfirmed'
-      priority: 'high' | 'medium' | 'low'
-      title: string
-      description: string
-      action_url: string
-      created_at: string
-    }> = []
+    const alerts: Alert[] = []
 
     // 1. Emergency escalations
-    const { data: emergencies } = await supabase
-      .from('conversations')
-      .select('id, patient_id, created_at')
-      .eq('clinic_id', clinicId)
-      .eq('status', 'escalated')
-      .is('resolved_at', null)
-      .order('created_at', { ascending: false })
-      .limit(5) as { data: Array<{ id: string; patient_id: string; created_at: string }> | null }
+    const emergencies = await db
+      .select({
+        id: conversations.id,
+        patientId: conversations.patientId,
+        createdAt: conversations.createdAt,
+      })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.clinicId, clinicId),
+          eq(conversations.status, 'escalated' as any),
+        ),
+      )
+      .orderBy(desc(conversations.createdAt))
+      .limit(5)
 
-    for (const em of emergencies || []) {
+    for (const em of emergencies) {
       alerts.push({
         id: `em-${em.id}`,
         type: 'emergency',
@@ -51,7 +63,7 @@ export async function GET(request: NextRequest) {
         title: 'Escalonamento de emergência',
         description: 'Conversa escalada para atendimento humano',
         action_url: `/dashboard/conversas?id=${em.id}`,
-        created_at: (em as any).created_at,
+        created_at: (em.createdAt ?? new Date()).toISOString(),
       })
     }
 
@@ -97,82 +109,87 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 5. No-show risk (appointments today not confirmed)
-    const today = new Date().toISOString().split('T')[0]
-    const { data: unconfirmed } = await supabase
-      .from('appointments')
-      .select('id, patient_id, scheduled_at, patients (name)')
-      .eq('clinic_id', clinicId)
-      .eq('status', 'pending')
-      .gte('scheduled_at', today)
-      .lt('scheduled_at', today + 'T23:59:59') as { data: Array<{ id: string; patient_id: string; scheduled_at: string; patients?: { name: string } }> | null }
+    // 5. Unconfirmed appointments today (pending status)
+    const today = new Date()
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    const todayEnd = new Date(todayStart.getTime() + 24 * 3600 * 1000)
 
-    for (const apt of (unconfirmed || []).slice(0, 5)) {
-      const patientName = (apt as any).patients?.name || 'Paciente'
+    const unconfirmedRows = await db
+      .select({
+        id: appointments.id,
+        patientId: appointments.patientId,
+        scheduledAt: appointments.scheduledAt,
+        patientName: patients.name,
+      })
+      .from(appointments)
+      .leftJoin(patients, eq(appointments.patientId, patients.id))
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.status, 'pending' as any),
+          gte(appointments.scheduledAt, todayStart),
+          lt(appointments.scheduledAt, todayEnd),
+        ),
+      )
+      .limit(5)
+
+    for (const apt of unconfirmedRows) {
       alerts.push({
         id: `ns-${apt.id}`,
         type: 'unconfirmed',
         priority: 'medium',
-        title: `Agendamento não confirmado: ${patientName}`,
-        description: `Hoje às ${new Date((apt as any).scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
+        title: `Agendamento não confirmado: ${apt.patientName || 'Paciente'}`,
+        description: `Hoje às ${(apt.scheduledAt ?? new Date()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`,
         action_url: `/dashboard/agendamentos/${apt.id}`,
-        created_at: (apt as any).scheduled_at,
+        created_at: (apt.scheduledAt ?? new Date()).toISOString(),
       })
     }
 
     // Sort by priority then date
-    const priorityOrder = { high: 0, medium: 1, low: 2 }
+    const priorityOrder: Record<string, number> = { high: 0, medium: 1, low: 2 }
     alerts.sort((a, b) => {
       const pDiff = priorityOrder[a.priority] - priorityOrder[b.priority]
       if (pDiff !== 0) return pDiff
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     })
 
-    // Week-over-week stats
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-    const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString()
+    // Week-over-week stats (parallel)
+    const weekAgo = new Date(todayStart.getTime() - 7 * 24 * 3600 * 1000)
+    const twoWeeksAgo = new Date(todayStart.getTime() - 14 * 24 * 3600 * 1000)
 
-    const { count: thisWeekMsgs } = await supabase
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', clinicId)
-      .gte('created_at', weekAgo)
+    const [[thisWeek], [lastWeek], [todayApps], [confirmedTodayCount]] = await Promise.all([
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(conversations)
+        .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, weekAgo))),
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(conversations)
+        .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, twoWeeksAgo), lt(conversations.createdAt, weekAgo))),
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(appointments)
+        .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, todayStart), lt(appointments.scheduledAt, todayEnd))),
+      db.select({ count: sql<number>`count(*)::int` })
+        .from(appointments)
+        .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status, 'confirmed' as any), gte(appointments.scheduledAt, todayStart), lt(appointments.scheduledAt, todayEnd))),
+    ])
 
-    const { count: lastWeekMsgs } = await supabase
-      .from('conversations')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', clinicId)
-      .gte('created_at', twoWeeksAgo)
-      .lt('created_at', weekAgo)
+    const thisWeekMsgs = thisWeek?.count ?? 0
+    const lastWeekMsgs = lastWeek?.count ?? 0
+    const todayAppsCount = todayApps?.count ?? 0
+    const confirmedToday = confirmedTodayCount?.count ?? 0
 
     const messageChange = lastWeekMsgs
-      ? Math.round((((thisWeekMsgs || 0) - lastWeekMsgs) / lastWeekMsgs) * 100)
+      ? Math.round(((thisWeekMsgs - lastWeekMsgs) / lastWeekMsgs) * 100)
       : 0
-
-    const { count: todayAppts } = await supabase
-      .from('appointments')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', clinicId)
-      .gte('scheduled_at', today)
-      .lt('scheduled_at', today + 'T23:59:59')
-
-    const { count: confirmedToday } = await supabase
-      .from('appointments')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', clinicId)
-      .eq('status', 'confirmed')
-      .gte('scheduled_at', today)
-      .lt('scheduled_at', today + 'T23:59:59')
 
     return NextResponse.json({
       alerts,
       stats: {
         totalAlerts: alerts.length,
         highPriority: alerts.filter((a) => a.priority === 'high').length,
-        todayAppointments: todayAppts || 0,
-        confirmedToday: confirmedToday || 0,
-        confirmationRate: todayAppts ? Math.round(((confirmedToday || 0) / todayAppts) * 100) : 0,
-        messagesThisWeek: thisWeekMsgs || 0,
+        todayAppointments: todayAppsCount,
+        confirmedToday,
+        confirmationRate: todayAppsCount ? Math.round((confirmedToday / todayAppsCount) * 100) : 0,
+        messagesThisWeek: thisWeekMsgs,
         messageChangePercent: messageChange,
       },
     })
