@@ -1,61 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import { clinicSettingsSchema } from '@/lib/validations'
+import { eq } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
+import { getDb } from '@/lib/db/client'
+import { clinics } from '@/lib/db/schema'
+import { clinicSettingsSchema } from '@/lib/validations'
 
-/**
- * GET /api/clinics/settings
- * Get clinic settings
- */
 export async function GET() {
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
+    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
-    const supabase = await createClient()
-
-    const { data: clinic, error } = await supabase
-      .from('clinics')
-      .select('id, name, phone, email, settings')
-      .eq('id', clinicId)
-      .single()
-
-    if (error) {
-      return handleApiError(error)
-    }
-
+    const db = getDb()
+    const [clinic] = await db.select({ id: clinics.id, name: clinics.name, phone: clinics.phone, email: clinics.email, settings: clinics.settings }).from(clinics).where(eq(clinics.id, clinicId))
+    if (!clinic) return handleApiError(new Error('Clinic not found'))
     return NextResponse.json({ settings: clinic })
-  } catch (error) {
-    return handleApiError(error)
-  }
+  } catch (error) { return handleApiError(error) }
 }
 
-/**
- * PUT /api/clinics/settings
- * Update clinic settings
- */
 export async function PUT(request: NextRequest) {
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
+    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
     const rawBody = await request.json()
     const body = clinicSettingsSchema.parse(rawBody)
-    const supabase = await createClient()
+    const db = getDb()
 
     const updateData: Record<string, unknown> = {}
     if (body.name) updateData.name = body.name
@@ -63,23 +34,10 @@ export async function PUT(request: NextRequest) {
     if (body.email) updateData.email = body.email
     if (body.settings) updateData.settings = body.settings
     if (body.appointment_durations) {
-      updateData.settings = {
-        ...body.settings,
-        appointment_durations: body.appointment_durations,
-      }
+      updateData.settings = { ...body.settings, appointment_durations: body.appointment_durations }
     }
 
-    const { error } = await (supabase
-      .from('clinics') as any)
-      .update(updateData)
-      .eq('id', clinicId)
-
-    if (error) {
-      return handleApiError(error)
-    }
-
+    await db.update(clinics).set(updateData as any).where(eq(clinics.id, clinicId))
     return NextResponse.json({ success: true })
-  } catch (error) {
-    return handleApiError(error)
-  }
+  } catch (error) { return handleApiError(error) }
 }
