@@ -1,9 +1,12 @@
 /**
  * Smart Triggers Service
  * Automated follow-ups, no-show recovery, patient reactivation, and satisfaction surveys
+ * Migrated from Supabase to Drizzle ORM.
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and, gte, lte, isNotNull } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { smartTriggerLog, appointments, patients, clinics, procedures, dentists } from '@/lib/db/schema'
 import { sendWhatsAppMessage } from '@/services/whatsapp'
 import { dbLogger } from '@/lib/logger'
 
@@ -60,31 +63,31 @@ const TRIGGER_CONFIGS: Record<TriggerType, TriggerConfig> = {
     type: 'no_show_recovery_1h', priority: 2,
     cooldownMinutes: 24 * 60, maxPerPatientPerMonth: 2,
     messageTemplate: (d) =>
-      `Oi ${d.patientName}, senti sua falta hoje! \ud83d\ude14 Quer que eu remarque sua consulta?`,
+      `Oi ${d.patientName}, senti sua falta hoje! 😔 Quer que eu remarque sua consulta?`,
   },
   post_appointment_1d: {
     type: 'post_appointment_1d', priority: 3,
     cooldownMinutes: 168 * 60, maxPerPatientPerMonth: 4,
     messageTemplate: (d) =>
-      `Oi ${d.patientName}! Como está se sentindo após ${d.procedureName ?? 'o procedimento'}? Se tiver alguma dúvida, estou aqui! \ud83d\ude0a`,
+      `Oi ${d.patientName}! Como está se sentindo após ${d.procedureName ?? 'o procedimento'}? Se tiver alguma dúvida, estou aqui! 😊`,
   },
   satisfaction_survey_7d: {
     type: 'satisfaction_survey_7d', priority: 5,
     cooldownMinutes: 720 * 60, maxPerPatientPerMonth: 1,
     messageTemplate: (d) =>
-      `Oi ${d.patientName}! Como foi sua experiência conosco? Avalie de 1 a 5 \u2b50 (1=p\u00e9ssimo, 5=excelente)`,
+      `Oi ${d.patientName}! Como foi sua experiência conosco? Avalie de 1 a 5 ⭐ (1=péssimo, 5=excelente)`,
   },
   inactive_30d_check: {
     type: 'inactive_30d_check', priority: 6,
     cooldownMinutes: 720 * 60, maxPerPatientPerMonth: 1,
     messageTemplate: (d) =>
-      `Oi ${d.patientName}! Faz um tempinho que não te vemos. Como estão seus dentes? \ud83d\ude0a`,
+      `Oi ${d.patientName}! Faz um tempinho que não te vemos. Como estão seus dentes? 😊`,
   },
   reactivation_90d: {
     type: 'reactivation_90d', priority: 7,
     cooldownMinutes: 2160 * 60, maxPerPatientPerMonth: 1,
     messageTemplate: (d) =>
-      `Oi ${d.patientName}! Faz ${d.daysSince ?? 90} dias que não te vemos. Que tal agendar uma limpeza? Temos horários disponíveis! \ud83e\udcb7`,
+      `Oi ${d.patientName}! Faz ${d.daysSince ?? 90} dias que não te vemos. Que tal agendar uma limpeza? Temos horários disponíveis! 🦷`,
   },
   budget_followup_3d: {
     type: 'budget_followup_3d', priority: 4,
@@ -113,53 +116,72 @@ function endOfDay(daysAgo: number): string {
 // -- Service -----------------------------------------------------------------
 
 class SmartTriggersService {
-  private client: Promise<import('@/lib/supabase/typed').TypedSupabaseClient>
-
-  constructor() {
-    this.client = createTypedClient()
-  }
 
   /** Returns true when the trigger may be sent (outside cooldown + within monthly quota). */
   async checkCooldown(patientId: string, triggerType: string, cooldownMinutes: number): Promise<boolean> {
     const config = TRIGGER_CONFIGS[triggerType as TriggerType]
     const maxPerMonth = config?.maxPerPatientPerMonth ?? 4
+    const db = getDb()
 
-    const { data: recent, error: coolErr } = await (await this.client)
-      .from('smart_trigger_log').select('id')
-      .eq('patient_id', patientId).eq('trigger_type', triggerType)
-      .gte('created_at', nowMinus(cooldownMinutes)).limit(1)
+    // Check cooldown
+    const cooldownCutoff = new Date(Date.now() - cooldownMinutes * 60_000)
+    const recent = await db.select({ id: smartTriggerLog.id })
+      .from(smartTriggerLog)
+      .where(and(
+        eq(smartTriggerLog.patientId, patientId),
+        eq(smartTriggerLog.triggerType, triggerType),
+        gte(smartTriggerLog.createdAt, cooldownCutoff),
+      ))
+      .limit(1)
 
-    if (coolErr) { dbLogger.error('Cooldown query failed', coolErr, { patientId, triggerType }); return false }
-    if (recent && recent.length > 0) return false
+    if (recent.length > 0) return false
 
-    const { data: monthLogs, error: quotaErr } = await (await this.client)
-      .from('smart_trigger_log').select('id')
-      .eq('patient_id', patientId).eq('trigger_type', triggerType)
-      .gte('created_at', nowMinus(30 * 24 * 60))
+    // Check monthly quota
+    const monthCutoff = new Date(Date.now() - 30 * 24 * 60 * 60_000)
+    const monthLogs = await db.select({ id: smartTriggerLog.id })
+      .from(smartTriggerLog)
+      .where(and(
+        eq(smartTriggerLog.patientId, patientId),
+        eq(smartTriggerLog.triggerType, triggerType),
+        gte(smartTriggerLog.createdAt, monthCutoff),
+      ))
 
-    if (quotaErr) { dbLogger.error('Quota query failed', quotaErr, { patientId, triggerType }); return false }
-    if (monthLogs && monthLogs.length >= maxPerMonth) return false
+    if (monthLogs.length >= maxPerMonth) return false
 
     return true
   }
 
   async logTrigger(params: LogTriggerParams): Promise<void> {
-    const { error } = await ((await this.client).from('smart_trigger_log') as any).insert({
-      clinic_id: params.clinicId, patient_id: params.patientId,
-      appointment_id: params.appointmentId ?? null,
-      trigger_type: params.triggerType,
-      priority: params.priority ?? TRIGGER_CONFIGS[params.triggerType].priority,
-      message_sent: params.messageSent,
-      channel: params.channel ?? 'whatsapp', status: 'sent',
-    })
-    if (error) dbLogger.error('Failed to log trigger', error, { triggerType: params.triggerType })
+    const db = getDb()
+    try {
+      await db.insert(smartTriggerLog).values({
+        clinicId: params.clinicId,
+        patientId: params.patientId,
+        appointmentId: params.appointmentId ?? null,
+        triggerType: params.triggerType,
+        priority: params.priority ?? TRIGGER_CONFIGS[params.triggerType].priority,
+        messageSent: params.messageSent,
+        channel: params.channel ?? 'whatsapp',
+        status: 'sent',
+      })
+    } catch (error) {
+      dbLogger.error('Failed to log trigger', error, { triggerType: params.triggerType })
+    }
   }
 
   async recordResponse(triggerLogId: string, response: string): Promise<void> {
-    const { error } = await ((await this.client).from('smart_trigger_log') as any).update({
-      patient_responded: true, response_at: new Date().toISOString(), patient_response: response,
-    }).eq('id', triggerLogId)
-    if (error) dbLogger.error('Failed to record trigger response', error, { triggerLogId })
+    const db = getDb()
+    try {
+      await db.update(smartTriggerLog)
+        .set({
+          patientResponded: true,
+          responseAt: new Date(),
+          patientResponse: response,
+        })
+        .where(eq(smartTriggerLog.id, triggerLogId))
+    } catch (error) {
+      dbLogger.error('Failed to record trigger response', error, { triggerLogId })
+    }
   }
 
   // -- Shared appointment-based trigger runner ------------------------------
@@ -169,51 +191,86 @@ class SmartTriggersService {
     status: string,
     dateFrom: string,
     dateTo: string,
-    extraFields: string = '',
+    needsProcedureInfo = false,
   ): Promise<TriggerSummary> {
     const summary: TriggerSummary = { triggerType, sent: 0, skipped: 0, errors: 0 }
     const config = TRIGGER_CONFIGS[triggerType]
+    const db = getDb()
+    const dateFromDate = new Date(dateFrom)
+    const dateToDate = new Date(dateTo)
 
-    const selectFields = `id, patient_id, clinic_id, appointment_date${extraFields ? `, ${extraFields}` : ''}`
-    const { data: appointments, error } = await (await this.client)
-      .from('appointments')
-      .select(selectFields)
-      .eq('status', status)
-      .gte('appointment_date', dateFrom)
-      .lte('appointment_date', dateTo)
+    const appts = await db.select({
+      id: appointments.id,
+      patientId: appointments.patientId,
+      clinicId: appointments.clinicId,
+      scheduledAt: appointments.scheduledAt,
+      procedureId: appointments.procedureId,
+      dentistId: appointments.dentistId,
+    })
+      .from(appointments)
+      .where(and(
+        eq(appointments.status, status as any),
+        gte(appointments.scheduledAt, dateFromDate),
+        lte(appointments.scheduledAt, dateToDate),
+      ))
 
-    if (error) { dbLogger.error(`${triggerType} query failed`, error); summary.errors++; return summary }
+    for (const appt of appts) {
+      // Fetch patient info
+      const [patient] = await db.select({ name: patients.name, phone: patients.phone })
+        .from(patients)
+        .where(eq(patients.id, appt.patientId))
+        .limit(1)
 
-    for (const appt of (appointments ?? []) as any[]) {
-      // Fetch patient and clinic info separately (typed client doesn't support joins)
-      const { data: patient } = await (await this.client)
-        .from('patients')
-        .select('name, phone')
-        .eq('id', appt.patient_id)
-        .single() as { data: { name: string; phone: string } | null }
-      const { data: clinic } = await (await this.client)
-        .from('clinics')
-        .select('name, phone')
-        .eq('id', appt.clinic_id)
-        .single() as { data: { name: string; phone: string } | null }
+      // Fetch clinic info
+      const [clinic] = await db.select({ name: clinics.name, phone: clinics.phone })
+        .from(clinics)
+        .where(eq(clinics.id, appt.clinicId))
+        .limit(1)
+
       if (!patient?.phone) { summary.skipped++; continue }
 
-      const canSend = await this.checkCooldown(appt.patient_id, triggerType, config.cooldownMinutes)
+      const canSend = await this.checkCooldown(appt.patientId, triggerType, config.cooldownMinutes)
       if (!canSend) { summary.skipped++; continue }
 
+      // Resolve procedure/dentist names if needed
+      let procedureName: string | undefined
+      let dentistName: string | undefined
+
+      if (needsProcedureInfo) {
+        if (appt.procedureId) {
+          const [proc] = await db.select({ name: procedures.name })
+            .from(procedures)
+            .where(eq(procedures.id, appt.procedureId))
+            .limit(1)
+          procedureName = proc?.name
+        }
+        if (appt.dentistId) {
+          const [dentist] = await db.select({ name: dentists.name })
+            .from(dentists)
+            .where(eq(dentists.id, appt.dentistId))
+            .limit(1)
+          dentistName = dentist?.name
+        }
+      }
+
       const data: TriggerData = {
-        patientName: patient.name, patientPhone: patient.phone,
-        clinicName: clinic?.name ?? '', clinicPhone: clinic?.phone ?? '',
-        procedureName: (appt as any).procedure_name ?? undefined,
-        dentistName: (appt as any).dentist_name ?? undefined,
+        patientName: patient.name,
+        patientPhone: patient.phone,
+        clinicName: clinic?.name ?? '',
+        clinicPhone: clinic?.phone ?? '',
+        procedureName,
+        dentistName,
       }
       const message = config.messageTemplate(data)
 
       try {
         await sendWhatsAppMessage(patient.phone, message)
         await this.logTrigger({
-          clinicId: appt.clinic_id, patientId: appt.patient_id,
-          appointmentId: appt.id, triggerType, messageSent: message,
+          clinicId: appt.clinicId,
+          patientId: appt.patientId,
+          appointmentId: appt.id,
+          triggerType,
+          messageSent: message,
         })
         summary.sent++
       } catch (err) {
@@ -231,7 +288,7 @@ class SmartTriggersService {
   }
 
   async processPostAppointmentFollowup(): Promise<TriggerSummary> {
-    return this.processAppointmentTrigger('post_appointment_1d', 'completed', startOfDay(1), endOfDay(1), 'procedure_name, dentist_name')
+    return this.processAppointmentTrigger('post_appointment_1d', 'completed', startOfDay(1), endOfDay(1), true)
   }
 
   async processSatisfactionSurvey(): Promise<TriggerSummary> {
@@ -240,6 +297,7 @@ class SmartTriggersService {
 
   async processInactivePatients(): Promise<TriggerSummary[]> {
     const results: TriggerSummary[] = []
+    const db = getDb()
 
     for (const { daysAgo, triggerType } of [
       { daysAgo: 30, triggerType: 'inactive_30d_check' as TriggerType },
@@ -247,37 +305,48 @@ class SmartTriggersService {
     ]) {
       const summary: TriggerSummary = { triggerType, sent: 0, skipped: 0, errors: 0 }
       const config = TRIGGER_CONFIGS[triggerType]
+      const cutoff = new Date(Date.now() - daysAgo * 24 * 60 * 60_000)
 
-      const { data: patients, error } = await (await this.client)
-        .from('patients')
-        .select('id, name, phone, last_visit_at, clinic_id')
-        .not('last_visit_at', 'is', null)
-        .lte('last_visit_at', nowMinus(daysAgo * 24 * 60))
+      const inactivePatients = await db.select({
+        id: patients.id,
+        name: patients.name,
+        phone: patients.phone,
+        lastVisitAt: patients.lastVisitAt,
+        clinicId: patients.clinicId,
+      })
+        .from(patients)
+        .where(and(
+          isNotNull(patients.lastVisitAt),
+          lte(patients.lastVisitAt, cutoff),
+        ))
 
-      if (error) { dbLogger.error('Inactive patients query failed', error, { triggerType }); summary.errors++; results.push(summary); continue }
-
-      for (const p of (patients ?? []) as any[]) {
+      for (const p of inactivePatients) {
         if (!p.phone) { summary.skipped++; continue }
         const canSend = await this.checkCooldown(p.id, triggerType, config.cooldownMinutes)
         if (!canSend) { summary.skipped++; continue }
 
-        // Fetch clinic info separately (typed client doesn't support joins)
-        const { data: clinicRow } = await (await this.client)
-          .from('clinics')
-          .select('name, phone')
-          .eq('id', p.clinic_id)
-          .single() as { data: { name: string; phone: string } | null }
-        const clinic = clinicRow
-        const daysSince = Math.floor((Date.now() - new Date(p.last_visit_at).getTime()) / 86_400_000)
+        // Fetch clinic info
+        const [clinic] = await db.select({ name: clinics.name, phone: clinics.phone })
+          .from(clinics)
+          .where(eq(clinics.id, p.clinicId))
+          .limit(1)
+
+        const daysSince = p.lastVisitAt
+          ? Math.floor((Date.now() - new Date(p.lastVisitAt).getTime()) / 86_400_000)
+          : (daysAgo ?? 90)
+
         const data: TriggerData = {
-          patientName: p.name, patientPhone: p.phone,
-          clinicName: clinic?.name ?? '', clinicPhone: clinic?.phone ?? '', daysSince,
+          patientName: p.name,
+          patientPhone: p.phone,
+          clinicName: clinic?.name ?? '',
+          clinicPhone: clinic?.phone ?? '',
+          daysSince,
         }
         const message = config.messageTemplate(data)
 
         try {
           await sendWhatsAppMessage(p.phone, message)
-          await this.logTrigger({ clinicId: p.clinic_id, patientId: p.id, triggerType, messageSent: message })
+          await this.logTrigger({ clinicId: p.clinicId, patientId: p.id, triggerType, messageSent: message })
           summary.sent++
         } catch (err) {
           dbLogger.error('Inactive trigger send failed', err, { patientId: p.id, triggerType })
