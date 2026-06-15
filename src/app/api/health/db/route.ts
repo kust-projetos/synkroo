@@ -1,60 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase'
+import { sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
 
-/**
- * GET /api/health/db
- * Verifica estrutura do banco de dados
- */
 export async function GET(request: NextRequest) {
-  const supabase = createServerClient()
+  const db = getDb()
   const results: Record<string, { exists: boolean; count?: number; error?: string }> = {}
-
-  // Tabelas esperadas
-  const tables = [
-    'clinics',
-    'users',
-    'patients',
-    'dentists',
-    'procedures',
-    'conversations',
-    'messages',
-    'appointments',
-    'schedule_blocks',
-    'follow_ups',
-    'knowledge_base',
-    'whatsapp_instances',
-    'message_templates',
-    'patient_risk_scores',
-    'audit_logs',
-    'waitlist',
-  ]
+  const tables = ['clinics', 'users', 'patients', 'dentists', 'procedures', 'conversations', 'messages', 'appointments', 'schedule_blocks', 'follow_ups', 'knowledge_base', 'whatsapp_instances', 'message_templates', 'patient_risk_scores', 'audit_logs', 'waitlist']
 
   for (const table of tables) {
     try {
-      const { count, error } = await supabase
-        .from(table)
-        .select('*', { count: 'exact', head: true })
-
-      if (error) {
-        results[table] = { exists: false, error: error.message }
-      } else {
-        results[table] = { exists: true, count: count || 0 }
-      }
+      const r = await db.execute(sql`SELECT COUNT(*)::int as count FROM ${sql.raw(table)}`)
+      const count = (r as any)?.rows?.[0]?.count ?? 0
+      results[table] = { exists: true, count }
     } catch (error) {
-      results[table] = {
-        exists: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      }
+      results[table] = { exists: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
   }
 
-  const existingTables = Object.values(results).filter((r) => r.exists).length
-  const totalTables = tables.length
-
-  return NextResponse.json({
-    status: existingTables === totalTables ? 'complete' : 'incomplete',
-    tables_created: existingTables,
-    tables_expected: totalTables,
-    tables: results,
-  })
+  const existing = Object.values(results).filter((r) => r.exists).length
+  return NextResponse.json({ status: existing === tables.length ? 'complete' : 'incomplete', tables_created: existing, tables_expected: tables.length, tables: results })
 }
