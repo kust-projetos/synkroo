@@ -49,13 +49,7 @@ describe('No-Show Prediction Service', () => {
 
     it('should return medium risk on error (patient not found)', async () => {
       mockChainReturn([])
-      // Use a neutral time (Wednesday 14:00, 7 days from now) so timing risk is 0.
-      // This prevents the test from being flaky based on when it runs.
-      const futureDate = new Date()
-      futureDate.setDate(futureDate.getDate() + 7)
-      // Move to next Wednesday if needed, then set to 14:00 (no early/late penalty)
-      while (futureDate.getDay() !== 3) futureDate.setDate(futureDate.getDate() + 1)
-      futureDate.setHours(14, 0, 0, 0)
+      const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
       const prediction = await predictNoShowRisk(patientId, futureDate.toISOString())
       expect(prediction.riskLevel).toBe('medium')
       expect(prediction.patient_name).toBe('Unknown')
