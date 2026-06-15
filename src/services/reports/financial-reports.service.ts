@@ -7,7 +7,9 @@
  * Supports REPORT-04: Upsell/upgrade opportunities
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and, gte, lte, lt, or, isNull, inArray, sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { budgets, budgetItems, payments, patients, treatmentPlans } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -103,122 +105,70 @@ function formatPeriodString(period: PeriodType, date: Date): string {
  * @param date - Reference date for the period (defaults to today)
  * @returns FinancialReport with revenue, payments, outstanding, and procedure breakdown
  */
-export async function getFinancialReport(
-  clinicId: string,
-  period: PeriodType,
-  date: Date = new Date()
-): Promise<FinancialReport> {
-  const supabase = await createTypedClient()
-
+export async function getFinancialReport(clinicId: string, period: PeriodType, date: Date = new Date()): Promise<FinancialReport> {
+  const db = getDb()
   try {
     const { start, end } = getPeriodBounds(period, date)
-    const startStr = start.toISOString()
-    const endStr = end.toISOString()
+    // Revenue: accepted budgets within period
+    const budgetRows = await db
+      .select({ id: budgets.id, finalValue: budgets.finalValue, createdAt: budgets.createdAt })
+      .from(budgets)
+      .where(and(eq(budgets.clinicId, clinicId), eq(budgets.status as any, 'accepted'), gte(budgets.createdAt, start), lte(budgets.createdAt, end)))
 
-    // Revenue: accepted budgets within period (using accepted_at or created_at)
-    const { data: acceptedBudgets, error: budgetError } = await supabase
-      .from('budgets')
-      .select(`
-        id,
-        final_value,
-        accepted_at,
-        created_at,
-        budget_items (procedure_id, procedure_name)
-      `)
-      .eq('clinic_id', clinicId)
-      .eq('status', 'accepted')
-      .gte('created_at', startStr)
-      .lte('created_at', endStr)
-
-    if (budgetError) {
-      dbLogger.error('Error fetching accepted budgets', budgetError)
+    // Budget items for procedure breakdown
+    const budgetIds = budgetRows.map(b => b.id)
+    let itemRows: any[] = []
+    if (budgetIds.length) {
+      itemRows = await db
+        .select({ budgetId: budgetItems.budgetId, procedureId: budgetItems.procedureId, procedureName: budgetItems.procedureName, totalPrice: budgetItems.totalPrice })
+        .from(budgetItems).where(inArray(budgetItems.budgetId, budgetIds))
     }
 
-    // Get payments received within period (source of truth per RESEARCH.md pitfall #4)
-    const { data: payments, error: paymentsError } = await supabase
-      .from('payments')
-      .select('amount, paid_at, budget_id')
-      .gte('paid_at', startStr)
-      .lte('paid_at', endStr)
+    // Payments received within period
+    const paymentRows = await db
+      .select({ amount: payments.amount, paidAt: payments.paidAt, budgetId: payments.budgetId })
+      .from(payments).where(and(gte(payments.paidAt, start), lte(payments.paidAt, end)))
 
-    if (paymentsError) {
-      dbLogger.error('Error fetching payments', paymentsError)
-    }
-
-    // Calculate revenue from accepted budgets
     let revenue = 0
-    const procedureMap = new Map<string, ProcedureBreakdown>()
-
-    for (const budget of acceptedBudgets || []) {
-      revenue += budget.final_value || 0
-
-      // Aggregate by procedure
-      for (const item of (Array.isArray(budget.budget_items) ? budget.budget_items : budget.budget_items ? [budget.budget_items] : [])) {
-        const procId = item.procedure_id || 'unknown'
-        const procName = item.procedure_name || 'Procedimento'
-
-        let breakdown = procedureMap.get(procId)
-        if (!breakdown) {
-          breakdown = {
-            procedureId: procId,
-            procedureName: procName,
-            revenue: 0,
-            payments: 0,
-          }
-          procedureMap.set(procId, breakdown)
-        }
-        breakdown.revenue += item.total_price || 0
+    const procMap = new Map<string, ProcedureBreakdown>()
+    for (const b of budgetRows) {
+      revenue += Number(b.finalValue ?? 0)
+      for (const item of itemRows.filter(i => i.budgetId === b.id)) {
+        const pid = item.procedureId || 'unknown'
+        let breakdown = procMap.get(pid)
+        if (!breakdown) { breakdown = { procedureId: pid, procedureName: item.procedureName || 'Procedimento', revenue: 0, payments: 0 }; procMap.set(pid, breakdown) }
+        breakdown.revenue += Number(item.totalPrice ?? 0)
       }
     }
 
-    // Calculate payments received
     let totalPayments = 0
-    for (const payment of payments || []) {
-      totalPayments += payment.amount || 0
-
-      // If payment is linked to a budget, attribute to procedure
-      if (payment.budget_id) {
-        const budget = acceptedBudgets?.find((b: { id: string }) => b.id === payment.budget_id)
-        if (budget) {
-          for (const item of (Array.isArray(budget.budget_items) ? budget.budget_items : budget.budget_items ? [budget.budget_items] : [])) {
-            const procId = item.procedure_id || 'unknown'
-            const breakdown = procedureMap.get(procId)
-            if (breakdown) {
-              // Distribute payment proportionally
-              const proportion = (item.total_price || 0) / budget.final_value
-              breakdown.payments += (payment.amount || 0) * proportion
+    for (const p of paymentRows) {
+      totalPayments += Number(p.amount ?? 0)
+      if (p.budgetId) {
+        const bgt = budgetRows.find(b => b.id === p.budgetId)
+        if (bgt) {
+          const items = itemRows.filter(i => i.budgetId === bgt.id)
+          for (const item of items) {
+            const breakdown = procMap.get(item.procedureId || 'unknown')
+            if (breakdown && Number(bgt.finalValue) > 0) {
+              breakdown.payments += Number(p.amount ?? 0) * (Number(item.totalPrice ?? 0) / Number(bgt.finalValue))
             }
           }
         }
       }
     }
 
-    // Calculate outstanding
     const outstanding = revenue - totalPayments
-
-    // Convert procedure map to array
-    const byProcedure = Array.from(procedureMap.values()).map(b => ({
-      ...b,
-      revenue: Math.round(b.revenue * 100) / 100,
-      payments: Math.round(b.payments * 100) / 100,
-    }))
-
     return {
       period: formatPeriodString(period, date),
       revenue: Math.round(revenue * 100) / 100,
       payments: Math.round(totalPayments * 100) / 100,
       outstanding: Math.round(outstanding * 100) / 100,
-      byProcedure,
+      byProcedure: [...procMap.values()].map(b => ({ ...b, revenue: Math.round(b.revenue * 100) / 100, payments: Math.round(b.payments * 100) / 100 })),
     }
   } catch (error) {
     dbLogger.error('Error in getFinancialReport', error)
-    return {
-      period: formatPeriodString(period, date),
-      revenue: 0,
-      payments: 0,
-      outstanding: 0,
-      byProcedure: [],
-    }
+    return { period: formatPeriodString(period, date), revenue: 0, payments: 0, outstanding: 0, byProcedure: [] }
   }
 }
 
@@ -231,59 +181,18 @@ export async function getFinancialReport(
  * @param daysThreshold - Days since last visit to be considered inactive (default: 90)
  * @returns Array of InactivePatient sorted by days since visit
  */
-export async function getInactivePatients(
-  clinicId: string,
-  daysThreshold: number = 90
-): Promise<InactivePatient[]> {
-  const supabase = await createTypedClient()
-
+export async function getInactivePatients(clinicId: string, daysThreshold: number = 90): Promise<InactivePatient[]> {
+  const db = getDb()
   try {
-    const thresholdDate = new Date()
-    thresholdDate.setDate(thresholdDate.getDate() - daysThreshold)
-    const thresholdStr = thresholdDate.toISOString()
-
-    // Get patients with no appointments after threshold date
-    const { data: patients, error } = await supabase
-      .from('patients')
-      .select('id, name, phone, last_visit_at, created_at')
-      .eq('clinic_id', clinicId)
-      .is('deleted_at', null)
-      .or(`last_visit_at.lt.${thresholdStr},last_visit_at.is.null`)
-
-    if (error) {
-      dbLogger.error('Error fetching inactive patients', error)
-      return []
-    }
-
+    const thresholdDate = new Date(); thresholdDate.setDate(thresholdDate.getDate() - daysThreshold)
+    const rows = await db.select({ id: patients.id, name: patients.name, phone: patients.phone, lastVisitAt: patients.lastVisitAt, createdAt: patients.createdAt })
+      .from(patients).where(and(eq(patients.clinicId, clinicId), isNull(patients.deletedAt), or(isNull(patients.lastVisitAt), lt(patients.lastVisitAt, thresholdDate))))
     const now = new Date()
-    const inactive: InactivePatient[] = []
-
-    for (const patient of patients || []) {
-      const lastVisit = patient.last_visit_at
-        ? new Date(patient.last_visit_at)
-        : new Date(patient.created_at)
-
-      const daysSince = Math.floor(
-        (now.getTime() - lastVisit.getTime()) / (1000 * 60 * 60 * 24)
-      )
-
-      inactive.push({
-        patientId: patient.id,
-        patientName: patient.name,
-        patientPhone: patient.phone,
-        lastVisit,
-        daysSinceVisit: daysSince,
-      })
-    }
-
-    // Sort by days since visit (most inactive first)
-    inactive.sort((a, b) => b.daysSinceVisit - a.daysSinceVisit)
-
-    return inactive
-  } catch (error) {
-    dbLogger.error('Error in getInactivePatients', error)
-    return []
-  }
+    return rows.map(p => {
+      const lastVisit = p.lastVisitAt || p.createdAt || new Date()
+      return { patientId: p.id, patientName: p.name, patientPhone: p.phone, lastVisit, daysSinceVisit: Math.floor((now.getTime() - new Date(lastVisit).getTime()) / 86400000) }
+    }).sort((a, b) => b.daysSinceVisit - a.daysSinceVisit)
+  } catch (e) { dbLogger.error('Error in getInactivePatients', e); return [] }
 }
 
 // ─── Upsell Opportunities ─────────────────────────────────────────────────────
@@ -299,81 +208,23 @@ export async function getInactivePatients(
  * @param daysThreshold - Days since treatment completion (default: 30)
  * @returns Array of UpsellOpportunity sorted by days since completion
  */
-export async function getUpsellOpportunities(
-  clinicId: string,
-  daysThreshold: number = 30
-): Promise<UpsellOpportunity[]> {
-  const supabase = await createTypedClient()
-
+export async function getUpsellOpportunities(clinicId: string, daysThreshold: number = 30): Promise<UpsellOpportunity[]> {
+  const db = getDb()
   try {
-    const thresholdDate = new Date()
-    thresholdDate.setDate(thresholdDate.getDate() - daysThreshold)
-    const thresholdStr = thresholdDate.toISOString()
+    const thresholdDate = new Date(); thresholdDate.setDate(thresholdDate.getDate() - daysThreshold)
+    const planRows = await db
+      .select({ id: treatmentPlans.id, patientId: treatmentPlans.patientId, title: treatmentPlans.title, completedAt: treatmentPlans.completedAt, lastSessionAt: treatmentPlans.lastSessionAt, patientName: patients.name })
+      .from(treatmentPlans).leftJoin(patients, eq(treatmentPlans.patientId, patients.id))
+      .where(and(eq(treatmentPlans.clinicId, clinicId), eq(treatmentPlans.status as any, 'completed'), or(lt(treatmentPlans.completedAt, thresholdDate), lt(treatmentPlans.lastSessionAt, thresholdDate))))
 
-    // Get completed treatment plans
-    const { data: completedPlans, error: plansError } = await supabase
-      .from('treatment_plans')
-      .select(`
-        id,
-        patient_id,
-        title,
-        completed_at,
-        last_session_at,
-        patients (name)
-      `)
-      .eq('clinic_id', clinicId)
-      .eq('status', 'completed')
-      .or(`completed_at.lt.${thresholdStr},last_session_at.lt.${thresholdStr}`)
-
-    if (plansError) {
-      dbLogger.error('Error fetching completed treatment plans', plansError)
-      return []
+    const opps: UpsellOpportunity[] = []
+    for (const p of planRows) {
+      const activeRows = await db.select({ id: budgets.id }).from(budgets)
+        .where(and(eq(budgets.clinicId, clinicId), eq(budgets.patientId, p.patientId), inArray(budgets.status as any, ['draft', 'active', 'sent'])))
+      if (activeRows.length > 0) continue
+      const completionDate = p.completedAt || p.lastSessionAt || new Date()
+      opps.push({ patientId: p.patientId, patientName: p.patientName || 'Unknown', lastTreatment: p.title, daysSinceCompletion: Math.floor((Date.now() - new Date(completionDate).getTime()) / 86400000), lastBudgetId: p.id })
     }
-
-    const opportunities: UpsellOpportunity[] = []
-
-    for (const plan of completedPlans || []) {
-      // Check if patient has active budget (status not in ['draft', 'active', 'sent'])
-      const { data: activeBudgets, error: budgetError } = await supabase
-        .from('budgets')
-        .select('id')
-        .eq('clinic_id', clinicId)
-        .eq('patient_id', plan.patient_id)
-        .in('status', ['draft', 'active', 'sent'])
-
-      if (budgetError) {
-        dbLogger.error('Error checking active budgets', budgetError)
-        continue
-      }
-
-      // If no active budget, this is an upsell opportunity
-      if (!activeBudgets || activeBudgets.length === 0) {
-        const completionDate = plan.completed_at
-          ? new Date(plan.completed_at)
-          : plan.last_session_at
-            ? new Date(plan.last_session_at)
-            : new Date()
-
-        const daysSince = Math.floor(
-          (new Date().getTime() - completionDate.getTime()) / (1000 * 60 * 60 * 24)
-        )
-
-        opportunities.push({
-          patientId: plan.patient_id,
-          patientName: plan.patients?.name || 'Unknown',
-          lastTreatment: plan.title,
-          daysSinceCompletion: daysSince,
-          lastBudgetId: plan.id,
-        })
-      }
-    }
-
-    // Sort by days since completion (oldest first - most urgent)
-    opportunities.sort((a, b) => b.daysSinceCompletion - a.daysSinceCompletion)
-
-    return opportunities
-  } catch (error) {
-    dbLogger.error('Error in getUpsellOpportunities', error)
-    return []
-  }
+    return opps.sort((a, b) => b.daysSinceCompletion - a.daysSinceCompletion)
+  } catch (e) { dbLogger.error('Error in getUpsellOpportunities', e); return [] }
 }
