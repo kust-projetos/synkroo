@@ -1,91 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import type { DecisionLog } from '@/lib/supabase/database.types'
+import { eq, and, gte, desc } from 'drizzle-orm'
+import { validateApiAuth } from '@/lib/auth/session'
+import { getDb } from '@/lib/db/client'
+import { decisionLogs } from '@/lib/db/schema'
 
-/**
- * GET /api/agent/decisions
- * Get agent decision logs for the dashboard
- *
- * Query params:
- *   patient_id: filter by patient
- *   conversation_id: filter by conversation
- *   limit: max results (default 50)
- *   days: lookback period (default 7)
- */
 export async function GET(request: NextRequest) {
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
 
     const clinicId = authResult.profile!.clinic_id
     const { searchParams } = new URL(request.url)
     const patientId = searchParams.get('patient_id')
     const conversationId = searchParams.get('conversation_id')
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const days = parseInt(searchParams.get('days') || '7')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 200)
+    const days = Math.min(parseInt(searchParams.get('days') || '7'), 90)
+    const since = new Date(Date.now() - days * 86400000)
 
-    const supabase = await createClient()
+    const db = getDb()
+    const conditions = [
+      eq(decisionLogs.clinicId, clinicId),
+      gte(decisionLogs.createdAt, since),
+    ]
+    if (patientId) conditions.push(eq(decisionLogs.patientId, patientId))
+    if (conversationId) conditions.push(eq(decisionLogs.conversationId, conversationId))
 
-    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
-
-    let query = supabase
-      .from('decision_logs')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .gte('created_at', since)
-      .order('created_at', { ascending: false })
+    const rows = await db
+      .select()
+      .from(decisionLogs)
+      .where(and(...conditions))
+      .orderBy(desc(decisionLogs.createdAt))
       .limit(limit)
 
-    if (patientId) query = query.eq('patient_id', patientId)
-    if (conversationId) query = query.eq('conversation_id', conversationId)
+    const logs = rows.map(r => ({
+      id: r.id,
+      clinic_id: r.clinicId,
+      patient_id: r.patientId,
+      conversation_id: r.conversationId,
+      intent_classified: r.intentClassified,
+      confidence_score: Number(r.confidenceScore ?? 0),
+      action_taken: r.actionTaken,
+      risk_level: r.riskLevel,
+      reasoning: r.reasoning,
+      escalation_triggered: r.escalationTriggered,
+      human_override: r.humanOverride,
+      message_summary: r.messageSummary,
+      entities_extracted: r.entitiesExtracted,
+      rag_sources: r.ragSources,
+      response_time_ms: r.responseTimeMs,
+      tokens_used: r.tokensUsed,
+      llm_model: r.llmModel,
+      created_at: r.createdAt?.toISOString?.() ?? null,
+    }))
 
-    const { data: logs, error } = await query as { data: DecisionLog[] | null; error: null }
+    const total = logs.length
+    const escalations = logs.filter(l => l.escalation_triggered).length
+    const avg = total > 0 ? logs.reduce((s, l) => s + l.confidence_score, 0) / total : 0
 
-    if (error) {
-      return NextResponse.json({ error: 'Failed to fetch decision logs' }, { status: 500 })
-    }
-
-    // Compute summary stats
-    const totalDecisions = logs?.length || 0
-    const escalations = logs?.filter((l) => l.escalation_triggered).length || 0
-    const avgConfidence = totalDecisions > 0
-      ? logs!.reduce((sum: number, l) => sum + (l.confidence_score || 0), 0) / totalDecisions
-      : 0
-
-    const intentCounts: Record<string, number> = {}
-    for (const log of logs || []) {
-      const intent = log.intent_classified
-      intentCounts[intent] = (intentCounts[intent] || 0) + 1
-    }
-
-    const riskDist = { LOW: 0, MEDIUM: 0, HIGH: 0 }
-    for (const log of logs || []) {
-      const level = log.risk_level as keyof typeof riskDist
-      if (level in riskDist) riskDist[level]++
+    const intents: Record<string, number> = {}
+    const risks: Record<string, number> = { LOW: 0, MEDIUM: 0, HIGH: 0 }
+    for (const l of logs) {
+      intents[l.intent_classified] = (intents[l.intent_classified] || 0) + 1
+      if (l.risk_level && l.risk_level in risks) risks[l.risk_level]++
     }
 
     return NextResponse.json({
-      logs: logs || [],
+      logs,
       stats: {
-        totalDecisions,
+        totalDecisions: total,
         escalations,
-        escalationRate: totalDecisions > 0 ? Math.round((escalations / totalDecisions) * 100) : 0,
-        avgConfidence: Math.round(avgConfidence * 100) / 100,
-        topIntents: Object.entries(intentCounts)
-          .sort(([, a], [, b]) => (b as number) - (a as number))
-          .slice(0, 5)
-          .map(([intent, count]) => ({ intent, count })),
-        riskDistribution: riskDist,
+        escalationRate: total > 0 ? Math.round((escalations / total) * 100) : 0,
+        avgConfidence: Math.round(avg * 100) / 100,
+        topIntents: Object.entries(intents).sort(([,a],[,b])=>b-a).slice(0,5).map(([intent,count])=>({intent,count})),
+        riskDistribution: risks,
       },
     })
-  } catch (error) {
-    console.error('Error fetching decision logs:', error)
+  } catch (e) {
+    console.error('Error fetching decision logs:', e)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
