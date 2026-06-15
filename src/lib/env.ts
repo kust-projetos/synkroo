@@ -53,6 +53,9 @@ const envSchema = z.object({
 
   // Cron
   CRON_SECRET: z.string().min(1).optional(),
+
+  // Development mocks (client-side flag — NEXT_PUBLIC_ is exposed to browser)
+  NEXT_PUBLIC_USE_MOCKS: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -96,6 +99,7 @@ export function getEnv(): Env {
     HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY,
     OLLAMA_HOST: process.env.OLLAMA_HOST,
     CRON_SECRET: process.env.CRON_SECRET,
+    NEXT_PUBLIC_USE_MOCKS: process.env.NEXT_PUBLIC_USE_MOCKS,
   })
 
   if (!result.success) {
@@ -134,6 +138,7 @@ export function getEnv(): Env {
         WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || '',
         WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET || '',
         EVOLUTION_INSTANCE_NAME: 'synkroo',
+        NEXT_PUBLIC_USE_MOCKS: process.env.NEXT_PUBLIC_USE_MOCKS,
       }
       _env = partial as Env
       return _env

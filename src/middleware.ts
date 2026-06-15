@@ -10,8 +10,11 @@ const AUTH_SECRET = process.env.AUTH_SECRET;
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
-  // Dev bypass: skip auth when AUTH_SECRET is missing
-  if (process.env.NODE_ENV === 'development' && !AUTH_SECRET) {
+  // Dev bypass: skip auth when AUTH_SECRET is missing OR mock mode is active
+  if (
+    process.env.NODE_ENV === 'development' &&
+    (!AUTH_SECRET || process.env.NEXT_PUBLIC_USE_MOCKS === 'true')
+  ) {
     return NextResponse.next({ request });
   }
 

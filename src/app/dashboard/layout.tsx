@@ -4,9 +4,11 @@ import { useEffect } from 'react'
 import { useAuth } from '@/lib/auth/context'
 import { useRouter } from 'next/navigation'
 import { DashboardLayout } from '@/lib/ui/dashboard-layout'
+import { installMockFetch, restoreMockFetch } from '@/lib/mocks/fetch-interceptor'
 
 const isDevBypass = process.env.NODE_ENV === 'development' &&
-  (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+   process.env.NEXT_PUBLIC_USE_MOCKS === 'true')
 
 export default function DashboardRootLayout({
   children,
@@ -15,6 +17,14 @@ export default function DashboardRootLayout({
 }) {
   const { user, profile, loading } = useAuth()
   const router = useRouter()
+
+  // Install mock fetch interceptor when NEXT_PUBLIC_USE_MOCKS=true
+  useEffect(() => {
+    installMockFetch()
+    return () => {
+      restoreMockFetch()
+    }
+  }, [])
 
   useEffect(() => {
     if (!isDevBypass && !loading && !user) {
