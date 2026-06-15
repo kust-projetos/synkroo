@@ -102,6 +102,7 @@ export const patients = pgTable('patients', {
   gender: text('gender'),
   address: jsonb('address').default('{}'),
   notes: text('notes'),
+  status: text('status').default('active'),
   tags: text('tags').array().default([]),
   riskScore: decimal('risk_score', { precision: 3, scale: 2 }).default('0.00'),
   lastVisitAt: timestamp('last_visit_at', { withTimezone: true }),

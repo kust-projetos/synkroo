@@ -67,6 +67,8 @@ export const budgetInstallments = pgTable('budget_installments', {
 // ──────────────────────────────────────────────
 export const payments = pgTable('payments', {
   id: uuid('id').primaryKey().defaultRandom(),
+  patientId: uuid('patient_id').references(() => patients.id, { onDelete: 'set null' }),
+  clinicId: uuid('clinic_id').references(() => clinics.id, { onDelete: 'cascade' }),
   budgetId: uuid('budget_id').references(() => budgets.id, { onDelete: 'set null' }),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   paymentMethod: text('payment_method').notNull(),
