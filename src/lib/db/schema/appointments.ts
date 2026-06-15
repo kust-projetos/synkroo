@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, numeric, pgTable, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { clinics, dentists, patients, procedures, users } from './core';
 import { appointmentStatus } from './enums';
 
@@ -15,6 +15,7 @@ export const appointments = pgTable('appointments', {
   durationMinutes: integer('duration_minutes').default(30),
   status: appointmentStatus('status').notNull().default('scheduled'),
   notes: text('notes'),
+  totalValue: numeric('total_value', { precision: 10, scale: 2 }).default('0'),
   cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
   cancellationReason: text('cancellation_reason'),
   rescheduledAt: timestamp('rescheduled_at', { withTimezone: true }),
