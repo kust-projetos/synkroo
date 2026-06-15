@@ -1,12 +1,11 @@
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and, lt, lte, or, isNull, inArray, desc, asc, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
-import { patients } from '@/lib/db/schema'
-import { eq, and, lt, or, isNull, sql } from 'drizzle-orm'
+import { patients, appointments, procedures, clinics } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
 /**
- * Inactive Patient Detection Service
- * Identifies and segments patients based on inactivity periods
+ * Inactive Patient Detection Service — migrated to Drizzle.
+ * Identifies and segments patients based on inactivity periods.
  */
 
 export interface InactivePatient {
@@ -28,10 +27,9 @@ export interface InactivitySegment {
   minDays: number
   maxDays: number
   label: string
-  priority: number // Higher = more urgent
+  priority: number
 }
 
-// Inactivity segments configuration
 export const INACTIVITY_SEGMENTS: InactivitySegment[] = [
   { segment: 'inactive_30', minDays: 30, maxDays: 59, label: 'Inativo 30 dias', priority: 1 },
   { segment: 'inactive_60', minDays: 60, maxDays: 89, label: 'Inativo 60 dias', priority: 2 },
@@ -39,20 +37,13 @@ export const INACTIVITY_SEGMENTS: InactivitySegment[] = [
   { segment: 'inactive_180', minDays: 180, maxDays: 9999, label: 'Inativo 6 meses', priority: 4 },
 ]
 
-/**
- * Calculate days since last visit
- */
 export function calculateDaysSinceLastVisit(lastVisit: Date | null): number {
-  if (!lastVisit) return 999 // No visits = very high
-
+  if (!lastVisit) return 999
   const now = new Date()
   const diff = now.getTime() - new Date(lastVisit).getTime()
   return Math.floor(diff / (1000 * 60 * 60 * 24))
 }
 
-/**
- * Get inactivity segment for a patient
- */
 export function getInactivitySegment(daysSinceLastVisit: number): InactivitySegment | null {
   return INACTIVITY_SEGMENTS.find(
     segment => daysSinceLastVisit >= segment.minDays && daysSinceLastVisit <= segment.maxDays
@@ -60,89 +51,105 @@ export function getInactivitySegment(daysSinceLastVisit: number): InactivitySegm
 }
 
 /**
- * Identify inactive patients for a clinic
+ * Identify inactive patients for a clinic — Drizzle.
+ * Queries patients with lastVisitAt < cutoff or NULL, then batch-fetches
+ * their appointments + procedures for grouping.
  */
 export async function identifyInactivePatients(
   clinicId: string,
   minDaysInactive: number = 30
 ): Promise<InactivePatient[]> {
-  const supabase = await createTypedClient()
-
+  const db = getDb()
   const now = new Date()
   const cutoffDate = new Date(now.getTime() - minDaysInactive * 24 * 60 * 60 * 1000)
 
-  // Get patients with their last visit and appointment count
-  const { data: patients, error } = await supabase
-    .from('patients')
-    .select(`
-      id,
-      name,
-      phone,
-      last_visit_at,
-      risk_score,
-      clinic_id,
-      created_at,
-      clinics (name),
-      appointments (
-        id,
-        scheduled_at,
-        status,
-        procedures (name)
-      )
-    `)
-    .eq('clinic_id', clinicId)
-    .or(`last_visit_at.is.null,last_visit_at.lte.${cutoffDate.toISOString()}`) as any
+  // 1. Find patients matching the inactivity condition
+  const patientRows = await db
+    .select({
+      id: patients.id,
+      name: patients.name,
+      phone: patients.phone,
+      lastVisitAt: patients.lastVisitAt,
+      riskScore: patients.riskScore,
+      clinicId: patients.clinicId,
+    })
+    .from(patients)
+    .where(
+      and(
+        eq(patients.clinicId, clinicId),
+        or(
+          isNull(patients.lastVisitAt),
+          lt(patients.lastVisitAt, cutoffDate),
+        ),
+      ),
+    )
 
-  if (error) {
-    dbLogger.error('Error identifying inactive patients', error)
-    return []
+  if (!patientRows.length) return []
+
+  const patientIds = patientRows.map(p => p.id)
+
+  // 2. Fetch clinic name
+  const [clinicRow] = await db
+    .select({ name: clinics.name })
+    .from(clinics)
+    .where(eq(clinics.id, clinicId))
+  const clinicName = clinicRow?.name ?? ''
+
+  // 3. Batch-fetch appointments for these patients
+  const apptRows = await db
+    .select({
+      id: appointments.id,
+      patientId: appointments.patientId,
+      scheduledAt: appointments.scheduledAt,
+      status: appointments.status,
+      procedureId: appointments.procedureId,
+      procedureName: procedures.name,
+    })
+    .from(appointments)
+    .leftJoin(procedures, eq(appointments.procedureId, procedures.id))
+    .where(
+      and(
+        inArray(appointments.patientId, patientIds),
+        inArray(appointments.status as any, ['completed', 'confirmed']),
+      ),
+    )
+    .orderBy(desc(appointments.scheduledAt))
+
+  // Group appointments by patient
+  const apptsByPatient = new Map<string, typeof apptRows>()
+  for (const a of apptRows) {
+    const list = apptsByPatient.get(a.patientId) || []
+    list.push(a)
+    apptsByPatient.set(a.patientId, list)
   }
 
-  const inactivePatients: InactivePatient[] = []
-
-  for (const patient of (patients as any[]) || []) {
-    const daysSince = calculateDaysSinceLastVisit((patient as any).last_visit_at)
+  // 4. Compute InactivePatient for each patient
+  const results: InactivePatient[] = []
+  for (const p of patientRows) {
+    const visits = apptsByPatient.get(p.id) || []
+    const daysSince = calculateDaysSinceLastVisit(p.lastVisitAt)
     const segment = getInactivitySegment(daysSince)
-
     if (!segment) continue
 
-    // Get last completed appointment procedure
-    const lastCompletedAppointment = (patient as any).appointments
-      ?.filter((a: any) => a.status === 'completed')
-      .sort((a: any, b: any) =>
-        new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime()
-      )[0] as any
+    const completed = visits.filter(a => a.status === 'completed')
+    const lastProcedure = completed.length > 0 ? completed[0].procedureName ?? undefined : undefined
 
-    // Count total visits
-    const totalVisits = (patient as any).appointments?.filter((a: any) =>
-      ['completed', 'confirmed'].includes(a.status)
-    ).length || 0
-
-    // Extract clinic name - handle both array and object from join
-    const clinicData = (patient as any).clinics as any
-    const clinicName = Array.isArray(clinicData) ? (clinicData[0]?.name || '') : (clinicData?.name || '')
-
-    // Extract procedure name - handle both array and object from join
-    const procedureData = lastCompletedAppointment?.procedures as any
-    const lastProcedure = Array.isArray(procedureData) ? procedureData[0]?.name : procedureData?.name
-
-    inactivePatients.push({
-      patientId: (patient as any).id,
-      patientName: (patient as any).name,
-      patientPhone: (patient as any).phone,
-      lastVisit: (patient as any).last_visit_at ? new Date((patient as any).last_visit_at) : null,
+    results.push({
+      patientId: p.id,
+      patientName: p.name,
+      patientPhone: p.phone,
+      lastVisit: p.lastVisitAt,
       daysSinceLastVisit: daysSince,
       inactivitySegment: segment.segment as InactivePatient['inactivitySegment'],
-      clinicId: (patient as any).clinic_id,
+      clinicId: p.clinicId,
       clinicName,
-      totalVisits,
+      totalVisits: visits.length,
       lastProcedure,
-      riskScore: (patient as any).risk_score || 0,
+      riskScore: Number(p.riskScore ?? 0),
     })
   }
 
-  // Sort by priority (most inactive first) then by risk score
-  return inactivePatients.sort((a, b) => {
+  return results.sort((a, b) => {
     const aPriority = INACTIVITY_SEGMENTS.find(s => s.segment === a.inactivitySegment)?.priority || 0
     const bPriority = INACTIVITY_SEGMENTS.find(s => s.segment === b.inactivitySegment)?.priority || 0
     if (aPriority !== bPriority) return bPriority - aPriority
@@ -151,13 +158,12 @@ export async function identifyInactivePatients(
 }
 
 /**
- * Update patient tags with inactivity status
+ * Update patient tags with inactivity status — Drizzle.
  */
 export async function updateInactivePatientTags(
   clinicId: string
 ): Promise<{ updated: number; errors: number }> {
-  const supabase = await createTypedClient()
-
+  const db = getDb()
   const inactivePatients = await identifyInactivePatients(clinicId, 30)
 
   let updated = 0
@@ -167,34 +173,30 @@ export async function updateInactivePatientTags(
     const segment = INACTIVITY_SEGMENTS.find(s => s.segment === patient.inactivitySegment)
     if (!segment) continue
 
-    // Get current tags
-    const { data: currentPatient } = await supabase
-      .from('patients')
-      .select('tags')
-      .eq('id', patient.patientId)
-      .single() as any
+    try {
+      // Get current tags
+      const [row] = await db
+        .select({ tags: patients.tags })
+        .from(patients)
+        .where(eq(patients.id, patient.patientId))
 
-    const currentTags = (currentPatient as any)?.tags || []
+      const currentTags: string[] = (row?.tags as string[]) || []
 
-    // Remove old inactivity tags
-    const cleanedTags = currentTags.filter((tag: string) =>
-      !tag.startsWith('Inativo') && !tag.startsWith('inativo')
-    )
+      const cleanedTags = currentTags.filter((tag: string) =>
+        !tag.startsWith('Inativo') && !tag.startsWith('inativo')
+      )
 
-    // Add new inactivity tag
-    const newTags = [...cleanedTags, segment.label]
+      const newTags = [...cleanedTags, segment.label]
 
-    // Update patient
-    const { error } = await (supabase
-      .from('patients') as any)
-      .update({ tags: newTags })
-      .eq('id', patient.patientId)
+      await db
+        .update(patients)
+        .set({ tags: newTags as any })
+        .where(eq(patients.id, patient.patientId))
 
-    if (error) {
-      dbLogger.error(`Error updating tags for ${patient.patientName}`, error)
-      errors++
-    } else {
       updated++
+    } catch (err) {
+      dbLogger.error(`Error updating tags for ${patient.patientName}`, err)
+      errors++
     }
   }
 
@@ -202,14 +204,8 @@ export async function updateInactivePatientTags(
 }
 
 /**
- * Get inactivity statistics for a clinic — migrated to Drizzle.
- * Used by dashboard/stats route.
- *
- * Semantics: cumulative counts per cutoff.
- *   inactive_30 = lastVisitAt < now-30d OR lastVisitAt IS NULL
- *   inactive_60 = lastVisitAt < now-60d OR lastVisitAt IS NULL
- *   inactive_90 = lastVisitAt < now-90d OR lastVisitAt IS NULL
- *   inactive_180 = lastVisitAt < now-180d OR lastVisitAt IS NULL
+ * Get inactivity statistics for a clinic — Drizzle.
+ * Cumulative counts per cutoff: inactive_30 = lastVisitAt < now-30d OR NULL, etc.
  */
 export async function getInactivityStats(clinicId: string): Promise<{
   totalInactive: number
@@ -219,7 +215,6 @@ export async function getInactivityStats(clinicId: string): Promise<{
   const db = getDb()
   const now = new Date()
   const cutoffs = [30, 60, 90, 180] as const
-
   const bySegment: Record<string, number> = {}
   let atRiskRevenue = 0
   const avgVisitValue = 250
@@ -252,49 +247,52 @@ export async function getInactivityStats(clinicId: string): Promise<{
 }
 
 /**
- * Get patients for reactivation campaign
+ * Get patients for reactivation campaign — Drizzle.
+ * Filters out opted-out patients.
  */
 export async function getPatientsForReactivation(
   clinicId: string,
   segment?: string
 ): Promise<InactivePatient[]> {
-  let patients = await identifyInactivePatients(clinicId, 60)
+  let list = await identifyInactivePatients(clinicId, 60)
 
   if (segment) {
-    patients = patients.filter((p: InactivePatient) => p.inactivitySegment === segment)
+    list = list.filter((p: InactivePatient) => p.inactivitySegment === segment)
   }
 
   // Filter out opted-out patients
-  const supabase = await createTypedClient()
-  const patientIds = patients.map((p: InactivePatient) => p.patientId)
+  const db = getDb()
+  const patientIds = list.map(p => p.patientId)
+  if (!patientIds.length) return []
 
-  const { data: optedOut } = await supabase
-    .from('patients')
-    .select('id')
-    .in('id', patientIds)
-    .eq('opt_out_marketing', true)
+  const optedOutRows = await db
+    .select({ id: patients.id })
+    .from(patients)
+    .where(
+      and(
+        inArray(patients.id, patientIds),
+        eq(patients.optOutMarketing, true),
+      ),
+    )
 
-  const optedOutIds = new Set(optedOut?.map((p: any) => p.id) || [])
-
-  return patients.filter((p: any) => !optedOutIds.has(p.patientId))
+  const optedOutIds = new Set(optedOutRows.map(r => r.id))
+  return list.filter(p => !optedOutIds.has(p.patientId))
 }
 
 /**
- * Run daily inactivity detection job
+ * Run daily inactivity detection job — Drizzle.
  */
 export async function runInactivityDetection(): Promise<void> {
   dbLogger.info('Running inactivity detection...')
 
-  const supabase = await createTypedClient()
+  const db = getDb()
+  const clinicRows = await db
+    .select({ id: clinics.id })
+    .from(clinics)
 
-  // Get all clinics
-  const { data: clinics } = await supabase
-    .from('clinics')
-    .select('id') as any
-
-  for (const clinic of (clinics as any[]) || []) {
-    const result = await updateInactivePatientTags(clinic.id)
-    dbLogger.info(`Clinic ${clinic.id} updated`, { updated: result.updated, errors: result.errors })
+  for (const c of clinicRows) {
+    const result = await updateInactivePatientTags(c.id)
+    dbLogger.info(`Clinic ${c.id} updated`, { updated: result.updated, errors: result.errors })
   }
 
   dbLogger.info('Inactivity detection complete')
