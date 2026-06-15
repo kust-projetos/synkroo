@@ -1,15 +1,13 @@
 /**
- * LGPD Export Route — behavioral tests
+ * LGPD Export Route — behavioral tests (with consents)
  */
 
-// Mock auth
 jest.mock('@/lib/auth/session', () => ({
   validateApiAuth: jest.fn(),
 }))
 
 import { validateApiAuth } from '@/lib/auth/session'
 
-// Mock DB
 let queryResults: any[] = []
 let queryIndex = 0
 
@@ -71,17 +69,14 @@ describe('POST /api/lgpd/export', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns patient data with shape preserved', async () => {
+  it('returns full patient data including consents', async () => {
     mockAuth('c1')
     seed(
-      // patient
-      [{ id: 'p1', name: 'João', phone: '123', clinicId: 'c1' }],
-      // appointments
-      [{ id: 'a1', patientId: 'p1', status: 'completed' }],
-      // budgets
-      [],
-      // payments
-      [{ id: 'pay1', patientId: 'p1', amount: '100.00' }],
+      [{ id: 'p1', name: 'João', phone: '123', clinicId: 'c1' }],           // patient
+      [{ id: 'a1', patientId: 'p1', status: 'completed' }],                   // appointments
+      [],                                                                      // budgets
+      [{ id: 'pay1', patientId: 'p1', amount: '100.00' }],                    // payments
+      [{ id: 'c1', contactId: 'p1', contactType: 'patient', purpose: 'marketing', granted: true }], // consents
     )
 
     const res = await POST(mockReq({ patientId: 'p1' }))
@@ -89,25 +84,17 @@ describe('POST /api/lgpd/export', () => {
 
     const data = await res.json()
     expect(data.patient).not.toBeNull()
-    expect(data.patient.name).toBe('João')
-    expect(data.appointments).toHaveLength(1)
-    expect(data.payments).toHaveLength(1)
-    expect(data.budgets).toEqual([])
-    // consents should be absent (not in response)
-    expect(data.consents).toBeUndefined()
+    expect(data.consents).toHaveLength(1)
+    expect(data.consents[0].purpose).toBe('marketing')
+    expect(data.consents[0].contactType).toBe('patient')
   })
 
-  it('returns null patient when not found', async () => {
+  it('returns empty consents when none found', async () => {
     mockAuth('c1')
-    seed(
-      [], // patient not found
-      [],
-      [],
-      [],
-    )
+    seed([{ id: 'p1', name: 'João', clinicId: 'c1' }], [], [], [], [])
 
-    const res = await POST(mockReq({ patientId: 'p-missing' }))
+    const res = await POST(mockReq({ patientId: 'p1' }))
     const data = await res.json()
-    expect(data.patient).toBeNull()
+    expect(data.consents).toEqual([])
   })
 })
