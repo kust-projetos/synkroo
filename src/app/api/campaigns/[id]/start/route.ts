@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { startCampaign } from '@/services/followup/campaign.service'
-import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import * as campaignRepo from '@/repositories/campaigns'
 
