@@ -1,9 +1,11 @@
 /**
- * Consent Service
+ * Consent Service — migrated to Drizzle
  * LGPD-compliant consent management with automatic audit logging
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { consents } from '@/lib/db/schema/infra'
 import { dbLogger } from '@/lib/logger'
 
 export type ConsentPurpose = 'data_collection' | 'marketing' | 'whatsapp_communication'
@@ -32,102 +34,116 @@ export interface ConsentGrantInput {
   notes?: string
 }
 
-/**
- * Get all consents for a contact
- */
+function toSnake(r: any): Consent {
+  return {
+    id: r.id,
+    clinic_id: r.clinicId ?? '',
+    contact_id: r.contactId ?? '',
+    contact_type: r.contactType ?? 'patient',
+    purpose: r.purpose ?? 'data_collection',
+    granted: r.granted ?? false,
+    granted_at: r.grantedAt?.toISOString?.() ?? null,
+    revoked_at: r.revokedAt?.toISOString?.() ?? null,
+    channel: r.channel ?? null,
+    notes: r.notes ?? null,
+    created_at: r.createdAt?.toISOString?.() ?? '',
+    updated_at: r.updatedAt?.toISOString?.() ?? '',
+  }
+}
+
 export async function getConsentsForContact(
   clinicId: string,
   contactId: string,
-  contactType: 'patient' | 'lead'
+  contactType: 'patient' | 'lead',
 ): Promise<Consent[]> {
-  const supabase = await createTypedClient()
-
+  const db = getDb()
   try {
-    const { data, error } = await supabase
-      .from('consents')
-      .select('*')
-      .eq('contact_id', contactId)
-      .eq('contact_type', contactType)
-      .eq('clinic_id', clinicId)
-
-    if (error) throw error
-    return data || []
+    const rows = await db
+      .select()
+      .from(consents)
+      .where(
+        and(
+          eq(consents.contactId, contactId),
+          eq(consents.contactType, contactType),
+          eq(consents.clinicId, clinicId),
+        ),
+      )
+    return rows.map(toSnake)
   } catch (error) {
     dbLogger.error('Error getting consents for contact', error)
     throw error
   }
 }
 
-/**
- * Grant consent for a contact
- * Uses upsert to handle idempotency - audit trigger logs automatically
- */
 export async function grantConsent(
   clinicId: string,
-  input: ConsentGrantInput
+  input: ConsentGrantInput,
 ): Promise<Consent> {
-  const supabase = await createTypedClient()
-
+  const db = getDb()
   try {
-    const { data, error } = await (supabase
-      .from('consents') as any)
-      .upsert({
-        clinic_id: clinicId,
-        contact_id: input.contact_id,
-        contact_type: input.contact_type,
+    const now = new Date()
+    const [row] = await db
+      .insert(consents)
+      .values({
+        clinicId,
+        contactId: input.contact_id,
+        contactType: input.contact_type,
         purpose: input.purpose,
         granted: true,
-        granted_at: new Date().toISOString(),
-        revoked_at: null,
-        channel: input.channel || 'web',
+        grantedAt: now,
+        revokedAt: null as any,
+        channel: (input.channel || 'web') as any,
         notes: input.notes || null,
-      }, {
-        onConflict: 'contact_id,contact_type,purpose',
       })
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
+      .onConflictDoUpdate({
+        target: [consents.contactId, consents.contactType, consents.purpose],
+        set: {
+          granted: true,
+          grantedAt: now,
+          revokedAt: null as any,
+          channel: (input.channel || 'web') as any,
+          notes: input.notes || null,
+          updatedAt: now,
+        },
+      })
+      .returning()
+    return toSnake(row)
   } catch (error) {
     dbLogger.error('Error granting consent', error)
     throw error
   }
 }
 
-/**
- * Revoke consent for a contact
- * Audit trigger logs automatically via log_consent_change()
- */
 export async function revokeConsent(
   clinicId: string,
   contactId: string,
   contactType: 'patient' | 'lead',
   purpose: ConsentPurpose,
   channel?: ConsentChannel,
-  notes?: string
+  notes?: string,
 ): Promise<Consent> {
-  const supabase = await createTypedClient()
-
+  const db = getDb()
   try {
-    const { data, error } = await (supabase
-      .from('consents') as any)
-      .update({
+    const now = new Date()
+    const [row] = await db
+      .update(consents)
+      .set({
         granted: false,
-        revoked_at: new Date().toISOString(),
-        channel: channel || 'web',
+        revokedAt: now,
+        channel: (channel || 'web') as any,
         notes: notes || null,
-        updated_at: new Date().toISOString(),
+        updatedAt: now,
       })
-      .eq('contact_id', contactId)
-      .eq('contact_type', contactType)
-      .eq('clinic_id', clinicId)
-      .eq('purpose', purpose)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
+      .where(
+        and(
+          eq(consents.contactId, contactId),
+          eq(consents.contactType, contactType),
+          eq(consents.clinicId, clinicId),
+          eq(consents.purpose, purpose),
+        ),
+      )
+      .returning()
+    return toSnake(row)
   } catch (error) {
     dbLogger.error('Error revoking consent', error)
     throw error
