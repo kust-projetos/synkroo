@@ -1,482 +1,150 @@
-/**
- * Analytics Service
- * Provides advanced metrics, insights, and predictions for clinic management
- */
-
-import { createTypedClient } from '@/lib/supabase/typed'
+/** Analytics Service — migrated to Drizzle */
+import { eq, and, gte, lt, isNotNull, asc, desc, inArray } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { appointments, patients } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
-export interface AppointmentTrend {
-  date: string
-  total: number
-  confirmed: number
-  cancelled: number
-  no_show: number
-  completed: number
-}
-
-export interface HourlyDistribution {
-  hour: number
-  count: number
-  percentage: number
-}
-
-export interface DayOfWeekDistribution {
-  day: string
-  dayIndex: number
-  count: number
-  percentage: number
-}
-
-export interface PatientRiskAnalysis {
-  patient_id: string
-  patient_name: string
-  phone: string
-  risk_score: number
-  risk_factors: string[]
-  last_visit: string | null
-  total_visits: number
-  cancelled_count: number
-  no_show_count: number
-}
-
-export interface DemandForecast {
-  date: string
-  predicted_appointments: number
-  confidence: number
-  based_on: string
-}
-
+export interface AppointmentTrend { date: string; total: number; confirmed: number; cancelled: number; no_show: number; completed: number }
+export interface HourlyDistribution { hour: number; count: number; percentage: number }
+export interface DayOfWeekDistribution { day: string; dayIndex: number; count: number; percentage: number }
+export interface PatientRiskAnalysis { patient_id: string; patient_name: string; phone: string; risk_score: number; risk_factors: string[]; last_visit: string | null; total_visits: number; cancelled_count: number; no_show_count: number }
+export interface DemandForecast { date: string; predicted_appointments: number; confidence: number; based_on: string }
 export interface ClinicInsights {
-  appointmentTrends: AppointmentTrend[]
-  hourlyDistribution: HourlyDistribution[]
-  dayOfWeekDistribution: DayOfWeekDistribution[]
-  highRiskPatients: PatientRiskAnalysis[]
-  demandForecast: DemandForecast[]
-  metrics: {
-    avgAppointmentsPerDay: number
-    peakHour: number
-    peakDay: string
-    cancellationRate: number
-    noShowRate: number
-    avgConfirmationTime: number // hours
-  }
+  appointmentTrends: AppointmentTrend[]; hourlyDistribution: HourlyDistribution[]; dayOfWeekDistribution: DayOfWeekDistribution[]
+  highRiskPatients: PatientRiskAnalysis[]; demandForecast: DemandForecast[]
+  metrics: { avgAppointmentsPerDay: number; peakHour: number; peakDay: string; cancellationRate: number; noShowRate: number; avgConfirmationTime: number }
 }
 
-/**
- * Get appointment trends for the last N days
- */
-export async function getAppointmentTrends(
-  clinicId: string,
-  days: number = 30
-): Promise<AppointmentTrend[]> {
-  const supabase = await createTypedClient()
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - days)
-
+export async function getAppointmentTrends(clinicId: string, days = 30): Promise<AppointmentTrend[]> {
+  const db = getDb()
+  const startDate = new Date(); startDate.setDate(startDate.getDate() - days)
   try {
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('scheduled_at, status')
-      .eq('clinic_id', clinicId)
-      .gte('scheduled_at', startDate.toISOString())
-      .order('scheduled_at', { ascending: true }) as any
-
-    if (error) throw error
-
-    // Group by date
-    const trends: Map<string, AppointmentTrend> = new Map()
-
-    for (const apt of (appointments as Array<{ scheduled_at: string; status: string }>) || []) {
-      const date = apt.scheduled_at.split('T')[0]
-      const existing = trends.get(date) || {
-        date,
-        total: 0,
-        confirmed: 0,
-        cancelled: 0,
-        no_show: 0,
-        completed: 0,
-      }
-
-      existing.total++
-      if (apt.status === 'confirmed') existing.confirmed++
-      else if (apt.status === 'cancelled') existing.cancelled++
-      else if (apt.status === 'no_show') existing.no_show++
-      else if (apt.status === 'completed') existing.completed++
-
-      trends.set(date, existing)
+    const rows = await db.select({ scheduledAt: appointments.scheduledAt, status: appointments.status })
+      .from(appointments).where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate))).orderBy(asc(appointments.scheduledAt))
+    const trends = new Map<string, AppointmentTrend>()
+    for (const a of rows) {
+      const date = a.scheduledAt.toISOString().split('T')[0]
+      const t = trends.get(date) || { date, total: 0, confirmed: 0, cancelled: 0, no_show: 0, completed: 0 }
+      t.total++; if (a.status === 'confirmed') t.confirmed++; else if (a.status === 'cancelled') t.cancelled++; else if (a.status === 'no_show') t.no_show++; else if (a.status === 'completed') t.completed++
+      trends.set(date, t)
     }
-
     return Array.from(trends.values())
-  } catch (error) {
-    dbLogger.error('Error fetching appointment trends', error)
-    return []
-  }
+  } catch (e) { dbLogger.error('Error fetching appointment trends', e); return [] }
 }
 
-/**
- * Get hourly distribution of appointments
- */
-export async function getHourlyDistribution(
-  clinicId: string,
-  days: number = 90
-): Promise<HourlyDistribution[]> {
-  const supabase = await createTypedClient()
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - days)
-
+export async function getHourlyDistribution(clinicId: string, days = 90): Promise<HourlyDistribution[]> {
+  const db = getDb()
+  const startDate = new Date(); startDate.setDate(startDate.getDate() - days)
   try {
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('scheduled_at')
-      .eq('clinic_id', clinicId)
-      .gte('scheduled_at', startDate.toISOString()) as any
-
-    if (error) throw error
-
-    // Count by hour
-    const hourCounts: number[] = new Array(24).fill(0)
-    let total = 0
-
-    for (const apt of (appointments as Array<{ scheduled_at: string }>) || []) {
-      const hour = new Date(apt.scheduled_at).getHours()
-      hourCounts[hour]++
-      total++
-    }
-
-    return hourCounts.map((count, hour) => ({
-      hour,
-      count,
-      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-    }))
-  } catch (error) {
-    dbLogger.error('Error fetching hourly distribution', error)
-    return []
-  }
+    const rows = await db.select({ scheduledAt: appointments.scheduledAt }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate)))
+    const counts = new Array(24).fill(0); let total = 0
+    for (const a of rows) { counts[a.scheduledAt.getHours()]++; total++ }
+    return counts.map((c, h) => ({ hour: h, count: c, percentage: total > 0 ? Math.round((c / total) * 100) : 0 }))
+  } catch (e) { dbLogger.error('Error fetching hourly distribution', e); return [] }
 }
 
-/**
- * Get day of week distribution
- */
-export async function getDayOfWeekDistribution(
-  clinicId: string,
-  days: number = 90
-): Promise<DayOfWeekDistribution[]> {
-  const supabase = await createTypedClient()
-  const startDate = new Date()
-  startDate.setDate(startDate.getDate() - days)
-
+export async function getDayOfWeekDistribution(clinicId: string, days = 90): Promise<DayOfWeekDistribution[]> {
+  const db = getDb()
+  const startDate = new Date(); startDate.setDate(startDate.getDate() - days)
   const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-
   try {
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('scheduled_at')
-      .eq('clinic_id', clinicId)
-      .gte('scheduled_at', startDate.toISOString()) as any
-
-    if (error) throw error
-
-    // Count by day of week
-    const dayCounts: number[] = new Array(7).fill(0)
-    let total = 0
-
-    for (const apt of (appointments as Array<{ scheduled_at: string }>) || []) {
-      const dayOfWeek = new Date(apt.scheduled_at).getDay()
-      dayCounts[dayOfWeek]++
-      total++
-    }
-
-    return dayCounts.map((count, dayIndex) => ({
-      day: dayNames[dayIndex],
-      dayIndex,
-      count,
-      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
-    }))
-  } catch (error) {
-    dbLogger.error('Error fetching day of week distribution', error)
-    return []
-  }
+    const rows = await db.select({ scheduledAt: appointments.scheduledAt }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate)))
+    const counts = new Array(7).fill(0); let total = 0
+    for (const a of rows) { counts[a.scheduledAt.getDay()]++; total++ }
+    return counts.map((c, i) => ({ day: dayNames[i], dayIndex: i, count: c, percentage: total > 0 ? Math.round((c / total) * 100) : 0 }))
+  } catch (e) { dbLogger.error('Error fetching day of week distribution', e); return [] }
 }
 
-/**
- * Analyze patients at risk of churning or no-show
- */
-export async function getHighRiskPatients(
-  clinicId: string,
-  limit: number = 20
-): Promise<PatientRiskAnalysis[]> {
-  const supabase = await createTypedClient()
-
+export async function getHighRiskPatients(clinicId: string, limit = 20): Promise<PatientRiskAnalysis[]> {
+  const db = getDb()
   try {
-    // Get patients with their appointment history
-    const { data: patients, error } = await supabase
-      .from('patients')
-      .select(`
-        id,
-        name,
-        phone,
-        last_visit,
-        risk_score,
-        appointments (
-          id,
-          status
-        )
-      `)
-      .eq('clinic_id', clinicId)
-      .order('risk_score', { ascending: false })
-      .limit(limit) as any
+    const pRows = await db.select({ id: patients.id, name: patients.name, phone: patients.phone, lastVisit: patients.lastVisitAt, riskScore: patients.riskScore })
+      .from(patients).where(eq(patients.clinicId, clinicId)).orderBy(desc(patients.riskScore)).limit(limit)
+    if (!pRows.length) return []
 
-    if (error) throw error
+    const patientIds = pRows.map(p => p.id)
+    const aRows = await db.select({ patientId: appointments.patientId, status: appointments.status })
+      .from(appointments).where(and(inArray(appointments.patientId, patientIds) as any, eq(appointments.clinicId, clinicId)))
 
-    return ((patients as any) || []).map((patient: any) => {
-      const appointments = (patient.appointments as Array<{ status: string }>) || []
-      const totalVisits = appointments.length
-      const cancelledCount = appointments.filter((a: any) => a.status === 'cancelled').length
-      const noShowCount = appointments.filter((a: any) => a.status === 'no_show').length
+    const apptMap = new Map<string, Array<{ status: string }>>()
+    for (const a of aRows) { const arr = apptMap.get(a.patientId) || []; arr.push(a); apptMap.set(a.patientId, arr) }
 
-      // Calculate risk factors
-      const riskFactors: string[] = []
-
-      if (!patient.last_visit) {
-        riskFactors.push('Nunca visitou')
-      } else {
-        const daysSinceVisit = Math.floor(
-          (Date.now() - new Date(patient.last_visit).getTime()) / (1000 * 60 * 60 * 24)
-        )
-        if (daysSinceVisit > 180) {
-          riskFactors.push(`Sem visita há ${daysSinceVisit} dias`)
-        }
-      }
-
-      if (noShowCount > 0) {
-        riskFactors.push(`${noShowCount} no-show(s)`)
-      }
-
-      if (cancelledCount > 2) {
-        riskFactors.push(`${cancelledCount} cancelamentos`)
-      }
-
-      const cancellationRate = totalVisits > 0 ? cancelledCount / totalVisits : 0
-      if (cancellationRate > 0.3) {
-        riskFactors.push('Alta taxa de cancelamento')
-      }
-
-      return {
-        patient_id: patient.id,
-        patient_name: patient.name,
-        phone: patient.phone,
-        risk_score: patient.risk_score || 0,
-        risk_factors: riskFactors,
-        last_visit: patient.last_visit,
-        total_visits: totalVisits,
-        cancelled_count: cancelledCount,
-        no_show_count: noShowCount,
-      }
+    return pRows.map(p => {
+      const appts = apptMap.get(p.id) || []
+      const totalVisits = appts.length
+      const cancelledCount = appts.filter(a => a.status === 'cancelled').length
+      const noShowCount = appts.filter(a => a.status === 'no_show').length
+      const factors: string[] = []
+      if (!p.lastVisit) factors.push('Nunca visitou')
+      else { const days = Math.floor((Date.now() - p.lastVisit.getTime()) / 86400000); if (days > 180) factors.push(`Sem visita há ${days} dias`) }
+      if (noShowCount > 0) factors.push(`${noShowCount} no-show(s)`)
+      if (cancelledCount > 2) factors.push(`${cancelledCount} cancelamentos`)
+      if (totalVisits > 0 && cancelledCount / totalVisits > 0.3) factors.push('Alta taxa de cancelamento')
+      return { patient_id: p.id, patient_name: p.name, phone: p.phone ?? '', risk_score: Number(p.riskScore ?? 0), risk_factors: factors, last_visit: p.lastVisit?.toISOString?.() ?? null, total_visits: totalVisits, cancelled_count: cancelledCount, no_show_count: noShowCount }
     })
-  } catch (error) {
-    dbLogger.error('Error analyzing high risk patients', error)
-    return []
-  }
+  } catch (e) { dbLogger.error('Error analyzing high risk patients', e); return [] }
 }
 
-/**
- * Predict demand for upcoming days
- * Uses a single query to fetch all historical appointments, then aggregates
- * by day-of-week in JavaScript — replacing the previous 112 individual queries
- * (14 days × 8 historical weeks).
- */
-export async function getDemandForecast(
-  clinicId: string,
-  days: number = 14
-): Promise<DemandForecast[]> {
-  const supabase = await createTypedClient()
-
+export async function getDemandForecast(clinicId: string, days = 14): Promise<DemandForecast[]> {
+  const db = getDb()
+  const historicalWeeks = 8
   try {
-    const historicalWeeks = 8 // Look at last 8 weeks
-
-    // Single query: fetch all appointments from the historical window
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - historicalWeeks * 7 - days)
+    const startDate = new Date(); startDate.setDate(startDate.getDate() - historicalWeeks * 7 - days)
     const endDate = new Date()
-
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('scheduled_at')
-      .eq('clinic_id', clinicId)
-      .gte('scheduled_at', startDate.toISOString())
-      .lt('scheduled_at', endDate.toISOString()) as any
-
-    if (error) throw error
-
-    // Group historical appointments by individual date, indexed by day-of-week.
-    // Each unique date becomes one data point — this preserves the same granularity
-    // as the original per-week queries (one count per historical day).
-    const appointmentsByDayOfWeek: Map<number, Map<string, number>> = new Map()
-    for (let d = 0; d < 7; d++) appointmentsByDayOfWeek.set(d, new Map())
-
-    for (const apt of (appointments as Array<{ scheduled_at: string }>) || []) {
-      const date = new Date(apt.scheduled_at)
-      const dayOfWeek = date.getDay()
-      const dateStr = apt.scheduled_at.split('T')[0]
-      const dayMap = appointmentsByDayOfWeek.get(dayOfWeek)!
-      dayMap.set(dateStr, (dayMap.get(dateStr) || 0) + 1)
-    }
-
-    // Build forecasts for each upcoming day
+    const rows = await db.select({ scheduledAt: appointments.scheduledAt }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate), lt(appointments.scheduledAt, endDate)))
+    const byDow = new Map<number, Map<string, number>>()
+    for (let d = 0; d < 7; d++) byDow.set(d, new Map())
+    for (const a of rows) { const dow = a.scheduledAt.getDay(); const ds = a.scheduledAt.toISOString().split('T')[0]; const m = byDow.get(dow)!; m.set(ds, (m.get(ds) || 0) + 1) }
     const forecasts: DemandForecast[] = []
-
     for (let i = 0; i < days; i++) {
-      const targetDate = new Date()
-      targetDate.setDate(targetDate.getDate() + i)
-      const dayOfWeek = targetDate.getDay()
-      const dateStr = targetDate.toISOString().split('T')[0]
-
-      // Collect per-day appointment counts for the same day of week
-      const dayMap = appointmentsByDayOfWeek.get(dayOfWeek)!
-      const historicalCounts = Array.from(dayMap.values())
-
-      // Calculate average and confidence
-      const avg =
-        historicalCounts.length > 0
-          ? historicalCounts.reduce((a, b) => a + b, 0) / historicalCounts.length
-          : 0
-
-      const variance =
-        historicalCounts.length > 1
-          ? historicalCounts.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) /
-            (historicalCounts.length - 1)
-          : 0
-
-      const stdDev = Math.sqrt(variance)
-      const confidence = avg > 0 ? Math.max(0.5, 1 - stdDev / avg) : 0.5
-
-      forecasts.push({
-        date: dateStr,
-        predicted_appointments: Math.round(avg),
-        confidence: Math.round(confidence * 100) / 100,
-        based_on: `${historicalCounts.length} semanas de dados`,
-      })
+      const target = new Date(); target.setDate(target.getDate() + i)
+      const dow = target.getDay(); const ds = target.toISOString().split('T')[0]
+      const counts = Array.from(byDow.get(dow)!.values())
+      const avg = counts.length > 0 ? counts.reduce((a, b) => a + b, 0) / counts.length : 0
+      const variance = counts.length > 1 ? counts.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / (counts.length - 1) : 0
+      const confidence = avg > 0 ? Math.max(0.5, 1 - Math.sqrt(variance) / avg) : 0.5
+      forecasts.push({ date: ds, predicted_appointments: Math.round(avg), confidence: Math.round(confidence * 100) / 100, based_on: `${counts.length} semanas de dados` })
     }
-
     return forecasts
-  } catch (error) {
-    dbLogger.error('Error generating demand forecast', error)
-    return []
-  }
+  } catch (e) { dbLogger.error('Error generating demand forecast', e); return [] }
 }
 
-/**
- * Calculate average confirmation time in hours
- * Measures how many hours before the appointment patients confirm on average
- */
 async function calculateAvgConfirmationTime(clinicId: string): Promise<number> {
-  const supabase = await createTypedClient()
-
+  const db = getDb()
   try {
-    // Get appointments with confirmation timestamps from last 90 days
-    const ninetyDaysAgo = new Date()
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('scheduled_at, confirmation_sent_at')
-      .eq('clinic_id', clinicId)
-      .not('confirmation_sent_at', 'is', null)
-      .gte('scheduled_at', ninetyDaysAgo.toISOString()) as any
-
-    if (error || !appointments || (appointments as any[]).length === 0) {
-      return 0
+    const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
+    const rows = await db.select({ scheduledAt: appointments.scheduledAt, confirmationSentAt: appointments.confirmationSentAt }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, ninetyDaysAgo), isNotNull(appointments.confirmationSentAt)))
+    if (!rows.length) return 0
+    let total = 0; let count = 0
+    for (const a of rows) {
+      const diff = (a.scheduledAt.getTime() - a.confirmationSentAt!.getTime()) / 3600000
+      if (diff > 0) { total += diff; count++ }
     }
-
-    // Calculate average hours between scheduled time and confirmation sent time
-    const totalHours = (appointments as any[]).reduce((sum, apt) => {
-      const scheduled = new Date(apt.scheduled_at).getTime()
-      const confirmed = new Date(apt.confirmation_sent_at!).getTime()
-      const hoursBeforeAppointment = (scheduled - confirmed) / (1000 * 60 * 60)
-      // Only count if confirmation was sent before the appointment
-      return hoursBeforeAppointment > 0 ? sum + hoursBeforeAppointment : sum
-    }, 0)
-
-    const avgHours = totalHours / (appointments as any[]).length
-    return Math.round(avgHours * 10) / 10 // Round to 1 decimal
-  } catch (error) {
-    dbLogger.error('Error calculating avg confirmation time', error)
-    return 0
-  }
+    return count > 0 ? Math.round((total / count) * 10) / 10 : 0
+  } catch (e) { dbLogger.error('Error calculating avg confirmation time', e); return 0 }
 }
 
-/**
- * Get comprehensive clinic insights
- */
-export async function getClinicInsights(
-  clinicId: string,
-  options: { trendDays?: number; forecastDays?: number } = {}
-): Promise<ClinicInsights> {
+export async function getClinicInsights(clinicId: string, options: { trendDays?: number; forecastDays?: number } = {}): Promise<ClinicInsights> {
   const { trendDays = 30, forecastDays = 14 } = options
-
   try {
-    // Run all analytics in parallel (including avg confirmation time)
     const [trends, hourly, dayOfWeek, riskPatients, forecast, avgConfirmationTime] = await Promise.all([
-      getAppointmentTrends(clinicId, trendDays),
-      getHourlyDistribution(clinicId, 90),
-      getDayOfWeekDistribution(clinicId, 90),
-      getHighRiskPatients(clinicId, 20),
-      getDemandForecast(clinicId, forecastDays),
-      calculateAvgConfirmationTime(clinicId),
+      getAppointmentTrends(clinicId, trendDays), getHourlyDistribution(clinicId, 90), getDayOfWeekDistribution(clinicId, 90),
+      getHighRiskPatients(clinicId, 20), getDemandForecast(clinicId, forecastDays), calculateAvgConfirmationTime(clinicId),
     ])
-
-    // Calculate metrics
-    const totalAppointments = trends.reduce((sum, t) => sum + t.total, 0)
-    const totalCancelled = trends.reduce((sum, t) => sum + t.cancelled, 0)
-    const totalNoShow = trends.reduce((sum, t) => sum + t.no_show, 0)
-    const totalCompleted = trends.reduce((sum, t) => sum + t.completed, 0)
-
-    const avgAppointmentsPerDay = trends.length > 0 ? totalAppointments / trends.length : 0
-
-    // Find peak hour
-    const peakHourData = hourly.reduce((max, h) => (h.count > max.count ? h : max), hourly[0] || { hour: 9, count: 0 })
-
-    // Find peak day
-    const peakDayData = dayOfWeek.reduce(
-      (max, d) => (d.count > max.count ? d : max),
-      dayOfWeek[0] || { day: 'Seg', dayIndex: 1, count: 0 }
-    )
-
-    const cancellationRate = totalAppointments > 0 ? totalCancelled / totalAppointments : 0
-    const noShowRate = totalAppointments > 0 ? totalNoShow / totalAppointments : 0
-
+    const total = trends.reduce((s, t) => s + t.total, 0)
+    const totalCancelled = trends.reduce((s, t) => s + t.cancelled, 0)
+    const totalNoShow = trends.reduce((s, t) => s + t.no_show, 0)
+    const avgPerDay = trends.length > 0 ? total / trends.length : 0
+    const peakHour = (hourly.reduce((m, h) => (h.count > m.count ? h : m), hourly[0]) || { hour: 9, count: 0 }).hour
+    const peakDay = (dayOfWeek.reduce((m, d) => (d.count > m.count ? d : m), dayOfWeek[0]) || { day: 'Seg', dayIndex: 1, count: 0 }).day
     return {
-      appointmentTrends: trends,
-      hourlyDistribution: hourly,
-      dayOfWeekDistribution: dayOfWeek,
-      highRiskPatients: riskPatients,
-      demandForecast: forecast,
-      metrics: {
-        avgAppointmentsPerDay: Math.round(avgAppointmentsPerDay * 10) / 10,
-        peakHour: peakHourData.hour,
-        peakDay: peakDayData.day,
-        cancellationRate: Math.round(cancellationRate * 100),
-        noShowRate: Math.round(noShowRate * 100),
-        avgConfirmationTime,
-      },
+      appointmentTrends: trends, hourlyDistribution: hourly, dayOfWeekDistribution: dayOfWeek,
+      highRiskPatients: riskPatients, demandForecast: forecast,
+      metrics: { avgAppointmentsPerDay: Math.round(avgPerDay * 10) / 10, peakHour, peakDay, cancellationRate: total > 0 ? Math.round((totalCancelled / total) * 100) : 0, noShowRate: total > 0 ? Math.round((totalNoShow / total) * 100) : 0, avgConfirmationTime },
     }
-  } catch (error) {
-    dbLogger.error('Error getting clinic insights', error)
-    return {
-      appointmentTrends: [],
-      hourlyDistribution: [],
-      dayOfWeekDistribution: [],
-      highRiskPatients: [],
-      demandForecast: [],
-      metrics: {
-        avgAppointmentsPerDay: 0,
-        peakHour: 9,
-        peakDay: 'Seg',
-        cancellationRate: 0,
-        noShowRate: 0,
-        avgConfirmationTime: 0,
-      },
-    }
-  }
+  } catch (e) { dbLogger.error('Error getting clinic insights', e); return { appointmentTrends: [], hourlyDistribution: [], dayOfWeekDistribution: [], highRiskPatients: [], demandForecast: [], metrics: { avgAppointmentsPerDay: 0, peakHour: 9, peakDay: 'Seg', cancellationRate: 0, noShowRate: 0, avgConfirmationTime: 0 } } }
 }
