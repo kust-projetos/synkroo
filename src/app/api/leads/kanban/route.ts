@@ -1,48 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserProfile } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
+import { eq, and, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { leads, pipelineStages } from '@/lib/db/schema'
+import { validateApiAuth } from '@/lib/auth/session'
 
-/**
- * GET /api/leads/kanban
- * Kanban leads query for CRM pipeline board
- * Uses getUserProfile() for auth (establishes session via cookies)
- * then createClient() for data query (carries auth context)
- */
+function toSnake(l: any, ps: any) {
+  return {
+    id: l.id, name: l.name, phone: l.phone, email: l.email,
+    source: l.source, temperature: l.temperature, score: l.score,
+    stage_id: l.stageId, interest: l.interest,
+    last_contact_at: l.lastContactAt?.toISOString?.() ?? null,
+    created_at: l.createdAt?.toISOString?.() ?? null,
+    updated_at: l.updatedAt?.toISOString?.() ?? null,
+    pipeline_stages: ps ? { id: ps.id, name: ps.name, color: ps.color, sort_order: ps.position } : null,
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
-    const profile = await getUserProfile()
-    if (!profile) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const clinicId = profile.clinic_id
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    const clinicId = auth.profile!.clinic_id
     const { searchParams } = new URL(req.url)
     const stageId = searchParams.get('stage_id')
 
-    const supabase = await createClient()
+    const db = getDb()
+    const conditions: any[] = [eq(leads.clinicId, clinicId)]
+    if (stageId) conditions.push(eq(leads.stageId, stageId))
 
-    let query = supabase
-      .from('leads')
-      .select(`
-        id, name, phone, email, source, temperature, score,
-        stage_id, interest, last_contact_at, created_at, updated_at,
-        pipeline_stages (id, name, color, sort_order)
-      `)
-      .eq('clinic_id', clinicId)
-      .order('score', { ascending: false })
+    const rows = await db
+      .select()
+      .from(leads)
+      .leftJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
+      .where(and(...conditions))
+      .orderBy(desc(leads.score))
 
-    if (stageId) {
-      query = query.eq('stage_id', stageId)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ leads: data ?? [] })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
+    const result = rows.map((r: any) => toSnake(r.leads, r.pipeline_stages))
+    return NextResponse.json({ leads: result })
+  } catch (error: any) { return NextResponse.json({ error: error.message }, { status: 500 }) }
 }
