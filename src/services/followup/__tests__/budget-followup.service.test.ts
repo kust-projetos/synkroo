@@ -7,6 +7,15 @@ jest.mock('@/lib/supabase/typed', () => ({
   createTypedClient: jest.fn(),
 }))
 
+const mockDb = {
+  select: jest.fn().mockReturnThis(),
+  from: jest.fn().mockReturnThis(),
+  leftJoin: jest.fn().mockReturnThis(),
+  where: jest.fn().mockReturnThis(),
+  orderBy: jest.fn().mockResolvedValue([]),
+}
+jest.mock('@/lib/db/client', () => ({ getDb: jest.fn(() => mockDb) }))
+
 jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
@@ -24,29 +33,15 @@ describe('Budget Follow-up Service', () => {
 
   describe('findUnconvertedBudgets', () => {
     it('should find budgets older than 7 days with sent/pending status', async () => {
-      const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
-      const budgets = [
-        {
-          id: 'budget-1',
-          patient_id: 'patient-1',
-          clinic_id: 'clinic-1',
-          total_value: 1500,
-          status: 'sent',
-          created_at: oldDate,
-          notes: '',
-          patients: { name: 'João', phone: '11999999999' },
+      const oldDate = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000)
+      const mockRow = {
+        budgets: {
+          id: 'budget-1', patientId: 'patient-1', clinicId: 'clinic-1',
+          totalValue: '1500', status: 'sent', createdAt: oldDate, notes: '',
         },
-      ]
-
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({ data: budgets, error: null }),
-            }),
-          }),
-        }),
-      })
+        patients: { name: 'João', phone: '11999999999' },
+      }
+      mockDb.orderBy.mockResolvedValue([mockRow])
 
       const results = await findUnconvertedBudgets('clinic-1')
 
@@ -57,46 +52,18 @@ describe('Budget Follow-up Service', () => {
     })
 
     it('should parse followup stage from notes', async () => {
-      const oldDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-      const budgets = [
-        {
-          id: 'b1',
-          patient_id: 'p1',
-          clinic_id: 'clinic-1',
-          total_value: 500,
-          status: 'sent',
-          created_at: oldDate,
-          notes: '[followup-stage-1-date: 2026-03-20]',
-          patients: { name: 'Maria', phone: '11888888888' },
-        },
-      ]
-
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({ data: budgets, error: null }),
-            }),
-          }),
-        }),
-      })
+      const oldDate = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000)
+      mockDb.orderBy.mockResolvedValue([{
+        budgets: { id: 'b1', patientId: 'p1', clinicId: 'clinic-1', totalValue: '500', status: 'sent', createdAt: oldDate, notes: '[followup-stage-1-date: 2026-03-20]' },
+        patients: { name: 'Maria', phone: '11888888888' },
+      }])
 
       const results = await findUnconvertedBudgets('clinic-1')
-
       expect(results[0].followup_stage).toBe(1)
     })
 
     it('should return empty array on error', async () => {
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }),
-            }),
-          }),
-        }),
-      })
-
+      mockDb.orderBy.mockRejectedValue(new Error('DB error'))
       const results = await findUnconvertedBudgets('clinic-1')
       expect(results).toEqual([])
     })
