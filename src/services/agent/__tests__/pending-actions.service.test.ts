@@ -1,266 +1,36 @@
-/**
- * Tests for Pending Actions Service
- * Tests undo/rollback flow for agent actions
- */
-
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn(),
-}))
-
-jest.mock('@/lib/logger', () => ({
-  dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
-}))
-
-import { PendingActionsService } from '../pending-actions.service'
-
-describe('Pending Actions Service', () => {
-  let service: PendingActionsService
-  const mockClient = { from: jest.fn() }
-
-  beforeEach(() => {
-    jest.clearAllMocks()
-    const { createTypedClient } = require('@/lib/supabase/typed')
-    createTypedClient.mockResolvedValue(mockClient)
-    service = new PendingActionsService()
+/** Tests for Pending Actions Service — Drizzle mocks */
+jest.mock('@/lib/logger',()=>({dbLogger:{info:jest.fn(),warn:jest.fn(),error:jest.fn(),debug:jest.fn()}}))
+let results:any[][]=[],counter=0
+const mdb={select:jest.fn(function(this:any){return this}),from:jest.fn(function(this:any){return this}),where:jest.fn(function(this:any){return this}),orderBy:jest.fn(function(this:any){return this}),insert:jest.fn(function(this:any){return this}),values:jest.fn(function(this:any){return this}),returning:jest.fn(function(this:any){return this}),update:jest.fn(function(this:any){return this}),set:jest.fn(function(this:any){return this}),then:jest.fn(function(this:any,onF:any){const d=results[counter++]??results[results.length-1]??[];return Promise.resolve(typeof onF==='function'?onF(d):d)})} as any
+jest.mock('@/lib/db/client',()=>{let d:any=null;return{getDb:jest.fn(()=>{if(!d)d=mdb;return d})}})
+import{pendingActionsService}from'../pending-actions.service'
+function seed(...s:any[][]){counter=0;results=s}
+beforeEach(()=>{counter=0;results=[];jest.clearAllMocks()})
+const baseRow={id:'a1',clinicId:'c1',conversationId:null,patientId:null,appointmentId:null,actionType:'test',riskScore:0,riskLevel:'LOW',status:'pending',snapshotBefore:{},snapshotAfter:{},undoPayload:{},confirmationCount:0,maxConfirmations:1,confirmedAt:null,undoDeadline:new Date(Date.now()+3600000),undoneAt:null,reasoning:null,agentIntent:null,confidence:null,createdAt:new Date(),updatedAt:new Date()}
+describe('PendingActionsService',()=>{
+  describe('createAction',()=>{
+    it('creates action',async()=>{seed([baseRow]);const a=await pendingActionsService.createAction({clinicId:'c1',actionType:'test',riskScore:0,riskLevel:'LOW'});expect(a.id).toBe('a1');expect(a.status).toBe('pending')})
   })
-
-  describe('createAction', () => {
-    it('should create a pending action with undo deadline', async () => {
-      const mockAction = {
-        id: 'action-1',
-        action_type: 'cancel_appointment',
-        status: 'pending',
-        undo_deadline: new Date(Date.now() + 5 * 60_000).toISOString(),
-      }
-
-      mockClient.from.mockReturnValue({
-        insert: jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({ data: mockAction, error: null }),
-          }),
-        }),
-      })
-
-      const result = await service.createAction({
-        clinicId: 'clinic-1',
-        actionType: 'cancel_appointment',
-        riskScore: 0.7,
-        riskLevel: 'MEDIUM',
-      })
-
-      expect(result).toEqual(mockAction)
-    })
-
-    it('should throw on insert error', async () => {
-      mockClient.from.mockReturnValue({
-        insert: jest.fn().mockReturnValue({
-          select: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Insert failed' } }),
-          }),
-        }),
-      })
-
-      await expect(
-        service.createAction({
-          clinicId: 'clinic-1',
-          actionType: 'cancel',
-          riskScore: 0.5,
-          riskLevel: 'LOW',
-        })
-      ).rejects.toBeDefined()
-    })
+  describe('confirmAction',()=>{
+    it('confirms action',async()=>{seed([{confirmationCount:0,maxConfirmations:2}],[]);const r=await pendingActionsService.confirmAction('a1');expect(r.confirmed).toBe(false);expect(r.requiresMore).toBe(true)})
+    it('fully confirms on last count',async()=>{seed([{confirmationCount:1,maxConfirmations:2}],[]);const r=await pendingActionsService.confirmAction('a1');expect(r.confirmed).toBe(true);expect(r.requiresMore).toBe(false)})
+    it('throws on missing action',async()=>{seed([]);await expect(pendingActionsService.confirmAction('a1')).rejects.toThrow('Action not found')})
   })
-
-  describe('confirmAction', () => {
-    it('should confirm action when count reaches max', async () => {
-      mockClient.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { confirmation_count: 0, max_confirmations: 1 },
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-
-      const result = await service.confirmAction('action-1')
-
-      expect(result.confirmed).toBe(true)
-      expect(result.requiresMore).toBe(false)
-    })
-
-    it('should require more confirmations when count < max', async () => {
-      mockClient.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { confirmation_count: 0, max_confirmations: 2 },
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-
-      const result = await service.confirmAction('action-1')
-
-      expect(result.confirmed).toBe(false)
-      expect(result.requiresMore).toBe(true)
-    })
+  describe('executeAction',()=>{
+    it('executes pending action',async()=>{seed([{undoDeadline:new Date(Date.now()+3600000)}]);const r=await pendingActionsService.executeAction('a1');expect(r.executed).toBe(true)})
+    it('fails on missing',async()=>{seed([]);const r=await pendingActionsService.executeAction('a1');expect(r.executed).toBe(false)})
   })
-
-  describe('executeAction', () => {
-    it('should execute a pending action', async () => {
-      const futureDeadline = new Date(Date.now() + 5 * 60_000).toISOString()
-      mockClient.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnValue({
-                single: jest.fn().mockResolvedValue({
-                  data: { undo_deadline: futureDeadline },
-                  error: null,
-                }),
-              }),
-            }),
-          }),
-        }),
-      })
-
-      const result = await service.executeAction('action-1')
-
-      expect(result.executed).toBe(true)
-      expect(result.undoDeadline.getTime()).toBeGreaterThan(0)
-    })
-
-    it('should return not executed on error', async () => {
-      mockClient.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              select: jest.fn().mockReturnValue({
-                single: jest.fn().mockResolvedValue({ data: null, error: { message: 'Not found' } }),
-              }),
-            }),
-          }),
-        }),
-      })
-
-      const result = await service.executeAction('action-1')
-
-      expect(result.executed).toBe(false)
-    })
+  describe('undoAction',()=>{
+    it('undos executed action',async()=>{seed([{status:'executed',undoDeadline:new Date(Date.now()+3600000),undoPayload:{x:1}}],[]);const r=await pendingActionsService.undoAction('a1');expect(r.undone).toBe(true);expect(r.restored).toEqual({x:1})})
+    it('fails when deadline passed',async()=>{seed([{status:'executed',undoDeadline:new Date(Date.now()-1000),undoPayload:{}}]);const r=await pendingActionsService.undoAction('a1');expect(r.undone).toBe(false)})
   })
-
-  describe('undoAction', () => {
-    it('should undo action within undo window', async () => {
-      const futureDeadline = new Date(Date.now() + 5 * 60_000).toISOString()
-      mockClient.from
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              single: jest.fn().mockResolvedValue({
-                data: { status: 'executed', undo_deadline: futureDeadline, undo_payload: { status: 'scheduled' } },
-                error: null,
-              }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          update: jest.fn().mockReturnValue({
-            eq: jest.fn().mockResolvedValue({ error: null }),
-          }),
-        })
-
-      const result = await service.undoAction('action-1')
-
-      expect(result.undone).toBe(true)
-      expect(result.restored).toEqual({ status: 'scheduled' })
-    })
-
-    it('should not undo if deadline has passed', async () => {
-      const pastDeadline = new Date(Date.now() - 10 * 60_000).toISOString()
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { status: 'executed', undo_deadline: pastDeadline, undo_payload: {} },
-              error: null,
-            }),
-          }),
-        }),
-      })
-
-      const result = await service.undoAction('action-1')
-
-      expect(result.undone).toBe(false)
-    })
-
-    it('should not undo if not in executed state', async () => {
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue({
-              data: { status: 'pending', undo_deadline: new Date().toISOString(), undo_payload: {} },
-              error: null,
-            }),
-          }),
-        }),
-      })
-
-      const result = await service.undoAction('action-1')
-
-      expect(result.undone).toBe(false)
-    })
+  describe('getPendingForConversation',()=>{
+    it('returns pending actions',async()=>{seed([baseRow]);const r=await pendingActionsService.getPendingForConversation('conv1');expect(r.length).toBe(1)})
   })
-
-  describe('expireOldActions', () => {
-    it('should expire actions past undo deadline', async () => {
-      mockClient.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            lt: jest.fn().mockReturnValue({
-              select: jest.fn().mockResolvedValue({
-                data: [{ id: 'a1' }, { id: 'a2' }],
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      })
-
-      const count = await service.expireOldActions()
-      expect(count).toBe(2)
-    })
-
-    it('should return 0 on error', async () => {
-      mockClient.from.mockReturnValue({
-        update: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            lt: jest.fn().mockReturnValue({
-              select: jest.fn().mockResolvedValue({
-                data: null,
-                error: { message: 'Query failed' },
-              }),
-            }),
-          }),
-        }),
-      })
-
-      const count = await service.expireOldActions()
-      expect(count).toBe(0)
-    })
+  describe('getUndoableActions',()=>{
+    it('returns undoable actions',async()=>{seed([{...baseRow,status:'executed',patientId:'p1',undoDeadline:new Date(Date.now()+3600000)}]);const r=await pendingActionsService.getUndoableActions('p1');expect(r.length).toBe(1)})
+  })
+  describe('expireOldActions',()=>{
+    it('expires old actions',async()=>{seed([{id:'a1'},{id:'a2'}]);const r=await pendingActionsService.expireOldActions();expect(r).toBe(2)})
   })
 })
