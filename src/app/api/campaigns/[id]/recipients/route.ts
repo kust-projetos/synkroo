@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { addCampaignRecipients } from '@/services/followup/campaign.service'
 import { getPatientsForReactivation } from '@/services/followup/inactive-patient.service'
-import { validateApiAuth, hasRequiredRole } from '@/lib/supabase/server'
+import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
 import { handleApiError, ValidationError } from '@/lib/errors'
 import * as campaignRepo from '@/repositories/campaigns'
 
