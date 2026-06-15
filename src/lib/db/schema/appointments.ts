@@ -72,3 +72,26 @@ export const waitlist = pgTable('waitlist', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
+
+// ──────────────────────────────────────────────
+// APPOINTMENT REMINDER CONFIGS
+// ──────────────────────────────────────────────
+export const appointmentReminderConfigs = pgTable('appointment_reminder_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').notNull().references(() => clinics.id, { onDelete: 'cascade' }),
+  procedureTypeId: uuid('procedure_type_id').notNull(),
+  hoursBefore: integer('hours_before').notNull(),
+  messageTemplate: text('message_template').notNull(),
+  enabled: boolean('enabled').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// ──────────────────────────────────────────────
+// PROCEDURE TYPES
+// ──────────────────────────────────────────────
+export const procedureTypes = pgTable('procedure_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});

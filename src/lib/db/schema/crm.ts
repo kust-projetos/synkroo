@@ -181,3 +181,20 @@ export const clinicTags = pgTable('clinic_tags', {
 }, (t) => ({
   clinicTagNameUniq: { name: 'clinictags_clinic_name_uniq', columns: [t.clinicId, t.name], type: 'unique' },
 }));
+
+
+// ──────────────────────────────────────────────
+// CAMPAIGN SEGMENTS
+// ──────────────────────────────────────────────
+export const campaignSegments = pgTable('campaign_segments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').notNull().references(() => clinics.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  criteria: jsonb('criteria').notNull(),
+  patientCount: integer('patient_count').default(0),
+  createdBy: uuid('created_by'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+});
