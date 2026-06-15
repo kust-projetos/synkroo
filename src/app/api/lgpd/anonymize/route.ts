@@ -1,10 +1,8 @@
 /**
  * LGPD Anonymize API Route
  * POST /api/lgpd/anonymize
- * LGPD-03: Anonymizes patient data
+ * LGPD-03: Anonymizes patient data with audit trail
  * Migrated from Supabase to Drizzle ORM.
- *
- * Note: audit_logs insertion skipped — audit schema not yet unblocked.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -14,6 +12,7 @@ import { patients } from '@/lib/db/schema/core'
 import { appointments } from '@/lib/db/schema/appointments'
 import { budgets } from '@/lib/db/schema/business'
 import { leads } from '@/lib/db/schema/crm'
+import { auditLogs } from '@/lib/db/schema/infra'
 import { eq, and } from 'drizzle-orm'
 
 export async function POST(request: NextRequest) {
@@ -27,6 +26,7 @@ export async function POST(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id
+    const userId = authResult.profile!.id
     const requestId = crypto.randomUUID()
 
     const body = await request.json()
@@ -40,15 +40,31 @@ export async function POST(request: NextRequest) {
     const anonymizedHex = crypto.randomUUID().replace(/-/g, '').substring(0, 8)
     const anonymizedName = `ANONYMIZED_${anonymizedHex}`
 
+    // Step 0: Capture patient snapshot before anonymization
+    const [snapshot] = await db.select()
+      .from(patients)
+      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+      .limit(1)
+
+    const oldValues = snapshot ? {
+      name: snapshot.name,
+      phone: snapshot.phone,
+      email: snapshot.email,
+      cpf: snapshot.cpf,
+      birthDate: snapshot.birthDate,
+    } : null
+
+    const newValues = {
+      name: anonymizedName,
+      phone: null,
+      email: null,
+      cpf: null,
+      birthDate: null,
+    }
+
     // Step 1: Update patients
-    const patientResult = await db.update(patients)
-      .set({
-        name: anonymizedName,
-        phone: null,
-        email: null,
-        cpf: null,
-        birthDate: null,
-      } as any)
+    await db.update(patients)
+      .set(newValues as any)
       .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
 
     // Step 2: Update appointments notes
@@ -66,8 +82,18 @@ export async function POST(request: NextRequest) {
       .set({ name: '[ANONYMIZED]', phone: null, email: null } as any)
       .where(and(eq(leads.patientId, patientId), eq(leads.clinicId, clinicId)))
 
-    // Step 5: Audit log — SKIPPED (audit_logs schema not yet unblocked)
-    // TODO: insert audit_logs entry with action='patient_anonymized' when schema is ready
+    // Step 5: Insert audit log
+    await db.insert(auditLogs).values({
+      clinicId,
+      userId,
+      action: 'patient_anonymized',
+      entityType: 'patient',
+      entityId: patientId,
+      oldValues: oldValues as any,
+      newValues: newValues as any,
+      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null,
+      userAgent: request.headers.get('user-agent') ?? null,
+    })
 
     return NextResponse.json({ success: true, auditId: requestId })
   } catch (error) {
