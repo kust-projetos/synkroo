@@ -1,154 +1,80 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import {
-  getBudgetById,
-  deleteBudget,
-} from '@/services/budgets/budget.service'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { budgets } from '@/lib/db/schema'
+import { validateApiAuth } from '@/lib/auth/session'
+import { getBudgetById, deleteBudget } from '@/services/budgets/budget.service'
 import { updateBudgetSchema } from '@/lib/validations'
 import { handleApiError, ValidationError } from '@/lib/errors'
 
-type RouteParams = {
-  params: Promise<{ id: string }>
-}
+type RouteParams = { params: Promise<{ id: string }> }
 
-/**
- * GET /api/budgets/[id]
- * Get budget by ID
- */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-    const clinicId = authResult.profile!.clinic_id
-
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    const clinicId = auth.profile!.clinic_id
     const { id } = await params
     const budget = await getBudgetById(id)
-
-    if (!budget) {
-      return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
-    }
-
-    if (budget.clinic_id !== clinicId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
+    if (budget.clinic_id !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     return NextResponse.json({ budget })
-  } catch (error) {
-    return handleApiError(error)
-  }
+  } catch (error) { return handleApiError(error) }
 }
 
-/**
- * PUT /api/budgets/[id]
- * Update budget status or details
- */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-    const clinicId = authResult.profile!.clinic_id
-
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    const clinicId = auth.profile!.clinic_id
     const { id } = await params
     const budget = await getBudgetById(id)
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
+    if (budget.clinic_id !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    if (!budget) {
-      return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
-    }
-
-    if (budget.clinic_id !== clinicId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const rawBody = await request.json()
-    const body = updateBudgetSchema.parse(rawBody)
-
-    const supabase = await createClient()
-
-    const updateData: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    }
-
-    if (body.status) updateData.status = body.status
-    if (body.notes !== undefined) updateData.notes = body.notes
-    if (body.valid_until !== undefined) updateData.valid_until = body.valid_until
-    if (body.treatment_plan_id !== undefined) updateData.treatment_plan_id = body.treatment_plan_id
+    const body = updateBudgetSchema.parse(await request.json())
+    const db = getDb()
+    const set: any = { updatedAt: new Date() }
+    if (body.status) set.status = body.status
+    if (body.notes !== undefined) set.notes = body.notes
+    if (body.valid_until !== undefined) set.validUntil = new Date(body.valid_until)
+    if (body.treatment_plan_id !== undefined) set.treatmentPlanId = body.treatment_plan_id
     if (body.discount_percent !== undefined) {
-      updateData.discount_percent = body.discount_percent
-      const totalValue = budget.total_value || 0
-      updateData.discount_value = totalValue * (body.discount_percent / 100)
-      updateData.final_value = totalValue - (updateData.discount_value as number)
+      set.discountPercent = body.discount_percent
+      const tv = Number(budget.total_value ?? 0)
+      set.discountValue = String(tv * (body.discount_percent / 100))
+      set.finalValue = String(tv - Number(set.discountValue))
     }
 
-    const { data: updatedBudget, error } = await (supabase
-      .from('budgets') as any)
-      .update(updateData)
-      .eq('id', id)
-      .select()
-      .single()
-
-    if (error) {
-      return handleApiError(error)
-    }
-
-    return NextResponse.json({ budget: updatedBudget })
+    const [updated] = await db.update(budgets).set(set).where(eq(budgets.id, id)).returning()
+    const toSnake = (r: any) => ({
+      id: r.id, clinic_id: r.clinicId, patient_id: r.patientId, title: r.title,
+      status: r.status, total_value: r.totalValue, final_value: r.finalValue,
+      discount_value: r.discountValue, created_at: r.createdAt?.toISOString?.() ?? null,
+      updated_at: r.updatedAt?.toISOString?.() ?? null,
+    })
+    return NextResponse.json({ budget: toSnake(updated) })
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
-    }
+    if (error instanceof z.ZodError) return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
     return handleApiError(error)
   }
 }
 
-/**
- * DELETE /api/budgets/[id]
- * Delete or expire a budget
- */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-    const profile = authResult.profile!
-
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    const profile = auth.profile!
     const { id } = await params
     const budget = await getBudgetById(id)
-
-    if (!budget) {
-      return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
-    }
-
-    if (budget.clinic_id !== profile.clinic_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
+    if (budget.clinic_id !== profile.clinic_id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const canHardDelete = ['owner', 'admin'].includes(profile.role)
-    const searchParams = request.nextUrl.searchParams
-    const hardDelete = searchParams.get('hard') === 'true' && canHardDelete
-
+    const hardDelete = request.nextUrl.searchParams.get('hard') === 'true' && canHardDelete
     const success = await deleteBudget(id, hardDelete)
-
-    if (!success) {
-      return NextResponse.json({ error: 'Failed to delete budget' }, { status: 500 })
-    }
-
+    if (!success) return NextResponse.json({ error: 'Failed to delete budget' }, { status: 500 })
     return NextResponse.json({ success: true })
-  } catch (error) {
-    return handleApiError(error)
-  }
+  } catch (error) { return handleApiError(error) }
 }
