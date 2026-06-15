@@ -104,41 +104,27 @@ export async function getLeadInfoTool(
   error?: string
 }> {
   try {
-    const { createTypedClient } = await import('@/lib/supabase/typed')
+    const { getDb } = await import('@/lib/db/client')
+    const { leads } = await import('@/lib/db/schema')
+    const { eq } = await import('drizzle-orm')
 
-    const supabase = await createTypedClient()
+    const db = getDb()
+    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId))
 
-    const { data: lead, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single() as any
-
-    if (error || !lead) {
-      return {
-        success: false,
-        error: 'Lead não encontrado',
-      }
+    if (!lead) {
+      return { success: false, error: 'Lead não encontrado' }
     }
 
     return {
       success: true,
       data: {
-        id: lead.id,
-        name: lead.name,
-        phone: lead.phone,
-        email: lead.email,
-        source: lead.source,
-        status: lead.status,
-        temperature: lead.temperature,
-        score: lead.score,
-        interest: lead.interest,
-        notes: lead.notes,
-        assignedTo: lead.assigned_to,
-        lastContactAt: lead.last_contact_at,
-        nextFollowupAt: lead.next_followup_at,
-        createdAt: lead.created_at,
-      },
+        id: lead.id, name: lead.name, phone: lead.phone, email: lead.email ?? '',
+        source: lead.source ?? '', status: lead.status, temperature: lead.temperature ?? 'cold',
+        score: lead.score ?? 0, interest: lead.interest ?? undefined, notes: lead.notes ?? undefined,
+        assignedTo: lead.assignedTo ?? undefined, lastContactAt: lead.lastContactAt?.toISOString?.() ?? undefined,
+        nextFollowupAt: lead.nextFollowupAt?.toISOString?.() ?? undefined,
+        createdAt: lead.createdAt?.toISOString?.() ?? '',
+      } as any,
     }
   } catch (error) {
     dbLogger.error('getLeadInfoTool error', error)
