@@ -3,7 +3,9 @@
  * Calculates return on investment metrics for the clinic platform
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, and, gte, lte, lt, gt, inArray, isNotNull, sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { conversations, messages, appointments } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
 export interface ROIMetrics {
@@ -107,142 +109,50 @@ function getPreviousPeriodRange(period: string, referenceDate: string): PeriodRa
  * Count AI-handled messages in period
  * Messages with an intent detected are considered AI-handled
  */
-async function countAIHandledMessages(
-  clinicId: string,
-  start: string,
-  end: string
-): Promise<number> {
-  const supabase = await createTypedClient()
-
+async function countAIHandledMessages(clinicId: string, start: string, end: string): Promise<number> {
+  const db = getDb()
   try {
-    // Get conversations for this clinic in the period
-    const { data: conversations, error: convError } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('clinic_id', clinicId)
-      .gte('created_at', start)
-      .lte('created_at', end)
-
-    if (convError) throw convError
-
-    if (!conversations || conversations.length === 0) {
-      return 0
-    }
-
-    const conversationIds = conversations.map((c: { id: string }) => c.id)
-
-    // Count outbound messages with intent (AI-generated responses)
-    const { count, error: msgError } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .in('conversation_id', conversationIds)
-      .eq('direction', 'outbound')
-      .not('intent', 'is', null)
-      .gte('created_at', start)
-      .lte('created_at', end)
-
-    if (msgError) throw msgError
-
-    return count || 0
-  } catch (error) {
-    dbLogger.error('Error counting AI-handled messages', error)
-    return 0
-  }
+    const convRows = await db.select({ id: conversations.id }).from(conversations)
+      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end))))
+    if (!convRows.length) return 0
+    const convIds = convRows.map(c => c.id)
+    const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(messages)
+      .where(and(inArray(messages.conversationId, convIds), eq(messages.direction, 'outbound'), isNotNull(messages.intent), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
+    return row?.count ?? 0
+  } catch (e) { dbLogger.error('Error counting AI-handled messages', e); return 0 }
 }
 
 /**
  * Count appointments booked through AI (via conversations with scheduling intent)
  */
-async function countAIBookedAppointments(
-  clinicId: string,
-  start: string,
-  end: string
-): Promise<number> {
-  const supabase = await createTypedClient()
-
+async function countAIBookedAppointments(clinicId: string, start: string, end: string): Promise<number> {
+  const db = getDb()
   try {
-    // Find messages with scheduling-related intents
-    const { data: conversations, error: convError } = await supabase
-      .from('conversations')
-      .select('id, patient_id')
-      .eq('clinic_id', clinicId)
-      .gte('created_at', start)
-      .lte('created_at', end)
-
-    if (convError) throw convError
-    if (!conversations || conversations.length === 0) {
-      return 0
-    }
-
-    const conversationIds = conversations.map((c: { id: string }) => c.id)
-
-    // Count messages with scheduling intents
-    const { count, error: msgError } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .in('conversation_id', conversationIds)
-      .in('intent', ['schedule_appointment', 'book', 'reschedule', 'confirm_appointment'])
-      .gte('created_at', start)
-      .lte('created_at', end)
-
-    if (msgError) throw msgError
-
-    return count || 0
-  } catch (error) {
-    dbLogger.error('Error counting AI-booked appointments', error)
-    return 0
-  }
+    const convRows = await db.select({ id: conversations.id }).from(conversations)
+      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end))))
+    if (!convRows.length) return 0
+    const convIds = convRows.map(c => c.id)
+    const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(messages)
+      .where(and(inArray(messages.conversationId, convIds), inArray(messages.intent as any, ['schedule_appointment', 'book', 'reschedule', 'confirm_appointment']), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
+    return row?.count ?? 0
+  } catch (e) { dbLogger.error('Error counting AI-booked appointments', e); return 0 }
 }
 
 /**
  * Count recovered no-shows
  * Patients who had a no-show and then completed a subsequent appointment
  */
-async function countRecoveredNoShows(
-  clinicId: string,
-  start: string,
-  end: string
-): Promise<number> {
-  const supabase = await createTypedClient()
-
+async function countRecoveredNoShows(clinicId: string, start: string, end: string): Promise<number> {
+  const db = getDb()
   try {
-    // Get patients who had no-shows before this period
-    const { data: noShowAppointments, error: nsError } = await supabase
-      .from('appointments')
-      .select('patient_id')
-      .eq('clinic_id', clinicId)
-      .eq('status', 'no_show')
-      .lt('scheduled_at', start)
-
-    if (nsError) throw nsError
-    if (!noShowAppointments || noShowAppointments.length === 0) {
-      return 0
-    }
-
-    // Deduplicate patient IDs
-    const patientsWithNoShow = [
-      ...new Set(noShowAppointments.map((a: { patient_id: string | null }) => a.patient_id).filter(Boolean)),
-    ] as string[]
-
-    if (patientsWithNoShow.length === 0) return 0
-
-    // Count completed appointments for those patients in this period
-    const { count, error: completedError } = await supabase
-      .from('appointments')
-      .select('id', { count: 'exact', head: true })
-      .eq('clinic_id', clinicId)
-      .in('patient_id', patientsWithNoShow)
-      .eq('status', 'completed')
-      .gte('scheduled_at', start)
-      .lte('scheduled_at', end)
-
-    if (completedError) throw completedError
-
-    return count || 0
-  } catch (error) {
-    dbLogger.error('Error counting recovered no-shows', error)
-    return 0
-  }
+    const nsRows = await db.select({ patientId: appointments.patientId }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status as any, 'no_show'), lt(appointments.scheduledAt, new Date(start))))
+    const patientIds = [...new Set(nsRows.map(r => r.patientId).filter(Boolean))] as string[]
+    if (!patientIds.length) return 0
+    const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), inArray(appointments.patientId, patientIds), eq(appointments.status as any, 'completed'), gte(appointments.scheduledAt, new Date(start)), lte(appointments.scheduledAt, new Date(end))))
+    return row?.count ?? 0
+  } catch (e) { dbLogger.error('Error counting recovered no-shows', e); return 0 }
 }
 
 /**
