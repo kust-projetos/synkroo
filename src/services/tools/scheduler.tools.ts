@@ -1,19 +1,20 @@
 /**
  * Scheduler Tools for Synkroo Agent
  * Tools for appointment scheduling, rescheduling, and cancellation
+ * Migrated from Supabase to Drizzle ORM.
  */
 
 import type { Tool } from './base.tools'
 import { dbLogger } from '@/lib/logger'
 import { BASE_TOOLS } from './base.tools'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { appointments } from '@/lib/db/schema'
 
 // ============================================================================
 // Tool Definitions
 // ============================================================================
 
-/**
- * Scheduler-specific tools (extends BASE_TOOLS)
- */
 export const SCHEDULER_TOOLS: Tool[] = [
   ...BASE_TOOLS,
   {
@@ -79,9 +80,6 @@ export const SCHEDULER_TOOLS: Tool[] = [
 // Tool Implementations
 // ============================================================================
 
-/**
- * Check availability for a date/dentist
- */
 export async function checkAvailabilityTool(
   dentistId: string | undefined,
   date: string,
@@ -89,40 +87,19 @@ export async function checkAvailabilityTool(
   durationMinutes: number = 30
 ): Promise<{
   success: boolean
-  data?: {
-    date: string
-    slots: Array<{
-      time: string
-      available: boolean
-      dentistName?: string
-    }>
-  }
+  data?: { date: string; slots: Array<{ time: string; available: boolean; dentistName?: string }> }
   error?: string
 }> {
   try {
     const { getAvailableSlots } = await import('@/services/scheduler/scheduler.service')
-
     const slots = await getAvailableSlots(clinicId, date, durationMinutes, dentistId)
-
-    return {
-      success: true,
-      data: {
-        date,
-        slots,
-      },
-    }
+    return { success: true, data: { date, slots } }
   } catch (error) {
     dbLogger.error('checkAvailabilityTool error', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro ao verificar disponibilidade',
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'Erro ao verificar disponibilidade' }
   }
 }
 
-/**
- * Book an appointment
- */
 export async function bookAppointmentTool(
   clinicId: string,
   patientId: string,
@@ -133,53 +110,30 @@ export async function bookAppointmentTool(
   notes?: string
 ): Promise<{
   success: boolean
-  data?: {
-    appointmentId: string
-    message: string
-  }
+  data?: { appointmentId: string; message: string }
   error?: string
 }> {
   try {
-    const { createTypedClient } = await import('@/lib/supabase/typed')
-
-    const supabase = await createTypedClient()
-
-    // Combine date and time
+    const db = getDb()
     const scheduledAt = new Date(`${date}T${time}:00`)
 
-    // Create the appointment
-    const { data: appointment, error } = await (supabase
-      .from('appointments') as any)
-      .insert({
-        clinic_id: clinicId,
-        patient_id: patientId,
-        dentist_id: dentistId || null,
-        procedure_id: procedureId || null,
-        scheduled_at: scheduledAt.toISOString(),
-        duration_minutes: 30,
-        status: 'scheduled',
-        notes: notes || null,
-      })
-      .select()
-      .single()
+    const [appointment] = await db.insert(appointments).values({
+      clinicId,
+      patientId,
+      dentistId: dentistId ?? null,
+      procedureId: procedureId ?? null,
+      scheduledAt,
+      durationMinutes: 30,
+      status: 'scheduled' as any,
+      notes: notes ?? null,
+    }).returning()
 
-    if (error) {
-      dbLogger.error('bookAppointmentTool error', error)
-      return {
-        success: false,
-        error: 'Não foi possível criar o agendamento',
-      }
+    if (!appointment) {
+      return { success: false, error: 'Não foi possível criar o agendamento' }
     }
 
-    const dateStr = scheduledAt.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-    })
-    const timeStr = scheduledAt.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const dateStr = scheduledAt.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+    const timeStr = scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
     return {
       success: true,
@@ -190,63 +144,33 @@ export async function bookAppointmentTool(
     }
   } catch (error) {
     dbLogger.error('bookAppointmentTool error', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro ao agendar consulta',
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'Erro ao agendar consulta' }
   }
 }
 
-/**
- * Cancel an appointment
- */
 export async function cancelAppointmentTool(
   appointmentId: string,
   reason?: string
-): Promise<{
-  success: boolean
-  message?: string
-  error?: string
-}> {
+): Promise<{ success: boolean; message?: string; error?: string }> {
   try {
-    const { createTypedClient } = await import('@/lib/supabase/typed')
+    const db = getDb()
 
-    const supabase = await createTypedClient()
-
-    const { error } = await (supabase
-      .from('appointments') as any)
-      .update({
-        status: 'cancelled',
-        cancelled_at: new Date().toISOString(),
-        cancellation_reason: reason || null,
-        updated_at: new Date().toISOString(),
+    await db.update(appointments)
+      .set({
+        status: 'cancelled' as any,
+        cancelledAt: new Date(),
+        cancellationReason: reason ?? null,
+        updatedAt: new Date(),
       })
-      .eq('id', appointmentId)
+      .where(eq(appointments.id, appointmentId))
 
-    if (error) {
-      dbLogger.error('cancelAppointmentTool error', error)
-      return {
-        success: false,
-        error: 'Não foi possível cancelar o agendamento',
-      }
-    }
-
-    return {
-      success: true,
-      message: 'Agendamento cancelado com sucesso.',
-    }
+    return { success: true, message: 'Agendamento cancelado com sucesso.' }
   } catch (error) {
     dbLogger.error('cancelAppointmentTool error', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro ao cancelar consulta',
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'Erro ao cancelar consulta' }
   }
 }
 
-/**
- * Reschedule an appointment
- */
 export async function rescheduleAppointmentTool(
   appointmentId: string,
   newDate: string,
@@ -254,63 +178,36 @@ export async function rescheduleAppointmentTool(
   reason?: string
 ): Promise<{
   success: boolean
-  data?: {
-    appointmentId: string
-    message: string
-  }
+  data?: { appointmentId: string; message: string }
   error?: string
 }> {
   try {
-    const { createTypedClient } = await import('@/lib/supabase/typed')
+    const db = getDb()
 
-    const supabase = await createTypedClient()
+    // Get current appointment to verify existence
+    const [current] = await db.select()
+      .from(appointments)
+      .where(eq(appointments.id, appointmentId))
+      .limit(1)
 
-    // Get current appointment to preserve other data
-    const { data: currentAppointment, error: fetchError } = await supabase
-      .from('appointments')
-      .select('*')
-      .eq('id', appointmentId)
-      .single() as any
-
-    if (fetchError || !currentAppointment) {
-      return {
-        success: false,
-        error: 'Agendamento não encontrado',
-      }
+    if (!current) {
+      return { success: false, error: 'Agendamento não encontrado' }
     }
 
-    // Calculate new scheduled time
     const newScheduledAt = new Date(`${newDate}T${newTime}:00`)
 
-    // Update appointment
-    const { error: updateError } = await (supabase
-      .from('appointments') as any)
-      .update({
-        scheduled_at: newScheduledAt.toISOString(),
-        status: 'scheduled',
-        rescheduled_at: new Date().toISOString(),
-        reschedule_reason: reason || null,
-        updated_at: new Date().toISOString(),
+    await db.update(appointments)
+      .set({
+        scheduledAt: newScheduledAt,
+        status: 'scheduled' as any,
+        rescheduledAt: new Date(),
+        rescheduleReason: reason ?? null,
+        updatedAt: new Date(),
       })
-      .eq('id', appointmentId)
+      .where(eq(appointments.id, appointmentId))
 
-    if (updateError) {
-      dbLogger.error('rescheduleAppointmentTool error', updateError)
-      return {
-        success: false,
-        error: 'Não foi possível remarcar o agendamento',
-      }
-    }
-
-    const dateStr = newScheduledAt.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: '2-digit',
-      month: 'long',
-    })
-    const timeStr = newScheduledAt.toLocaleTimeString('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    const dateStr = newScheduledAt.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })
+    const timeStr = newScheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 
     return {
       success: true,
@@ -321,10 +218,7 @@ export async function rescheduleAppointmentTool(
     }
   } catch (error) {
     dbLogger.error('rescheduleAppointmentTool error', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Erro ao remarcar consulta',
-    }
+    return { success: false, error: error instanceof Error ? error.message : 'Erro ao remarcar consulta' }
   }
 }
 
@@ -332,42 +226,16 @@ export async function rescheduleAppointmentTool(
 // Tool Executor Registry
 // ============================================================================
 
-/**
- * Registry mapping scheduler tool names to their implementations
- */
 export const SCHEDULER_TOOL_IMPLEMENTATIONS: Record<string, any> = {
-  check_availability: async (args: {
-    dentistId?: string
-    date: string
-    clinicId: string
-    durationMinutes?: number
-  }) => checkAvailabilityTool(args.dentistId, args.date, args.clinicId, args.durationMinutes),
+  check_availability: async (args: { dentistId?: string; date: string; clinicId: string; durationMinutes?: number }) =>
+    checkAvailabilityTool(args.dentistId, args.date, args.clinicId, args.durationMinutes),
 
-  book_appointment: async (args: {
-    clinicId: string
-    patientId: string
-    dentistId?: string
-    procedureId?: string
-    date: string
-    time: string
-    notes?: string
-  }) => bookAppointmentTool(
-    args.clinicId,
-    args.patientId,
-    args.dentistId,
-    args.procedureId,
-    args.date,
-    args.time,
-    args.notes
-  ),
+  book_appointment: async (args: { clinicId: string; patientId: string; dentistId?: string; procedureId?: string; date: string; time: string; notes?: string }) =>
+    bookAppointmentTool(args.clinicId, args.patientId, args.dentistId, args.procedureId, args.date, args.time, args.notes),
 
   cancel_appointment: async (args: { appointmentId: string; reason?: string }) =>
     cancelAppointmentTool(args.appointmentId, args.reason),
 
-  reschedule_appointment: async (args: {
-    appointmentId: string
-    newDate: string
-    newTime: string
-    reason?: string
-  }) => rescheduleAppointmentTool(args.appointmentId, args.newDate, args.newTime, args.reason),
+  reschedule_appointment: async (args: { appointmentId: string; newDate: string; newTime: string; reason?: string }) =>
+    rescheduleAppointmentTool(args.appointmentId, args.newDate, args.newTime, args.reason),
 }
