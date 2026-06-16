@@ -152,6 +152,10 @@ export function createAppointment(
   procedureId: string,
   procedureName: string,
   seed: number,
+  /** Override day offset (default: seed < 3 ? seed : -seed) */
+  dayOffsetOverride?: number,
+  /** Override hour (default: 8 + (seed % 9)) */
+  hourOverride?: number,
 ): MockAppointment {
   const statuses: Array<MockAppointment['status']> = [
     'scheduled',
@@ -161,8 +165,8 @@ export function createAppointment(
     'no_show',
   ]
   const status = statuses[seed % statuses.length]
-  const dayOffset = seed < 3 ? seed : -seed
-  const hour = 8 + (seed % 9)
+  const dayOffset = dayOffsetOverride ?? (seed < 3 ? seed : -seed)
+  const hour = hourOverride ?? (8 + (seed % 9))
   const dateStr = daysFromNow(dayOffset)
   return {
     id: `mock-appt-full-${patientId.slice(-4)}-${seed}`,
