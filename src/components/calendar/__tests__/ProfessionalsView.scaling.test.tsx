@@ -58,3 +58,78 @@ describe('professionals scaling modes', () => {
     expect(useCalendarStore.getState().densityMode).toBe('compact')
   })
 })
+
+// ── Column summary computation ──────────────────
+
+import { computeProfessionalSummary } from '../views/ProfessionalsView'
+import type { CalendarEvent } from '../utils/types'
+
+describe('professional column summaries', () => {
+  const baseEvent = (overrides: Partial<CalendarEvent> = {}): CalendarEvent => ({
+    id: 'apt-1',
+    title: 'Maria Silva',
+    start: new Date('2026-06-16T09:00:00'),
+    end: new Date('2026-06-16T09:30:00'),
+    dentistId: 'dent-1',
+    dentistName: 'Dra. Ana',
+    dentistSpecialty: 'Ortodontia',
+    procedureName: 'Avaliação',
+    status: 'scheduled',
+    durationMinutes: 30,
+    ...overrides,
+  })
+
+  it('computes appointment count per professional', () => {
+    const events = [
+      baseEvent(),
+      baseEvent({ id: 'apt-2', title: 'João' }),
+    ]
+
+    const summary = computeProfessionalSummary(events, 6, 22)
+
+    expect(summary).toEqual(
+      expect.objectContaining({
+        appointmentCount: 2,
+      }),
+    )
+  })
+
+  it('finds next free slot after the last occupied slot', () => {
+    const events = [
+      baseEvent(), // 09:00-09:30
+    ]
+
+    const summary = computeProfessionalSummary(events, 6, 22)
+
+    expect(summary.nextFreeSlot).toBe('09:30')
+  })
+
+  it('counts AI-origin changes', () => {
+    const events = [
+      baseEvent({ origin: 'ai', changeSummary: 'Remarcado pela IA' }),
+      baseEvent({ id: 'apt-2', origin: 'manual' }),
+    ]
+
+    const summary = computeProfessionalSummary(events, 6, 22)
+
+    expect(summary.aiChangesCount).toBe(1)
+  })
+
+  it('counts scheduled appointments as attention items', () => {
+    const events = [
+      baseEvent({ status: 'scheduled' }),
+      baseEvent({ id: 'apt-2', status: 'confirmed' }),
+      baseEvent({ id: 'apt-3', status: 'scheduled' }),
+    ]
+
+    const summary = computeProfessionalSummary(events, 6, 22)
+
+    expect(summary.attentionCount).toBe(2)
+  })
+
+  it('returns empty nextFreeSlot when no events exist', () => {
+    const summary = computeProfessionalSummary([], 6, 22)
+
+    expect(summary.nextFreeSlot).toBe('06:00')
+  })
+})
