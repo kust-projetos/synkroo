@@ -426,3 +426,44 @@ describe('professionals overflow handling', () => {
     expect(overflowCount).toBe(0)
   })
 })
+
+// ── Layout mode (Agenda | Professionals) ─────
+
+describe('layout mode toggle', () => {
+  beforeEach(() => {
+    useCalendarStore.setState({
+      layoutMode: 'agenda',
+      view: 'day',
+    })
+  })
+
+  it('defaults layoutMode to agenda', () => {
+    const state = useCalendarStore.getState()
+    expect(state.layoutMode).toBe('agenda')
+  })
+
+  it('supports toggling layoutMode between agenda and professionals', () => {
+    useCalendarStore.getState().setLayoutMode('professionals')
+    expect(useCalendarStore.getState().layoutMode).toBe('professionals')
+
+    useCalendarStore.getState().setLayoutMode('agenda')
+    expect(useCalendarStore.getState().layoutMode).toBe('agenda')
+  })
+
+  it('keeps layoutMode independent of view changes', () => {
+    useCalendarStore.getState().setLayoutMode('professionals')
+    useCalendarStore.getState().setView('week')
+    expect(useCalendarStore.getState().layoutMode).toBe('professionals')
+
+    useCalendarStore.getState().setView('month')
+    expect(useCalendarStore.getState().layoutMode).toBe('professionals')
+  })
+
+  it('preserves existing professionals view when view is professionals', () => {
+    // The old `view === 'professionals'` still works independently
+    useCalendarStore.getState().setView('professionals')
+    expect(useCalendarStore.getState().view).toBe('professionals')
+    // layoutMode defaults to agenda, doesn't conflict
+    expect(useCalendarStore.getState().layoutMode).toBe('agenda')
+  })
+})
