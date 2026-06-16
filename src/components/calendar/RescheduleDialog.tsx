@@ -113,9 +113,14 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
       closeDialog()
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
     } catch (err) {
-      const msg =
+      const baseMsg =
         err instanceof Error ? err.message : 'Erro ao remarcar. Tente novamente.'
-      showToast(msg, 'warning')
+      // Use more explicit copy for conflict-like errors
+      const conflictHint =
+        baseMsg.includes('conflito') || baseMsg.includes('disponivel') || baseMsg.includes('horario')
+          ? 'Não foi possível salvar a mudança por conflito de horário.'
+          : baseMsg
+      showToast(conflictHint, 'warning')
     } finally {
       setSaving(false)
     }
