@@ -57,7 +57,7 @@ export function EmptySlots({ columnCount, dates, columnDentistIds }: EmptySlotsP
             data-date={dates[col % dates.length]}
             data-hour={hour}
             data-minute={minute}
-            className="absolute cursor-pointer hover:bg-teal-50/50 dark:hover:bg-teal-950/20 transition-colors"
+            className="absolute cursor-pointer hover:bg-teal-50/50 dark:hover:bg-teal-950/20 transition-colors group/slot"
             style={{
               top,
               height: SLOT_HEIGHT,
@@ -65,7 +65,11 @@ export function EmptySlots({ columnCount, dates, columnDentistIds }: EmptySlotsP
               width: `${100 / columnCount}%`,
             }}
             onClick={handleSlotClick}
-          />
+          >
+            <span className="opacity-0 group-hover/slot:opacity-100 text-xs text-teal-600 dark:text-teal-400 font-medium absolute inset-0 flex items-center justify-center transition-opacity">
+              + Criar encaixe
+            </span>
+          </div>
         )
       }
     }
