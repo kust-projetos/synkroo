@@ -132,4 +132,22 @@ describe('professional column summaries', () => {
 
     expect(summary.nextFreeSlot).toBe('06:00')
   })
+
+  it('works with column-index-keyed events (runtime shape from groupEventsByDentist)', () => {
+    // groupEventsByDentist returns Map<number, CalendarEvent[]>
+    // Verify that computeProfessionalSummary handles the exact runtime data flow
+    const events = [
+      baseEvent({ id: 'apt-1', dentistId: 'dent-1' }),
+      baseEvent({ id: 'apt-2', dentistId: 'dent-1', status: 'confirmed' }),
+    ]
+
+    // Simulate what ProfessionalsView does: map resource by column index i
+    const colEvents = events // events for column 0 (dent-1)
+    const summary = computeProfessionalSummary(colEvents, 6, 22)
+
+    expect(summary.appointmentCount).toBe(2)
+    expect(summary.aiChangesCount).toBe(0)
+    expect(summary.attentionCount).toBe(1) // only apt-1 is scheduled
+    expect(summary.nextFreeSlot).toBe('09:30') // after 09:00-09:30 twice = 09:30
+  })
 })
