@@ -50,6 +50,9 @@ const STATUS_BG: Record<string, string> = {
 export function MonthView({ events, date, onEventDrop, onEventClick }: MonthViewProps) {
   const weeks = useMemo(() => getMonthDays(date), [date])
   const { setView, setSelectedDate, openEditDialog, openCreateDialog } = useCalendarStore()
+  const layoutMode = useCalendarStore((s) => s.layoutMode)
+
+  const isProfessionalsMode = layoutMode === 'professionals'
 
   // Drag state
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
@@ -294,7 +297,27 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
 
                     {/* Event cards */}
                     <div className="flex-1 space-y-0.5">
-                      {visibleEvents.map((event) => renderEventCard(event, isExpanded))}
+                      {isProfessionalsMode ? (
+                        // Professionals mode: group by dentist
+                        (() => {
+                          const grouped = new Map<string, CalendarEvent[]>()
+                          visibleEvents.forEach((e) => {
+                            const list = grouped.get(e.dentistId) || []
+                            list.push(e)
+                            grouped.set(e.dentistId, list)
+                          })
+                          return Array.from(grouped.entries()).map(([dentistId, groupEvents]) => (
+                            <div key={dentistId} className="space-y-0.5">
+                              <div className="text-[9px] font-semibold text-muted-foreground truncate px-1.5 pt-0.5">
+                                {groupEvents[0].dentistName}
+                              </div>
+                              {groupEvents.map((event) => renderEventCard(event, isExpanded))}
+                            </div>
+                          ))
+                        })()
+                      ) : (
+                        visibleEvents.map((event) => renderEventCard(event, isExpanded))
+                      )}
 
                       {/* Expand/collapse toggle */}
                       {overflowCount > 0 && !isExpanded && (
