@@ -41,6 +41,9 @@ export type CalendarGroupMode = 'professionals' | 'time' | 'status'
 /** Density mode for calendar views */
 export type CalendarDensityMode = 'compact' | 'comfortable'
 
+/** Layout mode — agenda shows standard grid, professionals shows dentist columns */
+export type CalendarLayoutMode = 'agenda' | 'professionals'
+
 /** Dialog state for create/edit */
 export interface DialogSlotInfo {
   date: Date

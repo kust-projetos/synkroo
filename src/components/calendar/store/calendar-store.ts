@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { startOfDay } from 'date-fns'
 import { getNextDate, getPrevDate } from '../utils/date-utils'
-import type { CalendarView, CalendarGroupMode, CalendarDensityMode, DialogState, DialogSlotInfo, RescheduleInfo } from '../utils/types'
+import type { CalendarView, CalendarGroupMode, CalendarDensityMode, CalendarLayoutMode, DialogState, DialogSlotInfo, RescheduleInfo } from '../utils/types'
 
 /** Default business hours for a dental clinic */
 const DEFAULT_START_HOUR = 6
@@ -45,6 +45,10 @@ interface CalendarStore {
   setGroupMode: (mode: CalendarGroupMode) => void
   setDensityMode: (mode: CalendarDensityMode) => void
 
+  // Layout mode
+  layoutMode: CalendarLayoutMode
+  setLayoutMode: (mode: CalendarLayoutMode) => void
+
   // URL sync
   syncFromURL: (params: URLSearchParams) => void
   toSearchParams: () => URLSearchParams
@@ -60,6 +64,7 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
   endHour: DEFAULT_END_HOUR,
   groupMode: 'professionals',
   densityMode: 'comfortable',
+  layoutMode: 'agenda',
 
   // Actions
   setView: (view) => {
@@ -142,6 +147,10 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
 
   setDensityMode: (densityMode) => {
     set({ densityMode })
+  },
+
+  setLayoutMode: (layoutMode) => {
+    set({ layoutMode })
   },
 
   setBusinessHours: (startHour, endHour) => {
