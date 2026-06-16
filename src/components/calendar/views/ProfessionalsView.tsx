@@ -105,8 +105,8 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
 
   // Per-column summaries
   const columnSummaries = useMemo(() => {
-    return resources.map((resource) => {
-      const colEvents = eventsByColumn.get(resource.id) || []
+    return resources.map((_resource, i) => {
+      const colEvents = eventsByColumn.get(i) || []
       return computeProfessionalSummary(colEvents, startHour, endHour)
     })
   }, [resources, eventsByColumn, startHour, endHour])
