@@ -81,11 +81,55 @@ export function computeProfessionalSummary(
   }
 }
 
+/** Result of visible resource selection with overflow info */
+export interface VisibleResourcesResult {
+  visible: CalendarResource[]
+  overflowCount: number
+}
+
+/**
+ * Select which professionals to show based on total count and appointment load.
+ * - ≤5 professionals: show all
+ * - ≤10 professionals: show all
+ * - >10 professionals: show max 6, prioritizing those with appointments today
+ */
+export function getVisibleResources(
+  resources: CalendarResource[],
+  eventsByColumn: Map<number, CalendarEvent[]>,
+): VisibleResourcesResult {
+  const total = resources.length
+
+  // Prioritize: professionals with appointments today first
+  const withAppointments: CalendarResource[] = []
+  const withoutAppointments: CalendarResource[] = []
+
+  resources.forEach((_resource, i) => {
+    const colEvents = eventsByColumn.get(i)
+    if (colEvents && colEvents.length > 0) {
+      withAppointments.push(resources[i])
+    } else {
+      withoutAppointments.push(resources[i])
+    }
+  })
+
+  const sorted = [...withAppointments, ...withoutAppointments]
+
+  // Determine visible limit
+  let visibleLimit = sorted.length
+  if (total > 10) {
+    visibleLimit = 6
+  }
+
+  const visible = sorted.slice(0, visibleLimit)
+  const overflowCount = total - visible.length
+
+  return { visible, overflowCount }
+}
+
 export function ProfessionalsView({ events, date, resources, onEventDrop, onEventClick }: ProfessionalsViewProps) {
   const scrollRef = useAutoScroll<HTMLDivElement>()
   const startHour = useCalendarStore((s) => s.startHour)
   const endHour = useCalendarStore((s) => s.endHour)
-  const columnCount = resources.length || 1
 
   // Filter events to selected date
   const dayEvents = useMemo(() => {
@@ -103,18 +147,27 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
     [dayEvents, dentistIds],
   )
 
+  // Apply overflow: limit visible professionals, prioritize those with appointments
+  const { visible: visibleResources, overflowCount } = useMemo(
+    () => getVisibleResources(resources, eventsByColumn),
+    [resources, eventsByColumn],
+  )
+
+  const visibleColumnCount = visibleResources.length
+  const visibleDentistIds = useMemo(() => visibleResources.map((r) => r.id), [visibleResources])
+
   // Per-column summaries
   const columnSummaries = useMemo(() => {
-    return resources.map((_resource, i) => {
+    return visibleResources.map((_resource, i) => {
       const colEvents = eventsByColumn.get(i) || []
       return computeProfessionalSummary(colEvents, startHour, endHour)
     })
-  }, [resources, eventsByColumn, startHour, endHour])
+  }, [visibleResources, eventsByColumn, startHour, endHour])
 
   // Column headers with dentist names and colors - defined before early return to maintain hook order
   const columnHeaders = (
     <>
-      {resources.map((resource, i) => {
+      {visibleResources.map((resource, i) => {
         const palette = getDentistPalette(resource.id)
         const summary = columnSummaries[i]
         return (
@@ -150,7 +203,7 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
   )
 
   const dateKey = formatDateKey(date)
-  const dateKeys = useMemo(() => Array(columnCount).fill(dateKey), [dateKey, columnCount])
+  const dateKeys = useMemo(() => Array(visibleColumnCount).fill(dateKey), [dateKey, visibleColumnCount])
 
   if (resources.length === 0) {
     return (
@@ -164,19 +217,27 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
     <div className="flex-1 flex flex-col min-h-0">
       <TimeGrid
         ref={scrollRef}
-        columnCount={columnCount}
+        columnCount={visibleColumnCount}
         columnHeaders={columnHeaders}
         dateKeys={dateKeys}
         onEventDrop={onEventDrop}
         onEventClick={onEventClick}
         eventContent={
-          <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={columnCount} />
+          <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={visibleColumnCount} />
         }
         slotsContent={
-          <EmptySlots columnCount={columnCount} dates={dateKeys} columnDentistIds={dentistIds} />
+          <EmptySlots columnCount={visibleColumnCount} dates={dateKeys} columnDentistIds={visibleDentistIds} />
         }
         nowIndicator={<NowIndicator date={date} startHour={startHour} endHour={endHour} />}
       />
+      {/* Overflow affordance */}
+      {overflowCount > 0 && (
+        <div className="px-4 py-2 border-t border-border bg-muted/30 text-center">
+          <button className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+            +{overflowCount} profissionais
+          </button>
+        </div>
+      )}
     </div>
   )
 }
