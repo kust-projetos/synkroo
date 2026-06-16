@@ -14,11 +14,11 @@ import {
 } from '@heroicons/react/24/outline'
 import type { CalendarView } from './utils/types'
 
-const VIEW_OPTIONS: { view: CalendarView; label: string; icon: React.ReactNode }[] = [
-  { view: 'day', label: 'Dia', icon: <SunIcon className="h-4 w-4" /> },
-  { view: 'week', label: 'Semana', icon: <ViewColumnsIcon className="h-4 w-4" /> },
-  { view: 'month', label: 'Mês', icon: <CalendarDaysIcon className="h-4 w-4" /> },
-  { view: 'professionals', label: 'Profissionais', icon: <UserGroupIcon className="h-4 w-4" /> },
+const VIEW_OPTIONS: { view: CalendarView; label: string; icon: React.ReactNode; primary?: boolean }[] = [
+  { view: 'day', label: 'Dia', icon: <SunIcon className="h-4 w-4" />, primary: true },
+  { view: 'week', label: 'Semana', icon: <ViewColumnsIcon className="h-4 w-4" />, primary: true },
+  { view: 'month', label: 'Mês', icon: <CalendarDaysIcon className="h-4 w-4" />, primary: true },
+  { view: 'professionals', label: 'Profissionais', icon: <UserGroupIcon className="h-4 w-4" />, primary: true },
   { view: 'list', label: 'Lista', icon: <ClipboardDocumentListIcon className="h-4 w-4" /> },
 ]
 
@@ -57,14 +57,14 @@ export function CalendarToolbar() {
         <h2 className="text-lg font-semibold ml-2">{title}</h2>
       </div>
 
-      {/* Right: View switcher */}
-      <div className="flex items-center rounded-lg border border-border overflow-hidden divide-x divide-border">
-        {VIEW_OPTIONS.map(({ view: v, label, icon }) => (
+      {/* Center: Primary view switcher */}
+      <div className="flex items-center rounded-lg border border-border overflow-hidden">
+        {VIEW_OPTIONS.filter((v) => v.primary).map(({ view: v, label, icon }) => (
           <button
             key={v}
             onClick={() => setView(v)}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors',
+              'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-r border-border last:border-r-0',
               view === v
                 ? 'bg-teal-600 text-white'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -74,6 +74,28 @@ export function CalendarToolbar() {
             <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
+      </div>
+
+      {/* Right: Secondary view + CTA */}
+      <div className="flex items-center gap-2">
+        {VIEW_OPTIONS.filter((v) => !v.primary).map(({ view: v, label, icon }) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors border border-border',
+              view === v
+                ? 'bg-teal-600 text-white border-teal-600'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            {icon}
+            <span className="hidden sm:inline">{label}</span>
+          </button>
+        ))}
+        <button className="px-3 py-1.5 text-sm font-semibold rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+          Novo agendamento
+        </button>
       </div>
     </div>
   )
