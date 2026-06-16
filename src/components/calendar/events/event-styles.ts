@@ -3,7 +3,7 @@
 import { cva, type VariantProps } from 'class-variance-authority'
 
 export const eventCardVariants = cva(
-  'rounded-sm px-1.5 py-0.5 text-[12px] leading-tight cursor-pointer border-l-[3px] overflow-hidden transition-opacity hover:opacity-90',
+  'rounded-sm px-1 py-0.5 text-[11px] leading-tight cursor-pointer border-l-[3px] overflow-hidden transition-opacity hover:opacity-90',
   {
     variants: {
       status: {
