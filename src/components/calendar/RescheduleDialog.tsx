@@ -129,7 +129,6 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
     month: 'short',
   })
   const originalTimeStr = `${String(event.start.getHours()).padStart(2, '0')}:${String(event.start.getMinutes()).padStart(2, '0')}`
-  const isNewDay = rescheduleInfo.targetDateKey !== event.start.toISOString().split('T')[0]
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeDialog()}>
@@ -167,13 +166,11 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
             )}
           </div>
           <div className="text-xs text-muted-foreground">
-            De: {originalDateStr} as {originalTimeStr}
+            De: {originalDateStr} às {originalTimeStr}
           </div>
-          {isNewDay && (
-            <div className="text-xs font-medium text-teal-600 dark:text-teal-400">
-              Para: {formatDisplayDate(rescheduleInfo.targetDateKey)}
-            </div>
-          )}
+          <div className="text-xs font-medium text-teal-600 dark:text-teal-400">
+            Para: {formatDisplayDate(rescheduleInfo.targetDateKey)} às {hour}:{minute}
+          </div>
         </div>
 
         {/* Time picker */}

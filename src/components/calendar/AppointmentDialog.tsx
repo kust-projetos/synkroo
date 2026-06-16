@@ -186,7 +186,7 @@ export function AppointmentDialog() {
         <div className="grid gap-4 py-4">
           {/* Patient */}
           <div className="grid gap-2">
-            <Label htmlFor="patient">Paciente</Label>
+            <Label htmlFor="patient">Paciente *</Label>
             <Input
               id="patient"
               placeholder="Nome do paciente"
@@ -195,15 +195,48 @@ export function AppointmentDialog() {
             />
           </div>
 
-          {/* Phone */}
-          <div className="grid gap-2">
-            <Label htmlFor="phone">Telefone</Label>
-            <Input
-              id="phone"
-              placeholder="(00) 00000-0000"
-              value={form.patientPhone}
-              onChange={(e) => setForm((f) => ({ ...f, patientPhone: e.target.value }))}
-            />
+          {/* Date and Time */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="date">Data</Label>
+              <Input
+                id="date"
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Hora</Label>
+              <Select value={form.hour} onValueChange={(v) => setForm((f) => ({ ...f, hour: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 11 }, (_, i) => i + 8).map((h) => (
+                    <SelectItem key={h} value={String(h).padStart(2, '0')}>
+                      {formatHourLabel(h)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Duração</Label>
+              <Select
+                value={String(form.duration)}
+                onValueChange={(v) => setForm((f) => ({ ...f, duration: parseInt(v) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DURATION_OPTIONS.map((d) => (
+                    <SelectItem key={d} value={String(d)}>{d} min</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Dentist */}
@@ -236,59 +269,31 @@ export function AppointmentDialog() {
             </Select>
           </div>
 
-          {/* Date and Time */}
-          <div className="grid grid-cols-3 gap-3">
+          {/* Optional fields separator */}
+          <div className="border-t pt-4 mt-1">
+            <p className="text-xs text-muted-foreground mb-3">Informações adicionais</p>
+
+            {/* Phone */}
             <div className="grid gap-2">
-              <Label htmlFor="date">Data</Label>
+              <Label htmlFor="phone">Telefone</Label>
               <Input
-                id="date"
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                id="phone"
+                placeholder="(00) 00000-0000"
+                value={form.patientPhone}
+                onChange={(e) => setForm((f) => ({ ...f, patientPhone: e.target.value }))}
               />
             </div>
-            <div className="grid gap-2">
-              <Label>Hora</Label>
-              <Select value={form.hour} onValueChange={(v) => setForm((f) => ({ ...f, hour: v }))}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 11 }, (_, i) => i + 8).map((h) => (
-                    <SelectItem key={h} value={String(h).padStart(2, '0')}>
-                      {formatHourLabel(h)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label>Duracao</Label>
-              <Select
-                value={String(form.duration)}
-                onValueChange={(v) => setForm((f) => ({ ...f, duration: parseInt(v) }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DURATION_OPTIONS.map((d) => (
-                    <SelectItem key={d} value={String(d)}>{d} min</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
 
-          {/* Notes */}
-          <div className="grid gap-2">
-            <Label htmlFor="notes">Observacoes</Label>
-            <Input
-              id="notes"
-              placeholder="Notas opcionais..."
-              value={form.notes}
-              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-            />
+            {/* Notes */}
+            <div className="grid gap-2 mt-4">
+              <Label htmlFor="notes">Observações</Label>
+              <Input
+                id="notes"
+                placeholder="Notas opcionais..."
+                value={form.notes}
+                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              />
+            </div>
           </div>
         </div>
 
