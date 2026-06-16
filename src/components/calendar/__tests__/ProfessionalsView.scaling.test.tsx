@@ -273,10 +273,40 @@ describe('professionals overflow handling', () => {
     const resources = Array.from({ length: 12 }, (_, i) =>
       makeResource(`d${i}`, `Dr. ${i}`),
     )
-    const { visible, overflowCount } = getVisibleResources(resources, new Map())
+    const { visible, overflowCount, columnIndexMap } = getVisibleResources(resources, new Map())
 
     expect(visible).toHaveLength(6)
     expect(overflowCount).toBe(6)
+    expect(columnIndexMap).toHaveLength(6)
+  })
+
+  it('preserves correct column index mapping after reordering', () => {
+    // 12 professionals, d3 has appointments → shows at visible position 0
+    const resources = Array.from({ length: 12 }, (_, i) =>
+      makeResource(`d${i}`, `Dr. ${i}`),
+    )
+    const eventsByCol = new Map<number, CalendarEvent[]>()
+    eventsByCol.set(3, [{
+      id: 'apt-1',
+      title: 'Maria',
+      start: new Date('2026-06-16T09:00:00'),
+      end: new Date('2026-06-16T09:30:00'),
+      dentistId: 'd3',
+      dentistName: 'Dr. 3',
+      procedureName: 'Avaliação',
+      status: 'scheduled',
+      durationMinutes: 30,
+    }])
+
+    const { visible, columnIndexMap } = getVisibleResources(resources, eventsByCol)
+
+    // d3 should be first (has appointments)
+    expect(visible[0].id).toBe('d3')
+    // columnIndexMap[0] should be 3 (original index of d3)
+    expect(columnIndexMap[0]).toBe(3)
+    // Remaining 5 should be d0, d1, d2, d4, d5 (in original order, no appointments)
+    expect(visible[1].id).toBe('d0')
+    expect(columnIndexMap[1]).toBe(0)
   })
 
   it('returns zero overflow when within threshold', () => {

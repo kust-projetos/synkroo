@@ -84,6 +84,8 @@ export function computeProfessionalSummary(
 /** Result of visible resource selection with overflow info */
 export interface VisibleResourcesResult {
   visible: CalendarResource[]
+  /** Maps visible position → original column index in resources/eventsByColumn */
+  columnIndexMap: number[]
   overflowCount: number
 }
 
@@ -100,15 +102,16 @@ export function getVisibleResources(
   const total = resources.length
 
   // Prioritize: professionals with appointments today first
-  const withAppointments: CalendarResource[] = []
-  const withoutAppointments: CalendarResource[] = []
+  // Track (resource, originalIndex) pairs
+  const withAppointments: { resource: CalendarResource; originalIndex: number }[] = []
+  const withoutAppointments: { resource: CalendarResource; originalIndex: number }[] = []
 
   resources.forEach((_resource, i) => {
     const colEvents = eventsByColumn.get(i)
     if (colEvents && colEvents.length > 0) {
-      withAppointments.push(resources[i])
+      withAppointments.push({ resource: resources[i], originalIndex: i })
     } else {
-      withoutAppointments.push(resources[i])
+      withoutAppointments.push({ resource: resources[i], originalIndex: i })
     }
   })
 
@@ -120,10 +123,12 @@ export function getVisibleResources(
     visibleLimit = 6
   }
 
-  const visible = sorted.slice(0, visibleLimit)
+  const sliced = sorted.slice(0, visibleLimit)
+  const visible = sliced.map((s) => s.resource)
+  const columnIndexMap = sliced.map((s) => s.originalIndex)
   const overflowCount = total - visible.length
 
-  return { visible, overflowCount }
+  return { visible, columnIndexMap, overflowCount }
 }
 
 export function ProfessionalsView({ events, date, resources, onEventDrop, onEventClick }: ProfessionalsViewProps) {
@@ -148,7 +153,7 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
   )
 
   // Apply overflow: limit visible professionals, prioritize those with appointments
-  const { visible: visibleResources, overflowCount } = useMemo(
+  const { visible: visibleResources, columnIndexMap, overflowCount } = useMemo(
     () => getVisibleResources(resources, eventsByColumn),
     [resources, eventsByColumn],
   )
@@ -156,13 +161,23 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
   const visibleColumnCount = visibleResources.length
   const visibleDentistIds = useMemo(() => visibleResources.map((r) => r.id), [visibleResources])
 
-  // Per-column summaries
+  // Remap events by column so visible column i gets events from original column columnIndexMap[i]
+  const visibleEventsByColumn = useMemo(() => {
+    const map = new Map<number, CalendarEvent[]>()
+    columnIndexMap.forEach((originalCol, visibleCol) => {
+      const events = eventsByColumn.get(originalCol) || []
+      map.set(visibleCol, events)
+    })
+    return map
+  }, [eventsByColumn, columnIndexMap])
+
+  // Per-column summaries — uses remapped events for correct alignment
   const columnSummaries = useMemo(() => {
     return visibleResources.map((_resource, i) => {
-      const colEvents = eventsByColumn.get(i) || []
+      const colEvents = visibleEventsByColumn.get(i) || []
       return computeProfessionalSummary(colEvents, startHour, endHour)
     })
-  }, [visibleResources, eventsByColumn, startHour, endHour])
+  }, [visibleResources, visibleEventsByColumn, startHour, endHour])
 
   // Column headers with dentist names and colors - defined before early return to maintain hook order
   const columnHeaders = (
@@ -223,7 +238,7 @@ export function ProfessionalsView({ events, date, resources, onEventDrop, onEven
         onEventDrop={onEventDrop}
         onEventClick={onEventClick}
         eventContent={
-          <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={visibleColumnCount} />
+          <EventLayer eventsByColumn={visibleEventsByColumn} totalGridColumns={visibleColumnCount} />
         }
         slotsContent={
           <EmptySlots columnCount={visibleColumnCount} dates={dateKeys} columnDentistIds={visibleDentistIds} />
