@@ -5,6 +5,8 @@ import { eventCardVariants } from './event-styles'
 import { EventTooltip } from './EventTooltip'
 import { useCalendarStore } from '../store/calendar-store'
 import { getDentistColors } from '../utils/dentist-colors'
+import { AppointmentOriginBadge } from '../AppointmentOriginBadge'
+import { AppointmentChangeSummary } from '../AppointmentChangeSummary'
 import { cn } from '@/lib/utils'
 import type { LaidOutEvent } from '../utils/types'
 import type { AppointmentStatus } from '@/lib/supabase/database.types'
@@ -54,6 +56,8 @@ export function EventCard({
   const showTitle = height >= 30
   const showDentist = height >= 38
   const showProcedure = height >= 48
+  const showOrigin = height >= 30
+  const showChangeSummary = showProcedure && !!event.changeSummary
 
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!onPointerDown || !gridContentRef) return
@@ -108,11 +112,17 @@ export function EventCard({
           <span className="font-semibold block text-[12px] leading-tight whitespace-nowrap flex items-center gap-1">
             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", dentistColors.dot)} />
             {formatTime(event.start)}{showTitle ? '' : ` ${event.title}`}
+            {showOrigin && event.origin && !showTitle && (
+              <AppointmentOriginBadge origin={event.origin} />
+            )}
           </span>
         )}
         {showTitle && (
-          <span className="block font-medium text-[12px] leading-tight truncate">
-            {event.title}
+          <span className="block font-medium text-[12px] leading-tight truncate flex items-center gap-1">
+            <span className="truncate">{event.title}</span>
+            {showOrigin && event.origin && (
+              <AppointmentOriginBadge origin={event.origin} />
+            )}
           </span>
         )}
         {showDentist && (
@@ -124,6 +134,9 @@ export function EventCard({
           <span className="block opacity-70 text-[11px] leading-tight truncate">
             {event.procedureName}
           </span>
+        )}
+        {showChangeSummary && event.changeSummary && (
+          <AppointmentChangeSummary summary={event.changeSummary} />
         )}
       </div>
     </EventTooltip>
