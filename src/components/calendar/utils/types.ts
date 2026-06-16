@@ -35,6 +35,12 @@ export interface CalendarResource {
 /** Calendar view modes */
 export type CalendarView = 'day' | 'week' | 'month' | 'professionals' | 'list'
 
+/** Grouping mode for calendar views */
+export type CalendarGroupMode = 'professionals' | 'time' | 'status'
+
+/** Density mode for calendar views */
+export type CalendarDensityMode = 'compact' | 'comfortable'
+
 /** Dialog state for create/edit */
 export interface DialogSlotInfo {
   date: Date
