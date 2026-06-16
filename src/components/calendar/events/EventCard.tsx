@@ -109,7 +109,7 @@ export function EventCard({
         aria-label={`${event.title} - ${formatTime(event.start)}`}
       >
         {showTime && (
-          <span className="font-semibold block text-[12px] leading-tight whitespace-nowrap flex items-center gap-1">
+          <span className="font-semibold block text-[11px] leading-tight whitespace-nowrap flex items-center gap-1">
             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", dentistColors.dot)} />
             {formatTime(event.start)}{showTitle ? '' : ` ${event.title}`}
             {showOrigin && event.origin && !showTitle && (
@@ -118,7 +118,7 @@ export function EventCard({
           </span>
         )}
         {showTitle && (
-          <span className="block font-medium text-[12px] leading-tight truncate flex items-center gap-1">
+          <span className="block font-semibold text-[11px] leading-tight truncate flex items-center gap-1">
             <span className="truncate">{event.title}</span>
             {showOrigin && event.origin && (
               <AppointmentOriginBadge origin={event.origin} />
@@ -126,12 +126,12 @@ export function EventCard({
           </span>
         )}
         {showDentist && (
-          <span className="block opacity-60 text-[11px] leading-tight truncate">
-            {event.dentistName}
+          <span className="block text-[10px] leading-tight truncate text-muted-foreground">
+            {event.dentistName}{showProcedure ? ` · ${event.procedureName}` : ''}
           </span>
         )}
-        {showProcedure && (
-          <span className="block opacity-70 text-[11px] leading-tight truncate">
+        {showProcedure && !showDentist && (
+          <span className="block text-[10px] leading-tight truncate text-muted-foreground">
             {event.procedureName}
           </span>
         )}

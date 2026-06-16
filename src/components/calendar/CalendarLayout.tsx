@@ -8,7 +8,6 @@ import { useCalendarStore } from './store/calendar-store'
 import { useCalendarEvents } from './hooks/useCalendarEvents'
 import { formatTitle } from './utils/date-utils'
 import { CalendarToolbar } from './CalendarToolbar'
-import { ScheduleSummaryBar } from './ScheduleSummaryBar'
 import { AppointmentDialog } from './AppointmentDialog'
 import { RescheduleDialog } from './RescheduleDialog'
 import { DayView } from './views/DayView'
@@ -126,13 +125,18 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
   return (
     <div className="flex flex-col h-full bg-background">
       <CalendarToolbar />
-      <ScheduleSummaryBar
-        periodLabel={summaryLabel}
-        appointmentCount={events.length}
-        aiChangesCount={aiChangesCount}
-        manualChangesCount={manualChangesCount}
-        attentionCount={attentionCount}
-      />
+      {/* Compact inline summary */}
+      {events.length > 0 && (
+        <div className="px-4 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground flex items-center gap-3">
+          <span>{summaryLabel} &middot; {events.length} agendamento{events.length !== 1 ? 's' : ''}</span>
+          {aiChangesCount > 0 && (
+            <span className="text-violet-600 dark:text-violet-400">{aiChangesCount} alteraç{aiChangesCount !== 1 ? 'ões' : 'ão'} IA</span>
+          )}
+          {attentionCount > 0 && (
+            <span className="text-amber-600 dark:text-amber-400">{attentionCount} atenç{attentionCount !== 1 ? 'ões' : 'ão'}</span>
+          )}
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-auto">
         {renderView()}
       </div>
