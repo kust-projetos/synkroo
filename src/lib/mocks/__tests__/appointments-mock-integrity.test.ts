@@ -6,10 +6,8 @@ import { describe, expect, it } from '@jest/globals'
 
 // Directly import the mock router to get raw appointments
 // We test the factory function, not the HTTP layer
-import {
-  createAppointment,
-  daysFromNow,
-} from '../utils'
+import { getMockForUrl } from '@/lib/mocks'
+import { createAppointment, daysFromNow } from '../utils'
 import { MOCK_IDS } from '../types'
 
 interface AppointmentOverlap {
@@ -35,50 +33,20 @@ function overlaps(a: AppointmentOverlap, b: AppointmentOverlap): boolean {
 }
 
 describe('appointments mock dataset integrity', () => {
-  it('generates no overlapping appointments for same dentist on same day', () => {
-    // Rebuild the exact dataset from the mock router
-    const appointments: AppointmentOverlap[] = [
-      // Base
-      createAppointment(MOCK_IDS.patients.maria, 'Maria Silva', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.limpeza, 'Limpeza', 100, 0, 8),
-      createAppointment(MOCK_IDS.patients.joao, 'João Santos', MOCK_IDS.dentists.souza, 'Dra. Souza', MOCK_IDS.procedures.canal, 'Canal', 101, 0, 10),
-      createAppointment(MOCK_IDS.patients.ana, 'Ana Costa', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.avaliacao, 'Avaliação', 102, 1, 9),
-    ]
+  function getAppointmentsFromRoute(): AppointmentOverlap[] {
+    const result = getMockForUrl('/api/appointments?clinic_id=mock-clinic&page=1&limit=20') as {
+      appointments?: AppointmentOverlap[]
+    } | null
 
-    // Extra: same slots as mock router
-    const extraSlots: { dayOffset: number; hour: number; dentistIdx: number }[] = [
-      { dayOffset: -1, hour: 8, dentistIdx: 0 },
-      { dayOffset: -1, hour: 9, dentistIdx: 1 },
-      { dayOffset: -1, hour: 11, dentistIdx: 0 },
-      { dayOffset: -2, hour: 8, dentistIdx: 1 },
-      { dayOffset: -2, hour: 10, dentistIdx: 0 },
-      { dayOffset: -2, hour: 14, dentistIdx: 1 },
-      { dayOffset: -3, hour: 9, dentistIdx: 0 },
-      { dayOffset: -3, hour: 11, dentistIdx: 1 },
-      { dayOffset: -3, hour: 15, dentistIdx: 0 },
-      { dayOffset: -4, hour: 9, dentistIdx: 1 },
-      { dayOffset: -4, hour: 10, dentistIdx: 0 },
-      { dayOffset: -4, hour: 16, dentistIdx: 1 },
-    ]
+    expect(result).not.toBeNull()
+    expect(Array.isArray(result?.appointments)).toBe(true)
 
-    for (let s = 0; s < extraSlots.length; s++) {
-      const slot = extraSlots[s]
-      const isSilva = slot.dentistIdx === 0
-      appointments.push(
-        createAppointment(
-          `mock-patient-extra-${String((s % 16) + 1).padStart(3, '0')}`,
-          `Paciente ${s + 1}`,
-          isSilva ? MOCK_IDS.dentists.silva : MOCK_IDS.dentists.souza,
-          isSilva ? 'Dr. Silva' : 'Dra. Souza',
-          isSilva ? MOCK_IDS.procedures.limpeza : MOCK_IDS.procedures.implante,
-          isSilva ? 'Limpeza' : 'Implante',
-          s,
-          slot.dayOffset,
-          slot.hour,
-        ),
-      )
-    }
+    return result?.appointments ?? []
+  }
 
-    // Find overlaps
+  it('returns no overlapping appointments for same dentist on same day from the real mock route', () => {
+    const appointments = getAppointmentsFromRoute()
+
     const conflicts: string[] = []
     for (let i = 0; i < appointments.length; i++) {
       for (let j = i + 1; j < appointments.length; j++) {
@@ -94,76 +62,33 @@ describe('appointments mock dataset integrity', () => {
       }
     }
 
-    if (conflicts.length > 0) {
-      // Print all conflicts for debugging
-      for (const c of conflicts) {
-        console.log(c)
-      }
-    }
-
     expect(conflicts).toHaveLength(0)
   })
 
-  it('generates unique appointment IDs', () => {
-    const ids = new Set<string>()
+  it('returns unique appointment IDs from the real mock route', () => {
+    const appointments = getAppointmentsFromRoute()
+    const ids = appointments.map((appointment) => appointment.id)
 
-    // Base 3
-    const baseSeeds = [100, 101, 102]
-    for (let i = 0; i < 3; i++) {
-      const seed = baseSeeds[i]
-      const apt = createAppointment(
-        MOCK_IDS.patients.maria, 'Maria',
-        MOCK_IDS.dentists.silva, 'Dr. Silva',
-        MOCK_IDS.procedures.limpeza, 'Limpeza',
-        seed, i, 8 + i,
-      )
-      expect(ids.has(apt.id)).toBe(false)
-      ids.add(apt.id)
-    }
-
-    // Extra 12 — same as mock router
-    const extraSlots = [
-      { dayOffset: -1, hour: 8, dentistIdx: 0 },
-      { dayOffset: -1, hour: 9, dentistIdx: 1 },
-      { dayOffset: -1, hour: 11, dentistIdx: 0 },
-      { dayOffset: -2, hour: 8, dentistIdx: 1 },
-      { dayOffset: -2, hour: 10, dentistIdx: 0 },
-      { dayOffset: -2, hour: 14, dentistIdx: 1 },
-      { dayOffset: -3, hour: 9, dentistIdx: 0 },
-      { dayOffset: -3, hour: 11, dentistIdx: 1 },
-      { dayOffset: -3, hour: 15, dentistIdx: 0 },
-      { dayOffset: -4, hour: 9, dentistIdx: 1 },
-      { dayOffset: -4, hour: 10, dentistIdx: 0 },
-      { dayOffset: -4, hour: 16, dentistIdx: 1 },
-    ]
-    for (let s = 0; s < extraSlots.length; s++) {
-      const slot = extraSlots[s]
-      const isSilva = slot.dentistIdx === 0
-      const apt = createAppointment(
-        `mock-patient-extra-${String((s % 16) + 1).padStart(3, '0')}`,
-        `Paciente ${s + 1}`,
-        isSilva ? MOCK_IDS.dentists.silva : MOCK_IDS.dentists.souza,
-        isSilva ? 'Dr. Silva' : 'Dra. Souza',
-        isSilva ? MOCK_IDS.procedures.limpeza : MOCK_IDS.procedures.implante,
-        isSilva ? 'Limpeza' : 'Implante',
-        s, slot.dayOffset, slot.hour,
-      )
-      expect(ids.has(apt.id)).toBe(false)
-      ids.add(apt.id)
-    }
+    expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('spreads appointments across different hours for same dentist', () => {
-    // Check that the hour formula doesn't produce same-hour conflicts
-    // for the same dentist on dates where they have multiple appointments
-    // (which shouldn't happen in the current dataset anyway)
-    const hours = new Set<number>()
-    for (let seed = 0; seed < 15; seed++) {
-      const hour = 8 + (seed % 9)
-      hours.add(hour)
-    }
-    // Should have at least 5 distinct hours (8-16 range gives 9 distinct)
-    expect(hours.size).toBeGreaterThanOrEqual(5)
+  it('keeps availability mock consistent with occupied appointment slots for a dentist/day', () => {
+    const routeResult = getMockForUrl('/api/appointments/availability?clinic_id=mock-clinic&date=2026-06-16&dentist_id=mock-dentist-silva-001&duration_minutes=30') as {
+      slots?: Array<{ time: string; available: boolean }>
+    } | null
+
+    expect(routeResult).not.toBeNull()
+    expect(routeResult?.slots?.find((slot) => slot.time === '08:00')?.available).toBe(false)
+    expect(routeResult?.slots?.find((slot) => slot.time === '08:30')?.available).toBe(false)
+    expect(routeResult?.slots?.find((slot) => slot.time === '09:00')?.available).toBe(true)
+  })
+
+  it('exposes a purposefully distributed real route dataset across recent days', () => {
+    const appointments = getAppointmentsFromRoute()
+    const dayKeys = new Set(appointments.map((appointment) => appointment.scheduled_at.slice(0, 10)))
+
+    expect(appointments.length).toBe(15)
+    expect(dayKeys.size).toBeGreaterThanOrEqual(5)
   })
 
   it('returns future appointments for low seeds and past for high seeds', () => {

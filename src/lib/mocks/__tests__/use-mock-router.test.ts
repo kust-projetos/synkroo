@@ -134,6 +134,14 @@ describe('Mock Router — truth table', () => {
       const r = expectMockForUrl('/api/appointments/mock-appt-123') as Record<string, unknown>
       expect(r.patient_name).toBeTruthy()
     })
+
+    it('GET /api/appointments/availability returns scheduler-shaped data', () => {
+      const r = expectMockForUrl('/api/appointments/availability?clinic_id=mock-clinic&date=2026-06-16&dentist_id=mock-dentist-silva-001&duration_minutes=30') as Record<string, unknown>
+      expect(r.available).toBeDefined()
+      expect(r.date).toBe('2026-06-16')
+      expect(typeof r.dayOfWeek).toBe('number')
+      expect(Array.isArray(r.slots)).toBe(true)
+    })
   })
 
   // ── Leads ──
