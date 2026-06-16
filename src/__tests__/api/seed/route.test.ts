@@ -103,9 +103,9 @@ import { NextRequest } from 'next/server';
 import { buildWaitlistSeed as realBuildWaitlistSeed, buildLeadSeed as realBuildLeadSeed, cleanupDemoSeedTables as realCleanupDemoSeedTables } from '@/lib/seed/helpers';
 
 // We'll import helpers from the separate module
-let buildWaitlistSeed = realBuildWaitlistSeed;
-let buildLeadSeed = realBuildLeadSeed;
-let cleanupDemoSeedTables = realCleanupDemoSeedTables;
+const buildWaitlistSeed = realBuildWaitlistSeed;
+const buildLeadSeed = realBuildLeadSeed;
+const cleanupDemoSeedTables = realCleanupDemoSeedTables;
 let GET: any;
 
 beforeAll(async () => {
