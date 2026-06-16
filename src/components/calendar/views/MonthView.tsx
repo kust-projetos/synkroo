@@ -178,6 +178,7 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
   // Render a single event mini card
   const renderEventCard = (event: CalendarEvent, showDetails: boolean) => {
     const canDrag = isDraggableStatus(event.status)
+    const isAiOrigin = event.origin === 'ai'
     return (
       <div
         key={event.id}
@@ -203,6 +204,11 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
           <div className="flex items-center gap-1 truncate font-medium">
             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDentistDotColor(event.dentistId))} />
             <span className="truncate">{formatTime(event.start)} - {event.title}</span>
+            {isAiOrigin && (
+              <span className="text-[8px] font-semibold px-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 flex-shrink-0 leading-relaxed">
+                IA
+              </span>
+            )}
           </div>
           {showDetails && (
             <div className="text-[11px] opacity-80 truncate ml-2.5">
