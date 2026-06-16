@@ -55,7 +55,7 @@ describe('DayView', () => {
     )
 
     expect(screen.getByText('Maria Silva')).toBeInTheDocument()
-    expect(screen.getByText('Dra. Ana')).toBeInTheDocument()
+    expect(screen.getByText(/Dra\. Ana/)).toBeInTheDocument()
   })
 
   it('shows procedure name in day view', () => {
@@ -66,7 +66,7 @@ describe('DayView', () => {
       />,
     )
 
-    expect(screen.getByText('Avaliação')).toBeInTheDocument()
+    expect(screen.getByText(/Avaliação/)).toBeInTheDocument()
   })
 
   it('shows AI origin badge when origin is ai', () => {

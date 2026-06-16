@@ -93,7 +93,7 @@ export function CalendarToolbar() {
             <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
-        <button className="px-3 py-1.5 text-sm font-semibold rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+        <button className="px-3 py-1.5 text-sm font-medium rounded-md text-teal-600 dark:text-teal-400 border border-teal-600/30 dark:border-teal-400/30 hover:bg-teal-50 dark:hover:bg-teal-950/20 transition-colors">
           Novo agendamento
         </button>
       </div>
