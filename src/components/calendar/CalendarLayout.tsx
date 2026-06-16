@@ -6,7 +6,9 @@ import { useCallback, useEffect } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useCalendarStore } from './store/calendar-store'
 import { useCalendarEvents } from './hooks/useCalendarEvents'
+import { formatTitle } from './utils/date-utils'
 import { CalendarToolbar } from './CalendarToolbar'
+import { ScheduleSummaryBar } from './ScheduleSummaryBar'
 import { AppointmentDialog } from './AppointmentDialog'
 import { RescheduleDialog } from './RescheduleDialog'
 import { DayView } from './views/DayView'
@@ -52,6 +54,12 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
     openEditDialog(eventId)
   }, [openEditDialog])
 
+  // Summary bar data — safe placeholders built from current events
+  const summaryLabel = formatTitle(selectedDate, view)
+  const aiChangesCount = events.filter((event) => event.origin === 'ai').length
+  const manualChangesCount = events.filter((event) => event.origin === 'manual').length
+  const attentionCount = events.filter((event) => event.status === 'scheduled').length
+
   // Render current view
   const renderView = () => {
     if (view === 'list' && ListComponent) {
@@ -96,6 +104,13 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
   return (
     <div className="flex flex-col h-full bg-background">
       <CalendarToolbar />
+      <ScheduleSummaryBar
+        periodLabel={summaryLabel}
+        appointmentCount={events.length}
+        aiChangesCount={aiChangesCount}
+        manualChangesCount={manualChangesCount}
+        attentionCount={attentionCount}
+      />
       <div className="flex-1 min-h-0 overflow-auto">
         {renderView()}
       </div>
