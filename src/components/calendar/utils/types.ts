@@ -2,6 +2,9 @@
 
 import type { AppointmentStatus } from '@/lib/supabase/database.types'
 
+/** Origin of an appointment — AI or manual creation/mutation */
+export type AppointmentOrigin = 'ai' | 'manual'
+
 /** A single event on the calendar */
 export interface CalendarEvent {
   id: string
@@ -16,6 +19,9 @@ export interface CalendarEvent {
   status: AppointmentStatus
   durationMinutes: number
   notes?: string | null
+  origin?: AppointmentOrigin
+  changeSummary?: string
+  changeImpact?: string
 }
 
 /** A resource column (dentist) in the calendar */
