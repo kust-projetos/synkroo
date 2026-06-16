@@ -3,7 +3,7 @@
 import { create } from 'zustand'
 import { startOfDay } from 'date-fns'
 import { getNextDate, getPrevDate } from '../utils/date-utils'
-import type { CalendarView, DialogState, DialogSlotInfo, RescheduleInfo } from '../utils/types'
+import type { CalendarView, CalendarGroupMode, CalendarDensityMode, DialogState, DialogSlotInfo, RescheduleInfo } from '../utils/types'
 
 /** Default business hours for a dental clinic */
 const DEFAULT_START_HOUR = 6
@@ -19,6 +19,10 @@ interface CalendarStore {
   startHour: number
   /** Clinic business hours — end hour (e.g. 18 for 18:00) */
   endHour: number
+
+  // Scaling state for professionals view
+  groupMode: CalendarGroupMode
+  densityMode: CalendarDensityMode
 
   // Actions
   setView: (view: CalendarView) => void
@@ -37,6 +41,10 @@ interface CalendarStore {
   prefillFromLead: (name: string, phone: string) => void
   clearPrefill: () => void
 
+  // Scaling actions
+  setGroupMode: (mode: CalendarGroupMode) => void
+  setDensityMode: (mode: CalendarDensityMode) => void
+
   // URL sync
   syncFromURL: (params: URLSearchParams) => void
   toSearchParams: () => URLSearchParams
@@ -50,6 +58,8 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
   dialog: { open: false, mode: 'create' },
   startHour: DEFAULT_START_HOUR,
   endHour: DEFAULT_END_HOUR,
+  groupMode: 'professionals',
+  densityMode: 'comfortable',
 
   // Actions
   setView: (view) => {
@@ -124,6 +134,14 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
         defaultLeadPhone: undefined,
       },
     }))
+  },
+
+  setGroupMode: (groupMode) => {
+    set({ groupMode })
+  },
+
+  setDensityMode: (densityMode) => {
+    set({ densityMode })
   },
 
   setBusinessHours: (startHour, endHour) => {
