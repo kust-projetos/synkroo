@@ -23,7 +23,7 @@ const VIEW_OPTIONS: { view: CalendarView; label: string; icon: React.ReactNode; 
 ]
 
 export function CalendarToolbar() {
-  const { view, selectedDate, setView, goToday, goNext, goPrev } = useCalendarStore()
+  const { view, selectedDate, setView, goToday, goNext, goPrev, groupMode, densityMode, setGroupMode, setDensityMode } = useCalendarStore()
   const title = formatTitle(selectedDate, view)
 
   return (
@@ -55,6 +55,42 @@ export function CalendarToolbar() {
 
         {/* Title */}
         <h2 className="text-lg font-semibold ml-2">{title}</h2>
+
+        {/* Professionals scaling controls — visible only in professionals view */}
+        {view === 'professionals' && (
+          <div className="flex items-center gap-1 ml-4 pl-4 border-l border-border">
+            <span className="text-[10px] text-muted-foreground mr-1">Agrupar:</span>
+            {(['professionals', 'time', 'status'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setGroupMode(mode)}
+                className={cn(
+                  'px-1.5 py-0.5 text-[10px] rounded transition-colors',
+                  groupMode === mode
+                    ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {mode === 'professionals' ? 'Prof.' : mode === 'time' ? 'Hora' : 'Status'}
+              </button>
+            ))}
+            <span className="text-[10px] text-muted-foreground mx-1">|</span>
+            {(['comfortable', 'compact'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setDensityMode(mode)}
+                className={cn(
+                  'px-1.5 py-0.5 text-[10px] rounded transition-colors',
+                  densityMode === mode
+                    ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {mode === 'compact' ? 'Compacto' : 'Confortável'}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Center: Primary view switcher */}
