@@ -41,8 +41,10 @@ export function EventCard({
   const { event, column, totalColumns } = laidOut
   const openEditDialog = useCalendarStore((s) => s.openEditDialog)
   const startHour = useCalendarStore((s) => s.startHour)
+  const view = useCalendarStore((s) => s.view)
   const canDrag = isDraggableStatus(event.status)
   const dentistColors = getDentistColors(event.dentistId)
+  const isProfessionalsMode = view === 'professionals'
 
   const columnWidth = 100 / totalGridColumns
   const baseLeft = gridColumn * columnWidth
@@ -125,12 +127,12 @@ export function EventCard({
             )}
           </span>
         )}
-        {showDentist && (
+        {showDentist && !isProfessionalsMode && (
           <span className="block text-[10px] leading-tight truncate text-muted-foreground">
             {event.dentistName}{showProcedure ? ` · ${event.procedureName}` : ''}
           </span>
         )}
-        {showProcedure && !showDentist && (
+        {showProcedure && (isProfessionalsMode || !showDentist) && (
           <span className="block text-[10px] leading-tight truncate text-muted-foreground">
             {event.procedureName}
           </span>

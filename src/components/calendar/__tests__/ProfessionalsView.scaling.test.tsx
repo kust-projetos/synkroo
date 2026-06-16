@@ -151,3 +151,69 @@ describe('professional column summaries', () => {
     expect(summary.nextFreeSlot).toBe('09:30') // after 09:00-09:30 twice = 09:30
   })
 })
+
+// ── Card rendering behavior ──────────────────
+
+// These tests verify EventCard rendering in professionals mode.
+// We use a local mock that wraps the real store, only overriding `view`.
+
+import { render, screen } from '@testing-library/react'
+import type { LaidOutEvent } from '../utils/types'
+
+const { EventCard } = jest.requireActual('../events/EventCard')
+
+// Mock EventTooltip to avoid portal issues
+jest.mock('../events/EventTooltip', () => ({
+  EventTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}))
+
+describe('professionals mode card rendering', () => {
+  beforeEach(() => {
+    // Set the real store to professionals view
+    useCalendarStore.setState({ view: 'professionals' })
+  })
+
+  const makeLaidOut = (overrides: Partial<LaidOutEvent['event']> = {}): LaidOutEvent => ({
+    event: {
+      id: 'apt-1',
+      title: 'Maria Silva',
+      start: new Date('2026-06-16T09:00:00'),
+      end: new Date('2026-06-16T09:30:00'),
+      dentistId: 'dent-1',
+      dentistName: 'Dra. Ana',
+      procedureName: 'Avaliação',
+      status: 'scheduled',
+      durationMinutes: 30,
+      ...overrides,
+    },
+    column: 0,
+    totalColumns: 1,
+  })
+
+  it('does not render dentist name in professionals mode', () => {
+    render(
+      <EventCard
+        laidOut={makeLaidOut()}
+        gridColumn={0}
+        totalGridColumns={1}
+      />,
+    )
+
+    expect(screen.queryByText(/Dra\. Ana/)).not.toBeInTheDocument()
+    expect(screen.getByText('Avaliação')).toBeInTheDocument()
+    expect(screen.getByText('Maria Silva')).toBeInTheDocument()
+  })
+
+  it('renders patient name and time in professionals mode', () => {
+    render(
+      <EventCard
+        laidOut={makeLaidOut()}
+        gridColumn={0}
+        totalGridColumns={1}
+      />,
+    )
+
+    expect(screen.getByText(/09:00/)).toBeInTheDocument()
+    expect(screen.getByText('Maria Silva')).toBeInTheDocument()
+  })
+})
