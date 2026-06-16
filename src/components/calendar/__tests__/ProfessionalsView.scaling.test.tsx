@@ -61,7 +61,7 @@ describe('professionals scaling modes', () => {
 
 // ── Column summary computation ──────────────────
 
-import { computeProfessionalSummary } from '../views/ProfessionalsView'
+import { computeProfessionalSummary, ProfessionalsView } from '../views/ProfessionalsView'
 import type { CalendarEvent } from '../utils/types'
 
 describe('professional column summaries', () => {
@@ -162,6 +162,42 @@ import type { LaidOutEvent } from '../utils/types'
 
 const { EventCard } = jest.requireActual('../events/EventCard')
 
+jest.mock('../grid/TimeGrid', () => ({
+  TimeGrid: ({ columnHeaders, eventContent }: { columnHeaders: React.ReactNode; eventContent: React.ReactNode }) => (
+    <div>
+      <div data-testid="time-grid-headers">{columnHeaders}</div>
+      <div data-testid="time-grid-events">{eventContent}</div>
+    </div>
+  ),
+}))
+
+jest.mock('../grid/EventLayer', () => {
+  const actual = jest.requireActual('../grid/EventLayer')
+  return {
+    ...actual,
+    EventLayer: ({ eventsByColumn }: { eventsByColumn: Map<number, { id: string }[]> }) => (
+      <div data-testid="event-layer-json">
+        {JSON.stringify(Array.from(eventsByColumn.entries()).map(([column, events]) => ({
+          column,
+          ids: events.map((event) => event.id),
+        })))}
+      </div>
+    ),
+  }
+})
+
+jest.mock('../grid/EmptySlots', () => ({
+  EmptySlots: () => <div data-testid="empty-slots" />,
+}))
+
+jest.mock('../grid/NowIndicator', () => ({
+  NowIndicator: () => <div data-testid="now-indicator" />,
+}))
+
+jest.mock('../hooks/useAutoScroll', () => ({
+  useAutoScroll: () => ({ current: null }),
+}))
+
 // Mock EventTooltip to avoid portal issues
 jest.mock('../events/EventTooltip', () => ({
   EventTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -222,6 +258,76 @@ describe('professionals mode card rendering', () => {
 
 import { getVisibleResources } from '../views/ProfessionalsView'
 import type { CalendarResource } from '../utils/types'
+
+describe('professionals date filtering', () => {
+  const selectedDate = new Date('2026-06-16T09:00:00')
+
+  beforeEach(() => {
+    useCalendarStore.setState({
+      view: 'professionals',
+      startHour: 6,
+      endHour: 22,
+    })
+  })
+
+  it('renders only selected-day events in professionals view summaries and event layer', () => {
+    const resources: CalendarResource[] = [
+      { id: 'dent-1', name: 'Dra. Ana', color: '' },
+      { id: 'dent-2', name: 'Dr. Bruno', color: '' },
+    ]
+
+    const events: CalendarEvent[] = [
+      {
+        id: 'same-day-1',
+        title: 'Maria',
+        start: new Date('2026-06-16T09:00:00'),
+        end: new Date('2026-06-16T09:30:00'),
+        dentistId: 'dent-1',
+        dentistName: 'Dra. Ana',
+        procedureName: 'Avaliação',
+        status: 'scheduled',
+        durationMinutes: 30,
+      },
+      {
+        id: 'other-day-should-hide',
+        title: 'João',
+        start: new Date('2026-06-15T10:00:00'),
+        end: new Date('2026-06-15T10:30:00'),
+        dentistId: 'dent-1',
+        dentistName: 'Dra. Ana',
+        procedureName: 'Limpeza',
+        status: 'confirmed',
+        durationMinutes: 30,
+      },
+      {
+        id: 'same-day-2',
+        title: 'Ana',
+        start: new Date('2026-06-16T11:00:00'),
+        end: new Date('2026-06-16T12:00:00'),
+        dentistId: 'dent-2',
+        dentistName: 'Dr. Bruno',
+        procedureName: 'Canal',
+        status: 'confirmed',
+        durationMinutes: 60,
+      },
+    ]
+
+    render(
+      <ProfessionalsView
+        events={events}
+        date={selectedDate}
+        resources={resources}
+      />,
+    )
+
+    expect(screen.getAllByText(/1 ag\./)).toHaveLength(2)
+
+    const eventLayer = screen.getByTestId('event-layer-json').textContent ?? ''
+    expect(eventLayer).toContain('same-day-1')
+    expect(eventLayer).toContain('same-day-2')
+    expect(eventLayer).not.toContain('other-day-should-hide')
+  })
+})
 
 describe('professionals overflow handling', () => {
   const makeResource = (id: string, name: string): CalendarResource => ({
