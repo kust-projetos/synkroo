@@ -174,15 +174,13 @@ match('/api/procedures/', (url) => {
 })
 
 // ── Appointments ──
-match('/api/appointments', (url) => {
-  // Base: 3 appointments — today (Dr. Silva 08:00), today (Dra. Souza 10:00), tomorrow (Dr. Silva 09:00)
+function buildMockAppointments() {
   const baseAppointments = [
     createAppointment(MOCK_IDS.patients.maria, 'Maria Silva', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.limpeza, 'Limpeza', 100, 0, 8),
     createAppointment(MOCK_IDS.patients.joao, 'João Santos', MOCK_IDS.dentists.souza, 'Dra. Souza', MOCK_IDS.procedures.canal, 'Canal', 101, 0, 10),
     createAppointment(MOCK_IDS.patients.ana, 'Ana Costa', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.avaliacao, 'Avaliação', 102, 1, 9),
   ]
 
-  // Extra: 12 appointments across 4 recent days (-1 to -4), 3 per day, staggered by hour and dentist
   const extraSlots: { dayOffset: number; hour: number; dentistIdx: number }[] = [
     { dayOffset: -1, hour: 8, dentistIdx: 0 },
     { dayOffset: -1, hour: 9, dentistIdx: 1 },
@@ -213,8 +211,55 @@ match('/api/appointments', (url) => {
     )
   })
 
-  const appointments = [...baseAppointments, ...extraAppointments]
-  return { appointments }
+  return [...baseAppointments, ...extraAppointments]
+}
+
+match('/api/appointments', () => {
+  return { appointments: buildMockAppointments() }
+})
+
+match('/api/appointments/availability', (url) => {
+  const params = new URLSearchParams(url.split('?')[1] || '')
+  const date = params.get('date')
+  const dentistId = params.get('dentist_id') || undefined
+  const durationMinutes = parseInt(params.get('duration_minutes') || '30', 10)
+
+  if (!date) {
+    return { available: false, date: '', dayOfWeek: 0, slots: [] }
+  }
+
+  const appointments = buildMockAppointments().filter((appointment) => {
+    const sameDay = appointment.scheduled_at.slice(0, 10) === date
+    const sameDentist = !dentistId || appointment.dentist_id === dentistId
+    return sameDay && sameDentist
+  })
+
+  const slots = Array.from({ length: 18 }, (_, index) => {
+    const hour = 8 + Math.floor(index / 2)
+    const minute = index % 2 === 0 ? 0 : 30
+    const time = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+    const start = new Date(`${date}T${time}:00.000Z`).getTime()
+    const end = start + durationMinutes * 60000
+
+    const available = appointments.every((appointment) => {
+      const appointmentStart = new Date(appointment.scheduled_at).getTime()
+      const appointmentEnd = appointmentStart + appointment.duration_minutes * 60000
+      return end <= appointmentStart || start >= appointmentEnd
+    })
+
+    return {
+      time,
+      available,
+      dentistId,
+    }
+  })
+
+  return {
+    available: slots.some((slot) => slot.available),
+    date,
+    dayOfWeek: new Date(`${date}T00:00:00`).getDay(),
+    slots,
+  }
 })
 
 match('/api/appointments/', (url) => {
