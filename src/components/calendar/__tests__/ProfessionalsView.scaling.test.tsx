@@ -217,3 +217,76 @@ describe('professionals mode card rendering', () => {
     expect(screen.getByText('Maria Silva')).toBeInTheDocument()
   })
 })
+
+// ── Overflow handling ─────────────────────────
+
+import { getVisibleResources } from '../views/ProfessionalsView'
+import type { CalendarResource } from '../utils/types'
+
+describe('professionals overflow handling', () => {
+  const makeResource = (id: string, name: string): CalendarResource => ({
+    id,
+    name,
+    color: '',
+  })
+
+  it('shows all professionals when total is 5 or fewer', () => {
+    const resources = [
+      makeResource('d1', 'Dr. A'),
+      makeResource('d2', 'Dra. B'),
+      makeResource('d3', 'Dr. C'),
+    ]
+    const { visible, overflowCount } = getVisibleResources(resources, new Map())
+
+    expect(visible).toHaveLength(3)
+    expect(overflowCount).toBe(0)
+  })
+
+  it('prioritizes professionals with appointments today', () => {
+    const resources = [
+      makeResource('d1', 'Sem agenda'),
+      makeResource('d2', 'Com agenda'),
+      makeResource('d3', 'Também sem'),
+    ]
+    const eventsByCol = new Map<number, CalendarEvent[]>()
+    // Column 1 (index 1 = d2) has appointments
+    eventsByCol.set(1, [{
+      id: 'apt-1',
+      title: 'Maria',
+      start: new Date('2026-06-16T09:00:00'),
+      end: new Date('2026-06-16T09:30:00'),
+      dentistId: 'd2',
+      dentistName: 'Com agenda',
+      procedureName: 'Avaliação',
+      status: 'scheduled',
+      durationMinutes: 30,
+    }])
+
+    const { visible } = getVisibleResources(resources, eventsByCol)
+
+    // d2 (with appointments) should come first
+    expect(visible[0].id).toBe('d2')
+  })
+
+  it('limits visible professionals and returns overflow count', () => {
+    // 12 professionals → limit is 6, overflow is 6
+    const resources = Array.from({ length: 12 }, (_, i) =>
+      makeResource(`d${i}`, `Dr. ${i}`),
+    )
+    const { visible, overflowCount } = getVisibleResources(resources, new Map())
+
+    expect(visible).toHaveLength(6)
+    expect(overflowCount).toBe(6)
+  })
+
+  it('returns zero overflow when within threshold', () => {
+    // 10 professionals → limit is 10 (all visible)
+    const resources = Array.from({ length: 10 }, (_, i) =>
+      makeResource(`d${i}`, `Dr. ${i}`),
+    )
+    const { visible, overflowCount } = getVisibleResources(resources, new Map())
+
+    expect(visible).toHaveLength(10)
+    expect(overflowCount).toBe(0)
+  })
+})
