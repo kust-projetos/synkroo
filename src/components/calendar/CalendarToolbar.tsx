@@ -23,7 +23,7 @@ const VIEW_OPTIONS: { view: CalendarView; label: string; icon: React.ReactNode; 
 ]
 
 export function CalendarToolbar() {
-  const { view, selectedDate, setView, goToday, goNext, goPrev, groupMode, densityMode, setGroupMode, setDensityMode } = useCalendarStore()
+  const { view, selectedDate, setView, goToday, goNext, goPrev, groupMode, densityMode, setGroupMode, setDensityMode, layoutMode, setLayoutMode } = useCalendarStore()
   const title = formatTitle(selectedDate, view)
 
   return (
@@ -55,6 +55,26 @@ export function CalendarToolbar() {
 
         {/* Title */}
         <h2 className="text-lg font-semibold ml-2">{title}</h2>
+
+        {/* Layout mode toggle — only in day/week/month views */}
+        {(view === 'day' || view === 'week' || view === 'month') && (
+          <div className="flex items-center ml-3 pl-3 border-l border-border">
+            {(['agenda', 'professionals'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setLayoutMode(mode)}
+                className={cn(
+                  'px-2 py-0.5 text-[10px] font-medium rounded transition-colors',
+                  layoutMode === mode
+                    ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {mode === 'agenda' ? 'Agenda' : 'Profissionais'}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Professionals scaling controls — visible only in professionals view */}
         {view === 'professionals' && (
