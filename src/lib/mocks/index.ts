@@ -175,22 +175,45 @@ match('/api/procedures/', (url) => {
 
 // ── Appointments ──
 match('/api/appointments', (url) => {
-  const appointments = [
-    createAppointment(MOCK_IDS.patients.maria, 'Maria Silva', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.limpeza, 'Limpeza', 0),
-    createAppointment(MOCK_IDS.patients.joao, 'João Santos', MOCK_IDS.dentists.souza, 'Dra. Souza', MOCK_IDS.procedures.canal, 'Canal', 1),
-    createAppointment(MOCK_IDS.patients.ana, 'Ana Costa', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.avaliacao, 'Avaliação', 2),
-    ...generateArray(12, (s) =>
-      createAppointment(
-        `mock-patient-extra-${String((s % 16) + 1).padStart(3, '0')}`,
-        `Paciente ${s + 1}`,
-        s % 2 === 0 ? MOCK_IDS.dentists.silva : MOCK_IDS.dentists.souza,
-        s % 2 === 0 ? 'Dr. Silva' : 'Dra. Souza',
-        s % 2 === 0 ? MOCK_IDS.procedures.limpeza : MOCK_IDS.procedures.implante,
-        s % 2 === 0 ? 'Limpeza' : 'Implante',
-        s + 3,
-      ),
-    ),
+  // Base: 3 appointments — today (Dr. Silva 08:00), today (Dra. Souza 10:00), tomorrow (Dr. Silva 09:00)
+  const baseAppointments = [
+    createAppointment(MOCK_IDS.patients.maria, 'Maria Silva', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.limpeza, 'Limpeza', 100, 0, 8),
+    createAppointment(MOCK_IDS.patients.joao, 'João Santos', MOCK_IDS.dentists.souza, 'Dra. Souza', MOCK_IDS.procedures.canal, 'Canal', 101, 0, 10),
+    createAppointment(MOCK_IDS.patients.ana, 'Ana Costa', MOCK_IDS.dentists.silva, 'Dr. Silva', MOCK_IDS.procedures.avaliacao, 'Avaliação', 102, 1, 9),
   ]
+
+  // Extra: 12 appointments across 4 recent days (-1 to -4), 3 per day, staggered by hour and dentist
+  const extraSlots: { dayOffset: number; hour: number; dentistIdx: number }[] = [
+    { dayOffset: -1, hour: 8, dentistIdx: 0 },
+    { dayOffset: -1, hour: 9, dentistIdx: 1 },
+    { dayOffset: -1, hour: 11, dentistIdx: 0 },
+    { dayOffset: -2, hour: 8, dentistIdx: 1 },
+    { dayOffset: -2, hour: 10, dentistIdx: 0 },
+    { dayOffset: -2, hour: 14, dentistIdx: 1 },
+    { dayOffset: -3, hour: 9, dentistIdx: 0 },
+    { dayOffset: -3, hour: 11, dentistIdx: 1 },
+    { dayOffset: -3, hour: 15, dentistIdx: 0 },
+    { dayOffset: -4, hour: 9, dentistIdx: 1 },
+    { dayOffset: -4, hour: 10, dentistIdx: 0 },
+    { dayOffset: -4, hour: 16, dentistIdx: 1 },
+  ]
+
+  const extraAppointments = extraSlots.map((slot, s) => {
+    const isSilva = slot.dentistIdx === 0
+    return createAppointment(
+      `mock-patient-extra-${String((s % 16) + 1).padStart(3, '0')}`,
+      `Paciente ${s + 1}`,
+      isSilva ? MOCK_IDS.dentists.silva : MOCK_IDS.dentists.souza,
+      isSilva ? 'Dr. Silva' : 'Dra. Souza',
+      isSilva ? MOCK_IDS.procedures.limpeza : MOCK_IDS.procedures.implante,
+      isSilva ? 'Limpeza' : 'Implante',
+      s,
+      slot.dayOffset,
+      slot.hour,
+    )
+  })
+
+  const appointments = [...baseAppointments, ...extraAppointments]
   return { appointments }
 })
 
