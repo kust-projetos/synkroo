@@ -8,14 +8,6 @@
  * 3. Memory Manager - L1 always loads, L2-L5 lazy loading works
  */
 
-jest.mock('@/lib/supabase', () => ({
-  createAdminClient: jest.fn(),
-}))
-
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn(),
-}))
-
 jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
   aiLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
@@ -83,9 +75,6 @@ describe('Multi-Agent Flow (Mocked)', () => {
       order: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
     }
-
-    const { createTypedClient } = require('@/lib/supabase/typed')
-    createTypedClient.mockResolvedValue(mockSupabase)
 
     const { getLLMProvider } = require('@/lib/llm')
     mockLLM = {
@@ -294,9 +283,6 @@ describe('Memory Manager', () => {
       insert: jest.fn().mockReturnThis(),
       update: jest.fn().mockReturnThis(),
     }
-
-    const { createTypedClient } = require('@/lib/supabase/typed')
-    createTypedClient.mockResolvedValue(mockSupabase)
   })
 
   describe('L1 Session Memory', () => {
