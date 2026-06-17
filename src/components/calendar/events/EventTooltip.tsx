@@ -9,7 +9,7 @@ import {
 import { formatTime } from '../utils/date-utils'
 import { statusLabels, statusDotColors } from './event-styles'
 import type { CalendarEvent } from '../utils/types'
-import type { AppointmentStatus } from '@/lib/supabase/database.types'
+import type { AppointmentStatus } from '@/lib/db/types'
 
 interface EventTooltipProps {
   event: CalendarEvent

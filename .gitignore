@@ -105,3 +105,8 @@ worker1.bat
 api-minimax.bat
 api-glm.bat
 api-nemotron.bat
+
+# Scratch / logs locais
+nul
+*weekprof.txt
+dayprof_after.txt

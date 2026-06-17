@@ -91,7 +91,7 @@ validation: BMAD v6.2.2
 │  │  └─────────────────────────────────────────────────────────────────────────────┘  │  │
 │  │                                                                                    │  │
 │  │  ┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐       │  │
-│  │  │   Supabase Auth     │  │   Supabase Storage  │  │  pgvector (RAG)     │       │  │
+│  │  │   NextAuth/Auth.js  │  │   Object Storage    │  │  pgvector (RAG)     │       │  │
 │  │  │   (JWT + RLS)       │  │   (Files/Images)    │  │  (Embeddings)       │       │  │
 │  │  └─────────────────────┘  └─────────────────────┘  └─────────────────────┘       │  │
 │  │                                                                                    │  │
@@ -464,7 +464,7 @@ L5: Episodic/RAG (pgvector, <150ms)
 
 **Base URL:** `https://api.synkroo.com/v1`
 
-**Authentication:** Bearer JWT (Supabase Auth)
+**Authentication:** Bearer JWT (NextAuth/Auth.js)
 
 **Content-Type:** `application/json`
 

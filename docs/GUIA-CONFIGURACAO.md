@@ -4,7 +4,7 @@
 
 | Componente | Status | Observação |
 |------------|--------|------------|
-| RAG/pgvector | ✅ Aplicado | Migration aplicada no Supabase |
+| RAG/pgvector | ✅ Aplicado | Migration aplicada no PostgreSQL |
 | Knowledge Base | ✅ Aplicado | 15 entradas Q&A seedadas |
 | Chat Widget | ✅ Completo | Componente + widget.js |
 | Lembretes | ✅ Implementado | Configurar env vars |
@@ -14,7 +14,7 @@
 
 ## 1. Migrations Aplicadas
 
-As seguintes migrations foram aplicadas no Supabase:
+As seguintes migrations foram aplicadas no banco PostgreSQL via Drizzle:
 
 - ✅ `add_pgvector` - Extensão pgvector, tabelas, índices HNSW, funções RPC
 - ✅ `seed_knowledge_base` - 15 entradas Q&A para clínica demo
@@ -34,17 +34,16 @@ As seguintes migrations foram aplicadas no Supabase:
 
 ## 2. Configurar Variáveis de Ambiente
 
-No **Vercel Dashboard** ou **Supabase Dashboard**, configure:
+No **Vercel Dashboard**, configure:
 
 ### Variáveis Obrigatórias
 
 ```bash
-# Supabase (já configurado)
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
-SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
+# PostgreSQL + Drizzle (required)
+DATABASE_URL=postgresql://xxx...
 
-# Auth
+# Auth (NextAuth)
+AUTH_SECRET=seu-auth-secret
 JWT_SECRET=seu-jwt-secret
 
 # MiniMax LLM (para chat/classificação de intenção)
