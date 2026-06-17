@@ -3,74 +3,93 @@
 > **Tipo:** Documento-mestre de design (alto nível). Não é spec de implementação.
 > **Data:** 2026-06-17
 > **Status:** Aprovado para detalhamento por fase/módulo.
-> **Escopo deste documento:** apenas planejamento e documentação. A implementação será feita por outro agente, guiado pelos documentos derivados deste.
+> **Escopo:** apenas planejamento e documentação. A implementação será feita por outro agente, guiado pelos documentos derivados deste.
 
 ---
 
 ## 0. Como ler este documento
 
-Este é o **mapa-mestre**. Ele define a visão-alvo, os princípios arquiteturais, o padrão de módulo e a sequência de trabalho. Ele **não** detalha a implementação de cada fase ou módulo — cada um desses recebe, depois, seu **próprio ciclo `spec → plano de implementação`**, derivado e referenciando este documento.
+Este é o **mapa-mestre** da transformação técnica do Synkroo. Ele define a visão-alvo de arquitetura, os princípios, o padrão de módulo e a sequência de trabalho.
 
-Regra de ouro para todos os documentos derivados: devem ser **auto-suficientes para um agente implementador** seguir sem contexto adicional de conversa.
+Ele **referencia**, não duplica, a visão de produto que já existe em disco (§1). Detalhes de feature, requisitos e domínio vivem nos documentos canônicos; aqui ficam apenas as **decisões de arquitetura e a ordem de execução**.
+
+Cada fase (Eixo 1) e cada módulo (Eixo 2) recebe depois seu próprio ciclo `spec → plano de implementação`, derivado e referenciando este mestre. Regra de ouro dos documentos derivados: **auto-suficientes para um agente implementador**.
 
 ---
 
-## 1. Contexto e estado atual (reconhecimento)
+## 1. Documentos-fonte canônicos (não duplicar)
 
-O Synkroo é um sistema odontológico (agendamento, CRM/leads, campanhas, analytics, WhatsApp, agente de IA conversacional, LGPD). A ideia de produto é forte, mas a arquitetura atual acumulou dívida e está em migração parcial.
+A visão de produto, mercado e domínio já está documentada. Este mestre é a camada de transformação por cima dela. Ao detalhar fases/módulos, **puxar o detalhe destes documentos** em vez de recriá-lo:
 
-**Escala:** ~80.800 LOC, 559 arquivos `.ts/.tsx`, 51 tabelas no schema, 113 testes unit + 41 specs E2E.
+| Documento | Conteúdo | Usar em |
+|---|---|---|
+| `docs/planning/product-brief.md` | Visão, 8 módulos, modelo de negócio (serviço personalizado modular, infra própria por cliente), moat, personas, pricing | Visão geral, catálogo |
+| `docs/planning/epics.md` | **Épicos E-01..E-08** (vocabulário canônico de módulos) | Catálogo (§9) |
+| `docs/planning/prd.md` (+ v3.1/v3.2) | Requisitos funcionais, jornadas, modelo de dados, arquitetura de agentes | Spec de cada módulo |
+| `docs/planning/improvements-proposal.md` | Capacidades expandidas: preditiva, BI, financeiro/cobrança, voz, integrações, agente "vê e faz" | Catálogo, specs |
+| `docs/planning/technical-research.md` | **Arquitetura de agentes 4+1**, MCP servers, RAG, multi-tenancy, custos | W5, módulo IA |
+| `docs/planning/domain-research.md` | Regulamentação BR (LGPD, CFO/CRO), processos clínicos, diálogos agente-paciente | Compliance nos specs |
+| `docs/planning/market-research.md` | Mercado, competição, pricing, GTM | Posicionamento |
+| `.planning/research/PITFALLS.md` | Armadilhas críticas, technical debt, gotchas de integração | Planos de implementação |
+| `.planning/research/ARCHITECTURE.md` | Padrões, schema design, build order | W2/W3, specs |
 
-**Achados que motivam este roadmap:**
+> ⚠️ Os documentos-fonte foram escritos sobre a stack antiga (**Claude Agent SDK + Supabase**). A **visão de produto permanece válida**; a **stack evoluiu** para Cloudflare + Postgres (ver §3 e decisão aberta em §10).
+
+---
+
+## 2. Estado atual (reconhecimento técnico)
+
+Escala: ~80.800 LOC, 559 arquivos `.ts/.tsx`, 51 tabelas, 113 testes unit + 41 E2E. Muito da visão já foi implementado (v0.1 calendário+WhatsApp; v0.2 CRM/pipeline/financeiro/LGPD), mas a arquitetura acumulou dívida e está em migração parcial.
 
 | Achado | Evidência | Impacto |
 |---|---|---|
-| Documentação descreve stack errada | `CLAUDE.md`/`AGENTS.md` dizem "Supabase + RLS + Auth SSR"; o código usa **Drizzle + `pg` + NextAuth**. Zero imports de `@supabase/supabase-js`. | Induz humanos e agentes a decisões erradas. |
-| Migração Supabase→Drizzle inacabada | `src/lib/supabase.ts` é um **bridge depreciado** que emula a API do Supabase sobre Drizzle. `.env.example` marca "CUTOVER COMPLETE". | Risco de segurança + dívida. |
-| Bridge monta SQL por concatenação | `sql.raw()` + escape manual de aspas. `.or()` é **no-op** (retorna dados sem filtro); `.rpc()` e `auth.getUser()` retornam vazio silenciosamente. | **SQL injection** + falhas silenciosas. `complete-profile/page.tsx` já depende do `auth.getUser()` quebrado. |
-| Camadas meio-migradas | `app → service` (77×), `app → repository` direto (35×), `service → repository` (28×). Existe Repository Pattern + `domain-boundaries.ts`, mas inacabado. | Sem fronteira clara; páginas client tocam DB. |
-| 322 arquivos `graphify-out/` versionados | Cache de ferramenta. Está no `.gitignore`, mas foi commitado antes da regra. | Polui o repositório (~170 pastas). |
-| Dívida de tipos/qualidade | 436 usos de `any`, 59 arquivos com `console.*` em produção, 63 erros de `tsc` (todos em testes — setup `jest-dom` quebrado). Código de produção: **0 erros `tsc`**. | Typecheck de teste vermelho. |
-| Frontend duplicado | `configuracao/` + `configuracoes/`; `crm/` + `crm/pipeline/` + `pipeline/` (stub); `contatos/` (stub) + `leads/` + `pacientes/`; `atividades/` + `tarefas/`. CRUD repetido por domínio sem componentes compartilhados. | Retrabalho e inconsistência de UX. |
-| Agente de IA isolado | ~8k LOC (`agent`, `agents`, `memory`, `rag`, `tools`, `scheduler`, `queue`) + `lib/llm` + `lib/minimax`. Só **2 arquivos de UI** o importam; nenhum service não-IA depende dele. | Remoção/substituição de **baixo risco**. |
-| RBAC raso e rígido | Roles via `pgEnum userRole` = `owner/admin/dentist/receptionist`. Hierarquia linear (`lib/auth/permissions.ts`). Sem "comercial/recepção", sem permissões granulares, sem grants por usuário. | Não suporta o painel de acessos desejado. |
-| Multi-clínica já existe | `clinic_id` é FK em todas as tabelas de domínio. | Base de tenancy interna pronta. |
-| Sem manifesto de módulos | `clinics.settings` (jsonb) e `subscriptionPlan` genéricos. | Modularidade ainda não existe no código. |
+| Docs de código descrevem stack errada | `CLAUDE.md`/`AGENTS.md` dizem "Supabase"; o código usa **Drizzle + `pg` + NextAuth**. Zero `@supabase/supabase-js`. | Induz a decisões erradas. |
+| Bridge Supabase depreciado e inseguro | `src/lib/supabase.ts` emula Supabase sobre Drizzle via `sql.raw()` + escape manual. `.or()` é **no-op** (dados sem filtro); `.rpc()`/`auth.getUser()` retornam vazio. `complete-profile` já depende do `getUser()` quebrado. | **SQLi** + falhas silenciosas. |
+| Camadas meio-migradas | `app→service` (77×), `app→repository` direto (35×), `service→repository` (28×). Repository Pattern + `domain-boundaries.ts` inacabados. | Páginas client tocam DB. |
+| 322 arquivos `graphify-out/` versionados | No `.gitignore`, mas commitados antes da regra. | Poluição do repo. |
+| Dívida de tipos/qualidade | 436 `any`, 59 arquivos com `console.*`, 63 erros `tsc` (todos em testes — `jest-dom`). Produção: **0 erros `tsc`**. | Typecheck de teste vermelho. |
+| Frontend duplicado | `configuracao`+`configuracoes`; `crm`+`pipeline`+`contatos`(stub); `atividades`+`tarefas`. CRUD repetido sem componentes compartilhados. | Retrabalho, UX inconsistente. |
+| Agente de IA isolado | ~8k LOC (`agent`,`agents`,`memory`,`rag`,`tools`,`scheduler`,`queue`). Só 2 arquivos de UI o importam. | Substituição de **baixo risco**. |
+| RBAC raso/rígido | `pgEnum` `owner/admin/dentist/receptionist`, hierarquia linear. Sem "comercial/recepção", sem permissões granulares/grants. | Não suporta o painel de acessos desejado. |
+| Multi-clínica existe | `clinic_id` é FK em todas as tabelas. | Base de tenancy interna pronta. |
+| Sem manifesto de módulos | `clinics.settings`/`subscriptionPlan` genéricos. | Modularidade não existe no código. |
 
 ---
 
-## 2. Modelo de produto e entrega
+## 3. Modelo de produto, entrega e princípios
 
-**Não é SaaS multi-tenant global.** O modelo é:
-
-- **Lado do fornecedor:** existe um **produto-base completo** com todos os módulos/funções. A partir dele, compõe-se o que cada cliente recebe (módulos + funções + personalização).
-- **Lado do cliente:** cada cliente roda em **infra própria/isolada** (deploy + DB dedicados) — *single-tenant por cliente*.
-- **Dentro da instância:** pode haver **várias clínicas/polos** (multi-clínica via `clinic_id`) e **multi-usuário com RBAC** (recepção, comercial, admin…), com um **painel de admin** para conceder acessos por função/usuário e por clínica.
+**Modelo de negócio (de `product-brief.md`):** não é SaaS genérico. É **serviço personalizado modular** — um **produto-base completo** do qual se compõe, por cliente, apenas os módulos/funções/personalização que ele precisa. Cada cliente roda em **infra própria/isolada** (deploy + DB dedicados). Dentro da instância há **multi-clínica** (`clinic_id`) e **multi-usuário com RBAC** + painel admin.
 
 **Duas camadas de modularidade:**
+1. **Composição por instância** (config-time): quais módulos esse cliente recebe — manifesto de módulos no deploy, não flag multi-tenant.
+2. **RBAC em runtime** (dentro da instância): admin habilita acessos por usuário/função, escopo por clínica.
 
-1. **Composição por instância** (config-time): quais módulos esse cliente recebe. Como cada cliente tem infra própria, é **configuração de instância** (manifesto de módulos no deploy), não flag multi-tenant.
-2. **RBAC em runtime** (dentro da instância): admin habilita acessos por usuário/função, com escopo por clínica.
+**Princípios arquiteturais transversais:**
+
+- **P1 — AI-operável (dual-control):** toda operação existe como uma **Action** única, consumida igualmente pela UI e pelo agente (§5).
+- **P2 — Omnichannel, WhatsApp-first:** o **Atendimento conversacional é o serviço principal**. WhatsApp é o canal primário; Instagram, Telegram, e-mail, SMS e voz são canais adicionais. Canais são infra; atendimento é o que roda sobre eles.
+- **P3 — Nativo + Integração:** cada capacidade tem provider **nativo**, mas pode ser servida por **adapter de terceiro** quando melhor para o cliente (ex.: financeiro nativo ↔ ASAAS; agenda nativa ↔ Google Calendar/Doctoralia). Integrações são uma camada transversal.
+- **P4 — Multi-agente 4+1:** um **orquestrador central** + **agentes especialistas** acionados por complexidade (ver `technical-research.md`). O código já tem a semente em `services/agents`.
+- **P5 — Modularidade por bounded context:** cada módulo isolado, com fronteiras rígidas (lint de dependência), ativável por instância.
 
 ---
 
-## 3. Visão-alvo (arquitetura final)
+## 4. Visão-alvo (arquitetura final)
 
-**Produto-base** = monorepo Next.js (App Router) organizado em **módulos isolados / bounded contexts**, cada um com sua fatia vertical, expondo uma interface pública e consumindo apenas interfaces públicas de outros módulos.
+**Produto-base** = monorepo Next.js (App Router) em **módulos isolados** (§6), cada um com fatia vertical e interface pública.
 
-- **Runtime:** Cloudflare Workers (via OpenNext). **Postgres gerenciado por instância** atrás do **Hyperdrive**. **Vectorize** para RAG. **Agents SDK + Durable Objects** + **Workers AI** para o agente. **KV** para cache/estado leve.
+- **Runtime:** Cloudflare Workers (via OpenNext). **Postgres gerenciado por instância** atrás do **Hyperdrive**. **Vectorize** para RAG. **Agents SDK + Durable Objects** + Workers AI para o agente. **KV** para cache/estado leve. (Nota: webhooks na edge Cloudflare já estavam previstos em `improvements-proposal.md §3.1`.)
 - **Dados:** `app → action → service → repository → Drizzle`. **Zero Supabase.** Tipos inferidos do schema Drizzle.
-- **AI-operável (dual-control):** toda operação de negócio existe como uma **Action** única, consumida igualmente pela UI e pelo agente (ver §4).
-- **Modularidade:** **manifesto de módulos por instância** controla menu, rotas e APIs. **RBAC granular** (permissões por módulo/ação + roles customizáveis) com **painel admin**. Multi-clínica via `clinic_id`.
-- **Entrega:** cada cliente = composição de módulos + config + branding, em infra isolada.
+- **Agente:** orquestrador 4+1, AI-operável via Action Layer, multimodal (texto/voz/visão), capaz de operar sistemas externos via MCP.
+- **Modularidade:** manifesto por instância + RBAC granular + painel admin. Multi-clínica via `clinic_id`.
 
 ---
 
-## 4. Princípio central: Action Layer (sistema AI-operável)
+## 5. Princípio central: Action Layer (sistema AI-operável)
 
-**Requisito:** tudo que o sistema faz deve ser executável tanto pelo usuário no frontend quanto pelo agente de IA, sem manter duas implementações.
+**Requisito:** tudo que o sistema faz deve ser executável pela UI **e** pelo agente, sem manter duas implementações.
 
-**Padrão:** cada operação de negócio é uma **Action** (caso de uso) definida **uma única vez**. A UI e as tools do agente são **consumidores** da mesma Action.
+Cada operação é uma **Action** (caso de uso) definida **uma vez**. A UI e as tools do agente são consumidores.
 
 ```ts
 // src/modules/operacional/actions/schedule-appointment.ts
@@ -78,51 +97,36 @@ export const scheduleAppointment = defineAction({
   name: 'operacional.scheduleAppointment',
   module: 'operacional',              // entitlement: só executa se o módulo está habilitado
   requires: 'appointments:create',   // RBAC granular
-  input: z.object({                  // contrato validado (Zod)
+  input: z.object({
     patientId: z.string().uuid(),
     dentistId: z.string().uuid(),
     startsAt: z.string().datetime(),
     procedureId: z.string().uuid(),
   }),
   async handler(input, ctx) {        // ctx = { user, clinicId } injetado
-    // regra de negócio (conflito de horário, disponibilidade...)
     return appointmentsService.create({ ...input, clinicId: ctx.clinicId });
   },
 });
 ```
 
-Consumidores:
-
 ```ts
-// Frontend (Server Action / route handler)
-await runAction(scheduleAppointment, formData, ctx);
-
-// Agente (tool derivada da própria Action — wrapper fino)
-registerTool(scheduleAppointment);   // name + input(schema) + handler já prontos
+await runAction(scheduleAppointment, formData, ctx);  // Frontend
+registerTool(scheduleAppointment);                    // Agente (tool derivada)
 ```
 
-**Garantias do padrão:**
+**Garantias:** lógica em um lugar (UI e agente nunca divergem); RBAC + entitlement no `runAction` valem para os dois caminhos; habilitar um módulo expõe suas Actions ao agente automaticamente; criar módulo = `actions + schema + UI`, tools "de graça".
 
-- Lógica de negócio em **um lugar** → UI e agente nunca divergem.
-- **RBAC + entitlement** verificados dentro de `runAction` → valem para os dois caminhos automaticamente.
-- Habilitar um módulo **expõe suas Actions ao agente automaticamente** (as tools são derivadas).
-- Para o agente implementador: criar um módulo = definir `actions + schema + UI que as chama`. As tools "vêm de graça".
+**Escopo amplo (a especificar no W3):** a Action Layer cobre **dois tipos de capacidade**, porque a visão exige que o agente opere também o mundo externo (`improvements-proposal.md §4.1`):
+1. **Actions internas** — casos de uso de negócio sobre o próprio sistema.
+2. **Tools externas** — MCP servers (operar software legado, integrações), e capacidades **multimodais/computer-use** (ler câmera, preencher formulários, gerar odontograma por voz). Sujeitas às mesmas checagens de RBAC/entitlement.
 
-**Contraste com o estado atual:** hoje `services/tools` define tools do agente **separadas** da lógica usada pela UI — fonte de duplicação e divergência. A Action Layer elimina isso e substitui esse subsistema.
+**Componentes:** `defineAction`, `runAction` (valida input, checa entitlement+RBAC, injeta ctx, trata erro), `registerTool`, `ActionContext`, registro central por módulo, e o adaptador para MCP/tools externas.
 
-**Componentes da Action Layer (a especificar no W3):**
-
-- `defineAction(config)` — registra metadados (nome, módulo, permissão, schema, handler).
-- `runAction(action, input, ctx)` — valida input, checa entitlement do módulo, checa RBAC, injeta `ctx`, executa, trata erro de forma uniforme.
-- `registerTool(action)` — adapta a Action para o formato de tool do Agents SDK.
-- `ActionContext` — `{ user, clinicId, ... }` derivado da sessão.
-- Registro central de actions por módulo (alimenta tanto o frontend quanto o agente).
+> Substitui o `services/tools` atual, onde as tools do agente são definidas **separadas** da lógica da UI — fonte de duplicação.
 
 ---
 
-## 5. Anatomia de um módulo (template obrigatório)
-
-Todo módulo do produto-base segue a mesma estrutura. O documento de cada módulo só descreve o que é **específico** dele.
+## 6. Anatomia de um módulo (template obrigatório)
 
 ```
 src/modules/<modulo>/
@@ -130,143 +134,119 @@ src/modules/<modulo>/
 ├── services/       # regras de negócio / orquestração
 ├── repositories/   # acesso a dados (Drizzle)
 ├── schema/         # tabelas Drizzle do módulo
-├── ui/             # páginas e componentes do módulo
-├── permissions.ts  # permissões granulares que o módulo declara (ex: appointments:create)
-├── manifest.ts     # metadados do módulo (id, nome, dependências, rotas, menu)
-└── index.ts        # interface pública (o que outros módulos podem importar)
+├── ui/             # páginas e componentes
+├── integrations/   # adapters de terceiros (provider nativo ↔ externo) — P3
+├── permissions.ts  # permissões granulares declaradas pelo módulo
+├── manifest.ts     # metadados (id, nome, dependências, rotas, menu, canais)
+└── index.ts        # interface pública
 ```
 
-**Regras de fronteira:**
-
-- Um módulo só importa a **interface pública** (`index.ts`) de outro módulo — nunca internals. Reforçado por lint de dependência.
-- `Core` (clínicas, usuários, auth, RBAC, Action Layer, manifesto) é dependência permitida de todos.
-- Cada módulo **declara** suas permissões e suas entradas de menu/rota; o manifesto de instância decide se estão ativas.
-- Cada Action carrega `module` + `requires` → entitlement e RBAC são automáticos.
+**Regras de fronteira:** módulo só importa o `index.ts` de outro (lint de dependência); `Core` é dependência permitida de todos; cada módulo declara permissões + entradas de menu/rota; cada Action carrega `module` + `requires`.
 
 ---
 
-## 6. Eixos de trabalho
+## 7. Eixos de trabalho
 
-O trabalho se organiza em dois eixos:
+- **Eixo 1 — Transformação da fundação (W0–W6):** arruma o existente, estabelece infra Cloudflare e os mecanismos de modularidade/RBAC/Action Layer. Pré-requisito do Eixo 2.
+- **Eixo 2 — Catálogo de módulos (E-01..E-08 + transversais):** cada módulo ganha sua spec, sobre a fundação e o template. Detalhados **um a um**.
 
-- **Eixo 1 — Transformação da fundação (W0–W6):** arruma o que existe, estabelece a infra Cloudflare e os mecanismos de modularidade/RBAC/Action Layer. É pré-requisito do Eixo 2.
-- **Eixo 2 — Catálogo de módulos:** cada módulo (existente refatorado ou greenfield) ganha sua spec, construído sobre a fundação e o padrão de módulo. Detalhados **um a um**.
-
-**Estratégia de sequenciamento escolhida: A) Fundação-primeiro.** Migrar para Cloudflare carregando bridge, camadas confusas e frontend duplicado seria "portar o caos". Estabilizar e fixar as fronteiras modulares antes torna a migração de runtime mecânica e o agente greenfield limpo.
+**Estratégia: A) Fundação-primeiro.** Migrar para Cloudflare carregando bridge/camadas confusas/frontend duplicado é "portar o caos". Estabilizar e fixar fronteiras modulares antes torna a migração mecânica e o agente greenfield limpo. O **design** da modularidade (W3) é decidido cedo, pois guia W2/W5/W6.
 
 ---
 
-## 7. Eixo 1 — Fases da fundação
+## 8. Eixo 1 — Fases da fundação
 
-Cada fase abaixo vira uma `spec → plano` própria. Resumo de objetivo, entregas, dependências e risco.
+Cada fase vira uma `spec → plano` própria.
 
-### W0 — Estabilização *(baixo risco, destrava tudo)*
-- **Objetivo:** baseline limpo e confiável antes de qualquer refatoração.
-- **Entregas:** `git rm -r --cached` dos 322 `graphify-out`; reescrever `CLAUDE.md`/`AGENTS.md` com a stack real (Drizzle/pg/NextAuth/Cloudflare); corrigir o setup de tipos de teste (`jest-dom`) → `tsc` verde; remover arquivos soltos da raiz (`nul`, `weekprof.txt`, `dayprof_after.txt`, `.log`).
-- **Dependências:** nenhuma.
-- **Risco:** ~nulo.
+**W0 — Estabilização** *(risco ~nulo)* — `git rm -r --cached` dos 322 `graphify-out`; reescrever `CLAUDE.md`/`AGENTS.md` com a stack real; corrigir tipos de teste (`jest-dom`) → `tsc` verde; remover arquivos soltos da raiz. **Saída:** baseline verde, doc fiel.
 
-### W1 — Morte do Supabase
-- **Objetivo:** eliminar todo resíduo do Supabase; Drizzle como única fonte de verdade.
-- **Entregas:** migrar os ~9 consumidores do bridge (páginas de pacientes/agendamentos, componentes de calendar, `complete-profile`) para repositories/Drizzle — **atenção ao `auth.getUser()` quebrado**; substituir `database.types.ts` (70KB) por tipos inferidos do schema Drizzle (10 arquivos consomem `Database`); deletar `src/lib/supabase/`, `src/lib/supabase.ts`, pasta `supabase/` (24 migrations legadas), env vars `*SUPABASE*` (`env.ts`, `health`, `dashboard/layout.tsx`).
-- **Dependências:** W0.
-- **Risco:** médio — bridge tem SQLi e falhas silenciosas; exige teste de regressão por consumidor migrado.
+**W1 — Morte do Supabase** *(risco médio)* — migrar os ~9 consumidores do bridge para repositories/Drizzle (atenção ao `auth.getUser()` quebrado em `complete-profile`); substituir `database.types.ts` (70KB) por tipos inferidos do schema (10 arquivos consomem `Database`); deletar `src/lib/supabase/`, `supabase.ts`, pasta `supabase/`, env `*SUPABASE*`. Regressão por consumidor. **Dep:** W0.
 
-### W2 — Camada de dados
-- **Objetivo:** padronizar o fluxo de dados e remover acesso direto a DB das páginas.
-- **Entregas:** consolidar `services` (26k LOC) ↔ `repositories` (4k LOC) no padrão `app → action → service → repository`; nenhuma página/componente client toca DB; completar repositories faltantes.
-- **Dependências:** W1.
-- **Risco:** médio, majoritariamente mecânico.
+**W2 — Camada de dados** *(risco médio, mecânico)* — padronizar `app→action→service→repository`; nenhuma página client toca DB; consolidar `services`↔`repositories`. **Dep:** W1.
 
-### W3 — Modularidade + RBAC + Action Layer *(coração do produto — design cedo)*
-- **Objetivo:** criar os mecanismos que tornam o sistema modular e AI-operável.
-- **Entregas:**
-  - **Action Layer** (`defineAction`/`runAction`/`registerTool`/`ActionContext`/registro) — §4.
-  - **Manifesto de módulos** por instância (config-time): liga/desliga módulos no menu, rotas e APIs.
-  - **RBAC granular:** modelo de permissões por módulo/ação, roles customizáveis, grants por usuário/clínica; substitui o `pgEnum` rígido.
-  - **Painel admin** de acessos (gestão de usuários, funções, permissões, escopo por clínica).
-  - **Estrutura `src/modules/`** e regras de fronteira (lint de dependência); migrar `domain-boundaries.ts` para o modelo real.
-- **Dependências:** W2 (fronteiras de dados).
-- **Risco:** alto conceitual — define o produto. Deve ter spec própria detalhada antes de codar.
+**W3 — Modularidade + RBAC + Action Layer** *(coração; risco alto conceitual)* — Action Layer (interna + MCP/multimodal, §5); manifesto de módulos por instância; RBAC granular (permissões por módulo/ação, roles customizáveis, grants) substituindo o `pgEnum`; painel admin de acessos; estrutura `src/modules/` + lint de fronteira; migrar `domain-boundaries.ts`. Spec própria detalhada antes de codar. **Dep:** W2.
 
-### W4 — Runtime Cloudflare
-- **Objetivo:** rodar o produto-base na topologia-alvo.
-- **Entregas:** OpenNext → Cloudflare Workers; Hyperdrive → Postgres gerenciado por instância; Vectorize provisionado; auth edge (`getToken`) validada em Workers; pipeline de deploy por instância de cliente; remover `vercel.json`.
-- **Dependências:** W0–W3 (sistema limpo e modular).
-- **Risco:** alto — mudança de plataforma. Validar conexões DB, limites de Workers, cold start.
+**W4 — Runtime Cloudflare** *(risco alto)* — OpenNext→Workers; Hyperdrive→Postgres gerenciado por instância; Vectorize provisionado; auth edge validada; pipeline de deploy por instância; remover `vercel.json`. **Dep:** W0–W3.
 
-### W5 — Novo agente de IA
-- **Objetivo:** substituir o agente atual por um construído sobre as primitivas nativas da Cloudflare.
-- **Entregas:** remover os ~8k LOC atuais (`services/agent|agents|memory|rag|tools|scheduler|queue`, `lib/llm`, `lib/minimax`, rotas `/api/agent/*`, `/api/scheduler/*`); construir o agente sobre **Agents SDK + Durable Objects** (orquestração/estado), **Workers AI** (LLM/embeddings), **Vectorize/AutoRAG** (RAG); conectar o agente às **Actions** via `registerTool` (sem tools paralelas); **mapear e preencher gaps** de domínio (tools odontológicas específicas) — *só depois* do SDK no ar.
-- **Dependências:** W3 (Action Layer), W4 (Cloudflare).
-- **Risco:** médio — greenfield isolado, baixo acoplamento com o resto.
+**W5 — Novo agente de IA** *(risco médio, isolado)* — remover os ~8k LOC atuais; construir o **orquestrador 4+1** (ver `technical-research.md`) sobre Agents SDK/Durable Objects + Workers AI + Vectorize/AutoRAG; conectar via Action Layer (sem tools paralelas); MCP + multimodal; **mapear e preencher gaps** de domínio depois do SDK no ar. **Dep:** W3 (Action Layer), W4 (Cloudflare). Ver decisão aberta §10 (modelo Claude).
 
-### W6 — Frontend base
-- **Objetivo:** eliminar duplicação e aplicar o modelo modular à UI.
-- **Entregas:** unificar duplicações (`configuracao`+`configuracoes`; `crm`+`pipeline`+`contatos`; `atividades`+`tarefas`); extrair componentes genéricos (`DataTable`, `FormShell`, `DetailShell`); menu e rotas dirigidos pelo manifesto de módulos + RBAC; redesenhar o eixo CRM/Contatos ↔ Comercial/Leads ↔ Operacional/Pacientes como bounded contexts (ver §8).
-- **Dependências:** W3 (modularidade), W2 (dados).
-- **Risco:** médio.
+**W6 — Frontend base** *(risco médio)* — unificar duplicações; extrair `DataTable`/`FormShell`/`DetailShell`; menu/rotas dirigidos pelo manifesto + RBAC; redesenhar o eixo CRM/Contatos ↔ Comercial ↔ Operacional (§9.1). **Dep:** W2, W3.
 
 ---
 
-## 8. Eixo 2 — Catálogo de módulos
+## 9. Eixo 2 — Catálogo de módulos (ancorado em E-01..E-08)
 
-Cada módulo segue o template (§5) e o padrão Action Layer (§4). Detalhamento **1 por vez**, cada um com spec própria. O DB é ajustado por módulo (novas tabelas conforme necessário).
+Vocabulário canônico de `epics.md`. Cada módulo segue o template (§6) e a Action Layer (§5); DB ajustado por módulo; detalhamento **1 por vez**, puxando feature-detail dos docs-fonte (§1).
 
-| Módulo | Estado no código | Tipo | Notas de domínio |
+**🔵 Plataforma (sempre presente)**
+
+| Módulo | Estado | Tipo |
+|---|---|---|
+| **Core** — clínicas, usuários, auth, RBAC granular, manifesto, Action Layer | parcial | refatorar/expandir |
+| **Agente IA (4+1)** — orquestrador + especialistas; consome Actions | existe → substituído | greenfield (W5) |
+| **Canais** — WhatsApp (principal), Instagram, Telegram, e-mail, SMS, voz | parcial (WhatsApp/Evolution) | expandir |
+
+**🟢 Épicos canônicos (E-01..E-08)**
+
+| Épico | Módulo | Estado | Tipo |
 |---|---|---|---|
-| **Core** | parcial | sempre presente | clínicas, usuários, auth, RBAC, Action Layer, manifesto |
-| **Operacional** | maduro | refatorar | pacientes, agendamentos, prontuário, dentistas, procedimentos |
-| **Comercial** | maduro | refatorar | leads, pipeline — origem comercial |
-| **CRM/Contatos** | stub | redesenhar | camada ampla opcional; pode conter pacientes, leads e mais (ver §8.1) |
-| **Campanhas** | maduro | refatorar | segmentação, disparos |
-| **Financeiro** | base existe (`payments`,`installments`,`budgets`,`treatment-plans`) | expandir | gestão financeira completa |
-| **Analytics/Relatórios** | existe | refatorar | métricas, no-show, ROI |
-| **IA (agente)** | existe → substituído | greenfield | runtime do agente (W5) |
-| **Gestão do agente de IA** | base existe (`agent/decisions`,`pending-actions`) | expandir | config de comportamento, auditoria de decisões, ações pendentes |
-| **Gestão de documentos** | ❌ | greenfield | armazenamento/organização de documentos |
-| **Social media** | ❌ | greenfield | gestão de redes sociais |
-| **Tráfego pago** | ❌ | greenfield | gestão de campanhas de mídia paga |
-| **Serviços administrativos** | ❌ | greenfield | a detalhar no spec do módulo |
+| **E-01** | Atendimento Multicanal 24/7 ⭐ *serviço principal* | maduro (WhatsApp) | refatorar/expandir |
+| **E-02** | Gestão de Agendamentos (Operacional/clínico) | maduro | refatorar |
+| **E-03** | Follow-up e Retenção | maduro | refatorar |
+| **E-04** | CRM Inteligente (Contatos) | parcial/stub | redesenhar (§9.1) |
+| **E-05** | Vendas e Conversão (Comercial/Leads/Pipeline) | maduro | refatorar |
+| **E-06** | Marketing e Redes Sociais (tráfego pago, orgânico, conteúdo, social, e-mail) | ❌ | greenfield |
+| **E-07** | Call Center com IA (voz) | ❌ | greenfield |
+| **E-08** | Dashboard e Gestão (BI/Analytics) | existe | refatorar |
 
-> A **priorização do Eixo 2** (ordem de detalhamento) será definida antes de iniciar o detalhamento dos módulos.
+**🟡 Capacidades transversais (de `improvements-proposal.md`)**
 
-### 8.1 Eixo CRM/Contatos ↔ Comercial ↔ Operacional (questão de design aberta)
+| Capacidade | Estado | Tipo |
+|---|---|---|
+| **Financeiro & Cobrança** (orçamentos, parcelas, pagamentos, PIX, inadimplência) | base (`payments`,`installments`,`budgets`) | expandir |
+| **Inteligência Preditiva** (no-show ML, churn, upsell, sazonalidade) | base (`analytics/noshow-prediction`) | expandir |
+| **Business Intelligence** (dashboards executivos por área) | parcial | expandir → parte de E-08 |
+| **Escritório / Documentos** (criação de docs, arquivos, contratos, e-mails) | ❌ | greenfield |
+| **Operações Especiais Odonto** (odontograma, proposta visual, orientações) | parcial | expandir |
+| **Gestão do Agente de IA** (config, auditoria de decisões, ações pendentes) | base (`agent/decisions`) | expandir |
+| **Integrações de terceiros** (saúde, financeiro, marketing, operacional) — P3 | ❌ | greenfield (camada) |
 
-São **bounded contexts diferentes**: Leads nasce no **Comercial**; Pacientes no **Operacional**; **Contatos** é uma camada de CRM mais ampla que pode referenciar ambos (e mais). Como o sistema é modular, um cliente pode **não ter** o módulo CRM. O modelo final (entidade unificada vs. referências entre contextos, transição lead→paciente) será decidido no spec do módulo **CRM/Contatos**, com proposta e mockup. Princípio: Operacional e Comercial devem funcionar **sem** o CRM.
+> Priorização do Eixo 2 (ordem de detalhamento) a definir antes de iniciar os módulos. Sugestão inicial alinhada à visão WhatsApp-first: **Core → Atendimento (E-01) → Operacional (E-02) → Follow-up (E-03) → Agente IA**.
+
+### 9.1 Eixo CRM/Contatos ↔ Comercial ↔ Operacional (design aberto)
+
+Bounded contexts distintos: **Leads** (comercial, E-05), **Pacientes** (operacional, E-02), **Contatos/CRM** (E-04) como camada ampla que pode referenciar ambos (e mais). Como o sistema é modular, um cliente pode **não ter** o módulo CRM. Modelo final (entidade unificada vs. referências entre contextos; transição lead→paciente) decidido no spec do módulo **E-04**, com proposta e mockup. Princípio: Operacional e Comercial funcionam **sem** o CRM.
 
 ---
 
-## 9. Decisões abertas (com recomendação)
-
-Resolvidas no início da fase/módulo correspondente:
+## 10. Decisões abertas (com recomendação)
 
 | Decisão | Fase | Recomendação |
 |---|---|---|
-| Provider de Postgres por instância | W4 | Postgres gerenciado (ex.: Neon, com pgvector) atrás do Hyperdrive como pooler. Confirmar dado "infra própria por cliente". |
-| Vector store do RAG | W5 | Migrar `pgvector` → **Vectorize** (alinha com "tudo Cloudflare"); manter pgvector como fallback. |
-| Modelo de domínio CRM/Contatos | módulo CRM | Ver §8.1 — decidir no spec do módulo. |
-| Escopo de branding/personalização (white-label) | W3/W6 | Definir o que é configurável por instância (logo, cores, nome) vs. fixo. |
-| Roles customizáveis vs. roles fixos estendidos | W3 | Permissões granulares por módulo/ação + roles como conjuntos de permissões. |
+| **Modelo do agente: "Cloudflare SDK" significa abandonar Claude, ou manter Claude sob orquestração Cloudflare?** Todo o moat documentado é "Claude SDK + MCPs". Cloudflare Agents SDK é orquestração e pode rodar Claude via AI Gateway/Workers AI. | W5 | **Manter Claude como modelo, sob orquestração do Cloudflare Agents SDK** (preserva o moat, alinha com "tudo Cloudflare"). Confirmar com o usuário antes do W5. Não bloqueia a fundação. |
+| Provider de Postgres por instância | W4 | Postgres gerenciado (ex.: Neon, pgvector) atrás do Hyperdrive. |
+| Vector store do RAG | W5 | `pgvector` → **Vectorize**; pgvector como fallback. |
+| Modelo de domínio CRM/Contatos | E-04 | Ver §9.1. |
+| Branding/personalização (white-label) | W3/W6 | Definir o que é configurável por instância. |
 
 ---
 
-## 10. Processo de trabalho
+## 11. Processo de trabalho
 
-1. **Este documento** é o mapa-mestre e a fonte de verdade da visão.
-2. Cada **fase do Eixo 1** e cada **módulo do Eixo 2** recebe: `spec de design` → `plano de implementação` → implementação (por outro agente).
-3. **Apenas planejamento/documentação** nesta etapa. Nenhuma implementação é feita ao escrever os specs/planos.
-4. Documentos derivados devem ser **auto-suficientes para o agente implementador** e **referenciar este mestre** (princípios, template de módulo, Action Layer).
-5. **Planejar tudo antes** de implementar, para evitar retrabalho — especialmente o W3 (modularidade/RBAC/Action Layer) e o modelo de DB, que são fundacionais.
+1. Este documento é o mapa-mestre; a **visão de produto** vive nos docs-fonte (§1).
+2. Cada fase do Eixo 1 e cada módulo do Eixo 2 recebe `spec → plano → implementação` (por outro agente).
+3. **Apenas planejamento/documentação** nesta etapa.
+4. Documentos derivados são **auto-suficientes para o agente implementador** e referenciam este mestre + os docs-fonte relevantes (não duplicam).
+5. **Planejar tudo antes** de implementar — especialmente W3 (modularidade/RBAC/Action Layer) e o modelo de DB.
 
 ---
 
-## 11. Riscos e dependências (visão geral)
+## 12. Riscos e dependências
 
-- **W1 (Supabase)** é pré-requisito de tudo: o bridge inseguro e silenciosamente quebrado precisa morrer antes de construir por cima.
-- **W3 (modularidade/Action Layer)** é o maior risco conceitual e guia W2, W5 e W6 — exige a spec mais cuidadosa.
-- **W4 (Cloudflare)** é o maior risco de plataforma; deve vir só depois do sistema estar limpo e modular.
-- **Action Layer** precisa existir (W3) antes do novo agente (W5) para que as tools sejam derivadas, não duplicadas.
-- O **agente atual é isolado** (baixo acoplamento) → sua remoção em W5 é segura.
-- O **modelo de DB** evolui continuamente por módulo; mudanças de schema fundacionais (RBAC granular, manifesto de módulos) acontecem em W3.
-```
+- **W1 (Supabase)** é pré-requisito: o bridge inseguro precisa morrer antes de construir por cima.
+- **W3 (modularidade/Action Layer)** é o maior risco conceitual; guia W2/W5/W6.
+- **W4 (Cloudflare)** é o maior risco de plataforma; só depois do sistema limpo e modular.
+- **Action Layer** (W3) precisa existir antes do novo agente (W5) para tools derivadas, não duplicadas.
+- O **agente atual é isolado** → remoção em W5 é segura.
+- O **modelo de DB** evolui por módulo; mudanças fundacionais (RBAC granular, manifesto) acontecem em W3.
+- **`PITFALLS.md`** deve ser consultado ao escrever cada plano de implementação.
