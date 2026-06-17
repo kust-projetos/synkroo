@@ -398,7 +398,7 @@ function fail(code: ActionErrorCode, message: string) {
   return { ok: false as const, error: { code, message } };
 }
 
-export async function runAction<I extends Parameters<typeof redactInput>, O>(
+export async function runAction<O>(
   action: ActionDefinition<any, O>,
   rawInput: unknown,
   ctx: ActionContext,
@@ -546,7 +546,7 @@ Expected: PASS.
 ```ts
 // src/core/actions/index.ts
 export * from './types';
-export { defineAction, registerActions, getActions, getAction } from './registry';
+export { defineAction, registerActions, getActions, getAction, clearRegistry } from './registry';
 export { runAction } from './run';
 export { toAgentTool, agentToolsFor } from './agent';
 ```

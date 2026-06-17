@@ -75,10 +75,14 @@ git commit -m "feat(db): tabela instance_modules (contratacao por instancia)"
 import { makeManifest } from '../manifest';
 
 it('reports enabled modules and defaults missing to disabled', async () => {
-  const m = makeManifest({ getEnabledModuleIds: async () => ['operacional', 'core'] });
+  const m = makeManifest({ getEnabledModuleIds: async () => ['operacional'] });
   expect(await m.isEnabled('operacional')).toBe(true);
-  expect(await m.isEnabled('core')).toBe(true);
   expect(await m.isEnabled('financeiro')).toBe(false);
+});
+
+it('always-on modules (core) are enabled regardless of contract', async () => {
+  const m = makeManifest({ getEnabledModuleIds: async () => [] });
+  expect(await m.isEnabled('core')).toBe(true);
 });
 
 it('caches the lookup within an instance', async () => {
@@ -103,15 +107,23 @@ import { eq } from 'drizzle-orm';
 
 export interface ModuleManifestRepo { getEnabledModuleIds(): Promise<string[]>; }
 
-export interface ModuleManifest { isEnabled(moduleId: string): Promise<boolean>; }
+export interface ModuleManifest {
+  isEnabled(moduleId: string): Promise<boolean>;
+  enabledModules(): Promise<Set<string>>;   // contratados ∪ always-on
+}
+
+// Módulos sempre ativos (não desativáveis), independentes da contratação no banco.
+export const ALWAYS_ON_MODULES = new Set<string>(['core']);
 
 export function makeManifest(repo: ModuleManifestRepo): ModuleManifest {
   let cache: Set<string> | null = null;
+  async function load(): Promise<Set<string>> {
+    if (!cache) cache = new Set([...ALWAYS_ON_MODULES, ...(await repo.getEnabledModuleIds())]);
+    return cache;
+  }
   return {
-    async isEnabled(moduleId) {
-      if (!cache) cache = new Set(await repo.getEnabledModuleIds());
-      return cache.has(moduleId);
-    },
+    async isEnabled(moduleId) { return (await load()).has(moduleId); },
+    async enabledModules() { return new Set(await load()); },
   };
 }
 
@@ -205,7 +217,7 @@ const rbac = {
   getRolePermissions: async () => ['operacional:create'],
   getOverrides: async () => [],
 };
-const manifest = { isEnabled: async (m: string) => m === 'operacional' };
+const manifest = { enabledModules: async () => new Set(['operacional']) };
 
 it('buildUserContext: user principal with can/hasModule and audit', async () => {
   const ctx = await buildUserContext('clinic-1', {
@@ -215,7 +227,7 @@ it('buildUserContext: user principal with can/hasModule and audit', async () => 
   expect(ctx.source).toBe('user');
   expect(ctx.clinicId).toBe('clinic-1');
   expect(ctx.can('operacional:create')).toBe(true);
-  expect(await ctx.hasModule('operacional')).toBe(true);  // hasModule pode ser async no provider
+  expect(ctx.hasModule('operacional')).toBe(true);  // hasModule é síncrono (Set pré-resolvido)
   expect(ctx.audit.actor).toBe('u1');
 });
 
@@ -238,7 +250,7 @@ it('buildSystemContext: no user, agent permission set', async () => {
 });
 ```
 
-> Nota de design: `ActionContext.hasModule` é **síncrono** (`(id) => boolean`). Para isso, os construtores **pré-resolvem** o conjunto de módulos habilitados uma vez (via `manifest`) e fecham sobre um `Set`. O teste acima ilustra o provider async; o `ctx.hasModule` final é sync. Ajustar a asserção para `ctx.hasModule('operacional') === true`.
+> `ActionContext.hasModule` é **síncrono**: os construtores pré-resolvem `manifest.enabledModules()` num `Set` e fecham sobre ele. Independe do registry de Actions, então um módulo habilitado sem Actions de mutação ainda resolve `true`.
 
 - [ ] **Step 2: Rodar — falha**
 
@@ -255,18 +267,9 @@ import { drizzleAgentAccessRepo, type AgentAccessRepo } from '@/core/rbac/agent-
 import { drizzleManifestRepo, makeManifest } from '@/core/modules/manifest';
 import { getUserProfile } from '@/lib/auth/session';
 
-interface ManifestLike { isEnabled(id: string): Promise<boolean>; }
-
-// Pré-resolve os módulos habilitados num Set para um hasModule síncrono.
-async function enabledSet(manifest: ManifestLike, moduleIds: string[]): Promise<Set<string>> {
-  const set = new Set<string>();
-  for (const id of moduleIds) if (await manifest.isEnabled(id)) set.add(id);
-  return set;
-}
-
-// Lista de módulos conhecidos (cresce com o catálogo; deriva-se das Actions registradas).
-import { getActions } from './registry';
-function knownModules(): string[] { return [...new Set(getActions().map((a) => a.module))]; }
+// hasModule é síncrono: pré-resolvemos o conjunto de módulos habilitados uma vez
+// (contratados ∪ always-on) direto do manifesto — independe do registry de Actions.
+interface ManifestLike { enabledModules(): Promise<Set<string>>; }
 
 interface UserDeps { loadProfile?: () => Promise<any>; rbac?: RbacRepo; manifest?: ManifestLike; }
 
@@ -279,7 +282,7 @@ export async function buildUserContext(activeClinicId?: string, deps: UserDeps =
   if (!profile) throw new Error('unauthenticated');
   const clinicId = activeClinicId ?? profile.clinic_id;
   const access = await resolveAccess(profile.id, clinicId, rbac);
-  const mods = await enabledSet(manifest, knownModules());
+  const mods = await manifest.enabledModules();
 
   return {
     source: 'user', clinicId,
@@ -297,7 +300,7 @@ export async function buildDelegatedContext(userId: string, clinicId: string, de
   const rbac = deps.rbac ?? drizzleRbacRepo;
   const manifest = deps.manifest ?? makeManifest(drizzleManifestRepo);
   const access = await resolveAccess(userId, clinicId, rbac);
-  const mods = await enabledSet(manifest, knownModules());
+  const mods = await manifest.enabledModules();
   return {
     source: 'agent_delegated', clinicId,
     user: { id: userId, email: '', name: '' },
@@ -314,7 +317,7 @@ export async function buildSystemContext(clinicId: string, deps: SystemDeps = {}
   const manifest = deps.manifest ?? makeManifest(drizzleManifestRepo);
   const agentAccess = deps.agentAccess ?? drizzleAgentAccessRepo;
   const perms = new Set(await agentAccess.getAgentPermissions(clinicId));
-  const mods = await enabledSet(manifest, knownModules());
+  const mods = await manifest.enabledModules();
   return {
     source: 'system', clinicId,
     can: (key) => perms.has(key),
