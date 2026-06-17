@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
 import { usePatients } from '@/lib/hooks/use-queries'
 import { UserGroupIcon, PlusIcon, PencilIcon } from '@heroicons/react/24/outline'
-import type { Patient } from '@/lib/supabase/database.types'
+import type { Patient } from '@/lib/db/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { SearchInput } from '@/components/ui/search-input'
@@ -51,9 +51,9 @@ export default function PatientsPage() {
     setPage(1)
   }
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('pt-BR')
+  const formatDate = (dateInput: Date | string | null) => {
+    if (!dateInput) return '-'
+    return new Date(dateInput).toLocaleDateString('pt-BR')
   }
 
   const formatPhone = (phone: string) => {
@@ -99,7 +99,7 @@ export default function PatientsPage() {
       key: 'last_visit',
       header: 'Última Visita',
       cell: (patient) => (
-        <span className="text-sm text-muted-foreground">{formatDate(patient.last_visit_at)}</span>
+        <span className="text-sm text-muted-foreground">{formatDate(patient.lastVisitAt)}</span>
       ),
     },
     {

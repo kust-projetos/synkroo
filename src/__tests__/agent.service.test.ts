@@ -11,44 +11,6 @@ import { getLLMProvider } from "../lib/llm";
 
 // --- Mocks (all self-contained inside factories) ---
 
-jest.mock("../lib/supabase/typed", () => ({
-	createTypedClient: jest.fn(() =>
-		Promise.resolve({
-			from: jest.fn(() => ({
-				select: jest.fn().mockReturnThis(),
-				eq: jest.fn().mockReturnThis(),
-				order: jest.fn().mockReturnThis(),
-				single: jest.fn().mockResolvedValue({
-					data: {
-						id: "conv-123",
-						clinic_id: "clinic-456",
-						patient_id: null,
-						status: "active",
-					},
-					error: null,
-				}),
-				limit: jest.fn().mockResolvedValue({
-					data: [
-						{
-							direction: "inbound",
-							content: "Olá",
-							created_at: "2026-03-27T10:00:00Z",
-						},
-						{
-							direction: "outbound",
-							content: "Olá! Como posso ajudar?",
-							created_at: "2026-03-27T10:00:05Z",
-						},
-					],
-					error: null,
-				}),
-				insert: jest.fn().mockReturnThis(),
-				update: jest.fn().mockReturnThis(),
-			})),
-		}),
-	),
-}));
-
 jest.mock("../lib/llm", () => {
 	// All mock functions created inside the factory to avoid hoisting TDZ
 	const provider = {

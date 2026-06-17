@@ -16,7 +16,7 @@ import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
 import { useDentists, useProcedures } from '@/lib/hooks/use-queries'
 import { formatHourLabel } from './utils/date-utils'
-import type { AppointmentStatus } from '@/lib/supabase/database.types'
+import type { AppointmentStatus } from '@/lib/db/types'
 
 interface DialogFormData {
   patientName: string

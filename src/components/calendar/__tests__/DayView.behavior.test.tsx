@@ -5,6 +5,7 @@
 import { describe, expect, it } from '@jest/globals'
 import { render, screen } from '@testing-library/react'
 import { DayView } from '../views/DayView'
+import type { CalendarEvent } from '../utils/types'
 
 // Mock the calendar store
 jest.mock('../store/calendar-store', () => ({
