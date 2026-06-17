@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
 import { useAppointments } from '@/lib/hooks/use-queries'
 import { CalendarDaysIcon, PlusIcon, ClockIcon, UserIcon, ClipboardDocumentListIcon, ChevronRightIcon } from '@heroicons/react/24/outline'
-import type { Appointment } from '@/lib/supabase/database.types'
+import type { Appointment } from '@/lib/db/types'
 import { PageHeader } from '@/components/ui/page-header'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -63,19 +63,19 @@ export function ListView() {
 
   const appointments = (data?.appointments || []) as AppointmentWithDetails[]
 
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr)
+  const formatTime = (dateInput: Date | string) => {
+    const date = new Date(dateInput)
     return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   }
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + 'T12:00:00')
+  const formatDate = (dateInput: Date | string) => {
+    const date = new Date(dateInput.toString() + 'T12:00:00')
     return date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
   }
 
   // Group appointments by time
   const groupedAppointments = appointments.reduce((acc, apt) => {
-    const time = formatTime(apt.scheduled_at)
+    const time = formatTime(apt.scheduledAt)
     if (!acc[time]) acc[time] = []
     acc[time].push(apt)
     return acc
@@ -210,7 +210,7 @@ export function ListView() {
                           {statusLabels[appointment.status] || appointment.status}
                         </StatusBadge>
                         <span className="text-sm text-muted-foreground whitespace-nowrap">
-                          {appointment.duration_minutes} min
+                          {appointment.durationMinutes} min
                         </span>
                         <ChevronRightIcon className="h-4 w-4 text-muted-foreground" />
                       </div>
