@@ -3,91 +3,48 @@
 ## Pré-requisitos
 
 - [ ] Node.js 20+
-- [ ] Conta no Supabase (https://supabase.com)
-- [ ] Supabase CLI (opcional): `npm install -g supabase`
+- [ ] PostgreSQL 15+ (local ou cloud)
+- [ ] Drizzle ORM (já incluso no projeto)
 
 ## Passos
 
-### 1. Criar Projeto no Supabase
+### 1. Criar banco PostgreSQL
 
-1. Acesse https://supabase.com/dashboard
-2. Clique em "New Project"
-3. Preencha:
-   - **Nome**: synkroo
-   - **Senha do banco**: (anote bem!)
-   - **Região**: mais próxima do Brasil (Southeast Asia ou US East)
-4. Aguarde ~2 minutos para o projeto ficar pronto
+```bash
+# Local (Docker)
+docker run -d --name synkroo-db \
+  -e POSTGRES_USER=synkroo \
+  -e POSTGRES_PASSWORD=change-me-local-dev-password \
+  -e POSTGRES_DB=synkroo \
+  -p 55432:5432 \
+  postgres:15-alpine
+```
 
-### 2. Obter Credenciais
-
-No dashboard do Supabase:
-1. Vá em **Settings** → **API**
-2. Copie:
-   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - **service_role** → `SUPABASE_SERVICE_ROLE_KEY` (⚠️ mantenha secreto!)
-
-### 3. Configurar .env.local
-
-Crie o arquivo `.env.local` na raiz do projeto:
+### 2. Configurar .env.local
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+DATABASE_URL=postgresql://synkroo:change-me-local-dev-password@127.0.0.1:55432/synkroo
 
-# MiniMax API
-MINIMAX_API_KEY=sua-api-key
-MINIMAX_API_URL=https://api.minimax.io/v1/text/chatcompletion_v2
-MINIMAX_MODEL=MiniMax-M2.7
-
-# WhatsApp
-WHATSAPP_HEADLESS=false
-WHATSAPP_SESSION_PATH=./.whatsapp-session
+# Auth (NextAuth)
+AUTH_SECRET=seu-secret-com-32-chars-no-minimo
+AUTH_URL=http://localhost:3000
+JWT_SECRET=seu-secret-com-16-chars-no-minimo
 ```
 
-### 4. Aplicar Migrations
-
-#### Opção A: Via Supabase CLI (Recomendado)
+### 3. Aplicar migrations Drizzle
 
 ```bash
-# Login no Supabase
-npx supabase login
+# Push schema para o banco
+npm run db:push
 
-# Link ao projeto
-npx supabase link --project-ref seu-projeto
-
-# Aplicar migrations
-npx supabase db push
+# Verificar health
+npm run db:health
 ```
 
-#### Opção B: Via Dashboard (SQL Editor)
-
-1. Acesse **SQL Editor** no dashboard
-2. Cole o conteúdo de cada migration em ordem:
-   - `20260327000000_initial_schema.sql`
-   - `20260327000001_seed_data.sql`
-   - `20260327000002_functions.sql`
-   - `20260327000005_fix_all_rls.sql`
-3. Execute cada uma
-
-### 5. Verificar Setup
+### 4. Seed data (opcional)
 
 ```bash
-# Executar script de verificação
-node scripts/setup-db.js
-
-# Ou testar a API de health check
-curl http://localhost:3000/api/health
-```
-
-### 6. Seed Data (Opcional)
-
-Para dados de teste:
-
-```bash
-npx supabase db seed
+npm run db:seed
 ```
 
 ## Estrutura do Banco
@@ -107,9 +64,9 @@ npx supabase db seed
 | `follow_ups` | Follow-ups |
 | `knowledge_base` | Base de conhecimento |
 
-### RLS (Row Level Security)
+### Schemas Drizzle
 
-Todas as tabelas têm RLS habilitado com isolamento por `clinic_id`.
+Definições em `src/lib/db/schema/` — portadas das migrations SQL legadas do Supabase.
 
 ## Troubleshooting
 
@@ -117,25 +74,24 @@ Todas as tabelas têm RLS habilitado com isolamento por `clinic_id`.
 
 Migrations não foram aplicadas. Execute:
 ```bash
-npx supabase db push
+npm run db:push
 ```
 
-### Erro: "permission denied for table"
+### Erro: "connection refused"
 
-Verifique se RLS está configurado corretamente:
-```sql
-SELECT * FROM pg_policies WHERE tablename = 'users';
+Verifique se o PostgreSQL está rodando:
+```bash
+docker ps | grep synkroo-db
 ```
 
-### Erro: "JWT expired"
+### Erro: "password authentication failed"
 
-Renove as chaves no dashboard do Supabase.
+Verifique `DATABASE_URL` em `.env.local`.
 
 ## Próximos Passos
 
 Após o setup do banco:
 
-1. ✅ Testar API: `GET /api/health`
+1. ✅ Testar health: `GET /api/health`
 2. ✅ Criar primeira clínica via seed
-3. ✅ Implementar autenticação
-4. ✅ Conectar WhatsApp → Agente → Database
+3. ✅ Conectar WhatsApp → Agente → Database
