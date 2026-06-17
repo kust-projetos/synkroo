@@ -7,7 +7,9 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 | Camada | Tecnologia |
 |---|---|
 | Framework | Next.js 15 (App Router) + React 19 + TypeScript 5.6 |
-| DB/Auth | Supabase (PostgreSQL + RLS + pgvector + Auth SSR) |
+| DB | PostgreSQL via Drizzle ORM + `pg` (Supabase removido — ver roadmap-mestre) |
+| Auth | NextAuth/Auth.js (JWT, edge middleware) |
+| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive + Vectorize — em migração |
 | State | Zustand 5 (local) + TanStack Query 5 (server) |
 | UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
 | LLM | MiniMax / OpenAI / OpenRouter (factory em `src/lib/llm/`) |
@@ -23,8 +25,9 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 | `npm run lint` | ESLint |
 | `npm test` | Jest unit/integration tests |
 | `npm run test:e2e` | Playwright E2E |
-| `npm run db:push` | Push schema Supabase |
+| `npm run db:push` | Push schema Drizzle |
 | `npm run db:reset` | Reset local DB |
+| `npm run db:health` | Health check do banco |
 | `npm run whatsapp:start` | WhatsApp CLI (QR code) |
 | `npm run health` | Health check |
 
@@ -39,10 +42,10 @@ src/
 ├── components/       # UI por domínio (calendar, contacts, pipeline, whatsapp, reports, ui/)
 ├── hooks/            # 5 hooks custom (kanban, toast, financial, payments, treatment)
 ├── lib/
-│   ├── supabase/     # Client, server, admin, typed, database.types
+│   ├── db/           # Drizzle ORM: schema, client, types, migrations
 │   ├── llm/          # Factory multi-provider
 │   ├── validations/  # 10 Zod schemas por domínio
-│   ├── auth/         # Auth context
+│   ├── auth/         # Auth context (NextAuth)
 │   └── env.ts        # Validação de env vars (fail-fast em prod)
 ├── services/         # 22 domínios de lógica de negócio
 │   ├── agent/        # AgentService + risk scoring + pending actions
@@ -51,7 +54,7 @@ src/
 │   ├── rag/          # Embedding + RAG retrieval
 │   ├── whatsapp/     # WhatsApp service + Evolution API + templates
 │   └── [17 mais]
-└── middleware.ts     # Auth SSR (Supabase cookies)
+└── middleware.ts     # Auth SSR (NextAuth/Auth.js)
 ```
 
 ## Convenções
@@ -60,7 +63,7 @@ src/
 - **Utilidades:** kebab-case (`rate-limit.ts`)
 - **Imports:** alias `@/` → `src/`
 - **Validação:** Zod schemas em `src/lib/validations/`
-- **DB types:** `src/lib/supabase/database.types.ts` (gerado via `npm run db:types`)
+- **DB types:** `src/lib/db/types.ts` (inferidos do schema Drizzle; fonte: `src/lib/db/schema/*`)
 
 ## API Modules
 | Módulo | Caminho | Descrição |
@@ -80,9 +83,8 @@ src/
 | Analytics | `/api/analytics/*` | Métricas, no-show prediction, ROI |
 
 ## Env vars obrigatórias
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `DATABASE_URL` (PostgreSQL connection string)
+- `AUTH_SECRET` (≥32 chars, NextAuth)
 - `JWT_SECRET` (≥16 chars)
 
 ## Env vars opcionais por feature
@@ -93,7 +95,7 @@ src/
 - `SEED_SECRET` → seed endpoint
 
 ## Segurança
-- Middleware protege rotas com Supabase Auth SSR
+- Middleware protege rotas com NextAuth/Auth.js (JWT, edge-ready)
 - `/api/seed` público só em dev
 - `/api/cron/*` usa `crypto.timingSafeEqual` para CRON_SECRET
 - `/api/messages/inbound` usa `crypto.timingSafeEqual` para WEBHOOK_SECRET
@@ -105,8 +107,7 @@ src/
 - E2E: Playwright (`e2e/`) — 41 specs
 - Coverage threshold: 70% global (branches, functions, lines, statements)
 
-## Supabase CLI
-- Caminho: `C:\Users\walis\supabase-cli\supabase.exe`
-- Remote project: `jlkifrngxxayjrfunuuz`
-- Migrations: `supabase/migrations/` (44 arquivos)
-- Push com include-all: `supabase db push --include-all`
+## Direção da Stack
+- Stack real: Drizzle ORM + `pg` + NextAuth + Cloudflare Workers (OpenNext).
+- Fonte de verdade: `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`.
+- Supabase removido; migrations convertidas para Drizzle em `src/lib/db/schema/`.
