@@ -2,6 +2,7 @@
  * Seed script for Synkroo — populates PostgreSQL with realistic Brazilian dental clinic data.
  *
  * Usage:  npx tsx scripts/seed-database.ts
+ *         npx tsx scripts/seed-database.ts --dry-run  (validate without connecting to DB)
  *
  * Tables seeded: clinics, users, dentists, procedures,
  *                patients, schedule_blocks, appointments
@@ -444,7 +445,23 @@ async function seedAppointments(
 // ---------------------------------------------------------------------------
 
 async function main() {
-  console.log(`${CLR.bold}Synkroo — Database Seed (Drizzle)${CLR.reset}\n`)
+  const isDryRun = process.argv.includes('--dry-run')
+  console.log(`${CLR.bold}Synkroo — Database Seed (Drizzle)${CLR.reset}${isDryRun ? ` ${CLR.yellow}[DRY-RUN]${CLR.reset}` : ''}\n`)
+
+  if (isDryRun) {
+    console.log(`${CLR.bold}Tables that would be seeded:${CLR.reset}`)
+    console.log(`  - clinics (1 demo clinic)`)
+    console.log(`  - users (1 admin user)`)
+    console.log(`  - dentists (${DENTIST_SEED.length} dentists)`)
+    console.log(`  - procedures (${PROCEDURE_SEED.length} procedures)`)
+    console.log(`  - patients (${PATIENT_SEED.length} patients)`)
+    console.log(`  - schedule_blocks (Mon-Fri business hours per dentist)`)
+    console.log(`  - appointments (~80 across 3 weeks)`)
+    console.log(`\n${CLR.bold}DB connection string would be read from:${CLR.reset}`)
+    console.log(`  - DATABASE_URL env var or .env.local`)
+    console.log(`\n${CLR.yellow}Dry-run complete. No database connection was made.${CLR.reset}`)
+    process.exit(0)
+  }
 
   await loadEnv()
 
