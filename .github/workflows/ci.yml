@@ -36,9 +36,8 @@ jobs:
       - name: Build
         run: npx next build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-          SUPABASE_SERVICE_ROLE_KEY: fake-for-ci
-          JWT_SECRET: [REDACTED]
+          DATABASE_URL: postgresql://synkroo:test@localhost:5432/synkroo
+          AUTH_SECRET: fake-auth-secret-for-ci-at-least-32-chars
+          JWT_SECRET: fake-jwt-secret-for-ci
           MINIMAX_API_KEY: [REDACTED]
           SEED_SECRET: [REDACTED]
