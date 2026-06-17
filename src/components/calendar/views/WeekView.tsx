@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { TimeGrid } from '../grid/TimeGrid'
-import { EventLayer, groupEventsByDate, groupEventsByDentist } from '../grid/EventLayer'
+import { EventLayer, groupEventsByDate } from '../grid/EventLayer'
 import { EmptySlots } from '../grid/EmptySlots'
 import { NowIndicator } from '../grid/NowIndicator'
 import { useAutoScroll } from '../hooks/useAutoScroll'
@@ -15,10 +15,26 @@ import {
   isToday,
   isWeekend,
   formatDateKey,
+  formatTime,
 } from '../utils/date-utils'
-import { getDentistPalette } from '../utils/dentist-colors'
 import { cn } from '@/lib/utils'
+import { getDentistDotColor } from '../utils/dentist-colors'
 import type { CalendarEvent } from '../utils/types'
+
+// ── Mini event card (inline, no drag) — used only in professionals grouped week ──
+function MiniEventCard({ event }: { event: CalendarEvent }) {
+  const isAiOrigin = event.origin === 'ai'
+  return (
+    <div className="rounded px-1 py-0.5 text-[10px] leading-tight bg-muted/30 text-foreground truncate flex items-center gap-1">
+      <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDentistDotColor(event.dentistId))} />
+      <span className="font-medium">{formatTime(event.start)}</span>
+      <span className="truncate">{event.title}</span>
+      {isAiOrigin && (
+        <span className="text-[8px] font-semibold px-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 flex-shrink-0">IA</span>
+      )}
+    </div>
+  )
+}
 
 interface WeekViewProps {
   events: CalendarEvent[]
@@ -36,87 +52,33 @@ export function WeekView({ events, date, onEventDrop, onEventClick }: WeekViewPr
 
   const isProfessionalsMode = layoutMode === 'professionals'
 
-  // In professionals mode: build (day, dentist) columns
-  // Each column = one day + one dentist, preserving weekly context
-  const professionalsColumns = useMemo(() => {
+  // ── All hooks declared unconditionally ──────
+
+  // Professionals mode: grouped data per day
+  const daysWithGroups = useMemo(() => {
     if (!isProfessionalsMode) return null
-
-    interface ColumnDef {
-      dayIndex: number
-      day: Date
-      dentistId: string
-      dentistName: string
-    }
-    const columns: ColumnDef[] = []
-
-    days.forEach((day, dayIndex) => {
+    return days.map((day) => {
       const dateKey = formatDateKey(day)
       const dayEvents = events.filter((e) => formatDateKey(e.start) === dateKey)
 
-      const seen = new Map<string, string>()
+      const grouped = new Map<string, CalendarEvent[]>()
       dayEvents.forEach((e) => {
-        if (!seen.has(e.dentistId)) {
-          seen.set(e.dentistId, e.dentistName)
-        }
+        const list = grouped.get(e.dentistId) || []
+        list.push(e)
+        grouped.set(e.dentistId, list)
       })
 
-      seen.forEach((name, id) => {
-        columns.push({ dayIndex, day, dentistId: id, dentistName: name })
-      })
+      return { day, groups: Array.from(grouped.entries()) }
     })
-
-    return columns
   }, [isProfessionalsMode, days, events])
 
-  // Group events by column
-  const eventsByColumn = useMemo(() => {
-    if (isProfessionalsMode && professionalsColumns) {
-      // Build a map keyed by column index
-      const map = new Map<number, CalendarEvent[]>()
-      professionalsColumns.forEach((col, colIndex) => {
-        const dateKey = formatDateKey(col.day)
-        const colEvents = events.filter(
-          (e) => formatDateKey(e.start) === dateKey && e.dentistId === col.dentistId,
-        )
-        if (colEvents.length > 0) map.set(colIndex, colEvents)
-      })
-      return map
-    }
-    return groupEventsByDate(events, days)
-  }, [events, days, isProfessionalsMode, professionalsColumns])
+  // Agenda mode: events by day column, column headers, etc.
+  const eventsByColumn = useMemo(
+    () => groupEventsByDate(events, days),
+    [events, days],
+  )
 
-  const columnCount = isProfessionalsMode && professionalsColumns
-    ? professionalsColumns.length || 1
-    : 7
-
-  // Column headers
-  const columnHeaders = isProfessionalsMode && professionalsColumns ? (
-    <>
-      {professionalsColumns.map((col, i) => {
-        const palette = getDentistPalette(col.dentistId)
-        return (
-          <div
-            key={`${formatDateKey(col.day)}-${col.dentistId}`}
-            className={cn(
-              'flex flex-col items-center py-2 px-1 border-r border-border last:border-r-0',
-              palette.headerBg,
-              isToday(col.day) && 'bg-teal-50/50 dark:bg-teal-950/20',
-            )}
-          >
-            <div className={cn(
-              'text-[10px] font-medium capitalize',
-              isToday(col.day) ? 'text-teal-600 dark:text-teal-400 font-bold' : 'text-muted-foreground',
-            )}>
-              {getShortDayName(col.day)} {getDayNumber(col.day)}
-            </div>
-            <div className={cn('text-xs font-semibold truncate max-w-full', palette.headerText)}>
-              {col.dentistName}
-            </div>
-          </div>
-        )
-      })}
-    </>
-  ) : (
+  const columnHeaders = (
     <>
       {days.map((day) => (
         <div
@@ -144,37 +106,95 @@ export function WeekView({ events, date, onEventDrop, onEventClick }: WeekViewPr
     </>
   )
 
-  // Compute date keys for each column
-  const dateKeys = useMemo(() => {
-    if (isProfessionalsMode && professionalsColumns) {
-      return professionalsColumns.map((col) => formatDateKey(col.day))
-    }
-    return days.map(formatDateKey)
-  }, [isProfessionalsMode, professionalsColumns, days])
-
-  // Find which day is today for the now indicator
   const todayIndex = days.findIndex((d) => isToday(d))
 
-  // Compute weekend column indices (Saturday=5, Sunday=6 in Mon-start week)
   const weekendColumns = useMemo(
     () => days.reduce<number[]>((acc, day, i) => isWeekend(day) ? [...acc, i] : acc, []),
     [days],
   )
 
+  // ── Render ───────────────────────────────────
+
+  // Professionals mode: 7 day columns with dentist groups within each day
+  if (isProfessionalsMode && daysWithGroups) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0" ref={scrollRef}>
+        {/* Day headers */}
+        <div className="grid grid-cols-7 border-b border-border bg-background sticky top-0 z-10">
+          {days.map((day) => (
+            <div
+              key={formatDateKey(day)}
+              className={cn(
+                'flex flex-col items-center py-2 border-r border-border last:border-r-0',
+                isToday(day) && 'bg-teal-50/50 dark:bg-teal-950/20',
+              )}
+            >
+              <div className={cn(
+                'text-xs font-medium capitalize',
+                isToday(day) ? 'text-teal-600 dark:text-teal-400 font-bold' : 'text-muted-foreground',
+                isWeekend(day) && !isToday(day) && 'text-muted-foreground/70',
+              )}>
+                {getShortDayName(day)}
+              </div>
+              <div className={cn(
+                'text-lg mt-0.5 w-8 h-8 flex items-center justify-center rounded-full',
+                isToday(day) && 'bg-teal-600 text-white font-bold',
+              )}>
+                {getDayNumber(day)}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Day columns with dentist groups */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-7 min-h-full">
+            {daysWithGroups.map(({ day, groups }) => (
+              <div
+                key={formatDateKey(day)}
+                className={cn(
+                  'border-r border-border last:border-r-0 p-1.5 space-y-2',
+                  isWeekend(day) && !isToday(day) && 'bg-muted/20',
+                )}
+              >
+                {groups.length === 0 && (
+                  <div className="text-[10px] text-muted-foreground/50 text-center py-4">
+                    Sem agendamentos
+                  </div>
+                )}
+                {groups.map(([dentistId, groupEvents]) => (
+                  <div key={dentistId} className="space-y-0.5">
+                    <div className="text-[9px] font-semibold text-muted-foreground truncate px-1">
+                      {groupEvents[0].dentistName}
+                    </div>
+                    {groupEvents.map((event) => (
+                      <MiniEventCard key={event.id} event={event} />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Agenda mode
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <TimeGrid
         ref={scrollRef}
-        columnCount={columnCount}
+        columnCount={7}
         columnHeaders={columnHeaders}
-        dateKeys={dateKeys}
-        weekendColumns={isProfessionalsMode ? [] : weekendColumns}
+        dateKeys={days.map(formatDateKey)}
+        weekendColumns={weekendColumns}
         onEventDrop={onEventDrop}
         onEventClick={onEventClick}
         eventContent={
-          <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={columnCount} />
+          <EventLayer eventsByColumn={eventsByColumn} totalGridColumns={7} />
         }
-        slotsContent={<EmptySlots columnCount={columnCount} dates={dateKeys} />}
+        slotsContent={<EmptySlots columnCount={7} dates={days.map(formatDateKey)} />}
         nowIndicator={
           todayIndex >= 0 ? <NowIndicator date={days[todayIndex]} startHour={startHour} endHour={endHour} /> : undefined
         }
