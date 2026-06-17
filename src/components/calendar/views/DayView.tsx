@@ -10,6 +10,7 @@ import { useCalendarStore } from '../store/calendar-store'
 import type { DragDropResult } from '../hooks/useDragEvent'
 import { formatDateKey, getShortDayName, getDayNumber, isToday, isWeekend } from '../utils/date-utils'
 import { getDentistPalette } from '../utils/dentist-colors'
+import { computeProfessionalSummary } from './ProfessionalsView'
 import { cn } from '@/lib/utils'
 import type { CalendarEvent } from '../utils/types'
 
@@ -61,18 +62,23 @@ export function DayView({ events, date, onEventDrop, onEventClick }: DayViewProp
   // Column headers
   const columnHeaders = isProfessionalsMode ? (
     <>
-      {dayDentists.map((dentist) => {
+      {dayDentists.map((dentist, i) => {
         const palette = getDentistPalette(dentist.id)
+        const colEvents = eventsByColumn.get(i) || []
+        const summary = computeProfessionalSummary(colEvents, startHour, endHour)
         return (
           <div
             key={dentist.id}
             className={cn(
-              'flex flex-col items-center py-2 px-2 border-r border-border last:border-r-0',
+              'flex flex-col items-start gap-0.5 px-2 py-2 border-r border-border last:border-r-0',
               palette.headerBg,
             )}
           >
-            <div className={cn('text-xs font-medium truncate', palette.headerText)}>
+            <div className={cn('text-xs font-semibold truncate w-full', palette.headerText)}>
               {dentist.name}
+            </div>
+            <div className="text-[10px] text-muted-foreground truncate w-full">
+              {summary.appointmentCount} ag. &middot; livre {summary.nextFreeSlot}
             </div>
           </div>
         )
@@ -108,7 +114,7 @@ export function DayView({ events, date, onEventDrop, onEventClick }: DayViewProp
         onEventDrop={onEventDrop}
         onEventClick={onEventClick}
         eventContent={<EventLayer eventsByColumn={eventsByColumn} totalGridColumns={columnCount} />}
-        slotsContent={<EmptySlots columnCount={columnCount} dates={dateKeys} />}
+        slotsContent={<EmptySlots columnCount={columnCount} dates={dateKeys} quiet={isProfessionalsMode} />}
         nowIndicator={<NowIndicator date={date} startHour={startHour} endHour={endHour} />}
       />
     </div>
