@@ -9,7 +9,7 @@ echo ""
 # Verificar se .env.local existe
 if [ ! -f ".env.local" ]; then
     echo "❌ Arquivo .env.local não encontrado!"
-    echo "   Crie o arquivo primeiro com suas credenciais do Supabase."
+    echo "   Crie o arquivo primeiro com suas credenciais do PostgreSQL."
     exit 1
 fi
 
@@ -50,12 +50,11 @@ echo ""
 echo "📝 Exemplo de .env.local completo:"
 echo ""
 cat << 'EOF'
-# Supabase (já configurado)
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJxxx...
-SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
+# PostgreSQL (required)
+DATABASE_URL=postgresql://synkroo:password@127.0.0.1:55432/synkroo
 
-# Auth
+# Auth (NextAuth)
+AUTH_SECRET=seu-auth-secret-com-32-chars
 JWT_SECRET=seu-jwt-secret
 
 # Cron Jobs

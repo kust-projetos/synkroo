@@ -89,7 +89,7 @@ src/__tests__/api/auth/
 
 ## Mock Strategy
 
-Os testes usam mocks do Supabase SSR (`@supabase/ssr`) para:
+Os testes usam mocks do NextAuth (Auth.js) para:
 - Simular respostas de autenticação
 - Testar cenários de erro sem necessidade de DB real
 - Isolar testes de dependências externas
@@ -107,9 +107,8 @@ Os testes usam mocks do Supabase SSR (`@supabase/ssr`) para:
 O arquivo `jest.setup.ts` define:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=https://test.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=test-anon-key
-SUPABASE_SERVICE_ROLE_KEY=test-service-role-key
+DATABASE_URL=postgres://test:test@localhost:5432/test
+MINIMAX_API_KEY=test-minimax-key
 ```
 
 ## Notas de Segurança
