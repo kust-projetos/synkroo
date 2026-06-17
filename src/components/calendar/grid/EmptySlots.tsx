@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { HOUR_SIZE, SLOT_HEIGHT, SLOTS_PER_HOUR } from '../utils/date-utils'
 import { useCalendarStore } from '../store/calendar-store'
+import { cn } from '@/lib/utils'
 
 interface EmptySlotsProps {
   /** Number of grid columns */
@@ -11,9 +12,11 @@ interface EmptySlotsProps {
   dates: string[]
   /** Optional: map column index to a dentist ID (for professionals view) */
   columnDentistIds?: string[]
+  /** Hide the "+ Criar encaixe" hover text for cleaner grouped layouts */
+  quiet?: boolean
 }
 
-export function EmptySlots({ columnCount, dates, columnDentistIds }: EmptySlotsProps) {
+export function EmptySlots({ columnCount, dates, columnDentistIds, quiet }: EmptySlotsProps) {
   const openCreateDialog = useCalendarStore((s) => s.openCreateDialog)
   const startHour = useCalendarStore((s) => s.startHour)
   const endHour = useCalendarStore((s) => s.endHour)
@@ -66,7 +69,10 @@ export function EmptySlots({ columnCount, dates, columnDentistIds }: EmptySlotsP
             }}
             onClick={handleSlotClick}
           >
-            <span className="opacity-0 group-hover/slot:opacity-100 text-xs text-teal-600 dark:text-teal-400 font-medium absolute inset-0 flex items-center justify-center transition-opacity">
+            <span className={cn(
+              'absolute inset-0 flex items-center justify-center transition-opacity text-xs text-teal-600 dark:text-teal-400 font-medium',
+              quiet ? 'opacity-0' : 'opacity-0 group-hover/slot:opacity-100',
+            )}>
               + Criar encaixe
             </span>
           </div>
