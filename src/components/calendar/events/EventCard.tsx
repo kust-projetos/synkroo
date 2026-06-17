@@ -9,7 +9,7 @@ import { AppointmentOriginBadge } from '../AppointmentOriginBadge'
 import { AppointmentChangeSummary } from '../AppointmentChangeSummary'
 import { cn } from '@/lib/utils'
 import type { LaidOutEvent } from '../utils/types'
-import type { AppointmentStatus } from '@/lib/supabase/database.types'
+import type { AppointmentStatus } from '@/lib/db/types'
 
 interface EventCardProps {
   laidOut: LaidOutEvent
