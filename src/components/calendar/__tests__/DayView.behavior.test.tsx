@@ -199,4 +199,18 @@ describe('DayView professionals layout mode', () => {
     // Both events are for Dra. Ana → single column
     expect(screen.getByText('Dra. Ana')).toBeInTheDocument()
   })
+
+  it('shows compact summary in professionals column header', () => {
+    const events = [
+      baseEvent(),
+      baseEvent({ id: 'apt-2', start: new Date('2026-06-16T10:00:00'), end: new Date('2026-06-16T10:30:00') }),
+    ]
+
+    render(<DayView date={new Date('2026-06-16T00:00:00')} events={events} />)
+
+    // Header should show appointment count
+    expect(screen.getByText(/2 ag\./)).toBeInTheDocument()
+    // Header should show next free slot
+    expect(screen.getByText(/livre/)).toBeInTheDocument()
+  })
 })
