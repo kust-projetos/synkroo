@@ -76,7 +76,7 @@ export type ActionErrorCode =
   6. retorna `ActionResult<O>`.
 - **Construtores de contexto** (um por principal — §3.7):
   - `buildUserContext()` — humano logado. Lê `getUserProfile()` (cookie session) → `clinicId`, `role`, permissões do perfil+overrides. `audit.actor = user`.
-  - `buildDelegatedContext(userId)` — agente agindo a pedido de um staff. Resolve as permissões **do usuário delegante**. `audit.actor = 'agente'`, `onBehalfOf = userId`.
+  - `buildDelegatedContext(userId)` — agente agindo a pedido de um staff. Resolve as permissões **do usuário delegante**. `audit.actor = 'agente'`, `onBehalfOf = userId`. **Boundary de segurança:** o `userId` **nunca** vem de input do modelo/mensagem; é estabelecido a partir da **sessão autenticada do staff** que iniciou o chat interno (mapeamento confiável canal→usuário). O agente não pode escolher em nome de quem age — senão um prompt malicioso escalaria privilégio.
   - `buildSystemContext(clinicId)` — agente autônomo (sem humano; ex.: WhatsApp inbound). `clinicId` vem do canal/instância, **não** de uma sessão. Permissões = conjunto próprio do agente (§3.7). `audit.actor = 'agente (sistema)'`.
   - `getServerSession`/cookie é usado **apenas** por `buildUserContext`. Os outros dois nunca dependem de sessão de request.
 
@@ -136,10 +136,10 @@ O `ctx` do agente é **`agent_delegated`** (chat interno de um staff) ou **`syst
 
 ### 3.2 Catálogo de permissões (derivado das Actions)
 
-Não há lista mantida à mão. O catálogo é **computado do `actionRegistry`**:
-- Cada Action contribui uma permissão `requires` (formato `module:action`, ex.: `appointments:create`).
-- Agrupada por `module`; exibida com `label` (pt-BR).
-- "Liberar o módulo inteiro" = conceder todas as permissões cujo `module` corresponde.
+Não há lista mantida à mão. O catálogo combina **duas fontes**, ambas no código:
+- **Permissões de mutação** — cada Action contribui sua `requires` (formato `module:action`, ex.: `appointments:create`). Leituras que precisem de controle (relatórios sensíveis, dados financeiros) também são modeladas como Actions (query actions) e entram aqui.
+- **Permissões de acesso/visualização** — cada módulo declara em `permissions.ts` as permissões de **ver/entrar** (ex.: `appointments:view`, `financeiro:view`) usadas por **menu e rotas** (gate 1 e 2 do manifesto). Nem toda listagem vira Action, mas todo módulo declara ao menos uma permissão de acesso.
+- Agrupadas por `module`; exibidas com `label` (pt-BR). "Liberar o módulo inteiro" = conceder todas as permissões (acesso + mutação) cujo `module` corresponde.
 
 > Uma tabela espelho `permissions(key, module, label)` (para FK de `role_permissions` e para a UI) é populada por **migração/seed gerados por codegen** a partir do registry — **nunca por escrita em boot** (ruim para Workers/serverless: boot não deve fazer escrita operacional, e múltiplas instâncias competiriam). A fonte de verdade é o código; o seed é determinístico e versionado. Catálogo para a UI pode ser servido direto do registry em memória.
 
@@ -199,9 +199,9 @@ A auditoria é **requisito implementável**, não verbal. `runAction` grava um r
 ```ts
 actionLogs: {
   id uuid pk,
-  clinicId uuid fk→clinics,        // tenant
-  principalType text,              // 'user' | 'agent_delegated' | 'system'
-  actor text,                      // userId, 'agente', ou 'agente (sistema)'
+  clinicId uuid null fk→clinics,   // tenant; NULL em falha pré-auth (sem ctx/clinicId)
+  principalType text null,         // 'user' | 'agent_delegated' | 'system' | NULL (pré-auth)
+  actor text,                      // userId, 'agente', 'agente (sistema)' ou 'unknown'
   onBehalfOf uuid null,            // userId delegante (apenas agent_delegated)
   actionName text,                 // ex: 'operacional.scheduleAppointment'
   module text,
@@ -214,7 +214,18 @@ actionLogs: {
 
 - **Redação:** cada Action declara (ou herda default) quais campos do input são sensíveis (CPF, telefone, conteúdo clínico) → mascarados antes de gravar. LGPD: erros e logs sem dados sensíveis (CLAUDE.md).
 - **Retenção:** política configurável (default sugerido: 12 meses) com purga por job de manutenção. Definir valor no plano.
+- **Falha pré-auth:** quando `runAction` rejeita em `unauthenticated` (sem `ctx`/`clinicId`), grava com `clinicId=NULL`, `principalType=NULL`, `actor='unknown'`, `result='error'`, `errorCode='unauthenticated'`. Assim tentativas não autenticadas ficam rastreáveis sem violar o FK de tenant.
 - A escrita do log é parte do `runAction` (não opcional); falha ao logar não derruba a Action, mas é reportada.
+
+### 3.9 Escopo de clínica (multi-clínica)
+
+O schema atual é **1 clínica por usuário** (`users.clinicId` notNull; `getUserProfile()` retorna um único `clinic_id`). O W3 **mantém esse modelo**:
+
+- **Staff** (perfis): `users.roleId` único, escopado à `users.clinicId`. `roles.clinicId` pertence à mesma clínica. `ActionContext.clinicId` = a clínica do usuário.
+- **`owner`/`master`**: acessam **todas as clínicas da instância** (bypass de escopo; `clinicId` ativo vem do seletor de clínica na UI ou do canal no agente).
+- **Extensão deferida — staff multi-clínica (polos):** se um funcionário precisar atuar em várias clínicas, introduz-se uma tabela `user_clinic_access(userId, clinicId, roleId)` e o `ActionContext.clinicId` passa a ser a **clínica ativa** (selecionada/derivada), com o `roleId` resolvido por clínica. O RBAC e o `ActionContext` devem ser desenhados para aceitar essa extensão **sem reescrita** (resolver `role`/permissões sempre em função de `(user, clinicAtiva)`), mesmo que a tabela só exista no futuro.
+
+> **Decisão a confirmar pelo produto:** o W3 assume *staff pertence a uma clínica* (owner/master multi-clínica). Se desde já houver funcionários atuando em vários polos, promover `user_clinic_access` para o W3 em vez de deferir.
 
 ---
 
@@ -306,7 +317,7 @@ Agente ─→ tool (filtrada) ──┘     ├─ unauthenticated?
 
 O enum `userRole` (`owner/admin/dentist/receptionist`) é migrado:
 1. Criar tabelas `roles`/`rolePermissions`/`userPermissionOverrides` e `users.roleId`.
-2. Seed de presets por clínica; mapear cada usuário existente ao perfil equivalente (`owner`→owner; `dentist`→preset Dentista; `receptionist`→preset Recepcionista; `admin`→owner).
+2. Seed de presets por clínica; mapear cada usuário existente ao perfil equivalente: `owner`→`owner` (role de sistema); `admin`→**preset `Administrador`** (NÃO `owner` — evita escalada, §3.1); `dentist`→preset Dentista; `receptionist`→preset Recepcionista.
 3. `permissions.ts` legado (`hasMinRole` etc.) é substituído por `ctx.can`. O enum permanece como coluna legada durante a transição e é removido quando nenhum código o consome.
 
 ---
@@ -362,6 +373,7 @@ Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` duran
 - **Auditoria obrigatória** com tabela `action_logs` (§3.8) gravada por `runAction`.
 - **Regra vinculante:** toda mutação nova/tocada (UI/REST/agente) passa por `runAction`.
 - **Manifesto no banco**, editável só por `master`; nível instância (PK `moduleId` intencional; `clinicId` é caminho deferido).
+- **Escopo de clínica**: W3 assume **staff = 1 clínica** (consistente com `users.clinicId` atual); `owner`/`master` multi-clínica; staff multi-clínica (polos) é extensão deferida `user_clinic_access`, desenhada sem reescrita (§3.9). *A confirmar pelo produto.*
 - **Strangler**: W3 migra só o Core; `services/tools/**` é removido no W5 (não migrado no W3).
 
 ## 11. Decisões deferidas (não bloqueiam o plano)
