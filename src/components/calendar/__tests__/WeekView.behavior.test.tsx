@@ -84,7 +84,7 @@ describe('WeekView professionals layout mode', () => {
     delete storeOverrides.layoutMode
   })
 
-  it('shows dentist names in column headers', () => {
+  it('shows dentist group headers within day columns', () => {
     const events = [
       baseEvent(),
       baseEvent({
@@ -103,21 +103,33 @@ describe('WeekView professionals layout mode', () => {
       />,
     )
 
-    // Both dentist names should appear as column headers
+    // Dentist names should appear as group labels (not column headers)
     expect(screen.getByText('Dra. Ana')).toBeInTheDocument()
     expect(screen.getByText('Dr. Carlos')).toBeInTheDocument()
   })
 
-  it('preserves day context in professionals mode', () => {
+  it('keeps 7 day columns in professionals mode', () => {
+    render(
+      <WeekView
+        date={new Date('2026-06-16T00:00:00')}
+        events={[baseEvent()]}
+      />,
+    )
+
+    // All 7 weekday headers should be visible
+    expect(screen.getByText(/segunda/)).toBeInTheDocument()
+    expect(screen.getByText(/terça/)).toBeInTheDocument()
+    expect(screen.getByText(/quarta/)).toBeInTheDocument()
+    expect(screen.getByText(/quinta/)).toBeInTheDocument()
+    expect(screen.getByText(/sexta/)).toBeInTheDocument()
+  })
+
+  it('groups events by dentist within each day column', () => {
+    // Same day (Tuesday June 16), 2 dentists, 3 events
     const events = [
-      baseEvent({ id: 'apt-tue', start: new Date('2026-06-16T09:00:00'), end: new Date('2026-06-16T09:30:00') }),
-      baseEvent({
-        id: 'apt-wed',
-        dentistId: 'dent-2',
-        dentistName: 'Dr. Carlos',
-        start: new Date('2026-06-17T09:00:00'),
-        end: new Date('2026-06-17T09:30:00'),
-      }),
+      baseEvent({ id: 'apt-ana-1', title: 'Paciente A1' }),
+      baseEvent({ id: 'apt-ana-2', title: 'Paciente A2', start: new Date('2026-06-16T10:00:00'), end: new Date('2026-06-16T10:30:00') }),
+      baseEvent({ id: 'apt-carlos-1', title: 'Paciente C1', dentistId: 'dent-2', dentistName: 'Dr. Carlos', start: new Date('2026-06-16T14:00:00'), end: new Date('2026-06-16T14:30:00') }),
     ]
 
     render(
@@ -127,19 +139,21 @@ describe('WeekView professionals layout mode', () => {
       />,
     )
 
-    // Day abbreviations should appear for each day in the week
-    expect(screen.getByText(/terça/)).toBeInTheDocument()
-    expect(screen.getByText(/quarta/)).toBeInTheDocument()
+    // Both dentist groups visible
+    expect(screen.getByText('Dra. Ana')).toBeInTheDocument()
+    expect(screen.getByText('Dr. Carlos')).toBeInTheDocument()
+    // Patient names visible
+    expect(screen.getByText('Paciente A1')).toBeInTheDocument()
+    expect(screen.getByText('Paciente C1')).toBeInTheDocument()
   })
 
   it('excludes events outside the week range', () => {
-    // June 16 2026 is Tuesday. Week is Mon-Sun: June 15-21.
     const events = [
       baseEvent(), // Tuesday June 16
       baseEvent({
         id: 'apt-outside',
         dentistName: 'Dr. Fora',
-        start: new Date('2026-06-22T09:00:00'), // Monday of next week
+        start: new Date('2026-06-22T09:00:00'),
         end: new Date('2026-06-22T09:30:00'),
       }),
     ]
@@ -154,8 +168,7 @@ describe('WeekView professionals layout mode', () => {
     expect(screen.queryByText('Dr. Fora')).not.toBeInTheDocument()
   })
 
-  it('does not render dentist name inside event cards', () => {
-    // EventCard in professionals mode skips dentistName
+  it('does not render dentist name inside event cards in professionals mode', () => {
     render(
       <WeekView
         date={new Date('2026-06-16T00:00:00')}
@@ -163,7 +176,7 @@ describe('WeekView professionals layout mode', () => {
       />,
     )
 
-    // Patient still visible
+    // Patient visible, dentist in group header only
     expect(screen.getByText('Maria Silva')).toBeInTheDocument()
   })
 })
