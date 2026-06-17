@@ -33,7 +33,7 @@ A visão de produto, mercado e domínio já está documentada. Este mestre é a 
 | `.planning/research/PITFALLS.md` | Armadilhas críticas, technical debt, gotchas de integração | Planos de implementação |
 | `.planning/research/ARCHITECTURE.md` | Padrões, schema design, build order | W2/W3, specs |
 
-> ⚠️ Os documentos-fonte foram escritos sobre a stack antiga (**Claude Agent SDK + Supabase**). A **visão de produto permanece válida**; a **stack evoluiu** para Cloudflare + Postgres (ver §3 e decisão aberta em §10).
+> ⚠️ Os documentos-fonte foram escritos sobre a stack antiga (**Claude Agent SDK + Supabase**). A **visão de produto permanece válida**, mas a **stack mudou**: o **Cloudflare Agents SDK substitui o Claude Agent SDK** (recursos nativos melhores para este sistema) e o **Supabase deu lugar ao Postgres**. O moat técnico migra de "Claude SDK + MCPs" para **primitivas nativas Cloudflare** (Agents SDK, Durable Objects, Workflows, Vectorize, edge) + ecossistema completo + Action Layer. O **modelo LLM é desacoplado/configurável** (definido na implementação/testes), não mais fixado em Claude.
 
 ---
 
@@ -71,6 +71,7 @@ Escala: ~80.800 LOC, 559 arquivos `.ts/.tsx`, 51 tabelas, 113 testes unit + 41 E
 - **P3 — Nativo + Integração:** cada capacidade tem provider **nativo**, mas pode ser servida por **adapter de terceiro** quando melhor para o cliente (ex.: financeiro nativo ↔ ASAAS; agenda nativa ↔ Google Calendar/Doctoralia). Integrações são uma camada transversal.
 - **P4 — Multi-agente 4+1:** um **orquestrador central** + **agentes especialistas** acionados por complexidade (ver `technical-research.md`). O código já tem a semente em `services/agents`.
 - **P5 — Modularidade por bounded context:** cada módulo isolado, com fronteiras rígidas (lint de dependência), ativável por instância.
+- **P6 — LLM-agnóstico (pluggable):** o agente roda sobre o **Cloudflare Agents SDK** (orquestração/runtime), com o **modelo LLM atrás de uma abstração** (via AI Gateway/Workers AI). O modelo concreto é configuração, definido na implementação/testes — o sistema não acopla a um provider específico.
 
 ---
 
@@ -78,7 +79,7 @@ Escala: ~80.800 LOC, 559 arquivos `.ts/.tsx`, 51 tabelas, 113 testes unit + 41 E
 
 **Produto-base** = monorepo Next.js (App Router) em **módulos isolados** (§6), cada um com fatia vertical e interface pública.
 
-- **Runtime:** Cloudflare Workers (via OpenNext). **Postgres gerenciado por instância** atrás do **Hyperdrive**. **Vectorize** para RAG. **Agents SDK + Durable Objects** + Workers AI para o agente. **KV** para cache/estado leve. (Nota: webhooks na edge Cloudflare já estavam previstos em `improvements-proposal.md §3.1`.)
+- **Runtime:** Cloudflare Workers (via OpenNext). **Postgres gerenciado por instância** atrás do **Hyperdrive**. **Vectorize** para RAG. **Cloudflare Agents SDK + Durable Objects** para orquestração do agente; **LLM configurável** via AI Gateway/Workers AI (modelo definido na implementação). **KV** para cache/estado leve. (Nota: webhooks na edge Cloudflare já estavam previstos em `improvements-proposal.md §3.1`.)
 - **Dados:** `app → action → service → repository → Drizzle`. **Zero Supabase.** Tipos inferidos do schema Drizzle.
 - **Agente:** orquestrador 4+1, AI-operável via Action Layer, multimodal (texto/voz/visão), capaz de operar sistemas externos via MCP.
 - **Modularidade:** manifesto por instância + RBAC granular + painel admin. Multi-clínica via `clinic_id`.
@@ -168,7 +169,7 @@ Cada fase vira uma `spec → plano` própria.
 
 **W4 — Runtime Cloudflare** *(risco alto)* — OpenNext→Workers; Hyperdrive→Postgres gerenciado por instância; Vectorize provisionado; auth edge validada; pipeline de deploy por instância; remover `vercel.json`. **Dep:** W0–W3.
 
-**W5 — Novo agente de IA** *(risco médio, isolado)* — remover os ~8k LOC atuais; construir o **orquestrador 4+1** (ver `technical-research.md`) sobre Agents SDK/Durable Objects + Workers AI + Vectorize/AutoRAG; conectar via Action Layer (sem tools paralelas); MCP + multimodal; **mapear e preencher gaps** de domínio depois do SDK no ar. **Dep:** W3 (Action Layer), W4 (Cloudflare). Ver decisão aberta §10 (modelo Claude).
+**W5 — Novo agente de IA** *(risco médio, isolado)* — remover os ~8k LOC atuais; construir o **orquestrador 4+1** (ver `technical-research.md`) sobre **Cloudflare Agents SDK** + Durable Objects + Vectorize/AutoRAG, com **LLM pluggable** (modelo definido depois, em config/testes); conectar via Action Layer (sem tools paralelas); MCP + multimodal; **mapear e preencher gaps** de domínio depois do SDK no ar. **Dep:** W3 (Action Layer), W4 (Cloudflare).
 
 **W6 — Frontend base** *(risco médio)* — unificar duplicações; extrair `DataTable`/`FormShell`/`DetailShell`; menu/rotas dirigidos pelo manifesto + RBAC; redesenhar o eixo CRM/Contatos ↔ Comercial ↔ Operacional (§9.1). **Dep:** W2, W3.
 
@@ -221,9 +222,9 @@ Bounded contexts distintos: **Leads** (comercial, E-05), **Pacientes** (operacio
 
 ## 10. Decisões abertas (com recomendação)
 
-| Decisão | Fase | Recomendação |
+| Decisão | Fase | Status / Recomendação |
 |---|---|---|
-| **Modelo do agente: "Cloudflare SDK" significa abandonar Claude, ou manter Claude sob orquestração Cloudflare?** Todo o moat documentado é "Claude SDK + MCPs". Cloudflare Agents SDK é orquestração e pode rodar Claude via AI Gateway/Workers AI. | W5 | **Manter Claude como modelo, sob orquestração do Cloudflare Agents SDK** (preserva o moat, alinha com "tudo Cloudflare"). Confirmar com o usuário antes do W5. Não bloqueia a fundação. |
+| Runtime do agente e modelo LLM | W5 | ✅ **RESOLVIDA:** **Cloudflare Agents SDK substitui o Claude** (não usar Claude). **Modelo LLM configurável (pluggable)**, definido pelo usuário na implementação/testes via AI Gateway/Workers AI. |
 | Provider de Postgres por instância | W4 | Postgres gerenciado (ex.: Neon, pgvector) atrás do Hyperdrive. |
 | Vector store do RAG | W5 | `pgvector` → **Vectorize**; pgvector como fallback. |
 | Modelo de domínio CRM/Contatos | E-04 | Ver §9.1. |
