@@ -68,7 +68,7 @@ export type ActionErrorCode =
 
 - `defineAction(def)` — registra a Action no `actionRegistry` e a retorna tipada.
 - `runAction(action, rawInput, ctx)` — pipeline único:
-  1. `ctx` ausente/sem user → `unauthenticated`.
+  1. **Auth por principal:** `ctx` ausente → `unauthenticated`; `source !== 'system'` e `ctx.user` ausente → `unauthenticated`; `source === 'system'` **não exige user** (exige `clinicId` válido). Sem `clinicId` em qualquer principal → `unauthenticated`.
   2. `ctx.hasModule(action.module)` falso → `module_disabled` (gate manifesto).
   3. `ctx.can(action.requires)` falso → `forbidden` (gate RBAC).
   4. `action.input.safeParse(rawInput)` falha → `invalid_input`.
@@ -80,9 +80,15 @@ export type ActionErrorCode =
   - `buildSystemContext(clinicId)` — agente autônomo (sem humano; ex.: WhatsApp inbound). `clinicId` vem do canal/instância, **não** de uma sessão. Permissões = conjunto próprio do agente (§3.7). `audit.actor = 'agente (sistema)'`.
   - `getServerSession`/cookie é usado **apenas** por `buildUserContext`. Os outros dois nunca dependem de sessão de request.
 
-### 2.3 Registro
+### 2.3 Registro (bootstrap explícito — não side-effect)
 
-`actionRegistry` é um `Map<string, ActionDefinition>` populado por `defineAction`. É a **fonte única** de:
+`actionRegistry` é um `Map<string, ActionDefinition>`, mas **não pode depender de side-effect de import** (`defineAction` registrando ao carregar o módulo): em Next/Workers, tree-shaking e carregamento parcial deixariam Actions de fora, quebrando o catálogo de permissões e as tools do agente.
+
+**Padrão:** cada módulo **exporta** suas Actions explicitamente em `index.ts` (`export const actions = [scheduleAppointment, ...]`). Um **registro central** (`src/core/actions/registry.ts`) importa todos os módulos e chama `registerActions(module.actions)` no boot da app, de forma determinística. `defineAction` apenas constrói/tipa a Action; **não** registra por conta própria.
+
+> Alternativa avaliada no plano: codegen de um arquivo de registro a partir dos `index.ts` dos módulos. Decidir no plano; o requisito vinculante é **registro determinístico, não por side-effect**.
+
+O registry é a **fonte única** de:
 - **Catálogo de permissões** (§3.2) — agrupado por `module`, rotulado por `label`.
 - **Tools do agente** (§2.5) — filtradas por manifesto + permissão.
 
@@ -122,9 +128,11 @@ O `ctx` do agente é **`agent_delegated`** (chat interno de um staff) ou **`syst
 
 ### 3.1 Hierarquia
 
-- **`master`** — papel do fornecedor, acima de tudo. Reservado: **não atribuível pelo admin**. Controla `instance_modules` e configs sensíveis. Sempre passa nos gates de RBAC.
-- **`owner`** — dono/admin da clínica. Acesso total **dentro da instância** (todas as permissões dos módulos contratados). Gerencia perfis e usuários.
-- **Perfis customizados** — criados pelo admin (substituem `dentist`/`receptionist`). Conjunto de permissões.
+- **`master`** — papel do fornecedor, acima de tudo. Reservado: **não atribuível pelo owner**. Controla `instance_modules` e configs sensíveis. Sempre passa nos gates de RBAC.
+- **`owner`** — **dono** da clínica (não confundir com "admin"). Acesso total **dentro da instância** (todas as permissões dos módulos contratados). Gerencia perfis e usuários.
+- **Perfis** — incluem **presets de sistema** (`Administrador`, `Recepcionista`, `Comercial`, `Dentista`) e **perfis customizados** criados pelo owner. Substituem o enum atual (`admin`/`dentist`/`receptionist`).
+
+> ⚠️ **Não promover `admin`→`owner`.** O RBAC atual separa `owner` (100) de `admin` (80); mapear o `admin` legado direto para `owner` daria a administradores poderes de dono (escalada de privilégio). O `admin` legado migra para o **preset `Administrador`** (amplo, mas sem o controle de owner sobre perfis/usuários críticos e sem nada reservado a master).
 
 ### 3.2 Catálogo de permissões (derivado das Actions)
 
@@ -133,7 +141,7 @@ Não há lista mantida à mão. O catálogo é **computado do `actionRegistry`**
 - Agrupada por `module`; exibida com `label` (pt-BR).
 - "Liberar o módulo inteiro" = conceder todas as permissões cujo `module` corresponde.
 
-> Uma tabela espelho `permissions(key, module, label)` pode ser **sincronizada** do registry em build/boot para integridade referencial e para a UI — mas a fonte de verdade é o código. Sincronização é idempotente.
+> Uma tabela espelho `permissions(key, module, label)` (para FK de `role_permissions` e para a UI) é populada por **migração/seed gerados por codegen** a partir do registry — **nunca por escrita em boot** (ruim para Workers/serverless: boot não deve fazer escrita operacional, e múltiplas instâncias competiriam). A fonte de verdade é o código; o seed é determinístico e versionado. Catálogo para a UI pode ser servido direto do registry em memória.
 
 ### 3.3 Schema (Drizzle, novas tabelas)
 
@@ -162,7 +170,7 @@ userPermissionOverrides: { userId uuid fk→users, permissionKey text, granted b
 
 ### 3.5 Presets de sistema
 
-Seed de perfis `isSystem` por clínica na criação: **Recepcionista**, **Comercial**, **Dentista**, cada um com um conjunto inicial de permissões. O admin pode **clonar** um preset e editar (presets de sistema não são apagáveis; clones sim).
+Seed de perfis `isSystem` por clínica na criação: **Administrador**, **Recepcionista**, **Comercial**, **Dentista**, cada um com um conjunto inicial de permissões. O owner pode **clonar** um preset e editar (presets de sistema não são apagáveis; clones sim). `owner` e `master` são perfis de sistema reservados, **não** selecionáveis no painel.
 
 ### 3.6 Painel admin (linguagem leiga)
 
@@ -184,6 +192,30 @@ Seed de perfis `isSystem` por clínica na criação: **Recepcionista**, **Comerc
 - O **conjunto de permissões do agente autônomo** (`system`) é um **perfil de sistema próprio** (`roles.isSystem`, reservado), editável na futura **Gestão do Agente de IA** (Eixo 2): define quais Actions o agente pode executar sem humano (ex.: agendar, confirmar, responder dúvida — mas talvez **não** cancelar tratamento ou alterar financeiro sem confirmação). Default conservador.
 - Toda execução grava o `audit` no log de ações (LGPD/rastreabilidade), distinguindo humano, agente-em-nome-de e agente-autônomo.
 
+### 3.8 Schema de auditoria (`action_logs`)
+
+A auditoria é **requisito implementável**, não verbal. `runAction` grava um registro por execução (sucesso e erro):
+
+```ts
+actionLogs: {
+  id uuid pk,
+  clinicId uuid fk→clinics,        // tenant
+  principalType text,              // 'user' | 'agent_delegated' | 'system'
+  actor text,                      // userId, 'agente', ou 'agente (sistema)'
+  onBehalfOf uuid null,            // userId delegante (apenas agent_delegated)
+  actionName text,                 // ex: 'operacional.scheduleAppointment'
+  module text,
+  inputRedacted jsonb,             // input com campos sensíveis mascarados
+  result text,                     // 'ok' | 'error'
+  errorCode text null,             // ActionErrorCode quando result='error'
+  createdAt timestamp default now()
+}
+```
+
+- **Redação:** cada Action declara (ou herda default) quais campos do input são sensíveis (CPF, telefone, conteúdo clínico) → mascarados antes de gravar. LGPD: erros e logs sem dados sensíveis (CLAUDE.md).
+- **Retenção:** política configurável (default sugerido: 12 meses) com purga por job de manutenção. Definir valor no plano.
+- A escrita do log é parte do `runAction` (não opcional); falha ao logar não derruba a Action, mas é reportada.
+
 ---
 
 ## 4. Componente C — Manifesto de módulos
@@ -197,7 +229,12 @@ Seed de perfis `isSystem` por clínica na criação: **Recepcionista**, **Comerc
 instanceModules: { moduleId text pk, enabled boolean default false,
                    contractedAt timestamp, updatedAt }
 ```
-Editável **só pelo `master`**. Nível instância (todas as clínicas do cliente compartilham; granularidade por clínica é YAGNI até haver demanda).
+
+**`moduleId` como PK é intencional, não descuido.** Cada cliente tem **DB dedicado** (infra própria — ver mestre), então a tabela inteira pertence a uma única instância/cliente; um registro por módulo cobre todas as clínicas daquele cliente. Isso **não** é um toggle global acidental num DB compartilhado — não há compartilhamento entre clientes.
+
+Editável **só pelo `master`**.
+
+> **Caminho de evolução (deferido):** se um cliente precisar de módulos diferentes por clínica/polo, adiciona-se `clinicId` (nullable: `null` = vale para a instância toda; preenchido = override por clínica) e os gates passam a receber `clinicId`. Não implementar agora (YAGNI), mas o schema e os gates devem ser desenhados para aceitar essa extensão sem reescrita.
 
 ### 4.2 Serviço
 
@@ -237,7 +274,13 @@ src/modules/<modulo>/
 
 - O W3 cria a infra (`src/core/actions/`, RBAC, manifesto) e migra **apenas o Core** para `src/modules/core/` como módulo de referência: clínicas, usuários, auth, **RBAC**, **manifesto**, **Action Layer base**.
 - Domínios restantes (`app/`, `services/`, `repositories/` atuais) **coexistem** e migram um a um no Eixo 2.
-- Durante a transição, código legado continua funcionando; o que for tocado/criado adota a Action Layer.
+
+**Regra de migração vinculante (entra no W3, vale daqui em diante):**
+> **Toda mutação nova ou tocada — seja UI, REST ou agente — DEVE passar por `runAction`.** É proibido introduzir mutação que escreva no DB fora do pipeline (sem RBAC, manifesto e auditoria). Um teste de regressão (lint/CI) deve sinalizar mutações novas que bypassem `runAction`.
+
+**Legado conhecido que bypassa o pipeline:**
+- `src/services/tools/**` (ex.: `scheduler.tools.ts`) grava direto no DB, **sem escopo de clínica nem RBAC**. Faz parte do agente atual, que é **removido inteiro no W5** — portanto **não é migrado no W3**, mas é marcado como legado-inseguro: nenhuma tool nova no padrão antigo; se uma dessas for *tocada* antes do W5, passa por `runAction`.
+- Mutações de agente e rotas REST de mutação tocadas durante a transição seguem a regra vinculante acima.
 
 ### 5.3 Lint de fronteira
 
@@ -278,10 +321,15 @@ O enum `userRole` (`owner/admin/dentist/receptionist`) é migrado:
 
 ## 8. Testing strategy
 
-- **Action Layer:** `runAction` testado com `ctx` mockado para cada ramo do pipeline (unauthenticated, module_disabled, forbidden, invalid_input, sucesso). AAA.
-- **RBAC:** `can()` com perfil + overrides (precedência de override sobre perfil); presets seedados conferem permissões esperadas.
-- **Manifesto:** os 4 gates testados — rota desativada → 403/404; menu filtrado; `agentToolsFor` exclui módulo off; scheduler pula job de módulo off.
-- **Fronteira:** teste/CI de lint de dependência falha em import cross-module ilegal.
+- **Action Layer:** `runAction` testado com `ctx` mockado para cada ramo (unauthenticated, module_disabled, forbidden, invalid_input, sucesso). AAA.
+- **Principal `system` sem sessão:** `buildSystemContext(clinicId)` produz ctx válido e `runAction` executa **sem** cookie/sessão (caso WhatsApp). Garante que o passo 1 do pipeline não barra `system`.
+- **Bootstrap do registry:** todas as Actions exportadas pelos módulos estão no registry após o boot determinístico (nenhuma perdida por tree-shaking).
+- **RBAC:** `can()` com perfil + overrides (override tem precedência); presets seedados conferem permissões esperadas; **`owner`/`master` bypass**.
+- **Migração `userRole`→`roles`/overrides:** cada role legado mapeia ao perfil correto; **`admin` NÃO vira `owner`** (regressão de escalada de privilégio).
+- **Manifesto:** os 4 gates — rota desativada → 403/404; menu filtrado; `agentToolsFor` exclui módulo off; scheduler pula job de módulo off.
+- **Auditoria:** `action_logs` grava `principalType`/`actor`/`onBehalfOf`/`result`/`errorCode` por execução; input sensível redigido.
+- **Regressão anti-bypass:** mutação que escreva no DB fora de `runAction` falha o lint/CI.
+- **Fronteira:** lint de dependência falha em import cross-module ilegal.
 - **Core como módulo:** smoke de uma Action real do Core ponta-a-ponta (Server Action → runAction → repo).
 - Cobertura mantém o threshold do projeto (70%).
 
@@ -295,7 +343,8 @@ O enum `userRole` (`owner/admin/dentist/receptionist`) é migrado:
 | `role_permissions` | permissões de cada perfil | por perfil |
 | `user_permission_overrides` | ajuste fino por usuário | por usuário |
 | `instance_modules` | contratação de módulos | por instância |
-| `permissions` (espelho, opcional) | catálogo p/ FK e UI | sincronizado do registry |
+| `action_logs` | auditoria de execução (LGPD) | por clínica |
+| `permissions` (espelho) | catálogo p/ FK e UI | seed/codegen do registry (não boot) |
 | `users.roleId` (coluna) | perfil do usuário | — |
 
 Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` durante a transição). Enum `userRole` vira legado (§6.2).
@@ -307,15 +356,20 @@ Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` duran
 - **Três principais** (`user` / `agent_delegated` / `system`) com auditoria distinta (§3.7). O agente nunca usa contexto de sessão humana; o paciente do WhatsApp não é principal.
 - **1 perfil por usuário + overrides** (não múltiplos perfis) — mais simples para o dono leigo.
 - **Server Actions** como mecanismo padrão de UI para mutações (route handlers só onde já existem / integrações).
-- **Catálogo de permissões derivado das Actions** (não mantido à mão).
-- **Manifesto no banco**, editável só por `master`; nível instância.
-- **Strangler**: W3 migra só o Core; demais módulos no Eixo 2.
+- **Catálogo de permissões derivado das Actions** (não mantido à mão); espelho via **seed/codegen**, nunca escrita em boot.
+- **Registro de Actions determinístico** (bootstrap explícito), não por side-effect de import.
+- **`admin` legado → preset `Administrador`** (NÃO `owner`) — evita escalada de privilégio.
+- **Auditoria obrigatória** com tabela `action_logs` (§3.8) gravada por `runAction`.
+- **Regra vinculante:** toda mutação nova/tocada (UI/REST/agente) passa por `runAction`.
+- **Manifesto no banco**, editável só por `master`; nível instância (PK `moduleId` intencional; `clinicId` é caminho deferido).
+- **Strangler**: W3 migra só o Core; `services/tools/**` é removido no W5 (não migrado no W3).
 
 ## 11. Decisões deferidas (não bloqueiam o plano)
 
 - Granularidade de manifesto por clínica (hoje: por instância) — só se houver demanda.
 - Biblioteca de lint de fronteira (`eslint-plugin-boundaries` vs `dependency-cruiser`) — decidir no plano.
-- Tabela espelho `permissions` materializada vs catálogo puramente em memória — decidir no plano conforme necessidade de FK.
+- Registro de Actions: **codegen** de um arquivo de registro vs **registro central manual** (ambos determinísticos) — decidir no plano.
+- Política de retenção de `action_logs` (default sugerido: 12 meses) — fixar valor no plano.
 - **Provisionamento e login do `master`:** mesma tabela `users` com uma flag reservada (`isMaster`) e perfil de sistema não-atribuível, ou conta/credencial fora do fluxo normal. Recomendação: linha em `users` com `isMaster` + acesso restrito por credencial separada; detalhar no plano. `master` nunca é selecionável no painel do admin.
 
 ## 12. Dependências e riscos
