@@ -338,6 +338,29 @@ rules: {
 
 > Ajustar a sintaxe ao formato de config em uso (flat `eslint.config.mjs` vs `.eslintrc.json`). O importante: **falhar** import cross-module que não passe pelo `index`.
 
+- [ ] **Step 2b: Regra anti-DB-em-client (absorve o W2)**
+
+Impedir que componentes client toquem o banco. Adicionar um override para arquivos client proibindo importar DB/repositories diretamente:
+
+```js
+// override por arquivo client (ajustar ao formato da config)
+{
+  files: ['src/**/*.tsx'],
+  // aplica a arquivos com 'use client' — usar no-restricted-imports
+  rules: {
+    'no-restricted-imports': ['error', {
+      paths: [
+        { name: '@/lib/db/client', message: 'Componentes não acessam o banco. Use uma Server Action/route handler.' },
+      ],
+      patterns: [
+        { group: ['@/lib/db/*', '@/repositories/*'], message: 'Acesso a dados só via Action/service no servidor.' },
+      ],
+    }],
+  },
+}
+```
+> A meta "client não toca DB" já está cumprida (W1); esta regra **previne regressão**. Se o ESLint distinguir `'use client'` for difícil no flat config, aplicar a regra a `src/components/**` e `src/app/**/page.tsx`/`*.client.tsx` e validar com o gate de typecheck/lint.
+
 - [ ] **Step 3: Verificar que o lint roda e a regra existe**
 
 Run: `npm run lint` → Expected: exit 0 (Core ainda não viola). Criar um teste manual de violação temporário para confirmar que a regra dispara, depois remover.
