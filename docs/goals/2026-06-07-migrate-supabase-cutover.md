@@ -3,7 +3,7 @@
 ## 1. Contexto
 - Repo: `D:/projetos/synkroo`
 - Stack: Next.js 15, React 19, TypeScript 5.6, Jest, Playwright, Supabase legado
-- Estado atual: projeto ainda depende de `@supabase/ssr`, `@supabase/supabase-js`, scripts/envs/migrations Supabase e helpers `src/lib/supabase*`
+- Estado atual: migração concluída (W0+W1 completos em 2026-06-17). Zero `supabase-pkg/*` em runtime/deps; bridge `src/lib/supabase*` removido; migrations portadas para Drizzle; scripts/envs/docs atualizados.
 - Comando teste: `npm test -- --runInBand`
 - Comando build: `npm run build`
 - Comando lint: `npm run lint`
@@ -11,7 +11,7 @@
 - Spec base: `docs/superpowers/specs/2026-06-07-supabase-postgres-cutover-design.md`
 
 ## 2. Estado final mensurável
-- `rg -n "@supabase|supabase\.from|\.rpc\(" src package.json .env.example scripts` retorna 0 matches relevantes de runtime
+- `rg -n "supabase-pkg|supabase\.from|\.rpc\(" src package.json .env.example scripts` retorna 0 matches relevantes de runtime
 - `npm test -- --runInBand` exits 0
 - `npm run build` exits 0
 - `npm run lint` exits 0
@@ -19,7 +19,7 @@
 
 ## 3. Prova surfaceável
 - Comandos:
-  - `rg -n "@supabase|supabase\.from|\.rpc\(" src package.json .env.example scripts`
+  - `rg -n "supabase-pkg|supabase\.from|\.rpc\(" src package.json .env.example scripts`
   - `npm test -- --runInBand`
   - `npm run build`
   - `npm run lint`
@@ -36,7 +36,7 @@
 - NÃO mudar UX nem escopo funcional do produto
 - NÃO iniciar migração de dados de produção do Supabase nesta execução
 - NÃO manter auth Supabase em paralelo após início do cutover de auth
-- NÃO introduzir novos imports `@supabase/*`
+- NÃO introduzir novos imports `supabase-pkg/*`
 - Preservar temporariamente o contrato das rotas `/api/auth/login|logout|session|signup`
 
 ### Padrão
@@ -56,12 +56,12 @@
 
 ## 7. Condição final (cole no /goal)
 ```text
-Substituir o Supabase do Synkroo por pgvector/pgvector + Drizzle + Auth.js Credentials seguindo `docs/superpowers/plans/2026-06-07-supabase-postgres-cutover.md` até que `rg -n "@supabase|supabase\.from|\.rpc\(" src package.json .env.example scripts` não mostre matches de runtime relevantes, `npm test -- --runInBand` exit 0, `npm run build` exit 0 e `npm run lint` exit 0, preservando temporariamente o contrato de `/api/auth/login|logout|session|signup`, sem mudar UX, sem iniciar migração de dados de produção, sem novos imports `@supabase/*`, sem usar --no-verify, sem desabilitar lint/type-ignore, sem modificar lockfiles sem necessidade real, or stop after 120 turns. Report turn count, fase atual, verificações da fase e remaining bound each turn. Claude must echo full output of each verification command.
+Substituir o Supabase do Synkroo por pgvector/pgvector + Drizzle + Auth.js Credentials seguindo `docs/superpowers/plans/2026-06-07-supabase-postgres-cutover.md` até que `rg -n "supabase-pkg|supabase\.from|\.rpc\(" src package.json .env.example scripts` não mostre matches de runtime relevantes, `npm test -- --runInBand` exit 0, `npm run build` exit 0 e `npm run lint` exit 0, preservando temporariamente o contrato de `/api/auth/login|logout|session|signup`, sem mudar UX, sem iniciar migração de dados de produção, sem novos imports `supabase-pkg/*`, sem usar --no-verify, sem desabilitar lint/type-ignore, sem modificar lockfiles sem necessidade real, or stop after 120 turns. Report turn count, fase atual, verificações da fase e remaining bound each turn. Claude must echo full output of each verification command.
 ```
 
 ## 8. Comando completo
 ```text
-/goal Substituir o Supabase do Synkroo por pgvector/pgvector + Drizzle + Auth.js Credentials seguindo `docs/superpowers/plans/2026-06-07-supabase-postgres-cutover.md` até que `rg -n "@supabase|supabase\.from|\.rpc\(" src package.json .env.example scripts` não mostre matches de runtime relevantes, `npm test -- --runInBand` exit 0, `npm run build` exit 0 e `npm run lint` exit 0, preservando temporariamente o contrato de `/api/auth/login|logout|session|signup`, sem mudar UX, sem iniciar migração de dados de produção, sem novos imports `@supabase/*`, sem usar --no-verify, sem desabilitar lint/type-ignore, sem modificar lockfiles sem necessidade real, or stop after 120 turns. Report turn count, fase atual, verificações da fase e remaining bound each turn. Claude must echo full output of each verification command.
+/goal Substituir o Supabase do Synkroo por pgvector/pgvector + Drizzle + Auth.js Credentials seguindo `docs/superpowers/plans/2026-06-07-supabase-postgres-cutover.md` até que `rg -n "supabase-pkg|supabase\.from|\.rpc\(" src package.json .env.example scripts` não mostre matches de runtime relevantes, `npm test -- --runInBand` exit 0, `npm run build` exit 0 e `npm run lint` exit 0, preservando temporariamente o contrato de `/api/auth/login|logout|session|signup`, sem mudar UX, sem iniciar migração de dados de produção, sem novos imports `supabase-pkg/*`, sem usar --no-verify, sem desabilitar lint/type-ignore, sem modificar lockfiles sem necessidade real, or stop after 120 turns. Report turn count, fase atual, verificações da fase e remaining bound each turn. Claude must echo full output of each verification command.
 ```
 
 ## 9. Checklist pré-entrega
