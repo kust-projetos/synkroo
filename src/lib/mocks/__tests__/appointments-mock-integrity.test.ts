@@ -78,8 +78,11 @@ describe('appointments mock dataset integrity', () => {
     } | null
 
     expect(routeResult).not.toBeNull()
+    // Base appointment at 08:00 (30min) → 08:00 occupied
     expect(routeResult?.slots?.find((slot) => slot.time === '08:00')?.available).toBe(false)
-    expect(routeResult?.slots?.find((slot) => slot.time === '08:30')?.available).toBe(false)
+    // 08:30 should be free (08:00 appt ends at 08:30)
+    expect(routeResult?.slots?.find((slot) => slot.time === '08:30')?.available).toBe(true)
+    // 09:00 should be free
     expect(routeResult?.slots?.find((slot) => slot.time === '09:00')?.available).toBe(true)
   })
 
