@@ -32,12 +32,17 @@ O W3 é o **coração do produto-base modular**. Ele entrega os quatro mecanismo
 // src/core/actions/types.ts
 import type { z } from 'zod';
 
+// Quem está executando a Action. Resolve clinicId, can() e auditoria de forma diferente.
+export type ContextSource = 'user' | 'agent_delegated' | 'system';
+
 export interface ActionContext {
-  user: { id: string; email: string; name: string };
+  source: ContextSource;
   clinicId: string;
-  role: string;
-  can: (permissionKey: string) => boolean;   // resolve RBAC (perfil + overrides)
+  user?: { id: string; email: string; name: string };  // presente em 'user' e 'agent_delegated'
+  role?: string;
+  can: (permissionKey: string) => boolean;   // resolve RBAC conforme o principal (§3.7)
   hasModule: (moduleId: string) => boolean;   // resolve manifesto
+  audit: { actor: string; onBehalfOf?: string }; // 'agente (sistema)' | 'agente em nome de X' | 'X'
 }
 
 export interface ActionDefinition<I extends z.ZodTypeAny, O> {
@@ -69,7 +74,11 @@ export type ActionErrorCode =
   4. `action.input.safeParse(rawInput)` falha → `invalid_input`.
   5. executa `handler`; erros de domínio mapeados (`not_found`/`conflict`); exceções → `internal` (logadas, sem vazar detalhe).
   6. retorna `ActionResult<O>`.
-- `buildActionContext()` — constrói `ActionContext` a partir de `getUserProfile()` + RBAC + manifesto. Usado por Server Actions e pelo adaptador do agente.
+- **Construtores de contexto** (um por principal — §3.7):
+  - `buildUserContext()` — humano logado. Lê `getUserProfile()` (cookie session) → `clinicId`, `role`, permissões do perfil+overrides. `audit.actor = user`.
+  - `buildDelegatedContext(userId)` — agente agindo a pedido de um staff. Resolve as permissões **do usuário delegante**. `audit.actor = 'agente'`, `onBehalfOf = userId`.
+  - `buildSystemContext(clinicId)` — agente autônomo (sem humano; ex.: WhatsApp inbound). `clinicId` vem do canal/instância, **não** de uma sessão. Permissões = conjunto próprio do agente (§3.7). `audit.actor = 'agente (sistema)'`.
+  - `getServerSession`/cookie é usado **apenas** por `buildUserContext`. Os outros dois nunca dependem de sessão de request.
 
 ### 2.3 Registro
 
@@ -84,11 +93,11 @@ Padrão novo: mutações via **Next.js Server Actions** (`'use server'`) que cha
 ```ts
 // src/modules/operacional/ui/actions.ts
 'use server';
-import { runAction, buildActionContext } from '@/core/actions';
+import { runAction, buildUserContext } from '@/core/actions';
 import { scheduleAppointment } from '../actions/schedule-appointment';
 
 export async function scheduleAppointmentAction(input: unknown) {
-  const ctx = await buildActionContext();
+  const ctx = await buildUserContext();   // principal 'user'
   return runAction(scheduleAppointment, input, ctx);
 }
 ```
@@ -103,7 +112,7 @@ export function toAgentTool(action: ActionDefinition): AgentTool;       // adapt
 export function agentToolsFor(ctx: ActionContext): AgentTool[];          // filtra registry por hasModule + can
 ```
 
-O agente recebe **apenas** as tools dos módulos contratados e permitidas ao usuário em questão → gate de tools (custo de token ≈ zero para módulo desativado). Cada tool usa `name`, `description`/`label` e `input` da Action; o `handler` da tool chama `runAction` (mesmas checagens). Construção concreta do agente é do W5; o W3 entrega o adaptador e o contrato.
+O `ctx` do agente é **`agent_delegated`** (chat interno de um staff) ou **`system`** (autônomo, ex.: WhatsApp inbound) — nunca `user`. `agentToolsFor(ctx)` filtra o registry por `hasModule` **e** pelo `can()` do principal: tools de módulos desativados ou fora do conjunto de permissões do principal não são expostas → custo de token ≈ zero. Cada tool usa `name`, `label`/`description` e `input` da Action; o `handler` chama `runAction` (mesmas checagens + auditoria do principal). Construção concreta do agente é do W5; o W3 entrega o adaptador e o contrato.
 
 ---
 
@@ -160,6 +169,20 @@ Seed de perfis `isSystem` por clínica na criação: **Recepcionista**, **Comerc
 - **Usuários:** lista; atribuir 1 perfil; ajustes finos (overrides) com toggles por função.
 - **Perfis:** criar/editar/clonar; tela com módulos → funções (toggles), rotulados por `label`. "Ligar módulo inteiro" = liga todas as funções do módulo.
 - Zero jargão técnico; nada de `module:action` visível. Detalhe visual de UI fica no plano/implementação.
+
+### 3.7 Resolução de RBAC por principal
+
+`ctx.can(key)` resolve conforme o `source`:
+
+| `source` | `clinicId` | `can(key)` | Auditoria (`audit`) |
+|---|---|---|---|
+| `user` | sessão | perfil + overrides (§3.4) | `actor = user` |
+| `agent_delegated` | usuário delegante | permissões **do usuário delegante** | `actor = 'agente'`, `onBehalfOf = userId` |
+| `system` | canal/instância | **conjunto de permissões do agente** (perfil de sistema) | `actor = 'agente (sistema)'` |
+
+- O **paciente do WhatsApp não é um principal** — é o sujeito/contato da conversa, não o ator. Quem executa é o agente (`system`).
+- O **conjunto de permissões do agente autônomo** (`system`) é um **perfil de sistema próprio** (`roles.isSystem`, reservado), editável na futura **Gestão do Agente de IA** (Eixo 2): define quais Actions o agente pode executar sem humano (ex.: agendar, confirmar, responder dúvida — mas talvez **não** cancelar tratamento ou alterar financeiro sem confirmação). Default conservador.
+- Toda execução grava o `audit` no log de ações (LGPD/rastreabilidade), distinguindo humano, agente-em-nome-de e agente-autônomo.
 
 ---
 
@@ -281,6 +304,7 @@ Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` duran
 
 ## 10. Decisões fixadas
 
+- **Três principais** (`user` / `agent_delegated` / `system`) com auditoria distinta (§3.7). O agente nunca usa contexto de sessão humana; o paciente do WhatsApp não é principal.
 - **1 perfil por usuário + overrides** (não múltiplos perfis) — mais simples para o dono leigo.
 - **Server Actions** como mecanismo padrão de UI para mutações (route handlers só onde já existem / integrações).
 - **Catálogo de permissões derivado das Actions** (não mantido à mão).
@@ -292,6 +316,7 @@ Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` duran
 - Granularidade de manifesto por clínica (hoje: por instância) — só se houver demanda.
 - Biblioteca de lint de fronteira (`eslint-plugin-boundaries` vs `dependency-cruiser`) — decidir no plano.
 - Tabela espelho `permissions` materializada vs catálogo puramente em memória — decidir no plano conforme necessidade de FK.
+- **Provisionamento e login do `master`:** mesma tabela `users` com uma flag reservada (`isMaster`) e perfil de sistema não-atribuível, ou conta/credencial fora do fluxo normal. Recomendação: linha em `users` com `isMaster` + acesso restrito por credencial separada; detalhar no plano. `master` nunca é selecionável no painel do admin.
 
 ## 12. Dependências e riscos
 
@@ -299,3 +324,5 @@ Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` duran
 - **Risco maior:** a migração do RBAC (enum→perfis) toca auth de toda a app; exige seed correto e testes de precedência. Mitigado pela coexistência (enum legado mantido na transição).
 - **Risco de fronteira:** sem lint desde o início, módulos voltam a se acoplar. O lint entra junto com o Core.
 - O **painel admin** tem peso de UX (dono leigo); o detalhamento visual fica no plano/implementação, mas a regra "zero jargão / rótulos das Actions" é vinculante.
+- **Server Actions em OpenNext/Workers (verificar):** Server Actions são o mecanismo padrão de UI (§2.4) e o runtime alvo é Cloudflare Workers (W4). Server Actions rodam sob OpenNext, mas isso deve ser **verificado explicitamente** — adicionar um spike no plano do W4 e não descobrir tardiamente. Se houver limitação, route handlers + `runAction` são o fallback (mesmo pipeline).
+- **Auditoria de principal** (§3.7) é requisito LGPD: o log de ações precisa existir desde o W3 (não é opcional), registrando `audit.actor`/`onBehalfOf` por execução.
