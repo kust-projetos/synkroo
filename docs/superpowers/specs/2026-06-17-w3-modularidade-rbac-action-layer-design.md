@@ -37,7 +37,7 @@ export type ContextSource = 'user' | 'agent_delegated' | 'system';
 
 export interface ActionContext {
   source: ContextSource;
-  clinicId: string;
+  clinicId: string;                 // clínica ATIVA (seletor na UI / canal no agente) — §3.9
   user?: { id: string; email: string; name: string };  // presente em 'user' e 'agent_delegated'
   role?: string;
   can: (permissionKey: string) => boolean;   // resolve RBAC conforme o principal (§3.7)
@@ -75,7 +75,7 @@ export type ActionErrorCode =
   5. executa `handler`; erros de domínio mapeados (`not_found`/`conflict`); exceções → `internal` (logadas, sem vazar detalhe).
   6. retorna `ActionResult<O>`.
 - **Construtores de contexto** (um por principal — §3.7):
-  - `buildUserContext()` — humano logado. Lê `getUserProfile()` (cookie session) → `clinicId`, `role`, permissões do perfil+overrides. `audit.actor = user`.
+  - `buildUserContext(activeClinicId?)` — humano logado. Lê `getUserProfile()` (cookie session); a **clínica ativa** é a selecionada (ou a home `users.clinicId` por default); resolve `role`/permissões via `userClinicAccess(user, clínica ativa)` + overrides. `audit.actor = user`.
   - `buildDelegatedContext(userId)` — agente agindo a pedido de um staff. Resolve as permissões **do usuário delegante**. `audit.actor = 'agente'`, `onBehalfOf = userId`. **Boundary de segurança:** o `userId` **nunca** vem de input do modelo/mensagem; é estabelecido a partir da **sessão autenticada do staff** que iniciou o chat interno (mapeamento confiável canal→usuário). O agente não pode escolher em nome de quem age — senão um prompt malicioso escalaria privilégio.
   - `buildSystemContext(clinicId)` — agente autônomo (sem humano; ex.: WhatsApp inbound). `clinicId` vem do canal/instância, **não** de uma sessão. Permissões = conjunto próprio do agente (§3.7). `audit.actor = 'agente (sistema)'`.
   - `getServerSession`/cookie é usado **apenas** por `buildUserContext`. Os outros dois nunca dependem de sessão de request.
@@ -150,23 +150,30 @@ Não há lista mantida à mão. O catálogo combina **duas fontes**, ambas no c�
 roles: { id uuid pk, clinicId uuid fk→clinics, name text, description text,
          isSystem boolean default false, createdAt, updatedAt }
 
-// rolePermissions — quais permissões o perfil concede
+// rolePermissions — permissões que o perfil concede
 rolePermissions: { roleId uuid fk→roles, permissionKey text }  // pk (roleId, permissionKey)
 
-// users — passa a referenciar um perfil
-users.roleId: uuid fk→roles  // adicionado; enum userRole vira legado (ver §6.2)
+// userClinicAccess — acesso do usuário A UMA clínica, com 1 perfil POR clínica.
+// O admin concede. 1 clínica → 1 registro (trivial); várias clínicas → vários.
+userClinicAccess: { userId uuid fk→users, clinicId uuid fk→clinics,
+                    roleId uuid fk→roles, createdAt }   // pk (userId, clinicId)
 
-// userPermissionOverrides — ajuste fino por usuário (1 perfil + overrides)
-userPermissionOverrides: { userId uuid fk→users, permissionKey text, granted boolean }
-  // pk (userId, permissionKey); granted=true adiciona, granted=false remove
+// userPermissionOverrides — ajuste fino por usuário, POR clínica
+userPermissionOverrides: { userId uuid fk→users, clinicId uuid fk→clinics,
+                           permissionKey text, granted boolean }
+  // pk (userId, clinicId, permissionKey); granted=true adiciona, false remove
+
+// users.clinicId permanece como clínica primária/home (default de UI).
+// enum userRole e o antigo users.roleId viram legado (ver §6.2).
 ```
 
 ### 3.4 Resolução
 
-`ctx.can(key)`:
-1. `master` ou `owner` → `true` (owner limitado aos módulos contratados via gate de manifesto, que roda antes).
-2. override do usuário existe → usa `granted`.
-3. senão → `key ∈ permissões do perfil (rolePermissions)`.
+`ctx.can(key)` resolve em função da **clínica ativa** (`ctx.clinicId`):
+1. `master` ou `owner` → `true` (gate de manifesto já rodou antes).
+2. resolve o acesso do usuário à clínica ativa via `userClinicAccess(userId, ctx.clinicId)` → `roleId`. **Sem registro → `false`** (usuário não atua nesta clínica).
+3. override `(userId, ctx.clinicId, key)` existe → usa `granted`.
+4. senão → `key ∈ rolePermissions(roleId)`.
 
 ### 3.5 Presets de sistema
 
@@ -174,7 +181,7 @@ Seed de perfis `isSystem` por clínica na criação: **Administrador**, **Recepc
 
 ### 3.6 Painel admin (linguagem leiga)
 
-- **Usuários:** lista; atribuir 1 perfil; ajustes finos (overrides) com toggles por função.
+- **Usuários:** lista; conceder **acesso por clínica** com 1 perfil em cada (com 1 clínica, auto-atribui e o seletor de clínica some; com várias, o admin escolhe a quais polos o funcionário tem acesso e o perfil em cada); ajustes finos (overrides) por função.
 - **Perfis:** criar/editar/clonar; tela com módulos → funções (toggles), rotulados por `label`. "Ligar módulo inteiro" = liga todas as funções do módulo.
 - Zero jargão técnico; nada de `module:action` visível. Detalhe visual de UI fica no plano/implementação.
 
@@ -219,13 +226,14 @@ actionLogs: {
 
 ### 3.9 Escopo de clínica (multi-clínica)
 
-O schema atual é **1 clínica por usuário** (`users.clinicId` notNull; `getUserProfile()` retorna um único `clinic_id`). O W3 **mantém esse modelo**:
+O W3 suporta **staff multi-clínica** desde já, modelado por `userClinicAccess` (§3.3):
 
-- **Staff** (perfis): `users.roleId` único, escopado à `users.clinicId`. `roles.clinicId` pertence à mesma clínica. `ActionContext.clinicId` = a clínica do usuário.
-- **`owner`/`master`**: acessam **todas as clínicas da instância** (bypass de escopo; `clinicId` ativo vem do seletor de clínica na UI ou do canal no agente).
-- **Extensão deferida — staff multi-clínica (polos):** se um funcionário precisar atuar em várias clínicas, introduz-se uma tabela `user_clinic_access(userId, clinicId, roleId)` e o `ActionContext.clinicId` passa a ser a **clínica ativa** (selecionada/derivada), com o `roleId` resolvido por clínica. O RBAC e o `ActionContext` devem ser desenhados para aceitar essa extensão **sem reescrita** (resolver `role`/permissões sempre em função de `(user, clinicAtiva)`), mesmo que a tabela só exista no futuro.
+- **Acesso é concedido pelo admin/owner**, por clínica: um funcionário só atua numa clínica se houver um registro `userClinicAccess(userId, clinicId, roleId)`. O perfil (`roleId`) é por clínica — o mesmo usuário pode ser Recepcionista no polo A e Comercial no polo B.
+- **Clínica ativa:** `ActionContext.clinicId` é a clínica em que a ação ocorre — vem do **seletor de clínica** na UI (para staff com acesso a >1) ou é **derivada do canal/instância** no agente (ex.: número de WhatsApp → clínica). `can()` resolve sempre em função de `(user, clínica ativa)` (§3.4).
+- **`owner`/`master`**: acessam **todas as clínicas da instância** por bypass (não precisam de `userClinicAccess`).
+- **Caso de 1 clínica é trivial:** há um único registro `userClinicAccess` por usuário; a UI esconde o conceito de "clínica" (sem seletor). A complexidade de polos só aparece quando há mais de uma clínica.
 
-> **Decisão a confirmar pelo produto:** o W3 assume *staff pertence a uma clínica* (owner/master multi-clínica). Se desde já houver funcionários atuando em vários polos, promover `user_clinic_access` para o W3 em vez de deferir.
+> `users.clinicId` permanece como clínica primária/home (default ao logar). O antigo `users.roleId` e o enum `userRole` viram legado (§6.2).
 
 ---
 
@@ -316,8 +324,8 @@ Agente ─→ tool (filtrada) ──┘     ├─ unauthenticated?
 ### 6.2 Transição do RBAC atual
 
 O enum `userRole` (`owner/admin/dentist/receptionist`) é migrado:
-1. Criar tabelas `roles`/`rolePermissions`/`userPermissionOverrides` e `users.roleId`.
-2. Seed de presets por clínica; mapear cada usuário existente ao perfil equivalente: `owner`→`owner` (role de sistema); `admin`→**preset `Administrador`** (NÃO `owner` — evita escalada, §3.1); `dentist`→preset Dentista; `receptionist`→preset Recepcionista.
+1. Criar tabelas `roles`/`rolePermissions`/`userClinicAccess`/`userPermissionOverrides`.
+2. Seed de presets por clínica; para cada usuário existente, criar `userClinicAccess(userId, users.clinicId, roleId)` com o perfil equivalente ao role legado: `owner`→`owner` (role de sistema); `admin`→**preset `Administrador`** (NÃO `owner` — evita escalada, §3.1); `dentist`→preset Dentista; `receptionist`→preset Recepcionista.
 3. `permissions.ts` legado (`hasMinRole` etc.) é substituído por `ctx.can`. O enum permanece como coluna legada durante a transição e é removido quando nenhum código o consome.
 
 ---
@@ -352,11 +360,11 @@ O enum `userRole` (`owner/admin/dentist/receptionist`) é migrado:
 |---|---|---|
 | `roles` | perfis (presets + customizados) | por clínica |
 | `role_permissions` | permissões de cada perfil | por perfil |
-| `user_permission_overrides` | ajuste fino por usuário | por usuário |
+| `user_clinic_access` | acesso do usuário a uma clínica + perfil ali | por (usuário, clínica) |
+| `user_permission_overrides` | ajuste fino | por (usuário, clínica) |
 | `instance_modules` | contratação de módulos | por instância |
-| `action_logs` | auditoria de execução (LGPD) | por clínica |
+| `action_logs` | auditoria de execução (LGPD) | por clínica (NULL pré-auth) |
 | `permissions` (espelho) | catálogo p/ FK e UI | seed/codegen do registry (não boot) |
-| `users.roleId` (coluna) | perfil do usuário | — |
 
 Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` durante a transição). Enum `userRole` vira legado (§6.2).
 
@@ -365,7 +373,7 @@ Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` duran
 ## 10. Decisões fixadas
 
 - **Três principais** (`user` / `agent_delegated` / `system`) com auditoria distinta (§3.7). O agente nunca usa contexto de sessão humana; o paciente do WhatsApp não é principal.
-- **1 perfil por usuário + overrides** (não múltiplos perfis) — mais simples para o dono leigo.
+- **1 perfil por usuário por clínica + overrides** (`user_clinic_access`) — sem múltiplos perfis na mesma clínica.
 - **Server Actions** como mecanismo padrão de UI para mutações (route handlers só onde já existem / integrações).
 - **Catálogo de permissões derivado das Actions** (não mantido à mão); espelho via **seed/codegen**, nunca escrita em boot.
 - **Registro de Actions determinístico** (bootstrap explícito), não por side-effect de import.
@@ -373,7 +381,7 @@ Migrações Drizzle em `src/modules/core/schema/` (ou `src/lib/db/schema/` duran
 - **Auditoria obrigatória** com tabela `action_logs` (§3.8) gravada por `runAction`.
 - **Regra vinculante:** toda mutação nova/tocada (UI/REST/agente) passa por `runAction`.
 - **Manifesto no banco**, editável só por `master`; nível instância (PK `moduleId` intencional; `clinicId` é caminho deferido).
-- **Escopo de clínica**: W3 assume **staff = 1 clínica** (consistente com `users.clinicId` atual); `owner`/`master` multi-clínica; staff multi-clínica (polos) é extensão deferida `user_clinic_access`, desenhada sem reescrita (§3.9). *A confirmar pelo produto.*
+- **Escopo de clínica**: **staff multi-clínica no W3** via `user_clinic_access` (§3.9). O admin concede acesso por clínica, com perfil por clínica; `owner`/`master` multi-clínica por bypass; `ActionContext.clinicId` = clínica ativa (seletor UI / canal do agente). Caso de 1 clínica é trivial (UI esconde o conceito).
 - **Strangler**: W3 migra só o Core; `services/tools/**` é removido no W5 (não migrado no W3).
 
 ## 11. Decisões deferidas (não bloqueiam o plano)
