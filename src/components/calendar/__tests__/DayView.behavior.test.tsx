@@ -161,15 +161,14 @@ describe('DayView professionals layout mode', () => {
   })
 
   it('does not render dentist name inside event cards in professionals mode', () => {
-    // The EventCard should skip dentistName when in professionals mode
-    // (verified via the card rendering test in ProfessionalsView.scaling.test.tsx)
-    // This test just confirms DayView renders with professionals layout
     const events = [baseEvent()]
 
     render(<DayView date={new Date('2026-06-16T00:00:00')} events={events} />)
 
     // Patient name still visible
     expect(screen.getByText('Maria Silva')).toBeInTheDocument()
+    // Dentist name appears as column header, which is expected
+    // The EventCard itself omits dentistName (verified in ProfessionalsView.scaling.test.tsx)
   })
 
   it('excludes events from other dates', () => {
