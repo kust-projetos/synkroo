@@ -5,6 +5,7 @@
 import { describe, expect, it } from '@jest/globals'
 import { render, screen } from '@testing-library/react'
 import { MonthView } from '../views/MonthView'
+import type { CalendarEvent } from '../utils/types'
 
 // Mock the calendar store
 // Mutable overrides for per-test store config
@@ -163,5 +164,50 @@ describe('MonthView professionals layout mode', () => {
 
     // Weekday headers still visible
     expect(screen.getAllByText('Sex').length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('shows per-dentist overflow in professionals mode, not global', () => {
+    // Day has 4 events for Dra. Ana, 1 for Dr. Carlos
+    // MAX_VISIBLE_EVENTS = 3 → overflow only for Dra. Ana (1 hidden)
+    const events: CalendarEvent[] = []
+    // Dra. Ana: 4 events
+    for (let i = 0; i < 4; i++) {
+      events.push(baseEvent({
+        id: `apt-ana-${i}`,
+        title: `Paciente Ana ${i}`,
+        dentistId: 'dent-1',
+        dentistName: 'Dra. Ana',
+        start: new Date(`2026-06-12T${String(8 + i).padStart(2, '0')}:00:00`),
+        end: new Date(`2026-06-12T${String(8 + i).padStart(2, '0')}:30:00`),
+      }))
+    }
+    // Dr. Carlos: 1 event
+    events.push(baseEvent({
+      id: 'apt-carlos-0',
+      title: 'Paciente Carlos',
+      dentistId: 'dent-2',
+      dentistName: 'Dr. Carlos',
+      start: new Date('2026-06-12T14:00:00'),
+      end: new Date('2026-06-12T14:30:00'),
+    }))
+
+    render(
+      <MonthView
+        date={new Date('2026-06-01T00:00:00')}
+        events={events}
+      />,
+    )
+
+    // Both dentist headers visible
+    expect(screen.getByText('Dra. Ana')).toBeInTheDocument()
+    expect(screen.getByText('Dr. Carlos')).toBeInTheDocument()
+
+    // Ana has 4 events, only 3 visible → overflow of 1
+    expect(screen.getByText('+1 mais')).toBeInTheDocument()
+
+    // Carlos has 1 event, all visible → no overflow for him
+    // Verify that the overflow text is Ana-specific, not global
+    // (If it were global, it would say +2 mais for 5 total - 3 visible)
+    expect(screen.queryByText('+2 mais')).not.toBeInTheDocument()
   })
 })
