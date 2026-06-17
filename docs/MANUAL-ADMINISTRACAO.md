@@ -200,7 +200,7 @@ Acesse logs em:
 
 ### 8.2 Autenticação
 
-- **Usuários**: JWT via Supabase Auth
+- **Usuários**: JWT via NextAuth/Auth.js
 - **Cron**: Header `Authorization: Bearer {CRON_SECRET}`
 
 ---

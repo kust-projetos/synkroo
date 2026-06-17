@@ -1,6 +1,6 @@
 // Calendar types — inspired by Cal.com architecture
 
-import type { AppointmentStatus } from '@/lib/supabase/database.types'
+import type { AppointmentStatus } from '@/lib/db/types'
 
 /** Origin of an appointment — AI or manual creation/mutation */
 export type AppointmentOrigin = 'ai' | 'manual'

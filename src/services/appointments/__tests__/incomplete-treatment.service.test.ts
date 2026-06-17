@@ -3,7 +3,6 @@
  * Tests detection of multi-session treatments not completed within expected timeframe
  */
 
-jest.mock('@/lib/supabase/typed', () => ({ createTypedClient: jest.fn() }))
 jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))

@@ -6,9 +6,6 @@
 import '@testing-library/jest-dom'
 
 // Mock environment variables for tests
-process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
-process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'test-anon-key'
-process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-role-key'
 process.env.MINIMAX_API_KEY = 'test-minimax-key'
 process.env.MINIMAX_API_URL = 'https://api.minimax.chat/v1/text/chatcompletion_v2'
 process.env.MINIMAX_MODEL = 'abab6.5s-chat'
