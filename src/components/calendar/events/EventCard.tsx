@@ -42,9 +42,10 @@ export function EventCard({
   const openEditDialog = useCalendarStore((s) => s.openEditDialog)
   const startHour = useCalendarStore((s) => s.startHour)
   const view = useCalendarStore((s) => s.view)
+  const layoutMode = useCalendarStore((s) => s.layoutMode)
   const canDrag = isDraggableStatus(event.status)
   const dentistColors = getDentistColors(event.dentistId)
-  const isProfessionalsMode = view === 'professionals'
+  const isProfessionalsMode = view === 'professionals' || layoutMode === 'professionals'
 
   const columnWidth = 100 / totalGridColumns
   const baseLeft = gridColumn * columnWidth
