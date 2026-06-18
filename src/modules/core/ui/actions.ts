@@ -1,5 +1,6 @@
 'use server';
-import { runAction, buildUserContext } from '@/core/actions';
+import { runAction } from '@/core/actions/run';
+import { buildUserContext } from '@/core/actions/context';
 import { assignUserAccess } from '../actions/assign-user-access';
 import { createRole } from '../actions/create-role';
 

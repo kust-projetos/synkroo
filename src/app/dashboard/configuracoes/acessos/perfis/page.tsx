@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { buildUserContext } from '@/core/actions';
+import { buildUserContext } from '@/core/actions/context';
 import { getGroupedCatalog } from '@/core/rbac/grouped-catalog';
 import { RoleForm } from '@/modules/core/ui/RoleForm';
 
