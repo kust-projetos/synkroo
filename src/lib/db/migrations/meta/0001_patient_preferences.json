@@ -25,5 +25,16 @@
         "patient_preferences_patient_key_uniq": { "name": "patient_preferences_patient_key_uniq", "columns": ["patient_id", "key"] }
       }
     }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
   }
 }
