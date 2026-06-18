@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { dbLogger } from '@/lib/logger'
-import { handleApiError } from '@/lib/errors'
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
  * POST /api/cron/smart-triggers
- * Cron endpoint to process all smart triggers
+ * Cron endpoint to process all smart triggers.
+ *
+ * TODO(W5.3): reconnect to new agent.
+ * Legacy agent removed — returns no-op.
  *
  * Headers:
  *   Authorization: Bearer <CRON_SECRET>
@@ -34,28 +35,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Dynamic import to avoid circular deps at module load
-    const { smartTriggersService } = await import('@/services/agent/smart-triggers.service')
-    const { pendingActionsService } = await import('@/services/agent/pending-actions.service')
-
-    dbLogger.info('Cron: Starting smart triggers processing')
-
-    // Process all triggers
-    const triggerResults = await smartTriggersService.processAll()
-
-    // Also expire old pending actions
-    const expiredCount = await pendingActionsService.expireOldActions()
-
-    dbLogger.info('Cron: Smart triggers processed', { ...triggerResults, expiredActions: expiredCount })
-
     return NextResponse.json({
       success: true,
-      triggers: triggerResults,
-      expiredActions: expiredCount,
+      skipped: true,
+      reason: 'legacy_agent_removed',
+      todo: 'TODO(W5.3): reconnect to new agent',
       timestamp: new Date().toISOString(),
     })
   } catch (error) {
-    return handleApiError(error)
+    return NextResponse.json(
+      { error: 'Internal error', reason: String(error) },
+      { status: 500 }
+    )
   }
 }
 
