@@ -60,7 +60,6 @@ const navItems: NavItem[] = [
   { name: "Leads", href: "/dashboard/leads", icon: FlagIcon, section: "crm" },
   { name: "Campanhas", href: "/dashboard/campanhas", icon: MegaphoneIcon, section: "crm" },
   { name: "Contatos", href: "/dashboard/contatos", icon: UsersIcon, section: "crm" },
-  { name: "Atividades", href: "/dashboard/atividades", icon: ClockIcon, section: "crm" },
   { name: "Tarefas", href: "/dashboard/tarefas", icon: CheckCircleIcon, section: "crm" },
   { name: "Conversas", href: "/dashboard/conversas", icon: ChatBubbleLeftRightIcon, section: "crm", badge: { count: 0, variant: "pill-teal" } },
   { name: "Pacientes", href: "/dashboard/pacientes", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "zinc" } },
