@@ -33,6 +33,7 @@ export const users = pgTable('users', {
   phone: varchar('phone', { length: 20 }),
   avatarUrl: text('avatar_url'),
   isActive: boolean('is_active').default(true).notNull(),
+  isMaster: boolean('is_master').default(false).notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
