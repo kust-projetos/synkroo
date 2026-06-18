@@ -73,16 +73,17 @@ describe('appointments mock dataset integrity', () => {
   })
 
   it('keeps availability mock consistent with occupied appointment slots for a dentist/day', () => {
-    const routeResult = getMockForUrl('/api/appointments/availability?clinic_id=mock-clinic&date=2026-06-16&dentist_id=mock-dentist-silva-001&duration_minutes=30') as {
+    const today = daysFromNow(0).slice(0, 10);  // today — matches mock dayOffset=0
+    const routeResult = getMockForUrl(`/api/appointments/availability?clinic_id=mock-clinic&date=${today}&dentist_id=mock-dentist-silva-001&duration_minutes=30`) as {
       slots?: Array<{ time: string; available: boolean }>
     } | null
 
     expect(routeResult).not.toBeNull()
-    // Base appointment at 08:00 (30min) → 08:00 occupied
+    // Base appointment at 08:00 (60min, seed=100 → 30+30) → 08:00-09:00 occupied
     expect(routeResult?.slots?.find((slot) => slot.time === '08:00')?.available).toBe(false)
-    // 08:30 should be free (08:00 appt ends at 08:30)
-    expect(routeResult?.slots?.find((slot) => slot.time === '08:30')?.available).toBe(true)
-    // 09:00 should be free
+    // 08:30 also occupied (appt duration 60min)
+    expect(routeResult?.slots?.find((slot) => slot.time === '08:30')?.available).toBe(false)
+    // 09:00 should be free (08:00 appt ends at 09:00)
     expect(routeResult?.slots?.find((slot) => slot.time === '09:00')?.available).toBe(true)
   })
 
