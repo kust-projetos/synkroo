@@ -16,14 +16,13 @@ binding = "ASSETS"
 # Depois colar o ID gerado no campo id abaixo.
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "PLACEHOLDER_HYPERDRIVE_ID"
-# localConnectionString = "postgres://synkroo:synkroo_dev@localhost:55432/synkroo"
+id = "be5a789a003e4f08a94a82dffbb091be"
 
 # Vectorize: index de embeddings para RAG (consumido no W5).
 # Provisionar: npx wrangler vectorize create synkroo-embeddings --dimensions=768 --metric=cosine
 # Dimensão: 768 (default conservador para embeddings multilíngue; confirmar em W5).
 [[vectorize]]
-binding = "VECTORIZE_INDEX"
+binding = "VECTORIZE"
 index_name = "synkroo-embeddings"
 
 # KV: cache de sessão e incremental cache (substitui incrementalCache dummy).
@@ -31,7 +30,7 @@ index_name = "synkroo-embeddings"
 # O ID de preview é gerado automaticamente no dashboard.
 [[kv_namespaces]]
 binding = "SYNKROO_CACHE"
-id = "PLACEHOLDER_KV_ID"
+id = "8f2a4d355686427585f665688d1cc082"
 
 # ── Environment vars ──────────────────────────────────
 
