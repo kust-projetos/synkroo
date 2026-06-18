@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
       dayOfWeek,
       slots: [],
       reason: 'legacy_scheduler_removed',
-      todo: 'TODO(W5.3): reconnect to new scheduler',
+      todo: 'TODO(W5.3): reconnect availability to new scheduling backend',
     })
   } catch (error) {
     return handleApiError(error)
