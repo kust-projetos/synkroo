@@ -25,7 +25,10 @@
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:auth": "playwright test --project=unauthenticated",
-    "test:e2e:api": "playwright test --project=api"
+    "test:e2e:api": "playwright test --project=api",
+    "build:cf": "opennextjs-cloudflare build",
+    "preview:cf": "opennextjs-cloudflare preview",
+    "deploy:cf": "opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@event-calendar/core": "^5.6.1",
@@ -68,6 +71,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.19.11",
     "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
@@ -80,6 +84,7 @@
     "@types/supertest": "^7.2.0",
     "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.0",
+    "chromium-bidi": "^16.0.1",
     "dotenv": "^17.3.1",
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.0.0",
@@ -95,6 +100,7 @@
     "tailwindcss": "^3.4.0",
     "ts-jest": "^29.2.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "wrangler": "^4.101.0"
   }
 }
