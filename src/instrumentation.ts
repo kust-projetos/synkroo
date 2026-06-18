@@ -7,16 +7,24 @@
  * Edge-compatible: sem APIs Node (Buffer/fs). Apenas console + import dinâmico.
  */
 export async function register() {
-  // Dynamic import: evita que o webpack resolva next-auth → crypto na bundle do Workers
-  const { bootstrapActions } = await import('@/core/actions/bootstrap');
-  bootstrapActions();
+  // Bootstrap lazy: dynamic import para evitar que edge runtime tente carregar pg.
+  // Se falhar (ex: edge sem pg), logamos warning e seguimos.
+  try {
+    const { bootstrapActions } = await import('@/core/actions/bootstrap');
+    await bootstrapActions();
+  } catch (err) {
+    console.warn(
+      '[synkroo:boot] bootstrapActions skipped:',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
   // Detecção de runtime (apenas logging — não gating)
   if (typeof EdgeRuntime !== 'undefined') {
-    console.log('[synkroo:boot] Workers runtime (EdgeRuntime)');
+    console.warn('[synkroo:boot] Workers runtime (EdgeRuntime)');
   } else if (process.env.NEXT_RUNTIME === 'nodejs') {
-    console.log('[synkroo:boot] Node.js runtime (NEXT_RUNTIME)');
+    console.warn('[synkroo:boot] Node.js runtime (NEXT_RUNTIME)');
   } else {
-    console.log('[synkroo:boot] Unknown runtime');
+    console.warn('[synkroo:boot] Unknown runtime');
   }
 }
