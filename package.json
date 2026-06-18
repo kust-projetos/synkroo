@@ -84,6 +84,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.1.0",
+    "eslint-plugin-boundaries": "^6.0.2",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^30.4.1",
     "playwright": "^1.48.0",
