@@ -90,7 +90,42 @@ npm run deploy:cf
 # Requer CLOUDFLARE_API_TOKEN no ambiente
 ```
 
----
+### Smoke Staging Checklist
+
+Após cada deploy em staging, executar estes comandos para validar o runtime:
+
+```bash
+# 1. Health check básico (deve retornar 200 com status ok)
+curl -s https://synkroo-staging.<subdomain>.workers.dev/api/health | jq .
+# Esperado: {"ok":true,"timestamp":"...","runtime":"workerd"}
+
+# 2. API pública (GET route handler)
+curl -s https://synkroo-staging.<subdomain>.workers.dev/api/spike | jq .
+# Esperado: {"ok":true,"route":"/api/spike","runtime":"workerd","timestamp":"..."}
+
+# 3. Auth — sem sessão, deve redirecionar para /login (302)
+curl -I https://synkroo-staging.<subdomain>.workers.dev/dashboard 2>&1 | grep -i location
+
+# 4. Login (obter cookie de sessão)
+curl -v -X POST https://synkroo-staging.<subdomain>.workers.dev/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"owner@clinica.com","password":"..."}' 2>&1 | grep -i set-cookie
+
+# 5. Painel admin com sessão (substituir <cookie> pelo valor do passo 4)
+curl -s https://synkroo-staging.<subdomain>.workers.dev/dashboard/configuracoes/acessos \
+  -H "Cookie: <cookie>" | head -20
+# Esperado: HTML com "Usuários e acessos" no body
+
+# 6. Server Action (exercitar runAction → INSERT em action_logs)
+curl -s -X POST https://synkroo-staging.<subdomain>.workers.dev/dashboard/configuracoes/acessos/perfis \
+  -H "Content-Type: text/plain;charset=UTF-8" \
+  -H "Next-Action: <action-id>" \
+  -H "Cookie: <cookie>" \
+  -d '[...]' | jq .
+# Esperado: {"ok":true,"data":{"id":"..."}} ou erro RBAC com code "core:manage_users"
+```
+
+> ⚠️ Smoke runtime NÃO executado neste build (sem Cloudflare account). Checklist acima é referência para staging real com conta provisionada.
 
 ## 4. Smoke Test Pós-Deploy
 
