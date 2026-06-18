@@ -26,14 +26,10 @@ export async function GET(request: NextRequest) {
   const criticalEnvVars = {
     DATABASE_URL: !!process.env.DATABASE_URL,
   }
-  const optionalEnvVars = {
-    MINIMAX_API_KEY: !!process.env.MINIMAX_API_KEY,
-  }
   const allCriticalSet = Object.values(criticalEnvVars).every(Boolean)
-  const allOptionalSet = Object.values(optionalEnvVars).every(Boolean)
   checks.environment = {
-    status: allCriticalSet ? (allOptionalSet ? 'ok' : 'warning') : 'error',
-    ...criticalEnvVars, ...optionalEnvVars,
+    status: allCriticalSet ? 'ok' : 'error',
+    ...criticalEnvVars,
   }
 
   const allChecksPassed = Object.values(checks).every((c) => c.status === 'ok' || c.status === 'warning')
