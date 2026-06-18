@@ -5,18 +5,6 @@
 import { NextRequest } from 'next/server'
 import { POST, GET } from '@/app/api/instagram/webhook/route'
 
-// Mock dependencies
-jest.mock('@/lib/minimax', () => ({
-  minimax: {
-    classifyIntent: jest.fn(() =>
-      Promise.resolve({ intent: 'duvida', confidence: 0.85, entities: {} })
-    ),
-    extractEntities: jest.fn(() => Promise.resolve({})),
-    shouldEscalate: jest.fn(() => Promise.resolve(false)),
-    generateResponse: jest.fn(() => Promise.resolve('Resposta de teste')),
-  },
-}))
-
 // Mock rate-limit to always allow
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn(() => ({
