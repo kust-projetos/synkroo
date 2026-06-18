@@ -1,0 +1,34 @@
+# Synkroo — Cloudflare Workers config
+# Consolidação do spike W4.1 + Hyperdrive (W4.2) + placeholders Vectorize/KV (W4.4)
+name = "synkroo"
+main = ".open-next/worker.js"
+compatibility_date = "2025-06-18"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# ── Bindings ──────────────────────────────────────────
+
+# Hyperdrive: pooler para Postgres (connection string real provisionada no Cloudflare dashboard)
+# O binding é consumido por setDbConnectionString() em src/lib/db/client.ts (W4.2)
+# [[hyperdrive]]
+# binding = "HYPERDRIVE"
+# id = "<HYPERDRIVE_ID>"
+# localConnectionString = "postgres://synkroo:synkroo_dev@localhost:55432/synkroo"
+
+# TODO(W4.4): Vectorize para embeddings RAG
+# [[vectorize]]
+# binding = "VECTORIZE_INDEX"
+# index_name = "synkroo-embeddings"
+
+# TODO(W4.4): KV para cache de sessão e incremental cache
+# [[kv_namespaces]]
+# binding = "SYNKROO_CACHE"
+# id = "<KV_ID>"
+
+# ── Environment vars ──────────────────────────────────
+
+[vars]
+NODE_ENV = "production"

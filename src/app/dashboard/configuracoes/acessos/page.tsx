@@ -3,6 +3,8 @@ import { buildUserContext } from '@/core/actions';
 import { getGroupedCatalog } from '@/core/rbac/grouped-catalog';
 import { UserAccessForm } from '@/modules/core/ui/UserAccessForm';
 
+export const dynamic = 'force-dynamic';
+
 export default async function AcessosPage() {
   const ctx = await buildUserContext();
   if (!ctx.can('core:manage_users')) redirect('/dashboard');
