@@ -2,6 +2,7 @@ import { getDb } from '@/lib/db/client';
 import { roles, rolePermissions, permissions } from '@/lib/db/schema/rbac';
 import { getPermissionCatalog } from './catalog';
 import { SYSTEM_PRESETS, RESERVED_ROLE_OWNER, type PresetDef } from './presets';
+import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from './agent-access';
 
 export function buildPresetPermissions(preset: PresetDef): string[] {
   const catalog = getPermissionCatalog();
@@ -21,8 +22,10 @@ export async function seedRbacForClinic(clinicId: string): Promise<void> {
     await db.insert(permissions).values(catalog).onConflictDoNothing();
   }
   // Owner: role reservado com todas as permissões (resolveAccess dá bypass; gravamos p/ consistência)
+  // Agente: role de sistema para o principal `system` (IA autônoma)
   const presets: Array<{ name: string; description: string; keys: string[] }> = [
     { name: RESERVED_ROLE_OWNER, description: 'Dono da clínica.', keys: catalog.map((p) => p.key).filter((k) => !k.startsWith('master:')) },
+    { name: AGENT_ROLE_NAME, description: 'Agente de IA (autônomo).', keys: DEFAULT_AGENT_PERMISSIONS },
     ...SYSTEM_PRESETS.map((p) => ({ name: p.name, description: p.description, keys: buildPresetPermissions(p) })),
   ];
   for (const preset of presets) {
