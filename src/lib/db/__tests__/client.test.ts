@@ -10,7 +10,7 @@ describe('DB client — connection string resolution', () => {
   afterEach(async () => {
     // Reset internal state between tests
     setDbConnectionString(null);
-    delete process.env.DATABASE_URL;
+    delete (process.env as any).DATABASE_URL;
     await closeDb();
   });
 
