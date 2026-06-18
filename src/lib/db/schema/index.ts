@@ -14,3 +14,4 @@ export * from './business';
 export * from './agent';
 export * from './infra';
 export * from './audit';
+export * from './rbac';
