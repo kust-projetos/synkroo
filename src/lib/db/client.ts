@@ -9,7 +9,7 @@
 // ──────────────────────────────────────────────
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import * as schema from './schema';
+import * as schema from './schema/index';
 
 let _hyperdriveConnString: string | null = null;
 let _pool: Pool | null = null;
