@@ -1,4 +1,4 @@
-import { getActions } from '@/core/actions';
+import { getActions } from '@/core/actions/registry';
 
 export interface PermissionEntry { key: string; module: string; label: string; }
 

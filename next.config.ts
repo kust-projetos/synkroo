@@ -1,8 +1,8 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  // Externalizar deps incompatíveis com Workers runtime (playwright é native module)
-  serverExternalPackages: ['playwright', 'playwright-core', 'chromium-bidi'],
+  // Externalizar deps com APIs Node (fs/path/stream) — Workers fornece polyfills via nodejs_compat
+  serverExternalPackages: ['playwright', 'playwright-core', 'chromium-bidi', 'pg', 'pg-connection-string', 'pgpass'],
 
   experimental: {
     serverActions: {
@@ -16,12 +16,15 @@ const nextConfig: NextConfig = {
 
   webpack: (config, { isServer }) => {
     if (isServer) {
-      // Externizar playwright e deps de browser para evitar falha de bundle no Workers
+      // Externizar deps com APIs Node — Workers fornece polyfills via nodejs_compat
       config.externals = [
         ...config.externals,
         'playwright',
         'playwright-core',
         'chromium-bidi',
+        'pg',
+        'pg-connection-string',
+        'pgpass',
       ];
     }
     return config;
