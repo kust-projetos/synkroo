@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { getDb } from '@/lib/db/client'
-import { conversations, messages } from '@/lib/db/schema'
-import { eq, and } from 'drizzle-orm'
-import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
 import * as conversationRepo from '@/repositories/conversations'
@@ -36,7 +32,10 @@ interface InboundMessage {
 
 /**
  * POST /api/messages/inbound
- * Receive an inbound message and process with AI
+ * Generic inbound message webhook.
+ *
+ * Legacy agent removed — AI processing disabled.
+ * TODO(W5.3): reconnect to new agent.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -83,84 +82,27 @@ export async function POST(request: NextRequest) {
       isAi: false,
     })
 
-    // Capture lead from WhatsApp (best-effort, does not block message flow)
-    try {
-      const { captureLeadFromWhatsApp } = await import('@/services/leads/leads.service')
-      await captureLeadFromWhatsApp(from, message, clinicId)
-    } catch (leadError) {
-      console.error('Lead capture failed:', leadError)
-    }
-
-    const llm = getLLMProvider()
-
-    // 1. Classify intent
-    const { intent, confidence, entities } = await llm.classifyIntent(message)
-
-    // 2. Extract entities
-    const extractedEntities = await llm.extractEntities(message)
-
-    // 3. Update message with intent and entities
-    await conversationRepo.updateMessage(savedMessage.id, {
-      intent,
-      entities: { ...entities, ...extractedEntities },
-      confidence: confidence != null ? String(confidence) : null,
-    } as Record<string, unknown>)
-
-    // 4. Check if escalation needed
-    const shouldEscalate = await llm.shouldEscalate(message, intent)
-
-    if (shouldEscalate) {
-      await conversationRepo.updateConversation(conversationId, { status: 'escalated' })
-
-      return NextResponse.json({
-        success: true,
-        message: { id: savedMessage.id, conversation_id: savedMessage.conversationId, direction: savedMessage.direction, content: savedMessage.content, created_at: savedMessage.createdAt },
-        intent,
-        confidence,
-        entities: extractedEntities,
-        action: 'escalate',
-        response: 'Entendi! Vou transferir você para um atendente humano. Aguarde um momento, por favor.',
-      })
-    }
-
-    // 5. Get conversation history for context
-    const historyRows = await conversationRepo.findMessagesByConversation(conversationId, { limit: 10 })
-    const conversationHistory = historyRows.map(m => ({
-      role: m.direction === 'inbound' ? 'user' : 'assistant',
-      content: m.content,
-    })) as { role: 'user' | 'assistant'; content: string }[]
-
-    // 6. Generate AI response
-    const aiResponse = await llm.generateResponse(message, {
-      intent,
-      entities: extractedEntities,
-      conversationHistory,
-    })
-
-    // 7. Store AI response
-    const responseMessage = await conversationRepo.createMessage({
+    // AI response disabled — legacy agent removed
+    // TODO(W5.3): reconnect to new agent
+    console.warn('[messages/inbound] Message stored (AI disabled)', {
+      clinicId,
+      from,
       conversationId,
-      direction: 'outbound',
-      content: aiResponse,
-      messageType: 'text',
-      intent,
-      entities: extractedEntities,
-      confidence: confidence != null ? String(confidence) : null,
-      isAi: true,
+      reason: 'legacy_agent_removed',
     })
-
-    // 8. Update conversation last_message_at
-    await conversationRepo.updateConversation(conversationId, { lastMessageAt: new Date() })
 
     return NextResponse.json({
       success: true,
-      message: { id: savedMessage.id, conversation_id: savedMessage.conversationId, direction: savedMessage.direction, content: savedMessage.content, created_at: savedMessage.createdAt },
-      intent,
-      confidence,
-      entities: extractedEntities,
-      action: 'respond',
-      response: aiResponse,
-      responseMessage: { id: responseMessage.id, conversation_id: responseMessage.conversationId, direction: responseMessage.direction, content: responseMessage.content, created_at: responseMessage.createdAt },
+      ai_enabled: false,
+      reason: 'legacy_agent_removed',
+      todo: 'TODO(W5.3): reconnect to new agent',
+      message: {
+        id: savedMessage.id,
+        conversation_id: savedMessage.conversationId,
+        direction: savedMessage.direction,
+        content: savedMessage.content,
+        created_at: savedMessage.createdAt,
+      },
     })
   } catch (error) {
     return handleApiError(error)
