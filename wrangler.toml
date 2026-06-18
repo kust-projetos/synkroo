@@ -1,5 +1,5 @@
 # Synkroo — Cloudflare Workers config
-# Consolidação do spike W4.1 + Hyperdrive (W4.2) + placeholders Vectorize/KV (W4.4)
+# Consolidação W4.1 (spike) + Hyperdrive (W4.2) + Vectorize/KV (W4.4)
 name = "synkroo"
 main = ".open-next/worker.js"
 compatibility_date = "2025-06-18"
@@ -11,22 +11,27 @@ binding = "ASSETS"
 
 # ── Bindings ──────────────────────────────────────────
 
-# Hyperdrive: pooler para Postgres (connection string real provisionada no Cloudflare dashboard)
-# O binding é consumido por setDbConnectionString() em src/lib/db/client.ts (W4.2)
-# [[hyperdrive]]
-# binding = "HYPERDRIVE"
-# id = "<HYPERDRIVE_ID>"
+# Hyperdrive: pooler para Postgres.
+# Provisionar: npx wrangler hyperdrive create synkroo-db --connection-string="postgres://..."
+# Depois colar o ID gerado no campo id abaixo.
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "PLACEHOLDER_HYPERDRIVE_ID"
 # localConnectionString = "postgres://synkroo:synkroo_dev@localhost:55432/synkroo"
 
-# TODO(W4.4): Vectorize para embeddings RAG
-# [[vectorize]]
-# binding = "VECTORIZE_INDEX"
-# index_name = "synkroo-embeddings"
+# Vectorize: index de embeddings para RAG (consumido no W5).
+# Provisionar: npx wrangler vectorize create synkroo-embeddings --dimensions=768 --metric=cosine
+# Dimensão: 768 (default conservador para embeddings multilíngue; confirmar em W5).
+[[vectorize]]
+binding = "VECTORIZE_INDEX"
+index_name = "synkroo-embeddings"
 
-# TODO(W4.4): KV para cache de sessão e incremental cache
-# [[kv_namespaces]]
-# binding = "SYNKROO_CACHE"
-# id = "<KV_ID>"
+# KV: cache de sessão e incremental cache (substitui incrementalCache dummy).
+# Provisionar: npx wrangler kv namespace create SYNKROO_CACHE
+# O ID de preview é gerado automaticamente no dashboard.
+[[kv_namespaces]]
+binding = "SYNKROO_CACHE"
+id = "PLACEHOLDER_KV_ID"
 
 # ── Environment vars ──────────────────────────────────
 
