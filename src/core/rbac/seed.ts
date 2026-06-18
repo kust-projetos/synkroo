@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db/client';
 import { roles, rolePermissions, permissions } from '@/lib/db/schema/rbac';
 import { getPermissionCatalog } from './catalog';
+import { and, eq } from 'drizzle-orm';
 import { SYSTEM_PRESETS, RESERVED_ROLE_OWNER, type PresetDef } from './presets';
 import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from './agent-access';
 
@@ -29,6 +30,13 @@ export async function seedRbacForClinic(clinicId: string): Promise<void> {
     ...SYSTEM_PRESETS.map((p) => ({ name: p.name, description: p.description, keys: buildPresetPermissions(p) })),
   ];
   for (const preset of presets) {
+    // Idempotência: verifica se o role já existe antes de inserir
+    const existing = await db.select({ id: roles.id })
+      .from(roles)
+      .where(and(eq(roles.clinicId, clinicId), eq(roles.name, preset.name)))
+      .limit(1);
+    if (existing.length) continue;
+
     const [row] = await db.insert(roles)
       .values({ clinicId, name: preset.name, description: preset.description, isSystem: true })
       .returning({ id: roles.id });
