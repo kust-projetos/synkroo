@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction, registerActions, clearRegistry } from '@/core/actions';
 import { buildPresetPermissions } from '../seed';
+import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from '../agent-access';
 
 beforeEach(() => clearRegistry());
 
@@ -13,4 +14,13 @@ it('expands a preset module list into concrete permission keys from the catalog'
   expect(keys).toContain('operacional:create');
   expect(keys).toContain('comercial:view');
   expect(keys).not.toContain('financeiro:create');
+});
+
+it('agent role has conservative default permissions', () => {
+  expect(AGENT_ROLE_NAME).toBe('Agente');
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:create');
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('comercial:view');
+  // conservador: não inclui permissões financeiras
+  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('financeiro:delete');
+  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('financeiro:create');
 });
