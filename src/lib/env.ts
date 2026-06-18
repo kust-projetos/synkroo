@@ -22,8 +22,6 @@ const envSchema = z.object({
   AUTH_URL: z.string().url().optional(),
   JWT_SECRET: z.string().min(16),
 
-  // LLM (required for AI features)
-  MINIMAX_API_KEY: z.string().min(1),
 
   // WhatsApp (required for WhatsApp integration)
   WHATSAPP_VERIFY_TOKEN: z.string().min(8),
@@ -76,7 +74,6 @@ export function getEnv(): Env {
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_URL: process.env.AUTH_URL,
     JWT_SECRET: process.env.JWT_SECRET,
-    MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
     WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
     WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET,
     WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
@@ -123,7 +120,6 @@ export function getEnv(): Env {
         AUTH_SECRET: process.env.AUTH_SECRET,
         AUTH_URL: process.env.AUTH_URL,
         JWT_SECRET: process.env.JWT_SECRET || '',
-        MINIMAX_API_KEY: process.env.MINIMAX_API_KEY || '',
         WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || '',
         WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET || '',
         EVOLUTION_INSTANCE_NAME: 'synkroo',
