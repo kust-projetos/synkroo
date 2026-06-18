@@ -1,10 +1,6 @@
 'use client'
 
 import { Sidebar, MobileSidebar } from '@/lib/ui/sidebar'
-import { ChatWidget } from '@/components/chat-widget'
-
-// Demo clinic ID - in production this would come from the clinic's subdomain or settings
-const DEMO_CLINIC_ID = '1e211b5d-d8a9-44ef-a5c7-5ce6c583218a'
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -26,13 +22,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
 
-      {/* Chat Widget - Available on all dashboard pages */}
-      <ChatWidget
-        clinicId={DEMO_CLINIC_ID}
-        clinicName="Clínica Demo"
-        position="bottom-right"
-        greeting="Olá! Sou a Mia, assistente virtual da Clínica Demo. Como posso ajudar?"
-      />
+
     </div>
   )
 }
