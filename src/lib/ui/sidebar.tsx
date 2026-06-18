@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth/context"
+import { coreManifest } from "@/modules/core/manifest"
 import {
   Squares2X2Icon,
   UsersIcon,
@@ -45,12 +46,49 @@ const COLLAPSED_KEY = "synkroo_sidebar_collapsed"
 interface NavItem {
   name: string
   href: string
-  icon: React.ForwardRefExoticComponent<React.SVGProps<SVGSVGElement>>
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>
   section: "principal" | "comunicacao" | "gestao" | "crm"
   badge?: {
     count: number
     variant: "zinc" | "teal" | "amber" | "blue" | "red" | "pill-teal"
   }
+}
+
+// Mapeamento de nome → componente Heroicons para itens do menu modular (coreManifest).
+// Extensível quando outros módulos adicionarem `menu` ao seu manifest.
+const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+  Cog6ToothIcon,
+  UsersIcon,
+  ChartBarIcon,
+  FlagIcon,
+  MegaphoneIcon,
+  Squares2X2Icon,
+  CalendarDaysIcon,
+  ClockIcon,
+  IdentificationIcon,
+  WrenchScrewdriverIcon,
+  ChatBubbleLeftRightIcon,
+  CheckCircleIcon,
+}
+
+/**
+ * Constrói itens de menu a partir de `coreManifest.menu` (W6).
+ * Baseline: `can` verifica apenas se o usuário está autenticado.
+ * TODO(W7+): integrar `resolveAccess` para verificação real de permissões por-role.
+ */
+function buildCoreNavItems(profile: ReturnType<typeof useAuth>['profile']): NavItem[] {
+  if (!profile) return []
+  // Baseline can: todos os itens do core visíveis para usuário autenticado.
+  // Futuramente: `can = (permission) => resolveAccess(userId, clinicId, repo).then(r => r.can(permission))`
+  const can = (_permission: string) => true
+  return coreManifest.menu
+    .filter((item) => can(item.permission))
+    .map((item) => ({
+      name: item.label,
+      href: (item as Record<string, unknown>).path as string ?? `/${item.label}`,
+      icon: ICON_MAP[(item as Record<string, unknown>).icon as string] ?? Cog6ToothIcon,
+      section: 'gestao' as const,
+    }))
 }
 
 const navItems: NavItem[] = [
@@ -69,7 +107,7 @@ const navItems: NavItem[] = [
   { name: "Analytics", href: "/dashboard/analytics", icon: ChartBarIcon, section: "gestao" },
   { name: "Dentistas", href: "/dashboard/dentistas", icon: IdentificationIcon, section: "gestao" },
   { name: "Procedimentos", href: "/dashboard/procedimentos", icon: WrenchScrewdriverIcon, section: "gestao" },
-  { name: "Configuracoes", href: "/dashboard/configuracoes", icon: Cog6ToothIcon, section: "gestao" },
+  // "Configuracoes" e "Usuários e acessos" agora vêm de buildCoreNavItems (coreManifest.menu)
 ]
 
 const sectionLabels = {
@@ -155,6 +193,18 @@ function SidebarContent({
 
   const sections = ["principal", "crm", "gestao"] as const
 
+  // Itens de menu vindos de coreManifest (W6 — menu modular).
+  // Baseline: inclui todos os itens do core para usuário autenticado.
+  // Futura migração: coletar manifests dos módulos registrados + filtrar por `can` via resolveAccess.
+  const coreNavItems = buildCoreNavItems(profile ?? null)
+
+  const allNavItems = [
+    ...navItems,
+    ...coreNavItems.filter(
+      (ci) => !navItems.some((ni) => ni.href === ci.href)
+    ),
+  ]
+
   return (
     <div className={cn(
       "flex flex-col h-full transition-all duration-200",
@@ -187,7 +237,7 @@ function SidebarContent({
       <nav className="flex-1 overflow-y-auto px-3 py-1">
         <TooltipProvider>
           {sections.map((section, si) => {
-            const sectionItems = navItems.filter(i => i.section === section)
+            const sectionItems = allNavItems.filter(i => i.section === section)
             return (
               <div key={section} className={cn(si > 0 && "mt-2")}>
                 {!collapsed && (
