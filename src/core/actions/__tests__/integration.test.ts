@@ -36,7 +36,7 @@ const testAction = defineAction({
 
 const validCtx: ActionContext = {
   source: 'system',
-  clinicId: '022fac1f-e0cb-48f4-ab71-dbba4398310c', // Clínica Demo
+  clinicId: '00000000-0000-0000-0000-000000000001', // Test Clinic (seeded in local DB)
   can: () => true,
   hasModule: () => true,
   audit: { actor: 'test-runner' },
