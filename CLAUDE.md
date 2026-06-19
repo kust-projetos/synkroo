@@ -26,8 +26,9 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 | `npm test` | Jest unit/integration tests |
 | `npm run test:e2e` | Playwright E2E |
 | `npm run db:push` | Push schema Drizzle |
-| `npm run db:reset` | Reset local DB |
+| `npm run db:reset` | Reset local DB (aguarda container healthy via `--wait`) |
 | `npm run db:health` | Health check do banco |
+| `npm run test:integration` | Jest integration tests contra Postgres local real |
 | `npm run whatsapp:start` | WhatsApp CLI (QR code) |
 | `npm run health` | Health check |
 

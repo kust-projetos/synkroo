@@ -112,3 +112,6 @@ nul
 *weekprof.txt
 dayprof_after.txt
 .dev.vars
+
+# OpenNext Cloudflare build artifacts
+.open-next/

@@ -17,6 +17,7 @@ binding = "ASSETS"
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "be5a789a003e4f08a94a82dffbb091be"
+localConnectionString = "postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo"
 
 # Vectorize: index de embeddings para RAG (consumido no W5).
 # Provisionar: npx wrangler vectorize create synkroo-embeddings --dimensions=768 --metric=cosine
