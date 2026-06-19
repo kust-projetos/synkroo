@@ -279,10 +279,10 @@ export default function InactivePatientsPage() {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
                         <span className="text-foreground font-medium">
-                          {patient.patientName.charAt(0).toUpperCase()}
+                          {(patient.patientName ?? 'P').charAt(0).toUpperCase()}
                         </span>
                       </div>
-                      <span className="font-medium text-foreground">{patient.patientName}</span>
+                      <span className="font-medium text-foreground">{patient.patientName ?? 'Paciente'}</span>
                     </div>
                   </TableCell>
                   <TableCell>

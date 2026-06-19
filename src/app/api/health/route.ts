@@ -1,88 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from '@/lib/supabase'
+import { sql } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
 
-/**
- * GET /api/health
- * Health check endpoint for database and services
- */
 export async function GET(request: NextRequest) {
   const startTime = Date.now()
   const checks: Record<string, { status: string; latency?: number; error?: string }> = {}
 
-  // Check database connection
+  // Database check via Drizzle
   try {
-    const supabase = createServerClient()
+    const db = getDb()
     const dbStart = Date.now()
-
-    // Simple query to test connection
-    const { data, error } = await supabase
-      .from('clinics')
-      .select('id')
-      .limit(1)
-
+    const result = await db.execute(sql`SELECT 1 FROM clinics LIMIT 1`)
     const dbLatency = Date.now() - dbStart
 
-    if (error) {
-      // Check if it's a "table doesn't exist" error
-      if (false) { /* 42P01 — legacy Supabase error code */
-        checks.database = {
-          status: 'warning',
-          latency: dbLatency,
-          error: 'Tables not created. Run migrations: npx supabase db push',
-        }
-      } else {
-        checks.database = {
-          status: 'error',
-          latency: dbLatency,
-          error: error.message,
-        }
-      }
+    if (result) {
+      checks.database = { status: 'ok', latency: dbLatency }
     } else {
-      checks.database = {
-        status: 'ok',
-        latency: dbLatency,
-      }
+      checks.database = { status: 'warning', latency: dbLatency, error: 'Empty result' }
     }
   } catch (error) {
-    checks.database = {
-      status: 'error',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+    checks.database = { status: 'error', error: error instanceof Error ? error.message : 'Unknown error' }
   }
 
-  // Check environment variables (critical vs optional)
+  // Environment variables check
   const criticalEnvVars = {
-    NEXT_PUBLIC_SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+    DATABASE_URL: !!process.env.DATABASE_URL,
   }
-  const optionalEnvVars = {
-    MINIMAX_API_KEY: !!process.env.MINIMAX_API_KEY,
-  }
-
   const allCriticalSet = Object.values(criticalEnvVars).every(Boolean)
-  const allOptionalSet = Object.values(optionalEnvVars).every(Boolean)
-
   checks.environment = {
-    status: allCriticalSet ? (allOptionalSet ? 'ok' : 'warning') : 'error',
+    status: allCriticalSet ? 'ok' : 'error',
     ...criticalEnvVars,
-    ...optionalEnvVars,
   }
 
-  // Overall status — only critical failures cause 503
-  const allChecksPassed = Object.values(checks).every(
-    (check) => check.status === 'ok' || check.status === 'warning'
-  )
-
-  const totalLatency = Date.now() - startTime
-
+  const allChecksPassed = Object.values(checks).every((c) => c.status === 'ok' || c.status === 'warning')
   return NextResponse.json({
     status: allChecksPassed ? 'healthy' : 'unhealthy',
     timestamp: new Date().toISOString(),
-    latency: totalLatency,
+    latency: Date.now() - startTime,
     version: '1.0.0',
     checks,
-  }, {
-    status: allChecksPassed ? 200 : 503,
-  })
+  }, { status: allChecksPassed ? 200 : 503 })
 }

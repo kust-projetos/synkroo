@@ -82,19 +82,6 @@ jest.mock('@/lib/db/client', () => {
   }
 })
 
-jest.mock('@/lib/llm', () => ({
-  getLLMProvider: () => ({
-    classifyIntent: jest.fn().mockResolvedValue({
-      intent: 'agendamento',
-      confidence: 0.9,
-      entities: {},
-    }),
-    extractEntities: jest.fn().mockResolvedValue({}),
-    shouldEscalate: jest.fn().mockResolvedValue(false),
-    generateResponse: jest.fn().mockResolvedValue('Olá! Como posso ajudar?'),
-  }),
-}))
-
 jest.mock('@/services/appointments/confirmation-handler.service', () => ({
   processConfirmationResponse: jest.fn().mockResolvedValue({
     processed: false,

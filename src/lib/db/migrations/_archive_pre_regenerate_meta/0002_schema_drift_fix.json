@@ -1,0 +1,18 @@
+{
+  "id": "0002_schema_drift_fix",
+  "prevId": "0001_patient_preferences_migration",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {},
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "schemas": {},
+    "tables": {},
+    "columns": {}
+  }
+}

@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, numeric, pgTable, text, time, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { clinics, dentists, patients, procedures, users } from './core';
 import { appointmentStatus } from './enums';
 
@@ -15,6 +15,11 @@ export const appointments = pgTable('appointments', {
   durationMinutes: integer('duration_minutes').default(30),
   status: appointmentStatus('status').notNull().default('scheduled'),
   notes: text('notes'),
+  totalValue: numeric('total_value', { precision: 10, scale: 2 }).default('0'),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  cancellationReason: text('cancellation_reason'),
+  rescheduledAt: timestamp('rescheduled_at', { withTimezone: true }),
+  rescheduleReason: text('reschedule_reason'),
   confirmationSentAt: timestamp('confirmation_sent_at', { withTimezone: true }),
   reminderSentAt: timestamp('reminder_sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
@@ -71,4 +76,27 @@ export const waitlist = pgTable('waitlist', {
   scheduledAppointmentId: uuid('scheduled_appointment_id').references(() => appointments.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// ──────────────────────────────────────────────
+// APPOINTMENT REMINDER CONFIGS
+// ──────────────────────────────────────────────
+export const appointmentReminderConfigs = pgTable('appointment_reminder_configs', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').notNull().references(() => clinics.id, { onDelete: 'cascade' }),
+  procedureTypeId: uuid('procedure_type_id').notNull(),
+  hoursBefore: integer('hours_before').notNull(),
+  messageTemplate: text('message_template').notNull(),
+  enabled: boolean('enabled').default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+// ──────────────────────────────────────────────
+// PROCEDURE TYPES
+// ──────────────────────────────────────────────
+export const procedureTypes = pgTable('procedure_types', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });

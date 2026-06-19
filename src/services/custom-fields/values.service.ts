@@ -1,215 +1,89 @@
-/**
- * Custom Field Values Service
- * Get/set custom field values for contacts (patients/leads)
- */
-
-import { createTypedClient } from '@/lib/supabase/typed'
+/** Custom Field Values Service — migrated to Drizzle */
+import { eq, and } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { customFieldDefinitions, customFieldValues } from '@/lib/db/schema/infra'
 import { dbLogger } from '@/lib/logger'
-import type {
-  CustomFieldValue,
-  FieldValueInput,
-} from './types'
+import type { CustomFieldValue, FieldValueInput } from './types'
 
 type ContactType = 'patient' | 'lead'
 
-/**
- * Get all custom field values for a contact
- */
-export async function getValuesForContact(
-  clinicId: string,
-  contactId: string,
-  contactType: ContactType
-): Promise<CustomFieldValue[]> {
-  const supabase = await createTypedClient()
+const CFL = customFieldDefinitions
+const CFV = customFieldValues
 
-  try {
-    const { data, error } = await supabase
-      .from('custom_field_values')
-      .select('*, field_name:custom_field_definitions(name), field_type:custom_field_definitions(field_type)')
-      .eq('contact_id', contactId)
-      .eq('contact_type', contactType)
-      .eq('clinic_id', clinicId)
-
-    if (error) throw error
-    return data || []
-  } catch (error) {
-    dbLogger.error('Error getting custom field values for contact', error)
-    throw error
+function toSnake(r: any): CustomFieldValue {
+  return {
+    id: r.id,
+    clinic_id: r.clinicId ?? '',
+    contact_id: r.contactId ?? '',
+    contact_type: r.contactType ?? '',
+    definition_id: r.definitionId ?? '',
+    value_text: r.valueText ?? null,
+    value_number: r.valueNumber ?? null,
+    value_date: r.valueDate?.toISOString?.() ?? null,
+    value_boolean: r.valueBoolean ?? null,
+    value_json: r.valueJson ?? null,
   }
 }
 
-/**
- * Upsert custom field values for a contact
- * Takes array of { definition_id, value } and inserts/updates accordingly
- */
-export async function upsertValues(
-  clinicId: string,
-  contactId: string,
-  contactType: ContactType,
-  values: FieldValueInput[]
-): Promise<CustomFieldValue[]> {
-  const supabase = await createTypedClient()
-
-  if (!values || values.length === 0) {
-    return []
-  }
-
+export async function getValuesForContact(clinicId: string, contactId: string, contactType: ContactType): Promise<CustomFieldValue[]> {
+  const db = getDb()
   try {
-    const results: CustomFieldValue[] = []
-
-    for (const input of values) {
-      const { definition_id, value } = input
-
-      // Get field type from definition to know which column to use
-      const { data: def } = await supabase
-        .from('custom_field_definitions')
-        .select('field_type')
-        .eq('id', definition_id)
-        .eq('clinic_id', clinicId)
-        .single() as any
-
-      if (!def) {
-        dbLogger.warn(`Definition ${definition_id} not found, skipping`)
-        continue
-      }
-
-      const valueRecord: Record<string, unknown> = {
-        clinic_id: clinicId,
-        contact_id: contactId,
-        contact_type: contactType,
-        definition_id,
-      }
-
-      // Clear all value columns first
-      valueRecord.value_text = null
-      valueRecord.value_number = null
-      valueRecord.value_date = null
-      valueRecord.value_boolean = null
-      valueRecord.value_json = null
-
-      // Set the appropriate column based on field type
-      switch (def.field_type) {
-        case 'text':
-          valueRecord.value_text = String(value ?? '')
-          break
-        case 'number':
-          valueRecord.value_number = value !== null && value !== '' ? Number(value) : null
-          break
-        case 'date':
-          valueRecord.value_date = value ? String(value) : null
-          break
-        case 'checkbox':
-          valueRecord.value_boolean = Boolean(value)
-          break
-        case 'select':
-          valueRecord.value_json = value
-          break
-      }
-
-      // Upsert
-      const { data, error } = await (supabase
-        .from('custom_field_values') as any)
-        .upsert(valueRecord, {
-          onConflict: 'contact_id,definition_id,contact_type',
-        })
-        .select()
-        .single()
-
-      if (error) {
-        dbLogger.error(`Error upserting value for definition ${definition_id}`, error)
-        continue
-      }
-
-      results.push(data)
-    }
-
-    return results
-  } catch (error) {
-    dbLogger.error('Error upserting custom field values', error)
-    throw error
-  }
+    const rows = await db.select().from(CFV).where(and(eq(CFV.contactId, contactId), eq(CFV.contactType, contactType), eq(CFV.clinicId, clinicId)))
+    return rows.map(toSnake)
+  } catch (error) { dbLogger.error('Error getting custom field values for contact', error); throw error }
 }
 
-/**
- * Search contacts by custom field value
- * Returns contact IDs that match a specific custom field value
- */
-export async function searchByCustomField(
-  clinicId: string,
-  definitionId: string,
-  value: unknown
-): Promise<string[]> {
-  const supabase = await createTypedClient()
+export async function upsertValues(clinicId: string, contactId: string, contactType: ContactType, values: FieldValueInput[]): Promise<CustomFieldValue[]> {
+  const db = getDb()
+  if (!values.length) return []
+  const results: CustomFieldValue[] = []
 
-  try {
-    // First get field type
-    const { data: def } = await supabase
-      .from('custom_field_definitions')
-      .select('field_type')
-      .eq('id', definitionId)
-      .eq('clinic_id', clinicId)
-      .single() as any
+  for (const input of values) {
+    const { definition_id, value } = input
+    const [def] = await db.select({ fieldType: CFL.fieldType }).from(CFL).where(and(eq(CFL.id, definition_id), eq(CFL.clinicId, clinicId)))
+    if (!def) { dbLogger.warn(`Definition ${definition_id} not found, skipping`); continue }
 
-    if (!def) {
-      return []
+    const valueRecord: any = { clinicId, contactId, contactType, definitionId: definition_id, valueText: null, valueNumber: null, valueDate: null, valueBoolean: null, valueJson: null }
+
+    switch (def.fieldType) {
+      case 'text':   valueRecord.valueText = String(value ?? ''); break
+      case 'number': valueRecord.valueNumber = value !== null && value !== '' ? Number(value) : null; break
+      case 'date':   valueRecord.valueDate = value ? new Date(String(value)) : null; break
+      case 'checkbox': valueRecord.valueBoolean = Boolean(value); break
+      case 'select': valueRecord.valueJson = value; break
     }
 
-    let query = supabase
-      .from('custom_field_values')
-      .select('contact_id')
-      .eq('definition_id', definitionId)
-      .eq('clinic_id', clinicId)
-
-    // Apply value filter based on field type
-    switch (def.field_type) {
-      case 'text':
-        query = query.eq('value_text', String(value ?? '')) as typeof query
-        break
-      case 'number':
-        query = query.eq('value_number', Number(value)) as typeof query
-        break
-      case 'date':
-        query = query.eq('value_date', String(value)) as typeof query
-        break
-      case 'checkbox':
-        query = query.eq('value_boolean', Boolean(value)) as typeof query
-        break
-      case 'select':
-        query = query.eq('value_json', value as string) as typeof query
-        break
-    }
-
-    const { data, error } = await query
-
-    if (error) throw error
-    return (data || []).map((v: any) => v.contact_id)
-  } catch (error) {
-    dbLogger.error('Error searching by custom field', error)
-    throw error
+    try {
+      const [row] = await db.insert(CFV).values(valueRecord).onConflictDoUpdate({ target: [CFV.definitionId, CFV.contactId, CFV.contactType], set: valueRecord }).returning()
+      results.push(toSnake(row))
+    } catch (e) { dbLogger.error(`Error upserting value for definition ${definition_id}`, e) }
   }
+  return results
 }
 
-/**
- * Delete all custom field values for a contact
- */
-export async function deleteValuesForContact(
-  clinicId: string,
-  contactId: string,
-  contactType: ContactType
-): Promise<void> {
-  const supabase = await createTypedClient()
-
+export async function searchByCustomField(clinicId: string, definitionId: string, value: unknown): Promise<string[]> {
+  const db = getDb()
   try {
-    const { error } = await supabase
-      .from('custom_field_values')
-      .delete()
-      .eq('contact_id', contactId)
-      .eq('contact_type', contactType)
-      .eq('clinic_id', clinicId)
+    const [def] = await db.select({ fieldType: CFL.fieldType }).from(CFL).where(and(eq(CFL.id, definitionId), eq(CFL.clinicId, clinicId)))
+    if (!def) return []
 
-    if (error) throw error
-  } catch (error) {
-    dbLogger.error('Error deleting custom field values for contact', error)
-    throw error
-  }
+    const conditions = [eq(CFV.definitionId, definitionId), eq(CFV.clinicId, clinicId)]
+    switch (def.fieldType) {
+      case 'text':   conditions.push(eq(CFV.valueText, String(value ?? ''))); break
+      case 'number': conditions.push(eq(CFV.valueNumber, Number(value))); break
+      case 'date':   conditions.push(eq(CFV.valueDate, value ? new Date(String(value)) : null as any)); break
+      case 'checkbox': conditions.push(eq(CFV.valueBoolean, Boolean(value))); break
+      case 'select': conditions.push(eq(CFV.valueJson, value as any)); break
+    }
+
+    const rows = await db.select({ contactId: CFV.contactId }).from(CFV).where(and(...conditions))
+    return rows.map((r) => r.contactId)
+  } catch (error) { dbLogger.error('Error searching by custom field', error); throw error }
+}
+
+export async function deleteValuesForContact(clinicId: string, contactId: string, contactType: ContactType): Promise<void> {
+  const db = getDb()
+  try {
+    await db.delete(CFV).where(and(eq(CFV.contactId, contactId), eq(CFV.contactType, contactType), eq(CFV.clinicId, clinicId)))
+  } catch (error) { dbLogger.error('Error deleting custom field values for contact', error); throw error }
 }

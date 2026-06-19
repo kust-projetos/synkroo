@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
         if (!segment) return null
         return {
           patientId: p.id,
-          patientName: p.name,
+          patientName: p.name ?? 'Paciente',
           patientPhone: p.phone,
           lastVisit: p.lastVisitAt,
           daysSinceLastVisit: daysSince,

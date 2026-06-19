@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserProfile } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { convertLeadToPatient } from '@/services/leads/leads.service'
 
 // POST /api/leads/[id]/convert -- convert lead to patient
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const profile = await getUserProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
     const { id } = await params
     const body = await req.json()

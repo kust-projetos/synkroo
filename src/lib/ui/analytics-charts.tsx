@@ -7,6 +7,7 @@ import { DayOfWeekChartRecharts } from '@/components/charts/day-of-week-chart'
 import { TrendsChartRecharts } from '@/components/charts/trends-chart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CalendarDaysIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
+import { isMockMode, getMockForUrl } from '@/lib/mocks'
 
 interface AppointmentTrend {
   date: string
@@ -61,6 +62,14 @@ export function useAnalytics(clinicId: string | undefined) {
   const fetchInsights = async () => {
     try {
       setLoading(true)
+      if (isMockMode()) {
+        const data = getMockForUrl('/api/analytics/insights') as ClinicInsights | null
+        if (data) {
+          setInsights(data)
+          setError(null)
+          return
+        }
+      }
       const response = await fetch('/api/analytics/insights')
       if (!response.ok) {
         throw new Error('Failed to fetch analytics')
@@ -206,6 +215,14 @@ export function useROI(clinicId: string | undefined) {
   const fetchROI = async () => {
     try {
       setLoading(true)
+      if (isMockMode()) {
+        const data = getMockForUrl('/api/analytics/roi?period=month') as ROIMetricsData | null
+        if (data) {
+          setRoiData(data)
+          setError(null)
+          return
+        }
+      }
       const response = await fetch('/api/analytics/roi?period=month')
       if (!response.ok) {
         throw new Error('Failed to fetch ROI data')

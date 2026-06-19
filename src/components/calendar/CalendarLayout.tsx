@@ -6,6 +6,7 @@ import { useCallback, useEffect } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { useCalendarStore } from './store/calendar-store'
 import { useCalendarEvents } from './hooks/useCalendarEvents'
+import { formatTitle } from './utils/date-utils'
 import { CalendarToolbar } from './CalendarToolbar'
 import { AppointmentDialog } from './AppointmentDialog'
 import { RescheduleDialog } from './RescheduleDialog'
@@ -52,6 +53,22 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
     openEditDialog(eventId)
   }, [openEditDialog])
 
+  // Summary bar data — safe placeholders built from current events
+  const summaryLabel = formatTitle(selectedDate, view)
+  const aiChangesCount = events.filter((event) => event.origin === 'ai').length
+  const manualChangesCount = events.filter((event) => event.origin === 'manual').length
+  const attentionCount = events.filter((event) => event.status === 'scheduled').length
+
+  // View-specific empty messages
+  const EMPTY_MESSAGES: Record<string, string> = {
+    day: 'Nenhum agendamento neste dia',
+    week: 'Nenhum agendamento nesta semana',
+    month: 'Nenhum agendamento neste mês',
+    professionals: 'Nenhum agendamento para os profissionais neste período',
+  }
+
+  const isEventsEmpty = !isLoading && events.length === 0
+
   // Render current view
   const renderView = () => {
     if (view === 'list' && ListComponent) {
@@ -66,6 +83,18 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
       return (
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+        </div>
+      )
+    }
+
+    if (isEventsEmpty) {
+      const emptyMessage = EMPTY_MESSAGES[view] || 'Nenhum agendamento'
+      return (
+        <div className="flex-1 flex items-center justify-center text-muted-foreground">
+          <div className="text-center space-y-2">
+            <p className="text-lg font-medium">{emptyMessage}</p>
+            <p className="text-sm">Clique em um horário vazio para agendar</p>
+          </div>
         </div>
       )
     }
@@ -96,6 +125,18 @@ export function CalendarLayout({ ListComponent }: CalendarLayoutProps) {
   return (
     <div className="flex flex-col h-full bg-background">
       <CalendarToolbar />
+      {/* Compact inline summary */}
+      {events.length > 0 && (
+        <div className="px-4 py-1.5 border-b border-border bg-muted/30 text-xs text-muted-foreground flex items-center gap-3">
+          <span>{summaryLabel} &middot; {events.length} agendamento{events.length !== 1 ? 's' : ''}</span>
+          {aiChangesCount > 0 && (
+            <span className="text-violet-600 dark:text-violet-400">{aiChangesCount} alteraç{aiChangesCount !== 1 ? 'ões' : 'ão'} IA</span>
+          )}
+          {attentionCount > 0 && (
+            <span className="text-amber-600 dark:text-amber-400">{attentionCount} atenç{attentionCount !== 1 ? 'ões' : 'ão'}</span>
+          )}
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-auto">
         {renderView()}
       </div>

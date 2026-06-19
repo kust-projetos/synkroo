@@ -1,102 +1,72 @@
 /**
  * LGPD Data Export API Route
- *
  * POST /api/lgpd/export
- *
- * LGPD-02: Provides patient data portability - aggregates and exports all patient data
- *
- * Body:
- *   patientId: string
- *
- * Returns:
- *   {
- *     exportedAt: string (ISO timestamp)
- *     patient: object (all patient fields)
- *     appointments: array (all patient appointments)
- *     budgets: array (all patient budgets)
- *     payments: array (all patient payments)
- *     consents: array (all patient consents)
- *   }
+ * LGPD-02: Provides patient data portability
+ * Migrated from Supabase to Drizzle ORM.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
+import { getDb } from '@/lib/db/client'
+import { patients } from '@/lib/db/schema/core'
+import { appointments } from '@/lib/db/schema/appointments'
+import { budgets, payments } from '@/lib/db/schema/business'
+import { consents } from '@/lib/db/schema/infra'
+import { eq, and } from 'drizzle-orm'
 
 export async function POST(request: NextRequest) {
   try {
-    // Authenticate
     const authResult = await validateApiAuth()
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error?.message || 'Unauthorized' },
-        { status: authResult.error?.status || 401 }
+        { status: authResult.error?.status || 401 },
       )
     }
 
     const clinicId = authResult.profile!.clinic_id
 
-    // Parse request body
     const body = await request.json()
     const { patientId } = body
 
     if (!patientId) {
-      return NextResponse.json(
-        { error: 'Missing required field: patientId' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Missing required field: patientId' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const db = getDb()
 
-    // Fetch all patient data in parallel
-    const [patientResult, appointmentsResult, budgetsResult, paymentsResult, consentsResult] = await Promise.all([
-      supabase
-        .from('patients')
-        .select('*')
-        .eq('id', patientId)
-        .eq('clinic_id', clinicId)
-        .single(),
+    const [patientResult, appointmentsResult, budgetsResult, paymentsResult, consentsResult] =
+      await Promise.all([
+        db.select().from(patients)
+          .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+          .limit(1),
 
-      supabase
-        .from('appointments')
-        .select('*')
-        .eq('patient_id', patientId)
-        .eq('clinic_id', clinicId),
+        db.select().from(appointments)
+          .where(and(eq(appointments.patientId, patientId), eq(appointments.clinicId, clinicId))),
 
-      supabase
-        .from('budgets')
-        .select('*')
-        .eq('patient_id', patientId)
-        .eq('clinic_id', clinicId),
+        db.select().from(budgets)
+          .where(and(eq(budgets.patientId, patientId), eq(budgets.clinicId, clinicId))),
 
-      supabase
-        .from('payments')
-        .select('*')
-        .eq('patient_id', patientId)
-        .eq('clinic_id', clinicId),
+        db.select().from(payments)
+          .where(and(eq(payments.patientId, patientId), eq(payments.clinicId, clinicId))),
 
-      supabase
-        .from('consents')
-        .select('*')
-        .eq('patient_id', patientId)
-        .eq('clinic_id', clinicId),
-    ])
+        db.select().from(consents)
+          .where(and(
+            eq(consents.contactId, patientId),
+            eq(consents.contactType, 'patient'),
+          )),
+      ])
 
-    // Return structured export
     return NextResponse.json({
       exportedAt: new Date().toISOString(),
-      patient: patientResult.data || null,
-      appointments: appointmentsResult.data || [],
-      budgets: budgetsResult.data || [],
-      payments: paymentsResult.data || [],
-      consents: consentsResult.data || [],
+      patient: patientResult[0] || null,
+      appointments: appointmentsResult,
+      budgets: budgetsResult,
+      payments: paymentsResult,
+      consents: consentsResult,
     })
   } catch (error) {
     console.error('LGPD export error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

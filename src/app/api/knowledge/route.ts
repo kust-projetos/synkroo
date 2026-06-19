@@ -1,106 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import { ragService } from '@/services/rag'
-import { handleApiError, DatabaseError } from '@/lib/errors'
+import { eq, and, or, ilike, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { knowledgeBase } from '@/lib/db/schema/infra'
+import { validateApiAuth } from '@/lib/auth/session'
+
+const KB = knowledgeBase
+
+function toSnake(r: any) {
+  return {
+    id: r.id,
+    clinic_id: r.clinicId,
+    category: r.category,
+    question: r.question,
+    answer: r.answer,
+    keywords: r.keywords ?? [],
+    is_active: r.isActive,
+    created_at: r.createdAt?.toISOString?.() ?? null,
+    updated_at: r.updatedAt?.toISOString?.() ?? null,
+  }
+}
 
 /**
  * GET /api/knowledge
- * List knowledge base entries for the clinic
+ * List knowledge base entries.
+ * DB read — works without RAG.
  */
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
-    const clinicId = authResult.profile!.clinic_id
-    const supabase = await createClient()
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    const clinicId = auth.profile!.clinic_id
+    const db = getDb()
     const { searchParams } = new URL(request.url)
-
     const category = searchParams.get('category')
     const search = searchParams.get('search')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    let query = supabase
-      .from('knowledge_base')
-      .select('id, category, question, answer, keywords, is_active, created_at, updated_at')
-      .eq('clinic_id', clinicId)
-      .order('created_at', { ascending: false })
+    const conditions: any[] = [eq(KB.clinicId, clinicId)]
+    if (category) conditions.push(eq(KB.category, category))
+    if (search) conditions.push(or(ilike(KB.question, `%${search}%`), ilike(KB.answer, `%${search}%`)))
+
+    const rows = await db
+      .select({
+        id: KB.id,
+        category: KB.category,
+        question: KB.question,
+        answer: KB.answer,
+        keywords: KB.keywords,
+        isActive: KB.isActive,
+        createdAt: KB.createdAt,
+        updatedAt: KB.updatedAt,
+      })
+      .from(KB)
+      .where(and(...conditions))
+      .orderBy(desc(KB.createdAt))
       .limit(limit)
 
-    if (category) {
-      query = query.eq('category', category)
-    }
-
-    if (search) {
-      query = query.or(`question.ilike.%${search}%,answer.ilike.%${search}%`)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
-      return handleApiError(new DatabaseError('Failed to fetch knowledge base', error as any))
-    }
-
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: rows.map(toSnake) })
   } catch (error) {
-    return handleApiError(error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
 
 /**
  * POST /api/knowledge
- * Create a new knowledge base entry with embedding
+ * Create knowledge entry.
+ * Legacy RAG service removed — returns 501.
+ * TODO(W5.3): reconnect knowledge ingestion to new retrieval backend.
  */
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
-    const clinicId = authResult.profile!.clinic_id
-    const body = await request.json()
-
-    const { category, question, answer, keywords } = body
-
-    if (!category || !question || !answer) {
-      return NextResponse.json(
-        { error: 'Missing required fields: category, question, answer' },
-        { status: 400 }
-      )
-    }
-
-    // Create with embedding
-    const id = await ragService.addKnowledgeEntry(
-      clinicId,
-      category,
-      question,
-      answer,
-      keywords || []
+    return NextResponse.json(
+      {
+        success: false,
+        disabled: true,
+        reason: 'legacy_rag_removed',
+        todo: 'TODO(W5.3): reconnect knowledge ingestion to new retrieval backend',
+      },
+      { status: 501 }
     )
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Failed to create knowledge entry' },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({
-      success: true,
-      id,
-      message: 'Knowledge entry created with embedding',
-    })
   } catch (error) {
-    return handleApiError(error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }

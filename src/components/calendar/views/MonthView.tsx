@@ -50,6 +50,9 @@ const STATUS_BG: Record<string, string> = {
 export function MonthView({ events, date, onEventDrop, onEventClick }: MonthViewProps) {
   const weeks = useMemo(() => getMonthDays(date), [date])
   const { setView, setSelectedDate, openEditDialog, openCreateDialog } = useCalendarStore()
+  const layoutMode = useCalendarStore((s) => s.layoutMode)
+
+  const isProfessionalsMode = layoutMode === 'professionals'
 
   // Drag state
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null)
@@ -178,6 +181,7 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
   // Render a single event mini card
   const renderEventCard = (event: CalendarEvent, showDetails: boolean) => {
     const canDrag = isDraggableStatus(event.status)
+    const isAiOrigin = event.origin === 'ai'
     return (
       <div
         key={event.id}
@@ -203,6 +207,11 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
           <div className="flex items-center gap-1 truncate font-medium">
             <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDentistDotColor(event.dentistId))} />
             <span className="truncate">{formatTime(event.start)} - {event.title}</span>
+            {isAiOrigin && (
+              <span className="text-[8px] font-semibold px-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 flex-shrink-0 leading-relaxed">
+                IA
+              </span>
+            )}
           </div>
           {showDetails && (
             <div className="text-[11px] opacity-80 truncate ml-2.5">
@@ -288,10 +297,40 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
 
                     {/* Event cards */}
                     <div className="flex-1 space-y-0.5">
-                      {visibleEvents.map((event) => renderEventCard(event, isExpanded))}
+                      {isProfessionalsMode ? (
+                        // Professionals mode: group ALL dayEvents by dentist, per-group overflow
+                        (() => {
+                          const grouped = new Map<string, CalendarEvent[]>()
+                          dayEvents.forEach((e) => {
+                            const list = grouped.get(e.dentistId) || []
+                            list.push(e)
+                            grouped.set(e.dentistId, list)
+                          })
+                          return Array.from(grouped.entries()).map(([dentistId, groupEvents]) => {
+                            const visibleGroup = isExpanded ? groupEvents : groupEvents.slice(0, MAX_VISIBLE_EVENTS)
+                            const groupOverflow = groupEvents.length - MAX_VISIBLE_EVENTS
+                            return (
+                              <div key={dentistId} className="space-y-0.5">
+                                <div className="text-[9px] font-semibold text-muted-foreground truncate px-1.5 pt-0.5">
+                                  {groupEvents[0].dentistName}
+                                </div>
+                                {visibleGroup.map((event) => renderEventCard(event, isExpanded))}
+                                {/* Per-group overflow */}
+                                {groupOverflow > 0 && !isExpanded && (
+                                  <div className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors cursor-pointer" onClick={(e) => handleExpandToggle(e, wi)}>
+                                    +{groupOverflow} mais
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })
+                        })()
+                      ) : (
+                        visibleEvents.map((event) => renderEventCard(event, isExpanded))
+                      )}
 
-                      {/* Expand/collapse toggle */}
-                      {overflowCount > 0 && !isExpanded && (
+                      {/* Expand/collapse toggle — agenda mode only (global overflow) */}
+                      {!isProfessionalsMode && overflowCount > 0 && !isExpanded && (
                         <div
                           className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors cursor-pointer"
                           onClick={(e) => handleExpandToggle(e, wi)}

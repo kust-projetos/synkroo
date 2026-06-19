@@ -1,6 +1,6 @@
 // ──────────────────────────────────────────────
 // Drizzle schema — Synkroo PostgreSQL schema
-// Ported from supabase/migrations/*.sql
+// Ported from legacy SQL migrations
 // RLS policies, auth-specific SQL, and service-role
 // constructs are REMOVED per cutover design.
 // ──────────────────────────────────────────────
@@ -13,3 +13,6 @@ export * from './crm';
 export * from './business';
 export * from './agent';
 export * from './infra';
+export * from './audit';
+export * from './rbac';
+export * from './modules';

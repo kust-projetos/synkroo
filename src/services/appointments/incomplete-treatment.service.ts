@@ -3,7 +3,9 @@
  * Detects multi-session treatments that haven't been completed within expected timeframe
  */
 
-import { createTypedClient } from '@/lib/supabase/typed'
+import { eq, inArray, asc, and } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { appointments, procedures, patients } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
 export interface IncompleteTreatment {
@@ -32,22 +34,32 @@ const MULTI_SESSION_PROCEDURES: Record<string, { sessions: number; daysToComplet
 }
 
 /**
- * Detect incomplete treatments for a clinic
+ * Detect incomplete treatments for a clinic — migrated to Drizzle.
  */
 export async function detectIncompleteTreatments(
   clinicId: string
 ): Promise<IncompleteTreatment[]> {
-  const supabase = await createTypedClient()
+  const db = getDb()
 
   try {
-    const { data: appointments, error } = await supabase
-      .from('appointments')
-      .select('id, patient_id, procedure_id, status, scheduled_at, procedures (name)')
-      .eq('clinic_id', clinicId)
-      .in('status', ['completed', 'confirmed'])
-      .order('scheduled_at', { ascending: true }) as any
-
-    if (error) throw error
+    const rows = await db
+      .select({
+        id: appointments.id,
+        patientId: appointments.patientId,
+        procedureId: appointments.procedureId,
+        status: appointments.status,
+        scheduledAt: appointments.scheduledAt,
+        procedureName: procedures.name,
+      })
+      .from(appointments)
+      .leftJoin(procedures, eq(appointments.procedureId, procedures.id))
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          inArray(appointments.status, ['completed', 'confirmed']),
+        ),
+      )
+      .orderBy(asc(appointments.scheduledAt))
 
     const treatmentMap = new Map<string, {
       patient_id: string
@@ -55,8 +67,8 @@ export async function detectIncompleteTreatments(
       appointments: { date: string; status: string }[]
     }>()
 
-    for (const apt of (appointments as any[]) || []) {
-      const procedureName = (apt as any).procedures?.name
+    for (const apt of rows) {
+      const procedureName = apt.procedureName
       if (!procedureName) continue
 
       const isMultiSession = Object.keys(MULTI_SESSION_PROCEDURES).some(
@@ -64,36 +76,34 @@ export async function detectIncompleteTreatments(
       )
       if (!isMultiSession) continue
 
-      const key = `${apt.patient_id}_${procedureName}`
+      const key = `${apt.patientId}_${procedureName}`
       if (!treatmentMap.has(key)) {
         treatmentMap.set(key, {
-          patient_id: apt.patient_id,
+          patient_id: apt.patientId,
           procedure_name: procedureName,
           appointments: [],
         })
       }
 
       treatmentMap.get(key)!.appointments.push({
-        date: apt.scheduled_at,
+        date: (apt.scheduledAt ?? new Date()).toISOString(),
         status: apt.status,
       })
     }
 
     const patientIds = [...new Set([...treatmentMap.values()].map((t) => t.patient_id))]
-    const { data: patients } = await supabase
-      .from('patients')
-      .select('id, name, phone')
-      .in('id', patientIds)
+    const patientRows = await db
+      .select({ id: patients.id, name: patients.name, phone: patients.phone })
+      .from(patients)
+      .where(inArray(patients.id, patientIds.length ? patientIds : ['__none__' as any]))
 
-    const patientMap = new Map(
-      (patients || []).map((p: any) => [p.id, p])
-    )
+    const patientMap = new Map(patientRows.map((p) => [p.id, p]))
 
     const now = new Date()
     const results: IncompleteTreatment[] = []
 
     for (const [, treatment] of treatmentMap) {
-      const patient = patientMap.get(treatment.patient_id) as any
+      const patient = patientMap.get(treatment.patient_id)
       if (!patient) continue
 
       const procedureConfig = Object.entries(MULTI_SESSION_PROCEDURES).find(
@@ -114,8 +124,8 @@ export async function detectIncompleteTreatments(
 
         results.push({
           patient_id: treatment.patient_id,
-          patient_name: patient.name,
-          patient_phone: patient.phone,
+          patient_name: patient.name ?? 'Desconhecido',
+          patient_phone: patient.phone ?? null,
           procedure_name: treatment.procedure_name,
           first_appointment_date: treatment.appointments[0].date,
           last_appointment_date: treatment.appointments[treatment.appointments.length - 1].date,

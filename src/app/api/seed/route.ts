@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
+import { eq, asc } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
-import { clinics, users, leads, leadActivities, campaigns, campaignRecipients, waitlist, patientFeedback, procedureGuidelines, scheduleBlocks, followUpConfigs } from '@/lib/db/schema'
+import { clinics, users, leads, leadActivities, campaigns, campaignRecipients, waitlist, patientFeedback, procedureGuidelines, scheduleBlocks, followUpConfigs, pipelineStages, patients } from '@/lib/db/schema'
 import * as dentistRepo from '@/repositories/dentists'
 import * as procedureRepo from '@/repositories/procedures'
-import * as patientRepo from '@/repositories/patients'
 import * as appointmentRepo from '@/repositories/appointments'
+import { seedDefaultPipelineStages } from '@/services/pipeline/stages.service'
+import { buildWaitlistSeed, buildLeadSeed, cleanupDemoSeedTables, leadStatusToStageIndex } from '@/lib/seed/helpers'
 
 const CLINIC_SLUG = 'clinica-demo'
 
@@ -18,22 +19,6 @@ interface DomainResult {
 }
 
 // ── Seed data types ──────────────────────────────────────────
-
-interface LeadSeed {
-  name: string
-  phone: string
-  email: string
-  source: string
-  status: string
-  temperature: string
-  score: number
-  interest: string
-  has_budget: boolean
-  has_timeline: boolean
-  notes: string
-  contact_count: number
-  lost_reason?: string
-}
 
 interface CampaignSeed {
   name: string
@@ -103,6 +88,8 @@ function slotKey(dentistId: string, dayOffset: number, time: string): string {
 
 export async function GET(request: NextRequest) {
   const secret = request.nextUrl.searchParams.get('secret')
+  const scenario = request.nextUrl.searchParams.get('scenario') ?? 'default'
+  const isLargeScenario = scenario === 'large'
   const seedSecret = process.env.SEED_SECRET
   if (!seedSecret) {
     return NextResponse.json({ error: 'SEED_SECRET not configured' }, { status: 403 })
@@ -130,43 +117,36 @@ export async function GET(request: NextRequest) {
   const dentistIds: string[] = dentistRows.map((d) => d.id)
   const procedureRows = await procedureRepo.findByClinic(cid, { activeOnly: true })
   const procedureIds: string[] = procedureRows.map((p) => p.id)
-  const patientRows = await patientRepo.findByClinic(cid)
+  const patientRows = await db.select({ id: patients.id }).from(patients).where(eq(patients.clinicId, cid))
   const patientIds: string[] = patientRows.map((p) => p.id)
   const procMap = new Map(procedureRows.map((p) => [p.id, p]))
 
+  // ── PIPELINE STAGES + CLEANUP (large scenario) ────────────
+  if (isLargeScenario) {
+    await cleanupDemoSeedTables(db, cid)
+  }
+  // Seed pipeline stages idempotently
+  const existingStages = await db
+    .select({ id: pipelineStages.id })
+    .from(pipelineStages)
+    .where(eq(pipelineStages.clinicId, cid))
+    .limit(1)
+  if (existingStages.length === 0) {
+    try { await seedDefaultPipelineStages(cid) } catch { /* race condition OK */ }
+  }
+  // Fetch pipeline stages (always, so leads get stageId)
+  const pipelineRows = await db
+    .select({ id: pipelineStages.id, position: pipelineStages.position, name: pipelineStages.name })
+    .from(pipelineStages)
+    .where(eq(pipelineStages.clinicId, cid))
+    .orderBy(asc(pipelineStages.position))
+  const stageByIndex: Record<number, string> = {}
+  for (const ps of pipelineRows) {
+    stageByIndex[ps.position ?? 0] = ps.id
+  }
+
   // ── LEADS ─────────────────────────────────────────────────
-  const leadsData: readonly LeadSeed[] = [
-    { name: 'Registro Demo 57', phone: '11977770031', email: 'renata.albuquerque@example.com', source: 'referral', status: 'proposal', temperature: 'hot', score: 82, interest: 'Implante Dentário', has_budget: true, has_timeline: true, notes: 'Proposta enviada ontem', contact_count: 3 },
-    { name: 'Marcos Vinícius', phone: '11977770032', email: 'marcos.vinicius@example.com', source: 'whatsapp', status: 'negotiation', temperature: 'hot', score: 88, interest: 'Aparelho Ortodôntico', has_budget: true, has_timeline: true, notes: 'Negociando valor', contact_count: 4 },
-    { name: 'Registro Demo 11', phone: '11977770033', email: 'carla.augusta@example.com', source: 'instagram', status: 'qualified', temperature: 'hot', score: 79, interest: 'Clareamento', has_budget: true, has_timeline: false, notes: 'Quer fazer antes do casamento', contact_count: 2 },
-    { name: 'Registro Demo 29', phone: '11977770034', email: 'felipe.stern@example.com', source: 'web', status: 'proposal', temperature: 'hot', score: 85, interest: 'Faceta de Porcelana', has_budget: true, has_timeline: true, notes: 'Orçamento aprovado', contact_count: 3 },
-    { name: 'Registro Demo 38', phone: '11977770035', email: 'juliana.marselha@example.com', source: 'referral', status: 'negotiation', temperature: 'hot', score: 90, interest: 'Prótese Total', has_budget: true, has_timeline: true, notes: 'Fechando nesta semana', contact_count: 5 },
-    { name: 'Registro Demo 59', phone: '11977770036', email: 'rodrigo.barreto@example.com', source: 'web', status: 'contacted', temperature: 'warm', score: 55, interest: 'Limpeza Profissional', has_budget: false, has_timeline: false, notes: 'Primeiro contato', contact_count: 1 },
-    { name: 'Registro Demo 60', phone: '11977770037', email: 'simone.ferraz@example.com', source: 'instagram', status: 'new', temperature: 'warm', score: 48, interest: 'Clareamento', has_budget: false, has_timeline: false, notes: 'Curtiu vários posts', contact_count: 0 },
-    { name: 'Tomás Pacheco', phone: '11977770038', email: 'tomas.pacheco@example.com', source: 'whatsapp', status: 'qualified', temperature: 'warm', score: 62, interest: 'Tratamento de Canal', has_budget: true, has_timeline: false, notes: 'Com dor, comparando preços', contact_count: 2 },
-    { name: 'Úrsula Diniz', phone: '11977770039', email: 'ursula.diniz@example.com', source: 'referral', status: 'contacted', temperature: 'warm', score: 58, interest: 'Aparelho Ortodôntico', has_budget: false, has_timeline: true, notes: 'Filha precisa de aparelho', contact_count: 1 },
-    { name: 'Registro Demo 64', phone: '11977770040', email: 'vinicius.leal@example.com', source: 'web', status: 'new', temperature: 'warm', score: 45, interest: 'Extração de Siso', has_budget: false, has_timeline: true, notes: 'Formulário preenchido ontem', contact_count: 0 },
-    { name: 'Registro Demo 65', phone: '11977770041', email: 'wanda.cruz@example.com', source: 'instagram', status: 'contacted', temperature: 'warm', score: 52, interest: 'Coroa de Porcelana', has_budget: false, has_timeline: false, notes: 'Segunda tentativa de contato', contact_count: 2 },
-    { name: 'Registro Demo 66', phone: '11977770042', email: 'xavier.borges@example.com', source: 'whatsapp', status: 'qualified', temperature: 'warm', score: 60, interest: 'Implante Dentário', has_budget: true, has_timeline: false, notes: 'Tem orçamento, avaliando', contact_count: 2 },
-    { name: 'Registro Demo 67', phone: '11977770043', email: 'yasmin.fontes@example.com', source: 'web', status: 'contacted', temperature: 'warm', score: 50, interest: 'Restauração Estética', has_budget: false, has_timeline: true, notes: 'Precisa urgente', contact_count: 1 },
-    { name: 'Registro Demo 68', phone: '11977770044', email: 'zeca.nogueira@example.com', source: 'referral', status: 'new', temperature: 'warm', score: 47, interest: 'Limpeza Profissional', has_budget: false, has_timeline: false, notes: 'Indicado por paciente', contact_count: 0 },
-    { name: 'Registro Demo 3', phone: '11977770045', email: 'adriana.teles@example.com', source: 'instagram', status: 'contacted', temperature: 'warm', score: 54, interest: 'Lente de Contato Dental', has_budget: false, has_timeline: false, notes: 'Interesse em estética', contact_count: 1 },
-    { name: 'Registro Demo 8', phone: '11977770046', email: 'bernardo.rocha@example.com', source: 'web', status: 'new', temperature: 'cold', score: 22, interest: 'Limpeza Profissional', has_budget: false, has_timeline: false, notes: 'Só consultou preço', contact_count: 0 },
-    { name: 'Cláudia Ribeiro', phone: '11977770047', email: 'claudia.ribeiro@example.com', source: 'instagram', status: 'new', temperature: 'cold', score: 18, interest: 'Clareamento', has_budget: false, has_timeline: false, notes: 'Sem urgência', contact_count: 0 },
-    { name: 'Registro Demo 19', phone: '11977770048', email: 'danilo.esteves@example.com', source: 'whatsapp', status: 'contacted', temperature: 'cold', score: 28, interest: 'Restauração', has_budget: false, has_timeline: false, notes: 'Não respondeu', contact_count: 1 },
-    { name: 'Registro Demo 25', phone: '11977770049', email: 'elisa.marques@example.com', source: 'web', status: 'new', temperature: 'cold', score: 15, interest: 'Implante Dentário', has_budget: false, has_timeline: false, notes: 'Orçamento muito alto', contact_count: 0 },
-    { name: 'Registro Demo 31', phone: '11977770050', email: 'fernando.gil@example.com', source: 'instagram', status: 'contacted', temperature: 'cold', score: 25, interest: 'Aparelho Ortodôntico', has_budget: false, has_timeline: false, notes: 'Disse que vai pensar', contact_count: 1 },
-    { name: 'Registro Demo 33', phone: '11977770051', email: 'gisela.porto@example.com', source: 'web', status: 'new', temperature: 'cold', score: 20, interest: 'Extração de Siso', has_budget: false, has_timeline: false, notes: 'Sem urgência', contact_count: 0 },
-    { name: 'Registro Demo 34', phone: '11977770052', email: 'humberto.tavares@example.com', source: 'whatsapp', status: 'new', temperature: 'cold', score: 12, interest: 'Limpeza Profissional', has_budget: false, has_timeline: false, notes: 'Mensagem genérica', contact_count: 0 },
-    { name: 'Registro Demo 35', phone: '11977770053', email: 'irene.bastos@example.com', source: 'instagram', status: 'contacted', temperature: 'cold', score: 30, interest: 'Profilaxia', has_budget: false, has_timeline: false, notes: 'Sem interesse real', contact_count: 2 },
-    { name: 'José Renato', phone: '11977770054', email: 'jose.renato@example.com', source: 'referral', status: 'converted', temperature: 'hot', score: 95, interest: 'Implante Dentário', has_budget: true, has_timeline: true, notes: 'Convertido! Agendado', contact_count: 4 },
-    { name: 'Registro Demo 40', phone: '11977770055', email: 'kelly.sampaio@example.com', source: 'instagram', status: 'converted', temperature: 'hot', score: 88, interest: 'Clareamento', has_budget: true, has_timeline: true, notes: 'Fechou clareamento', contact_count: 3 },
-    { name: 'Registro Demo 41', phone: '11977770056', email: 'leonardo.faria@example.com', source: 'whatsapp', status: 'converted', temperature: 'hot', score: 91, interest: 'Aparelho Ortodôntico', has_budget: true, has_timeline: true, notes: 'Fechou aparelho estético', contact_count: 3 },
-    { name: 'Registro Demo 49', phone: '11977770057', email: 'marina.luz@example.com', source: 'web', status: 'converted', temperature: 'hot', score: 87, interest: 'Restauração Estética', has_budget: true, has_timeline: true, notes: 'Convertido pelo site', contact_count: 2 },
-    { name: 'Registro Demo 50', phone: '11977770058', email: 'nathalia.cunha@example.com', source: 'whatsapp', status: 'lost', temperature: 'warm', score: 38, interest: 'Aparelho Ortodôntico', has_budget: false, has_timeline: false, notes: 'Escolheu outra clínica', contact_count: 3, lost_reason: 'Escolheu concorrente' },
-    { name: 'Otávio Mendes', phone: '11977770059', email: 'otavio.mendes@example.com', source: 'web', status: 'lost', temperature: 'cold', score: 20, interest: 'Limpeza Profissional', has_budget: false, has_timeline: false, notes: 'Sem resposta após 3 tentativas', contact_count: 3, lost_reason: 'Sem resposta' },
-    { name: 'Patrícia Gomes', phone: '11977770060', email: 'patricia.gomes@example.com', source: 'instagram', status: 'lost', temperature: 'warm', score: 35, interest: 'Clareamento', has_budget: false, has_timeline: false, notes: 'Desistiu por preço', contact_count: 2, lost_reason: 'Preço alto' },
-  ]
+  const leadsData = buildLeadSeed(isLargeScenario ? 'large' : 'default')
 
   results.leads = { ok: 0, err: 0, errors: [] }
   const leadIds: string[] = []
@@ -192,6 +172,7 @@ export async function GET(request: NextRequest) {
           nextFollowupAt: ['converted', 'lost'].includes(l.status) ? null : daysFromNow(randomInt(1, 14)),
           convertedAt: l.status === 'converted' ? hoursAgo(randomInt(12, 96)) : null,
           lostReason: l.lost_reason ?? null,
+          stageId: stageByIndex[leadStatusToStageIndex(l.status)] ?? null,
         })
         .returning({ id: leads.id })
       results.leads.ok++
@@ -279,7 +260,7 @@ export async function GET(request: NextRequest) {
 
   results.campaign_recipients = { ok: 0, err: 0, errors: [] }
   for (const campId of campaignIds) {
-    const count = 10 + randomInt(0, 30)
+    const count = isLargeScenario ? (25 + randomInt(0, 40)) : (10 + randomInt(0, 30))
     for (let j = 0; j < count; j++) {
       try {
         await db.insert(campaignRecipients).values({
@@ -297,25 +278,18 @@ export async function GET(request: NextRequest) {
   }
 
   // ── WAITLIST ──────────────────────────────────────────────
-  const prefTimes = ['08:00:00', '09:00:00', '10:00:00', '11:00:00', '13:00:00', '14:00:00', '15:00:00', '16:00:00'] as const
+  const waitlistRows = buildWaitlistSeed({
+    clinicId: cid,
+    patientIds,
+    dentistIds,
+    procedureIds,
+    scale: isLargeScenario ? 'large' : 'default',
+  })
 
   results.waitlist = { ok: 0, err: 0, errors: [] }
-  for (let i = 0; i < 15; i++) {
-    const prefStart = randomPick(prefTimes)
-    const startH = parseInt(prefStart.split(':')[0])
-    const endH = Math.min(startH + 4, 18)
+  for (const w of waitlistRows) {
     try {
-      await db.insert(waitlist).values({
-        clinicId: cid,
-        patientId: randomPick(patientIds),
-        dentistId: randomPick(dentistIds),
-        preferredDate: daysFromNow(1 + randomInt(0, 14)),
-        preferredTimeStart: prefStart,
-        preferredTimeEnd: `${String(endH).padStart(2, '0')}:00:00`,
-        priority: randomInt(1, 5),
-        status: 'waiting',
-        notes: 'Paciente aguardando vaga',
-      })
+      await db.insert(waitlist).values(w)
       results.waitlist.ok++
     } catch {
       results.waitlist.err++
@@ -492,6 +466,20 @@ export async function GET(request: NextRequest) {
       }
     }
   }
+
+  // ── UPDATE PATIENT last_visit_at ──────────────────────────
+  // Populate from completed appointments so inactive-patient pages show data
+  try {
+    await db.execute(`
+      UPDATE patients SET last_visit_at = (
+        SELECT MAX(a.scheduled_at) FROM appointments a
+        WHERE a.patient_id = patients.id AND a.status = 'completed' AND a.clinic_id = patients.clinic_id
+      ) WHERE patients.clinic_id = '${cid.replace(/'/g, "''")}' AND EXISTS (
+        SELECT 1 FROM appointments a2 WHERE a2.patient_id = patients.id
+        AND a2.status = 'completed' AND a2.clinic_id = patients.clinic_id
+      )
+    `)
+  } catch { /* non-critical */ }
 
   // ── SUMMARY ───────────────────────────────────────────────
   const summary: Record<string, number> = {}

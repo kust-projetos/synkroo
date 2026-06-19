@@ -3,64 +3,53 @@
  * Tests detection of multi-session treatments not completed within expected timeframe
  */
 
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn(),
-}))
-
 jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
+let currentMockData: any[] = []
+let currentMockPatients: any[] = []
+
+const mockDb = {
+  select: jest.fn(function(this: any) { return this }),
+  from: jest.fn(function(this: any) { return this }),
+  leftJoin: jest.fn(function(this: any) { return this }),
+  where: jest.fn(function(this: any) { return this }),
+  orderBy: jest.fn(function(this: any) { return this }),
+  limit: jest.fn(function(this: any) { return this }),
+  then: jest.fn(function(this: any, resolve?: any) {
+    if (typeof resolve === 'function') return Promise.resolve(resolve(currentMockPatients))
+    return Promise.resolve(currentMockPatients)
+  }),
+} as any
+
+// After each test, set up the then chain correctly
+function setupDbMocks(apptData: any[], patientData: any[]) {
+  currentMockData = apptData
+  currentMockPatients = patientData
+  mockDb.orderBy = jest.fn().mockResolvedValue(apptData)
+  mockDb.where = jest.fn(function(this: any) { return this as any })
+}
+
+jest.mock('@/lib/db/client', () => ({ getDb: jest.fn(() => mockDb) }))
+
 import { detectIncompleteTreatments, getIncompleteTreatmentAlerts } from '../incomplete-treatment.service'
 
 describe('Incomplete Treatment Service', () => {
-  const mockClient = { from: jest.fn() }
-
   beforeEach(() => {
     jest.clearAllMocks()
-    const { createTypedClient } = require('@/lib/supabase/typed')
-    createTypedClient.mockResolvedValue(mockClient)
+    currentMockData = []
+    currentMockPatients = []
+    setupDbMocks([], [])
   })
 
   describe('detectIncompleteTreatments', () => {
     it('should detect incomplete canal treatment', async () => {
-      const pastDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      const appointments = [
-        {
-          id: 'apt-1',
-          patient_id: 'patient-1',
-          procedure_id: 'proc-1',
-          status: 'completed',
-          scheduled_at: pastDate,
-          procedures: { name: 'Registro Demo 63' },
-        },
-      ]
-
-      const patients = [
-        { id: 'patient-1', name: 'João Silva', phone: '11999999999' },
-      ]
-
-      mockClient.from.mockImplementation((table: string) => {
-        if (table === 'appointments') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                in: jest.fn().mockReturnValue({
-                  order: jest.fn().mockResolvedValue({ data: appointments, error: null }),
-                }),
-              }),
-            }),
-          }
-        }
-        if (table === 'patients') {
-          return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: patients, error: null }),
-            }),
-          }
-        }
-        return { select: jest.fn() }
-      })
+      const pastDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      setupDbMocks([{
+        id: 'apt-1', patientId: 'patient-1', procedureId: 'proc-1',
+        status: 'completed', scheduledAt: pastDate, procedureName: 'Tratamento de Canal',
+      }], [{ id: 'patient-1', name: 'João Silva', phone: '11999999999' }])
 
       const results = await detectIncompleteTreatments('clinic-1')
 
@@ -72,97 +61,36 @@ describe('Incomplete Treatment Service', () => {
     })
 
     it('should return empty array when no appointments', async () => {
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        }),
-      })
-
+      setupDbMocks([], [])
       const results = await detectIncompleteTreatments('clinic-1')
       expect(results).toEqual([])
     })
 
     it('should return empty array on query error', async () => {
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({ data: null, error: { message: 'DB error' } }),
-            }),
-          }),
-        }),
-      })
-
+      mockDb.orderBy = jest.fn().mockRejectedValue(new Error('DB error'))
       const results = await detectIncompleteTreatments('clinic-1')
       expect(results).toEqual([])
     })
 
     it('should ignore non-multi-session procedures', async () => {
-      const appointments = [
-        {
-          id: 'apt-1',
-          patient_id: 'patient-1',
-          procedure_id: 'proc-1',
-          status: 'completed',
-          scheduled_at: new Date().toISOString(),
-          procedures: { name: 'Limpeza simples' },
-        },
-      ]
-
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({ data: appointments, error: null }),
-            }),
-          }),
-        }),
-      })
-
+      setupDbMocks([{
+        id: 'apt-1', patientId: 'patient-1', procedureId: 'proc-1',
+        status: 'completed', scheduledAt: new Date(), procedureName: 'Limpeza simples',
+      }], [])
       const results = await detectIncompleteTreatments('clinic-1')
       expect(results).toEqual([])
     })
 
     it('should sort by risk level (high first)', async () => {
-      const veryOld = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000).toISOString()
-      const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
-
-      const appointments = [
-        { id: 'a1', patient_id: 'p1', procedure_id: 'proc-1', status: 'completed', scheduled_at: old, procedures: { name: 'Prótese' } },
-        { id: 'a2', patient_id: 'p2', procedure_id: 'proc-2', status: 'completed', scheduled_at: veryOld, procedures: { name: 'Implante Dentário' } },
-      ]
-
-      mockClient.from.mockImplementation((table: string) => {
-        if (table === 'appointments') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                in: jest.fn().mockReturnValue({
-                  order: jest.fn().mockResolvedValue({ data: appointments, error: null }),
-                }),
-              }),
-            }),
-          }
-        }
-        if (table === 'patients') {
-          return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({
-                data: [
-                  { id: 'p1', name: 'João', phone: '111' },
-                  { id: 'p2', name: 'Maria', phone: '222' },
-                ],
-                error: null,
-              }),
-            }),
-          }
-        }
-        return { select: jest.fn() }
-      })
+      const veryOld = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000)
+      const old = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000)
+      setupDbMocks([
+        { id: 'a1', patientId: 'p1', procedureId: 'proc-1', status: 'completed', scheduledAt: old, procedureName: 'Prótese' },
+        { id: 'a2', patientId: 'p2', procedureId: 'proc-2', status: 'completed', scheduledAt: veryOld, procedureName: 'Implante Dentário' },
+      ], [
+        { id: 'p1', name: 'João', phone: '111' },
+        { id: 'p2', name: 'Maria', phone: '222' },
+      ])
 
       const results = await detectIncompleteTreatments('clinic-1')
 
@@ -175,15 +103,7 @@ describe('Incomplete Treatment Service', () => {
 
   describe('getIncompleteTreatmentAlerts', () => {
     it('should return summary with total, high, and medium counts', async () => {
-      mockClient.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            in: jest.fn().mockReturnValue({
-              order: jest.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          }),
-        }),
-      })
+      setupDbMocks([], [])
 
       const alerts = await getIncompleteTreatmentAlerts('clinic-1')
 

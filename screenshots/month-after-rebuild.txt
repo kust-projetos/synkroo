@@ -1,2 +1,0 @@
-uid=3_0 RootWebArea url="http://localhost:3002/dashboard/agendamentos?view=month"
-  uid=3_1 StaticText "Internal Server Error"

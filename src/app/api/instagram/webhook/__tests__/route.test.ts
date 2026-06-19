@@ -5,42 +5,6 @@
 import { NextRequest } from 'next/server'
 import { POST, GET } from '@/app/api/instagram/webhook/route'
 
-// Mock dependencies
-jest.mock('@/lib/supabase', () => ({
-  createServerClient: jest.fn(() => ({
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          single: jest.fn(() => ({ data: null, error: null })),
-          order: jest.fn(() => ({
-            limit: jest.fn(() => ({ data: [], error: null }))
-          }))
-        })),
-      })),
-      insert: jest.fn(() => ({
-        select: jest.fn(() => ({
-          single: jest.fn(() => ({ data: { id: 'test-conv-id' }, error: null })),
-        })),
-      })),
-      update: jest.fn(() => ({
-        eq: jest.fn(() => ({ error: null })),
-      })),
-      contains: jest.fn(() => ({ data: { id: 'clinic-123' }, error: null })),
-    })),
-  })),
-}))
-
-jest.mock('@/lib/minimax', () => ({
-  minimax: {
-    classifyIntent: jest.fn(() =>
-      Promise.resolve({ intent: 'duvida', confidence: 0.85, entities: {} })
-    ),
-    extractEntities: jest.fn(() => Promise.resolve({})),
-    shouldEscalate: jest.fn(() => Promise.resolve(false)),
-    generateResponse: jest.fn(() => Promise.resolve('Resposta de teste')),
-  },
-}))
-
 // Mock rate-limit to always allow
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn(() => ({

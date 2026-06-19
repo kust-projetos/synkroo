@@ -1,5 +1,7 @@
-import { createTypedClient } from "@/lib/supabase/typed";
-import { dbLogger, whatsappLogger } from "@/lib/logger";
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { patients, procedures, dentists } from '@/lib/db/schema'
+import { dbLogger, whatsappLogger } from '@/lib/logger'
 import {
 	createWaitlistEntry,
 	findByPatientClinicDate,
@@ -86,16 +88,15 @@ export async function addToWaitlist(
 	params: CreateWaitlistParams,
 ): Promise<{ success: boolean; entry?: WaitlistEntry; error?: string }> {
 	try {
-		// Get patient info (still uses Supabase patients table — separate migration concern)
-		const supabase = await createTypedClient();
-		const { data: patient, error: patientError } = await supabase
-			.from("patients")
-			.select("id, name, phone")
-			.eq("id", params.patientId)
-			.single();
+		// Get patient info via Drizzle
+		const db = getDb()
+		const [patient] = await db
+			.select({ id: patients.id, name: patients.name, phone: patients.phone })
+			.from(patients)
+			.where(eq(patients.id, params.patientId))
 
-		if (patientError || !patient) {
-			return { success: false, error: "Patient not found" };
+		if (!patient) {
+			return { success: false, error: "Patient not found" }
 		}
 
 		// Check if patient already has a waitlist entry for this date
@@ -115,23 +116,21 @@ export async function addToWaitlist(
 		// Get procedure name if provided
 		let procedureName: string | undefined;
 		if (params.procedureId) {
-			const { data: procedure } = await supabase
-				.from("procedures")
-				.select("name")
-				.eq("id", params.procedureId)
-				.single();
-			procedureName = procedure?.name;
+			const [proc] = await db
+				.select({ name: procedures.name })
+				.from(procedures)
+				.where(eq(procedures.id, params.procedureId))
+			procedureName = proc?.name
 		}
 
 		// Get dentist name if provided
 		let dentistName: string | undefined;
 		if (params.dentistId) {
-			const { data: dentist } = await supabase
-				.from("dentists")
-				.select("name")
-				.eq("id", params.dentistId)
-				.single();
-			dentistName = dentist?.name;
+			const [dent] = await db
+				.select({ name: dentists.name })
+				.from(dentists)
+				.where(eq(dentists.id, params.dentistId))
+			dentistName = dent?.name
 		}
 
 		// Create waitlist entry via repository
