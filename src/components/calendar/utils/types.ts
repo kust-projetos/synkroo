@@ -1,6 +1,9 @@
 // Calendar types — inspired by Cal.com architecture
 
-import type { AppointmentStatus } from '@/lib/supabase/database.types'
+import type { AppointmentStatus } from '@/lib/db/types'
+
+/** Origin of an appointment — AI or manual creation/mutation */
+export type AppointmentOrigin = 'ai' | 'manual'
 
 /** A single event on the calendar */
 export interface CalendarEvent {
@@ -16,6 +19,9 @@ export interface CalendarEvent {
   status: AppointmentStatus
   durationMinutes: number
   notes?: string | null
+  origin?: AppointmentOrigin
+  changeSummary?: string
+  changeImpact?: string
 }
 
 /** A resource column (dentist) in the calendar */
@@ -28,6 +34,15 @@ export interface CalendarResource {
 
 /** Calendar view modes */
 export type CalendarView = 'day' | 'week' | 'month' | 'professionals' | 'list'
+
+/** Grouping mode for calendar views */
+export type CalendarGroupMode = 'professionals' | 'time' | 'status'
+
+/** Density mode for calendar views */
+export type CalendarDensityMode = 'compact' | 'comfortable'
+
+/** Layout mode — agenda shows standard grid, professionals shows dentist columns */
+export type CalendarLayoutMode = 'agenda' | 'professionals'
 
 /** Dialog state for create/edit */
 export interface DialogSlotInfo {

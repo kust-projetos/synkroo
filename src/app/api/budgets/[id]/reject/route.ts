@@ -1,73 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { eq } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { budgets } from '@/lib/db/schema'
+import { validateApiAuth } from '@/lib/auth/session'
 import { getBudgetById, rejectBudget } from '@/services/budgets/budget.service'
 import { handleApiError } from '@/lib/errors'
 
-type RouteParams = {
-  params: Promise<{ id: string }>
-}
+type RouteParams = { params: Promise<{ id: string }> }
 
-/**
- * POST /api/budgets/[id]/reject
- * Reject a budget
- */
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const supabase = await createClient()
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    const clinicId = auth.profile!.clinic_id
 
     const { id } = await params
     const budget = await getBudgetById(id)
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
+    if (budget.clinic_id !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!['pending', 'sent'].includes(budget.status)) return NextResponse.json({ error: 'Budget cannot be rejected in current status' }, { status: 400 })
 
-    if (!budget) {
-      return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
-    }
+    const updated = await rejectBudget(id)
+    if (!updated) return NextResponse.json({ error: 'Failed to reject budget' }, { status: 500 })
 
-    // Verify user has access
-    const { data: userData } = await (supabase as any)
-      .from('users')
-      .select('clinic_id')
-      .eq('id', user.id)
-      .single()
-
-    if (!userData || userData.clinic_id !== budget.clinic_id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    // Check if budget can be rejected
-    if (!['pending', 'sent'].includes(budget.status)) {
-      return NextResponse.json(
-        { error: 'Budget cannot be rejected in current status' },
-        { status: 400 }
-      )
-    }
-
-    const updatedBudget = await rejectBudget(id)
-
-    if (!updatedBudget) {
-      return NextResponse.json({ error: 'Failed to reject budget' }, { status: 500 })
-    }
-
-    // Optionally store rejection reason
+    // Optional rejection reason
     const body = await request.json().catch(() => ({}))
     if (body.reason) {
-      await (supabase as any)
-        .from('budgets')
-        .update({ notes: `Rejeitado: ${body.reason}` })
-        .eq('id', id)
+      const db = getDb()
+      await db.update(budgets).set({ notes: `Rejeitado: ${body.reason}`, updatedAt: new Date() }).where(eq(budgets.id, id))
     }
 
-    return NextResponse.json({
-      budget: updatedBudget,
-      message: 'Budget rejected',
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
+    return NextResponse.json({ budget: updated, message: 'Budget rejected' })
+  } catch (error) { return handleApiError(error) }
 }

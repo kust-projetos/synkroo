@@ -1,207 +1,43 @@
-/**
- * Budget Follow-up Service
- * Tracks unconverted budgets and sends staged follow-ups via notes
- */
-
-import { createTypedClient } from '@/lib/supabase/typed'
+/** Budget Follow-up Service — Drizzle */
+import { eq, and, inArray, asc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { budgets, patients } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
-export interface UnconvertedBudget {
-  id: string
-  patient_id: string
-  patient_name: string
-  patient_phone: string | null
-  clinic_id: string
-  total_value: number
-  created_at: string
-  days_since_created: number
-  followup_stage: number
-  status: string
+export interface UnconvertedBudget { id:string;patient_id:string;patient_name:string;patient_phone:string|null;clinic_id:string;total_value:number;created_at:string;days_since_created:number;followup_stage:number;status:string }
+const FOLLOWUP_STAGES=[{day:7,message:'Olá! Tudo bem? Gostaria de saber se teve oportunidade de avaliar o orçamento que enviamos. Podemos ajustar se necessário!'},{day:14,message:'Oi! Estamos passando para saber se ainda tem interesse no tratamento. Temos condições especiais de pagamento que podem ajudar!'}]
+
+export async function findUnconvertedBudgets(clinicId:string):Promise<UnconvertedBudget[]>{
+  const db=getDb()
+  try{
+    const rows=await db.select().from(budgets).leftJoin(patients,eq(budgets.patientId,patients.id)).where(and(eq(budgets.clinicId,clinicId),inArray(budgets.status as any,['sent','pending']))).orderBy(asc(budgets.createdAt))
+    const now=new Date();const results:UnconvertedBudget[]=[]
+    for(const r of rows){const b=r.budgets;const p=r.patients;const cd=b.createdAt??new Date()
+      const days=Math.floor((now.getTime()-cd.getTime())/86400000);let fs=0
+      const notes=b.notes||'';const m=notes.match(/\[followup-stage-(\d+)-date/);if(m)fs=parseInt(m[1],10)
+      if(days>=FOLLOWUP_STAGES[0].day){results.push({id:b.id,patient_id:b.patientId,patient_name:p?.name||'Desconhecido',patient_phone:p?.phone||null,clinic_id:b.clinicId,total_value:Number(b.totalValue??0),created_at:cd.toISOString(),days_since_created:days,followup_stage:fs,status:b.status||''})}}
+    return results.sort((a,b)=>b.days_since_created-a.days_since_created)
+  }catch(e){dbLogger.error('Error finding unconverted budgets',e);return[]}
 }
 
-const FOLLOWUP_STAGES = [
-  { day: 7, message: 'Olá! Tudo bem? Gostaria de saber se teve oportunidade de avaliar o orçamento que enviamos. Podemos ajustar se necessário!' },
-  { day: 14, message: 'Oi! Estamos passando para saber se ainda tem interesse no tratamento. Temos condições especiais de pagamento que podem ajudar!' },
-]
-
-/**
- * Find budgets that haven't been converted within expected timeframe
- */
-export async function findUnconvertedBudgets(clinicId: string): Promise<UnconvertedBudget[]> {
-  const supabase = await createTypedClient()
-
-  try {
-    const { data: budgets, error } = await supabase
-      .from('budgets')
-      .select(`
-        id,
-        patient_id,
-        clinic_id,
-        total_value,
-        status,
-        created_at,
-        notes,
-        patients (name, phone)
-      `)
-      .eq('clinic_id', clinicId)
-      .in('status', ['sent', 'pending'])
-      .order('created_at', { ascending: true }) as any
-
-    if (error) throw error
-
-    const now = new Date()
-    const results: UnconvertedBudget[] = []
-
-    for (const budget of (budgets as any[]) || []) {
-      const patient = (budget as any).patients
-      const createdDate = new Date((budget as any).created_at)
-      const daysSinceCreated = Math.floor(
-        (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
-      )
-
-      // Parse current follow-up stage from notes
-      const notes: string = (budget as any).notes || ''
-      let followupStage = 0
-      const stageMatch = notes.match(/\[followup-stage-(\d+)-date/)
-      if (stageMatch) {
-        followupStage = parseInt(stageMatch[1], 10)
-      }
-
-      // Only include if past first follow-up threshold
-      if (daysSinceCreated >= FOLLOWUP_STAGES[0].day) {
-        results.push({
-          id: (budget as any).id,
-          patient_id: (budget as any).patient_id,
-          patient_name: patient?.name || 'Desconhecido',
-          patient_phone: patient?.phone || null,
-          clinic_id: (budget as any).clinic_id,
-          total_value: (budget as any).total_value,
-          created_at: (budget as any).created_at,
-          days_since_created: daysSinceCreated,
-          followup_stage: followupStage,
-          status: (budget as any).status,
-        })
-      }
-    }
-
-    // Sort by urgency (oldest first)
-    return results.sort((a, b) => b.days_since_created - a.days_since_created)
-  } catch (error) {
-    dbLogger.error('Error finding unconverted budgets', error)
-    return []
-  }
+export async function sendBudgetFollowup(budgetId:string,clinicId:string):Promise<{success:boolean;message?:string;stage?:number}>{
+  const db=getDb()
+  try{
+    const rows=await db.select({id:budgets.id,patientId:budgets.patientId,notes:budgets.notes,patientName:patients.name,patientPhone:patients.phone}).from(budgets).leftJoin(patients,eq(budgets.patientId,patients.id)).where(and(eq(budgets.id,budgetId),eq(budgets.clinicId,clinicId)))
+    const r=rows[0];if(!r)return{success:false,message:'Budget not found'}
+    if(!r.patientPhone)return{success:false,message:'Patient has no phone number'}
+    let cs=0;const m=(r.notes||'').match(/\[followup-stage-(\d+)-date/);if(m)cs=parseInt(m[1],10)
+    const ns=cs+1;if(ns>FOLLOWUP_STAGES.length)return{success:false,message:'All follow-up stages completed'}
+    const marker=`[followup-stage-${ns}-date: ${new Date().toISOString().split('T')[0]}]`
+    const newNotes=r.notes?`${r.notes}\n${marker}`:marker
+    await db.update(budgets).set({notes:newNotes,updatedAt:new Date()}as any).where(eq(budgets.id,budgetId))
+    return{success:true,message:FOLLOWUP_STAGES[ns-1].message,stage:ns}
+  }catch(e){dbLogger.error('Error sending budget follow-up',e,{budgetId});return{success:false,message:'Internal error'}}
 }
 
-/**
- * Send a follow-up for a specific budget
- * Records the follow-up stage in budget notes
- */
-export async function sendBudgetFollowup(
-  budgetId: string,
-  clinicId: string
-): Promise<{ success: boolean; message?: string; stage?: number }> {
-  const supabase = await createTypedClient()
-
-  try {
-    // Fetch budget with patient info
-    const { data: budget, error: fetchError } = await supabase
-      .from('budgets')
-      .select('id, patient_id, notes, patients (name, phone)')
-      .eq('id', budgetId)
-      .eq('clinic_id', clinicId)
-      .single() as any
-
-    if (fetchError || !budget) {
-      return { success: false, message: 'Budget not found' }
-    }
-
-    const patient = (budget as any).patients
-    if (!patient?.phone) {
-      return { success: false, message: 'Patient has no phone number' }
-    }
-
-    // Parse current stage from notes
-    const notes: string = (budget as any).notes || ''
-    let currentStage = 0
-    const stageMatch = notes.match(/\[followup-stage-(\d+)-date/)
-    if (stageMatch) {
-      currentStage = parseInt(stageMatch[1], 10)
-    }
-
-    // Determine next stage
-    const nextStage = currentStage + 1
-    if (nextStage > FOLLOWUP_STAGES.length) {
-      return { success: false, message: 'All follow-up stages completed' }
-    }
-
-    const stageConfig = FOLLOWUP_STAGES[nextStage - 1]
-    const personalMessage = stageConfig.message
-
-    // Update budget notes with follow-up marker
-    const stageMarker = `[followup-stage-${nextStage}-date: ${new Date().toISOString().split('T')[0]}]`
-    const updatedNotes = notes ? `${notes}\n${stageMarker}` : stageMarker
-
-    const { error: updateError } = await (supabase
-      .from('budgets') as any)
-      .update({
-        notes: updatedNotes,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', budgetId)
-
-    if (updateError) throw updateError
-
-    dbLogger.info('Budget follow-up sent', {
-      budgetId,
-      stage: nextStage,
-      patientName: (patient as any).name,
-    })
-
-    return {
-      success: true,
-      message: personalMessage,
-      stage: nextStage,
-    }
-  } catch (error) {
-    dbLogger.error('Error sending budget follow-up', error, { budgetId })
-    return { success: false, message: 'Internal error' }
-  }
-}
-
-/**
- * Process all pending follow-ups for a clinic
- * Called by cron job or manual trigger
- */
-export async function processBudgetFollowups(
-  clinicId: string
-): Promise<{ processed: number; errors: number }> {
-  const unconverted = await findUnconvertedBudgets(clinicId)
-
-  let processed = 0
-  let errors = 0
-
-  for (const budget of unconverted) {
-    // Check if budget is due for next follow-up
-    const nextStage = budget.followup_stage + 1
-    if (nextStage > FOLLOWUP_STAGES.length) continue
-
-    const stageConfig = FOLLOWUP_STAGES[nextStage - 1]
-    if (budget.days_since_created < stageConfig.day) continue
-
-    const result = await sendBudgetFollowup(budget.id, clinicId)
-    if (result.success) {
-      processed++
-    } else {
-      errors++
-    }
-  }
-
-  dbLogger.info('Budget follow-ups processed', {
-    clinicId,
-    processed,
-    errors,
-    totalUnconverted: unconverted.length,
-  })
-
-  return { processed, errors }
+export async function processBudgetFollowups(clinicId:string):Promise<{processed:number;errors:number}>{
+  const unconverted=await findUnconvertedBudgets(clinicId);let processed=0,errors=0
+  for(const b of unconverted){const ns=b.followup_stage+1;if(ns>FOLLOWUP_STAGES.length)continue;if(b.days_since_created<FOLLOWUP_STAGES[ns-1].day)continue
+    const r=await sendBudgetFollowup(b.id,clinicId);if(r.success)processed++;else errors++}
+  return{processed,errors}
 }

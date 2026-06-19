@@ -90,6 +90,9 @@ export function useCalendarEvents(): UseCalendarEventsResult {
         status: apt.status as CalendarEvent['status'],
         durationMinutes: apt.duration_minutes,
         notes: apt.notes,
+        origin: undefined,
+        changeSummary: undefined,
+        changeImpact: undefined,
       }
     })
   }, [data])

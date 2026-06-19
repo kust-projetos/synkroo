@@ -1,16 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { validateApiAuth } from '@/lib/supabase/server'
+import { eq, and, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { appointments, patients, dentists, procedures } from '@/lib/db/schema'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 
 interface RouteParams {
   params: Promise<{ id: string }>
 }
 
-/**
- * GET /api/contacts/[id]/appointments
- * Fetch appointments for a contact (patient)
- */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth()
@@ -20,52 +18,41 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id
 
     const { id } = await params
-
     if (!id) {
       return NextResponse.json({ error: 'Contact ID is required' }, { status: 400 })
     }
 
-    const supabase = await createClient()
+    const db = getDb()
+    const rows = await db
+      .select({
+        id: appointments.id,
+        scheduledAt: appointments.scheduledAt,
+        status: appointments.status,
+        notes: appointments.notes,
+        durationMinutes: appointments.durationMinutes,
+        patientName: patients.name,
+        dentistName: dentists.name,
+        procedureName: procedures.name,
+      })
+      .from(appointments)
+      .leftJoin(patients, eq(appointments.patientId, patients.id))
+      .leftJoin(dentists, eq(appointments.dentistId, dentists.id))
+      .leftJoin(procedures, eq(appointments.procedureId, procedures.id))
+      .where(and(eq(appointments.patientId, id), eq(appointments.clinicId, clinicId)))
+      .orderBy(desc(appointments.scheduledAt))
 
-    const { data, error } = await supabase
-      .from('appointments')
-      .select(`
-        id,
-        scheduled_at,
-        status,
-        notes,
-        duration_minutes,
-        patients (name),
-        dentists (name),
-        procedures (name)
-      `)
-      .eq('patient_id', id)
-      .eq('clinic_id', clinicId)
-      .order('scheduled_at', { ascending: false })
+    const result = rows.map((apt) => ({
+      id: apt.id,
+      scheduledAt: apt.scheduledAt?.toISOString?.() ?? null,
+      status: apt.status,
+      notes: apt.notes,
+      durationMinutes: apt.durationMinutes,
+      patientName: apt.patientName || '',
+      dentistName: apt.dentistName || '',
+      procedureName: apt.procedureName || '',
+    }))
 
-    if (error) {
-      throw error
-    }
-
-    // Normalize the joined data
-    const appointments = (data || []).map((apt: any) => {
-      const patient = Array.isArray(apt.patients) ? apt.patients[0] : apt.patients
-      const dentist = Array.isArray(apt.dentists) ? apt.dentists[0] : apt.dentists
-      const procedure = Array.isArray(apt.procedures) ? apt.procedures[0] : apt.procedures
-
-      return {
-        id: apt.id,
-        scheduledAt: apt.scheduled_at,
-        status: apt.status,
-        notes: apt.notes,
-        durationMinutes: apt.duration_minutes,
-        patientName: patient?.name || '',
-        dentistName: dentist?.name || '',
-        procedureName: procedure?.name || '',
-      }
-    })
-
-    return NextResponse.json({ appointments })
+    return NextResponse.json({ appointments: result })
   } catch (error) {
     return handleApiError(error)
   }

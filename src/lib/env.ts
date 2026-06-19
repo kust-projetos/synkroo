@@ -17,18 +17,11 @@ const envSchema = z.object({
   POSTGRES_USER: z.string().min(1).optional(),
   POSTGRES_PASSWORD: z.string().min(1).optional(),
 
-  // Supabase (CUTOVER COMPLETE — kept as optional for backward compat with scripts)
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url().optional(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1).optional(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-
   // Auth (required)
   AUTH_SECRET: z.string().min(32).optional(),
   AUTH_URL: z.string().url().optional(),
   JWT_SECRET: z.string().min(16),
 
-  // LLM (required for AI features)
-  MINIMAX_API_KEY: z.string().min(1),
 
   // WhatsApp (required for WhatsApp integration)
   WHATSAPP_VERIFY_TOKEN: z.string().min(8),
@@ -53,6 +46,9 @@ const envSchema = z.object({
 
   // Cron
   CRON_SECRET: z.string().min(1).optional(),
+
+  // Development mocks (client-side flag — NEXT_PUBLIC_ is exposed to browser)
+  NEXT_PUBLIC_USE_MOCKS: z.string().optional(),
 })
 
 export type Env = z.infer<typeof envSchema>
@@ -75,13 +71,9 @@ export function getEnv(): Env {
     POSTGRES_DB: process.env.POSTGRES_DB,
     POSTGRES_USER: process.env.POSTGRES_USER,
     POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
-    NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     AUTH_SECRET: process.env.AUTH_SECRET,
     AUTH_URL: process.env.AUTH_URL,
     JWT_SECRET: process.env.JWT_SECRET,
-    MINIMAX_API_KEY: process.env.MINIMAX_API_KEY,
     WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN,
     WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET,
     WHATSAPP_ACCESS_TOKEN: process.env.WHATSAPP_ACCESS_TOKEN,
@@ -96,6 +88,7 @@ export function getEnv(): Env {
     HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY,
     OLLAMA_HOST: process.env.OLLAMA_HOST,
     CRON_SECRET: process.env.CRON_SECRET,
+    NEXT_PUBLIC_USE_MOCKS: process.env.NEXT_PUBLIC_USE_MOCKS,
   })
 
   if (!result.success) {
@@ -124,16 +117,13 @@ export function getEnv(): Env {
         POSTGRES_DB: process.env.POSTGRES_DB,
         POSTGRES_USER: process.env.POSTGRES_USER,
         POSTGRES_PASSWORD: process.env.POSTGRES_PASSWORD,
-        NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
         AUTH_SECRET: process.env.AUTH_SECRET,
         AUTH_URL: process.env.AUTH_URL,
         JWT_SECRET: process.env.JWT_SECRET || '',
-        MINIMAX_API_KEY: process.env.MINIMAX_API_KEY || '',
         WHATSAPP_VERIFY_TOKEN: process.env.WHATSAPP_VERIFY_TOKEN || '',
         WHATSAPP_APP_SECRET: process.env.WHATSAPP_APP_SECRET || '',
         EVOLUTION_INSTANCE_NAME: 'synkroo',
+        NEXT_PUBLIC_USE_MOCKS: process.env.NEXT_PUBLIC_USE_MOCKS,
       }
       _env = partial as Env
       return _env

@@ -12,7 +12,7 @@ npm install
 cp .env.example .env.local
 
 # Configure your credentials
-# - Supabase URL and keys
+# - PostgreSQL (DATABASE_URL)
 # - MiniMax or OpenAI API key
 # - WhatsApp integration (Evolution API)
 
@@ -40,9 +40,9 @@ src/
 │   ├── login/                # Login page
 │   └── signup/               # Signup page
 ├── lib/
-│   ├── supabase/             # Supabase clients (client, server, admin)
+│   ├── db/                   # Drizzle ORM (schema, client, migrations, types)
 │   ├── llm/                  # Multi-LLM provider factory
-│   ├── auth/                 # Auth context and helpers
+│   ├── auth/                 # Auth context and helpers (NextAuth)
 │   ├── ui/                   # Shared UI components
 │   └── validations/          # Zod schemas
 ├── services/                 # Business logic services
@@ -64,8 +64,9 @@ src/
 | Layer | Technology |
 |-------|------------|
 | Framework | Next.js 15 (App Router) + TypeScript |
-| Database | Supabase (PostgreSQL + RLS multi-tenant) |
-| Auth | Supabase Auth (JWT + SSR cookies) |
+| Database | PostgreSQL via Drizzle ORM + `pg` (Supabase removido) |
+| Auth | NextAuth/Auth.js (JWT, edge middleware) |
+| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive + Vectorize (em migração) |
 | LLM | Multi-provider factory (MiniMax, OpenAI, Claude via proxy) |
 | WhatsApp | Evolution API v2.3.7 (Docker) + Playwright fallback |
 | Styling | Tailwind CSS |
@@ -133,10 +134,12 @@ npm test -- --coverage
 ## Environment Variables
 
 ```bash
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+# PostgreSQL (required)
+DATABASE_URL=postgresql://synkroo:password@127.0.0.1:55432/synkroo
+
+# Auth (NextAuth)
+AUTH_SECRET=
+JWT_SECRET=
 
 # LLM Provider (choose one)
 LLM_PROVIDER=minimax|openai|claude|openrouter
@@ -151,15 +154,6 @@ EVOLUTION_API_KEY=
 ## Development
 
 ```bash
-# Start local Supabase
-npm run supabase:start
-
-# Setup database
-npm run db:setup
-
-# Generate types from database
-npm run db:types
-
-# Health check
-npm run health
+# Start local DB and dev server
+npm run dev
 ```

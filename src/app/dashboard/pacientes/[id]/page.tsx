@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { Patient, Appointment } from '@/lib/supabase/database.types'
+import type { Patient, Appointment } from '@/lib/db/types'
 import { patientDomainBoundary, relationshipDomainBoundary } from '@/lib/domain-boundaries'
 
 interface PatientWithDetails extends Patient {
@@ -80,13 +80,13 @@ export default function PatientDetailPage() {
     return phone
   }
 
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('pt-BR')
+  const formatDate = (dateInput: Date | string | null) => {
+    if (!dateInput) return '-'
+    return new Date(dateInput).toLocaleDateString('pt-BR')
   }
 
-  const formatDateTime = (dateStr: string) => {
-    const date = new Date(dateStr)
+  const formatDateTime = (dateInput: Date | string) => {
+    const date = new Date(dateInput)
     return date.toLocaleDateString('pt-BR') + ' às ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
   }
 
@@ -200,15 +200,15 @@ export default function PatientDetailPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">Data de Nascimento</label>
-                <p className="text-foreground font-medium">{formatDate(patient.birth_date)}</p>
+                <p className="text-foreground font-medium">{formatDate(patient.birthDate)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">Última Visita</label>
-                <p className="text-foreground font-medium">{formatDate(patient.last_visit_at)}</p>
+                <p className="text-foreground font-medium">{formatDate(patient.lastVisitAt)}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-muted-foreground mb-1">Cadastrado em</label>
-                <p className="text-foreground font-medium">{formatDate(patient.created_at)}</p>
+                <p className="text-foreground font-medium">{formatDate(patient.createdAt)}</p>
               </div>
             </div>
 
@@ -264,7 +264,7 @@ export default function PatientDetailPage() {
                       <TableCell className="text-foreground font-medium">
                         <div className="flex items-center gap-2">
                           <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                          {formatDateTime(appointment.scheduled_at)}
+                          {formatDateTime(appointment.scheduledAt)}
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground">

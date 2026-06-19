@@ -5,7 +5,7 @@ import { handleApiError, NotFoundError } from '@/lib/errors'
 import { getDb } from '@/lib/db/client'
 import { patients } from '@/lib/db/schema'
 import * as appointmentRepo from '@/repositories/appointments'
-import { appointmentToApi } from '../route'
+import { appointmentToApi } from '../_serializer'
 
 interface RouteParams {
   params: Promise<{ id: string }>
