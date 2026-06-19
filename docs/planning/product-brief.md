@@ -710,4 +710,4 @@ Ver: `docs/planning/market-research.md`
 Ver: `docs/planning/technical-research.md`
 
 ### C. Sessão de Discovery Completa
-Ver: `discovery-session.md`
+Ver: `docs/archive/discovery-session.md`

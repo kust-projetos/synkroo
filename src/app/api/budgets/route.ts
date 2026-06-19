@@ -6,8 +6,8 @@ import {
   createBudget,
   getBudgetStats,
   type CreateBudgetInput,
+  type BudgetItem,
 } from '@/services/budgets/budget.service'
-import type { BudgetItem } from '@/lib/supabase/database.types'
 import { createBudgetSchema } from '@/lib/validations'
 import { handleApiError, ValidationError } from '@/lib/errors'
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'

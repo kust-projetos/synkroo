@@ -4,9 +4,9 @@
 
 | Variável | Status | Descrição |
 |----------|--------|-----------|
-| `NEXT_PUBLIC_SUPABASE_URL` | ✅ Configurada | URL do projeto Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ✅ Configurada | Chave pública do Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ Configurada | Chave de serviço (admin) |
+| `DATABASE_URL` | ✅ Configurada | PostgreSQL connection string (Drizzle) |
+| `AUTH_SECRET` | ✅ Configurada | NextAuth secret (≥32 chars) |
+| `JWT_SECRET` | ✅ Configurada | JWT signing key (≥16 chars) |
 | `MINIMAX_API_KEY` | ✅ Configurada | API key para LLM |
 | `MINIMAX_MODEL` | ✅ Configurada | Modelo MiniMax (M2.7) |
 | `JINA_API_KEY` | ✅ Configurada | Embeddings para RAG |
@@ -63,9 +63,9 @@ O sistema funciona sem WhatsApp Business API:
 node -e "
 require('dotenv').config({ path: '.env.local' });
 const required = [
-  'NEXT_PUBLIC_SUPABASE_URL',
-  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
-  'SUPABASE_SERVICE_ROLE_KEY',
+  'DATABASE_URL',
+  'AUTH_SECRET',
+  'JWT_SECRET',
   'MINIMAX_API_KEY',
   'JINA_API_KEY',
   'CRON_SECRET'

@@ -1,6 +1,7 @@
 'use client'
 
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import { isMockMode, getMockForUrl } from '@/lib/mocks'
 
 /**
  * Shared query keys for cache invalidation
@@ -41,9 +42,18 @@ export const queryKeys = {
 }
 
 /**
- * Generic fetcher with error handling
+ * Generic fetcher with error handling.
+ * In mock mode, returns deterministic fixture data instead of making real API calls.
  */
 async function fetcher<T>(url: string): Promise<T> {
+  if (isMockMode()) {
+    const mockData = getMockForUrl(url)
+    if (mockData !== null) {
+      return mockData as T
+    }
+    console.warn(`[fetcher] Mock mode active but no fixture for: ${url}, falling back to real fetch`)
+  }
+
   const response = await fetch(url)
   if (!response.ok) {
     throw new Error(`API error: ${response.status}`)
@@ -454,6 +464,9 @@ export function useCreateTask() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: CreateTaskInput) => {
+      if (isMockMode()) {
+        return { id: `mock-task-new-${Date.now()}`, ...input, created_at: new Date().toISOString() }
+      }
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -472,6 +485,9 @@ export function useUpdateTask() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: UpdateTaskInput) => {
+      if (isMockMode()) {
+        return { success: true, ...input, updated_at: new Date().toISOString() }
+      }
       const res = await fetch('/api/tasks', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -490,6 +506,9 @@ export function useDeleteTask() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (taskId: string) => {
+      if (isMockMode()) {
+        return { success: true, id: taskId, deleted_at: new Date().toISOString() }
+      }
       const res = await fetch(`/api/tasks?id=${taskId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete task')
       return res.json()
@@ -577,6 +596,9 @@ export function useGrantConsent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { contact_id: string; contact_type: 'patient' | 'lead'; purpose: string; channel?: string; notes?: string }) => {
+      if (isMockMode()) {
+        return { id: `mock-consent-${Date.now()}`, ...input, granted: true, granted_at: new Date().toISOString() }
+      }
       const res = await fetch('/api/consents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -598,6 +620,9 @@ export function useRevokeConsent() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { contact_id: string; contact_type: 'patient' | 'lead'; purpose: string; channel?: string; notes?: string }) => {
+      if (isMockMode()) {
+        return { success: true, ...input, revoked_at: new Date().toISOString() }
+      }
       const res = await fetch('/api/consents', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

@@ -1,232 +1,96 @@
-/**
- * Custom Field Definitions Service
- * CRUD operations for custom field definitions per clinic
- */
-
-import { createTypedClient } from '@/lib/supabase/typed'
+/** Custom Field Definitions Service — migrated to Drizzle */
+import { eq, and, asc, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { customFieldDefinitions } from '@/lib/db/schema/infra'
 import { dbLogger } from '@/lib/logger'
-import type {
-  CustomFieldDefinition,
-  FieldDefinitionCreateInput,
-  FieldDefinitionUpdateInput,
-  FieldDefinitionExport,
-  ImportDefinitionsResult,
-  FieldType,
-} from './types'
+import type { CustomFieldDefinition, FieldDefinitionCreateInput, FieldDefinitionUpdateInput, FieldDefinitionExport, ImportDefinitionsResult } from './types'
 
-/**
- * Get all custom field definitions for a clinic
- */
+const CF = customFieldDefinitions
+
+function toSnake(r: any): CustomFieldDefinition {
+  return {
+    id: r.id,
+    clinic_id: r.clinicId ?? '',
+    name: r.name ?? '',
+    field_type: r.fieldType ?? 'text',
+    options: r.options ?? [],
+    required: r.required ?? false,
+    sort_order: r.sortOrder ?? 0,
+    is_active: r.isActive ?? true,
+    created_at: r.createdAt?.toISOString?.() ?? '',
+    updated_at: r.updatedAt?.toISOString?.() ?? '',
+  }
+}
+
 export async function getDefinitions(clinicId: string): Promise<CustomFieldDefinition[]> {
-  const supabase = await createTypedClient()
-
+  const db = getDb()
   try {
-    const { data, error } = await supabase
-      .from('custom_field_definitions')
-      .select('*')
-      .eq('clinic_id', clinicId)
-      .eq('is_active', true)
-      .order('sort_order', { ascending: true })
-
-    if (error) throw error
-    return data || []
-  } catch (error) {
-    dbLogger.error('Error getting custom field definitions', error)
-    throw error
-  }
+    const rows = await db.select().from(CF).where(and(eq(CF.clinicId, clinicId), eq(CF.isActive, true))).orderBy(asc(CF.sortOrder))
+    return rows.map(toSnake)
+  } catch (error) { dbLogger.error('Error getting custom field definitions', error); throw error }
 }
 
-/**
- * Get a single definition by ID
- */
-export async function getDefinitionById(
-  clinicId: string,
-  definitionId: string
-): Promise<CustomFieldDefinition | null> {
-  const supabase = await createTypedClient()
-
+export async function getDefinitionById(clinicId: string, definitionId: string): Promise<CustomFieldDefinition | null> {
+  const db = getDb()
   try {
-    const { data, error } = await supabase
-      .from('custom_field_definitions')
-      .select('*')
-      .eq('id', definitionId)
-      .eq('clinic_id', clinicId)
-      .single()
-
-    if (error) return null
-    return data
-  } catch (error) {
-    dbLogger.error('Error getting custom field definition by ID', error)
-    return null
-  }
+    const [row] = await db.select().from(CF).where(and(eq(CF.id, definitionId), eq(CF.clinicId, clinicId)))
+    return row ? toSnake(row) : null
+  } catch (error) { dbLogger.error('Error getting custom field definition by ID', error); return null }
 }
 
-/**
- * Create a new custom field definition
- */
-export async function createDefinition(
-  clinicId: string,
-  input: FieldDefinitionCreateInput
-): Promise<CustomFieldDefinition> {
-  const supabase = await createTypedClient()
-
-  if (!input.name || !input.field_type) {
-    throw new Error('Name and field_type are required')
-  }
-
+export async function createDefinition(clinicId: string, input: FieldDefinitionCreateInput): Promise<CustomFieldDefinition> {
+  const db = getDb()
+  if (!input.name || !input.field_type) throw new Error('Name and field_type are required')
   try {
-    const maxSortResult = await supabase
-      .from('custom_field_definitions')
-      .select('sort_order')
-      .eq('clinic_id', clinicId)
-      .order('sort_order', { ascending: false })
-      .limit(1) as any
-
-    const maxSort = maxSortResult.data?.[0]?.sort_order ?? -1
-
-    const { data, error } = await (supabase
-      .from('custom_field_definitions') as any)
-      .insert({
-        clinic_id: clinicId,
-        name: input.name,
-        field_type: input.field_type,
-        options: input.options || [],
-        required: input.required ?? false,
-        sort_order: input.sort_order ?? maxSort + 1,
-        is_active: true,
-      })
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  } catch (error) {
-    dbLogger.error('Error creating custom field definition', error)
-    throw error
-  }
+    const [last] = await db.select({ sortOrder: CF.sortOrder }).from(CF).where(eq(CF.clinicId, clinicId)).orderBy(desc(CF.sortOrder)).limit(1)
+    const maxSort = last?.sortOrder ?? -1
+    const [row] = await db.insert(CF).values({
+      clinicId, name: input.name, fieldType: input.field_type, options: input.options ?? [],
+      required: input.required ?? false, sortOrder: input.sort_order ?? maxSort + 1, isActive: true,
+    }).returning()
+    return toSnake(row)
+  } catch (error) { dbLogger.error('Error creating custom field definition', error); throw error }
 }
 
-/**
- * Update an existing custom field definition
- */
-export async function updateDefinition(
-  clinicId: string,
-  definitionId: string,
-  input: FieldDefinitionUpdateInput
-): Promise<CustomFieldDefinition> {
-  const supabase = await createTypedClient()
-
+export async function updateDefinition(clinicId: string, definitionId: string, input: FieldDefinitionUpdateInput): Promise<CustomFieldDefinition> {
+  const db = getDb()
+  const set: any = { updatedAt: new Date() }
+  const map: Record<string, string> = { name: 'name', options: 'options', required: 'required', sort_order: 'sortOrder', is_active: 'isActive' }
+  for (const [k, v] of Object.entries(map)) { if ((input as any)[k] !== undefined) set[v] = (input as any)[k] }
   try {
-    const updateData: Record<string, unknown> = {}
-    if (input.name !== undefined) updateData.name = input.name
-    if (input.options !== undefined) updateData.options = input.options
-    if (input.required !== undefined) updateData.required = input.required
-    if (input.sort_order !== undefined) updateData.sort_order = input.sort_order
-    if (input.is_active !== undefined) updateData.is_active = input.is_active
-    updateData.updated_at = new Date().toISOString()
-
-    const { data, error } = await (supabase
-      .from('custom_field_definitions') as any)
-      .update(updateData)
-      .eq('id', definitionId)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
-
-    if (error) throw error
-    return data
-  } catch (error) {
-    dbLogger.error('Error updating custom field definition', error)
-    throw error
-  }
+    const [row] = await db.update(CF).set(set).where(and(eq(CF.id, definitionId), eq(CF.clinicId, clinicId))).returning()
+    return toSnake(row)
+  } catch (error) { dbLogger.error('Error updating custom field definition', error); throw error }
 }
 
-/**
- * Delete (deactivate) a custom field definition
- */
-export async function deleteDefinition(
-  clinicId: string,
-  definitionId: string
-): Promise<void> {
-  const supabase = await createTypedClient()
-
+export async function deleteDefinition(clinicId: string, definitionId: string): Promise<void> {
+  const db = getDb()
   try {
-    const { error } = await (supabase
-      .from('custom_field_definitions') as any)
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq('id', definitionId)
-      .eq('clinic_id', clinicId)
-
-    if (error) throw error
-  } catch (error) {
-    dbLogger.error('Error deleting custom field definition', error)
-    throw error
-  }
+    await db.update(CF).set({ isActive: false, updatedAt: new Date() }).where(and(eq(CF.id, definitionId), eq(CF.clinicId, clinicId)))
+  } catch (error) { dbLogger.error('Error deleting custom field definition', error); throw error }
 }
 
-/**
- * Export all definitions for a clinic (for backup/import to another clinic)
- */
 export async function exportDefinitions(clinicId: string): Promise<FieldDefinitionExport> {
   const definitions = await getDefinitions(clinicId)
-
   return {
     version: 1,
     exported_at: new Date().toISOString(),
-    definitions: definitions.map(def => ({
-      name: def.name,
-      field_type: def.field_type,
-      options: def.options,
-      required: def.required,
-      sort_order: def.sort_order,
-    })),
+    definitions: definitions.map((def) => ({ name: def.name, field_type: def.field_type, options: def.options, required: def.required, sort_order: def.sort_order })),
   }
 }
 
-/**
- * Import definitions from export file
- * Creates new definitions, skips existing names (upsert not overwrite)
- */
-export async function importDefinitions(
-  clinicId: string,
-  exportData: FieldDefinitionExport
-): Promise<ImportDefinitionsResult> {
-  if (exportData.version !== 1) {
-    throw new Error(`Unsupported export version: ${exportData.version}`)
-  }
-
-  const supabase = await createTypedClient()
-  let created = 0
-  let skipped = 0
-
+export async function importDefinitions(clinicId: string, exportData: FieldDefinitionExport): Promise<ImportDefinitionsResult> {
+  if (exportData.version !== 1) throw new Error(`Unsupported export version: ${exportData.version}`)
+  const db = getDb()
   const existing = await getDefinitions(clinicId)
-  const existingNames = new Set(existing.map(e => e.name))
-
+  const existingNames = new Set(existing.map((e) => e.name))
+  let created = 0, skipped = 0
   try {
     for (const def of exportData.definitions) {
-      if (existingNames.has(def.name)) {
-        skipped++
-        continue
-      }
-
-      await (supabase
-        .from('custom_field_definitions') as any)
-        .insert({
-          clinic_id: clinicId,
-          name: def.name,
-          field_type: def.field_type,
-          options: def.options || [],
-          required: def.required ?? false,
-          sort_order: def.sort_order ?? 0,
-          is_active: true,
-        })
-
+      if (existingNames.has(def.name)) { skipped++; continue }
+      await db.insert(CF).values({ clinicId, name: def.name, fieldType: def.field_type, options: def.options ?? [], required: def.required ?? false, sortOrder: def.sort_order ?? 0, isActive: true })
       created++
     }
-
     return { created, skipped }
-  } catch (error) {
-    dbLogger.error('Error importing custom field definitions', error)
-    throw error
-  }
+  } catch (error) { dbLogger.error('Error importing custom field definitions', error); throw error }
 }

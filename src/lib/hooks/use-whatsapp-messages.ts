@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from './use-queries'
+import { isMockMode, getMockForUrl } from '@/lib/mocks'
 
 export interface WhatsAppMessage {
   id: string
@@ -25,6 +26,10 @@ interface UseWhatsAppMessagesResult {
 }
 
 async function fetchWhatsAppMessages(contactId: string, phone: string): Promise<WhatsAppMessage[]> {
+  if (isMockMode()) {
+    const data = getMockForUrl(`/api/messages/whatsapp?contact_id=${contactId}&phone=${phone}`) as { messages: WhatsAppMessage[] } | null
+    return data?.messages ?? []
+  }
   const params = new URLSearchParams({ contact_id: contactId, phone })
   const response = await fetch(`/api/messages/whatsapp?${params}`)
   if (!response.ok) throw new Error('Failed to fetch messages')
@@ -59,6 +64,9 @@ export function useSendWhatsAppMessage({ contactPhone, onSuccess, onError }: Use
 
   return useMutation({
     mutationFn: async ({ message }: { message: string }) => {
+      if (isMockMode()) {
+        return { id: 'mock-sent-msg', status: 'sent', message, created_at: new Date().toISOString() }
+      }
       const response = await fetch('/api/messages/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

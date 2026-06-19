@@ -3,8 +3,6 @@ import { createHmac } from 'crypto'
 import { eq, and, asc, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { clinics, conversations, messages } from '@/lib/db/schema'
-import { channelType, messageDirection, messageType } from '@/lib/db/schema/enums'
-import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
 import {
   checkRateLimit,
@@ -16,9 +14,12 @@ import {
 /**
  * Instagram Graph API Webhook
  *
+ * Legacy agent removed — AI processing disabled.
+ * TODO(W5.3): reconnect to new agent.
+ *
  * Handles:
  * 1. Webhook verification (GET) - Meta challenge
- * 2. DM reception (POST) - Inbound messages
+ * 2. DM reception (POST) - inbound messages stored
  */
 
 const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN
@@ -41,13 +42,15 @@ export async function GET(request: NextRequest) {
     return new NextResponse(challenge, { status: 200 })
   }
 
-  console.error('❌ Instagram webhook verification failed')
+  console.error('[instagram/webhook] ❌ Verification failed')
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 })
 }
 
 /**
  * POST /api/instagram/webhook
- * Receive messages from Instagram Graph API
+ * Receive messages from Instagram Graph API.
+ * AI response disabled — legacy agent removed.
+ * TODO(W5.3): reconnect to new agent.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
     const body = await request.text()
 
     if (!verifyInstagramSignature(body, signature)) {
-      console.error('❌ Invalid Instagram webhook signature')
+      console.error('[instagram/webhook] ❌ Invalid signature')
       return NextResponse.json({ error: 'Invalid signature' }, { status: 403 })
     }
 
@@ -108,13 +111,13 @@ export async function POST(request: NextRequest) {
         const hoursSinceMessage = (now.getTime() - messageTime.getTime()) / (1000 * 60 * 60)
 
         if (hoursSinceMessage > 24) {
-          console.warn('⏰ Message outside 24h window, skipping')
+          console.warn('[instagram/webhook] ⏰ Message outside 24h window, skipping')
           continue
         }
 
         // Get message content
         let content = ''
-        let msgMessageType: typeof messageType.enumName = 'text'
+        let msgMessageType: 'text' | 'image' | 'audio' = 'text'
 
         if (message.text) {
           content = message.text
@@ -139,7 +142,7 @@ export async function POST(request: NextRequest) {
         const clinicId = await getClinicIdByInstagramAccount(db, recipientId)
 
         if (!clinicId) {
-          console.error(`Clinic not found for Instagram account: ${recipientId}`)
+          console.error(`[instagram/webhook] Clinic not found for Instagram account: ${recipientId}`)
           continue
         }
 
@@ -170,12 +173,12 @@ export async function POST(request: NextRequest) {
         }
 
         if (!conversation) {
-          console.error('Failed to create or find conversation')
+          console.error('[instagram/webhook] Failed to create conversation')
           continue
         }
 
         // Store inbound message
-        const savedMessages = await db
+        await db
           .insert(messages)
           .values({
             conversationId: conversation.id,
@@ -189,83 +192,19 @@ export async function POST(request: NextRequest) {
             },
             isAi: false,
           } as any)
-          .returning()
 
-        if (!savedMessages[0]) {
-          console.error('Failed to save message')
-          continue
-        }
+        // AI response disabled — legacy agent removed
+        // TODO(W5.3): reconnect to new agent
+        console.warn('[instagram/webhook] Message stored (AI disabled)', {
+          from: senderId,
+          reason: 'legacy_agent_removed',
+        })
 
-        // Process message with AI
-        const llm = getLLMProvider()
-        const { intent, confidence, entities } = await llm.classifyIntent(content)
-        const extractedEntities = await llm.extractEntities(content)
-
-        // Update message with intent and entities
+        // Update conversation
         await db
-          .update(messages)
-          .set({
-            intent,
-            entities: { ...entities, ...extractedEntities },
-            confidence: confidence ? String(confidence) : null,
-          } as any)
-          .where(eq(messages.id, savedMessages[0].id))
-
-        // Check if escalation needed
-        const shouldEscalate = await llm.shouldEscalate(content, intent)
-
-        if (shouldEscalate) {
-          await db
-            .update(conversations)
-            .set({ status: 'escalated' } as any)
-            .where(eq(conversations.id, conversation.id))
-
-          await sendInstagramMessage(recipientId, senderId,
-            'Entendi! Vou transferir você para um atendente humano. Aguarde um momento, por favor.')
-        } else {
-          // Get conversation history
-          const history = await db
-            .select()
-            .from(messages)
-            .where(eq(messages.conversationId, conversation.id))
-            .orderBy(asc(messages.createdAt))
-            .limit(10)
-
-          const conversationHistory = history.map((msg) => ({
-            role: msg.direction === 'inbound' ? 'user' as const : 'assistant' as const,
-            content: msg.content,
-          }))
-
-          // Generate AI response
-          const aiResponse = await llm.generateResponse(content, {
-            intent,
-            entities: extractedEntities,
-            conversationHistory,
-          })
-
-          // Store AI response
-          await db
-            .insert(messages)
-            .values({
-              conversationId: conversation.id,
-              direction: 'outbound' as any,
-              content: aiResponse,
-              messageType: 'text',
-              intent,
-              entities: extractedEntities,
-              confidence: confidence ? String(confidence) : null,
-              isAi: true,
-            } as any)
-
-          // Send response via Instagram
-          await sendInstagramMessage(recipientId, senderId, aiResponse)
-
-          // Update conversation
-          await db
-            .update(conversations)
-            .set({ lastMessageAt: new Date() } as any)
-            .where(eq(conversations.id, conversation.id))
-        }
+          .update(conversations)
+          .set({ lastMessageAt: new Date() } as any)
+          .where(eq(conversations.id, conversation.id))
 
         processedMessages.push({ from: senderId, message: content })
       }
@@ -275,6 +214,9 @@ export async function POST(request: NextRequest) {
       success: true,
       processed: processedMessages.length,
       messages: processedMessages,
+      ai_enabled: false,
+      reason: 'legacy_agent_removed',
+      todo: 'TODO(W5.3): reconnect to new agent',
     })
   } catch (error) {
     return handleApiError(error)
@@ -290,7 +232,6 @@ async function getClinicIdByInstagramAccount(
 ): Promise<string | null> {
   if (!instagramAccountId) return null
 
-  // Use raw SQL for JSONB contains query
   const clinicResult = await db.execute(
     sql`SELECT id FROM clinics WHERE settings->>'instagram_account_id' = ${instagramAccountId} LIMIT 1`
   )
@@ -317,24 +258,20 @@ async function sendInstagramMessage(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        recipient: {
-          id: to,
-        },
-        message: {
-          text: message,
-        },
+        recipient: { id: to },
+        message: { text: message },
       }),
     })
 
     if (!response.ok) {
       const error = await response.text()
-      console.error('Instagram send error:', error)
+      console.error('[instagram/webhook] Send error:', error)
       return false
     }
 
     return true
   } catch (error) {
-    console.error('Failed to send Instagram message:', error)
+    console.error('[instagram/webhook] Failed to send:', error)
     return false
   }
 }
@@ -344,9 +281,8 @@ async function sendInstagramMessage(
  */
 function verifyInstagramSignature(body: string, signature: string | null): boolean {
   if (!VERIFY_TOKEN || !APP_SECRET) {
-    // Fail closed in production
     if (process.env.NODE_ENV !== 'development') return false
-    console.warn('[IG] Webhook signature verification skipped - no APP_SECRET configured')
+    console.warn('[instagram/webhook] Signature verification skipped — no APP_SECRET configured')
     return true
   }
 

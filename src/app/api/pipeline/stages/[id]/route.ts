@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getUserProfile } from '@/lib/supabase/server'
+import { validateApiAuth } from '@/lib/auth/session'
 import { updatePipelineStage, deletePipelineStage } from '@/services/pipeline/stages.service'
 
-// PATCH /api/pipeline/stages/[id] -- update stage
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const profile = await getUserProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
     const { id } = await params
     const body = await req.json()
@@ -26,11 +25,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-// DELETE /api/pipeline/stages/[id] -- delete stage
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const profile = await getUserProfile()
-    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
     const { id } = await params
 
@@ -38,15 +36,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       await deletePipelineStage(id)
       return NextResponse.json({ success: true })
     } catch (error: any) {
-      if (error.message === 'Cannot delete default stage') {
-        return NextResponse.json({ error: 'Cannot delete default stage' }, { status: 400 })
-      }
-      if (error.message.includes('Cannot delete stage with leads')) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
-      if (error.message.includes('no default stage configured')) {
-        return NextResponse.json({ error: error.message }, { status: 400 })
-      }
+      if (error.message === 'Cannot delete default stage') return NextResponse.json({ error: error.message }, { status: 400 })
+      if (error.message?.includes('Cannot delete stage with leads')) return NextResponse.json({ error: error.message }, { status: 400 })
+      if (error.message?.includes('no default stage configured')) return NextResponse.json({ error: error.message }, { status: 400 })
       throw error
     }
   } catch (error: any) {

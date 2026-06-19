@@ -176,12 +176,10 @@
 ### Variáveis de Ambiente Necessárias
 
 ```bash
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+# PostgreSQL
+DATABASE_URL=
 
-# Auth
+# Auth (NextAuth)
 JWT_SECRET=
 
 # WhatsApp

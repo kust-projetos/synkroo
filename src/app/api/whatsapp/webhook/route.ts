@@ -3,8 +3,6 @@ import { createHmac } from 'crypto'
 import { eq, and, asc, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { clinics, conversations, messages } from '@/lib/db/schema'
-import { channelType, messageDirection, messageType } from '@/lib/db/schema/enums'
-import { getLLMProvider } from '@/lib/llm'
 import { handleApiError } from '@/lib/errors'
 import { whatsappLogger } from '@/lib/logger'
 import {
@@ -21,9 +19,12 @@ import {
 /**
  * WhatsApp Business API Webhook
  *
+ * Legacy agent removed — AI processing disabled.
+ * TODO(W5.3): reconnect to new agent.
+ *
  * Handles:
  * 1. Webhook verification (GET) - Meta challenge
- * 2. Message reception (POST) - Inbound messages
+ * 2. Message reception (POST) - inbound messages stored, confirmations sent
  */
 
 // Webhook verification token (configured in Meta Developer Portal)
@@ -43,17 +44,19 @@ export async function GET(request: NextRequest) {
 
   // Verify the webhook
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.warn('✅ WhatsApp webhook verified')
+    console.warn('[whatsapp/webhook] ✅ Verified')
     return new NextResponse(challenge, { status: 200 })
   }
 
-  console.error('❌ WhatsApp webhook verification failed')
+  console.error('[whatsapp/webhook] ❌ Verification failed')
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 })
 }
 
 /**
  * POST /api/whatsapp/webhook
- * Receive messages from WhatsApp Business API
+ * Receive messages from WhatsApp Business API.
+ * AI response disabled — legacy agent removed.
+ * TODO(W5.3): reconnect to new agent.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
     const body = await request.text()
 
     if (!verifySignature(body, signature)) {
-      console.error('❌ Invalid webhook signature')
+      console.error('[whatsapp/webhook] ❌ Invalid signature')
       return NextResponse.json({ error: 'Invalid signature' }, { status: 403 })
     }
 
@@ -113,7 +116,7 @@ export async function POST(request: NextRequest) {
 
             // Extract message content based on type
             let content = ''
-            let msgMessageType: typeof messageType.enumName = 'text'
+            let msgMessageType: 'text' | 'image' | 'audio' | 'document' = 'text'
 
             if (type === 'text' && msg.text) {
               content = msg.text.body
@@ -136,7 +139,7 @@ export async function POST(request: NextRequest) {
             const clinicId = await getClinicIdByPhoneNumber(db, phoneNumberId)
 
             if (!clinicId) {
-              console.error(`Clinic not found for phone number ID: ${phoneNumberId}`)
+              console.error(`[whatsapp/webhook] Clinic not found for phone number ID: ${phoneNumberId}`)
               continue
             }
 
@@ -167,12 +170,12 @@ export async function POST(request: NextRequest) {
             }
 
             if (!conversation) {
-              console.error('Failed to create conversation')
+              console.error('[whatsapp/webhook] Failed to create conversation')
               continue
             }
 
             // Store inbound message
-            const savedMessages = await db
+            await db
               .insert(messages)
               .values({
                 conversationId: conversation.id,
@@ -186,9 +189,8 @@ export async function POST(request: NextRequest) {
                 },
                 isAi: false,
               } as any)
-              .returning()
 
-            // Check for confirmation/cancellation response first
+            // Check for confirmation/cancellation response first (no LLM needed)
             const confirmationResult = await processConfirmationResponse(
               clinicId,
               from,
@@ -212,7 +214,7 @@ export async function POST(request: NextRequest) {
               await sendWhatsAppMessage(phoneNumberId, from, confirmationResult.responseMessage)
 
               processedMessages.push({ from, message: content })
-              continue // Skip AI processing for confirmation messages
+              continue
             }
 
             // Check for waitlist confirmation
@@ -242,79 +244,19 @@ export async function POST(request: NextRequest) {
               continue
             }
 
-            // Process message with AI
-            const llm = getLLMProvider()
-            const { intent, confidence, entities } = await llm.classifyIntent(content)
-            const extractedEntities = await llm.extractEntities(content)
+            // AI response disabled — legacy agent removed
+            // TODO(W5.3): reconnect to new agent
+            whatsappLogger.info('[whatsapp/webhook] Message stored (AI disabled)', {
+              from,
+              content: content.substring(0, 50),
+              reason: 'legacy_agent_removed',
+            })
 
-            // Update message with intent and entities
-            if (savedMessages[0]) {
-              await db
-                .update(messages)
-                .set({
-                  intent,
-                  entities: { ...entities, ...extractedEntities },
-                  confidence: confidence ? String(confidence) : null,
-                } as any)
-                .where(eq(messages.id, savedMessages[0].id))
-            }
-
-            // Check if escalation needed
-            const shouldEscalate = await llm.shouldEscalate(content, intent)
-
-            if (shouldEscalate) {
-              await db
-                .update(conversations)
-                .set({ status: 'escalated' } as any)
-                .where(eq(conversations.id, conversation.id))
-
-              // Send escalation message
-              await sendWhatsAppMessage(phoneNumberId, from,
-                'Entendi! Vou transferir você para um atendente humano. Aguarde um momento, por favor.')
-            } else {
-              // Get conversation history for context
-              const history = await db
-                .select()
-                .from(messages)
-                .where(eq(messages.conversationId, conversation.id))
-                .orderBy(asc(messages.createdAt))
-                .limit(10)
-
-              const conversationHistory = history.map((msg) => ({
-                role: msg.direction === 'inbound' ? 'user' as const : 'assistant' as const,
-                content: msg.content,
-              }))
-
-              // Generate AI response
-              const aiResponse = await llm.generateResponse(content, {
-                intent,
-                entities: extractedEntities,
-                conversationHistory,
-              })
-
-              // Store AI response
-              await db
-                .insert(messages)
-                .values({
-                  conversationId: conversation.id,
-                  direction: 'outbound' as any,
-                  content: aiResponse,
-                  messageType: 'text',
-                  intent,
-                  entities: extractedEntities,
-                  confidence: confidence ? String(confidence) : null,
-                  isAi: true,
-                } as any)
-
-              // Send response via WhatsApp
-              await sendWhatsAppMessage(phoneNumberId, from, aiResponse)
-
-              // Update conversation
-              await db
-                .update(conversations)
-                .set({ lastMessageAt: new Date() } as any)
-                .where(eq(conversations.id, conversation.id))
-            }
+            // Update conversation
+            await db
+              .update(conversations)
+              .set({ lastMessageAt: new Date() } as any)
+              .where(eq(conversations.id, conversation.id))
 
             processedMessages.push({ from, message: content })
           }
@@ -338,6 +280,9 @@ export async function POST(request: NextRequest) {
       success: true,
       processed: processedMessages.length,
       messages: processedMessages,
+      ai_enabled: false,
+      reason: 'legacy_agent_removed',
+      todo: 'TODO(W5.3): reconnect to new agent',
     })
   } catch (error) {
     return handleApiError(error)
@@ -352,7 +297,7 @@ function verifySignature(body: string, signature: string | null): boolean {
     // Fail closed: no token/secret = no access
     if (process.env.NODE_ENV !== 'development') return false
     // In dev mode, skip verification but warn
-    whatsappLogger.warn('Webhook signature verification skipped - no APP_SECRET configured')
+    whatsappLogger.warn('[whatsapp/webhook] Signature verification skipped — no APP_SECRET configured')
     return true
   }
 
@@ -415,13 +360,13 @@ async function sendWhatsAppMessage(
 
     if (!response.ok) {
       const error = await response.text()
-      console.error('WhatsApp send error:', error)
+      console.error('[whatsapp/webhook] Send error:', error)
       return false
     }
 
     return true
   } catch (error) {
-    console.error('Failed to send WhatsApp message:', error)
+    console.error('[whatsapp/webhook] Failed to send:', error)
     return false
   }
 }

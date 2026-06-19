@@ -1,12 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/supabase/server'
-import { createClient } from '@/lib/supabase/server'
-import { ragService, embeddingService } from '@/services/rag'
-import { handleApiError, DatabaseError } from '@/lib/errors'
+import { eq, and } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { knowledgeBase } from '@/lib/db/schema/infra'
+import { validateApiAuth } from '@/lib/auth/session'
+
+const KB = knowledgeBase
+
+function toSnake(r: any) {
+  return {
+    id: r.id,
+    clinic_id: r.clinicId,
+    category: r.category,
+    question: r.question,
+    answer: r.answer,
+    keywords: r.keywords ?? [],
+    embedding: r.embedding,
+    is_active: r.isActive,
+    created_at: r.createdAt?.toISOString?.() ?? null,
+    updated_at: r.updatedAt?.toISOString?.() ?? null,
+  }
+}
 
 /**
  * GET /api/knowledge/[id]
- * Get a specific knowledge base entry
+ * DB read — works without RAG.
  */
 export async function GET(
   request: NextRequest,
@@ -14,105 +31,54 @@ export async function GET(
 ) {
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
+    if (!authResult.success)
+      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
-    const supabase = await createClient()
+    const db = getDb()
 
-    const { data, error } = await supabase
-      .from('knowledge_base')
-      .select('*')
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .single()
+    const [row] = await db
+      .select()
+      .from(KB)
+      .where(and(eq(KB.id, id), eq(KB.clinicId, clinicId)))
+    if (!row) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
 
-    if (error) {
-      return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ data })
+    return NextResponse.json({ data: toSnake(row) })
   } catch (error) {
-    return handleApiError(error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
 
 /**
  * PUT /api/knowledge/[id]
- * Update a knowledge base entry and regenerate embedding
+ * Legacy RAG/embedding service removed — returns 501.
+ * TODO(W5.3): reconnect knowledge ingestion to new retrieval backend.
  */
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+    const auth = await validateApiAuth()
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
-    const clinicId = authResult.profile!.clinic_id
-    const { id } = await params
-    const body = await request.json()
-    const supabase = await createClient()
-
-    const { category, question, answer, keywords, is_active } = body
-
-    // Build update object
-    const updateData: Record<string, unknown> = {}
-
-    if (category !== undefined) updateData.category = category
-    if (question !== undefined) updateData.question = question
-    if (answer !== undefined) updateData.answer = answer
-    if (keywords !== undefined) updateData.keywords = keywords
-    if (is_active !== undefined) updateData.is_active = is_active
-
-    // Regenerate embedding if question or answer changed
-    if (question || answer) {
-      // Get current entry
-      const { data: current } = await supabase
-        .from('knowledge_base')
-        .select('question, answer')
-        .eq('id', id)
-        .eq('clinic_id', clinicId)
-        .single() as { data: { question: string; answer: string } | null }
-
-      if (current) {
-        const text = `${question || current.question}\n${answer || current.answer}`
-        const { embedding } = await embeddingService.generateEmbedding(text)
-        updateData.embedding = embedding
-      }
-    }
-
-    const { data, error } = await (supabase
-      .from('knowledge_base') as any)
-      .update(updateData)
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-      .select()
-      .single()
-
-    if (error) {
-      return handleApiError(new DatabaseError('Failed to update entry', error as any))
-    }
-
-    return NextResponse.json({ success: true, data })
+    return NextResponse.json(
+      {
+        success: false,
+        disabled: true,
+        reason: 'legacy_rag_removed',
+        todo: 'TODO(W5.3): reconnect knowledge ingestion to new retrieval backend',
+      },
+      { status: 501 }
+    )
   } catch (error) {
-    return handleApiError(error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }
 
 /**
  * DELETE /api/knowledge/[id]
- * Delete a knowledge base entry
+ * DB delete — works without RAG.
  */
 export async function DELETE(
   request: NextRequest,
@@ -120,29 +86,15 @@ export async function DELETE(
 ) {
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
+    if (!authResult.success)
+      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
-    const supabase = await createClient()
+    const db = getDb()
 
-    const { error } = await supabase
-      .from('knowledge_base')
-      .delete()
-      .eq('id', id)
-      .eq('clinic_id', clinicId)
-
-    if (error) {
-      return handleApiError(new DatabaseError('Failed to delete entry', error as any))
-    }
-
+    await db.delete(KB).where(and(eq(KB.id, id), eq(KB.clinicId, clinicId)))
     return NextResponse.json({ success: true })
   } catch (error) {
-    return handleApiError(error)
+    return NextResponse.json({ error: String(error) }, { status: 500 })
   }
 }

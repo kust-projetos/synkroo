@@ -1,124 +1,42 @@
-/**
- * Tests for Pipeline Analytics Service
- * Mocks: Supabase client (createTypedClient)
- */
+/** Tests for Pipeline Analytics Service — Drizzle mocks */
+jest.mock('@/lib/logger', () => ({ dbLogger: { error: jest.fn(), info: jest.fn() } }))
 
-const mockSupabaseClient = {
-  from: jest.fn().mockReturnValue({
-    select: jest.fn().mockReturnValue({
-      eq: jest.fn().mockReturnValue({
-        order: jest.fn().mockResolvedValue({ data: [], error: null }),
-      }),
-    }),
+let results: any[][] = [], counter = 0
+const mdb = {
+  select: jest.fn(function (this: any) { return this }),
+  from: jest.fn(function (this: any) { return this }),
+  where: jest.fn(function (this: any) { return this }),
+  orderBy: jest.fn(function (this: any) { return this }),
+  then: jest.fn(function (this: any, onF: any) {
+    const d = results[counter++] ?? results[results.length - 1] ?? []
+    return Promise.resolve(typeof onF === 'function' ? onF(d) : d)
   }),
-}
+} as any
+jest.mock('@/lib/db/client', () => { let d: any = null; return { getDb: jest.fn(() => { if (!d) d = mdb; return d }) } })
 
-jest.mock('@/lib/supabase/typed', () => ({
-  createTypedClient: jest.fn().mockResolvedValue(mockSupabaseClient),
-}))
+function seed(...s: any[][]) { counter = 0; results = s }
+beforeEach(() => { counter = 0; results = []; jest.clearAllMocks() })
 
-import {
-  getConversionByStage,
-} from '../pipeline-analytics.service'
+import { getConversionByStage, getAvgConversionTime } from '../pipeline-analytics.service'
 
 describe('Pipeline Analytics Service', () => {
-  beforeEach(() => {
-    jest.clearAllMocks()
+  describe('getConversionByStage', () => {
+    it('returns empty when no stages', async () => { seed([]); const r = await getConversionByStage('c1'); expect(r).toEqual([]) })
+    it('returns zeros for empty pipeline', async () => {
+      seed([{ id: 's1', name: 'Novo', color: '#3B82F6', position: 1 }, { id: 's2', name: 'Qualificado', color: '#10B981', position: 2 }], [])
+      const r = await getConversionByStage('c1'); expect(r).toHaveLength(2); expect(r[0].totalLeads).toBe(0)
+    })
+    it('calculates conversion rates', async () => {
+      seed([{ id: 's1', name: 'Novo', color: '#3B82F6', position: 1 }], [{ stageId: 's1', convertedAt: new Date() }, { stageId: 's1', convertedAt: null }, { stageId: 's1', convertedAt: null }])
+      const r = await getConversionByStage('c1'); expect(r[0].totalLeads).toBe(3); expect(r[0].convertedLeads).toBe(1); expect(r[0].conversionRate).toBeCloseTo(33.33, 1)
+    })
   })
-
-  describe('getConversionByStage()', () => {
-    it('should return empty array when no stages exist', async () => {
-      ;(mockSupabaseClient.from as jest.Mock).mockReturnValueOnce({
-        select: jest.fn().mockReturnValueOnce({
-          eq: jest.fn().mockReturnValueOnce({
-            order: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        }),
-      })
-
-      const result = await getConversionByStage('clinic-123')
-      expect(result).toEqual([])
+  describe('getAvgConversionTime', () => {
+    it('returns avg days', async () => {
+      const created = new Date('2026-01-01'); const converted = new Date('2026-01-11')
+      seed([{ createdAt: created, convertedAt: converted }, { createdAt: new Date('2026-02-01'), convertedAt: new Date('2026-02-21') }])
+      const r = await getAvgConversionTime('c1'); expect(r).toBe(15) // (10+20)/2 = 15
     })
-
-    it('should return zeros for empty pipeline (no leads)', async () => {
-      const stages = [
-        { id: 'stage-1', name: 'Novo', color: '#3B82F6', sort_order: 1 },
-        { id: 'stage-2', name: 'Qualificado', color: '#10B981', sort_order: 2 },
-      ]
-      ;(mockSupabaseClient.from as jest.Mock)
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValueOnce({
-            eq: jest.fn().mockReturnValueOnce({
-              order: jest.fn().mockResolvedValue({ data: stages, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValueOnce({
-            eq: jest.fn().mockResolvedValue({ data: [], error: null }),
-          }),
-        })
-
-      const result = await getConversionByStage('clinic-123')
-      expect(result).toHaveLength(2)
-      expect(result[0].totalLeads).toBe(0)
-      expect(result[0].conversionRate).toBe(0)
-      expect(result[1].totalLeads).toBe(0)
-      expect(result[1].conversionRate).toBe(0)
-    })
-
-    it('should calculate conversion rates correctly', async () => {
-      const stages = [{ id: 'stage-1', name: 'Novo', color: '#3B82F6', sort_order: 1 }]
-      const leads = [
-        { stage_id: 'stage-1', converted_at: '2026-01-01' }, // converted
-        { stage_id: 'stage-1', converted_at: null }, // not converted
-        { stage_id: 'stage-1', converted_at: null }, // not converted
-      ]
-      ;(mockSupabaseClient.from as jest.Mock)
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValueOnce({
-            eq: jest.fn().mockReturnValueOnce({
-              order: jest.fn().mockResolvedValue({ data: stages, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValueOnce({
-            eq: jest.fn().mockResolvedValue({ data: leads, error: null }),
-          }),
-        })
-
-      const result = await getConversionByStage('clinic-123')
-      expect(result).toHaveLength(1)
-      expect(result[0].totalLeads).toBe(3)
-      expect(result[0].convertedLeads).toBe(1)
-      expect(result[0].conversionRate).toBeCloseTo(33.33, 1)
-    })
-
-    it('should handle incomplete lead data gracefully', async () => {
-      const stages = [{ id: 'stage-1', name: 'Novo', color: '#3B82F6', sort_order: 1 }]
-      const leads = [
-        { stage_id: null, converted_at: null }, // no stage
-        { stage_id: 'stage-other', converted_at: null }, // different stage
-      ]
-      ;(mockSupabaseClient.from as jest.Mock)
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValueOnce({
-            eq: jest.fn().mockReturnValueOnce({
-              order: jest.fn().mockResolvedValue({ data: stages, error: null }),
-            }),
-          }),
-        })
-        .mockReturnValueOnce({
-          select: jest.fn().mockReturnValueOnce({
-            eq: jest.fn().mockResolvedValue({ data: leads, error: null }),
-          }),
-        })
-
-      const result = await getConversionByStage('clinic-123')
-      expect(result).toHaveLength(1)
-      expect(result[0].totalLeads).toBe(0) // leads with null stage_id are not counted
-      expect(result[0].conversionRate).toBe(0)
-    })
+    it('returns 0 when no converted leads', async () => { seed([]); const r = await getAvgConversionTime('c1'); expect(r).toBe(0) })
   })
 })

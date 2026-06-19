@@ -33,12 +33,47 @@ jobs:
       - name: Tests
         run: npm test
 
-      - name: Build
+      - name: Build (Next.js)
         run: npx next build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-          SUPABASE_SERVICE_ROLE_KEY: fake-for-ci
-          JWT_SECRET: [REDACTED]
-          MINIMAX_API_KEY: [REDACTED]
-          SEED_SECRET: [REDACTED]
+          DATABASE_URL: postgresql://synkroo:test@localhost:5432/synkroo
+          AUTH_SECRET: fake-auth-secret-for-ci-at-least-32-chars
+          JWT_SECRET: fake-jwt-secret-for-ci
+          MINIMAX_API_KEY: CI_PLACEHOLDER
+          SEED_SECRET: CI_PLACEHOLDER
+
+  # ── Cloudflare Workers build (full pipeline) ──────────────────
+  # Ativado manualmente via workflow_dispatch ou em branches de release.
+  # Requer workaround: chromium-bidi/lib/cjs (ver docs/runbook-deploy-instancia.md)
+  cf-build:
+    name: CF Build (OpenNext + Wrangler)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/heads/release/')
+    needs: ci
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: CF Build
+        run: npm run build:cf
+        env:
+          DATABASE_URL: postgresql://synkroo:test@localhost:5432/synkroo
+          AUTH_SECRET: fake-auth-secret-for-ci-at-least-32-chars
+          JWT_SECRET: fake-jwt-secret-for-ci
+          MINIMAX_API_KEY: CI_PLACEHOLDER
+          SEED_SECRET: CI_PLACEHOLDER
+
+      # TODO(W4.6): adicionar step de deploy após validação de conta Cloudflare
+      # - name: Deploy
+      #   run: npm run deploy:cf
+      #   env:
+      #     CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}

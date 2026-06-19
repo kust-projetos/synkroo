@@ -1,9 +1,11 @@
-import { createTypedClient } from "@/lib/supabase/typed";
-import { sendWhatsAppMessage, sendWhatsAppButtons } from "@/services/whatsapp";
-import { dbLogger, whatsappLogger } from "@/lib/logger";
-import { createReminder } from "@/repositories/reminders";
-import { fillTemplate } from "@/services/whatsapp/message-templates.service";
-import { getEffectiveConfig } from "./procedure-reminder-config.service";
+import { eq, and, inArray, gte, lte } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { appointments, appointmentReminders, clinics, patients, dentists, procedures } from '@/lib/db/schema'
+import { sendWhatsAppMessage, sendWhatsAppButtons } from '@/services/whatsapp'
+import { dbLogger, whatsappLogger } from '@/lib/logger'
+import { createReminder } from '@/repositories/reminders'
+import { fillTemplate } from '@/services/whatsapp/message-templates.service'
+import { getEffectiveConfig } from './procedure-reminder-config.service'
 
 /**
  * Reminder Service
@@ -63,70 +65,71 @@ export const DEFAULT_REMINDER_CONFIGS: ReminderConfig[] = [
 /**
  * Get appointments that need reminders
  */
-export async function getAppointmentsNeedingReminders(
-	hoursBefore: number,
-): Promise<AppointmentReminder[]> {
-	const supabase = await createTypedClient();
+export async function getAppointmentsNeedingReminders(hoursBefore: number): Promise<AppointmentReminder[]> {
+  const db = getDb()
+  const now = new Date()
+  const reminderTime = new Date(now.getTime() + hoursBefore * 3600000)
+  const windowStart = reminderTime
+  const windowEnd = new Date(reminderTime.getTime() + 5 * 60000)
+  const statuses = hoursBefore === 24 ? ['confirmed', 'scheduled'] : ['confirmed']
 
-	// Calculate time window
-	const now = new Date();
-	const reminderTime = new Date(now.getTime() + hoursBefore * 60 * 60 * 1000);
+  const rows = await db
+    .select({
+      id: appointments.id,
+      scheduledAt: appointments.scheduledAt,
+      clinicId: clinics.id,
+      clinicName: clinics.name,
+      clinicPhone: clinics.phone,
+      patientId: patients.id,
+      patientName: patients.name,
+      patientPhone: patients.phone,
+      dentistName: dentists.name,
+      procedureId: procedures.id,
+      procedureName: procedures.name,
+    })
+    .from(appointments)
+    .innerJoin(clinics, eq(appointments.clinicId, clinics.id))
+    .innerJoin(patients, eq(appointments.patientId, patients.id))
+    .leftJoin(dentists, eq(appointments.dentistId, dentists.id))
+    .leftJoin(procedures, eq(appointments.procedureId, procedures.id))
+    .where(
+      and(
+        inArray(appointments.status as any, statuses),
+        gte(appointments.scheduledAt, windowStart),
+        lte(appointments.scheduledAt, windowEnd),
+      ),
+    )
 
-	// Window of 5 minutes to account for cron job timing
-	const windowStart = reminderTime;
-	const windowEnd = new Date(reminderTime.getTime() + 5 * 60 * 1000);
+  if (!rows.length) return []
 
-	const { data: appointments, error } = await supabase
-		.from("appointments")
-		.select(`
-      id,
-      scheduled_at,
-      clinics!inner (id, name, phone),
-      patients!inner (id, name, phone),
-      dentists (name),
-      procedures (id, name)
-    `)
-		.in(
-			"status",
-			hoursBefore === 24 ? ["confirmed", "scheduled"] : ["confirmed"],
-		)
-		.gte("scheduled_at", windowStart.toISOString())
-		.lte("scheduled_at", windowEnd.toISOString());
+  const appointmentIds = rows.map((r) => r.id)
+  const sentRows = await db
+    .select({ appointmentId: appointmentReminders.appointmentId })
+    .from(appointmentReminders)
+    .where(
+      and(
+        inArray(appointmentReminders.appointmentId, appointmentIds),
+        eq(appointmentReminders.reminderType as any, `${hoursBefore}h`),
+      ),
+    )
 
-	if (error) {
-		dbLogger.error("Error fetching appointments for reminders", error);
-		return [];
-	}
+  const alreadySent = new Set(sentRows.map((r) => r.appointmentId))
 
-	// Check which appointments have already received this reminder
-	const { data: sentReminders } = await supabase
-		.from("appointment_reminders")
-		.select("appointment_id, reminder_type")
-		.in(
-			"appointment_id",
-			appointments?.map((a: ReminderAppointment) => a.id) || [],
-		)
-		.eq("reminder_type", `${hoursBefore}h`);
-
-	const alreadySent = new Set(
-		sentReminders?.map((r: SentReminderRow) => r.appointment_id) || [],
-	);
-
-	return (appointments || [])
-		.filter((apt: ReminderAppointment) => !alreadySent.has(apt.id))
-		.map((apt: ReminderAppointment) => ({
-			appointmentId: apt.id,
-			patientId: apt.patients?.id || "",
-			patientName: apt.patients?.name || "",
-			patientPhone: apt.patients?.phone || "",
-			scheduledAt: new Date(apt.scheduled_at),
-			dentistName: apt.dentists?.name,
-			procedureId: apt.procedures?.id,
-			procedureName: apt.procedures?.name,
-			clinicId: apt.clinics?.id || "",
-			clinicName: apt.clinics?.name || "",
-			clinicPhone: apt.clinics?.phone || "",
-		}));
+  return rows
+    .filter((r) => !alreadySent.has(r.id))
+    .map((r) => ({
+      appointmentId: r.id,
+      patientId: r.patientId || '',
+      patientName: r.patientName || '',
+      patientPhone: r.patientPhone || '',
+      scheduledAt: r.scheduledAt ?? new Date(),
+      dentistName: r.dentistName ?? undefined,
+      procedureId: r.procedureId ?? undefined,
+      procedureName: r.procedureName ?? undefined,
+      clinicId: r.clinicId || '',
+      clinicName: r.clinicName || '',
+      clinicPhone: r.clinicPhone || '',
+    }))
 }
 
 /**

@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { ChatWidget } from '@/components/chat-widget'
 import {
   ChatBubbleLeftRightIcon,
   CalendarDaysIcon,
@@ -10,9 +9,6 @@ import {
   ClockIcon,
   PhoneIcon,
 } from '@heroicons/react/24/outline'
-
-// Demo clinic ID - in production this would come from the clinic's subdomain or settings
-const DEMO_CLINIC_ID = '1e211b5d-d8a9-44ef-a5c7-5ce6c583218a'
 
 export default function HomePage() {
   return (
@@ -289,13 +285,6 @@ export default function HomePage() {
         </div>
       </footer>
 
-      {/* Chat Widget - no primaryColor prop, uses CSS variables */}
-      <ChatWidget
-        clinicId={DEMO_CLINIC_ID}
-        clinicName="Clínica Demo"
-        position="bottom-right"
-        greeting="Olá! Sou a Mia, assistente virtual da Clínica Demo. Como posso ajudar?"
-      />
     </main>
   )
 }

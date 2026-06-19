@@ -11,6 +11,15 @@ test-results/
 e2e/screenshots/
 e2e/videos/
 
+screenshots/
+
+# Prototypes
+prototype/
+
+# QR codes (generated)
+whatsapp-qr.png
+qrcode.png
+
 # Next.js
 .next/
 out/
@@ -38,6 +47,7 @@ yarn-error.log*
 !.env.example
 .env.production
 .env.development
+.env.neon
 
 # Vercel
 .vercel
@@ -68,6 +78,9 @@ logs/
 .supabase/
 supabase/config.toml
 
+# Graphify / Claude Code analysis cache
+graphify-out/
+
 # Claude Code (local config can contain sensitive paths)
 /.claude/graphify-out/
 
@@ -90,3 +103,15 @@ e2e/.auth/
 planner.bat
 reviewer.bat
 worker1.bat
+api-minimax.bat
+api-glm.bat
+api-nemotron.bat
+
+# Scratch / logs locais
+nul
+*weekprof.txt
+dayprof_after.txt
+.dev.vars
+
+# OpenNext Cloudflare build artifacts
+.open-next/

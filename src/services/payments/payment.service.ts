@@ -1,9 +1,7 @@
-/**
- * Payment Service
- * Handles payment recording with auto-complete logic per D-09 and D-11
- */
-
-import { createTypedClient } from '@/lib/supabase/typed'
+/** Payment Service — migrated to Drizzle */
+import { eq, and, inArray, asc, desc } from 'drizzle-orm'
+import { getDb } from '@/lib/db/client'
+import { budgets, budgetInstallments, payments, treatmentPlans, treatmentPlanItems } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 import { getRemainingBalance } from '@/services/installments/installment.service'
 import { updateSessionProgress } from '@/services/treatment-plans/treatment-plan.service'
@@ -34,237 +32,189 @@ export interface PaymentResult {
   remaining_balance: number
 }
 
-/**
- * Get cost per session for a treatment plan
- * session_cost = budget.final_value / treatment_plan.total_sessions
- */
-async function getSessionCost(budgetId: string): Promise<number | null> {
-  const supabase = await createTypedClient()
-
-  // Get budget with treatment plan
-  const { data: budget, error: budgetError } = await supabase
-    .from('budgets')
-    .select('final_value, treatment_plan_id')
-    .eq('id', budgetId)
-    .single()
-
-  if (budgetError || !budget || !(budget as any).treatment_plan_id) {
-    return null
+function toSnake(r: any): Payment {
+  return {
+    id: r.id,
+    budget_id: r.budgetId,
+    amount: Number(r.amount ?? 0),
+    payment_method: r.paymentMethod,
+    paid_at: r.paidAt?.toISOString?.() ?? '',
+    notes: r.notes,
+    created_by: r.createdBy,
+    created_at: r.createdAt?.toISOString?.() ?? '',
+    updated_at: r.updatedAt?.toISOString?.() ?? '',
   }
-
-  const treatmentPlanId = (budget as any).treatment_plan_id
-
-  // Get treatment plan total sessions
-  const { data: plan, error: planError } = await supabase
-    .from('treatment_plans')
-    .select('total_sessions')
-    .eq('id', treatmentPlanId)
-    .single()
-
-  if (planError || !plan) {
-    return null
-  }
-
-  const totalSessions = (plan as any).total_sessions || 1
-  return ((budget as any).final_value || 0) / totalSessions
 }
 
-/**
- * Auto-complete sessions based on payment amount
- * Formula: sessions_to_complete = floor(payment_amount / session_cost)
- * Completes sessions oldest-first via treatment_plan_items ordered by session_number ASC
- */
+async function getSessionCost(budgetId: string): Promise<number | null> {
+  const db = getDb()
+  const [budget] = await db
+    .select({ finalValue: budgets.finalValue, treatmentPlanId: budgets.treatmentPlanId })
+    .from(budgets)
+    .where(eq(budgets.id, budgetId))
+
+  if (!budget || !budget.treatmentPlanId) return null
+
+  const [plan] = await db
+    .select({ totalSessions: treatmentPlans.totalSessions })
+    .from(treatmentPlans)
+    .where(eq(treatmentPlans.id, budget.treatmentPlanId))
+
+  if (!plan) return null
+  const totalSessions = plan.totalSessions || 1
+  return Number(budget.finalValue ?? 0) / totalSessions
+}
+
 async function autoCompleteSessions(
   treatmentPlanId: string,
-  sessionsToComplete: number
+  sessionsToComplete: number,
 ): Promise<number> {
   if (sessionsToComplete <= 0) return 0
 
-  const supabase = await createTypedClient()
-
-  // Get pending sessions ordered by session_number ASC
-  const { data: pendingItems, error } = await supabase
-    .from('treatment_plan_items')
-    .select('id')
-    .eq('treatment_plan_id', treatmentPlanId)
-    .eq('status', 'pending')
-    .order('session_number', { ascending: true })
+  const db = getDb()
+  const items = await db
+    .select({ id: treatmentPlanItems.id })
+    .from(treatmentPlanItems)
+    .where(
+      and(
+        eq(treatmentPlanItems.treatmentPlanId, treatmentPlanId),
+        eq(treatmentPlanItems.status as any, 'pending'),
+      ),
+    )
+    .orderBy(asc(treatmentPlanItems.sessionNumber))
     .limit(sessionsToComplete)
 
-  if (error || !pendingItems || pendingItems.length === 0) {
-    return 0
-  }
-
   let completed = 0
-  for (const item of pendingItems) {
-    const result = await updateSessionProgress((item as any).id)
-    if (result) {
-      completed++
-    }
+  for (const item of items) {
+    const result = await updateSessionProgress(item.id)
+    if (result) completed++
   }
-
   return completed
 }
 
-/**
- * Record a payment with validation and auto-complete logic
- * Implements D-09 (auto-complete) and D-11 (budget status trigger)
- */
-export async function recordPayment(input: RecordPaymentInput): Promise<PaymentResult> {
-  const supabase = await createTypedClient()
+async function checkAndUpdateBudgetStatus(budgetId: string): Promise<void> {
+  const db = getDb()
+  const [budget] = await db
+    .select({ finalValue: budgets.finalValue })
+    .from(budgets)
+    .where(eq(budgets.id, budgetId))
+  if (!budget) return
 
-  // Validate amount does not exceed remaining balance
+  const installments = await db
+    .select({ amount: budgetInstallments.amount, status: budgetInstallments.status })
+    .from(budgetInstallments)
+    .where(eq(budgetInstallments.budgetId, budgetId))
+  if (!installments.length) return
+
+  const totalPaid = installments
+    .filter((i) => i.status === 'paid')
+    .reduce((sum, i) => sum + Number(i.amount ?? 0), 0)
+
+  if (totalPaid >= Number(budget.finalValue ?? 0)) {
+    await db
+      .update(budgets)
+      .set({ status: 'converted', updatedAt: new Date() } as any)
+      .where(eq(budgets.id, budgetId))
+  }
+}
+
+export async function recordPayment(input: RecordPaymentInput): Promise<PaymentResult> {
+  const db = getDb()
   const remainingBalance = await getRemainingBalance(input.budget_id)
+
   if (input.amount > remainingBalance) {
-    throw new Error(`Payment amount (${input.amount}) exceeds remaining balance (${remainingBalance})`)
+    throw new Error(
+      `Payment amount (${input.amount}) exceeds remaining balance (${remainingBalance})`,
+    )
   }
 
-  // Create payment record
   const now = new Date().toISOString()
+  const [paymentRow] = await db
+    .insert(payments)
+    .values({
+      budgetId: input.budget_id,
+      amount: String(input.amount),
+      paymentMethod: input.payment_method,
+      paidAt: new Date(),
+      notes: input.notes ?? null,
+      createdBy: input.created_by,
+    } as any)
+    .returning()
 
-  const { data: payment, error: paymentError } = await (supabase
-    .from('payments') as any)
-    .insert({
-      budget_id: input.budget_id,
-      amount: input.amount,
-      payment_method: input.payment_method,
-      paid_at: now,
-      notes: input.notes || null,
-      created_by: input.created_by,
-    })
-    .select()
-    .single()
-
-  if (paymentError || !payment) {
-    dbLogger.error('Error creating payment', paymentError)
+  if (!paymentRow) {
+    dbLogger.error('Error creating payment — no row returned')
     throw new Error('Failed to record payment')
   }
 
-  // Trigger D-09: Auto-complete sessions if budget has treatment_plan_id
   let sessionsCompleted = 0
   const sessionCost = await getSessionCost(input.budget_id)
 
   if (sessionCost && sessionCost > 0) {
     const sessionsToComplete = Math.floor(input.amount / sessionCost)
-    const budgetData = await supabase
-      .from('budgets')
-      .select('treatment_plan_id')
-      .eq('id', input.budget_id)
-      .single()
+    const [budgetData] = await db
+      .select({ treatmentPlanId: budgets.treatmentPlanId })
+      .from(budgets)
+      .where(eq(budgets.id, input.budget_id))
 
-    if (budgetData.data && (budgetData.data as any).treatment_plan_id) {
+    if (budgetData?.treatmentPlanId) {
       sessionsCompleted = await autoCompleteSessions(
-        (budgetData.data as any).treatment_plan_id,
-        sessionsToComplete
+        budgetData.treatmentPlanId,
+        sessionsToComplete,
       )
     }
   }
 
-  // Trigger D-11: Check if all installments are paid -> update budget status
   await checkAndUpdateBudgetStatus(input.budget_id)
-
-  // Calculate new remaining balance
   const newRemainingBalance = await getRemainingBalance(input.budget_id)
 
   return {
-    payment: payment as Payment,
+    payment: {
+      id: paymentRow.id,
+      budget_id: input.budget_id,
+      amount: input.amount,
+      payment_method: input.payment_method,
+      paid_at: now,
+      notes: input.notes ?? null,
+      created_by: input.created_by,
+    },
     sessions_completed: sessionsCompleted,
     remaining_balance: newRemainingBalance,
   }
 }
 
-/**
- * Check if all installments are paid and update budget status
- * D-11: When all installments paid, budget status -> 'paid' or similar
- */
-async function checkAndUpdateBudgetStatus(budgetId: string): Promise<void> {
-  const supabase = await createTypedClient()
-
-  // Get budget final value
-  const { data: budget } = await supabase
-    .from('budgets')
-    .select('final_value')
-    .eq('id', budgetId)
-    .single()
-
-  if (!budget) return
-
-  // Get all installments
-  const { data: installments } = await supabase
-    .from('budget_installments')
-    .select('amount, status')
-    .eq('budget_id', budgetId)
-
-  if (!installments || installments.length === 0) return
-
-  // Get total paid amount
-  const totalPaid = (installments as any[])
-    .filter((inst) => inst.status === 'paid')
-    .reduce((sum, inst) => sum + inst.amount, 0)
-
-  // Check if fully paid
-  if (totalPaid >= ((budget as any).final_value || 0)) {
-    // Update budget status to indicate fully paid
-    // Using 'converted' as the terminal paid status (per D-11)
-    await (supabase
-      .from('budgets') as any)
-      .update({
-        status: 'converted',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', budgetId)
-  }
-}
-
-/**
- * Get payments for a budget
- */
 export async function getPaymentsByBudget(budgetId: string): Promise<Payment[]> {
-  const supabase = await createTypedClient()
-
-  const { data, error } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('budget_id', budgetId)
-    .order('paid_at', { ascending: false })
-
-  if (error) {
-    dbLogger.error('Error fetching payments', error)
+  const db = getDb()
+  try {
+    const rows = await db
+      .select()
+      .from(payments)
+      .where(eq(payments.budgetId, budgetId))
+      .orderBy(desc(payments.paidAt))
+    return rows.map(toSnake)
+  } catch (e) {
+    dbLogger.error('Error fetching payments by budget', e)
     return []
   }
-
-  return data as Payment[]
 }
 
-/**
- * Get all payments for a patient
- */
 export async function getPaymentsByPatient(patientId: string): Promise<Payment[]> {
-  const supabase = await createTypedClient()
+  const db = getDb()
+  try {
+    const budgetRows = await db
+      .select({ id: budgets.id })
+      .from(budgets)
+      .where(eq(budgets.patientId, patientId))
+    if (!budgetRows.length) return []
 
-  // Get all budgets for the patient
-  const { data: budgets, error: budgetsError } = await supabase
-    .from('budgets')
-    .select('id')
-    .eq('patient_id', patientId)
-
-  if (budgetsError || !budgets || budgets.length === 0) {
+    const budgetIds = budgetRows.map((b) => b.id)
+    const rows = await db
+      .select()
+      .from(payments)
+      .where(inArray(payments.budgetId, budgetIds))
+      .orderBy(desc(payments.paidAt))
+    return rows.map(toSnake)
+  } catch (e) {
+    dbLogger.error('Error fetching payments by patient', e)
     return []
   }
-
-  const budgetIds = (budgets as any[]).map((b) => b.id)
-
-  // Get all payments for those budgets
-  const { data: payments, error: paymentsError } = await supabase
-    .from('payments')
-    .select('*')
-    .in('budget_id', budgetIds)
-    .order('paid_at', { ascending: false })
-
-  if (paymentsError) {
-    dbLogger.error('Error fetching patient payments', paymentsError)
-    return []
-  }
-
-  return payments as Payment[]
 }
