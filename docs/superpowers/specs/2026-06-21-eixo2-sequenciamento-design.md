@@ -2,7 +2,7 @@
 
 > **Tipo:** Documento de planejamento (alto nível). Resolve a decisão aberta §215 do roadmap-mestre ("Priorização do Eixo 2 — ordem de detalhamento — a definir antes de iniciar os módulos").
 > **Data:** 2026-06-21
-> **Status:** Aprovado. Define a ordem; cada módulo recebe depois seu próprio ciclo `spec → plano → implementação`.
+> **Status:** Aprovado — supersede a ordem sugerida do roadmap §215. Define a ordem; cada módulo recebe depois seu próprio ciclo `spec → plano → implementação`.
 > **Escopo:** apenas planejamento/documentação. Não é spec de implementação de nenhum módulo.
 
 ---
@@ -13,7 +13,9 @@ Este doc **ordena** o trabalho do Eixo 2. Não detalha módulos — cada módulo
 
 A ordem separa o que é **forçado por dependência** (não-negociável) do que é **escolha de valor** (revisável). Comprometimento firme só com **Core + Onda 1**; o resto é backlog provisório, deliberadamente não-travado.
 
-**Fonte de verdade superior:** `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md` (roadmap-mestre). Este doc é subordinado a ele.
+**Override registrado:** este doc **substitui a sugestão inicial de ordem do roadmap §215** para o Eixo 2 (que era explicitamente "a definir" — uma sugestão, não uma decisão). Nas demais matérias, permanece subordinado ao roadmap-mestre.
+
+**Fonte de verdade superior:** `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md` (roadmap-mestre).
 
 ---
 
@@ -36,7 +38,7 @@ A ordem abaixo é imposta por dependências técnicas/de domínio; não é prefe
 
 1. **Core antes de todo módulo.** Manifesto de módulos, RBAC granular, Action Layer e o template `src/modules/<modulo>/` são pré-requisito de qualquer outro módulo.
 2. **Agente IA depois de Core + runtime validado.** Já satisfeito (runtime GO). É um **piso** (não pode antes), não um teto ("por último"). O agente também depende das **Actions dos módulos** que vai operar — quanto mais módulos no template, mais tools de graça.
-3. **CRM (E-04) depois de Operacional (E-02, pacientes) + Comercial (E-05, leads).** Por §9.1 do roadmap, o CRM é camada ampla que referencia ambos os bounded contexts; eles precisam existir primeiro.
+3. **CRM (E-04) desenhado depois de Operacional (E-02, pacientes) + Comercial (E-05, leads).** Não é dependência de compilação, e sim de **modelo de domínio**: por §9.1 do roadmap, o CRM é camada ampla que referencia os bounded contexts de leads e pacientes — seu modelo final (entidade unificada vs. referências entre contextos; transição lead→paciente) só se decide bem com esses contextos já estáveis. **Ordem de desenho decidida** (fundamentada no domínio), não imposta pelo compilador.
 
 Tudo o que não está nestes três pontos é **escolha de valor** (revisável), organizada em ondas abaixo.
 
@@ -56,6 +58,16 @@ Escopo (a detalhar no spec do Core):
 - **Lint de fronteira** `warn` → `error` no CI, para bloquear regressão de dependência entre módulos.
 - **Anti-lockout** repetido ao criar `removeUserAccess`/desativação de usuário (nota do fechamento).
 
+**Definition of Done — Onda 0 (Core) concluída quando:**
+
+- [ ] menu + rotas resolvidos por manifesto + RBAC real (sem `can = () => true` no `sidebar.tsx`);
+- [ ] seletores reais de usuário/perfil no painel admin (sem entrada de UUID cru);
+- [ ] gates plugados: `withModuleRoute` em `/api/*` de módulos contratáveis + `assertModuleForJob` nos crons;
+- [ ] `contatos` resolvido (redirect ou removido do menu);
+- [ ] lint de fronteira em `error` no CI (bloqueia regressão de dependência entre módulos);
+- [ ] **anti-lockout** aplicado também em `removeUserAccess`/desativação de usuário;
+- [ ] template §6 materializado e documentado como referência canônica para os demais módulos.
+
 > O Core é o único módulo cuja base já está parcialmente implementada (Action Layer + RBAC + manifesto existem em `src/core/*` e `src/modules/core/*`). A Onda 0 é, em grande parte, **integração e acabamento** do que foi construído no Eixo 1, não greenfield.
 
 ---
@@ -73,7 +85,7 @@ A fatia de maior valor de negócio (WhatsApp-first, P2) e que **valida a fundaç
 
 **Decisão registrada — posição do Agente:** fica **após** os três módulos maduros, não adiantado. Os três são refator mecânico/baixo risco; cada um migrado vira tool grátis para o agente. Adiantá-lo só se justificaria com **deadline de demo específico** — que não existe nesta data. Consistente com a Decisão A do fechamento (agente após Core+runtime é piso, não "último do roadmap inteiro").
 
-**Decisão registrada — E-02 antes de E-01:** E-02 produz as Actions que os outros consomem; nada que E-02 precisa vem de E-01. Ordem intercambiável, sem mais ciclos de discussão.
+**Decisão registrada — E-02 antes de E-01:** E-02 produz as Actions que os outros consomem; nada que E-02 precisa vem de E-01. Ordem intercambiável; **decisão congelada até evidência nova de implementação/cliente**.
 
 **Critério de "Onda 1 concluída":** um paciente manda WhatsApp → agente entende → agenda/remarca/confirma → registra → dispara follow-up, tudo rodando no runtime Cloudflare via Action Layer, com RBAC/entitlement aplicados.
 
