@@ -212,8 +212,8 @@ BEGIN
      AND a.id <> b.id
      AND a.status IN ('scheduled','confirmed','in_progress')
      AND b.status IN ('scheduled','confirmed','in_progress')
-     AND tstzrange(a.scheduled_at, a.scheduled_at + (a.duration_minutes * interval '1 minute'))
-         && tstzrange(b.scheduled_at, b.scheduled_at + (b.duration_minutes * interval '1 minute'))
+     AND tstzrange(a.scheduled_at, a.scheduled_at + (COALESCE(a.duration_minutes, 30) * interval '1 minute'))
+         && tstzrange(b.scheduled_at, b.scheduled_at + (COALESCE(b.duration_minutes, 30) * interval '1 minute'))
   ) t;
   IF overlap_count > 0 THEN
     RAISE EXCEPTION 'Existem % agendamentos sobrepostos ativos. Normalizar antes de criar a constraint.', overlap_count;
@@ -222,10 +222,11 @@ END $$;
 
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
+-- COALESCE(duration_minutes, 30): a coluna é nullable (default 30 mas aceita null).
 ALTER TABLE appointments ADD CONSTRAINT appointments_no_overlap
   EXCLUDE USING gist (
     dentist_id WITH =,
-    tstzrange(scheduled_at, scheduled_at + (duration_minutes * interval '1 minute')) WITH &&
+    tstzrange(scheduled_at, scheduled_at + (COALESCE(duration_minutes, 30) * interval '1 minute')) WITH &&
   ) WHERE (status IN ('scheduled','confirmed','in_progress'));
 
 -- ROLLBACK (manual):
@@ -251,9 +252,9 @@ Create `src/modules/operacional/repositories/__tests__/overbooking.integration.t
 /** @jest-environment node */
 jest.unmock('@/lib/db/client');
 
+import { randomUUID } from 'crypto';
 import { getDb } from '@/lib/db/client';
 import { appointments } from '@/modules/operacional/schema/appointments';
-import { clinics, users } from '@/lib/db/schema/core';
 import { patients, dentists } from '@/modules/operacional/schema';
 import { eq } from 'drizzle-orm';
 
@@ -263,13 +264,13 @@ const CLINIC = '00000000-0000-0000-0000-000000000001';
 describeOrSkip('appointments_no_overlap constraint (DB real)', () => {
   it('dois inserts simultâneos no mesmo slot/dentista: 1 sucede, 1 falha 23P01', async () => {
     const db = getDb();
-    const tag = String(Date.now()).slice(-6);
-    const dentistId = `00000000-0000-0000-0000-0000000d${tag}`;
-    const patientId = `00000000-0000-0000-0000-0000000e${tag}`;
+    const dentistId = randomUUID();
+    const patientId = randomUUID();
+    const phone = `+55119${String(Date.now()).slice(-8)}`;
     const slot = new Date('2030-01-01T13:00:00Z');
 
     await db.insert(dentists).values({ id: dentistId, clinicId: CLINIC, name: 'Dr Teste' }).onConflictDoNothing();
-    await db.insert(patients).values({ id: patientId, clinicId: CLINIC, name: 'Paciente Teste', phone: `+5511${tag}` }).onConflictDoNothing();
+    await db.insert(patients).values({ id: patientId, clinicId: CLINIC, name: 'Paciente Teste', phone }).onConflictDoNothing();
 
     const mk = () => db.insert(appointments).values({
       clinicId: CLINIC, patientId, dentistId, scheduledAt: slot, durationMinutes: 30, status: 'scheduled',
@@ -370,10 +371,23 @@ export async function moveSlot(clinicId: string, id: string, scheduledAt: Date, 
   return row ?? null;
 }
 
-export async function listByClinic(clinicId: string) {
-  return getDb().select().from(appointments).where(eq(appointments.clinicId, clinicId));
+export interface ListFilters {
+  patientId?: string; dentistId?: string; status?: string; date?: string;
+  startDate?: string; endDate?: string; dentistIds?: string[];
+  limit: number; offset: number;
+}
+
+// Portar fielmente de src/repositories/appointments/index.ts (findByClinicWithJoins):
+// mesmos JOINs (patient/dentist/procedure), mesmos filtros e a variante count.
+export async function findByClinicWithJoins(clinicId: string, opts: ListFilters & { count?: boolean }): Promise<any> {
+  // PORT: copiar a query existente de findByClinicWithJoins, trocando o import de
+  // appointments/patients/dentists/procedures para os schemas do módulo.
+  // Retorna linhas (com joins) ou, se opts.count, o total (number).
+  throw new Error('PORT from src/repositories/appointments/index.ts findByClinicWithJoins');
 }
 ```
+
+> O serializer `appointmentToApi` (de `src/app/api/appointments/_serializer.ts`) é portado para `src/modules/operacional/ui/appointment-serializer.ts` e reusado pelo service de leitura — preserva o shape de saída atual.
 
 - [ ] **Step 2: Criar o scheduling service (invariante overbooking + waitlist)**
 
@@ -427,8 +441,29 @@ export async function registrarNoShow(input: { clinicId: string; id: string }) {
   return { id: row.id };
 }
 
-export async function listarConsultas(clinicId: string) {
-  return repo.listByClinic(clinicId);
+export interface ListInput {
+  patientId?: string; dentistId?: string; status?: string; date?: string;
+  startDate?: string; endDate?: string; dentistIds?: string[];
+  page?: number; limit?: number;
+}
+
+export async function listarConsultas(clinicId: string, input: ListInput) {
+  const isCalendarRange = Boolean(input.startDate && input.endDate);
+  const page = input.page ?? 1;
+  const limit = Math.min(input.limit ?? (isCalendarRange ? 999 : 50), 999);
+  const offset = (page - 1) * limit;
+  const filters = {
+    patientId: input.patientId, dentistId: input.dentistId, status: input.status,
+    date: input.date, startDate: input.startDate, endDate: input.endDate,
+    dentistIds: input.dentistIds, limit, offset,
+  };
+  const rows = await repo.findByClinicWithJoins(clinicId, filters);
+  const total = await repo.findByClinicWithJoins(clinicId, { ...filters, count: true });
+  const { appointmentToApi } = await import('../ui/appointment-serializer');
+  return {
+    appointments: rows.map(appointmentToApi),
+    pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+  };
 }
 ```
 
@@ -539,8 +574,18 @@ export const listarConsultas = defineAction({
   module: 'operacional',
   requires: 'operacional:view',
   label: 'Listar consultas',
-  input: z.object({}),
-  handler: async (_input, ctx) => scheduling.listarConsultas(ctx.clinicId),
+  input: z.object({
+    patientId: z.string().uuid().optional(),
+    dentistId: z.string().uuid().optional(),
+    status: z.string().optional(),
+    date: z.string().optional(),
+    startDate: z.string().optional(),
+    endDate: z.string().optional(),
+    dentistIds: z.array(z.string().uuid()).optional(),
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().optional(),
+  }),
+  handler: async (input, ctx) => scheduling.listarConsultas(ctx.clinicId, input),
 });
 ```
 
@@ -552,6 +597,7 @@ Create `src/modules/operacional/actions/__tests__/scheduling.integration.test.ts
 /** @jest-environment node */
 jest.unmock('@/lib/db/client');
 
+import { randomUUID } from 'crypto';
 import { runAction } from '@/core/actions/run';
 import type { ActionContext } from '@/core/actions/types';
 import { getDb } from '@/lib/db/client';
@@ -569,12 +615,12 @@ const ctx: ActionContext = { source: 'user', clinicId: CLINIC, can: () => true, 
 describeOrSkip('scheduling flow (DB real)', () => {
   it('agenda, bloqueia overlap, confirma e marca no-show', async () => {
     const db = getDb();
-    const tag = String(Date.now()).slice(-6);
-    const dentistId = `00000000-0000-0000-0000-0000001d${tag}`;
-    const patientId = `00000000-0000-0000-0000-0000001e${tag}`;
+    const dentistId = randomUUID();
+    const patientId = randomUUID();
+    const phone = `+55119${String(Date.now()).slice(-8)}`;
     const slot = new Date('2030-02-02T14:00:00Z').toISOString();
     await db.insert(dentists).values({ id: dentistId, clinicId: CLINIC, name: 'Dr Flow' }).onConflictDoNothing();
-    await db.insert(patients).values({ id: patientId, clinicId: CLINIC, name: 'Pac Flow', phone: `+5511${tag}` }).onConflictDoNothing();
+    await db.insert(patients).values({ id: patientId, clinicId: CLINIC, name: 'Pac Flow', phone }).onConflictDoNothing();
 
     const first = await runAction(agendarConsulta, { patientId, dentistId, scheduledAt: slot, durationMinutes: 30 }, ctx);
     expect(first.ok).toBe(true);
@@ -605,39 +651,82 @@ RUN_INTEGRATION_TESTS=1 npm run test:integration -- src/modules/operacional/acti
 
 Expected: PASS.
 
-- [ ] **Step 5: Converter `/api/appointments/route.ts` (e sub-rotas) para adapter**
+- [ ] **Step 5a: Criar o helper de adapter (auth → 401, error code → status)**
 
-Substituir a lógica direta de `src/app/api/appointments/route.ts` (POST que faz `getDb()` + checagem de conflito, linhas ~121-158) por adapter sobre a Action:
+`buildUserContext()` **lança** `Error('unauthenticated')` quando não há sessão (`context.ts:20`). O adapter deve traduzir isso para **401**, não deixar virar 500. Create `src/modules/operacional/ui/route-adapter.ts`:
 
 ```ts
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { runAction } from '@/core/actions/run';
 import { buildUserContext } from '@/core/actions/context';
+import type { ActionDefinition } from '@/core/actions/types';
+
+const STATUS: Record<string, number> = {
+  unauthorized: 401, forbidden: 403, not_found: 404, conflict: 409, validation: 422,
+};
+
+/** Embrulha uma Action numa rota: monta ctx (401 se não autenticado), roda e mapeia erros. */
+export async function runActionRoute<I, O>(
+  action: ActionDefinition<I, O>,
+  input: unknown,
+  opts: { okStatus?: number } = {},
+): Promise<NextResponse> {
+  let ctx;
+  try {
+    ctx = await buildUserContext();
+  } catch {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+  const result = await runAction(action, input, ctx);
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error.code, message: result.error.message },
+      { status: STATUS[result.error.code] ?? 400 },
+    );
+  }
+  return NextResponse.json(result.data, { status: opts.okStatus ?? 200 });
+}
+```
+
+- [ ] **Step 5b: Converter `/api/appointments/route.ts` preservando o contrato**
+
+O GET atual (`route.ts:29-72`) tem contrato rico: filtros (`patient_id`, `dentist_id`, `status`, `date`, `start_date`/`end_date`, `dentist_ids[]`), paginação (`page`/`limit`) e saída `{ appointments, pagination }` via `appointmentToApi`. O adapter **mapeia os mesmos query params** para o input da action `listarConsultas` (que já devolve `{ appointments, pagination }` — Step 2/3). O POST preserva 201.
+
+```ts
+import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
+import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { agendarConsulta } from '@/modules/operacional/actions/agendar-consulta';
 import { listarConsultas } from '@/modules/operacional/actions/listar-consultas';
 
 export const POST = withModuleRoute('operacional', moduleManifest)(async (request: NextRequest) => {
-  const ctx = await buildUserContext();
   const body = await request.json();
-  const result = await runAction(agendarConsulta, body, ctx);
-  if (!result.ok) {
-    const status = result.error.code === 'conflict' ? 409 : result.error.code === 'forbidden' ? 403 : 400;
-    return NextResponse.json({ error: result.error.code, message: result.error.message }, { status });
-  }
-  return NextResponse.json(result.data, { status: 201 });
+  return runActionRoute(agendarConsulta, body, { okStatus: 201 });
 });
 
-export const GET = withModuleRoute('operacional', moduleManifest)(async () => {
-  const ctx = await buildUserContext();
-  const result = await runAction(listarConsultas, {}, ctx);
-  if (!result.ok) return NextResponse.json({ error: result.error.code }, { status: 400 });
-  return NextResponse.json(result.data);
+export const GET = withModuleRoute('operacional', moduleManifest)(async (request: NextRequest) => {
+  const sp = new URL(request.url).searchParams;
+  const input = {
+    patientId: sp.get('patient_id') ?? undefined,
+    dentistId: sp.get('dentist_id') ?? undefined,
+    status: sp.get('status') ?? undefined,
+    date: sp.get('date') ?? undefined,
+    startDate: sp.get('start_date') ?? undefined,
+    endDate: sp.get('end_date') ?? undefined,
+    dentistIds: sp.getAll('dentist_ids').length ? sp.getAll('dentist_ids') : undefined,
+    page: sp.get('page') ?? undefined,
+    limit: sp.get('limit') ?? undefined,
+  };
+  return runActionRoute(listarConsultas, input);
 });
 ```
 
-Converter analogamente as sub-rotas `[id]/confirm`, `[id]/cancel`, `[id]/noshow`, `[id]/reschedule` (cada uma → `runAction` da Action correspondente, embrulhada por `withModuleRoute`). **Nenhum `getDb()` em `route.ts`.**
+Converter analogamente as sub-rotas `[id]/confirm`, `[id]/cancel`, `[id]/noshow`, `[id]/reschedule` via `runActionRoute(<action>, { id, ...body })`, embrulhadas por `withModuleRoute`. **Nenhum `getDb()` em `route.ts`.** Para cada rota, **conferir o JSON de entrada/saída atual** e preservá-lo (a action retorna `{ id }` nas escritas; se o cliente atual espera o objeto completo, ajustar o `data` da action/serializer para manter o shape).
+
+- [ ] **Step 5c: Teste de contrato do adapter (auth)**
+
+Adicionar ao teste de integração: chamada do handler `GET`/`POST` **sem sessão** retorna **401** (não 500). Mockar `buildUserContext` para lançar e assertar o status.
 
 - [ ] **Step 6: Verificar ausência de DB direto nas rotas de appointments**
 
@@ -793,15 +882,25 @@ import { getDb } from '@/lib/db/client';
 import { patients } from '../schema/patients';
 import { and, eq } from 'drizzle-orm';
 
+// Normalização: só dígitos (telefone E.164 sem símbolos; CPF sem pontuação).
+export const normalizePhone = (v: string) => v.replace(/\D/g, '');
+export const normalizeCpf = (v: string) => v.replace(/\D/g, '');
+
 export async function findByPhone(clinicId: string, phone: string) {
   const [row] = await getDb().select({ id: patients.id }).from(patients)
     .where(and(eq(patients.clinicId, clinicId), eq(patients.phone, phone))).limit(1);
   return row ?? null;
 }
 
-export async function insertPatient(input: { clinicId: string; name: string; phone: string; email?: string | null }) {
+export async function findByCpf(clinicId: string, cpf: string) {
+  const [row] = await getDb().select({ id: patients.id }).from(patients)
+    .where(and(eq(patients.clinicId, clinicId), eq(patients.cpf, cpf))).limit(1);
+  return row ?? null;
+}
+
+export async function insertPatient(input: { clinicId: string; name: string; phone: string; cpf?: string | null; email?: string | null }) {
   const [row] = await getDb().insert(patients)
-    .values({ clinicId: input.clinicId, name: input.name, phone: input.phone, email: input.email ?? null })
+    .values({ clinicId: input.clinicId, name: input.name, phone: input.phone, cpf: input.cpf ?? null, email: input.email ?? null })
     .returning({ id: patients.id });
   return { id: row.id };
 }
@@ -826,24 +925,41 @@ Create `src/modules/operacional/services/__tests__/patients-service.test.ts`:
 
 ```ts
 jest.mock('../../repositories/patients-repository', () => ({
-  findByPhone: jest.fn(), insertPatient: jest.fn(), updatePatient: jest.fn(), listPatients: jest.fn(),
+  findByPhone: jest.fn(), findByCpf: jest.fn(), insertPatient: jest.fn(),
+  updatePatient: jest.fn(), listPatients: jest.fn(),
+  normalizePhone: (v: string) => v.replace(/\D/g, ''),
+  normalizeCpf: (v: string) => v.replace(/\D/g, ''),
 }));
 import { ActionError } from '@/core/actions/types';
 import { criarPaciente } from '../patients-service';
 import * as repo from '../../repositories/patients-repository';
 
 const mocked = jest.mocked(repo);
-beforeEach(() => jest.resetAllMocks());
+beforeEach(() => {
+  jest.resetAllMocks();
+  (mocked.normalizePhone as unknown as jest.Mock).mockImplementation((v: string) => v.replace(/\D/g, ''));
+  (mocked.normalizeCpf as unknown as jest.Mock).mockImplementation((v: string) => v.replace(/\D/g, ''));
+});
 
-it('cria paciente quando telefone não existe', async () => {
+it('cria paciente quando telefone e cpf não existem; insere normalizado', async () => {
   mocked.findByPhone.mockResolvedValue(null);
+  mocked.findByCpf.mockResolvedValue(null);
   mocked.insertPatient.mockResolvedValue({ id: 'p1' });
-  await expect(criarPaciente({ clinicId: 'c1', name: 'A', phone: '+5511999' })).resolves.toEqual({ id: 'p1' });
+  await expect(criarPaciente({ clinicId: 'c1', name: 'A', phone: '+55 (11) 99999-0000', cpf: '123.456.789-00' }))
+    .resolves.toEqual({ id: 'p1' });
+  expect(mocked.insertPatient).toHaveBeenCalledWith(expect.objectContaining({ phone: '5511999990000', cpf: '12345678900' }));
 });
 
 it('rejeita duplicado por telefone', async () => {
   mocked.findByPhone.mockResolvedValue({ id: 'existing' });
   await expect(criarPaciente({ clinicId: 'c1', name: 'A', phone: '+5511999' })).rejects.toBeInstanceOf(ActionError);
+});
+
+it('rejeita duplicado por CPF', async () => {
+  mocked.findByPhone.mockResolvedValue(null);
+  mocked.findByCpf.mockResolvedValue({ id: 'existing' });
+  await expect(criarPaciente({ clinicId: 'c1', name: 'A', phone: '+5511999', cpf: '123.456.789-00' }))
+    .rejects.toBeInstanceOf(ActionError);
 });
 ```
 
@@ -857,10 +973,17 @@ Create `src/modules/operacional/services/patients-service.ts`:
 import { ActionError } from '@/core/actions/types';
 import * as repo from '../repositories/patients-repository';
 
-export async function criarPaciente(input: { clinicId: string; name: string; phone: string; email?: string }) {
-  const existing = await repo.findByPhone(input.clinicId, input.phone);
-  if (existing) throw new ActionError('conflict', 'Já existe um paciente com este telefone.');
-  return repo.insertPatient(input);
+export async function criarPaciente(input: { clinicId: string; name: string; phone: string; cpf?: string; email?: string }) {
+  const phone = repo.normalizePhone(input.phone);
+  const cpf = input.cpf ? repo.normalizeCpf(input.cpf) : undefined;
+
+  if (await repo.findByPhone(input.clinicId, phone)) {
+    throw new ActionError('conflict', 'Já existe um paciente com este telefone.');
+  }
+  if (cpf && (await repo.findByCpf(input.clinicId, cpf))) {
+    throw new ActionError('conflict', 'Já existe um paciente com este CPF.');
+  }
+  return repo.insertPatient({ ...input, phone, cpf });
 }
 
 export async function atualizarPaciente(input: { clinicId: string; id: string; name?: string; phone?: string; email?: string }) {
@@ -881,13 +1004,29 @@ Run the unit test again → Expected: PASS.
 
 Create `criar-paciente.ts`, `atualizar-paciente.ts`, `listar-paciente.ts` seguindo **exatamente** o shape das actions da Task 3 (Step 3). Definições:
 
-- `operacional.criarPaciente` — `requires:'operacional:manage_patients'` — input `{ name: z.string().min(1), phone: z.string().min(8), email: z.string().email().optional() }` — handler `criarPaciente({ clinicId: ctx.clinicId, ...input })`.
+- `operacional.criarPaciente` — `requires:'operacional:manage_patients'` — input `{ name: z.string().min(1), phone: z.string().min(8), cpf: z.string().optional(), email: z.string().email().optional() }` — handler `criarPaciente({ clinicId: ctx.clinicId, ...input })`.
 - `operacional.atualizarPaciente` — `requires:'operacional:manage_patients'` — input `{ id: z.string().uuid(), name: z.string().optional(), phone: z.string().optional(), email: z.string().email().optional() }`.
 - `operacional.listarPacientes` — `requires:'operacional:view'` — input `z.object({})` — handler `listarPacientes(ctx.clinicId)`.
 
-- [ ] **Step 5: Converter `/api/patients/**` para adapters**
+- [ ] **Step 5: Converter `/api/patients/**` para adapters — mapeamento explícito**
 
-Cada rota em `src/app/api/patients/` (route.ts, [id]/route.ts, [id]/observations, [id]/preferences, deduplicate, inactive, tags, [id]/history) vira adapter sobre a Action correspondente, embrulhada por `withModuleRoute('operacional', moduleManifest)`. Rotas sem Action equivalente nesta onda (ex.: `tags`, `history`): ou recebem read-action mínima, ou são **deprecadas** explicitamente (retornar 410/404 com nota), **nunca** deixadas com `getDb()` direto.
+Cada rota vira adapter sobre `runActionRoute` (helper da Task 3, Step 5a) + `withModuleRoute('operacional', moduleManifest)`. Decisão por rota (nenhuma fica com `getDb()` direto):
+
+| Rota | Método | Action | Contrato / status |
+|---|---|---|---|
+| `patients/route.ts` | POST | `criarPaciente` | preserva entrada; 201 |
+| `patients/route.ts` | GET | `listarPacientes` | preserva shape de lista atual |
+| `patients/[id]/route.ts` | GET | `obterPaciente` (criar read-action mínima `operacional:view`) | objeto do paciente |
+| `patients/[id]/route.ts` | PUT/PATCH | `atualizarPaciente` | preserva entrada |
+| `patients/[id]/route.ts` | DELETE | — | **deferir**: manter como está com gate `withModuleRoute` (delete não está no escopo desta onda) ou 405 se não existia |
+| `patients/[id]/observations` | GET/POST | `listar/criarObservacao` (read+write `operacional:manage_patients`) | preserva shape |
+| `patients/[id]/preferences` | GET/PUT | `obter/atualizarPreferencias` (`operacional:manage_patients`) | preserva shape |
+| `patients/[id]/history` | GET | `obterHistoricoPaciente` (read `operacional:view`) | preserva shape |
+| `patients/tags` | GET/POST | `listar/atribuirTags` (`operacional:manage_patients`) | preserva shape |
+| `patients/inactive` | GET | `listarPacientesInativos` (read `operacional:view`) | preserva shape |
+| `patients/deduplicate` | POST | `dedupPacientes` (`operacional:manage_patients`) | preserva shape |
+
+> Criar as read/write-actions listadas seguindo o shape das actions já definidas (Task 3/5). Se alguma rota tiver lógica que não justifica Action própria nesta onda e não é consumida externamente, **deprecar** retornando `410 Gone` com `{ error: 'deprecated', message }` — registrar a decisão no commit. O critério é: **zero `getDb()` em `route.ts`**.
 
 - [ ] **Step 6: Verificar e testar**
 
@@ -927,9 +1066,20 @@ Criar as actions seguindo o shape da Task 3:
 
 Handlers delegam direto ao repository (catálogo não tem invariante complexa; service opcional — manter action→repository simples, mas **sem `getDb()` na action**: criar `services/catalog-service.ts` fino que reexporta as funções do repo, para manter o padrão `action→service→repository`).
 
-- [ ] **Step 3: Adapters de rota**
+- [ ] **Step 3: Adapters de rota — mapeamento explícito**
 
-`src/app/api/dentists/**` e `src/app/api/procedures/**` → adapters sobre as actions, com `withModuleRoute('operacional', moduleManifest)`. Sem `getDb()` direto.
+Via `runActionRoute` + `withModuleRoute('operacional', moduleManifest)`. Zero `getDb()` em `route.ts`:
+
+| Rota | Método | Action |
+|---|---|---|
+| `dentists/route.ts` | GET / POST | `listarDentistas` / `criarDentista` |
+| `dentists/[id]/route.ts` | GET / PUT / PATCH | `obterDentista` / `atualizarDentista` (criar conforme necessário, `operacional:manage_catalog`) |
+| `dentists/[id]/route.ts` | DELETE | deferir (manter gated ou 405) |
+| `procedures/route.ts` | GET / POST | `listarProcedimentos` / `criarProcedimento` |
+| `procedures/[id]/route.ts` | GET / PUT / PATCH | `obterProcedimento` / `atualizarProcedimento` (`operacional:manage_catalog`) |
+| `procedures/[id]/route.ts` | DELETE | deferir (manter gated ou 405) |
+
+Preservar o shape de entrada/saída atual de cada rota.
 
 - [ ] **Step 4: Verificar + typecheck**
 
@@ -1077,11 +1227,49 @@ Em `src/core/actions/__tests__/bootstrap.test.ts`, adicionar ao `arrayContaining
 
 Run: `npm test -- src/core/actions/__tests__/bootstrap.test.ts` → Expected: PASS.
 
-- [ ] **Step 5: Remover os 5 navItems estáticos**
+- [ ] **Step 5a: Agregar `operacionalManifest` no pipeline de menu (CRÍTICO — senão o menu some)**
 
-Em `src/lib/ui/sidebar.tsx`, remover as linhas 84-90 (Pacientes, Agendamentos, Lista de Espera, Dentistas, Procedimentos). O menu desses itens passa a vir do `operacionalManifest` via o pipeline manifesto+RBAC já existente (`buildMenu`/`filterMenuByAccess`), condicionado a `isEnabled('operacional')`.
+Hoje `src/lib/ui/menu-actions.ts` monta o menu só com `buildMenu([coreManifest], ...)`. Se removermos os navItems estáticos sem incluir o `operacionalManifest` aqui, os itens operacionais **desaparecem**. Atualizar `menu-actions.ts`:
 
-> Conferir como o Core injeta `coreManifest.menu` no pipeline e replicar para `operacionalManifest.menu` (provável ponto: o agregador de manifestos consumido por `getVisibleCoreMenu`/`buildMenu`).
+```ts
+'use server'
+import { buildUserContext } from '@/core/actions/context'
+import { buildMenu } from '@/lib/ui/build-menu'
+import { coreManifest } from '@/modules/core/manifest'
+import { operacionalManifest } from '@/modules/operacional/manifest'
+import { makeManifest, drizzleManifestRepo } from '@/core/modules/manifest'
+import type { MenuItem } from '@/core/modules/gates'
+
+/** Itens de menu visíveis (todos os módulos), filtrados por RBAC + manifesto. */
+export async function getVisibleMenu(): Promise<MenuItem[]> {
+  try {
+    const ctx = await buildUserContext()
+    return await buildMenu([coreManifest, operacionalManifest], makeManifest(drizzleManifestRepo), ctx.can)
+  } catch {
+    return []
+  }
+}
+
+// Alias retrocompatível durante a transição (remover quando todos os callers migrarem):
+export const getVisibleCoreMenu = getVisibleMenu
+```
+
+Atualizar os callers de `getVisibleCoreMenu` para `getVisibleMenu`:
+
+```bash
+rg -n "getVisibleCoreMenu" src
+# trocar import/uso para getVisibleMenu nos arquivos encontrados (provável: sidebar.tsx e/ou layout)
+```
+
+- [ ] **Step 5b: Teste cobrindo itens operacionais no menu**
+
+Adicionar teste (unit, em `src/lib/ui/__tests__/menu-actions.test.ts` ou estender o existente de `build-menu`) que, com `operacional` habilitado e `can('operacional:view') === true`, o resultado de `buildMenu([coreManifest, operacionalManifest], manifestStub, can)` **inclui** "Agendamentos" e "Pacientes"; e com `operacional` desabilitado (`isEnabled` falso), **não** inclui nenhum item operacional.
+
+Run: `npm test -- src/lib/ui` → Expected: PASS.
+
+- [ ] **Step 5c: Remover os 5 navItems estáticos**
+
+Em `src/lib/ui/sidebar.tsx`, remover as linhas 84-90 (Pacientes, Agendamentos, Lista de Espera, Dentistas, Procedimentos). Os itens agora vêm do `operacionalManifest` via `getVisibleMenu` (Step 5a), condicionados a `isEnabled('operacional')` + RBAC. **Verificar visualmente/por teste** que, com o módulo ligado, os 5 itens aparecem (não confiar só na remoção).
 
 - [ ] **Step 6: Gate final completo**
 
@@ -1123,4 +1311,10 @@ git commit -m "feat(operacional): register module, manifest menu, remove static 
 - **Sem bypass:** verificação `rg getDb` nas Tasks 3/5/6/8.
 - **Gates de build:** typecheck/lint/unit/integração/`db:generate` na Task 8.
 
-> **Atenção do executor:** confirmar nomes reais de colunas em `patients.ts`/`clinical.ts` antes de escrever as queries dos repositories (o spec lista as tabelas, mas os nomes de coluna devem ser lidos do schema movido). Portar fielmente a lógica de slots de `src/repositories/appointments/index.ts:403-468` na Task 4. Cobrir o efeito waitlist-on-cancel (Task 3, Step 2) com o teste de cancelamento existente.
+> **Atenção do executor:**
+> - **Contrato HTTP:** todo adapter usa o helper `runActionRoute` (Task 3, Step 5a) — auth ausente → **401** (não 500), error code → status. Para cada rota convertida, **conferir e preservar** o JSON de entrada/saída atual (filtros, paginação, serializer, shape). O GET de appointments já está mapeado (Step 5b); replicar o cuidado nas demais.
+> - **Menu:** o passo crítico é o Step 5a do Task 8 (agregar `operacionalManifest` em `menu-actions.ts`) — remover navItems sem isso **some com o menu**.
+> - **Schema:** confirmar nomes reais de colunas em `patients.ts`/`clinical.ts` (incl. `cpf`, `phone`) antes das queries dos repositories.
+> - **Port:** portar fielmente `findByClinicWithJoins`/slots de `src/repositories/appointments/index.ts` (Tasks 3/4) e o serializer `appointmentToApi`.
+> - **Dedup:** por telefone **e CPF**, ambos normalizados (só dígitos) — Task 5.
+> - Cobrir o efeito waitlist-on-cancel (Task 3, Step 2) com o teste de cancelamento existente.
