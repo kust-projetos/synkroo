@@ -29,9 +29,9 @@ Um único spec/plano, decomposto em **6 fases ordenadas** (estilo Tipo A/B do Co
 |---|---|---|
 | **F1 Schema** | Separação física `core.ts`/`appointments.ts` → `modules/operacional/schema/` + seam público | De-risca: tudo abaixo importa do schema novo |
 | **F2 Integridade** | Constraint de exclusão (anti-overbooking) + reconectar disponibilidade (`TODO W5.3`) | Invariante de dados antes de construir escrita sobre ela |
-| **F3 Vertical de agendamento** | Actions `agendar/remarcar/confirmar/cancelar/noShow` → service → repo | Caminho crítico da Onda 1; consumido por E-01 e agente |
-| **F4 Largura de domínio** | Pacientes (CRUD + dedup + preferências), Dentistas, Procedimentos | Admin do bounded context, apoiado em F1–F3 |
-| **F5 Crons + Gates** | `withModuleRoute` em `/api/appointments/*`; `assertModuleForJob` no `cron/reminders`; confirmação 24h / lembrete 2h migrados | Aplicação real dos gates do Core; precisa das Actions de F3 |
+| **F3 Vertical de agendamento** | Actions `agendar/remarcar/confirmar/cancelar/noShow` → service → repo; rotas `/api/appointments/*` viram adapters finos sobre `runAction` | Caminho crítico da Onda 1; consumido por E-01 e agente |
+| **F4 Largura de domínio** | Pacientes (CRUD + dedup + preferências), Dentistas, Procedimentos; rotas REST do domínio viram adapters sobre `runAction` | Admin do bounded context, apoiado em F1–F3 |
+| **F5 Crons + Gates** | `withModuleRoute` em **todas** as rotas do bounded context; `assertModuleForJob` no `cron/reminders`; confirmação 24h / lembrete 2h migrados | Aplicação real dos gates do Core; precisa das Actions de F3/F4 |
 | **F6 Registro** | `operacionalManifest` + permissões `operacional:*` no `bootstrapActions`; lint verde | Ativa o módulo como contratável; fecha o template |
 
 ---
@@ -46,7 +46,7 @@ Um único spec/plano, decomposto em **6 fases ordenadas** (estilo Tipo A/B do Co
 | Disponibilidade | ❌ **stubbada** | `app/api/appointments/availability/route.ts:35` `TODO(W5.3): reconnect availability to new scheduling backend` |
 | Schema de appointments | ⚠️ central, arquivo limpo | `lib/db/schema/appointments.ts` (6 tabelas, ≈9 importadores) |
 | Schema de pacientes/clínico | ⚠️ **misturado** em `core.ts` | `lib/db/schema/core.ts` (8 das 11 tabelas são Operacional) |
-| Rotas `/api/appointments/*` | ⚠️ sem gate de entitlement | 13 rotas; sem `withModuleRoute` |
+| Rotas REST do bounded context | ⚠️ sem gate + chamam DB direto | `/api/appointments/*` (13), `/api/patients/*` (8), `/api/dentists/*` (2), `/api/procedures/*` (2), `/api/waitlist` (1), `/api/reminders/config` (1) — nenhuma com `withModuleRoute`; várias com `getDb()` direto (ex.: `appointments/route.ts:121-158`, `waitlist/route.ts:63-69`, `patients/[id]/observations/route.ts:79-86`) |
 | `cron/reminders` | ⚠️ sem gate de job | `app/api/cron/reminders/route.ts` → `services/reminders/processAllReminders` |
 | Confirmação/resposta | ⚠️ fora do template | `confirmation-handler.service.ts`, `app/api/appointments/confirm-response` |
 | Módulo `operacional` | ❌ não existe | só `src/modules/core/` |
@@ -115,6 +115,17 @@ app (UI/route) → runAction(action, input, ctx) → service (regra+invariante) 
                        └─ gates: input (Zod) + entitlement (operacional) + RBAC (requires) + ctx + audit
 ```
 
+### 4.1. Destino do REST legado (decisão registrada)
+
+Hoje as rotas REST do domínio chamam repo/service/DB **direto** (ex.: `appointments/route.ts:121-158`, `waitlist/route.ts:63-69`, `patients/[id]/observations/route.ts:79-86`), furando RBAC/audit/entitlement da Action Layer. Para que "**só via Action Layer**" valha de fato e nenhum caminho paralelo escape:
+
+- **Toda rota do bounded context vira um adapter fino:** parse de input → `runAction(action, input, ctx)` → mapeia `ActionResult` para `Response`. **Zero** `getDb()`/service/repo direto em `route.ts`.
+- Cada adapter é **envolvido por `withModuleRoute('operacional', manifest)`** (§8) — entitlement + 404 quando o módulo não está contratado.
+- URLs preservadas (E-01, frontend e webhooks que já chamam essas rotas continuam funcionando), mas agora **todo** caminho de escrita passa por gates + auditoria.
+- Rotas sem Action correspondente (ex.: leituras auxiliares) ou recebem uma read-action, ou são explicitamente **deprecadas** no plano — nenhuma fica como bypass não-declarado.
+
+Esta regra se aplica em F3 (appointments) e F4 (patients/dentists/procedures/waitlist/reminders-config); o gate de entitlement em F5.
+
 ---
 
 ## 5. Separação de schema (F1)
@@ -130,7 +141,7 @@ app (UI/route) → runAction(action, input, ctx) → service (regra+invariante) 
 
 ## 6. Integridade — anti-overbooking + disponibilidade (F2)
 
-**Constraint de exclusão (DB-enforced):**
+**Constraint de exclusão (DB-enforced) — via migration SQL manual:**
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS btree_gist;
@@ -138,12 +149,15 @@ ALTER TABLE appointments ADD CONSTRAINT appointments_no_overlap
   EXCLUDE USING gist (
     dentist_id WITH =,
     tstzrange(scheduled_at, scheduled_at + (duration_minutes * interval '1 minute')) WITH &&
-  ) WHERE (status IN ('scheduled','confirmed'));
+  ) WHERE (status IN ('scheduled','confirmed','in_progress'));
 ```
 
 - Double-booking torna-se **estruturalmente impossível**, independente de qualquer corrida no app. Atende o KPI "0 conflitos" do epic e o cenário Gherkin "dois pacientes simultâneos → só um confirma".
-- O `WHERE` parcial só restringe agendamentos **ativos** (`scheduled`/`confirmed`) — cancelados/no-show não bloqueiam o slot.
+- **Status que bloqueiam o slot:** `scheduled`, `confirmed` **e `in_progress`** — alinhado ao bloqueio atual do app (`appointments/route.ts:126-128`; uma consulta em andamento ocupa a cadeira). Cancelados/no-show/completed liberam o slot.
 - Insert/reschedule conflitante → Postgres erro `23P01` → o **service** captura e traduz para `ActionError('conflict', '...')`. A checagem read-then-write atual (`repositories/appointments/index.ts:547-573`) deixa de ser a garantia (pode permanecer como pré-validação amigável para UX, mas a **fonte da verdade é a constraint**).
+- **Drizzle não modela `EXCLUDE/gist`** (config aponta `schema/index.ts` → `out: src/lib/db/migrations`). Logo a constraint **não** sai de `db:generate`: entra como **migration SQL escrita à mão** anexada à pasta de migrations. Implicação dupla: (a) `db:generate` "No schema changes" continua válido para o schema rastreado pelo Drizzle (a constraint é invisível a ele — não é dropada nem recriada); (b) a integridade real depende dessa migration manual ser aplicada e testada, **não** do `db:generate`.
+- **A migration manual (F2) deve conter, em ordem:** (1) **preflight** que detecta overlaps já existentes entre status ativos e falha/reporta antes de prosseguir (ver Riscos §14, Pitfall 7); (2) `CREATE EXTENSION IF NOT EXISTS btree_gist`; (3) `ALTER TABLE ... ADD CONSTRAINT ... EXCLUDE`; (4) **rollback** correspondente (`DROP CONSTRAINT` + nota sobre a extensão); (5) coberta por **teste de integração concorrente** (dois inserts simultâneos → 1 falha com `23P01`).
+- **`dentist_id` nulo:** `EXCLUDE` ignora linhas onde a coluna `WITH =` é `NULL` — agendamentos sem dentista não são protegidos pela constraint. O plano decide: tornar `dentist_id` obrigatório no agendamento, ou aceitar que slots sem dentista não conflitam (documentar a escolha).
 
 **Disponibilidade (`TODO W5.3`):** reconectar `app/api/appointments/availability` ao backend real (geração de slots em `repositories/appointments` já existe, linhas 403-468), exposta via read-action `consultarDisponibilidade`. Slots ocupados derivados de appointments ativos + `scheduleBlocks`.
 
@@ -172,7 +186,7 @@ Nenhum `getDb()` direto em `actions/` (regra do template). Dedup de paciente viv
 
 ## 8. Crons + Gates (F5)
 
-- **`withModuleRoute('operacional', manifest)`** envolve os handlers de `/api/appointments/*` — retorna **404** se o módulo não estiver contratado. **Primeira aplicação real** dos gates, fechando o que o Core entregou apenas como mecanismo (Core B2).
+- **`withModuleRoute('operacional', manifest)`** envolve os handlers de **todas** as rotas do bounded context — `/api/appointments/*`, `/api/patients/*`, `/api/dentists/*`, `/api/procedures/*`, `/api/waitlist`, `/api/reminders/config` — retornando **404** se o módulo não estiver contratado. Cobertura **completa**: módulo desligado não pode expor nenhuma superfície do Operacional. **Primeira aplicação real** dos gates, fechando o que o Core entregou apenas como mecanismo (Core B2).
 - **`assertModuleForJob('operacional', manifest)`** no `cron/reminders` — o job não roda para instâncias sem o módulo.
 - **Confirmação 24h / lembrete 2h / processamento de resposta** migram de `services/reminders/*` e `confirmation-handler.service.ts` para `modules/operacional/services/reminders.ts`, disparados pelo cron gated. Segurança do cron (CRON_SECRET + `timingSafeEqual`) preservada.
 
@@ -187,8 +201,11 @@ export const operacionalManifest = {
   name: 'Operacional',
   alwaysOn: false,                 // contratável
   menu: [
-    { moduleId:'operacional', permission:'operacional:view', label:'Agenda', path:'/dashboard/agenda', icon:'CalendarIcon' },
-    { moduleId:'operacional', permission:'operacional:view', label:'Pacientes', path:'/dashboard/pacientes', icon:'UserGroupIcon' },
+    { moduleId:'operacional', permission:'operacional:view',             label:'Agendamentos',   path:'/dashboard/agendamentos', icon:'CalendarDaysIcon' },
+    { moduleId:'operacional', permission:'operacional:view',             label:'Pacientes',      path:'/dashboard/pacientes',    icon:'UsersIcon' },
+    { moduleId:'operacional', permission:'operacional:manage_appointments', label:'Lista de Espera', path:'/dashboard/lista-espera', icon:'ClockIcon' },
+    { moduleId:'operacional', permission:'operacional:manage_catalog',   label:'Dentistas',      path:'/dashboard/dentistas',    icon:'IdentificationIcon' },
+    { moduleId:'operacional', permission:'operacional:manage_catalog',   label:'Procedimentos',  path:'/dashboard/procedimentos', icon:'WrenchScrewdriverIcon' },
   ],
   jobs: ['operacional.reminders'] as string[],
 };
@@ -204,7 +221,7 @@ export const operacionalAccessPermissions: PermissionEntry[] = [
 
 `index.ts` exporta `operacionalActions` (todas as actions), `operacionalManifest`, `operacionalAccessPermissions`; `bootstrapActions` passa a registrar também o Operacional (idempotente, como o Core). **Teste-guarda** afirmando que toda action em `actions/*` é descobrível via registry (padrão herdado da correção final do Core).
 
-> **Migração do menu estático:** o Core deixou `navItems` estáticos (Agenda/Pacientes incluídos) como dívida documentada, a migrar "por-módulo, ao migrar". Este módulo **remove** os `navItems` estáticos de agenda/pacientes do `sidebar.tsx` e os traz via `operacionalManifest` (condicionados a `isEnabled` + RBAC), cumprindo o refino do sequenciamento.
+> **Migração do menu estático:** o Core deixou `navItems` estáticos como dívida documentada, a migrar "por-módulo, ao migrar". Este módulo **remove os 5 itens operacionais** do `sidebar.tsx` — Agendamentos (`/dashboard/agendamentos`), Pacientes (`/dashboard/pacientes`), Lista de Espera (`/dashboard/lista-espera`), Dentistas (`/dashboard/dentistas`), Procedimentos (`/dashboard/procedimentos`) — e os traz via `operacionalManifest` (condicionados a `isEnabled` + RBAC), cumprindo o refino do sequenciamento. Paths e labels conferidos contra `sidebar.tsx:84-90` (não inventar `/dashboard/agenda`).
 
 ---
 
@@ -233,11 +250,12 @@ export const operacionalAccessPermissions: PermissionEntry[] = [
 ## 12. Definition of Done
 
 - [ ] **F1** `appointments.ts` + 8 tabelas de `core.ts` movidas para `modules/operacional/schema/`; seam público; `core.ts` só com clinics/users/userCredentials; `db:generate` limpo; caveat de não-enforço registrado.
-- [ ] **F2** constraint `appointments_no_overlap` (+ `btree_gist`) ativa; service traduz `23P01`→`conflict`; disponibilidade reconectada (`TODO W5.3` resolvido).
-- [ ] **F3** Actions `agendar/remarcar/confirmar/cancelar/noShow` + reads no template (`action→service→repo`, sem `getDb()` em actions); testes de integração verdes, incluindo overbooking concorrente.
-- [ ] **F4** Pacientes (CRUD + dedup + preferências), Dentistas, Procedimentos via template.
-- [ ] **F5** `withModuleRoute` nas `/api/appointments/*` (404 sem contrato); `assertModuleForJob` no `cron/reminders`; confirmação 24h / lembrete 2h migrados e disparados pelo cron gated.
-- [ ] **F6** `operacionalManifest` + `operacional:*` registrados no `bootstrapActions`; menu de agenda/pacientes via manifesto (estáticos removidos do `sidebar.tsx`); teste-guarda de registry; agente lista as Actions do Operacional via `agentToolsFor`.
+- [ ] **F2** migration SQL **manual** com preflight de overlaps + `btree_gist` + constraint `appointments_no_overlap` (status `scheduled/confirmed/in_progress`) + rollback; service traduz `23P01`→`conflict`; teste de integração concorrente verde; disponibilidade reconectada (`TODO W5.3` resolvido); decisão sobre `dentist_id` nulo registrada.
+- [ ] **F3** Actions `agendar/remarcar/confirmar/cancelar/noShow` + reads no template (`action→service→repo`, sem `getDb()` em actions); **rotas `/api/appointments/*` viram adapters finos sobre `runAction`** (zero DB direto); testes de integração verdes, incluindo overbooking concorrente.
+- [ ] **F4** Pacientes (CRUD + dedup + preferências), Dentistas, Procedimentos via template; **rotas `/api/patients/*`, `/api/dentists/*`, `/api/procedures/*`, `/api/waitlist`, `/api/reminders/config` viram adapters sobre `runAction`** (ou deprecadas explicitamente).
+- [ ] **F5** `withModuleRoute` em **todas** as rotas do bounded context (404 sem contrato — appointments, patients, dentists, procedures, waitlist, reminders/config); `assertModuleForJob` no `cron/reminders`; confirmação 24h / lembrete 2h migrados e disparados pelo cron gated.
+- [ ] **F6** `operacionalManifest` + `operacional:*` registrados no `bootstrapActions`; os **5 itens operacionais** migrados para o manifesto (estáticos removidos do `sidebar.tsx`, paths reais conferidos); teste-guarda de registry; agente lista as Actions do Operacional via `agentToolsFor`.
+- [ ] **Sem bypass:** nenhuma rota do bounded context com `getDb()`/service/repo direto; toda escrita passa por `runAction` (RBAC + entitlement + audit).
 - [ ] `typecheck` 0 erros; unit + integração verdes; `db:generate` limpo; lint verde.
 - [ ] **Critério Onda 1 (parcial):** as Actions necessárias para "WhatsApp → agendar/remarcar/confirmar" existem e passam pela Action Layer com RBAC/entitlement — prontas para o agente (passo 4) consumir.
 
@@ -256,7 +274,9 @@ export const operacionalAccessPermissions: PermissionEntry[] = [
 
 ## 14. Riscos
 
-- **Constraint sobre dados existentes (Pitfall 7):** `ADD CONSTRAINT EXCLUDE` **falha** se já houver appointments ativos sobrepostos em produção. Mitigação: o plano deve (a) detectar overlaps existentes antes de aplicar, (b) resolvê-los/normalizá-los, e só então criar a constraint; o `WHERE status IN (...)` parcial reduz a exposição a registros ativos.
+- **Constraint sobre dados existentes (Pitfall 7):** `ADD CONSTRAINT EXCLUDE` **falha** se já houver appointments ativos sobrepostos em produção. Mitigação: a migration manual (F2) começa por um **preflight** que detecta overlaps entre status ativos, reporta-os e (a) normaliza/resolve, só então (b) cria a constraint; o `WHERE status IN (...)` parcial reduz a exposição a registros ativos.
+- **Constraint invisível ao Drizzle:** `EXCLUDE/gist` não é modelado pelo schema Drizzle, logo `db:generate` não a gera nem a protege. Risco de "achar que o gate passou" sem o DB de fato enforçando. Mitigação: a constraint vive em migration SQL manual versionada + **teste de integração concorrente** é o gate real (não o `db:generate`); um `db:reset` deve reaplicar a migration manual.
+- **Bypass por rota legada:** se uma rota REST do bounded context for esquecida fora do padrão adapter→`runAction`, ela fura RBAC/audit/entitlement mesmo com o módulo "migrado". Mitigação: DoD §12 "Sem bypass" + verificação `rg "getDb\\(" src/app/api/{appointments,patients,dentists,procedures,waitlist,reminders}` deve dar vazio.
 - **Move parcial de `core.ts` (F1):** extração de 8 de 11 tabelas, ≈23 importadores no total → quebra de import silenciosa. Mitigação: `tsc` + `db:generate` + suíte; codemod de path + verificação, como no `rbac.ts` do Core.
 - **Disponibilidade stubbada (W5.3):** reconexão pode revelar drift entre slot-generation e o estado real. Mitigação: testes de integração de disponibilidade contra dados semeados.
 - **Acoplamento waitlist↔cancelamento:** `cancelAppointment` dispara waitlist; ao migrar, manter o efeito colateral coberto por teste.
