@@ -14,6 +14,8 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/integration.test.ts'],
+  // Exclude actual node_modules directories only — avoid matching 'src\modules' on Windows
+  testPathIgnorePatterns: ['/node_modules/'],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {

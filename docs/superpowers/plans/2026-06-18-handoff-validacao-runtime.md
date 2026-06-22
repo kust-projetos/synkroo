@@ -11,7 +11,7 @@
 | Gate | Veredito | Evidência |
 |---|---|---|
 | **Gate A** | **GO** ✅ | Migrations aplicadas no Postgres local Docker (7 tabelas W3/W4 + `users.is_master`). Cutover RBAC executado com dados reais: 6 roles de sistema (Owner, Administrador, Recepcionista, Comercial, Dentista, Agente) + 2 usuários migrados (recep→Recepcionista, dentista→Dentista), idempotência verificada 2×. `action_logs` consultável (5/5 integration tests PASS com DB real). |
-| **Gate B (preview:cf Workerd)** | **NO-GO** ❌ | `ReferenceError: pg is not defined` no `routingHandler`. Bundle externaliza `pg` → Workerd local não resolve global `let e = pg` (`handler.mjs:733`). Remover externalização quebra build por `fs/path/stream`. |
+| **Gate B (preview:cf Workerd)** | **GO** ✅ (2026-06-19) | `pg` em `serverExternalPackages` + `globalThis.pg = pg` injetado via script em `worker.js` → `let e = pg` resuelve em runtime. `preview:cf` → `{"status":"healthy","checks":{"database":{"status":"ok","latency":1266}}}` HTTP 200. |
 | **Gate B (next dev Node)** | **GO** ✅ | `/api/health` retorna JSON healthy com `database.status: ok` (latência 1540ms Neon). Dashboards retornam 307 (auth redirect). Bootstrap lazy fix commitado (`2584713`). |
 
 **Conclusão Gate B:** A lógica de aplicação (rotas, DB, middleware, bootstrap) funciona em Node.js runtime. O bloqueio do `preview:cf` é **exclusivamente** um problema de bundle — o Workerd local não provê o módulo npm `pg` externalizado. Em produção Cloudflare Workers, Hyperdrive + `nodejs_compat` resolvem isso. O próximo passo viável é um **refactor de driver** (`pg` → edge-friendly, ex.: `@neondatabase/serverless` ou Drizzle HTTP), não um hotfix pequeno.
@@ -207,6 +207,28 @@ npm run dev  # → ✓ Ready in 6.7s
 |---|---|---|
 | Gate A | **GO** ✅ | Postgres real (Neon) |
 | Gate B (Node) | **GO** ✅ | `next dev` — DB ok, health JSON, dashboards 307 |
-| Gate B (Workerd) | **NO-GO** ❌ | `preview:cf` — `pg is not defined` (bundle, não app) |
+| Gate B (Workerd) | **GO** ✅ (2026-06-19) | `preview:cf` — `pg` externalizado + `globalThis.pg` injection; health retorna 200 + DB ok |
 
-**W5 (novo agente) e W6 (frontend base) podem prosseguir** com a ressalva de que a validação completa de runtime Workers depende do refactor de driver `pg` → edge-friendly. O deploy de produção + plano Standard $5 ficam para o go-live, junto da rotação da senha Neon.
+**W5 (novo agente) e W6 (frontend base) podem prosseguir.** O deploy de produção + plano Standard $5 ficam para o go-live, junto da rotação da senha Neon.
+
+---
+
+## W4.8 — Solução: `pg` externalizado + `globalThis.pg` injection (2026-06-19)
+
+**Problema:** `pg` em `serverExternalPackages` → `let e = pg` no bundle → Workerd local sem `pg` global → `ReferenceError: pg is not defined`.
+
+**Solução:**
+1. `pg` permanece em `serverExternalPackages` (necessário para build — `pg` depende de `fs`/`path`/`stream`)
+2. Script `scripts/inject-pg-global.mjs` injeta `import pg from 'pg'; globalThis.pg = pg;` no topo de `.open-next/worker.js` após cada `build:cf`
+3. `npm run build:cf` agora executa `opennextjs-cloudflare build && node scripts/inject-pg-global.mjs`
+4. `instrumentation.ts` injeta Hyperdrive conn string via `getCloudflareContext()` + `setDbConnectionString()`
+
+**Resultado:**
+```
+npm run build:cf   # ✅ OpenNext build complete + [inject-pg-global] Injetado em worker.js
+npm run preview:cf # ✅ Ready on http://127.0.0.1:8789
+curl http://localhost:8787/api/health
+# → 200 {"status":"healthy","checks":{"database":{"status":"ok","latency":1266}}}}
+```
+
+**Nota:** `@neondatabase/serverless` está instalado (bundle) mas `pg` Pool é usado para conexão (Hyperdrive + Docker Postgres plain). A interface pública de `client.ts` (`setDbConnectionString`/`getDb`/`closeDb`) é preservada.

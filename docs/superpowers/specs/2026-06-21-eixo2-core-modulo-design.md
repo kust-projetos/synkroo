@@ -72,7 +72,7 @@ A invariante real é **"a clínica retém ≥1 Owner ativo (`isActive=true`) com
 
 - **(a) Downgrade de role** — `assignUserAccess` já cobre → migrar para o helper (DRY).
 - **(b) Remoção de acesso** — **nova action `core.removeUserAccess`** (`requires:'core:manage_users'`) + botão na UI; aplica o helper antes de deletar `userClinicAccess`.
-- **(c) Desativação de usuário** — confirmado que `getAccess`/`resolveAccess` **não** filtram `isActive` (`repository.ts:22-30`), mas o login bloqueia inativos → desativar o último Owner = lockout. Se uma action de desativação (`core.deactivateUser`) entrar no escopo do plano, aplica o helper; **caso contrário, a invariante fica registrada** neste spec para quem a criar (e o helper já existe para ser reusado).
+- **(c) Desativação de usuário** — confirmado que `getAccess`/`resolveAccess` **não** filtram `isActive` (`repository.ts:22-30`), mas o login bloqueia inativos → desativar o último Owner = lockout. **Entra no escopo do Core** criar/ajustar `core.deactivateUser` (ou o caminho real de desativação existente), `requires:'core:manage_users'`, aplicando o helper antes de `isActive=false`.
 - **Aceitação (testes de integração):** não é possível remover, rebaixar **nem desativar** o último Owner ativo da clínica.
 
 ### A4. `contatos` — deferir para E-04 (decisão de modularidade)
@@ -80,7 +80,8 @@ A invariante real é **"a clínica retém ≥1 Owner ativo (`isActive=true`) com
 Análise (§6 abaixo): "Contatos" (a tela `ContactSplitView`) é a **camada unificada do módulo CRM (E-04)**, distinta de Pacientes (Operacional/E-02) e Leads (Comercial/E-05). Pelo princípio §9.1, Operacional e Comercial funcionam **sem** o CRM.
 
 - **Decisão:** o Core **não** redireciona nem deleta `contatos`. `redirect → /crm` seria incorreto (assume CRM sempre presente, viola modularidade).
-- **Ação no Core:** documentar a fronteira (§6) e o deferral; a página permanece fora do menu. Destino final e modelo de domínio (entidade unificada vs. referências) decididos no spec do **E-04** (§9.1, com proposta + mockup).
+- **Comportamento até E-04:** `/dashboard/contatos` fica fora do menu **e indisponível por acesso direto** (`notFound()`/guard equivalente) até o módulo CRM assumir a rota.
+- **Ação no Core:** documentar a fronteira (§6) e o deferral; destino final e modelo de domínio (entidade unificada vs. referências) decididos no spec do **E-04** (§9.1, com proposta + mockup).
 
 ---
 
@@ -96,6 +97,7 @@ Análise (§6 abaixo): "Contatos" (a tela `ContactSplitView`) é a **camada unif
 ### B2. Gates — mecanismo + teste + doc (aplicação deferida)
 
 - `withModuleRoute`/`assertModuleForJob` já existem e funcionam. O Core é `alwaysOn` (gatear suas rotas é no-op) e **não há módulo contratável existente** para gatear sem inventar stub manifests.
+- **Refino do sequenciamento (`2026-06-21-eixo2-sequenciamento-design.md:65`):** a Onda 0 fecha **mecanismo + testes + documentação + primeira aplicação genuína quando houver alvo real no Core**. O rollout de gates em rotas/crons de módulos contratáveis fica nos specs dos módulos donos.
 - **Decisão:** o Core entrega **o mecanismo + testes unitários + documentação do padrão** (como uma rota `/api/*` e um cron se plugam ao gate). **Não** criar manifests sintéticos para followup/agent/canais — esse gating pertence à migração de cada módulo.
 - **Registrar explicitamente** (no spec e no plano) que a aplicação real é deferida por-módulo, para não ler como "feito em todo lugar".
 
@@ -107,6 +109,7 @@ Análise (§6 abaixo): "Contatos" (a tela `ContactSplitView`) é a **camada unif
 ### B4. Menu manifesto-driven — documentar + deferir migração dos estáticos
 
 - A infra já funciona para o Core. **Não** migrar os ~15 `navItems` estáticos agora: seus consumidores são módulos ainda não migrados, que trazem seus itens via manifesto (condicionados a `isEnabled`) ao migrar.
+- **Refino do sequenciamento (`2026-06-21-eixo2-sequenciamento-design.md:63-66`):** a Onda 0 fecha o padrão manifesto+RBAC no Core e documenta a dívida dos itens estáticos restantes; a migração dos itens de CRM/Pipeline/Leads/Campanhas fica nos specs dos módulos donos.
 - **Registrar a dívida com justificativa de modularidade:** os estáticos atuais (CRM, Pipeline, Leads, Campanhas…) hoje aparecem **sempre**, o que num deploy sem esses módulos está semanticamente **errado** — não é cosmético. A correção é por-módulo, nas ondas seguintes.
 - O flash do padrão híbrido (estáticos client + Core via `useEffect`/server-action) fica; o fix real (server components) está fora de escopo.
 
@@ -145,7 +148,8 @@ Três conceitos distintos, hoje confundidos:
 ## 7. Error handling
 
 - `runAction` mapeia `ActionError(code, msg)` → `{ result:'error', errorCode }`. Anti-lockout usa `ActionError('conflict', ...)` (já estabelecido).
-- Read-actions retornam listas vazias em erro de não-autenticado (padrão de `getVisibleCoreMenu`), nunca vazam dados de outra clínica (ctx injeta `clinicId`).
+- Admin read-actions (`core.listClinicUsers`, `core.listClinicRoles`) seguem a semântica normal da Action Layer: `unauthorized` sem sessão; `forbidden` sem `core:manage_users`; nunca vazam dados de outra clínica (ctx injeta `clinicId`).
+- Lista vazia em erro de auth fica restrita a menu/discovery (`getVisibleCoreMenu`), onde falhar fechado é UX aceitável.
 - Move de schema (B1): falha de import é capturada por `tsc` (gate de build) — verificação obrigatória no plano.
 
 ---
@@ -162,12 +166,12 @@ Três conceitos distintos, hoje confundidos:
 
 - [ ] **A1** Core sem `getDb()` direto em `actions/`; `repositories/` + `services/` criados (exemplo canônico §6).
 - [ ] **A2** Painel admin com seletores reais (sem UUID cru); TODOs W3.5 resolvidos.
-- [ ] **A3** `removeUserAccess` criado; invariante anti-lockout (≥1 Owner ativo) cobrindo remoção, downgrade e desativação; testes de integração nos 3 caminhos.
-- [ ] **A4** `contatos` documentado e deferido a E-04 (sem redirect/delete).
+- [ ] **A3** `removeUserAccess` e `deactivateUser` (ou caminho real de desativação) criados/ajustados; invariante anti-lockout (≥1 Owner ativo) cobrindo remoção, downgrade e desativação; testes de integração nos 3 caminhos.
+- [ ] **A4** `contatos` documentado e deferido a E-04; sem redirect/delete; `/dashboard/contatos` fora do menu e indisponível por acesso direto até E-04.
 - [ ] **B1** `rbac.ts` movido para `modules/core/schema/`; `schema/index.ts` (módulo) como seam público; migrations íntegras (`db:generate` limpo); caveat de não-enforço registrado.
-- [ ] **B2** gates com mecanismo + testes + doc; deferral por-módulo registrado.
+- [ ] **B2** gates com mecanismo + testes + doc; refino do sequenciamento registrado; rollout real por-módulo deferido aos specs dos módulos donos.
 - [ ] **B3** lint de fronteira em `error` no CI (após zero violações).
-- [ ] **B4** padrão de menu documentado; dívida dos `navItems` estáticos registrada com justificativa.
+- [ ] **B4** padrão de menu do Core documentado; refino do sequenciamento registrado; dívida dos `navItems` estáticos restantes registrada com justificativa.
 - [ ] `typecheck` 0 erros; unit + integração verdes.
 
 ---
