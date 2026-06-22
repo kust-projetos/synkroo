@@ -35,7 +35,7 @@ async function waitForSchemaReady(
   let lastError = '';
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    let p: Pool;
+    let p: Pool | undefined = undefined;
     try {
       p = new Pool({ connectionString: process.env.DATABASE_URL! });
 
@@ -93,6 +93,12 @@ beforeAll(async () => {
     // eslint-disable-next-line no-console
     console.error('Unexpected pool error:', err.message);
   });
+
+  // Delete existing test data first (idempotent: handles any test execution order)
+  await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
+  await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
+  await pool.query(`DELETE FROM dentists WHERE id IN ($1, $2)`, [DENTIST_ID, DENTIST2_ID]);
+  await pool.query(`DELETE FROM clinics WHERE id = $1`, [CLINIC_ID]);
 
   // Seed test clinic (required by dentists FK and patients FK)
   // Columns from src/lib/db/schema/core.ts: clinics table
