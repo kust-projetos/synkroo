@@ -24,50 +24,63 @@ const PATIENT_ID = '00000000-0000-0000-0000-000000000201';
 
 let pool: Pool;
 
-// Retry helper: waits for DB to be ready after db:reset or container restart
-async function waitForPool(maxAttempts = 5, baseDelayMs = 1000): Promise<Pool> {
+// Waits for DB to accept connections AND for the appointments_no_overlap
+// constraint to be visible.  Handles the window between Docker reporting
+// Healthy and drizzle-kit migrations completing after db:reset.
+async function waitForSchemaReady(
+  maxAttempts = 20,
+  baseDelayMs = 500,
+): Promise<Pool> {
+  let lastError = '';
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const p = new Pool({ connectionString: process.env.DATABASE_URL! });
+
+      // 1. Basic socket readiness
       await p.query('SELECT 1');
-      return p;
-    } catch (err: any) {
-      if (attempt === maxAttempts) {
-        throw new Error(
-          `DB not ready after ${maxAttempts} attempts: ${err.message}`,
-        );
-      }
-      // eslint-disable-next-line no-console
-      console.warn(
-        `DB not ready (attempt ${attempt}/${maxAttempts}): ${err.message}. ` +
-          `Retrying in ${baseDelayMs * attempt}ms...`,
+
+      // 2. Schema readiness: wait for the EXCLUDE constraint to exist
+      //    (proves both the table and migrations have landed)
+      const { rows } = await p.query(
+        `SELECT conname FROM pg_constraint
+         WHERE conrelid = 'appointments'::regclass
+         AND conname = 'appointments_no_overlap'`,
       );
+
+      if (rows.length > 0) {
+        return p; // fully ready
+      }
+
+      // Constraint not yet present — close this pool and retry
+      await p.end();
+      lastError = `appointments_no_overlap constraint not found (attempt ${attempt}/${maxAttempts})`;
+    } catch (err: any) {
+      lastError = err.message;
+      // Connection still dropping — close any partial pool
+      try {
+        // eslint-disable-next-line no-console
+        console.warn(`DB not ready (${attempt}/${maxAttempts}): ${lastError}`);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (attempt < maxAttempts) {
       await new Promise((r) => setTimeout(r, baseDelayMs * attempt));
     }
   }
-  // unreachable — satisfies TS
-  throw new Error('waitForPool: unexpected exit');
+
+  throw new Error(`DB schema not ready after ${maxAttempts} attempts: ${lastError}`);
 }
 
 beforeAll(async () => {
-  pool = await waitForPool();
+  pool = await waitForSchemaReady();
 
   pool.on('error', (err) => {
     // eslint-disable-next-line no-console
     console.error('Unexpected pool error:', err.message);
   });
-
-  // Verify constraint exists
-  const { rows } = await pool.query(
-    `SELECT conname FROM pg_constraint
-     WHERE conrelid = 'appointments'::regclass
-     AND conname = 'appointments_no_overlap'`,
-  );
-  if (rows.length === 0) {
-    throw new Error(
-      'appointments_no_overlap constraint not found. Run migration first: npm run db:migrate',
-    );
-  }
 
   // Seed test dentist 1
   await pool.query(
@@ -92,13 +105,19 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [PATIENT_ID, CLINIC_ID],
   );
-}, 30_000); // allow up to 30s for DB to become ready
+}, 60_000); // 60s to allow for slow migration apply after db:reset
 
 afterAll(async () => {
-  await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
-  await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
-  await pool.query(`DELETE FROM dentists WHERE id IN ($1, $2)`, [DENTIST_ID, DENTIST2_ID]);
-  await pool.end();
+  if (!pool) return;
+  try {
+    await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
+    await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
+    await pool.query(`DELETE FROM dentists WHERE id IN ($1, $2)`, [DENTIST_ID, DENTIST2_ID]);
+  } catch {
+    // cleanup errors are non-fatal
+  } finally {
+    await pool.end();
+  }
 });
 
 // Insert an appointment using pool.query (pool assigns available connection per query)
@@ -119,7 +138,12 @@ async function insertViaPool(
 
 describe('appointments_no_overlap constraint (F2a)', () => {
   afterEach(async () => {
-    await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
+    if (!pool) return;
+    try {
+      await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
+    } catch {
+      // non-fatal
+    }
   });
 
   it('should allow a single appointment insert', async () => {
