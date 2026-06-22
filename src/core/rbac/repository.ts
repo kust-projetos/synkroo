@@ -12,7 +12,7 @@ export interface RbacRepo {
 import { getDb } from '@/lib/db/client';
 import { and, eq } from 'drizzle-orm';
 import { users } from '@/lib/db/schema/core';
-import { roles, rolePermissions, userClinicAccess, userPermissionOverrides } from '@/lib/db/schema/rbac';
+import { roles, rolePermissions, userClinicAccess, userPermissionOverrides } from '@/modules/core/schema/rbac';
 
 export const drizzleRbacRepo: RbacRepo = {
   async isMaster(userId) {
@@ -24,7 +24,12 @@ export const drizzleRbacRepo: RbacRepo = {
       .select({ roleId: roles.id, roleName: roles.name, isSystem: roles.isSystem })
       .from(userClinicAccess)
       .innerJoin(roles, eq(roles.id, userClinicAccess.roleId))
-      .where(and(eq(userClinicAccess.userId, userId), eq(userClinicAccess.clinicId, clinicId)))
+      .innerJoin(users, eq(users.id, userClinicAccess.userId))
+      .where(and(
+        eq(userClinicAccess.userId, userId),
+        eq(userClinicAccess.clinicId, clinicId),
+        eq(users.isActive, true),
+      ))
       .limit(1);
     return r[0] ?? null;
   },

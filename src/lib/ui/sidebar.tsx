@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/lib/auth/context"
-import { coreManifest } from "@/modules/core/manifest"
+import { getVisibleCoreMenu } from "@/lib/ui/menu-actions"
 import {
   Squares2X2Icon,
   UsersIcon,
@@ -71,25 +71,6 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
   CheckCircleIcon,
 }
 
-/**
- * Constrói itens de menu a partir de `coreManifest.menu` (W6).
- * Baseline: `can` verifica apenas se o usuário está autenticado.
- * TODO(W7+): integrar `resolveAccess` para verificação real de permissões por-role.
- */
-function buildCoreNavItems(profile: ReturnType<typeof useAuth>['profile']): NavItem[] {
-  if (!profile) return []
-  // Baseline can: todos os itens do core visíveis para usuário autenticado.
-  // Futuramente: `can = (permission) => resolveAccess(userId, clinicId, repo).then(r => r.can(permission))`
-  const can = (_permission: string) => true
-  return coreManifest.menu
-    .filter((item) => can(item.permission))
-    .map((item) => ({
-      name: item.label,
-      href: (item as Record<string, unknown>).path as string ?? `/${item.label}`,
-      icon: ICON_MAP[(item as Record<string, unknown>).icon as string] ?? Cog6ToothIcon,
-      section: 'gestao' as const,
-    }))
-}
 
 const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, section: "principal" },
@@ -97,7 +78,7 @@ const navItems: NavItem[] = [
   { name: "Pipeline", href: "/dashboard/crm/pipeline", icon: Squares2X2Icon, section: "crm" },
   { name: "Leads", href: "/dashboard/leads", icon: FlagIcon, section: "crm" },
   { name: "Campanhas", href: "/dashboard/campanhas", icon: MegaphoneIcon, section: "crm" },
-  { name: "Contatos", href: "/dashboard/contatos", icon: UsersIcon, section: "crm" },
+
   { name: "Tarefas", href: "/dashboard/tarefas", icon: CheckCircleIcon, section: "crm" },
   { name: "Conversas", href: "/dashboard/conversas", icon: ChatBubbleLeftRightIcon, section: "crm", badge: { count: 0, variant: "pill-teal" } },
   { name: "Pacientes", href: "/dashboard/pacientes", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "zinc" } },
@@ -107,7 +88,6 @@ const navItems: NavItem[] = [
   { name: "Analytics", href: "/dashboard/analytics", icon: ChartBarIcon, section: "gestao" },
   { name: "Dentistas", href: "/dashboard/dentistas", icon: IdentificationIcon, section: "gestao" },
   { name: "Procedimentos", href: "/dashboard/procedimentos", icon: WrenchScrewdriverIcon, section: "gestao" },
-  // "Configuracoes" e "Usuários e acessos" agora vêm de buildCoreNavItems (coreManifest.menu)
 ]
 
 const sectionLabels = {
@@ -193,10 +173,25 @@ function SidebarContent({
 
   const sections = ["principal", "crm", "gestao"] as const
 
-  // Itens de menu vindos de coreManifest (W6 — menu modular).
-  // Baseline: inclui todos os itens do core para usuário autenticado.
-  // Futura migração: coletar manifests dos módulos registrados + filtrar por `can` via resolveAccess.
-  const coreNavItems = buildCoreNavItems(profile ?? null)
+  // Itens de menu do Core, filtrados por RBAC real no servidor (W6 acabamento).
+  const [coreNavItems, setCoreNavItems] = useState<NavItem[]>([])
+  useEffect(() => {
+    let active = true
+    getVisibleCoreMenu()
+      .then((items) => {
+        if (!active) return
+        setCoreNavItems(
+          items.map((item) => ({
+            name: item.label,
+            href: (item.path as string) ?? `/${item.label}`,
+            icon: ICON_MAP[item.icon as string] ?? Cog6ToothIcon,
+            section: 'gestao' as const,
+          })),
+        )
+      })
+      .catch(() => { if (active) setCoreNavItems([]) })
+    return () => { active = false }
+  }, [])
 
   const allNavItems = [
     ...navItems,

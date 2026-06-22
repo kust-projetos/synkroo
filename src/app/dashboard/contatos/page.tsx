@@ -1,19 +1,7 @@
-'use client'
-
-import { ContactSplitView } from '@/components/contacts/contact-split-view'
-import { ContactErrorBoundary } from '@/components/contacts/contact-error-boundary'
-import { PageHeader } from '@/components/ui/page-header'
-import { contactsDomainBoundary } from '@/lib/domain-boundaries'
+import { notFound } from 'next/navigation';
 
 export default function ContatosPage() {
-  return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <PageHeader title={contactsDomainBoundary.title} description={contactsDomainBoundary.description} />
-      <div className="flex-1 overflow-hidden">
-        <ContactErrorBoundary>
-          <ContactSplitView />
-        </ContactErrorBoundary>
-      </div>
-    </div>
-  )
+  // Eixo 2 Core: Contatos é a lente unificada do CRM (E-04).
+  // Até o spec E-04 assumir rota/modelo, acesso direto fica indisponível.
+  notFound();
 }
