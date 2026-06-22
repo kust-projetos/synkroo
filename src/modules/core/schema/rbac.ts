@@ -1,5 +1,9 @@
+/**
+ * Schema RBAC — ownership movido para src/modules/core/schema/
+ * para co-localizar com o módulo core.
+ */
 import { pgTable, uuid, text, boolean, timestamp, primaryKey } from 'drizzle-orm/pg-core';
-import { clinics, users } from './core';
+import { clinics, users } from '@/lib/db/schema/core';
 
 export const roles = pgTable('roles', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -30,9 +34,8 @@ export const userPermissionOverrides = pgTable('user_permission_overrides', {
   granted: boolean('granted').notNull(),
 }, (t) => ({ pk: primaryKey({ columns: [t.userId, t.clinicId, t.permissionKey] }) }));
 
-// Espelho do catálogo de permissões (FK alvo + UI). Populado por seed/codegen.
 export const permissions = pgTable('permissions', {
-  key: text('key').primaryKey(),     // 'module:action'
+  key: text('key').primaryKey(),
   module: text('module').notNull(),
   label: text('label').notNull(),
 });

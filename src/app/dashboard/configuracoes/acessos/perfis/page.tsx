@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { buildUserContext } from '@/core/actions/context';
 import { getGroupedCatalog } from '@/core/rbac/grouped-catalog';
 import { RoleForm } from '@/modules/core/ui/RoleForm';
+import { listClinicRolesAction } from '@/modules/core/ui/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +11,8 @@ export default async function PerfisPage() {
   if (!ctx.can('core:manage_users')) redirect('/dashboard');
 
   const groups = getGroupedCatalog();
-
-  // TODO(W3.5): carregar lista real de perfis via repositórios Core
-  // (depende de API routes / repositories que virão no Eixo 2)
+  const rolesResult = await listClinicRolesAction(ctx.clinicId);
+  if (!rolesResult.ok) redirect('/dashboard');
 
   return (
     <main className="max-w-2xl mx-auto p-6 space-y-6">
@@ -24,6 +24,13 @@ export default async function PerfisPage() {
       <section>
         <h2 className="text-lg font-semibold mb-3">Criar novo perfil</h2>
         <RoleForm clinicId={ctx.clinicId} groups={groups} />
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold mb-3">Perfis existentes</h2>
+        <ul className="text-sm text-gray-600 list-disc pl-5">
+          {rolesResult.data.map((role) => <li key={role.id}>{role.name}</li>)}
+        </ul>
       </section>
     </main>
   );
