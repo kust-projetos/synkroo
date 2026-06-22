@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
 import { getDb } from '@/lib/db/client'
-import { patients } from '@/lib/db/schema/core'
+import { patients } from '@/modules/operacional/schema'
 import { appointments } from '@/lib/db/schema/appointments'
 import { budgets, payments } from '@/lib/db/schema/business'
 import { consents } from '@/lib/db/schema/infra'
