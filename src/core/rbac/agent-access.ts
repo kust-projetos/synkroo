@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db/client';
 import { and, eq } from 'drizzle-orm';
-import { roles, rolePermissions } from '@/lib/db/schema/rbac';
+import { roles, rolePermissions } from '@/modules/core/schema/rbac';
 
 export const AGENT_ROLE_NAME = 'Agente';
 

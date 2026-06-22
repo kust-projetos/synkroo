@@ -1,6 +1,9 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { clinics, users, userCredentials } from '@/lib/db/schema';
+import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
+import { seedRbacForClinic } from '@/core/rbac/seed';
+import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 
 export interface AuthUserRow {
   id: string;
@@ -157,6 +160,22 @@ export async function createUserWithClinic(
     await tx.insert(userCredentials).values({
       userId: user.id,
       passwordHash: hashPassword(params.password),
+    });
+
+    // 4. Seed dos perfis de sistema (idempotente) na MESMA tx — atomicidade da FK roles.clinic_id.
+    await seedRbacForClinic(clinic.id, tx);
+
+    // 5. Concede ao dono o acesso com role Owner (sem isso, resolveAccess → can:()=>false = lockout).
+    const [ownerRole] = await tx
+      .select({ id: roles.id })
+      .from(roles)
+      .where(and(eq(roles.clinicId, clinic.id), eq(roles.name, RESERVED_ROLE_OWNER)))
+      .limit(1);
+    if (!ownerRole) throw new Error('[signup] perfil Owner não foi semeado');
+    await tx.insert(userClinicAccess).values({
+      userId: user.id,
+      clinicId: clinic.id,
+      roleId: ownerRole.id,
     });
 
     return { user, clinic };

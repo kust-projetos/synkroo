@@ -1,9 +1,13 @@
 import { getDb } from '@/lib/db/client';
-import { roles, rolePermissions, permissions } from '@/lib/db/schema/rbac';
+import { roles, rolePermissions, permissions } from '@/modules/core/schema/rbac';
 import { getPermissionCatalog } from './catalog';
 import { and, eq } from 'drizzle-orm';
 import { SYSTEM_PRESETS, RESERVED_ROLE_OWNER, type PresetDef } from './presets';
 import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from './agent-access';
+
+// Executor aceito: o db compartilhado OU uma transação Drizzle (ambos expõem insert/select).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type DbOrTx = ReturnType<typeof getDb> | any;
 
 export function buildPresetPermissions(preset: PresetDef): string[] {
   const catalog = getPermissionCatalog();
@@ -15,8 +19,9 @@ export function buildPresetPermissions(preset: PresetDef): string[] {
 }
 
 // Cria os perfis de sistema (incl. Owner) e suas permissões para uma clínica.
-export async function seedRbacForClinic(clinicId: string): Promise<void> {
-  const db = getDb();
+// Aceita um executor opcional (db ou tx) para permitir execução dentro da transação de signup.
+export async function seedRbacForClinic(clinicId: string, executor?: DbOrTx): Promise<void> {
+  const db = executor ?? getDb();
   // espelho de permissões (idempotente)
   const catalog = getPermissionCatalog();
   if (catalog.length) {
