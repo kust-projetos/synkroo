@@ -53,12 +53,12 @@ export type AppointmentRow = {
   } | null;
 };
 
-export async function findById(id: string) {
+export async function findById(clinicId: string, id: string) {
   const db = getDb();
   const rows = await db
     .select()
     .from(appointments)
-    .where(eq(appointments.id, id))
+    .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
     .limit(1);
   return rows[0] ?? null;
 }
@@ -289,6 +289,46 @@ export async function moveAppointment(
       updatedAt: new Date(),
     } as any)
     .where(eq(appointments.id, id))
+    .returning();
+  return row;
+}
+
+// Aliases matching plan service signatures
+export async function setStatus(
+  clinicId: string,
+  id: string,
+  status: string,
+  extra?: { cancellationReason?: string | null; confirmationSentAt?: Date | null },
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(appointments)
+    .set({
+      status,
+      ...extra,
+      updatedAt: new Date(),
+    } as any)
+    .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
+    .returning();
+  return row;
+}
+
+export async function moveSlot(
+  clinicId: string,
+  id: string,
+  scheduledAt: Date,
+  durationMinutes?: number,
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(appointments)
+    .set({
+      scheduledAt,
+      ...(durationMinutes !== undefined ? { durationMinutes } : {}),
+      status: 'scheduled',
+      updatedAt: new Date(),
+    } as any)
+    .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
     .returning();
   return row;
 }

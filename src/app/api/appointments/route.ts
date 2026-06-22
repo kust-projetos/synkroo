@@ -3,7 +3,7 @@
  * POST /api/appointments — create appointment
  *
  * Migrated to operacional module action system.
- * Uses operacional:listar_consultas and operacional:agendar_consulta actions.
+ * Uses operacional.listarConsultas and operacional.agendarConsulta.
  * No direct DB access in this file.
  */
 
@@ -26,11 +26,19 @@ async function handleGET(request: NextRequest): Promise<NextResponse> {
       { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
     );
   }
-
-  const result = await runActionRoute(listarConsultas, request);
-  // Override: listarConsultas returns { appointments, pagination } directly
-  // — NextResponse already built by runActionRoute
-  return result;
+  const sp = new URL(request.url).searchParams;
+  const input = {
+    patientId: sp.get('patient_id') ?? undefined,
+    dentistId: sp.get('dentist_id') ?? undefined,
+    status: sp.get('status') ?? undefined,
+    date: sp.get('date') ?? undefined,
+    startDate: sp.get('start_date') ?? undefined,
+    endDate: sp.get('end_date') ?? undefined,
+    dentistIds: sp.getAll('dentist_ids').length ? sp.getAll('dentist_ids') : undefined,
+    page: sp.get('page') ?? undefined,
+    limit: sp.get('limit') ?? undefined,
+  };
+  return runActionRoute(listarConsultas, input);
 }
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
@@ -42,14 +50,8 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
     );
   }
-
-  const result = await runActionRoute(agendarConsulta, request);
-  if (result.status === 200) {
-    // POST creates → return 201
-    const body = await result.json();
-    return NextResponse.json({ appointment: body }, { status: 201 });
-  }
-  return result;
+  const body = await request.json();
+  return runActionRoute(agendarConsulta, body, { okStatus: 201 });
 }
 
 const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);

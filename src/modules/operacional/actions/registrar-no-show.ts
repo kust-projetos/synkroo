@@ -1,22 +1,14 @@
 import { z } from 'zod';
-import { defineAction } from '@/core/actions/registry';
-import { ActionContext } from '@/core/actions/types';
-import { markNoShow } from '../services/scheduling-service';
-
-const RegistrarNoShowInput = z.object({
-  appointmentId: z.string().uuid(),
-});
-
-export type RegistrarNoShowOutput = { success: boolean };
+import { defineAction } from '@/core/actions';
+import type { ActionContext } from '@/core/actions/types';
+import { registrarNoShow as scheduling } from '../services/scheduling-service';
 
 export const registrarNoShow = defineAction({
-  name: 'operacional:registrar_no_show',
+  name: 'operacional.registrarNoShow',
   module: 'operacional',
-  requires: 'appointments:write',
-  label: 'Registrar falta (no-show)',
-  description: 'Marca um agendamento como faltou (no-show).',
-  input: RegistrarNoShowInput,
-  async handler(input: z.infer<typeof RegistrarNoShowInput>, _ctx: ActionContext) {
-    return markNoShow(input.appointmentId);
-  },
+  requires: 'operacional:manage_appointments',
+  label: 'Registrar falta',
+  input: z.object({ id: z.string().uuid() }),
+  handler: async (input, ctx: ActionContext) =>
+    scheduling({ clinicId: ctx.clinicId, id: input.id }),
 });
