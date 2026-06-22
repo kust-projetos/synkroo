@@ -16,6 +16,7 @@ import {
   patients,
   dentists,
   procedures,
+  scheduleBlocks,
 } from '@/modules/operacional/schema';
 import type { appointments as AppointmentsTable } from '@/modules/operacional/schema';
 
@@ -331,4 +332,63 @@ export async function moveSlot(
     .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
     .returning();
   return row;
+}
+
+// ─── Availability helpers ─────────────────────────────────────────────────────
+
+/**
+ * Return booked appointment slots for a dentist within a day window.
+ * Status filter: scheduled | confirmed | in_progress (not cancelled/no_show/deleted).
+ */
+export async function bookedSlots(
+  clinicId: string,
+  dentistId: string,
+  dayStart: Date,
+  dayEnd: Date,
+) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      scheduledAt: appointments.scheduledAt,
+      durationMinutes: appointments.durationMinutes,
+    })
+    .from(appointments)
+    .where(
+      and(
+        eq(appointments.clinicId, clinicId),
+        eq(appointments.dentistId, dentistId),
+        gte(appointments.scheduledAt, dayStart),
+        lte(appointments.scheduledAt, dayEnd),
+        // Only active statuses — not cancelled, no_show, or soft-deleted
+        inArray(appointments.status, ['scheduled', 'confirmed', 'in_progress']),
+        sql`${appointments.deletedAt} IS NULL`,
+      ),
+    );
+  return rows;
+}
+
+/**
+ * Return schedule blocks (available time windows) for a dentist on a given day of week.
+ */
+export async function getScheduleBlocksForDay(
+  clinicId: string,
+  dentistId: string,
+  dayOfWeek: number,
+) {
+  const db = getDb();
+  const rows = await db
+    .select({
+      startTime: scheduleBlocks.startTime,
+      endTime: scheduleBlocks.endTime,
+    })
+    .from(scheduleBlocks)
+    .where(
+      and(
+        eq(scheduleBlocks.clinicId, clinicId),
+        eq(scheduleBlocks.dentistId, dentistId),
+        eq(scheduleBlocks.dayOfWeek, dayOfWeek),
+        eq(scheduleBlocks.isAvailable, true),
+      ),
+    );
+  return rows;
 }
