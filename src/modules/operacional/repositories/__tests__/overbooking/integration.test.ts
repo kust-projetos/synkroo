@@ -24,16 +24,38 @@ const PATIENT_ID = '00000000-0000-0000-0000-000000000201';
 
 let pool: Pool;
 
-beforeAll(async () => {
-  pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Retry helper: waits for DB to be ready after db:reset or container restart
+async function waitForPool(maxAttempts = 5, baseDelayMs = 1000): Promise<Pool> {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const p = new Pool({ connectionString: process.env.DATABASE_URL! });
+      await p.query('SELECT 1');
+      return p;
+    } catch (err: any) {
+      if (attempt === maxAttempts) {
+        throw new Error(
+          `DB not ready after ${maxAttempts} attempts: ${err.message}`,
+        );
+      }
+      // eslint-disable-next-line no-console
+      console.warn(
+        `DB not ready (attempt ${attempt}/${maxAttempts}): ${err.message}. ` +
+          `Retrying in ${baseDelayMs * attempt}ms...`,
+      );
+      await new Promise((r) => setTimeout(r, baseDelayMs * attempt));
+    }
+  }
+  // unreachable — satisfies TS
+  throw new Error('waitForPool: unexpected exit');
+}
 
-  // Log any unexpected pool-level errors (connection drops etc.)
+beforeAll(async () => {
+  pool = await waitForPool();
+
   pool.on('error', (err) => {
+    // eslint-disable-next-line no-console
     console.error('Unexpected pool error:', err.message);
   });
-
-  // Sanity query: confirms pool can reach the DB before running tests
-  await pool.query('SELECT 1');
 
   // Verify constraint exists
   const { rows } = await pool.query(
@@ -70,7 +92,7 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [PATIENT_ID, CLINIC_ID],
   );
-});
+}, 30_000); // allow up to 30s for DB to become ready
 
 afterAll(async () => {
   await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
