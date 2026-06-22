@@ -1,6 +1,7 @@
 import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, decimal } from 'drizzle-orm/pg-core';
 import { vector } from 'drizzle-orm/pg-core';
-import { clinics, patients, users } from './core';
+import { clinics, users } from './core';
+import { patients } from '../../../modules/operacional/schema';
 import { channelType, conversationStatus, messageDirection, messageType } from './enums';
 
 // ──────────────────────────────────────────────

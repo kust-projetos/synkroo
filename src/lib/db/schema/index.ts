@@ -7,7 +7,9 @@
 
 export * from './enums';
 export * from './core';
-export * from './appointments';
+// Appointments schema moved to modules/operacional/schema
+// (maintained as deprecated re-export for backward compat)
+export * from '../../../modules/operacional/schema';
 export * from './conversations';
 export * from './crm';
 export * from './business';

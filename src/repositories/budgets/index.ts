@@ -10,7 +10,7 @@ import {
 	budgetItems,
 	budgetInstallments,
 } from "@/lib/db/schema/business";
-import { patients } from "@/lib/db/schema/core";
+import { patients } from "@/modules/operacional/schema";
 
 /**
  * Hard-delete budget and its items.
