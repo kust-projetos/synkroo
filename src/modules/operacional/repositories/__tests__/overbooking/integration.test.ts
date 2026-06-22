@@ -11,11 +11,9 @@
  */
 
 /** @jest-environment node */
-jest.unmock('@/lib/db/client');
 
-process.env.DATABASE_URL =
-  process.env.DATABASE_URL ||
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
+// Override DATABASE_URL — jest.setup.ts sets a fake URL for unit tests
+process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
 import { Client } from 'pg';
 
