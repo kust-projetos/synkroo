@@ -26,23 +26,29 @@ let pool: Pool;
 
 beforeAll(async () => {
   pool = new Pool({ connectionString: process.env.DATABASE_URL });
-  const client = await pool.connect();
+
+  // Log any unexpected pool-level errors (connection drops etc.)
+  pool.on('error', (err) => {
+    console.error('Unexpected pool error:', err.message);
+  });
+
+  // Sanity query: confirms pool can reach the DB before running tests
+  await pool.query('SELECT 1');
 
   // Verify constraint exists
-  const { rows } = await client.query(
+  const { rows } = await pool.query(
     `SELECT conname FROM pg_constraint
      WHERE conrelid = 'appointments'::regclass
      AND conname = 'appointments_no_overlap'`,
   );
   if (rows.length === 0) {
-    client.release();
     throw new Error(
       'appointments_no_overlap constraint not found. Run migration first: npm run db:migrate',
     );
   }
 
   // Seed test dentist 1
-  await client.query(
+  await pool.query(
     `INSERT INTO dentists (id, clinic_id, name, phone, email, cro)
      VALUES ($1, $2, 'Test Dentist', '+5511000000001', 'dentist@test.local', 'SP-12345')
      ON CONFLICT (id) DO NOTHING`,
@@ -50,7 +56,7 @@ beforeAll(async () => {
   );
 
   // Seed test dentist 2
-  await client.query(
+  await pool.query(
     `INSERT INTO dentists (id, clinic_id, name, phone, email, cro)
      VALUES ($1, $2, 'Test Dentist 2', '+5511000000002', 'dentist2@test.local', 'SP-54321')
      ON CONFLICT (id) DO NOTHING`,
@@ -58,25 +64,22 @@ beforeAll(async () => {
   );
 
   // Seed test patient
-  await client.query(
+  await pool.query(
     `INSERT INTO patients (id, clinic_id, name, phone, email)
      VALUES ($1, $2, 'Test Patient', '+5511000000100', 'patient@test.local')
      ON CONFLICT (id) DO NOTHING`,
     [PATIENT_ID, CLINIC_ID],
   );
-
-  client.release();
 });
 
 afterAll(async () => {
-  // Clean up via pool — each query gets its own connection from pool
   await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
   await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
   await pool.query(`DELETE FROM dentists WHERE id IN ($1, $2)`, [DENTIST_ID, DENTIST2_ID]);
   await pool.end();
 });
 
-// Insert an appointment using a pool connection (pool assigns available connection per query)
+// Insert an appointment using pool.query (pool assigns available connection per query)
 async function insertViaPool(
   scheduledAt: string,
   dentistId: string,
@@ -93,7 +96,6 @@ async function insertViaPool(
 }
 
 describe('appointments_no_overlap constraint (F2a)', () => {
-  // Clean appointments between tests via pool (pool handles connection reuse)
   afterEach(async () => {
     await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
   });
@@ -105,10 +107,8 @@ describe('appointments_no_overlap constraint (F2a)', () => {
   });
 
   it('should block overlapping appointments for same dentist with 23P01', async () => {
-    // First: 10:00-10:30
     await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, 30);
 
-    // Overlapping: 10:15-10:45
     const err = await pool
       .query(
         `INSERT INTO appointments (clinic_id, patient_id, dentist_id, scheduled_at, duration_minutes, status, notes)
@@ -125,8 +125,8 @@ describe('appointments_no_overlap constraint (F2a)', () => {
   });
 
   it('should allow concurrent overlapping inserts — one succeeds, one fails 23P01', async () => {
-    // Both try to insert at 10:00-10:30 for the same dentist — one must win.
-    // The constraint guarantees exactly 1 reject with 23P01.
+    // Both try to insert overlapping windows for the same dentist.
+    // PostgreSQL guarantees exactly one will be rejected with 23P01.
     const [result1, result2] = await Promise.allSettled([
       pool.query(
         `INSERT INTO appointments (clinic_id, patient_id, dentist_id, scheduled_at, duration_minutes, status, notes)
@@ -145,11 +145,9 @@ describe('appointments_no_overlap constraint (F2a)', () => {
     const rejections = [result1, result2].filter((r) => r.status === 'rejected');
     const successes = [result1, result2].filter((r) => r.status === 'fulfilled');
 
-    // Exactly one must be rejected (the overlapping one) and one fulfilled
     expect(rejections.length).toBe(1);
     expect(successes.length).toBe(1);
 
-    // The rejection must be the exclusion_violation error
     const rejected = rejections[0] as PromiseRejectedResult;
     const err = rejected.reason as any;
     expect(err.code).toBe('23P01');
@@ -157,46 +155,35 @@ describe('appointments_no_overlap constraint (F2a)', () => {
   });
 
   it('should allow non-overlapping appointments for same dentist', async () => {
-    // First: 10:00-10:30
     await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, 30);
-
-    // Adjacent: 10:30-11:00 → no overlap with [) bounds
+    // Adjacent: 10:30-11:00 — no overlap with [) bounds
     const id = await insertViaPool('2026-07-01T10:30:00Z', DENTIST_ID, 30);
     expect(id).toBeDefined();
   });
 
   it('should allow overlapping appointments for different dentists', async () => {
-    // Dentist 1: 10:00-10:30
     await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, 30);
-
-    // Dentist 2, same time: should succeed
     const id = await insertViaPool('2026-07-01T10:00:00Z', DENTIST2_ID, 30);
     expect(id).toBeDefined();
   });
 
   it('should allow overlapping cancelled appointments', async () => {
-    // Cancelled: 10:00-10:30
     await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, 30, 'cancelled');
-
-    // Active overlapping: should succeed (WHERE excludes cancelled)
+    // Active overlapping should succeed — WHERE excludes cancelled
     const id = await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, 30);
     expect(id).toBeDefined();
   });
 
   it('should allow overlapping no_show appointments', async () => {
-    // no_show: 10:00-10:30
     await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, 30, 'no_show');
-
-    // Active overlapping: should succeed (WHERE excludes no_show)
+    // Active overlapping should succeed — WHERE excludes no_show
     const id = await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, 30);
     expect(id).toBeDefined();
   });
 
   it('should use default 30 minute duration when duration_minutes is NULL', async () => {
-    // NULL duration → defaults to 30min: 10:00-10:30
     await insertViaPool('2026-07-01T10:00:00Z', DENTIST_ID, null);
-
-    // Try 10:15 (inside default window) → should fail
+    // Try 10:15 — inside default 30min window → should fail
     const err = await pool
       .query(
         `INSERT INTO appointments (clinic_id, patient_id, dentist_id, scheduled_at, duration_minutes, status, notes)
