@@ -16,7 +16,7 @@ import * as path from 'node:path'
 import * as readline from 'node:readline'
 import { getDb } from '../src/lib/db/client'
 import { clinics, users } from '../src/lib/db/schema/core'
-import { dentists, procedures, patients } from '../src/lib/db/schema/core'
+import { dentists, procedures, patients } from '../src/modules/operacional/schema'
 import { scheduleBlocks, appointments } from '../src/lib/db/schema/appointments'
 import { eq } from 'drizzle-orm'
 
