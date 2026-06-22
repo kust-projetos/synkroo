@@ -3,14 +3,13 @@
  *
  * Thin orchestration layer between actions and repository.
  * Translates DB errors (including EXCLUDE constraint 23P01) to ActionError.
+ * Error chain: pg error is in err.cause (Node.js Error cause chain).
  */
 
 import { ActionError } from '@/core/actions/types';
 import * as repo from '../repositories/appointments-repository';
 
-export type AppointmentStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'no_show' | 'in_progress' | 'completed';
-
-export async function scheduleAppointment(params: {
+export interface AppointmentInput {
   clinicId: string;
   patientId: string;
   dentistId?: string | null;
@@ -18,92 +17,106 @@ export async function scheduleAppointment(params: {
   scheduledAt: Date;
   durationMinutes?: number;
   notes?: string;
-}): Promise<{ id: string }> {
+}
+
+export async function agendarConsulta(input: AppointmentInput) {
   try {
-    const appt = await repo.createAppointment({
-      clinicId: params.clinicId,
-      patientId: params.patientId,
-      dentistId: params.dentistId ?? null,
-      procedureId: params.procedureId ?? null,
-      scheduledAt: params.scheduledAt,
-      durationMinutes: params.durationMinutes,
-      notes: params.notes ?? null,
-    });
+    const appt = await repo.createAppointment(input);
     if (!appt) throw new ActionError('internal', 'Erro ao criar agendamento.');
     return { id: appt.id };
-  } catch (err: any) {
-    // Drizzle uses 'cause' (not 'original') for the pg error chain
-    const isExclusion = err?.code === '23P01' || err?.cause?.code === '23P01' ||
-      (err instanceof Error && err.message.includes('appointments_no_overlap'));
-    if (isExclusion) {
-      throw new ActionError('conflict', 'Horário indisponível. Já existe um agendamento neste horário.');
+  } catch (err: unknown) {
+    // Drizzle wraps pg errors in err.cause — check both for safety
+    const code = (err as { cause?: { code?: string } })?.cause?.code;
+    if (code === '23P01') {
+      throw new ActionError('conflict', 'Horário indisponível para este dentista.');
     }
     throw err;
   }
 }
 
-export async function confirmAppointment(id: string): Promise<{ success: boolean }> {
-  const appt = await repo.findById(id);
-  if (!appt) throw new ActionError('not_found', 'Agendamento não encontrado.');
-  if (appt.status !== 'scheduled') {
-    throw new ActionError('conflict', 'Apenas agendamentos pendentes podem ser confirmados.');
-  }
-  await repo.setAppointmentStatus(id, 'confirmed', { confirmationSentAt: new Date() });
-  return { success: true };
-}
-
-export async function cancelAppointment(
-  id: string,
-  reason?: string,
-  cancelledBy = 'clinic',
-): Promise<{ success: boolean; waitlistNotified?: boolean }> {
-  const appt = await repo.findById(id);
-  if (!appt) throw new ActionError('not_found', 'Agendamento não encontrado.');
-  if (appt.status === 'cancelled') {
-    throw new ActionError('conflict', 'Este agendamento já foi cancelado.');
-  }
-  await repo.setAppointmentStatus(id, 'cancelled', {
-    cancelledAt: new Date(),
-    cancellationReason: reason ?? null,
-  });
-  return { success: true };
-}
-
-export async function markNoShow(id: string): Promise<{ success: boolean }> {
-  const appt = await repo.findById(id);
-  if (!appt) throw new ActionError('not_found', 'Agendamento não encontrado.');
-  if (appt.status !== 'scheduled' && appt.status !== 'confirmed') {
-    throw new ActionError('conflict', 'Apenas agendamentos pendentes ou confirmados podem ser marcados como faltoso.');
-  }
-  await repo.setAppointmentStatus(id, 'no_show');
-  return { success: true };
-}
-
-export async function rescheduleAppointment(params: {
-  id: string;
+export async function remarcarConsulta(input: {
   clinicId: string;
-  dentistId?: string | null;
+  id: string;
   scheduledAt: Date;
   durationMinutes?: number;
-  reason?: string;
-}): Promise<{ success: boolean }> {
+}) {
+  const existing = await repo.findById(input.clinicId, input.id);
+  if (!existing) throw new ActionError('not_found', 'Agendamento não encontrado.');
   try {
-    const appt = await repo.findById(params.id);
-    if (!appt) throw new ActionError('not_found', 'Agendamento não encontrado.');
-
-    await repo.moveAppointment(params.id, params.scheduledAt, {
-      dentistId: params.dentistId,
-      durationMinutes: params.durationMinutes,
-    });
-    return { success: true };
-  } catch (err: any) {
-    if (err instanceof ActionError) throw err;
-    // Drizzle uses 'cause' (not 'original') for the pg error chain
-    const isExclusion = err?.code === '23P01' || err?.cause?.code === '23P01' ||
-      (err instanceof Error && err.message.includes('appointments_no_overlap'));
-    if (isExclusion) {
-      throw new ActionError('conflict', 'Horário indisponível. Já existe um agendamento neste horário.');
+    const row = await repo.moveSlot(input.clinicId, input.id, input.scheduledAt, input.durationMinutes);
+    return { id: row!.id };
+  } catch (err: unknown) {
+    const code = (err as { cause?: { code?: string } })?.cause?.code;
+    if (code === '23P01') {
+      throw new ActionError('conflict', 'Novo horário indisponível para este dentista.');
     }
     throw err;
   }
+}
+
+export async function confirmarConsulta(input: { clinicId: string; id: string }) {
+  const row = await repo.setStatus(input.clinicId, input.id, 'confirmed');
+  if (!row) throw new ActionError('not_found', 'Agendamento não encontrado.');
+  return { id: row.id };
+}
+
+export async function cancelarConsulta(input: { clinicId: string; id: string; reason?: string }) {
+  const existing = await repo.findById(input.clinicId, input.id);
+  if (!existing) throw new ActionError('not_found', 'Agendamento não encontrado.');
+  const row = await repo.setStatus(input.clinicId, input.id, 'cancelled', {
+    cancellationReason: input.reason,
+  });
+  return { id: row!.id };
+}
+
+export async function registrarNoShow(input: { clinicId: string; id: string }) {
+  const row = await repo.setStatus(input.clinicId, input.id, 'no_show');
+  if (!row) throw new ActionError('not_found', 'Agendamento não encontrado.');
+  return { id: row.id };
+}
+
+export interface ListInput {
+  patientId?: string;
+  dentistId?: string;
+  status?: string;
+  date?: string;
+  startDate?: string;
+  endDate?: string;
+  dentistIds?: string[];
+  page?: number;
+  limit?: number;
+}
+
+export async function listarConsultas(clinicId: string, input: ListInput) {
+  const isCalendarRange = Boolean(input.startDate && input.endDate);
+  const page = input.page ?? 1;
+  const limit = Math.min(input.limit ?? (isCalendarRange ? 999 : 50), 999);
+  const offset = (page - 1) * limit;
+
+  const rows = await repo.findByClinicWithJoins(clinicId, {
+    patientId: input.patientId,
+    dentistId: input.dentistId,
+    status: input.status,
+    date: input.date,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    dentistIds: input.dentistIds,
+    limit,
+    offset,
+  });
+
+  const total = await repo.findByClinicWithJoins(clinicId, {
+    patientId: input.patientId,
+    dentistId: input.dentistId,
+    status: input.status,
+    date: input.date,
+    startDate: input.startDate,
+    endDate: input.endDate,
+    dentistIds: input.dentistIds,
+    count: true,
+  });
+
+  const totalPages = Math.ceil(total / limit);
+
+  return { appointments: rows, pagination: { page, limit, total, totalPages } };
 }

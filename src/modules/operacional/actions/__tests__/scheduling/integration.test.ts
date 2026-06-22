@@ -8,6 +8,12 @@
  * Prerequisites:
  *   - btree_gist extension + appointments_no_overlap constraint (F2a migration)
  *   - Self-sufficient: seeds clinic, dentists, patient in beforeAll
+ *
+ * Corrections per planner review:
+ *   - Action names: operacional.agendarConsulta (dot notation, not colon)
+ *   - Inputs: { id } not { appointmentId }
+ *   - Output: { id } not { success }
+ *   - Auth 401 test via mock buildUserContext
  */
 
 /** @jest-environment node */
@@ -20,11 +26,13 @@ import { Pool } from 'pg';
 // Bootstrap actions (registers them)
 import '@/modules/operacional/actions';
 import { runAction } from '@/core/actions/run';
+import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { agendarConsulta } from '../../agendar-consulta';
 import { confirmarConsulta } from '../../confirmar-consulta';
 import { registrarNoShow } from '../../registrar-no-show';
 import { remarcarConsulta } from '../../remarcar-consulta';
 import { getAction } from '@/core/actions/registry';
+import * as contextModule from '@/core/actions/context';
 
 const CLINIC_ID = '00000000-0000-0000-0000-00000000000f';
 const DENTIST_ID = '00000000-0000-0000-0000-00000000010f';
@@ -32,7 +40,7 @@ const PATIENT_ID = '00000000-0000-0000-0000-00000000020f';
 
 let pool: Pool;
 
-// ─── WaitForSchemaReady (same as overbooking test) ───────────────────────────
+// ─── WaitForSchemaReady ───────────────────────────────────────────────────────
 
 async function waitForSchemaReady(maxAttempts = 20, baseDelayMs = 500): Promise<Pool> {
   let lastError = '';
@@ -74,8 +82,7 @@ function makeCtx(clinicId = CLINIC_ID) {
 beforeAll(async () => {
   pool = await waitForSchemaReady();
 
-  // Ensure clinic exists — delete first to handle cross-test pollution,
-  // then upsert to guarantee FK integrity regardless of test execution order.
+  // Ensure clinic exists — delete first to handle cross-test pollution
   await pool.query(`DELETE FROM clinics WHERE id = $1`, [CLINIC_ID]);
   await pool.query(
     `INSERT INTO clinics (id, name, slug, phone, email, subscription_plan, subscription_status)
@@ -137,14 +144,13 @@ describe('operacional scheduling actions (F3)', () => {
     expect((result as any).data.id).toBeDefined();
     const id = (result as any).data.id;
 
-    // Verify in DB
     const { rows } = await pool.query(`SELECT id, status FROM appointments WHERE id = $1`, [id]);
     expect(rows.length).toBe(1);
     expect(rows[0].status).toBe('scheduled');
   });
 
-  it('agendarConsulta: should reject conflict with 23P01 → conflict error', async () => {
-    // Schedule first: 10:00-10:30
+  it('agendarConsulta: should reject conflict 23P01 → conflict error', async () => {
+    // First: 10:00-10:30
     const first = await runAction(agendarConsulta, {
       patientId: PATIENT_ID,
       dentistId: DENTIST_ID,
@@ -154,7 +160,7 @@ describe('operacional scheduling actions (F3)', () => {
     expect(first.ok).toBe(true);
     const firstId = (first as any).data.id;
 
-    // Try overlapping: 10:15-10:45
+    // Overlapping: 10:15-10:45
     const second = await runAction(agendarConsulta, {
       patientId: PATIENT_ID,
       dentistId: DENTIST_ID,
@@ -166,7 +172,6 @@ describe('operacional scheduling actions (F3)', () => {
     expect((second as any).error.code).toBe('conflict');
     expect((second as any).error.message).toContain('Horário indisponível');
 
-    // Cleanup
     await pool.query(`DELETE FROM appointments WHERE id = $1`, [firstId]);
   });
 
@@ -179,9 +184,11 @@ describe('operacional scheduling actions (F3)', () => {
     if (!appt.ok) throw new Error(`setup failed: ${appt.error.code}`);
     const id = (appt as any).data.id;
 
-    const result = await runAction(confirmarConsulta, { appointmentId: id }, makeCtx());
+    // Input: { id } (dot-notation plan)
+    const result = await runAction(confirmarConsulta, { id }, makeCtx());
     expect(result.ok).toBe(true);
-    expect((result as any).data.success).toBe(true);
+    // Output: { id } per plan
+    expect((result as any).data.id).toBe(id);
 
     const { rows } = await pool.query(`SELECT status FROM appointments WHERE id = $1`, [id]);
     expect(rows[0].status).toBe('confirmed');
@@ -196,12 +203,12 @@ describe('operacional scheduling actions (F3)', () => {
     if (!appt.ok) throw new Error(`setup failed: ${appt.error.code}`);
     const id = (appt as any).data.id;
 
-    // Confirm first
-    await runAction(confirmarConsulta, { appointmentId: id }, makeCtx());
+    await runAction(confirmarConsulta, { id }, makeCtx());
 
-    const result = await runAction(registrarNoShow, { appointmentId: id }, makeCtx());
+    // Input: { id } (dot-notation plan)
+    const result = await runAction(registrarNoShow, { id }, makeCtx());
     expect(result.ok).toBe(true);
-    expect((result as any).data.success).toBe(true);
+    expect((result as any).data.id).toBe(id);
 
     const { rows } = await pool.query(`SELECT status FROM appointments WHERE id = $1`, [id]);
     expect(rows[0].status).toBe('no_show');
@@ -216,13 +223,14 @@ describe('operacional scheduling actions (F3)', () => {
     if (!appt.ok) throw new Error(`setup failed: ${appt.error.code}`);
     const id = (appt as any).data.id;
 
+    // Input: { id, scheduledAt } (dot-notation plan)
     const result = await runAction(remarcarConsulta, {
-      appointmentId: id,
+      id,
       scheduledAt: '2026-08-01T17:00:00Z',
     }, makeCtx());
 
     expect(result.ok).toBe(true);
-    expect((result as any).data.success).toBe(true);
+    expect((result as any).data.id).toBe(id);
 
     const { rows } = await pool.query(`SELECT scheduled_at FROM appointments WHERE id = $1`, [id]);
     const scheduledAt = new Date(rows[0].scheduled_at);
@@ -230,7 +238,6 @@ describe('operacional scheduling actions (F3)', () => {
   });
 
   it('remarcarConsulta: should reject conflict 23P01 → conflict error', async () => {
-    // First appointment: 10:00-10:30
     const appt1 = await runAction(agendarConsulta, {
       patientId: PATIENT_ID,
       dentistId: DENTIST_ID,
@@ -239,7 +246,6 @@ describe('operacional scheduling actions (F3)', () => {
     if (!appt1.ok) throw new Error(`setup1 failed: ${appt1.error.code}`);
     const id1 = (appt1 as any).data.id;
 
-    // Second appointment: 11:00-11:30
     const appt2 = await runAction(agendarConsulta, {
       patientId: PATIENT_ID,
       dentistId: DENTIST_ID,
@@ -248,23 +254,38 @@ describe('operacional scheduling actions (F3)', () => {
     if (!appt2.ok) throw new Error(`setup2 failed: ${appt2.error.code}`);
     const id2 = (appt2 as any).data.id;
 
-    // Try rescheduling appt1 to appt2's slot → should fail
+    // Reschedule appt1 → appt2's slot → should fail
     const result = await runAction(remarcarConsulta, {
-      appointmentId: id1,
+      id: id1,
       scheduledAt: '2026-08-01T12:00:00Z',
     }, makeCtx());
 
     expect(result.ok).toBe(false);
     expect((result as any).error.code).toBe('conflict');
 
-    // Cleanup
     await pool.query(`DELETE FROM appointments WHERE id IN ($1, $2)`, [id1, id2]);
   });
 
-  it('should not register action twice', async () => {
-    const action = getAction('operacional:agendar_consulta');
+  it('action registered with dot-notation name', async () => {
+    const action = getAction('operacional.agendarConsulta');
     expect(action).toBeDefined();
-    expect(action!.name).toBe('operacional:agendar_consulta');
+    expect(action!.name).toBe('operacional.agendarConsulta');
     expect(action!.module).toBe('operacional');
+    expect(action!.requires).toBe('operacional:manage_appointments');
+  });
+
+  it('route adapter: unauthenticated → 401 (not 500)', async () => {
+    // Mock buildUserContext to throw unauthenticated
+    const original = (contextModule as any).buildUserContext;
+    jest.spyOn(contextModule, 'buildUserContext').mockRejectedValue(new Error('unauthenticated'));
+
+    const response = await runActionRoute(confirmarConsulta, { id: 'not-a-uuid' });
+
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.error).toBe('Unauthorized');
+
+    jest.spyOn(contextModule, 'buildUserContext').mockRestore();
+    if (original) (contextModule as any).buildUserContext = original;
   });
 });

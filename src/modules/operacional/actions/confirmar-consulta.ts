@@ -1,22 +1,14 @@
 import { z } from 'zod';
-import { defineAction } from '@/core/actions/registry';
-import { ActionContext } from '@/core/actions/types';
-import { confirmAppointment } from '../services/scheduling-service';
-
-const ConfirmarConsultaInput = z.object({
-  appointmentId: z.string().uuid(),
-});
-
-export type ConfirmarConsultaOutput = { success: boolean };
+import { defineAction } from '@/core/actions';
+import type { ActionContext } from '@/core/actions/types';
+import { confirmarConsulta as scheduling } from '../services/scheduling-service';
 
 export const confirmarConsulta = defineAction({
-  name: 'operacional:confirmar_consulta',
+  name: 'operacional.confirmarConsulta',
   module: 'operacional',
-  requires: 'appointments:write',
+  requires: 'operacional:manage_appointments',
   label: 'Confirmar consulta',
-  description: 'Confirma um agendamento pendente.',
-  input: ConfirmarConsultaInput,
-  async handler(input: z.infer<typeof ConfirmarConsultaInput>, _ctx: ActionContext) {
-    return confirmAppointment(input.appointmentId);
-  },
+  input: z.object({ id: z.string().uuid() }),
+  handler: async (input, ctx: ActionContext) =>
+    scheduling({ clinicId: ctx.clinicId, id: input.id }),
 });
