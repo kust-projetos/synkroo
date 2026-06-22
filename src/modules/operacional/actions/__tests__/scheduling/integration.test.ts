@@ -1,0 +1,270 @@
+/**
+ * Integration test: operacional scheduling actions (F3).
+ *
+ * Flow: agendar → conflito (23P01) → confirmar → no-show
+ *
+ * Run: RUN_INTEGRATION_TESTS=1 npm run test:integration -- src/modules/operacional/actions
+ *
+ * Prerequisites:
+ *   - btree_gist extension + appointments_no_overlap constraint (F2a migration)
+ *   - Self-sufficient: seeds clinic, dentists, patient in beforeAll
+ */
+
+/** @jest-environment node */
+
+process.env.DATABASE_URL =
+  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
+
+import { Pool } from 'pg';
+
+// Bootstrap actions (registers them)
+import '@/modules/operacional/actions';
+import { runAction } from '@/core/actions/run';
+import { agendarConsulta } from '../../agendar-consulta';
+import { confirmarConsulta } from '../../confirmar-consulta';
+import { registrarNoShow } from '../../registrar-no-show';
+import { remarcarConsulta } from '../../remarcar-consulta';
+import { getAction } from '@/core/actions/registry';
+
+const CLINIC_ID = '00000000-0000-0000-0000-00000000000f';
+const DENTIST_ID = '00000000-0000-0000-0000-00000000010f';
+const PATIENT_ID = '00000000-0000-0000-0000-00000000020f';
+
+let pool: Pool;
+
+// ─── WaitForSchemaReady (same as overbooking test) ───────────────────────────
+
+async function waitForSchemaReady(maxAttempts = 20, baseDelayMs = 500): Promise<Pool> {
+  let lastError = '';
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let p: Pool | undefined = undefined;
+    try {
+      p = new Pool({ connectionString: process.env.DATABASE_URL! });
+      await p.query('SELECT 1');
+      const tableRow = await p.query(`SELECT to_regclass('public.appointments') AS tbl`);
+      if (!tableRow.rows[0]?.tbl) throw new Error('table not found');
+      const { rows } = await p.query(
+        `SELECT conname FROM pg_constraint WHERE conrelid = 'appointments'::regclass AND conname = 'appointments_no_overlap'`,
+      );
+      if (rows.length > 0) return p;
+      lastError = 'constraint not yet applied';
+    } catch (err: any) { lastError = err.message; }
+    try { await p?.end(); } catch { /* ignore */ }
+    if (attempt < maxAttempts) await new Promise((r) => setTimeout(r, baseDelayMs * attempt));
+  }
+  throw new Error(`Schema not ready: ${lastError}`);
+}
+
+// ─── Auth context for tests ───────────────────────────────────────────────────
+
+function makeCtx(clinicId = CLINIC_ID) {
+  return {
+    source: 'user' as const,
+    user: { id: '00000000-0000-0000-0000-000000000001', email: 'test@test.local', name: 'Test User', role: 'admin' },
+    clinicId,
+    role: 'admin',
+    can: () => true,
+    hasModule: () => true,
+    audit: { actor: 'test-user' },
+  };
+}
+
+// ─── Bootstrap ───────────────────────────────────────────────────────────────
+
+beforeAll(async () => {
+  pool = await waitForSchemaReady();
+
+  // Ensure clinic exists — delete first to handle cross-test pollution,
+  // then upsert to guarantee FK integrity regardless of test execution order.
+  await pool.query(`DELETE FROM clinics WHERE id = $1`, [CLINIC_ID]);
+  await pool.query(
+    `INSERT INTO clinics (id, name, slug, phone, email, subscription_plan, subscription_status)
+     VALUES ($1, 'Test Clinic F3', 'test-clinic-f3', '+5500000000000', 'clinic@test.local', 'starter', 'active')
+     ON CONFLICT (id) DO NOTHING`,
+    [CLINIC_ID],
+  );
+
+  // Seed dentist (delete first for idempotency)
+  await pool.query(`DELETE FROM dentists WHERE id = $1`, [DENTIST_ID]);
+  await pool.query(
+    `INSERT INTO dentists (id, clinic_id, name, phone, email, cro)
+     VALUES ($1, $2, 'Test Dentist F3', '+5511000000001', 'dentist@test.local', 'SP-12345')
+     ON CONFLICT (id) DO NOTHING`,
+    [DENTIST_ID, CLINIC_ID],
+  );
+
+  // Seed patient
+  await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
+  await pool.query(
+    `INSERT INTO patients (id, clinic_id, name, phone, email)
+     VALUES ($1, $2, 'Test Patient F3', '+5511000000100', 'patient@test.local')
+     ON CONFLICT (id) DO NOTHING`,
+    [PATIENT_ID, CLINIC_ID],
+  );
+}, 60_000);
+
+afterAll(async () => {
+  if (!pool) return;
+  try {
+    await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
+    await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
+    await pool.query(`DELETE FROM dentists WHERE id = $1`, [DENTIST_ID]);
+    await pool.query(`DELETE FROM clinics WHERE id = $1`, [CLINIC_ID]);
+  } catch { /* ignore */ }
+  await pool.end();
+});
+
+afterEach(async () => {
+  if (!pool) return;
+  try {
+    await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
+  } catch { /* ignore */ }
+});
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+describe('operacional scheduling actions (F3)', () => {
+  it('agendarConsulta: should create appointment and return id', async () => {
+    const result = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T10:00:00Z',
+      durationMinutes: 30,
+    }, makeCtx());
+
+    if (!result.ok) throw new Error(`agendarConsulta failed: ${result.error.code} — ${result.error.message}`);
+    expect(result.ok).toBe(true);
+    expect((result as any).data.id).toBeDefined();
+    const id = (result as any).data.id;
+
+    // Verify in DB
+    const { rows } = await pool.query(`SELECT id, status FROM appointments WHERE id = $1`, [id]);
+    expect(rows.length).toBe(1);
+    expect(rows[0].status).toBe('scheduled');
+  });
+
+  it('agendarConsulta: should reject conflict with 23P01 → conflict error', async () => {
+    // Schedule first: 10:00-10:30
+    const first = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T10:00:00Z',
+      durationMinutes: 30,
+    }, makeCtx());
+    expect(first.ok).toBe(true);
+    const firstId = (first as any).data.id;
+
+    // Try overlapping: 10:15-10:45
+    const second = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T10:15:00Z',
+      durationMinutes: 30,
+    }, makeCtx());
+
+    expect(second.ok).toBe(false);
+    expect((second as any).error.code).toBe('conflict');
+    expect((second as any).error.message).toContain('Horário indisponível');
+
+    // Cleanup
+    await pool.query(`DELETE FROM appointments WHERE id = $1`, [firstId]);
+  });
+
+  it('confirmarConsulta: should confirm scheduled appointment', async () => {
+    const appt = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T14:00:00Z',
+    }, makeCtx());
+    if (!appt.ok) throw new Error(`setup failed: ${appt.error.code}`);
+    const id = (appt as any).data.id;
+
+    const result = await runAction(confirmarConsulta, { appointmentId: id }, makeCtx());
+    expect(result.ok).toBe(true);
+    expect((result as any).data.success).toBe(true);
+
+    const { rows } = await pool.query(`SELECT status FROM appointments WHERE id = $1`, [id]);
+    expect(rows[0].status).toBe('confirmed');
+  });
+
+  it('registrarNoShow: should mark confirmed appointment as no_show', async () => {
+    const appt = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T15:00:00Z',
+    }, makeCtx());
+    if (!appt.ok) throw new Error(`setup failed: ${appt.error.code}`);
+    const id = (appt as any).data.id;
+
+    // Confirm first
+    await runAction(confirmarConsulta, { appointmentId: id }, makeCtx());
+
+    const result = await runAction(registrarNoShow, { appointmentId: id }, makeCtx());
+    expect(result.ok).toBe(true);
+    expect((result as any).data.success).toBe(true);
+
+    const { rows } = await pool.query(`SELECT status FROM appointments WHERE id = $1`, [id]);
+    expect(rows[0].status).toBe('no_show');
+  });
+
+  it('remarcarConsulta: should reschedule to new slot', async () => {
+    const appt = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T16:00:00Z',
+    }, makeCtx());
+    if (!appt.ok) throw new Error(`setup failed: ${appt.error.code}`);
+    const id = (appt as any).data.id;
+
+    const result = await runAction(remarcarConsulta, {
+      appointmentId: id,
+      scheduledAt: '2026-08-01T17:00:00Z',
+    }, makeCtx());
+
+    expect(result.ok).toBe(true);
+    expect((result as any).data.success).toBe(true);
+
+    const { rows } = await pool.query(`SELECT scheduled_at FROM appointments WHERE id = $1`, [id]);
+    const scheduledAt = new Date(rows[0].scheduled_at);
+    expect(scheduledAt.toISOString()).toContain('2026-08-01T17:');
+  });
+
+  it('remarcarConsulta: should reject conflict 23P01 → conflict error', async () => {
+    // First appointment: 10:00-10:30
+    const appt1 = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T11:00:00Z',
+    }, makeCtx());
+    if (!appt1.ok) throw new Error(`setup1 failed: ${appt1.error.code}`);
+    const id1 = (appt1 as any).data.id;
+
+    // Second appointment: 11:00-11:30
+    const appt2 = await runAction(agendarConsulta, {
+      patientId: PATIENT_ID,
+      dentistId: DENTIST_ID,
+      scheduledAt: '2026-08-01T12:00:00Z',
+    }, makeCtx());
+    if (!appt2.ok) throw new Error(`setup2 failed: ${appt2.error.code}`);
+    const id2 = (appt2 as any).data.id;
+
+    // Try rescheduling appt1 to appt2's slot → should fail
+    const result = await runAction(remarcarConsulta, {
+      appointmentId: id1,
+      scheduledAt: '2026-08-01T12:00:00Z',
+    }, makeCtx());
+
+    expect(result.ok).toBe(false);
+    expect((result as any).error.code).toBe('conflict');
+
+    // Cleanup
+    await pool.query(`DELETE FROM appointments WHERE id IN ($1, $2)`, [id1, id2]);
+  });
+
+  it('should not register action twice', async () => {
+    const action = getAction('operacional:agendar_consulta');
+    expect(action).toBeDefined();
+    expect(action!.name).toBe('operacional:agendar_consulta');
+    expect(action!.module).toBe('operacional');
+  });
+});
