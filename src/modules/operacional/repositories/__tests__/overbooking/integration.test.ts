@@ -7,7 +7,7 @@
  * Prerequisites:
  *   - btree_gist extension enabled
  *   - appointments_no_overlap constraint exists on appointments table
- *   - Test clinic seeded (scripts/seed-test-clinic.mjs)
+ *   - Self-sufficient: seeds clinic, dentists, patient in beforeAll
  */
 
 /** @jest-environment node */
@@ -24,9 +24,10 @@ const PATIENT_ID = '00000000-0000-0000-0000-000000000201';
 
 let pool: Pool;
 
-// Waits for DB to accept connections AND for the appointments_no_overlap
-// constraint to be visible.  Handles the window between Docker reporting
-// Healthy and drizzle-kit migrations completing after db:reset.
+// Waits for the DB to be fully ready after db:reset:
+//   1. accepts connections  (SELECT 1)
+//   2. appointments table exists  (to_regclass, safe before table creation)
+//   3. appointments_no_overlap constraint exists  (proves migrations landed)
 async function waitForSchemaReady(
   maxAttempts = 20,
   baseDelayMs = 500,
@@ -34,14 +35,22 @@ async function waitForSchemaReady(
   let lastError = '';
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    let p: Pool;
     try {
-      const p = new Pool({ connectionString: process.env.DATABASE_URL! });
+      p = new Pool({ connectionString: process.env.DATABASE_URL! });
 
-      // 1. Basic socket readiness
+      // 1. Socket readiness
       await p.query('SELECT 1');
 
-      // 2. Schema readiness: wait for the EXCLUDE constraint to exist
-      //    (proves both the table and migrations have landed)
+      // 2. Table readiness — use to_regclass so it never throws on missing table
+      const tableRow = await p.query(
+        `SELECT to_regclass('public.appointments') AS tbl`,
+      );
+      if (!tableRow.rows[0]?.tbl) {
+        throw new Error(`appointments table not found (attempt ${attempt}/${maxAttempts})`);
+      }
+
+      // 3. Constraint readiness — uses ::regclass only after table is confirmed
       const { rows } = await p.query(
         `SELECT conname FROM pg_constraint
          WHERE conrelid = 'appointments'::regclass
@@ -52,18 +61,21 @@ async function waitForSchemaReady(
         return p; // fully ready
       }
 
-      // Constraint not yet present — close this pool and retry
-      await p.end();
-      lastError = `appointments_no_overlap constraint not found (attempt ${attempt}/${maxAttempts})`;
+      lastError = `appointments_no_overlap constraint not yet applied (attempt ${attempt}/${maxAttempts})`;
     } catch (err: any) {
       lastError = err.message;
-      // Connection still dropping — close any partial pool
-      try {
-        // eslint-disable-next-line no-console
-        console.warn(`DB not ready (${attempt}/${maxAttempts}): ${lastError}`);
-      } catch {
-        // ignore
-      }
+    }
+
+    // Close any open pool before retrying
+    try {
+      // eslint-disable-next-line no-console
+      console.warn(`Schema not ready (${attempt}/${maxAttempts}): ${lastError}`);
+    } catch {
+      // ignore
+    }
+
+    if (p) {
+      await p.end().catch(() => null);
     }
 
     if (attempt < maxAttempts) {
@@ -71,7 +83,7 @@ async function waitForSchemaReady(
     }
   }
 
-  throw new Error(`DB schema not ready after ${maxAttempts} attempts: ${lastError}`);
+  throw new Error(`Schema not ready after ${maxAttempts} attempts: ${lastError}`);
 }
 
 beforeAll(async () => {
@@ -82,10 +94,19 @@ beforeAll(async () => {
     console.error('Unexpected pool error:', err.message);
   });
 
+  // Seed test clinic (required by dentists FK and patients FK)
+  // Columns from src/lib/db/schema/core.ts: clinics table
+  await pool.query(
+    `INSERT INTO clinics (id, name, slug, phone, email, subscription_plan, subscription_status)
+     VALUES ($1, 'Test Clinic F2a', 'test-clinic-f2a', '+5500000000000', 'clinic@test.local', 'starter', 'active')
+     ON CONFLICT (id) DO NOTHING`,
+    [CLINIC_ID],
+  );
+
   // Seed test dentist 1
   await pool.query(
     `INSERT INTO dentists (id, clinic_id, name, phone, email, cro)
-     VALUES ($1, $2, 'Test Dentist', '+5511000000001', 'dentist@test.local', 'SP-12345')
+     VALUES ($1, $2, 'Test Dentist F2a', '+5511000000001', 'dentist@test.local', 'SP-12345')
      ON CONFLICT (id) DO NOTHING`,
     [DENTIST_ID, CLINIC_ID],
   );
@@ -93,7 +114,7 @@ beforeAll(async () => {
   // Seed test dentist 2
   await pool.query(
     `INSERT INTO dentists (id, clinic_id, name, phone, email, cro)
-     VALUES ($1, $2, 'Test Dentist 2', '+5511000000002', 'dentist2@test.local', 'SP-54321')
+     VALUES ($1, $2, 'Test Dentist 2 F2a', '+5511000000002', 'dentist2@test.local', 'SP-54321')
      ON CONFLICT (id) DO NOTHING`,
     [DENTIST2_ID, CLINIC_ID],
   );
@@ -101,11 +122,11 @@ beforeAll(async () => {
   // Seed test patient
   await pool.query(
     `INSERT INTO patients (id, clinic_id, name, phone, email)
-     VALUES ($1, $2, 'Test Patient', '+5511000000100', 'patient@test.local')
+     VALUES ($1, $2, 'Test Patient F2a', '+5511000000100', 'patient@test.local')
      ON CONFLICT (id) DO NOTHING`,
     [PATIENT_ID, CLINIC_ID],
   );
-}, 60_000); // 60s to allow for slow migration apply after db:reset
+}, 60_000);
 
 afterAll(async () => {
   if (!pool) return;
@@ -113,6 +134,7 @@ afterAll(async () => {
     await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
     await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
     await pool.query(`DELETE FROM dentists WHERE id IN ($1, $2)`, [DENTIST_ID, DENTIST2_ID]);
+    await pool.query(`DELETE FROM clinics WHERE id = $1`, [CLINIC_ID]);
   } catch {
     // cleanup errors are non-fatal
   } finally {
@@ -120,7 +142,7 @@ afterAll(async () => {
   }
 });
 
-// Insert an appointment using pool.query (pool assigns available connection per query)
+// Insert an appointment using pool.query
 async function insertViaPool(
   scheduledAt: string,
   dentistId: string,
