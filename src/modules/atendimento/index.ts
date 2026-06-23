@@ -53,3 +53,8 @@ export const atendimentoActions = [
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { atendimentoManifest } from './manifest';
 export { atendimentoAccessPermissions } from './permissions';
+
+// ─── Public service surface (for cross-module consumers) ──────────────────────
+export { sendWhatsAppMessage } from './services/channel-service';
+export { fillTemplate } from './services/templates-service';
+export { findById } from './repositories/conversations-repository';

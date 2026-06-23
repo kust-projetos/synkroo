@@ -13,7 +13,7 @@ jest.mock('@/lib/logger', () => ({
   createLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }),
 }))
 
-jest.mock('@/services/whatsapp')
+jest.mock('@/modules/atendimento')
 jest.mock('@/services/leads/leads.service')
 jest.mock('@/repositories/leads')
 
@@ -27,7 +27,7 @@ import {
 import * as leadsService from '@/services/leads/leads.service'
 import type { Lead } from '@/services/leads/leads.service'
 import * as leadRepo from '@/repositories/leads'
-import { sendWhatsAppMessage } from '@/services/whatsapp'
+import { sendWhatsAppMessage } from '@/modules/atendimento'
 
 const mockGetHotLeads = leadsService.getHotLeads as jest.MockedFunction<typeof leadsService.getHotLeads>
 const mockSendWhatsAppMessage = sendWhatsAppMessage as jest.MockedFunction<typeof sendWhatsAppMessage>
