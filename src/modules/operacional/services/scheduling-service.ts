@@ -76,8 +76,9 @@ export async function cancelarConsulta(input: { clinicId: string; id: string; re
       (!existing.dentistId || w.dentistId === existing.dentistId)
     );
     if (candidate) {
-      // TODO: notify waitlist entry (e.g., send WhatsApp notification)
-      // For now, mark as cancelled with reason 'slot_freed'
+      // Notification to the freed waitlist candidate is deferred to E-01
+      // (atendimento channel delivery / WhatsApp integration). Here we only
+      // release the slot by marking the entry as cancelled.
       await waitlistRepo.cancelWaitlistEntry(candidate.id, 'slot_freed');
     }
   } catch { /* waitlist processing is best-effort */ }

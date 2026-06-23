@@ -1,7 +1,7 @@
 /**
  * Operacional module — appointment serializer.
  *
- * Port of src/app/api/appointments/_serializer.ts, adapted to use the
+ * Canonical serializer for appointment API responses, using the
  * operational module's AppointmentRow type.
  *
  * Maintains the existing API contract:
