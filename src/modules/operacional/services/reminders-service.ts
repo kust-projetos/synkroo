@@ -6,10 +6,12 @@
 import { getDb } from '@/lib/db/client';
 import { appointments, appointmentReminders } from '../schema/appointments';
 import { patients } from '../schema/patients';
-import { eq, and, gte, lte, inArray } from 'drizzle-orm';
+import { eq, and, gte, lte } from 'drizzle-orm';
 import { sendWhatsAppMessage } from '@/services/whatsapp';
 import { createReminder } from '@/repositories/reminders';
-import { dbLogger, whatsappLogger } from '@/lib/logger';
+import { whatsappLogger } from '@/lib/logger';
+import { getEffectiveConfig, replacePlaceholders } from '@/services/reminders/procedure-reminder-config.service';
+import { findAppointmentWithJoins, markReminderTriggered } from '../repositories/reminders-repository';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -126,4 +128,57 @@ export async function processAllReminders(): Promise<{ processed: number; errors
   }
 
   return { processed, errors };
+}
+
+// ─── Template building for obter-modelo-lembrete action ──────────────────────
+
+export async function buildReminderTemplate(
+  id: string,
+  clinicId: string,
+  mode: 'preview' | 'template',
+) {
+  const apt = await findAppointmentWithJoins(id, clinicId);
+  if (!apt) return null;
+
+  const procedureTypeId = apt.procedure?.id || '';
+  const procedureTypeName = apt.procedure?.name || '';
+  const config = await getEffectiveConfig(clinicId, procedureTypeId, procedureTypeName);
+
+  const scheduledAt = new Date(apt.scheduledAt);
+  const placeholders = {
+    paciente_nome: apt.patient?.name || '',
+    data: scheduledAt.toLocaleDateString('pt-BR'),
+    horario: scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    dentista: apt.dentist?.name || '',
+    procedimento: procedureTypeName,
+  };
+  const filledMessage = replacePlaceholders(config.message_template, placeholders);
+
+  if (mode === 'preview') {
+    return {
+      preview: {
+        original_template: config.message_template,
+        filled_message: filledMessage,
+        placeholders,
+      },
+    };
+  }
+
+  return {
+    template: {
+      procedure_type: procedureTypeName,
+      hours_before: config.hours_before,
+      message_template: config.message_template,
+      filled_message: filledMessage,
+      enabled: config.enabled,
+    },
+  };
+}
+
+// ─── Manual reminder trigger for gatilho-lembrete action ────────────────────
+
+export async function triggerManualReminder(id: string, clinicId: string) {
+  const result = await markReminderTriggered(id, clinicId);
+  if (!result) return null;
+  return { success: true };
 }
