@@ -57,24 +57,20 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
 
   const results: Array<{ from: string; action: string }> = [];
 
-  // Dedup check
-  const messageId = key.id as string;
-  if (messageId) {
-    const exists = await repo.messageExistsById(messageId);
-    if (exists) return [];
-  }
-
   // Get or create conversation
   const conv = await repo.findOrCreateConversation(clinicId, 'whatsapp', phone);
   if (!conv) return [];
 
-  // Store inbound message
-  await repo.appendInboundMessage({
+  // Store inbound message with dedup by externalMessageId (key.id)
+  const messageId = key.id as string;
+  const storeResult = await repo.appendInboundMessageDeduped({
     conversationId: conv.id,
     content,
+    externalMessageId: messageId,
     messageType: messageType as string,
     metadata: { whatsapp_message_id: messageId, instance: instanceName } as Record<string, unknown>,
   });
+  if (storeResult.deduped) return [];
 
   // Handle button responses
   const buttonResult = await handleButtonResponse(data, clinicId, phone, conv.id);
@@ -158,13 +154,18 @@ async function storeAndProcessMetaMessage(
   const conv = await repo.findOrCreateConversation(cId, channel, from);
   if (!conv) return null;
 
-  // Store message
-  await repo.appendInboundMessage({
+  // Store message with dedup by externalMessageId (msg.id from Meta)
+  const storeResult = await repo.appendInboundMessageDeduped({
     conversationId: conv.id,
     content,
+    externalMessageId: msgId,
     messageType: msgType,
     metadata: { whatsapp_message_id: msgId, phone_number_id: phoneNumberId } as Record<string, unknown>,
   });
+  if (storeResult.deduped) {
+    whatsappLogger.info('[webhook-processor] Meta msg deduped', { from, msgId });
+    return null;
+  }
 
   // Check confirmation, waitlist
   const confirmResult = await handleConfirmation(cId, from, content, conv.id);
@@ -284,12 +285,18 @@ export async function processInstagramEntry(entry: Record<string, unknown>): Pro
     const conv = await repo.findOrCreateConversation(clinicId, 'instagram', senderId.id as string);
     if (!conv) continue;
 
-    await repo.appendInboundMessage({
+    const instagramMsgId = (message as any).mid as string | undefined;
+    const msgMetadata: Record<string, unknown> = { instagram_sender_id: senderId.id, timestamp: event.timestamp };
+    if (instagramMsgId) msgMetadata.instagram_message_id = instagramMsgId;
+
+    const storeResult = await repo.appendInboundMessageDeduped({
       conversationId: conv.id,
       content,
+      externalMessageId: instagramMsgId,
       messageType: msgType,
-      metadata: { instagram_sender_id: senderId.id, timestamp: event.timestamp } as Record<string, unknown>,
+      metadata: msgMetadata,
     });
+    if (storeResult.deduped) continue;
     await repo.updateConversationTimestamp(conv.id);
     processed.push({ from: senderId.id as string, message: content });
   }
