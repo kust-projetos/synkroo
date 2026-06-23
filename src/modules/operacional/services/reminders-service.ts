@@ -7,7 +7,7 @@ import { getDb } from '@/lib/db/client';
 import { appointments, appointmentReminders } from '../schema/appointments';
 import { patients } from '../schema/patients';
 import { eq, and, gte, lte } from 'drizzle-orm';
-import { sendWhatsAppMessage } from '@/modules/atendimento';
+import { sendWhatsAppMessage } from '@/lib/whatsapp/send';
 import { createReminder } from '@/repositories/reminders';
 import { whatsappLogger } from '@/lib/logger';
 import { getEffectiveConfig, replacePlaceholders } from '@/services/reminders/procedure-reminder-config.service';

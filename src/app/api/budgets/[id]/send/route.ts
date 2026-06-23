@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
 import { getBudgetById, markBudgetSent } from '@/services/budgets/budget.service'
-import { sendWhatsAppMessage } from '@/modules/atendimento';
+import { sendWhatsAppMessage } from '@/lib/whatsapp/send';
 import { handleApiError } from '@/lib/errors'
 
 type RouteParams = { params: Promise<{ id: string }> }

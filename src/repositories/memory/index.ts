@@ -95,8 +95,17 @@ export async function storeMessageWithEmbedding(data: {
   const db = getDb()
   try {
     // Get conversation to find clinicId
-    const { findById } = await import('@/modules/atendimento')
-    const conversation = await findById(data.conversationId)
+    // Direct DB query — no cross-module dependency
+    const db = getDb();
+    const { conversations } = await import('@/lib/db/schema');
+    const [conversation] = await db
+      .select({
+        id: conversations.id,
+        clinicId: conversations.clinicId,
+      })
+      .from(conversations)
+      .where(eq(conversations.id, data.conversationId))
+      .limit(1);
     if (!conversation) {
       dbLogger.warn('Conversation not found for memory store', { conversationId: data.conversationId })
       return null
@@ -133,8 +142,15 @@ export async function storeSummary(
 ): Promise<string | null> {
   const db = getDb()
   try {
-    const { findById } = await import('@/modules/atendimento')
-    const conversation = await findById(conversationId)
+    const { conversations } = await import('@/lib/db/schema');
+    const [conversation] = await getDb()
+      .select({
+        id: conversations.id,
+        clinicId: conversations.clinicId,
+      })
+      .from(conversations)
+      .where(eq(conversations.id, conversationId))
+      .limit(1);
     if (!conversation) {
       dbLogger.warn('Conversation not found for summary store', { conversationId })
       return null
