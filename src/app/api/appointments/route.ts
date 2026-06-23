@@ -51,7 +51,22 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     );
   }
   const body = await request.json();
-  return runActionRoute(agendarConsulta, body, { okStatus: 201 });
+  // Normalize legacy snake_case payload to canonical camelCase for action input schema
+  const normalized: Record<string, unknown> = {};
+  if (body.patientId !== undefined) normalized.patientId = body.patientId;
+  else if (body.patient_id !== undefined) normalized.patientId = body.patient_id;
+  if (body.dentistId !== undefined) normalized.dentistId = body.dentistId;
+  else if (body.dentist_id !== undefined) normalized.dentistId = body.dentist_id;
+  if (body.procedureId !== undefined) normalized.procedureId = body.procedureId;
+  else if (body.procedure_id !== undefined) normalized.procedureId = body.procedure_id;
+  if (body.scheduledAt !== undefined) normalized.scheduledAt = body.scheduledAt;
+  else if (body.scheduled_at !== undefined) normalized.scheduledAt = body.scheduled_at;
+  if (body.durationMinutes !== undefined) normalized.durationMinutes = body.durationMinutes;
+  else if (body.duration_minutes !== undefined) normalized.durationMinutes = body.duration_minutes;
+  if (body.notes !== undefined) normalized.notes = body.notes;
+  if (body.clinicId !== undefined) normalized.clinicId = body.clinicId;
+  else if (body.clinic_id !== undefined) normalized.clinicId = body.clinic_id;
+  return runActionRoute(agendarConsulta, normalized, { okStatus: 201 });
 }
 
 const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);

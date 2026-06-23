@@ -12,11 +12,11 @@ export interface PresetDef {
 // Presets conservadores; ajustáveis pelo owner depois (clonando).
 export const SYSTEM_PRESETS: PresetDef[] = [
   { name: 'Administrador', description: 'Acesso amplo de gestão da clínica.',
-    modules: ['core', 'operacional', 'comercial', 'financeiro', 'analytics'] },
+    modules: ['core', 'operacional', 'atendimento', 'comercial', 'financeiro', 'analytics', 'followup'] },
   { name: 'Recepcionista', description: 'Atendimento e agenda.',
-    modules: ['operacional'], extraKeys: ['comercial:view'] },
+    modules: ['operacional', 'atendimento'], extraKeys: ['comercial:view'] },
   { name: 'Comercial', description: 'Vendas e relacionamento.',
     modules: ['comercial'], extraKeys: ['operacional:view'] },
   { name: 'Dentista', description: 'Agenda e prontuário próprios.',
-    modules: ['operacional'] },
+    modules: ['operacional', 'atendimento'] },
 ];

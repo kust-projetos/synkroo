@@ -7,6 +7,9 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
+  // Integration tests run exclusively via `npm run test:integration`.
+  // Exclude them from the default suite so hooks don't execute against mocked DB.
+  testPathIgnorePatterns: ['/node_modules/', 'integration.test.ts'],
   transform: {
     '^.+\\.(?:ts|tsx|mjs)$': ['ts-jest', {
       tsconfig: {
