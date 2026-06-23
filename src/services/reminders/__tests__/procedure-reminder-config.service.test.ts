@@ -8,7 +8,7 @@ jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
-jest.mock('@/modules/atendimento', () => ({
+jest.mock('@/lib/templates/fill', () => ({
   fillTemplate: jest.fn((tpl: any, vals: Record<string, string>) => {
     let result = tpl.body
     for (const [k, v] of Object.entries(vals)) {
