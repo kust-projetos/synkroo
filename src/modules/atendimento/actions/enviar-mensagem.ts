@@ -3,7 +3,7 @@ import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
 import { sendByChannel } from '../services/send-message-service';
-import * as legacyRepo from '@/repositories/conversations';
+import * as repo from '../repositories/conversations-repository';
 
 export const enviarMensagem = defineAction({
   name: 'atendimento.enviarMensagem',
@@ -19,13 +19,13 @@ export const enviarMensagem = defineAction({
     // Resolve channel from conversation if not provided
     let channel = input.channel;
     if (!channel) {
-      const conv = await legacyRepo.findByIdWithJoins(input.conversationId, ctx.clinicId);
+      const conv = await repo.findByIdWithJoins(input.conversationId, ctx.clinicId);
       if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
       channel = conv.channel as 'whatsapp' | 'instagram' | 'web';
     }
 
     // Get the externalId (phone number for WhatsApp, IG ID for Instagram) from the conversation
-    const conv = await legacyRepo.findById(input.conversationId);
+    const conv = await repo.findById(input.conversationId);
     if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
     if (conv.clinicId !== ctx.clinicId) throw new ActionError('forbidden', 'Acesso negado.');
 
@@ -36,12 +36,12 @@ export const enviarMensagem = defineAction({
     }
 
     // Store the outbound message
-    const message = await legacyRepo.createMessage({
+    const message = await repo.createMessage({
       conversationId: input.conversationId,
       direction: 'outbound',
       content: input.message,
     });
-    await legacyRepo.updateConversation(input.conversationId, {
+    await repo.updateConversation(input.conversationId, {
       lastMessageAt: new Date(),
       messageCountIncrement: 1,
     });

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
-import * as legacyRepo from '@/repositories/conversations';
+import * as repo from '../repositories/conversations-repository';
 
 export const agendarMensagem = defineAction({
   name: 'atendimento.agendarMensagem',
@@ -17,7 +17,7 @@ export const agendarMensagem = defineAction({
     channel: z.enum(['whatsapp', 'instagram', 'web']).optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    const conv = await legacyRepo.findById(input.conversationId);
+    const conv = await repo.findById(input.conversationId);
     if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
     if (conv.clinicId !== ctx.clinicId) throw new ActionError('forbidden', 'Acesso negado.');
 
@@ -36,7 +36,7 @@ export const agendarMensagem = defineAction({
         },
       ],
     };
-    await legacyRepo.updateConversation(input.conversationId, { metadata });
+    await repo.updateConversation(input.conversationId, { metadata });
 
     return { success: true, scheduledAt: input.scheduledAt };
   },
