@@ -1,67 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
-import { detectDuplicates, mergePatients } from '@/services/patients/patient-dedup.service'
-
 /**
- * GET /api/patients/deduplicate
- * Detect duplicate patient records
+ * GET /api/patients/deduplicate — deprecated (410 Gone)
+ * POST /api/patients/deduplicate — deprecated (410 Gone)
+ *
+ * Patient deduplication deferred to future wave.
  */
-export async function GET(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
 
-    const clinicId = authResult.profile!.clinic_id
-    const duplicates = await detectDuplicates(clinicId)
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
 
-    return NextResponse.json({ duplicates, total: duplicates.length })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+const OPERACIONAL_MODULE = 'operacional';
 
-/**
- * POST /api/patients/deduplicate
- * Merge duplicate patient records
- */
-export async function POST(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+const DEPRECATED = NextResponse.json(
+  { error: 'deprecated', message: 'Patient deduplication is not available in this API version.' },
+  { status: 410 },
+);
 
-    const clinicId = authResult.profile!.clinic_id
-    const body = await request.json()
-    const { primaryId, secondaryId } = body as {
-      primaryId: string
-      secondaryId: string
-    }
-
-    if (!primaryId || !secondaryId) {
-      return NextResponse.json(
-        { error: 'Missing required fields: primaryId, secondaryId' },
-        { status: 400 }
-      )
-    }
-
-    const result = await mergePatients(primaryId, secondaryId, clinicId)
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+async function handle(): Promise<NextResponse> { return DEPRECATED; }
+const wrapped = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handle);
+export { wrapped as GET, wrapped as POST };

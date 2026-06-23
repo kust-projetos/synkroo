@@ -1,51 +1,12 @@
-import { NextResponse } from 'next/server'
-import { getWhatsAppService } from '@/services/whatsapp'
-import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runAtendimentoAction } from '@/modules/atendimento/ui/route-adapter';
+import { obterQRCode } from '@/modules/atendimento/actions/obter-qrcode';
 
-/**
- * GET /api/whatsapp/qrcode
- * Get current QR code for WhatsApp connection
- */
-export async function GET() {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    if (!hasRequiredRole(authResult.profile!, ['admin', 'owner'])) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 })
-    }
-
-    const whatsapp = getWhatsAppService()
-    const session = whatsapp.getSession()
-    const qrCode = whatsapp.getQRCode()
-
-    // If connected, return success status
-    if (session.isConnected) {
-      return NextResponse.json({
-        connected: true,
-        phoneNumber: session.phoneNumber,
-        message: 'WhatsApp is connected',
-      })
-    }
-
-    // If QR code is available, return it
-    if (qrCode) {
-      return NextResponse.json({
-        connected: false,
-        qrCode: qrCode,
-        message: 'Scan the QR code to connect',
-      })
-    }
-
-    // No QR code yet - service may still be initializing
-    return NextResponse.json({
-      connected: false,
-      qrCode: null,
-      message: 'Waiting for QR code. Please try again in a moment.',
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handleGET(_request: NextRequest): Promise<NextResponse> {
+  return runAtendimentoAction(obterQRCode, {});
 }
+
+const wrapped = withModuleRoute('atendimento', moduleManifest)(handleGET);
+export { wrapped as GET };

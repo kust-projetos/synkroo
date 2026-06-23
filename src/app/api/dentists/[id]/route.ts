@@ -1,98 +1,43 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError, NotFoundError } from '@/lib/errors'
-import * as dentistRepo from '@/repositories/dentists'
-import * as appointmentRepo from '@/repositories/appointments'
-
-interface RouteParams {
-  params: Promise<{ id: string }>
-}
-
 /**
- * GET /api/dentists/[id]
- * Get a specific dentist
+ * GET  /api/dentists/[id] — get dentist by ID
+ * PATCH /api/dentists/[id] — update dentist
+ * DELETE /api/dentists/[id] — soft-delete (405 Method Not Allowed via gate)
+ *
+ * Migrated to operacional module action system.
+ * No direct DB access in this file.
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
-    const { id } = await params
 
-    const dentist = await dentistRepo.findById(id)
-    if (!dentist || dentist.clinicId !== clinicId) {
-      return handleApiError(new NotFoundError('Dentist not found'))
-    }
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
+import { obterDentista } from '@/modules/operacional/actions/obter-dentista';
+import { atualizarDentista } from '@/modules/operacional/actions/atualizar-dentista';
 
-    return NextResponse.json({
-      dentist: {
-        id: dentist.id,
-        name: dentist.name,
-        phone: dentist.phone,
-        email: dentist.email,
-        specialty: dentist.specialty,
-        cro: dentist.cro,
-        is_active: dentist.isActive,
-        working_hours: dentist.workingHours,
-        created_at: dentist.createdAt,
-      },
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
+const OPERACIONAL_MODULE = 'operacional';
+
+type RouteParams = { params: Promise<{ id: string }> };
+
+async function handleGET(_request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
+  const { id } = await params;
+  return runActionRoute(obterDentista, { id });
 }
 
-/**
- * PATCH /api/dentists/[id]
- * Update a dentist
- */
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
-    const { id } = await params
-
-    // Verify ownership
-    const existing = await dentistRepo.findById(id)
-    if (!existing || existing.clinicId !== clinicId) {
-      return handleApiError(new NotFoundError('Dentist not found'))
-    }
-
-    const body = await request.json()
-    const dentist = await dentistRepo.update(id, body)
-
-    return NextResponse.json({ dentist })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handlePATCH(request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
+  const { id } = await params;
+  const body = await request.json();
+  return runActionRoute(atualizarDentista, { id, ...body });
 }
 
-/**
- * DELETE /api/dentists/[id]
- * Soft-delete a dentist
- */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
-    const { id } = await params
-
-    const existing = await dentistRepo.findById(id)
-    if (!existing || existing.clinicId !== clinicId) {
-      return handleApiError(new NotFoundError('Dentist not found'))
-    }
-
-    await dentistRepo.remove(id)
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handleDELETE(): Promise<NextResponse> {
+  return NextResponse.json(
+    { error: 'method_not_allowed', message: 'DELETE on dentists is not available in this API version.' },
+    { status: 405 },
+  );
 }
+
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);
+const wrappedPATCH = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePATCH);
+const wrappedDELETE = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleDELETE);
+
+export { wrappedGET as GET, wrappedPATCH as PATCH, wrappedDELETE as DELETE };
