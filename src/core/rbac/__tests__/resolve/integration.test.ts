@@ -1,5 +1,8 @@
 /** @jest-environment node */
 
+// Skip when RUN_INTEGRATION_TESTS is not set — guards hooks before describe.skip takes effect.
+const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
+
 jest.unmock('@/lib/db/client');
 process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
@@ -54,6 +57,7 @@ let ownerRoleId: string;
 let recepRoleId: string;
 
 beforeAll(async () => {
+  if (SKIP) return;
   const db = getDb();
   await db.insert(clinics).values({
     id: CLINIC, name: 'Test Clinic', slug: 'test-clinic', phone: '', email: 't@t.local',
@@ -83,6 +87,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  if (SKIP) return;
   const db = getDb();
   await db.delete(userClinicAccess).where(eq(userClinicAccess.userId, ownerUserId));
   await db.delete(userClinicAccess).where(eq(userClinicAccess.userId, recepUserId));

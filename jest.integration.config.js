@@ -14,8 +14,11 @@ module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/integration.test.ts'],
-  // Exclude actual node_modules directories only — avoid matching 'src\modules' on Windows
+  // Exclude actual node_modules directories only — avoid matching 'src\\modules' on Windows
   testPathIgnorePatterns: ['/node_modules/'],
+  // Serial execution — integration tests share a single Postgres instance
+  // and must not run concurrently to avoid FK/unique constraint conflicts.
+  maxWorkers: 1,
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {

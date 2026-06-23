@@ -81,13 +81,11 @@ const navItems: NavItem[] = [
 
   { name: "Tarefas", href: "/dashboard/tarefas", icon: CheckCircleIcon, section: "crm" },
   { name: "Conversas", href: "/dashboard/conversas", icon: ChatBubbleLeftRightIcon, section: "crm", badge: { count: 0, variant: "pill-teal" } },
-  { name: "Pacientes", href: "/dashboard/pacientes", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "zinc" } },
-  { name: "Agendamentos", href: "/dashboard/agendamentos", icon: CalendarDaysIcon, section: "principal", badge: { count: 0, variant: "teal" } },
-  { name: "Lista de Espera", href: "/dashboard/lista-espera", icon: ClockIcon, section: "principal" },
+  // Pacientes, Agendamentos, Lista de Espera, Dentistas, Procedimentos —
+  // agora vêm do menu dinâmico via operacionalManifest (F8)
   { name: "Inativos", href: "/dashboard/pacientes/inativos", icon: UsersIcon, section: "principal", badge: { count: 0, variant: "amber" } },
   { name: "Analytics", href: "/dashboard/analytics", icon: ChartBarIcon, section: "gestao" },
-  { name: "Dentistas", href: "/dashboard/dentistas", icon: IdentificationIcon, section: "gestao" },
-  { name: "Procedimentos", href: "/dashboard/procedimentos", icon: WrenchScrewdriverIcon, section: "gestao" },
+  // Dentistas e Procedimentos — agora vêm do menu dinâmico via operacionalManifest
 ]
 
 const sectionLabels = {

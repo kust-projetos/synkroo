@@ -1,6 +1,9 @@
 /**
  * Inactive Patients API Route Test Suite
  *
+ * F4c migrated: route delegates to followup.listarInativos action handler
+ * (service layer / Drizzle), no longer uses @/repositories/patients.
+ *
  * Covers:
  * 1. GET /api/patients/inactive — returns processed patients
  * 2. GET /api/patients/inactive — sanitizes null/undefined patient names
@@ -50,12 +53,23 @@ jest.mock('@/lib/rate-limit', () => ({
   rateLimitPresets: { api: { windowMs: 60000, maxRequests: 60 } },
 }));
 
-// Mock patientRepo
-const mockFindInactiveByClinic = jest.fn();
-jest.mock('@/repositories/patients', () => ({
-  findInactiveByClinic: mockFindInactiveByClinic,
-  bulkUpdateTags: jest.fn().mockResolvedValue(undefined),
-}));
+// ── Action handler mocks (route delegates to these) ─────────────────────────
+// Use jest.requireActual so the real input schema (safeParse) is available;
+// only the handler is mocked so tests control the data.
+
+const mockListarInativosHandler = jest.fn();
+const mockDetectarInativosHandler = jest.fn();
+const mockReativarPacienteHandler = jest.fn();
+
+jest.mock('@/modules/followup/actions', () => {
+  const actual = jest.requireActual('@/modules/followup/actions') as typeof import('@/modules/followup/actions');
+  return {
+    ...actual,
+    detectarInativos: { ...actual.detectarInativos, handler: mockDetectarInativosHandler },
+    listarInativos: { ...actual.listarInativos, handler: mockListarInativosHandler },
+    reativarPaciente: { ...actual.reativarPaciente, handler: mockReativarPacienteHandler },
+  };
+});
 
 // ── Imports after mocks ────────────────────────
 
@@ -77,7 +91,10 @@ describe('GET /api/patients/inactive', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFindInactiveByClinic.mockReset();
+    // Default: handlers succeed with empty results
+    mockListarInativosHandler.mockResolvedValue({ patients: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } });
+    mockDetectarInativosHandler.mockResolvedValue({ processed: 1 });
+    mockReativarPacienteHandler.mockResolvedValue({ success: true });
   });
 
   describe('auth guard', () => {
@@ -108,28 +125,27 @@ describe('GET /api/patients/inactive', () => {
   });
 
   describe('data sanitization', () => {
-    const mockPatient = (overrides: Record<string, unknown> = {}) => ({
-      id: 'patient-001',
+    // InactivePatient shape returned by listarInativos action handler
+    const mockInactivePatient = (overrides: Record<string, unknown> = {}) => ({
+      patientId: 'patient-001',
+      patientName: 'João Silva',
+      patientPhone: '11999990001',
+      lastVisit: new Date('2026-01-15'),
+      daysSinceLastVisit: 159,
+      inactivitySegment: 'inactive_90',
       clinicId: 'test-clinic-id',
-      name: 'João Silva',
-      phone: '11999990001',
-      email: 'joao@email.com',
-      cpf: null,
-      birthDate: null,
-      gender: null,
-      notes: null,
-      tags: [] as string[],
-      riskScore: null,
-      lastVisitAt: new Date('2026-01-15'),
-      createdAt: new Date('2025-01-01'),
-      updatedAt: new Date('2025-01-01'),
+      clinicName: '',
+      totalVisits: 3,
+      lastProcedure: 'Limpeza',
+      riskScore: 0.75,
       ...overrides,
     });
 
     it('returns patients with valid names', async () => {
-      mockFindInactiveByClinic.mockResolvedValueOnce([
-        mockPatient({ name: 'João Silva' }),
-      ]);
+      mockListarInativosHandler.mockResolvedValueOnce({
+        patients: [mockInactivePatient({ patientName: 'João Silva' })],
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      });
 
       const req = makeReq('/api/patients/inactive?min_days=30');
       const res = await GET(req);
@@ -140,9 +156,10 @@ describe('GET /api/patients/inactive', () => {
     });
 
     it('sanitizes null patient name to fallback string', async () => {
-      mockFindInactiveByClinic.mockResolvedValueOnce([
-        mockPatient({ name: null }),
-      ]);
+      mockListarInativosHandler.mockResolvedValueOnce({
+        patients: [mockInactivePatient({ patientName: null as unknown as string })],
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      });
 
       const req = makeReq('/api/patients/inactive?min_days=30');
       const res = await GET(req);
@@ -156,9 +173,10 @@ describe('GET /api/patients/inactive', () => {
     });
 
     it('sanitizes undefined patient name to fallback string', async () => {
-      mockFindInactiveByClinic.mockResolvedValueOnce([
-        mockPatient({ name: undefined }),
-      ]);
+      mockListarInativosHandler.mockResolvedValueOnce({
+        patients: [mockInactivePatient({ patientName: undefined as unknown as string })],
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      });
 
       const req = makeReq('/api/patients/inactive?min_days=30');
       const res = await GET(req);
@@ -171,9 +189,10 @@ describe('GET /api/patients/inactive', () => {
     });
 
     it('sanitizes empty string name — still passes but safe', async () => {
-      mockFindInactiveByClinic.mockResolvedValueOnce([
-        mockPatient({ name: '' }),
-      ]);
+      mockListarInativosHandler.mockResolvedValueOnce({
+        patients: [mockInactivePatient({ patientName: '' })],
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      });
 
       const req = makeReq('/api/patients/inactive?min_days=30');
       const res = await GET(req);
@@ -185,10 +204,13 @@ describe('GET /api/patients/inactive', () => {
     });
 
     it('returns stats_only without patient list', async () => {
-      mockFindInactiveByClinic.mockResolvedValueOnce([
-        mockPatient({ name: 'Maria Souza' }),
-        mockPatient({ id: 'patient-002', name: 'Pedro Alves' }),
-      ]);
+      mockListarInativosHandler.mockResolvedValueOnce({
+        patients: [
+          mockInactivePatient({ patientName: 'Maria Souza' }),
+          mockInactivePatient({ patientId: 'patient-002', patientName: 'Pedro Alves' }),
+        ],
+        pagination: { page: 1, limit: 100, total: 2, totalPages: 1 },
+      });
 
       const req = makeReq('/api/patients/inactive?stats_only=true');
       const res = await GET(req);

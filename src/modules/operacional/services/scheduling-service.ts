@@ -8,6 +8,7 @@
 
 import { ActionError } from '@/core/actions/types';
 import * as repo from '../repositories/appointments-repository';
+import * as waitlistRepo from '../repositories/waitlist-repository';
 
 export interface AppointmentInput {
   clinicId: string;
@@ -66,6 +67,21 @@ export async function cancelarConsulta(input: { clinicId: string; id: string; re
   const row = await repo.setStatus(input.clinicId, input.id, 'cancelled', {
     cancellationReason: input.reason,
   });
+
+  // Check waitlist for the freed slot (same dentist or same procedure timeframe)
+  try {
+    const waitlist = await waitlistRepo.listWaitlist(input.clinicId);
+    const candidate = waitlist.find((w) =>
+      w.status === 'waiting' &&
+      (!existing.dentistId || w.dentistId === existing.dentistId)
+    );
+    if (candidate) {
+      // TODO: notify waitlist entry (e.g., send WhatsApp notification)
+      // For now, mark as cancelled with reason 'slot_freed'
+      await waitlistRepo.cancelWaitlistEntry(candidate.id, 'slot_freed');
+    }
+  } catch { /* waitlist processing is best-effort */ }
+
   return { id: row!.id };
 }
 

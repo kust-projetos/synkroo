@@ -391,6 +391,11 @@ export async function update(id: string, data: Record<string, unknown>) {
 	return row;
 }
 
+export async function updatePatientLastVisit(patientId: string, visitedAt: Date) {
+	const db = getDb();
+	await db.update(patients).set({ lastVisitAt: visitedAt }).where(eq(patients.id, patientId));
+}
+
 export async function remove(id: string) {
 	const db = getDb();
 	await db

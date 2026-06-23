@@ -14,6 +14,9 @@
  *   - Inputs: { id } not { appointmentId }
  *   - Output: { id } not { success }
  *   - Auth 401 test via mock buildUserContext
+ *
+ * Guard: skips all hooks/tests when RUN_INTEGRATION_TESTS is not set
+ *        (prevents DB connection attempts during `npm test` without flag).
  */
 
 /** @jest-environment node */
@@ -22,6 +25,9 @@ process.env.DATABASE_URL =
   'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
 import { Pool } from 'pg';
+
+// Skip entire suite when RUN_INTEGRATION_TESTS is not set — hooks run before describe.skip.
+const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 
 // Bootstrap actions (registers them)
 import '@/modules/operacional/actions';
@@ -80,6 +86,7 @@ function makeCtx(clinicId = CLINIC_ID) {
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 beforeAll(async () => {
+  if (SKIP) return;
   pool = await waitForSchemaReady();
 
   // Ensure clinic exists — delete first to handle cross-test pollution
@@ -111,7 +118,7 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (!pool) return;
+  if (SKIP || !pool) return;
   try {
     await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
     await pool.query(`DELETE FROM patients WHERE id = $1`, [PATIENT_ID]);
@@ -122,7 +129,7 @@ afterAll(async () => {
 });
 
 afterEach(async () => {
-  if (!pool) return;
+  if (SKIP || !pool) return;
   try {
     await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
   } catch { /* ignore */ }
@@ -130,7 +137,9 @@ afterEach(async () => {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('operacional scheduling actions (F3)', () => {
+const describeOrSkip = SKIP ? describe.skip : describe;
+
+describeOrSkip('operacional scheduling actions (F3)', () => {
   it('agendarConsulta: should create appointment and return id', async () => {
     const result = await runAction(agendarConsulta, {
       patientId: PATIENT_ID,
