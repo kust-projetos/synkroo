@@ -7,7 +7,7 @@
  *
  * All DB access delegated to conversations-repository; no direct getDb() usage.
  */
-import { sendWhatsAppMessage } from '@/services/whatsapp';
+import { sendWhatsAppMessage } from './channel-service';
 import { processConfirmationResponse, processWaitlistConfirmation } from '@/services/appointments/confirmation-handler.service';
 import { captureLeadFromWhatsApp } from '@/services/leads/leads.service';
 import { whatsappLogger } from '@/lib/logger';
