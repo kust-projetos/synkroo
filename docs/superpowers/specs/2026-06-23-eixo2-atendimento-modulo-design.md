@@ -18,7 +18,7 @@ O **Atendimento (E-01)** é o trilho conversacional **WhatsApp-first** da Onda 1
 
 ## 1. Princípio organizador — fases ordenadas (backend-first)
 
-Um único spec/plano, fases P1–P5, **backend-first** (mesma lógica de "fundação primeiro" do E-02): portar o backend compartilhado **uma vez, limpo**, e empilhar o resto. **Não há fase de schema** — o módulo já é dono de `conversations/messages/conversationStates/conversationSessions/conversationMemories`.
+Um único spec/plano, fases **P0–P5**, **backend-first** (mesma lógica de "fundação primeiro" do E-02): portar o backend compartilhado **uma vez, limpo**, e empilhar o resto. **Não há fase de schema** — o módulo já é dono de `conversations/messages/conversationStates/conversationSessions/conversationMemories`.
 
 | Fase | Conteúdo | Razão da posição |
 |---|---|---|
@@ -39,7 +39,7 @@ Um único spec/plano, fases P1–P5, **backend-first** (mesma lógica de "funda�
 | Actions (**20** exportadas) | ⚠️ reais, mas 9+ importam **legado** direto | `index.ts` exporta 20 actions; `enviar-mensagem.ts:6`, `receber-mensagem.ts:5`, `agendar-mensagem.ts:6`, `responder-instagram.ts:11`, `obter-modelo-mensagem.ts:4-5`, `obter-qrcode.ts:4`, `status-evolution.ts:4,19` (inclui `getDb()`), `processar-webhook-*` (dynamic import de `@/repositories/conversations`) |
 | `conversations-repository` do módulo | ❌ **é ele mesmo um adapter do legado** | `conversations-repository.ts:12` → `import * as repo from '@/repositories/conversations'`. P1 **não está começado** de fato |
 | Services do módulo (`send-message`, `webhook-processor`) | ⚠️ ainda importam legado | `send-message-service.ts:11`, `webhook-processor-service.ts:11` |
-| Rotas — gated (9) | ✅ adapters gated | conversations, conversations/[id], messages/send, messages/history/[id], messages/whatsapp, whatsapp/send, whatsapp/qrcode, whatsapp/templates |
+| Rotas — gated (8) | ✅ adapters gated | conversations, conversations/[id], messages/send, messages/history/[id], messages/whatsapp, whatsapp/send, whatsapp/qrcode, whatsapp/templates |
 | Rotas — **ungated (5)** | ❌ sem `withModuleRoute` | `whatsapp/webhook`, `instagram/webhook`, `whatsapp/evolution`, `messages/inbound`, `widget/messages` |
 | `whatsapp/evolution` | ❌ **POST público sem auth** | `whatsapp/evolution/route.ts:8` — sem gate, sem WEBHOOK_SECRET, sem assinatura; chama Evolution service direto |
 | `messages/inbound`/`widget/messages` | ⚠️ system ctx com `hasModule:()=>true` | `route-adapter.ts:48-66` — bypass de entitlement (sem `withModuleRoute`) |
@@ -82,16 +82,17 @@ DoD do P0: as 5 ungated passam a gated; nenhuma rota do bounded context sem `wit
 
 ### 3.2. Consumidores cross-module do canal (P5 — bloqueante para remoção do legado)
 
-`@/services/whatsapp` **não é só do Atendimento** — é usado para **envio** por:
-- `modules/operacional/services/reminders-service.ts:10` → `sendWhatsAppMessage`
-- `services/reminders/procedure-reminder-config.service.ts:11` → `fillTemplate`
+`@/services/whatsapp` **não é só do Atendimento** — tem **dois usos distintos** fora do módulo:
+- **Envio:** `modules/operacional/services/reminders-service.ts:10` → `sendWhatsAppMessage`.
+- **Template (puro, não envia):** `services/reminders/procedure-reminder-config.service.ts:11,202-203` → `fillTemplate`.
 
-**Decisão:** o envio de mensagem é capacidade do **Atendimento**. Esses consumidores devem enviar **via a Action `atendimento.enviarMensagem`** (cross-module pela Action Layer, padrão §5), **não** importando um service de canal. Enquanto não migrados, `services/whatsapp/*` **não pode ser removido** (P5). Sequência segura:
-1. Expor o envio como Action consumível (`enviarMensagem` já existe).
-2. Migrar `reminders-service`/`procedure-reminder-config` para chamar a Action (ou um service do módulo Atendimento exposto pelo índice público, se Action for inviável no contexto de cron).
-3. Só então remover `services/whatsapp/*`.
+**Decisão (split por tipo de uso):**
+- **Envio** é capacidade do Atendimento → `reminders-service` migra para enviar **via a Action `atendimento.enviarMensagem`** (cross-module pela Action Layer, padrão §5), não importando service de canal.
+- **Template** é preenchimento puro de string → expor um `templates-service` do módulo com um **helper puro** (`fillTemplate`) reutilizável; `procedure-reminder-config` passa a importá-lo do índice público do Atendimento (ou de um util compartilhado em `lib` se for de fato genérico). **Não** forçar `fillTemplate` por dentro de uma Action (não há envio).
 
-`dashboard/stats` (E-08) usa `convRepo.countByClinic(clinicId, { status })` (`stats/route.ts:74-75`) — substituição concreta: um `countByClinic` no `conversations-repository` do módulo exposto pelo índice, **ou** uma contagem direta via `@/lib/db/schema` (agregador central). Não basta "reapontar" genérico — o plano lista a query substituta.
+Enquanto esses dois não migrarem, `services/whatsapp/*` **não pode ser removido** (P5). Sequência segura: (1) `enviarMensagem` (já existe) + `templates-service` público; (2) migrar `reminders-service`→Action e `procedure-reminder-config`→helper de template; (3) só então remover `services/whatsapp/*`.
+
+`dashboard/stats` (E-08) usa `convRepo.countByClinic(clinicId, { status })` (`stats/route.ts:74-75`) — substituição **única e concreta**: uma contagem direta `select count() ... where clinicId AND status` via **`@/lib/db/schema`** (agregador central; `lib` allow-by-default — evita import module→module do seam interno do Atendimento). Não basta "reapontar" genérico — o plano escreve a query substituta para os dois `countByClinic` (status `active` e `waiting`).
 
 ---
 
@@ -99,7 +100,7 @@ DoD do P0: as 5 ungated passam a gated; nenhuma rota do bounded context sem `wit
 
 ```
 src/modules/atendimento/
-├── actions/         # 22 actions — PARAM de importar @/repositories/conversations e @/services/whatsapp;
+├── actions/         # 20 actions — PARAM de importar @/repositories/conversations e @/services/whatsapp;
 │                    #   passam a delegar a repositories/ e services/ do módulo
 ├── repositories/
 │   └── conversations-repository.ts   # RECEBE as queries portadas de repositories/conversations
@@ -129,7 +130,8 @@ app (route/webhook) → runAtendimento(System)Action → runAction → service (
 ### P1 — Repository
 - Portar as queries de `repositories/conversations/index.ts` (446 LOC) para `conversations-repository.ts` do módulo: localizar/criar/atualizar conversa (`findById`, `findByIdWithJoins`, `findByExternalId`), append de mensagem, vínculo com paciente, listagem por clínica.
 - Cada action troca `import * as legacyRepo from '@/repositories/conversations'` (estático **e** os `await import('@/repositories/conversations')` dinâmicos em `processar-webhook-*`) por `import * as repo from '../repositories/conversations-repository'`.
-- **Sem `getDb()` em actions** (regra do template); queries vivem no repository.
+- **`webhook-processor-service` usa `getDb()` direto** (`webhook-processor-service.ts:18,44,273`) — extrair essas queries para o `conversations-repository`; o service passa a delegar. Idem para qualquer outro service do módulo com `getDb()`.
+- **Sem `getDb()` em actions** (regra do template); queries vivem no repository. Services delegam ao repository (não acessam `getDb()` direto — padrão do E-02).
 - `dashboard/stats` (E-08) permanece — se referenciar tabelas, aponta a `@/lib/db/schema` (agregador central, `lib` allow-by-default), **não** ao repository/seam interno do módulo (lição da revisão do E-02: import cross-module só pelo agregador central).
 
 ### P2 — Channel services
@@ -144,7 +146,7 @@ app (route/webhook) → runAtendimento(System)Action → runAction → service (
 - `withModuleRoute('atendimento', moduleManifest)` nas **5 rotas ungated** (§3.1): `whatsapp/webhook`, `instagram/webhook`, `whatsapp/evolution`, `messages/inbound`, `widget/messages`. Retorna **404** quando o módulo não está contratado.
 - **`whatsapp/evolution` ganha auth** — hoje é POST público sem verificação (`route.ts:8`). Adicionar `WEBHOOK_SECRET`+`timingSafeEqual` ou a assinatura do provedor Evolution antes de processar. **Blocker de segurança** (superfície pública sensível, risco LGPD/spam).
 - **Ordem:** gate de módulo **antes** do processamento; a **verificação de assinatura é preservada intacta** — Meta HMAC `x-hub-signature-256` (whatsapp/instagram), `WEBHOOK_SECRET` + `timingSafeEqual` (messages/inbound). Nunca afrouxar.
-- **Handshake GET** (`hub.verify_token` → `hub.challenge`) continua funcionando quando o módulo está ativo; com módulo desativado, 404 é o comportamento correto (sem canal, sem webhook).
+- **Handshake GET** (`hub.verify_token` → `hub.challenge`) **fica na própria rota** (verificação do token + retorno do `challenge` como **texto cru**), apenas embrulhado por `withModuleRoute` — **não** roteado via `runAtendimentoSystemAction` (que devolve JSON e quebraria o eco do challenge que o Meta espera). Com módulo ativo, o challenge passa; com módulo off, 404 é o correto (sem canal, sem webhook).
 - **Política de resposta:** webhooks retornam **200 mesmo em no-op** (assinatura válida porém evento ignorável/**duplicado** — ver idempotência §9) para evitar retry-storm do Meta; assinatura **inválida/ausente** retorna 403; payload malformado loga e retorna 200. Erros internos → 500 sem dados.
 - **Migração segura (produção):** webhooks são superfície externa viva. A troca de cada rota deve ser reversível — `git revert` por commit isolado por rota, logs de antes/depois do processamento, e validação do handshake GET + de uma mensagem real de teste após cada troca. Se houver feature-flag/instância de staging, fazer canary antes de produção. **Não** trocar as 5 num único commit.
 - Cobertura: **toda** rota do bounded context (matriz §3.1) gated por `withModuleRoute`.
@@ -194,7 +196,7 @@ Permissões (`permissions.ts`): `atendimento:view`, `atendimento:manage_messages
 - [ ] **P2** `evolution/channel/templates` services no módulo; **nenhuma action nem service do módulo** (`send-message`, `webhook-processor`) importa `@/services/whatsapp`; env Evolution via `@/lib/env`, sem hardcode.
 - [ ] **P3** `withModuleRoute` nas 5 ungated + assinatura preservada + `whatsapp/evolution` autenticado; handshake GET funciona; política 200-no-op; troca por-rota reversível (commits isolados, logs, validação pós-troca).
 - [ ] **P4** testes por-rota (disabled→404, assinatura inválida→403, duplicado→200 ignored) + integração (inbound→conversa→envio, canal, escala) + guard de registry; LLM/Evolution mockados na borda.
-- [ ] **P5** consumidores cross-module (`operacional/reminders`, `procedure-reminder-config`) migrados para enviar via Action; `dashboard/stats` com substituição concreta (`countByClinic` ou contagem via `@/lib/db/schema`); **só então** `services/whatsapp/*` e `repositories/conversations` removidos; nenhum import legado restante (incl. fora do módulo).
+- [ ] **P5** consumidores cross-module migrados: `operacional/reminders` → Action `enviarMensagem`; `procedure-reminder-config` → `templates-service` helper puro; `dashboard/stats` → contagem via `@/lib/db/schema`; **só então** `services/whatsapp/*` e `repositories/conversations` removidos; nenhum import legado restante (incl. fora do módulo).
 - [ ] `typecheck` 0; `lint` 0 (isolado); unit + integração verdes; `db:generate` limpo; agente lista as actions de atendimento via `agentToolsFor`.
 - [ ] **Sem bypass:** nenhuma rota do bounded context com `getDb()`/`@/repositories/conversations`/`@/services/whatsapp` direto; toda escrita por `runAction`.
 
