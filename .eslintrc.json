@@ -47,12 +47,6 @@
       }
     },
     {
-      "files": ["src/modules/operacional/services/reminders-service.ts", "src/services/reminders/procedure-reminder-config.service.ts", "src/services/leads/lead-notification.service.ts", "src/repositories/memory/index.ts", "src/app/api/budgets/[id]/send/route.ts"],
-      "rules": {
-        "boundaries/dependencies": "off"
-      }
-    },
-    {
       "files": ["src/components/**/*.tsx", "src/app/**/page.tsx", "src/app/**/*.client.tsx"],
       "rules": {
         "no-restricted-imports": ["error", {
