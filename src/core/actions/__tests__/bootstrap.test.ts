@@ -80,3 +80,55 @@ it('is idempotent for both core and operacional', async () => {
   const count2 = getActions().length;
   expect(count2).toBe(count1);
 });
+
+// ─── Atendimento module registry guard (P4) ───────────────────────────────────
+
+it('registers all 20 atendimento actions discovered via getActions()', async () => {
+  await bootstrapActions();
+  const names = getActions().map((a) => a.name);
+
+  const atendimentoActions = [
+    'atendimento.iniciarConversa',
+    'atendimento.listarConversas',
+    'atendimento.obterConversa',
+    'atendimento.arquivarConversa',
+    'atendimento.escalarConversa',
+    'atendimento.receberMensagem',
+    'atendimento.classificarIntencao',
+    'atendimento.extrairEntidades',
+    'atendimento.historicoMensagens',
+    'atendimento.enviarMensagem',
+    'atendimento.agendarMensagem',
+    'atendimento.obterModeloMensagem',
+    'atendimento.verificarWebhook',
+    'atendimento.processarWebhookWhatsApp',
+    'atendimento.statusEvolution',
+    'atendimento.verificarWebhookInstagram',
+    'atendimento.processarWebhookInstagram',
+    'atendimento.responderInstagram',
+    'atendimento.receberWidgetMensagem',
+    'atendimento.obterQRCode',
+  ];
+
+  for (const name of atendimentoActions) {
+    expect(names).toContain(name);
+  }
+
+  // Exact count guard — flags regressions if actions are added/removed silently
+  const atendimentoCount = names.filter((n) => n.startsWith('atendimento.')).length;
+  expect(atendimentoCount).toBe(20);
+});
+
+it('all atendimento actions are retrievable via getAction()', async () => {
+  await bootstrapActions();
+  const { getAction } = await import('../registry');
+
+  expect(getAction('atendimento.receberMensagem')).toBeDefined();
+  expect(getAction('atendimento.enviarMensagem')).toBeDefined();
+  expect(getAction('atendimento.escalarConversa')).toBeDefined();
+  expect(getAction('atendimento.iniciarConversa')).toBeDefined();
+  expect(getAction('atendimento.statusEvolution')).toBeDefined();
+  expect(getAction('atendimento.obterQRCode')).toBeDefined();
+  expect(getAction('atendimento.classificarIntencao')).toBeDefined();
+  expect(getAction('atendimento.extrairEntidades')).toBeDefined();
+});
