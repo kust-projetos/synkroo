@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { processInstagramEntry } from '@/modules/atendimento/services/webhook-processor-service';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
 
 const VERIFY_TOKEN = process.env.INSTAGRAM_VERIFY_TOKEN;
 
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   const sp = request.nextUrl.searchParams;
   const mode = sp.get('hub.mode');
   const token = sp.get('hub.verify_token');
@@ -16,7 +18,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ error: 'Verification failed' }, { status: 403 });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'ig-webhook' });
   if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
@@ -45,3 +47,6 @@ export async function POST(request: NextRequest) {
     ai_enabled: false, reason: 'legacy_agent_removed', todo: 'TODO(W5.3): reconnect to new agent',
   });
 }
+
+export const GET = withModuleRoute('atendimento', moduleManifest)(handleGET);
+export const POST = withModuleRoute('atendimento', moduleManifest)(handlePOST);
