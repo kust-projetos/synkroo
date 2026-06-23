@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { getWhatsAppService } from '@/services/whatsapp';
+import { getWhatsAppService } from '../services/channel-service';
 
 export const obterQRCode = defineAction({
   name: 'atendimento.obterQRCode',
