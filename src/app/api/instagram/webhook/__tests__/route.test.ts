@@ -5,6 +5,10 @@
 import { NextRequest } from 'next/server'
 import { POST, GET } from '@/app/api/instagram/webhook/route'
 
+jest.mock('@/core/modules/manifest', () => ({
+  moduleManifest: { isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() },
+}))
+
 // Mock rate-limit to always allow
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn(() => ({

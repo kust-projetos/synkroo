@@ -21,6 +21,10 @@ jest.mock('@/lib/logger', () => ({
   whatsappLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
+jest.mock('@/core/modules/manifest', () => ({
+  moduleManifest: { isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() },
+}))
+
 // Mock getDb for Drizzle — proper chain simulation
 jest.mock('@/lib/db/client', () => {
   // Build mock chains that properly simulate Drizzle query builder

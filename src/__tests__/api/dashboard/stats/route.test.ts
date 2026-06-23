@@ -59,9 +59,10 @@ jest.mock('@/repositories/campaigns', () => ({
   ]),
 }))
 
-jest.mock('@/repositories/conversations', () => ({
-  countByClinic: jest.fn().mockResolvedValue(5),
-}))
+jest.mock('@/lib/db/schema', () => {
+  const actual = jest.requireActual('@/lib/db/schema');
+  return actual;
+});
 
 jest.mock('@/services/followup/inactive-patient.service', () => ({
   getInactivityStats: jest.fn().mockResolvedValue({

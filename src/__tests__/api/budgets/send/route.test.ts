@@ -1,6 +1,8 @@
 jest.mock('@/lib/auth/session',()=>({validateApiAuth:jest.fn()}))
 jest.mock('@/services/budgets/budget.service',()=>({getBudgetById:jest.fn(),markBudgetSent:jest.fn()}))
-jest.mock('@/services/whatsapp',()=>({sendWhatsAppMessage:jest.fn()}))
+jest.mock('@/modules/atendimento', () => ({
+  sendWhatsAppMessage: jest.fn(),
+}))
 jest.mock('@/lib/errors',()=>{const c=class extends Error{status:number;constructor(m:string,s=400){super(m);this.status=s}};return{handleApiError:jest.fn((e:any)=>({status:500,json:async()=>({error:e?.message||'err'})}) as any)}})
 import{POST}from'@/app/api/budgets/[id]/send/route'
 import{validateApiAuth}from'@/lib/auth/session'

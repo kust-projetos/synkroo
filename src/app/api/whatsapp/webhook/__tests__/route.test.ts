@@ -20,6 +20,10 @@ jest.mock('@/lib/logger', () => ({
   whatsappLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
+jest.mock('@/core/modules/manifest', () => ({
+  moduleManifest: { isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() },
+}))
+
 // Mock getDb for Drizzle — proper chain simulation
 jest.mock('@/lib/db/client', () => {
   const mockConversations = [
@@ -68,6 +72,19 @@ jest.mock('@/lib/db/client', () => {
 jest.mock('@/services/appointments/confirmation-handler.service', () => ({
   processConfirmationResponse: jest.fn().mockResolvedValue({ processed: false, responseMessage: null }),
   processWaitlistConfirmation: jest.fn().mockResolvedValue({ processed: false, responseMessage: null }),
+}))
+
+jest.mock('@/modules/atendimento/repositories/conversations-repository', () => ({
+  getClinicByPhoneNumber: jest.fn().mockResolvedValue('clinic-123'),
+  getClinicByInstance: jest.fn().mockResolvedValue('clinic-123'),
+  findOrCreateConversation: jest.fn().mockResolvedValue({ id: 'conv-123', clinicId: 'clinic-123' }),
+  appendInboundMessageDeduped: jest.fn().mockResolvedValue({ deduped: false, id: 'msg-123' }),
+  updateConversationTimestamp: jest.fn().mockResolvedValue(undefined),
+  appendOutboundMessage: jest.fn().mockResolvedValue({ id: 'msg-out-123' }),
+  findAppointmentById: jest.fn().mockResolvedValue([{ id: 'appt-1' }]),
+  updateAppointmentStatus: jest.fn().mockResolvedValue(undefined),
+  getClinicByInstagramAccountId: jest.fn().mockResolvedValue(null),
+  messageExistsById: jest.fn().mockResolvedValue(false),
 }))
 
 jest.mock('@/lib/rate-limit', () => ({
