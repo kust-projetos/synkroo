@@ -5,7 +5,7 @@
  */
 
 import { dbLogger, createLogger } from "@/lib/logger";
-import { sendWhatsAppMessage } from "@/services/whatsapp";
+import { sendWhatsAppMessage } from "@/modules/atendimento";
 import { getHotLeads, type Lead } from "./leads.service";
 import * as leadRepo from "@/repositories/leads";
 
