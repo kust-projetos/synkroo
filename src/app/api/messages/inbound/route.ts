@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { runAtendimentoSystemAction } from '@/modules/atendimento/ui/route-adapter';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
 
 function verifyWebhookSecret(request: NextRequest): boolean {
   const webhookSecret = process.env.WEBHOOK_SECRET;
@@ -18,7 +20,7 @@ function verifyWebhookSecret(request: NextRequest): boolean {
   return true;
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'msg-inbound' });
   if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
@@ -35,3 +37,5 @@ export async function POST(request: NextRequest) {
     clinicId, from, message, channel: channel ?? 'web', metadata,
   }, clinicId, { okStatus: 201 });
 }
+
+export const POST = withModuleRoute('atendimento', moduleManifest)(handlePOST);
