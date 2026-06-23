@@ -25,7 +25,7 @@ export const processarWebhookInstagram = defineAction({
   handler: async (input, ctx: ActionContext) => {
     // If a conversationId is provided, verify it belongs to the clinic
     if (input.conversationId) {
-      const { findById } = await import('@/repositories/conversations');
+      const { findById } = await import('../repositories/conversations-repository');
       const conv = await findById(input.conversationId);
       if (!conv || conv.clinicId !== input.clinicId) {
         return { success: false, error: 'Conversa não encontrada ou acesso negado.' };

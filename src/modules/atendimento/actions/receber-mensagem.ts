@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import * as repo from '../repositories/conversations-repository';
-import * as legacyRepo from '@/repositories/conversations';
 
 export const receberMensagem = defineAction({
   name: 'atendimento.receberMensagem',
@@ -18,18 +17,18 @@ export const receberMensagem = defineAction({
   }),
   handler: async (input, ctx: ActionContext) => {
     const clinicId = input.clinicId ?? ctx.clinicId;
-    const conversationId = await legacyRepo.getOrCreateConversation(
+    const conversationId = await repo.getOrCreateConversation(
       clinicId,
       input.channel,
       input.from,
     );
-    const message = await legacyRepo.createMessage({
+    const message = await repo.createMessage({
       conversationId,
       direction: 'inbound',
       content: input.message,
       metadata: input.metadata,
     });
-    await legacyRepo.updateConversation(conversationId, {
+    await repo.updateConversation(conversationId, {
       lastMessageAt: new Date(),
       messageCountIncrement: 1,
     });
