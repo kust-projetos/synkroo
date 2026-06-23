@@ -1,14 +1,13 @@
 /**
- * Atendimento — send message service.
+ * Atendimento — send message service (P2 — delegates to module channel service).
  *
- * Dispatches outbound messages by channel.
- * WhatsApp → Evolution API
- * Instagram → Graph API (stub — full implementation depends on W5 agent)
- * Web → unsupported (widget is receive-only)
+ * Thin re-export layer. All channel logic lives in channel-service.ts.
+ * Kept for backward compatibility with actions that already import from here
+ * (enviar-mensagem, responder-instagram).
  */
 
 import { dbLogger } from '@/lib/logger';
-import { getEvolutionService } from '@/services/whatsapp';
+import { getEvolutionService } from './evolution-service';
 
 export interface SendResult {
   success: boolean;
@@ -30,8 +29,6 @@ export async function sendWhatsApp(to: string, text: string): Promise<SendResult
 }
 
 export async function sendInstagram(_to: string, _text: string): Promise<SendResult> {
-  // Instagram DM sending via Graph API — deferred to W5 agent.
-  // Return success=false gracefully so pipeline doesn't break.
   dbLogger.warn('send-message-service: instagram send not implemented');
   return { success: false, error: 'Instagram outbound not yet implemented' };
 }

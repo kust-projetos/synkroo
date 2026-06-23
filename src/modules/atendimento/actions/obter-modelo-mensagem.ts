@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { getApprovedTemplates } from '@/services/whatsapp/message-templates.service';
+import { getApprovedTemplates } from '../services/templates-service';
 import * as repo from '../repositories/conversations-repository';
 
 export const obterModeloMensagem = defineAction({

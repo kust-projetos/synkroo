@@ -1,10 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { getEvolutionService } from '@/services/whatsapp';
-import { eq } from 'drizzle-orm';
-import { getDb } from '@/lib/db/client';
-import { whatsappInstances } from '@/lib/db/schema';
+import { getEvolutionService, getInstanceInfo } from '../services/evolution-service';
 
 export const statusEvolution = defineAction({
   name: 'atendimento.statusEvolution',
@@ -14,19 +11,7 @@ export const statusEvolution = defineAction({
   input: z.object({}).optional(),
   handler: async (_input, ctx: ActionContext) => {
     const evolution = getEvolutionService();
-
-    // Fetch instance info from DB
-    const db = getDb();
-    const instances = await db
-      .select({
-        instanceName: whatsappInstances.evolutionInstanceName,
-        status: whatsappInstances.status,
-        lastConnectedAt: whatsappInstances.lastConnectedAt,
-        createdAt: whatsappInstances.createdAt,
-      })
-      .from(whatsappInstances)
-      .where(eq(whatsappInstances.clinicId, ctx.clinicId))
-      .limit(1);
+    const instances = await getInstanceInfo(ctx.clinicId);
 
     return {
       evolutionAvailable: evolution !== null,
