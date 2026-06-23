@@ -95,7 +95,7 @@ export async function storeMessageWithEmbedding(data: {
   const db = getDb()
   try {
     // Get conversation to find clinicId
-    const { findById } = await import('@/repositories/conversations')
+    const { findById } = await import('@/modules/atendimento')
     const conversation = await findById(data.conversationId)
     if (!conversation) {
       dbLogger.warn('Conversation not found for memory store', { conversationId: data.conversationId })
@@ -133,7 +133,7 @@ export async function storeSummary(
 ): Promise<string | null> {
   const db = getDb()
   try {
-    const { findById } = await import('@/repositories/conversations')
+    const { findById } = await import('@/modules/atendimento')
     const conversation = await findById(conversationId)
     if (!conversation) {
       dbLogger.warn('Conversation not found for summary store', { conversationId })

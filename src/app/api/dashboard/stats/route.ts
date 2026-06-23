@@ -4,10 +4,9 @@ import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { dbLogger } from '@/lib/logger'
 import { getDb } from '@/lib/db/client'
-import { patients as patientsTable } from '@/lib/db/schema'
+import { patients as patientsTable, conversations } from '@/lib/db/schema'
 import * as apptRepo from '@/repositories/appointments'
 import * as campRepo from '@/repositories/campaigns'
-import * as convRepo from '@/repositories/conversations'
 import { getInactivityStats } from '@/services/followup/inactive-patient.service'
 
 /**
@@ -71,8 +70,14 @@ export async function GET(request: NextRequest) {
 
       // 5. Open conversations (active + waiting)
       Promise.all([
-        convRepo.countByClinic(clinicId, { status: 'active' }),
-        convRepo.countByClinic(clinicId, { status: 'waiting' }),
+        db.select({ count: sql<number>`count(*)::int` })
+          .from(conversations)
+          .where(and(eq(conversations.clinicId, clinicId), eq(conversations.status, 'active')))
+          .then(([r]) => r?.count ?? 0),
+        db.select({ count: sql<number>`count(*)::int` })
+          .from(conversations)
+          .where(and(eq(conversations.clinicId, clinicId), eq(conversations.status, 'waiting')))
+          .then(([r]) => r?.count ?? 0),
       ]).then(([a, w]) => (a ?? 0) + (w ?? 0)).catch((err) => {
         dbLogger.error('Dashboard stats: conversations failed', { error: String(err) })
         return 0
