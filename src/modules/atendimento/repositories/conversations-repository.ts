@@ -632,3 +632,51 @@ export async function messageExistsById(messageId: string): Promise<boolean> {
     .limit(1);
   return existing.length > 0;
 }
+
+/** Check if a message with the given externalMessageId already exists in the conversation. */
+export async function messageExistsByExternalId(conversationId: string, externalMessageId: string): Promise<boolean> {
+  const db = getDb();
+  const [row] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(
+      eq(messages.conversationId, conversationId),
+      sql`${messages.metadata}->>'externalMessageId' = ${externalMessageId}`,
+    ))
+    .limit(1);
+  return !!row;
+}
+
+/**
+ * Append an inbound message with dedup by externalMessageId.
+ * If externalMessageId is provided and already exists in this conversation,
+ * returns { deduped: true }. Otherwise persists and returns { deduped: false, id }.
+ *
+ * Limitation: read-then-write (not atomic). For strong guarantees
+ * under concurrency, an external_message_id column + unique index would be needed.
+ * The Meta retry pattern is mostly sequential, so this covers the common case.
+ */
+export async function appendInboundMessageDeduped(data: {
+  conversationId: string;
+  content: string;
+  externalMessageId?: string;
+  messageType?: string;
+  metadata?: Record<string, unknown>;
+}): Promise<{ deduped: true } | { deduped: false; id: string }> {
+  if (data.externalMessageId && await messageExistsByExternalId(data.conversationId, data.externalMessageId)) {
+    return { deduped: true };
+  }
+  const meta = {
+    ...(data.metadata ?? {}),
+    ...(data.externalMessageId ? { externalMessageId: data.externalMessageId } : {}),
+  };
+  const msg = await createMessage({
+    conversationId: data.conversationId,
+    direction: 'inbound',
+    content: data.content,
+    messageType: data.messageType ?? 'text',
+    metadata: meta,
+    isAi: false,
+  });
+  return { deduped: false, id: msg.id };
+}
