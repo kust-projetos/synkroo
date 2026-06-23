@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
-import * as legacyRepo from '@/repositories/conversations';
+import * as repo from '../repositories/conversations-repository';
 
 const INSTAGRAM_ACCESS_TOKEN = process.env.INSTAGRAM_ACCESS_TOKEN || '';
 const INSTAGRAM_ACCOUNT_ID = process.env.INSTAGRAM_ACCOUNT_ID || '';
@@ -47,7 +47,7 @@ export const responderInstagram = defineAction({
     accountId: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    const conv = await legacyRepo.findById(input.conversationId);
+    const conv = await repo.findById(input.conversationId);
     if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
     if (conv.clinicId !== ctx.clinicId) throw new ActionError('forbidden', 'Acesso negado.');
 
@@ -58,12 +58,12 @@ export const responderInstagram = defineAction({
     if (!sent) throw new ActionError('internal', 'Falha ao enviar DM Instagram.');
 
     // Store outbound message
-    const message = await legacyRepo.createMessage({
+    const message = await repo.createMessage({
       conversationId: input.conversationId,
       direction: 'outbound',
       content: input.message,
     });
-    await legacyRepo.updateConversation(input.conversationId, {
+    await repo.updateConversation(input.conversationId, {
       lastMessageAt: new Date(),
       messageCountIncrement: 1,
     });
