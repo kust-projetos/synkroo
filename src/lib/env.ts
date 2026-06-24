@@ -47,6 +47,11 @@ const envSchema = z.object({
   // Cron
   CRON_SECRET: z.string().min(1).optional(),
 
+  // OpenCode Zen (IA Agent)
+  OPENCODE_ZEN_API_KEY: z.string().min(1).optional(),
+  IA_LLM_MODEL: z.string().min(1).optional(),
+  IA_LLM_BASE_URL: z.string().url().optional(),
+
   // Development mocks (client-side flag — NEXT_PUBLIC_ is exposed to browser)
   NEXT_PUBLIC_USE_MOCKS: z.string().optional(),
 })
@@ -88,6 +93,9 @@ export function getEnv(): Env {
     HUGGINGFACE_API_KEY: process.env.HUGGINGFACE_API_KEY,
     OLLAMA_HOST: process.env.OLLAMA_HOST,
     CRON_SECRET: process.env.CRON_SECRET,
+    OPENCODE_ZEN_API_KEY: process.env.OPENCODE_ZEN_API_KEY,
+    IA_LLM_MODEL: process.env.IA_LLM_MODEL,
+    IA_LLM_BASE_URL: process.env.IA_LLM_BASE_URL,
     NEXT_PUBLIC_USE_MOCKS: process.env.NEXT_PUBLIC_USE_MOCKS,
   })
 
