@@ -9,4 +9,4 @@
  */
 
 export { campaigns, campaignRecipients } from '@/lib/db/schema/crm';
-export { patientFeedback } from '@/modules/operacional/schema';
+export { patientFeedback } from '@/lib/db/schema';
