@@ -7,7 +7,7 @@
 
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { patients } from '@/modules/operacional/schema';
+import { patients } from '@/lib/db/schema';
 import * as legacy from '@/services/followup/inactive-patient.service';
 import type { InactivePatient } from '@/services/followup/inactive-patient.service';
 
