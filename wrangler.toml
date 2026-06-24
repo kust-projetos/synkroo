@@ -33,21 +33,7 @@ index_name = "synkroo-embeddings"
 binding = "SYNKROO_CACHE"
 id = "8f2a4d355686427585f665688d1cc082"
 
-# ── Durable Objects ────────────────────────────────────
-[[durable_objects]]
-bindings = [
-  { name = "IA_AGENT", class_name = "AgentOrchestrator" }
-]
-
-[[migrations]]
-tag = "v2"
-new_sqlite_classes = ["AgentOrchestrator"]
-
 # ── Environment vars ──────────────────────────────────
 
 [vars]
 NODE_ENV = "production"
-# OpenCode Zen (IA Agent)
-# OPENCODE_ZEN_API_KEY = ""     # configurar no dashboard ou wrangler secret
-# IA_LLM_MODEL = "opencode/gpt-4o-mini"
-# IA_LLM_BASE_URL = "https://opencode.ai/zen/v1"
