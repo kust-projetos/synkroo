@@ -1,17 +1,16 @@
 /**
  * Inactive Patients API Route Test Suite
  *
- * F4c migrated: route delegates to followup.listarInativos action handler
- * (service layer / Drizzle), no longer uses @/repositories/patients.
- *
- * Covers:
+ * F8a updated: route uses withModuleRoute + buildUserContext + runAction.
+ * Tests:
  * 1. GET /api/patients/inactive — returns processed patients
  * 2. GET /api/patients/inactive — sanitizes null/undefined patient names
- * 3. Auth guard — rejects unauthenticated requests
- * 4. Role guard — rejects insufficient role
+ * 3. Auth guard — 401 when buildUserContext throws 'unauthenticated'
+ * 4. Auth guard — 403 when runAction returns forbidden
+ * 5. stats_only — returns stats without patient list
  */
 
-// ── Mocks ──────────────────────────────────────
+// ── Mocks ──────────────────────────────────────────────────────────────────────
 
 const mockDb = {
   select: jest.fn().mockReturnThis(),
@@ -31,31 +30,23 @@ jest.mock('@/lib/db/client', () => ({
   getDb: jest.fn(() => mockDb),
 }));
 
-const mockProfile = {
-  id: 'test-user-id',
-  email: 'test@example.com',
-  name: 'Test User',
-  role: 'owner' as const,
-  phone: null,
-  avatarUrl: null,
-  isActive: true,
-  clinic_id: 'test-clinic-id',
-};
-
-jest.mock('@/lib/auth/session', () => ({
-  validateApiAuth: jest.fn().mockResolvedValue({ success: true, profile: mockProfile }),
-  hasRequiredRole: jest.fn().mockReturnValue(true),
-}));
-
+// Rate-limit (always allowed in tests)
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn(() => ({ allowed: true, remaining: 10, resetTime: Date.now() + 60000 })),
   getClientIdentifier: jest.fn(() => 'test-client'),
   rateLimitPresets: { api: { windowMs: 60000, maxRequests: 60 } },
 }));
 
-// ── Action handler mocks (route delegates to these) ─────────────────────────
-// Use jest.requireActual so the real input schema (safeParse) is available;
-// only the handler is mocked so tests control the data.
+// Module manifest — always enabled so withModuleRoute passes through
+jest.mock('@/core/modules/manifest', () => ({
+  moduleManifest: {
+    isEnabled: jest.fn().mockResolvedValue(true),
+    enabledModules: jest.fn().mockResolvedValue(new Set(['followup', 'core'])),
+  },
+}));
+
+// ── Action handler mocks ───────────────────────────────────────────────────────
+// Real input schemas (safeParse) preserved; only handler mocked for data control.
 
 const mockListarInativosHandler = jest.fn();
 const mockDetectarInativosHandler = jest.fn();
@@ -71,12 +62,51 @@ jest.mock('@/modules/followup/actions', () => {
   };
 });
 
-// ── Imports after mocks ────────────────────────
+// ── Context + runAction mocks ──────────────────────────────────────────────────
+
+const mockCan = jest.fn().mockReturnValue(true);
+
+jest.mock('@/core/actions/context', () => {
+  const actual = jest.requireActual('@/core/actions/context');
+  return {
+    ...actual,
+    buildUserContext: jest.fn().mockResolvedValue({
+      source: 'user' as const,
+      clinicId: 'test-clinic-id',
+      user: { id: 'test-user-id', email: 'test@example.com', name: 'Test User' },
+      role: 'owner' as string | undefined,
+      can: mockCan,
+      hasModule: jest.fn().mockReturnValue(true),
+      audit: { actor: 'test-user-id' },
+    }),
+  };
+});
+
+jest.mock('@/core/actions/run', () => ({
+  runAction: jest.fn(async (
+    action: { input: { safeParse: (x: unknown) => any }; handler: (input: any, ctx: any) => any; requires: string },
+    input: unknown,
+    ctx: { can: (key: string) => boolean },
+  ) => {
+    // Simulate RBAC gate: if ctx.can(action.requires) is false → forbidden
+    if (!ctx.can(action.requires)) {
+      return { ok: false, error: { code: 'forbidden', message: 'Sem permissão.' } };
+    }
+    const parsed = action.input.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: { code: 'invalid_input', message: 'Dados inválidos.' } };
+    }
+    const data = await action.handler(parsed.data, ctx);
+    return { ok: true, data };
+  }),
+}));
+
+// ── Imports after all mocks ────────────────────────────────────────────────────
 
 import { NextRequest } from 'next/server';
 import { GET } from '@/app/api/patients/inactive/route';
 
-// ── Helpers ─────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function makeReq(path: string, method = 'GET'): NextRequest {
   return new Request(`http://localhost${path}`, {
@@ -85,25 +115,27 @@ function makeReq(path: string, method = 'GET'): NextRequest {
   }) as unknown as NextRequest;
 }
 
-// ── Tests ───────────────────────────────────────
+// ── Tests ──────────────────────────────────────────────────────────────────────
 
 describe('GET /api/patients/inactive', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default: context can returns true
+    mockCan.mockReturnValue(true);
     // Default: handlers succeed with empty results
-    mockListarInativosHandler.mockResolvedValue({ patients: [], pagination: { page: 1, limit: 100, total: 0, totalPages: 0 } });
+    mockListarInativosHandler.mockResolvedValue({
+      patients: [],
+      pagination: { page: 1, limit: 100, total: 0, totalPages: 0 },
+    });
     mockDetectarInativosHandler.mockResolvedValue({ processed: 1 });
     mockReativarPacienteHandler.mockResolvedValue({ success: true });
   });
 
   describe('auth guard', () => {
-    it('returns 401 when unauthenticated', async () => {
-      const { validateApiAuth } = require('@/lib/auth/session');
-      validateApiAuth.mockResolvedValueOnce({
-        success: false,
-        error: { message: 'Unauthorized', status: 401 },
-      });
+    it('returns 401 when buildUserContext throws unauthenticated', async () => {
+      const { buildUserContext } = require('@/core/actions/context');
+      buildUserContext.mockRejectedValueOnce(new Error('unauthenticated'));
 
       const req = makeReq('/api/patients/inactive');
       const res = await GET(req);
@@ -113,9 +145,8 @@ describe('GET /api/patients/inactive', () => {
       expect(body.error).toBe('Unauthorized');
     });
 
-    it('returns 403 when role is insufficient', async () => {
-      const { hasRequiredRole } = require('@/lib/auth/session');
-      hasRequiredRole.mockReturnValueOnce(false);
+    it('returns 403 when runAction returns forbidden (RBAC denied)', async () => {
+      mockCan.mockReturnValue(false);
 
       const req = makeReq('/api/patients/inactive');
       const res = await GET(req);
@@ -125,7 +156,6 @@ describe('GET /api/patients/inactive', () => {
   });
 
   describe('data sanitization', () => {
-    // InactivePatient shape returned by listarInativos action handler
     const mockInactivePatient = (overrides: Record<string, unknown> = {}) => ({
       patientId: 'patient-001',
       patientName: 'João Silva',
@@ -166,7 +196,6 @@ describe('GET /api/patients/inactive', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      // Must not be null or undefined — the UI will call .charAt(0) on it
       expect(body.patients[0].patientName).toBeDefined();
       expect(body.patients[0].patientName).not.toBeNull();
       expect(typeof body.patients[0].patientName).toBe('string');
@@ -200,7 +229,6 @@ describe('GET /api/patients/inactive', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.patients[0].patientName).toBe('');
-      // Even empty string won't crash .charAt(0) — it returns ''
     });
 
     it('returns stats_only without patient list', async () => {
