@@ -4,7 +4,7 @@
 
 **Goal:** Consolidar o módulo `atendimento` (já ~70% construído) ao template canônico: fechar gates de rota, migrar o backend legado (conversations + Evolution/WhatsApp) para dentro do módulo, cobrir com testes por-rota, e retirar o legado de forma coordenada com os consumidores cross-module.
 
-**Architecture:** Toda rota do bounded context é adapter gated (`withModuleRoute` + `runAtendimento(System)Action`); queries no repository do módulo; integração de canal em services do módulo; webhooks preservam verificação de assinatura e respondem 200-no-op idempotente. Sem `getDb()` em actions; services delegam ao repository.
+**Architecture:** Toda rota do bounded context é gated por `withModuleRoute`; rotas user e POSTs mutantes/webhook passam por `runAtendimento(System)Action`; GET verify dos webhooks Meta fica direto na rota (retorno texto cru), só embrulhado pelo gate. Queries no repository do módulo; integração de canal em services do módulo; webhooks preservam assinatura e respondem 200-no-op idempotente. Sem `getDb()` em actions; services delegam ao repository.
 
 **Tech Stack:** Next.js 15 App Router, TypeScript 5.6, Drizzle ORM, PostgreSQL, Evolution API v2, Jest unit/integration, ESLint boundaries.
 
@@ -30,7 +30,7 @@
 
 | Path | Role |
 |---|---|
-| `src/app/api/{whatsapp/webhook,instagram/webhook,whatsapp/evolution,messages/inbound,widget/messages}/route.ts` | Gatear com `withModuleRoute` (P0); `whatsapp/evolution` ganha auth |
+| `src/app/api/{whatsapp/webhook,instagram/webhook,whatsapp/evolution,messages/inbound,widget/messages}/route.ts` | Gatear com `withModuleRoute` (P0); `widget/messages` GET+POST; `whatsapp/evolution` ganha auth |
 | `src/modules/atendimento/repositories/conversations-repository.ts` | Receber as queries portadas; parar de importar `@/repositories/conversations` (P1) |
 | `src/modules/atendimento/services/{evolution-service,channel-service,templates-service}.ts` | Portados de `services/whatsapp/*` (P2) |
 | `src/modules/atendimento/services/{send-message-service,webhook-processor-service}.ts` | Parar de importar legado; webhook-processor sai de `getDb()` (P1/P2) |
@@ -59,7 +59,14 @@ import { moduleManifest } from '@/core/modules/manifest';
 export const POST = withModuleRoute('atendimento', moduleManifest)(handlePOST);
 ```
 
-- [ ] **Step 2: Gatear `widget/messages`** — mesmo padrão (`withModuleRoute` em volta do POST existente).
+- [ ] **Step 2: Gatear `widget/messages` GET + POST** — envolver **ambos** handlers existentes com `withModuleRoute`. O GET atual também pertence ao bounded context do widget/conversa; se o módulo estiver off, deve responder 404.
+
+```ts
+async function handleGET() { /* existente */ }
+async function handlePOST(request: NextRequest) { /* existente */ }
+export const GET = withModuleRoute('atendimento', moduleManifest)(handleGET);
+export const POST = withModuleRoute('atendimento', moduleManifest)(handlePOST);
+```
 
 - [ ] **Step 3: Gatear webhooks Meta preservando assinatura e handshake GET**
 
@@ -100,7 +107,7 @@ export const POST = withModuleRoute('atendimento', moduleManifest)(handlePOST);
 
 - [ ] **Step 5: Teste por-rota — módulo desabilitado → 404**
 
-Em `src/modules/atendimento/__tests__/gates/integration.test.ts`, com `operacional`/`atendimento` controlados via `instanceModules` (ou `makeManifest` com repo stub `isEnabled:false`), chamar os handlers das 5 rotas e esperar **404** quando `atendimento` está desabilitado; **passa** quando habilitado. Mockar assinatura/secret válidos.
+Em `src/modules/atendimento/__tests__/gates/integration.test.ts`, testar o wrapper com stub simples compatível com `withModuleRoute` (`{ isEnabled: async () => false }` e `{ isEnabled: async () => true }`) ou controlar `instanceModules` se o teste subir DB real. Chamar os handlers das 5 rotas e esperar **404** quando `atendimento` está desabilitado; **passa** quando habilitado. Para `widget/messages`, cobrir **GET e POST**. Mockar assinatura/secret válidos.
 
 Run: `RUN_INTEGRATION_TESTS=1 npm run test:integration -- src/modules/atendimento/__tests__/gates/integration.test.ts` → PASS.
 
@@ -294,7 +301,8 @@ O processador extrai `externalMessageId` do payload (Meta/Evolution) e chama `ap
 - [ ] **Step 3: Testes de política por-rota**
 
 Estender `gates/integration.test.ts`:
-- **assinatura inválida → 403** (whatsapp/instagram/evolution).
+- **assinatura/secret inválido → 403** (`whatsapp/webhook`, `instagram/webhook`, `whatsapp/evolution`, `messages/inbound`).
+- **payload malformado → 200 + log** para webhooks que seguem política anti-retry (`whatsapp/webhook`, `instagram/webhook`, `whatsapp/evolution`). Não aplicar a `messages/inbound` sem mudar contrato atual: hoje campos faltantes retornam 400.
 - **webhook duplicado** (mesmo `externalMessageId`) → **200 ignored, sem segunda `message`** (assert count de mensagens = 1).
 - handshake GET retorna challenge (texto) com módulo ativo.
 
@@ -358,7 +366,7 @@ git commit -m "test(atendimento): inbound flow, send, escalate, registry guard"
 
 - [ ] **Step 1: `operacional/reminders` envia via Action `enviarMensagem`**
 
-Trocar `import { sendWhatsAppMessage } from '@/services/whatsapp'` por uma chamada à Action de atendimento via `runAction`/contexto de sistema (cross-module pela Action Layer). Se o contexto de cron não tiver sessão, usar `buildSystemContext`/`runAtendimentoSystemAction` equivalente com `clinicId` resolvido. **Nenhum import de `@/services/whatsapp`** em `reminders-service`.
+Trocar `import { sendWhatsAppMessage } from '@/services/whatsapp'` por uma chamada à Action de atendimento via `runAction(enviarMensagem, input, systemCtx)` com `ActionContext` explícito (cross-module pela Action Layer). **Não** usar `runAtendimentoSystemAction` aqui: route adapter retorna `NextResponse` e é só para handlers HTTP. Se faltar helper reutilizável de system context, criar função real em `src/core/actions/context.ts` e listar no diff da tarefa. **Nenhum import de `@/services/whatsapp`** em `reminders-service`.
 
 - [ ] **Step 2: `procedure-reminder-config` usa `templates-service` helper**
 
@@ -429,7 +437,7 @@ git commit -m "refactor(atendimento): retire legacy whatsapp/conversations backe
 
 ## Self-Review Checklist
 
-- **P0** (Task 0): 5 rotas gated + `whatsapp/evolution` autenticado; GET handshake na rota; commits isolados; teste disabled→404.
+- **P0** (Task 0): 5 rotas gated + `widget/messages` GET+POST + `whatsapp/evolution` autenticado; GET handshake na rota; commits isolados; teste disabled→404.
 - **P1** (Task 1): repository do módulo com queries reais (sem `@/repositories/conversations`); actions sem legado/`getDb()`; `webhook-processor` sem `getDb()`.
 - **P2** (Task 2): channel services do módulo; actions/services sem `@/services/whatsapp`; `status-evolution` sem `getDb()`; `fillTemplate` puro.
 - **P3** (Task 3): idempotência por `externalMessageId`; 200-no-op; testes 403/200-ignored/handshake.
