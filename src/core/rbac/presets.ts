@@ -16,7 +16,7 @@ export const SYSTEM_PRESETS: PresetDef[] = [
   { name: 'Recepcionista', description: 'Atendimento e agenda.',
     modules: ['operacional', 'atendimento'], extraKeys: ['comercial:view'] },
   { name: 'Comercial', description: 'Vendas e relacionamento.',
-    modules: ['comercial'], extraKeys: ['operacional:view'] },
+    modules: ['comercial', 'followup'], extraKeys: ['operacional:view'] },
   { name: 'Dentista', description: 'Agenda e prontuário próprios.',
-    modules: ['operacional', 'atendimento'] },
+    modules: ['operacional', 'atendimento'], extraKeys: ['followup:view'] },
 ];
