@@ -146,7 +146,7 @@ export class WhatsAppService extends EventEmitter {
     } else {
       this._isConnected = true;
       this.emit('connected');
-      console.log('✅ WhatsApp already connected');
+      dbLogger.info('channel-service: WhatsApp already connected');
     }
     this.startMessageListener();
   }
@@ -161,14 +161,14 @@ export class WhatsAppService extends EventEmitter {
 
   private async waitForQRCode(): Promise<void> {
     if (!this.page) return;
-    console.log('📱 Waiting for QR code scan...');
+    dbLogger.info('channel-service: waiting for QR code scan');
     await this.page.waitForSelector('canvas[alt="Scan this QR code to link a device!"]', { timeout: 30000 });
     const qrCanvas = await this.page.$('canvas[alt="Scan this QR code to link a device!"]');
     if (qrCanvas) {
       const qrDataUrl = await qrCanvas.evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL());
       QRCode.generate(qrDataUrl, { small: true }, (qr: string) => {
-        console.log('\n📱 Scan this QR code with your WhatsApp app:\n');
-        console.log(qr);
+        dbLogger.info('channel-service: scan this QR code with your WhatsApp app');
+        dbLogger.info(qr);
       });
       this.currentQRCode = qrDataUrl;
       this.emit('qrcode', qrDataUrl);
@@ -179,7 +179,7 @@ export class WhatsAppService extends EventEmitter {
       this.currentQRCode = null;
       await this.extractPhoneNumber();
       this.emit('connected');
-      console.log('✅ WhatsApp connected successfully!');
+      dbLogger.info('channel-service: WhatsApp connected successfully');
     } catch (error) {
       this.emit('error', new Error('QR code scan timeout'));
       throw new Error('Timeout waiting for QR code scan');
