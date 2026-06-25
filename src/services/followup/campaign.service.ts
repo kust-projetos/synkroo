@@ -216,7 +216,7 @@ async function sendCampaignMessage(
 		});
 
 		if (!response.ok) {
-			const data = await response.json();
+			const data = (await response.json()) as { error?: { message?: string } };
 			return { success: false, error: data.error?.message };
 		}
 
