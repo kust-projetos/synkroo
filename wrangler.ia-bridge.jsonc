@@ -1,0 +1,22 @@
+{
+  "name": "synkroo-ia-bridge",
+  "main": "src/workers/ia-bridge/index.ts",
+  "compatibility_date": "2026-06-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "be5a789a003e4f08a94a82dffbb091be",
+      "localConnectionString": "postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "IA_SEEN",
+      "id": "8f2a4d355686427585f665688d1cc082"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}
