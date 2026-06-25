@@ -99,7 +99,7 @@ Tools deixam de ser objetos locais e viram **contrato remoto versionado**. Catá
 
 Regra de subida: a presença de **third-party**, **dado sensível** ou **destrutivo** sempre **eleva** o nível (nunca rebaixa). Ex.: `confirmarConsulta` self = Confirmação; a "mesma" intenção sobre terceiro = Proibido/escala.
 
-> Classificação é **proposta inicial para validação** (LGPD/saúde). Telefone é dica fraca: contexto sensível não entra no prompt só com base no número. No chat interno (principal autenticado), a matriz **não** restringe além do RBAC do usuário. Ajustável por clínica na futura Gestão do Agente.
+> Classificação **validada pelo usuário em 2026-06-25** (LGPD/saúde). Telefone é dica fraca: contexto sensível não entra no prompt só com base no número. No chat interno (principal autenticado), a matriz **não** restringe além do RBAC do usuário. Ajustável por clínica na futura Gestão do Agente.
 
 ---
 
