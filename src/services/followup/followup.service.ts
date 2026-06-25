@@ -266,7 +266,10 @@ export async function sendFollowUpMessage(
       }),
     })
 
-    const data = await response.json()
+    const data = (await response.json()) as {
+      error?: { message?: string }
+      messages?: Array<{ id?: string }>
+    }
 
     if (!response.ok) {
       whatsappLogger.error('WhatsApp API error', null, { data })
