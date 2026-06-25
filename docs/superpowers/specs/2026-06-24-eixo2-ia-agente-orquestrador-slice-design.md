@@ -2,7 +2,7 @@
 
 > **Tipo:** Spec de design (módulo IA, primeira fatia). Deriva do W5 (`docs/superpowers/plans/2026-06-17-w5-novo-agente-cloudflare.md`, Tasks 2+3) e do roadmap-mestre §8/§10.
 > **Data:** 2026-06-24 · **Revisado:** 2026-06-25 (3 rounds de review crítico do Codex incorporados).
-> **Status:** **Spike concluído (2026-06-25)** — Abordagem C confirmada (gates 1–5 e 6a = GO). Único pendente: **6b (tool-calling real do OpenCode Zen)**, bloqueado por falta de credencial — depende de API key (ação do usuário), não de viabilidade técnica. Próximo: writing-plans (validação do Zen entra como tarefa inicial do plano, assim que houver key).
+> **Status:** **Spike 100% concluído (2026-06-25) — PRONTA PARA writing-plans.** Todos os gates GO. 6b PARCIAL-aceitável: tool-calling do `deepseek-v4-flash-free` confiável (multi-tool/schema/encadeamento 3/3); ressalva de naming (`.` no nome → HTTP 400) resolvida por **alias `module__action`**. Modelo default fixado; arquitetura C validada.
 > **Escopo:** apenas esta fatia (esqueleto + Action Layer + canais). RAG, memória, 4+1 e gestão do agente são fases futuras.
 
 ---
@@ -58,7 +58,7 @@ Cada ponto GO/NO-GO com evidência:
 
 Se 1–4 não fecharem, reavaliar topologia (último recurso: DO cru). Spike descartável; vira insumo do plano.
 
-**Resultado (2026-06-25 — `spikes/viability-report.md`):** 1 GO (zod 4 isolado no agente, zod 3 no app, lockfile intacto) · 2 GO (DO+SQLite via `wrangler dev`) · 3 GO (binding RTT ~3ms, app público 404 binding-only) · 4 GO-com-ressalva (handle assinado valida + rejeita forjado; **recomendado sessionId persistido** para prod) · 5 GO (Postgres só via app) · 6a GO (Zod→JSON Schema draft-07) · **6b NO-GO** (sem credencial Zen/OpenAI/OpenRouter/MiniMax para testar tool-calling real). **Achado de infra:** o Worker do agente precisa de `nodejs_compat`. **Conclusão:** Abordagem C viável pelos gates 1–5+6a; resta validar tool-calling do Zen com credencial.
+**Resultado (2026-06-25 — `spikes/viability-report.md`):** 1 GO (zod 4 isolado no agente, zod 3 no app, lockfile intacto) · 2 GO (DO+SQLite via `wrangler dev`) · 3 GO (binding RTT ~3ms, app público 404 binding-only) · 4 GO-com-ressalva (handle assinado valida + rejeita forjado; **recomendado sessionId persistido** para prod) · 5 GO (Postgres só via app) · 6a GO (Zod→JSON Schema draft-07) · **6b PARCIAL-aceitável** (modelo `deepseek-v4-flash-free`: multi-tool/schema/encadeamento 3/3, retry OK, latência ~3,6s/2,8s; **ressalva:** `.` no nome da tool → HTTP 400, resolvido por alias `module__action`; datas relativas exigem injeção de data atual no prompt). **Achado de infra:** Worker do agente precisa de `nodejs_compat`. **Conclusão:** Abordagem C **validada**; modelo default fixado.
 
 ---
 
@@ -80,6 +80,7 @@ Tools deixam de ser objetos locais e viram **contrato remoto versionado**. Catá
 - **Descoberta** (catálogo filtrado por ctx) e **execução** são endpoints separados.
 - Validação de input **obrigatória server-side** (o app revalida o schema, não confia no worker).
 - `inputSchemaJson`: **JSON Schema draft-07**, derivado do Zod da Action (conversor validado no spike).
+- **Nome provider-safe (achado spike 6b):** o `name` exposto ao LLM **não pode conter `.`** — o Zen retorna HTTP 400. Usar **alias `module__action`** (ex.: `operacional__consultarDisponibilidade`); o app **reverte o alias → `action.name`** real na execução (mapeamento determinístico, validado no spike). `name` no contrato = alias; o `action.name` real fica em `module`+sufixo.
 - `version`: **catálogo global** versionado (não por-tool); muda quando o conjunto/shape de tools muda.
 - **Drift durante a conversa (achado round 3 #4):** a sessão **fixa (pin)** a `version` do catálogo no início; se a execução chega com `version` divergente, o app **falha explícito** (`stale_catalog`) e o worker **redescobre** o catálogo e refaz o turno — nunca executa contra schema obsoleto em silêncio.
 
@@ -165,7 +166,9 @@ Persona = prompt + contexto + **sugestão** de tools. Enforcement real é server
 
 ## LLM + loop (achados #8, #11)
 
-`provider.complete(messages, tools) → { text, toolCalls }`. Modelo default validado no spike. **Anti-loop:** limite de iterações (~5), budget de tempo por turno, escape (resposta parcial + escala), retry limitado de tool → degrade.
+`provider.complete(messages, tools) → { text, toolCalls }`. **Modelo default: `deepseek-v4-flash-free`** (validado no spike 6b: multi-tool 3/3, schema-fill 3/3, encadeamento 3/3; latência ~3,6s 1ª chamada / ~2,8s resposta final; retry funcional). Trocável por env (`IA_LLM_MODEL`). **Anti-loop:** limite de iterações (~5), budget de tempo por turno, escape (resposta parcial + escala), retry limitado de tool → degrade.
+
+**Resolução temporal (achado spike 6b):** o system prompt injeta **data/hora atual + timezone da clínica** e instrui o modelo a resolver datas relativas ("quinta de manhã" → data concreta); sem isso, o modelo tende a pedir clarificação em vez de chamar a tool.
 
 **Falha do service binding (achado round 3 #3):** distinguir dois casos: (a) **falha ao descobrir o catálogo** de tools → o turno **aborta** antes de chamar o LLM, responde fallback ("um momento, já te respondo") e reenfileira/escala; (b) **falha ao executar uma tool** (binding down / timeout) → não inventar resultado: o turno encerra com resposta de fallback + `correlationId` logado, e a operação não-confirmada **não** é reportada como concluída ao contato. Ambos visíveis via observabilidade; sem efeito colateral silencioso.
 
@@ -198,7 +201,7 @@ Persona = prompt + contexto + **sugestão** de tools. Enforcement real é server
 |---|---|
 | ~~Handle: sessionId vs token~~ | **Resolvido:** sessionId persistido (spike) |
 | ~~Latência do service binding~~ | **Medido:** ~3ms local (spike) |
-| Modelo default do OpenCode Zen | Validar tool-calling com credencial (tarefa inicial do plano) |
+| ~~Modelo default do OpenCode Zen~~ | **Resolvido:** `deepseek-v4-flash-free` (spike 6b) |
 | Streaming no chat | Opcional nesta fatia |
 
 ## Referências
