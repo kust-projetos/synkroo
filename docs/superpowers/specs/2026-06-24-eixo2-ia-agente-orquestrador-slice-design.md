@@ -2,7 +2,7 @@
 
 > **Tipo:** Spec de design (módulo IA, primeira fatia). Deriva do W5 (`docs/superpowers/plans/2026-06-17-w5-novo-agente-cloudflare.md`, Tasks 2+3) e do roadmap-mestre §8/§10.
 > **Data:** 2026-06-24 · **Revisado:** 2026-06-25 (3 rounds de review crítico do Codex incorporados).
-> **Status:** **Aprovada para o spike de viabilidade** (veredito round 3). Fechamentos finos pré-plano incorporados (handle lifecycle, matriz por eixos, retry terminal, drift de catálogo, falha de binding). Depois do spike: writing-plans.
+> **Status:** **Spike concluído (2026-06-25)** — Abordagem C confirmada (gates 1–5 e 6a = GO). Único pendente: **6b (tool-calling real do OpenCode Zen)**, bloqueado por falta de credencial — depende de API key (ação do usuário), não de viabilidade técnica. Próximo: writing-plans (validação do Zen entra como tarefa inicial do plano, assim que houver key).
 > **Escopo:** apenas esta fatia (esqueleto + Action Layer + canais). RAG, memória, 4+1 e gestão do agente são fases futuras.
 
 ---
@@ -58,6 +58,8 @@ Cada ponto GO/NO-GO com evidência:
 
 Se 1–4 não fecharem, reavaliar topologia (último recurso: DO cru). Spike descartável; vira insumo do plano.
 
+**Resultado (2026-06-25 — `spikes/viability-report.md`):** 1 GO (zod 4 isolado no agente, zod 3 no app, lockfile intacto) · 2 GO (DO+SQLite via `wrangler dev`) · 3 GO (binding RTT ~3ms, app público 404 binding-only) · 4 GO-com-ressalva (handle assinado valida + rejeita forjado; **recomendado sessionId persistido** para prod) · 5 GO (Postgres só via app) · 6a GO (Zod→JSON Schema draft-07) · **6b NO-GO** (sem credencial Zen/OpenAI/OpenRouter/MiniMax para testar tool-calling real). **Achado de infra:** o Worker do agente precisa de `nodejs_compat`. **Conclusão:** Abordagem C viável pelos gates 1–5+6a; resta validar tool-calling do Zen com credencial.
+
 ---
 
 ## Fronteira de confiança app↔agente (achados #1, #2, #3)
@@ -65,7 +67,8 @@ Se 1–4 não fecharem, reavaliar topologia (último recurso: DO cru). Spike des
 A topologia C cria uma fronteira de rede. Modelo de confiança:
 
 - **Handle opaco, não principal.** Na entrada (webhook WhatsApp validado, ou chat autenticado), o **app** cria uma sessão e emite um **handle opaco** (sessionId persistido no app, ou token assinado curto) que codifica `{ clinicId, source, principalRef, conversationId }`. O worker recebe e reapresenta esse handle — **nunca** monta nem envia `principal` livre.
-- **Lifecycle do handle (achado round 3 #1):** vínculo **estrito** handle ↔ `conversationId` ↔ `principalRef` ↔ `source` (o app rejeita uso cruzado — handle de uma conversa não vale para outra, nem troca de principal/source). **Expiração curta** + renovação pelo app. **Anti-replay** (single-use por requisição de execução, ou nonce) e **revogação** (encerrar sessão invalida o handle). A escolha de mecanismo (sessionId persistido vs token assinado) fica para o spike — mas esta semântica de lifecycle é requisito independente do mecanismo.
+- **Lifecycle do handle (achado round 3 #1):** vínculo **estrito** handle ↔ `conversationId` ↔ `principalRef` ↔ `source` (o app rejeita uso cruzado — handle de uma conversa não vale para outra, nem troca de principal/source). **Expiração curta** + renovação pelo app. **Anti-replay** (single-use por requisição de execução, ou nonce) e **revogação** (encerrar sessão invalida o handle).
+- **Mecanismo (decidido no spike):** **sessionId persistido no app** para produção (permite revogação e estado de replay server-side). Token assinado curto só é aceitável **com** anti-replay + revogação explícitos. O spike provou ambos validando `buildDelegatedContext`/`buildSystemContext` + `runAction` e rejeitando handle forjado (`invalid_signature`).
 - **App reconstrói e revalida.** No endpoint interno de Actions, o app: valida o handle → reconstrói `ActionContext` (`buildSystemContext`/`buildDelegatedContext`) → aplica **enforcement server-side**: `RBAC(ctx)` ∩ `allowlist(canal/persona)` ∩ (matriz de segurança por action) → só então `runAction`. O subset de persona/canal feito no worker é **sugestão de UX**, não barreira; a barreira é server-side.
 - **Endpoint não-público.** Acessível somente via service binding (não roteável externamente); rejeita chamadas sem binding.
 
@@ -76,7 +79,7 @@ Tools deixam de ser objetos locais e viram **contrato remoto versionado**. Catá
 ```
 - **Descoberta** (catálogo filtrado por ctx) e **execução** são endpoints separados.
 - Validação de input **obrigatória server-side** (o app revalida o schema, não confia no worker).
-- `inputSchemaJson`: dialeto **JSON Schema** derivado do Zod da Action (a definir o conversor no plano).
+- `inputSchemaJson`: **JSON Schema draft-07**, derivado do Zod da Action (conversor validado no spike).
 - `version`: **catálogo global** versionado (não por-tool); muda quando o conjunto/shape de tools muda.
 - **Drift durante a conversa (achado round 3 #4):** a sessão **fixa (pin)** a `version` do catálogo no início; se a execução chega com `version` divergente, o app **falha explícito** (`stale_catalog`) e o worker **redescobre** o catálogo e refaz o turno — nunca executa contra schema obsoleto em silêncio.
 
@@ -193,8 +196,9 @@ Persona = prompt + contexto + **sugestão** de tools. Enforcement real é server
 
 | Decisão | Nota |
 |---|---|
-| Handle: sessionId persistido vs token assinado | Decidir no spike (segurança/latência) |
-| Latência exata do service binding | Medir no spike |
+| ~~Handle: sessionId vs token~~ | **Resolvido:** sessionId persistido (spike) |
+| ~~Latência do service binding~~ | **Medido:** ~3ms local (spike) |
+| Modelo default do OpenCode Zen | Validar tool-calling com credencial (tarefa inicial do plano) |
 | Streaming no chat | Opcional nesta fatia |
 
 ## Referências
