@@ -31,7 +31,10 @@
     "build:cf": "opennextjs-cloudflare build && node scripts/inject-pg-global.mjs",
     "inject:pg": "node scripts/inject-pg-global.mjs .open-next/worker.js",
     "preview:cf": "opennextjs-cloudflare preview",
-    "deploy:cf": "opennextjs-cloudflare deploy"
+    "deploy:cf": "opennextjs-cloudflare deploy",
+    "dev:ia-bridge": "wrangler dev --config wrangler.ia-bridge.jsonc",
+    "deploy:ia-bridge": "wrangler deploy --config wrangler.ia-bridge.jsonc",
+    "typecheck:ia-bridge": "tsc --noEmit --project src/workers/ia-bridge/tsconfig.json"
   },
   "dependencies": {
     "@event-calendar/core": "^5.6.1",
