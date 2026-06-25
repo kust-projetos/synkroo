@@ -1,29 +1,29 @@
 # Eixo 2 — Agente IA: Orquestrador (slice ponta-a-ponta) — Design
 
 > **Tipo:** Spec de design (módulo IA, primeira fatia). Deriva do W5 (`docs/superpowers/plans/2026-06-17-w5-novo-agente-cloudflare.md`, Tasks 2+3) e do roadmap-mestre §8/§10.
-> **Data:** 2026-06-24 · **Revisado:** 2026-06-25 (review crítico do Codex incorporado).
-> **Status:** Em revisão. Pré-requisito antes do plano: **spike de viabilidade** (ver §Spike). Próximo passo após o spike: writing-plans.
+> **Data:** 2026-06-24 · **Revisado:** 2026-06-25 (2 rounds de review crítico do Codex incorporados).
+> **Status:** Em revisão. Pré-requisito antes do plano: **spike de viabilidade** (§Spike). Depois do spike: writing-plans.
 > **Escopo:** apenas esta fatia (esqueleto + Action Layer + canais). RAG, memória, 4+1 e gestão do agente são fases futuras.
 
 ---
 
 ## Goal
 
-Entregar a **primeira fatia ponta-a-ponta** do Agente IA do Synkroo: um **orquestrador único** rodando como Cloudflare **Durable Object** (Agents SDK) num **Worker dedicado**, que recebe mensagens por **dois canais** (WhatsApp inbound autônomo e chat interno autenticado), entende a intenção via **LLM pluggable (OpenCode Zen)**, executa operações **exclusivamente pela Action Layer** (as ~69 Actions registradas, expostas como tools) e responde pelo canal de origem — com **persona dinâmica** por tipo de interlocutor e **permissões herdadas do principal**.
-
-Satisfaz o critério de "Onda 1 concluída" (`2026-06-21-eixo2-sequenciamento-design.md` §4): paciente manda WhatsApp → agente entende → agenda/confirma via Action → registra → responde, no runtime Cloudflare via Action Layer com RBAC/entitlement aplicados.
+Entregar a **primeira fatia ponta-a-ponta** do Agente IA: um **orquestrador único** como Cloudflare **Durable Object** (Agents SDK) num **Worker dedicado**, recebendo por **dois canais** (WhatsApp inbound autônomo e chat interno autenticado), entendendo intenção via **LLM pluggable (OpenCode Zen)**, executando operações **exclusivamente pela Action Layer** (Actions expostas como tools) e respondendo pelo canal — com **persona dinâmica** por interlocutor e **permissões herdadas do principal**, satisfazendo o critério de "Onda 1 concluída".
 
 ## Architecture
 
-**Worker dedicado (Abordagem C).** O agente é um **Worker separado** do app OpenNext, com suas próprias dependências (Agents SDK + zod próprios) — isolando o conflito de peer-deps que inviabiliza embutir o SDK no app (ver §Spike, achado de zod). O orquestrador é uma instância de `Agent` (Agents SDK) = um Durable Object globalmente único por conversa (`getAgentByName`).
+**Worker dedicado (Abordagem C).** Agente = Worker separado do app OpenNext, com deps próprias (Agents SDK + zod isolados). Orquestrador = instância de `Agent` (Agents SDK) = Durable Object único por conversa.
 
-**Capacidades = Actions, via service binding.** O Worker do agente **não importa** a Action Layer (evita reintroduzir o conflito de zod). Ele executa Actions chamando o app por **service binding**: o app expõe um endpoint interno autenticado que recebe `{ action, input, principal }`, monta o `ActionContext` real (`buildSystemContext`/`buildDelegatedContext`) e roda `runAction`, devolvendo o resultado. O agente recebe a lista de tools disponíveis (nome/descrição/schema) do mesmo contrato. As duas entradas (WhatsApp `system`, chat `delegated`) convergem no mesmo DO, diferindo só no principal.
+**Capacidades = Actions, via fronteira app↔agente controlada.** O Worker do agente **não importa** a Action Layer. Ele opera contra o app por **service binding**, sob um modelo de confiança estrito (ver §Fronteira de confiança):
+- o **app é a autoridade do principal** — o worker carrega apenas um **handle opaco** (sessionId/token assinado emitido pelo app na entrada do canal); nunca envia `principal` cru;
+- o app **reconstrói o `ActionContext`** a partir do handle e **revalida** autorização server-side antes de qualquer `runAction`.
 
-**Persistência:** `conversations`/`messages` (Postgres, via Actions do Atendimento) é a **fonte de verdade** das mensagens; o DO storage é cache/scratchpad de sessão. Sem tools paralelas.
+**Persistência:** `messages`/`conversations` (Postgres, via Actions do app) é a **única** fonte de verdade e o **único** path de dados nesta fatia (o agente não acessa Postgres direto). DO storage = cache/scratchpad de sessão.
 
 ## Tech Stack
 
-Worker dedicado Cloudflare + Agents SDK + Durable Objects; service binding app↔agente; LLM via OpenCode Zen (gateway OpenAI-compatible, `https://opencode.ai/zen/v1`); Action Layer no app (`runAction`, `agentToolsFor`, `buildSystemContext`/`buildDelegatedContext`); Hyperdrive (Postgres na borda); Evolution API (canal WhatsApp). TypeScript 5.6, Jest (unit), integração no runtime Workers.
+Worker dedicado + Agents SDK + Durable Objects; service binding app↔agente; LLM OpenCode Zen (OpenAI-compatible, `https://opencode.ai/zen/v1`); Action Layer no app; Hyperdrive (acesso ao Postgres **só pelo app**); Evolution API (canal). TypeScript 5.6, Jest, integração no runtime Workers.
 
 ---
 
@@ -31,150 +31,158 @@ Worker dedicado Cloudflare + Agents SDK + Durable Objects; service binding app�
 
 | # | Decisão | Escolha |
 |---|---|---|
-| 1 | Fatia | Slice ponta-a-ponta (esqueleto + Action Layer + canais) — W5 Tasks 2+3 |
-| 2 | Runtime/topologia | **Worker dedicado** (Abordagem C); Agents SDK + DO no Worker do agente; deps isoladas do app |
-| 2b | Acesso a Actions | Via **service binding** app↔agente (agente não importa a Action Layer) |
-| 3 | LLM | **OpenCode Zen** (OpenAI-compatible), pluggable; modelo default validado no spike |
-| 4 | Escopo 4+1 | **Só o orquestrador**; especialistas no gap-fill |
-| 5 | Entradas | **WhatsApp inbound (system) + chat interno (delegated)** |
-| 6 | Permissões | `ctx` filtra tools; chat = perms reais do usuário; WhatsApp = role Agente; cliente = contato |
-| 7 | Comportamento | **Persona dinâmica** (lead/paciente/desconhecido/funcionário) → system prompt + filtragem de tools |
-| 8 | Fonte de verdade | `messages` (Postgres) = fonte de verdade; DO = cache/scratchpad |
-| 9 | Identidade WhatsApp | Telefone é **dica fraca**, nunca barreira de segurança (ver §Segurança) |
+| 1 | Fatia | Slice ponta-a-ponta (W5 Tasks 2+3) |
+| 2 | Topologia | **Worker dedicado** (Abordagem C); SDK+DO no agente; deps isoladas |
+| 2b | Acesso a Actions | **Service binding**; agente não importa a Action Layer |
+| 2c | Autoridade do principal | **App** reconstrói o ctx por handle opaco; worker nunca envia principal cru (achado #1) |
+| 2d | Path de dados | **Todo** acesso ao transcript/Postgres é via app nesta fatia (achado #4) |
+| 3 | LLM | OpenCode Zen pluggable; modelo default validado no spike |
+| 4 | Escopo 4+1 | Só o orquestrador; especialistas no gap-fill |
+| 5 | Entradas | WhatsApp (system) + chat interno (delegated) |
+| 6 | Permissões | `ctx` filtra tools; **enforcement server-side** RBAC(ctx) ∩ allowlist(canal/persona) (achado #2) |
+| 7 | Comportamento | Persona dinâmica → prompt + subset de tools (sugestão; enforcement é no app) |
+| 8 | Fonte de verdade | `messages` (Postgres); DO = cache |
+| 9 | Identidade conversa | WhatsApp `${clinicId}:whatsapp:${phone}`; chat `${clinicId}:chat:${conversationId}` |
 
 ---
 
-## Spike de viabilidade (GATE — obrigatório antes do plano)
+## Spike de viabilidade (GATE — antes do plano)
 
-Os achados CRÍTICOS do review tornam duas incertezas arquiteturais bloqueantes. **O plano de implementação só começa após o spike fechar estes pontos** (cada um GO/NO-GO, com evidência):
+Cada ponto GO/NO-GO com evidência:
+1. **Service binding app↔agente** funciona; latência aceitável.
+2. **Autorização da fronteira:** app reconstrói principal a partir do handle opaco, **rejeita** principal forjado, e o endpoint é **inacessível publicamente** (só via binding).
+3. **Agente → estado/DO:** `Agent`/`getAgentByName` + DO storage no Worker dedicado. (Postgres **só via app** — não testar Hyperdrive no agente.)
+4. **Isolamento de deps:** Agents SDK instala **limpo** (sem `--legacy-peer-deps`) no pacote do agente, zod próprio, sem tocar o lockfile do app.
+5. **Modelo Zen:** escolher 1 default e validar tool-calling (schema, timeout, retry, múltiplas tools).
+6. **Contrato de tools:** validar que os metadados da Action Layer (name/description/inputSchema) são serializáveis para o contrato remoto (§Contrato de tools).
 
-1. **Service binding app↔agente:** o Worker do agente chama o app e recebe resposta? Latência aceitável?
-2. **Agente → Action Layer:** o endpoint interno do app roda `runAction` com `buildSystemContext`/`buildDelegatedContext` e devolve resultado + lista de tools, com auth do binding (não público)?
-3. **Agente → estado/DO:** `Agent`/`getAgentByName` + DO storage funcionam no Worker dedicado; e o agente alcança o Postgres (via app ou Hyperdrive próprio)?
-4. **Isolamento de deps:** Agents SDK instala **limpo** (sem `--legacy-peer-deps`) no pacote/Worker do agente, com zod próprio, sem contaminar o lockfile do app?
-5. **Modelo Zen:** escolher **1 modelo default** e validar tool-calling real (schema, timeout, retry, comportamento sob múltiplas tools).
+Se 1–4 não fecharem, reavaliar topologia (último recurso: DO cru). Spike descartável; vira insumo do plano.
 
-Se 1–4 não fecharem, reavaliar topologia (último recurso: DO cru). O spike é descartável; seu resultado vira insumo do plano.
+---
+
+## Fronteira de confiança app↔agente (achados #1, #2, #3)
+
+A topologia C cria uma fronteira de rede. Modelo de confiança:
+
+- **Handle opaco, não principal.** Na entrada (webhook WhatsApp validado, ou chat autenticado), o **app** cria uma sessão e emite um **handle opaco** (sessionId persistido no app, ou token assinado curto) que codifica `{ clinicId, source, principalRef, conversationId }`. O worker recebe e reapresenta esse handle — **nunca** monta nem envia `principal` livre.
+- **App reconstrói e revalida.** No endpoint interno de Actions, o app: valida o handle → reconstrói `ActionContext` (`buildSystemContext`/`buildDelegatedContext`) → aplica **enforcement server-side**: `RBAC(ctx)` ∩ `allowlist(canal/persona)` ∩ (matriz de segurança por action) → só então `runAction`. O subset de persona/canal feito no worker é **sugestão de UX**, não barreira; a barreira é server-side.
+- **Endpoint não-público.** Acessível somente via service binding (não roteável externamente); rejeita chamadas sem binding.
+
+### Contrato de tools (versionado — achado #3)
+Tools deixam de ser objetos locais e viram **contrato remoto versionado**. Catálogo entregue ao worker:
+```
+{ version, tools: [ { name, description, inputSchemaJson, module, permissions } ] }
+```
+- **Descoberta** (catálogo filtrado por ctx) e **execução** são endpoints separados.
+- Validação de input **obrigatória server-side** (o app revalida o schema, não confia no worker).
+- `version` permite detectar drift entre a Action Layer e o worker (incompatibilidade falha explícita, não silenciosa).
+
+---
+
+## Matriz de segurança por action (achado #5)
+
+"Subset seguro" do WhatsApp vira **classificação formal por action**, aplicada server-side. Quatro níveis:
+
+| Nível | Significado | Exemplos (proposta — validar) |
+|---|---|---|
+| **Livre** | Agente autônomo executa sem verificação | `consultarDisponibilidade`, `listarProcedimentos`, dúvidas gerais |
+| **Confirmação** | Exige confirmação explícita do contato no diálogo | `agendarConsulta`, `confirmarConsulta`, `entrarWaitlist` |
+| **Verificação forte** | Exige verificação de identidade adicional | leitura de dado clínico/financeiro do paciente, `atualizarPaciente` |
+| **Proibido/escala** | Agente não executa no WhatsApp; escala humano | `cancelarConsulta`/`remarcarConsulta` de terceiros, dados sensíveis em massa, orçamentos |
+
+> Classificação é **proposta inicial para validação** (LGPD/saúde). Telefone é dica fraca: contexto sensível não entra no prompt só com base no número. No chat interno (principal autenticado), a matriz não restringe além do RBAC do usuário. Ajustável por clínica na futura Gestão do Agente.
 
 ---
 
 ## Componentes
 
-**Worker do agente (novo pacote/Worker):**
-| Arquivo | Papel |
-|---|---|
-| `agent/orchestrator.ts` | `Agent` (Agents SDK / DO). Lifecycle de mensagem; resolve persona; pede tools+executa via service binding; loop LLM↔tools com guard; correlaciona logs |
-| `llm/provider.ts` | Abstração pluggable; adapter OpenCode Zen (OpenAI-compatible); tradução tools ↔ function-calling |
-| `personas.ts` | Mapa `tipo → { system prompt, conjunto de módulos/tools permitido }` (puro) |
+**Worker do agente:** `agent/orchestrator.ts` (Agent/DO: loop LLM↔tools com guard, correlação, persona); `llm/provider.ts` (OpenCode Zen pluggable); `personas.ts` (prompt + subset sugerido de tools).
 
-**No app (OpenNext):**
-| Arquivo | Papel |
-|---|---|
-| endpoint interno de Actions (service binding) | Recebe `{ action, input, principal }`, monta ctx real, roda `runAction`, devolve resultado + tools disponíveis. Auth por binding, nunca público |
-| `channel/inbound` (atendimento ou ia) | Webhook Evolution → resolve `clinicId` → aciona o Worker do agente (system); dedup por `externalMessageId` |
-| rota `/api/ia/chat` | Gated `withModuleRoute('ia')` + autenticada → aciona o agente (delegated) |
-| `leads-read` adapter | Leitura única telefone→lead (schema `leads`), encapsulada, com contrato mínimo e plano de migração para Action quando E-05 virar módulo |
-| `manifest.ts` · `permissions.ts` · `index.ts` | Módulo `ia` (entitlement, permissões, barrel) |
-
-**Identidade do DO / da conversa (fecha #6):**
-- WhatsApp: `${clinicId}:whatsapp:${phone}` (1 thread por contato/clínica).
-- Chat interno: **`${clinicId}:chat:${conversationId}`** — N threads por usuário (cada conversa é uma instância). `userId` **não** é a chave (evita misturar threads). Criar `conversationId` ao iniciar um chat.
+**No app:** endpoint interno de Actions (binding-only: valida handle → reconstrói ctx → enforcement → `runAction`; catálogo de tools versionado); `channel/inbound` (webhook→handle→aciona agente; dedup `externalMessageId`); rota `/api/ia/chat` (gated+autenticada→handle→agente); `leads-read` adapter; módulo `ia` (manifest/permissions/index).
 
 ---
 
 ## Fluxos
 
-### WhatsApp inbound (autônomo, principal = Agente)
+### WhatsApp inbound (system)
 ```
-Evolution webhook (assinatura/secret validados, dedup externalMessageId)
-  → resolve clinicId → aciona Worker do agente (correlationId gerado)
-  → orchestrator: interlocutor.resolve(phone) → { type, persona, context }
-       persiste msg inbound (service binding → atendimento.receberMensagem)
-       tools = subset(persona) das Actions permitidas pelo ctx system (role Agente)
-       loop LLM ⇄ toolCalls → (service binding → runAction) [guard anti-loop]
-       persiste + envia resposta (atendimento.enviarMensagem) com chave idempotente
+Evolution webhook (assinatura/secret, dedup externalMessageId)
+  → app: resolve clinicId, cria sessão + handle opaco, correlationId
+  → aciona Worker do agente (handle)
+  → orchestrator: interlocutor.resolve(phone) → persona/context (não-sensível)
+       persiste inbound (app: atendimento.receberMensagem)
+       pede catálogo de tools (subset persona) → loop LLM ⇄ execução remota
+         (app revalida RBAC ∩ allowlist ∩ matriz → runAction) [guard anti-loop]
+       persiste + envia resposta (chave idempotente outbound)
 ```
 
-### Chat interno (autenticado, principal = usuário)
+### Chat interno (delegated)
 ```
-POST /api/ia/chat (withModuleRoute('ia'), sessão)  → conversationId
-  → aciona Worker do agente (delegated: perms reais do usuário)
-  → mesmo loop; persona "funcionário/gestão"; tools = subset pelas perms do usuário
+POST /api/ia/chat (withModuleRoute('ia'), sessão) → conversationId + handle
+  → agente → mesmo loop; persona funcionário; enforcement = RBAC do usuário
 ```
 
 ---
 
 ## Resolução de interlocutor & persona
 
-| Tipo | Identificação | Persona / objetivo | Tools liberadas (camada persona) |
+| Tipo | Identificação | Persona | Subset sugerido |
 |---|---|---|---|
-| Lead | WhatsApp; número em `leads` (via adapter) | Vendas/SDR | agenda/qualificação |
-| Paciente | WhatsApp; número em `patients` | Relacionamento/clínico | agenda/confirmação/follow-up |
-| Desconhecido | WhatsApp sem match | Recepção/qualificação | mínimo (info + agendar avaliação) |
-| Funcionário | Chat interno (usuário logado) | Gestão/operação | conforme RBAC do usuário |
+| Lead | nº em `leads` (adapter) | Vendas/SDR | agenda/qualificação |
+| Paciente | nº em `patients` | Relacionamento | agenda/confirmação |
+| Desconhecido | sem match | Recepção | mínimo |
+| Funcionário | chat (logado) | Gestão/operação | conforme RBAC |
 
-Persona define **system prompt + contexto + qual subconjunto de tools** é oferecido (ver §Filtragem). Cada persona é candidata a virar especialista 4+1 no gap-fill.
+Persona = prompt + contexto + **sugestão** de tools. Enforcement real é server-side (§Fronteira). Cada persona é candidata a especialista 4+1 no gap-fill.
 
 ---
 
-## Permissões & segurança (reescrito — achado #4)
+## Estado, persistência, entrega, concorrência
 
-- **`ctx` é a fronteira de capacidade.** Tools filtradas por `hasModule && can`; `runAction` rebate `forbidden` se o LLM insistir. Dupla barreira.
-- **Chat interno → principal = usuário.** `buildDelegatedContext` resolve perms reais (admin/recepção/dentista/comercial). Zero escalonamento.
-- **WhatsApp → principal = role Agente.** Cliente/paciente não é principal nem tem RBAC.
-- **Identidade por telefone é dica fraca, nunca barreira de segurança.** Em contexto clínico (LGPD/dados de saúde):
-  - Persona/contexto sensível (histórico clínico, financeiro) **não** é injetado no prompt só com base no número.
-  - Agente autônomo no WhatsApp limitado a um **subset seguro** por default: consultar disponibilidade, agendar, **confirmar a própria** consulta, responder dúvidas gerais.
-  - **Ações sensíveis** (cancelar/remarcar, expor dados clínicos/financeiros, alterar cadastro) exigem **confirmação explícita** e/ou verificação adicional de identidade; na dúvida, **escala para humano** (`atendimento.escalarConversa`).
-  - *(Postura default — confirmar na revisão; ajustável por clínica na futura Gestão do Agente.)*
-- Webhook validado (assinatura/secret); idempotência inbound por `externalMessageId`. Rota chat gated+autenticada. Toda Action auditada em `action_logs`.
-
-## Filtragem de tools em camadas (achado #5)
-
-Não enviar as ~69 tools em toda chamada (custo/precisão). Camadas: **ctx** (módulo+permissão) → **canal/persona** (subset relevante) → **intenção/módulo** (refino opcional por classificação leve). Requisito, não otimização futura.
-
-## LLM pluggable + loop (achados #8, #11)
-
-- `provider.complete(messages, tools) → { text, toolCalls }`; OpenAI-compatible → Zen. Env: `OPENCODE_ZEN_API_KEY`, `IA_LLM_MODEL`, `IA_LLM_BASE_URL`.
-- **Modelo default escolhido e validado no spike** (tool-calling, schema, timeout, retry).
-- **Política anti-loop (fechar):** limite de iterações (ex.: 5), budget de tempo por turno, regra de escape (resposta parcial + escala), e tratamento de erro de tool (retry limitado → degrade). 
-
-## Estado & persistência (reescrito — achados #3, #12)
-
-- **`messages` (Postgres) = fonte de verdade.** Transcript oficial; DO = cache/scratchpad/sumário.
-- **Ordem:** persistir inbound → processar → persistir outbound → enviar. Envio com **chave idempotente outbound** + estado de entrega (evita duplicar em retry/replay).
-- **Reidratação após eviction:** janela curta de contexto no DO + reidratação parcial de `messages` + sumarização. Política inicial simples.
-- Replay do mesmo `externalMessageId` é no-op (dedup).
+- **`messages` = fonte de verdade**; DO = cache/scratchpad. Acesso ao Postgres **só via app** (achado #4).
+- **Ordem:** persistir inbound → processar → persistir outbound → enviar. **Chave idempotente outbound** + estado de entrega (`pending`/`sent`/`failed`).
+- **Dono do retry (achado #7):** o **app** é o dono do envio outbound e do retry (não o DO) — fila/estado de entrega no app; replay do mesmo `externalMessageId` (inbound) ou da mesma chave outbound é no-op; sem reorder (entrega em ordem por conversa).
+- **Concorrência (achado #8):** **serialização por conversa** — o DO processa um turno por vez (fila no próprio DO); mensagens concorrentes na mesma conversa enfileiram; turno usa o estado mais recente.
+- **Ciclo de vida da sessão DO (achado #6):** TTL de inatividade (ex.: encerra/sumariza sessão após N h sem mensagem); reset explícito ao detectar novo assunto/atendimento; nova sessão lógica não herda scratchpad velho (contexto antigo não contamina). `messages` permanece como histórico durável independente do TTL do DO.
+- **Reidratação:** janela curta no DO + reidratação parcial de `messages` + sumarização.
 
 ## Observabilidade (achado #10)
 
-`correlationId`/trace id propagado de ponta a ponta: inbound → turno do DO → chamadas de Action (`action_logs`) → outbound. Sem isso, debug operacional é inviável. Requisito do design.
+`correlationId`/trace id de ponta a ponta: inbound → handle → turno do DO → execução de Action (`action_logs`) → outbound. Requisito do design.
+
+## LLM + loop (achados #8, #11)
+
+`provider.complete(messages, tools) → { text, toolCalls }`. Modelo default validado no spike. **Anti-loop:** limite de iterações (~5), budget de tempo por turno, escape (resposta parcial + escala), retry limitado de tool → degrade.
 
 ---
 
-## Testing (achado #9 — matriz de falhas)
+## Testing
 
-- **Unit (Node, mock LLM):** provider; loop+guard; `interlocutor.resolve`; personas (prompt + subset de tools); leads-read adapter.
-- **Integração (runtime Workers):** chat (delegated) → Action real → resposta; WhatsApp (system) → Action → `action_logs` `principalType='system'`; tool proibida → `forbidden`.
-- **Matriz de falhas (obrigatória):** replay do mesmo `externalMessageId`; send ok/persist fail; persist ok/send fail; restart/eviction do DO; timeout/429 de tool; mensagens concorrentes na mesma conversa; tool proibida/ausente; persona sem tools.
+- **Unit (Node, mock LLM):** provider; loop+guard; `interlocutor.resolve`; personas; leads-read; **reconstrução de ctx por handle + rejeição de handle inválido/forjado**; enforcement server-side (allowlist/matriz).
+- **Integração (Workers):** chat (delegated)→Action→resposta; WhatsApp (system)→Action→`action_logs` `principalType='system'`; tool proibida → `forbidden`; endpoint interno inacessível sem binding.
+- **Matriz de falhas:** replay `externalMessageId`; send ok/persist fail; persist ok/send fail; restart/eviction do DO; timeout/429 de tool; concorrência na mesma conversa; tool proibida/ausente; persona sem tools; handle expirado; drift de versão do contrato de tools.
 
 ---
 
 ## Dependências
 
-- **Existe:** `agentToolsFor`/`buildSystemContext`/`buildDelegatedContext`; ~69 Actions; lookup telefone→paciente (`operacional.obterPaciente`+repo); Actions de canal (`receberMensagem`/`enviarMensagem`); webhook Evolution gated; dedup `externalMessageId`; Hyperdrive/Vectorize provisionados.
-- **A criar/confirmar (spike/plano):** Worker dedicado + service binding + endpoint interno de Actions; instalação limpa do Agents SDK (zod isolado); `leads-read` adapter; `conversationId` no chat; conta/API key OpenCode Zen + modelo validado.
+- **Existe:** `agentToolsFor`/`buildSystemContext`/`buildDelegatedContext`; ~69 Actions; telefone→paciente (`operacional.obterPaciente`+repo); `receberMensagem`/`enviarMensagem`; webhook gated; dedup `externalMessageId`; Hyperdrive/Vectorize.
+- **A criar/confirmar (spike/plano):** Worker dedicado + service binding + endpoint interno (handle/auth/contrato de tools versionado); install limpo do SDK (zod isolado); `leads-read` adapter; `conversationId` + sessão/handle no chat; conta/key OpenCode Zen + modelo validado.
 
 ## Não-objetivos (fases futuras)
 
-4+1 especialistas · RAG/Vectorize · memória de paciente em camadas · multimodal/MCP · Gestão do Agente (config de comportamento e permissões finas, UI de auditoria) · voz · reconectar `cron/smart-triggers`.
+4+1 especialistas · RAG/Vectorize · memória em camadas · multimodal/MCP · Gestão do Agente (config de comportamento, permissões finas, UI de auditoria) · voz · reconectar `cron/smart-triggers`.
+
+## Exceções conhecidas / dívida
+
+- **`leads-read` (achado #9):** **exceção temporária** à narrativa "capacidades = Actions" — leitura direta do schema `leads` por não haver módulo Comercial (E-05, Onda 2+). Encapsulada num adapter único. **Critério de remoção:** quando E-05 expuser uma Action de leitura de lead, migrar e remover o adapter. Marcar com `// TODO(E-05)`.
 
 ## Decisões abertas (residuais — pós-spike)
 
 | Decisão | Nota |
 |---|---|
-| Latência/forma exata do service binding | Medir no spike |
-| Quanto de contexto reidratar do Postgres | Começar mínimo, ajustar |
+| Handle: sessionId persistido vs token assinado | Decidir no spike (segurança/latência) |
+| Latência exata do service binding | Medir no spike |
 | Streaming no chat | Opcional nesta fatia |
 
 ## Referências
@@ -182,9 +190,9 @@ Não enviar as ~69 tools em toda chamada (custo/precisão). Camadas: **ctx** (m�
 | Documento | Papel |
 |---|---|
 | `docs/superpowers/plans/2026-06-17-w5-novo-agente-cloudflare.md` | Plano arquitetural (Tasks 2+3) |
-| `docs/superpowers/specs/2026-06-21-eixo2-sequenciamento-design.md` | Onda 1; critério de conclusão |
-| `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md` | Roadmap-mestre (§8 W5, §10, §3.7 role Agente) |
-| Review crítico do Codex (2026-06-25) | Origem dos achados 1–12 incorporados |
+| `docs/superpowers/specs/2026-06-21-eixo2-sequenciamento-design.md` | Onda 1; critério |
+| `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md` | Roadmap-mestre (§8/§10/§3.7) |
+| Reviews do Codex (2026-06-25, 2 rounds) | Origem dos achados 1–12 (round 1) e 1–9 (round 2 — fronteira app↔agente) |
 | `src/core/actions/agent.ts` · `context.ts` | `agentToolsFor`, contextos |
 | commit `4abe8960` (revertido) | Esqueleto-referência; revelou o conflito de zod |
 | OpenCode Zen | `https://opencode.ai/docs/zen/` |
