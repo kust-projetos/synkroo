@@ -73,6 +73,17 @@ it('registers operacional access permissions in the catalog', async () => {
   expect(keys).toContain('operacional:manage_reminders');
 });
 
+// ─── IA module registry guard ─────────────────────────────────────────────────
+
+it('registers ia access permissions in the catalog', async () => {
+  await bootstrapActions();
+  const { getPermissionCatalog } = await import('@/core/rbac/catalog');
+  const catalog = getPermissionCatalog();
+  const keys = catalog.map((p) => p.key);
+  expect(keys).toContain('ia:chat');
+  expect(keys).toContain('ia:manage');
+});
+
 it('is idempotent for both core and operacional', async () => {
   await bootstrapActions();
   const count1 = getActions().length;

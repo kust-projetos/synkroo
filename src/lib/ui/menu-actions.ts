@@ -6,6 +6,7 @@ import { coreManifest } from '@/modules/core/manifest'
 import { operacionalManifest } from '@/modules/operacional/manifest'
 import { atendimentoManifest } from '@/modules/atendimento/manifest'
 import { followupManifest } from '@/modules/followup/manifest'
+import { iaManifest } from '@/modules/ia/manifest'
 import { makeManifest, drizzleManifestRepo } from '@/core/modules/manifest'
 import type { MenuItem } from '@/core/modules/gates'
 
@@ -17,7 +18,7 @@ import type { MenuItem } from '@/core/modules/gates'
 export async function getVisibleMenu(): Promise<MenuItem[]> {
   try {
     const ctx = await buildUserContext()
-    return await buildMenu([coreManifest, operacionalManifest, atendimentoManifest, followupManifest], makeManifest(drizzleManifestRepo), ctx.can)
+    return await buildMenu([coreManifest, operacionalManifest, atendimentoManifest, followupManifest, iaManifest], makeManifest(drizzleManifestRepo), ctx.can)
   } catch {
     return []
   }
