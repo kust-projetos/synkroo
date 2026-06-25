@@ -24,12 +24,14 @@ export async function bootstrapActions(): Promise<void> {
     { operacionalActions, operacionalAccessPermissions },
     { atendimentoActions, atendimentoAccessPermissions },
     { followupActions, followupAccessPermissions },
+    { iaActions, iaAccessPermissions },
   ] = await Promise.all([
     import('@/core/rbac/catalog'),
     import('@/modules/core'),
     import('@/modules/operacional'),
     import('@/modules/atendimento'),
     import('@/modules/followup'),
+    import('@/modules/ia'),
   ]);
 
   // Só registra os ainda ausentes (idempotente em dev/HMR)
@@ -37,9 +39,11 @@ export async function bootstrapActions(): Promise<void> {
   registerActions(operacionalActions.filter((a) => !getAction(a.name)));
   registerActions(atendimentoActions.filter((a) => !getAction(a.name)));
   registerActions(followupActions.filter((a) => !getAction(a.name)));
+  registerActions(iaActions);
   registerAccessPermissions(coreAccessPermissions);
   registerAccessPermissions(operacionalAccessPermissions);
   registerAccessPermissions(atendimentoAccessPermissions);
   registerAccessPermissions(followupAccessPermissions);
+  registerAccessPermissions(iaAccessPermissions);
   done = true;
 }
