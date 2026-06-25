@@ -96,19 +96,32 @@ export { iaAccessPermissions } from './permissions';
 
 - [ ] **Step 4: Registrar no bootstrap** (`src/core/actions/bootstrap.ts`)
 
-Seguir EXATAMENTE o padrão do `followup` já presente neste arquivo. Adicionar o import e o registro:
+**CRÍTICO:** o `bootstrap.ts` usa **dynamic imports dentro de `await Promise.all`** (comentário no topo: "Lazy imports: evita que o instrumentation.ts em edge runtime puxe pg"). **NÃO** adicionar import estático top-level. Adicionar `@/modules/ia` ao `Promise.all` e registrar antes de `done = true`:
 
 ```ts
-// no bloco de imports de módulos, junto aos demais { xActions, xAccessPermissions }:
-import { iaActions, iaAccessPermissions } from '@/modules/ia';
+  const [
+    { registerAccessPermissions },
+    { coreActions, coreAccessPermissions },
+    { operacionalActions, operacionalAccessPermissions },
+    { atendimentoActions, atendimentoAccessPermissions },
+    { followupActions, followupAccessPermissions },
+    { iaActions, iaAccessPermissions },               // <-- adicionar
+  ] = await Promise.all([
+    import('@/core/rbac/catalog'),
+    import('@/modules/core'),
+    import('@/modules/operacional'),
+    import('@/modules/atendimento'),
+    import('@/modules/followup'),
+    import('@/modules/ia'),                            // <-- adicionar
+  ]);
 
-// onde os outros módulos chamam registerActions(...) condicional ao getAction:
-registerActions(iaActions.filter((a) => !getAction(a.name)));
-// onde registra as permissões dos módulos:
-registerAccessPermissions(iaAccessPermissions);
+  // ...registros existentes...
+  registerActions(iaActions.filter((a) => !getAction(a.name)));   // no-op (iaActions = [])
+  registerAccessPermissions(iaAccessPermissions);                 // registra ia:chat, ia:manage
+  done = true;
 ```
 
-> `iaActions` é `[]` nesta fatia — o registro é no-op para actions, mas mantém o módulo no pipeline e registra as permissões `ia:*`.
+> `iaActions` é `[]` nesta fatia — `registerActions` é no-op, mas o módulo entra no pipeline e as permissões `ia:*` são registradas.
 
 - [ ] **Step 5: Registrar o manifesto no menu** (`src/lib/ui/menu-actions.ts`)
 
@@ -209,7 +222,7 @@ describe('toRemoteTool', () => {
   const action = {
     name: 'operacional.agendarConsulta',
     module: 'operacional',
-    requires: 'operacional:create',
+    requires: 'operacional:manage_appointments',
     label: 'Agendar consulta',
     description: 'Agenda uma consulta',
     input: z.object({ pacienteId: z.string().uuid(), data: z.string() }),
@@ -218,7 +231,7 @@ describe('toRemoteTool', () => {
     const t = toRemoteTool(action);
     expect(t.name).toBe('operacional.agendarConsulta');
     expect(t.alias).toBe('operacional__agendarConsulta');
-    expect(t.permissions).toEqual(['operacional:create']);
+    expect(t.permissions).toEqual(['operacional:manage_appointments']);
     expect(t.inputSchemaJson).toHaveProperty('type', 'object');
     expect((t.inputSchemaJson as any).properties).toHaveProperty('pacienteId');
   });
@@ -271,20 +284,20 @@ export function toRemoteTool(
   };
 }
 
-// Catálogo filtrado pelo ctx (manifesto + permissão), versionado pelo conjunto de aliases.
-export function buildToolCatalog(ctx: ActionContext): ToolCatalog {
-  const allowed = getActions().filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires));
-  const tools = allowed.map(toRemoteTool);
-  const version = hashAliases(tools.map((t) => t.alias));
-  return { version, tools };
-}
-
-function hashAliases(aliases: string[]): string {
-  // hash estável e determinístico do conjunto ordenado (detecta drift)
-  const joined = [...aliases].sort().join('|');
+// Catálogo a partir de uma lista de actions já filtrada — reutilizável e testável
+// (consumido também por bridge-service com a lista injetada). Versionado pelo
+// conjunto ordenado de aliases (detecta drift).
+export function buildToolCatalogFromList(actions: ActionDefinition<any, any>[]): ToolCatalog {
+  const tools = actions.map(toRemoteTool);
+  const joined = [...tools.map((t) => t.alias)].sort().join('|');
   let h = 0;
   for (let i = 0; i < joined.length; i++) { h = (h * 31 + joined.charCodeAt(i)) | 0; }
-  return `v${(h >>> 0).toString(16)}`;
+  return { version: `v${(h >>> 0).toString(16)}`, tools };
+}
+
+// Catálogo filtrado pelo ctx (manifesto + permissão), sobre o registry global.
+export function buildToolCatalog(ctx: ActionContext): ToolCatalog {
+  return buildToolCatalogFromList(getActions().filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires)));
 }
 ```
 
@@ -328,12 +341,12 @@ describe('buildToolCatalog', () => {
   beforeAll(() => { bootstrapActions(); });
 
   it('includes only tools whose module AND permission are granted', () => {
-    const ctx = ctxWith(new Set(['operacional:read']), new Set(['operacional']));
+    // 'operacional:view' é a permissão REAL de leitura (não 'operacional:read').
+    const ctx = ctxWith(new Set(['operacional:view']), new Set(['operacional']));
     const cat = buildToolCatalog(ctx);
-    const names = cat.tools.map((t) => t.name);
-    // todas as tools devem ser do módulo operacional e exigir operacional:read
-    expect(names.length).toBeGreaterThan(0);
-    expect(names.every((n) => n.startsWith('operacional.'))).toBe(true);
+    expect(cat.tools.length).toBeGreaterThan(0);
+    // prova filtragem por permissão específica, não só por prefixo de módulo:
+    expect(cat.tools.every((t) => t.permissions.includes('operacional:view'))).toBe(true);
   });
 
   it('returns empty catalog when no module is enabled', () => {
@@ -342,8 +355,8 @@ describe('buildToolCatalog', () => {
   });
 
   it('version changes when the tool set changes', () => {
-    const full = buildToolCatalog(ctxWith(new Set(['operacional:read', 'operacional:create']), new Set(['operacional'])));
-    const partial = buildToolCatalog(ctxWith(new Set(['operacional:read']), new Set(['operacional'])));
+    const full = buildToolCatalog(ctxWith(new Set(['operacional:view', 'operacional:manage_appointments']), new Set(['operacional'])));
+    const partial = buildToolCatalog(ctxWith(new Set(['operacional:view']), new Set(['operacional'])));
     expect(full.version).not.toBe(partial.version);
   });
 });
@@ -352,7 +365,7 @@ describe('buildToolCatalog', () => {
 - [ ] **Step 2: Rodar**
 
 Run: `npx jest src/core/agent-bridge/__tests__/catalog-filter.test.ts -v`
-Expected: PASS. (Se a 1ª asserção falhar por nomes de permissão, ajuste os `perms` para uma permissão real de leitura de `operacional` — confira em `src/modules/operacional/actions/*` qual `requires` as actions de leitura usam.)
+Expected: PASS. (Permissões reais do operacional: `operacional:view`, `operacional:manage_appointments`, `manage_patients`, `manage_catalog`, `manage_waitlist`, `manage_reminders` — ver `src/modules/operacional/permissions.ts`.)
 
 - [ ] **Step 3: Commit**
 
@@ -580,7 +593,9 @@ const encoder = new TextEncoder();
 
 export interface SeenStore {
   wasSeen(jti: string): Promise<boolean>;
-  markSeen(jti: string): Promise<void>;
+  // ttlSeconds: tempo de vida do registro do nonce — deve cobrir o exp do handle
+  // (senão o nonce expira antes do handle e abre janela de replay).
+  markSeen(jti: string, ttlSeconds: number): Promise<void>;
 }
 
 async function importKey(secret: string): Promise<CryptoKey> {
@@ -648,7 +663,9 @@ export async function verifyHandle(
   if (payload.conversationId !== opts.conversationId) return { ok: false, error: 'conversation_mismatch' };
   if (opts.singleUse) {
     if (await opts.store.wasSeen(payload.jti)) return { ok: false, error: 'replayed' };
-    await opts.store.markSeen(payload.jti);
+    // TTL do nonce cobre o exp do handle + margem (evita replay na janela remanescente).
+    const ttlSeconds = Math.max(Math.ceil((payload.exp - Date.now()) / 1000) + 30, 60);
+    await opts.store.markSeen(payload.jti, ttlSeconds);
   }
   return { ok: true, payload };
 }
@@ -690,8 +707,8 @@ function memStore() {
   return { async wasSeen(j: string) { return seen.has(j); }, async markSeen(j: string) { seen.add(j); } };
 }
 
-const consultar = { name: 'operacional.consultarDisponibilidade', module: 'operacional', requires: 'operacional:read', label: 'Consultar', input: { safeParse: () => ({ success: true, data: {} }) } } as unknown as ActionDefinition<any, any>;
-const agendar = { name: 'operacional.agendarConsulta', module: 'operacional', requires: 'operacional:create', label: 'Agendar', input: { safeParse: () => ({ success: true, data: {} }) } } as unknown as ActionDefinition<any, any>;
+const consultar = { name: 'operacional.consultarDisponibilidade', module: 'operacional', requires: 'operacional:view', label: 'Consultar', input: { safeParse: () => ({ success: true, data: {} }) } } as unknown as ActionDefinition<any, any>;
+const agendar = { name: 'operacional.agendarConsulta', module: 'operacional', requires: 'operacional:manage_appointments', label: 'Agendar', input: { safeParse: () => ({ success: true, data: {} }) } } as unknown as ActionDefinition<any, any>;
 
 function deps(): BridgeDeps {
   const ctx = { source: 'system', clinicId: 'c1', can: () => true, hasModule: () => true, audit: { actor: 'agente (sistema)' } } as unknown as ActionContext;
@@ -745,7 +762,7 @@ Expected: FAIL (módulo não existe).
 ```ts
 import type { ActionContext, ActionDefinition, ActionResult } from '@/core/actions/types';
 import { verifyHandle, type SeenStore } from './handle';
-import { buildToolCatalog, normalizeToolName } from './tool-catalog';
+import { buildToolCatalogFromList, normalizeToolName } from './tool-catalog';
 import { assertSystemAllowed } from './security-matrix';
 import type { ToolCatalog } from './types';
 
@@ -765,8 +782,9 @@ export async function listToolsLogic(deps: BridgeDeps, input: ListToolsInput): P
   const v = await verifyHandle(deps.secret, input.handle, { conversationId: input.conversationId, store: deps.store });
   if (!v.ok) return { ok: false, error: v.error };
   const ctx = await rebuildCtx(deps, v.payload);
-  // catálogo usa o registry real via getActions injetado em buildToolCatalog? -> usamos o ctx + injeção:
-  return { ok: true, catalog: buildCatalogWith(deps, ctx) };
+  // filtra a lista injetada pelo ctx e delega ao conversor compartilhado (testável):
+  const allowed = deps.getActions().filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires));
+  return { ok: true, catalog: buildToolCatalogFromList(allowed) };
 }
 
 export type ExecuteInput = {
@@ -804,43 +822,20 @@ async function rebuildCtx(deps: BridgeDeps, payload: { clinicId: string; princip
     ? await deps.buildSystemContext(payload.clinicId)
     : await deps.buildDelegatedContext(payload.principalRef, payload.clinicId);
 }
-
-// buildToolCatalog usa getActions() do registry global; para manter a lógica pura
-// e testável, filtramos a lista injetada pelo ctx aqui:
-function buildCatalogWith(deps: BridgeDeps, ctx: ActionContext): ToolCatalog {
-  // reusa o conversor; a filtragem por ctx é a mesma de buildToolCatalog,
-  // mas sobre a lista injetada (testável).
-  const allowed = deps.getActions().filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires));
-  // delega ao conversor padrão para o shape do catálogo:
-  return buildToolCatalogFromList(allowed);
-}
-
-// extraído de tool-catalog para reuso (ver nota abaixo)
-import { toRemoteTool } from './tool-catalog';
-function buildToolCatalogFromList(actions: ActionDefinition<any, any>[]): ToolCatalog {
-  const tools = actions.map(toRemoteTool);
-  const aliases = tools.map((t) => t.alias).sort().join('|');
-  let h = 0; for (let i = 0; i < aliases.length; i++) h = (h * 31 + aliases.charCodeAt(i)) | 0;
-  return { version: `v${(h >>> 0).toString(16)}`, tools };
-}
 ```
 
-> Nota: `buildToolCatalog(ctx)` (Task 2) usa `getActions()` do registry global; aqui criamos `buildToolCatalogFromList` para receber a lista injetada (testabilidade). Para evitar duplicação, **refatore** `tool-catalog.ts` extraindo `buildToolCatalogFromList(actions)` e fazendo `buildToolCatalog(ctx)` chamá-la com `getActions().filter(...)`. Importe-a aqui em vez de redefinir.
+> `buildToolCatalogFromList` é importado de `tool-catalog.ts` (extraído na Task 2) — sem duplicação nem refactor pendente.
 
-- [ ] **Step 4: Refatorar `tool-catalog.ts` para expor `buildToolCatalogFromList`**
-
-Em `src/core/agent-bridge/tool-catalog.ts`, extrair o corpo de `buildToolCatalog` para `buildToolCatalogFromList(actions: ActionDefinition[])` e exportá-la; `buildToolCatalog(ctx)` passa a ser `buildToolCatalogFromList(getActions().filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires)))`. Em `bridge-service.ts`, importar `buildToolCatalogFromList` e remover a cópia local.
-
-- [ ] **Step 5: Rodar (deve passar)**
+- [ ] **Step 4: Rodar (deve passar)**
 
 Run: `npx jest src/core/agent-bridge/__tests__/bridge-service.test.ts src/core/agent-bridge/__tests__/tool-catalog.test.ts -v`
 Expected: PASS.
 
-- [ ] **Step 6: Typecheck + commit**
+- [ ] **Step 5: Typecheck + commit**
 
 ```bash
 npm run typecheck
-git add src/core/agent-bridge/bridge-service.ts src/core/agent-bridge/tool-catalog.ts src/core/agent-bridge/__tests__/bridge-service.test.ts
+git add src/core/agent-bridge/bridge-service.ts src/core/agent-bridge/__tests__/bridge-service.test.ts
 git commit -m "feat(ia): bridge-service logic (handle->alias->matrix->runAction), pure & tested"
 ```
 
@@ -871,12 +866,21 @@ export interface Env {
   IA_SEEN: KVNamespace;
 }
 
-bootstrapActions(); // garante o registry populado neste isolate
+// bootstrapActions() é ASYNC (dynamic imports). Memoizar a Promise garante que o
+// registry esteja populado antes de qualquer RPC, mesmo sob chamadas concorrentes.
+let bootstrapPromise: Promise<void> | null = null;
+function ensureBootstrap(): Promise<void> {
+  if (!bootstrapPromise) bootstrapPromise = bootstrapActions();
+  return bootstrapPromise;
+}
 
 function kvSeenStore(kv: KVNamespace): SeenStore {
   return {
     async wasSeen(jti) { return (await kv.get(`jti:${jti}`)) !== null; },
-    async markSeen(jti) { await kv.put(`jti:${jti}`, '1', { expirationTtl: 120 }); },
+    async markSeen(jti, ttlSeconds) {
+      // expirationTtl mínimo do KV é 60s; o ttlSeconds já vem coberto do verifyHandle.
+      await kv.put(`jti:${jti}`, '1', { expirationTtl: Math.max(ttlSeconds, 60) });
+    },
   };
 }
 
@@ -898,8 +902,8 @@ export class AppService extends WorkerEntrypoint<Env> {
     return issueHandle(this.env.HANDLE_SECRET, input);
   }
 
-  async listTools(input: ListToolsInput) { return listToolsLogic(this.deps(), input); }
-  async executeAction(input: ExecuteInput) { return executeActionLogic(this.deps(), input); }
+  async listTools(input: ListToolsInput) { await ensureBootstrap(); return listToolsLogic(this.deps(), input); }
+  async executeAction(input: ExecuteInput) { await ensureBootstrap(); return executeActionLogic(this.deps(), input); }
 }
 
 export default { fetch() { return new Response('binding-only', { status: 404 }); } };
@@ -925,26 +929,56 @@ export default { fetch() { return new Response('binding-only', { status: 404 });
 
 > `HANDLE_SECRET` é **secret**: `npx wrangler secret put HANDLE_SECRET --config wrangler.ia-bridge.jsonc`. Dev local: `.dev.vars` (gitignored) com `HANDLE_SECRET=...`.
 
-- [ ] **Step 3: Adicionar scripts** (`package.json`)
+- [ ] **Step 3: Isolar os tipos do Worker (CRÍTICO — `cloudflare:workers` não resolve no tsconfig padrão)**
+
+O `tsconfig.json` raiz inclui `**/*.ts` mas **exclui** `worker-configuration.d.ts` (que tem `declare module 'cloudflare:workers'`). Sem isolar, `npm run typecheck`/`build` quebram ao ver o import do Worker.
+
+(a) No `tsconfig.json` raiz, adicionar `src/workers/**` ao `exclude`:
+
+```jsonc
+"exclude": ["node_modules", "worker-configuration.d.ts", "src/workers/**"]
+```
+
+(b) Gerar os tipos do binding e criar um tsconfig dedicado do Worker:
+
+Run: `npx wrangler types --config wrangler.ia-bridge.jsonc --path src/workers/ia-bridge/worker-configuration.d.ts`
+
+Create `src/workers/ia-bridge/tsconfig.json`:
+```jsonc
+{
+  "extends": "../../../tsconfig.json",
+  "compilerOptions": { "types": ["@cloudflare/workers-types"] },
+  "include": ["**/*.ts", "worker-configuration.d.ts"],
+  "exclude": []
+}
+```
+
+(c) Confirmar que `@cloudflare/workers-types` está instalado (`npm ls @cloudflare/workers-types`); se não, `npm i -D @cloudflare/workers-types`.
+
+- [ ] **Step 4: Adicionar scripts** (`package.json`)
 
 ```json
 "dev:ia-bridge": "wrangler dev --config wrangler.ia-bridge.jsonc",
-"deploy:ia-bridge": "wrangler deploy --config wrangler.ia-bridge.jsonc"
+"deploy:ia-bridge": "wrangler deploy --config wrangler.ia-bridge.jsonc",
+"typecheck:ia-bridge": "tsc --noEmit --project src/workers/ia-bridge/tsconfig.json"
 ```
 
-- [ ] **Step 4: Typecheck + provar binding-only**
+- [ ] **Step 5: Typecheck (raiz + worker) + provar binding-only**
 
-Run: `npm run typecheck` → Expected: 0 erros.
+Run: `npm run typecheck` → Expected: 0 erros (worker excluído do tsconfig raiz).
+Run: `npm run typecheck:ia-bridge` → Expected: 0 erros (`cloudflare:workers` resolve via tsconfig do worker).
 Run: `npm run dev:ia-bridge` (outro terminal) e `curl -s http://localhost:8787/` → Expected: `binding-only` (HTTP 404).
 
-> A lógica já está testada em Jest (Task 6/8). A casca é validada por typecheck + `wrangler dev` (binding-only). RPC ponta-a-ponta entra no Plano 2 (Worker do agente como cliente do binding).
+> A lógica já está testada em Jest (Task 6/8). A casca é validada por `typecheck:ia-bridge` + `wrangler dev` (binding-only). RPC ponta-a-ponta entra no Plano 2 (Worker do agente como cliente do binding).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/workers/ia-bridge/index.ts wrangler.ia-bridge.jsonc package.json
-git commit -m "feat(ia): ia-bridge worker shell (WorkerEntrypoint) + config (hyperdrive/kv/secret)"
+git add src/workers/ia-bridge tsconfig.json wrangler.ia-bridge.jsonc package.json
+git commit -m "feat(ia): ia-bridge worker shell (WorkerEntrypoint) + config + isolated worker types"
 ```
+
+> `src/workers/ia-bridge/worker-configuration.d.ts` é gerado por `wrangler types`; inclua-o no commit (ou no `.gitignore` se preferir gerá-lo no CI — decida e seja consistente).
 
 ---
 
@@ -964,13 +998,13 @@ import type { ActionContext, ActionDefinition } from '@/core/actions/types';
 
 const SECRET = 'secret-test';
 const ctx = { source: 'system', clinicId: 'c1', can: () => true, hasModule: () => true, audit: { actor: 'agente (sistema)' } } as unknown as ActionContext;
-const mk = (name: string, requires = 'operacional:read') => ({ name, module: 'operacional', requires, label: name, input: { safeParse: () => ({ success: true, data: {} }) } } as unknown as ActionDefinition<any, any>);
+const mk = (name: string, requires = 'operacional:view') => ({ name, module: 'operacional', requires, label: name, input: { safeParse: () => ({ success: true, data: {} }) } } as unknown as ActionDefinition<any, any>);
 
 function deps(seen = new Set<string>()): BridgeDeps {
   return {
     secret: SECRET,
     store: { async wasSeen(j: string) { return seen.has(j); }, async markSeen(j: string) { seen.add(j); } },
-    getActions: () => [mk('operacional.consultarDisponibilidade'), mk('operacional.cancelarConsulta', 'operacional:delete')],
+    getActions: () => [mk('operacional.consultarDisponibilidade'), mk('operacional.cancelarConsulta', 'operacional:manage_appointments')],
     runAction: async () => ({ ok: true, data: {} }),
     buildSystemContext: async () => ctx,
     buildDelegatedContext: async () => ctx,
@@ -1052,6 +1086,6 @@ git commit -m "test(ia): fronteira app-side — matriz de falhas (handle/replay/
 
 > **Notas para o executor:**
 > - **Referência fiel:** branch `spike/ia-agente-referencia` (`spikes/app-worker/src/index.ts`, `spikes/convert-tools.ts`) — padrões do handle, WorkerEntrypoint e conversor já provados.
-> - **Permissões reais:** ao escrever os testes do catálogo/matriz, confirme os `requires` reais das actions de `operacional` (ex.: `operacional:read`/`:create`) lendo `src/modules/operacional/actions/*` — ajuste os nomes se divergirem dos usados aqui.
+> - **Permissões reais (operacional):** `operacional:view` (leitura), `operacional:manage_appointments`, `manage_patients`, `manage_catalog`, `manage_waitlist`, `manage_reminders` — ver `src/modules/operacional/permissions.ts`. NÃO existem `:read`/`:create`/`:delete`. Ex.: `consultarDisponibilidade`/`listarProcedimentos`/`obterPaciente` → `operacional:view`; `agendarConsulta`/`cancelarConsulta` → `operacional:manage_appointments`.
 > - **Não acessar Postgres fora do `ia-bridge`** (spec §path de dados). O Worker do agente (Plano 2) nunca toca o Postgres — só chama `AppService`.
 > - **`HANDLE_SECRET` é secret** (wrangler secret / `.dev.vars`), nunca no repo.
