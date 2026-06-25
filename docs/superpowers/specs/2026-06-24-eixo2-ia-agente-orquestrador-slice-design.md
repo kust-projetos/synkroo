@@ -1,8 +1,8 @@
 # Eixo 2 — Agente IA: Orquestrador (slice ponta-a-ponta) — Design
 
 > **Tipo:** Spec de design (módulo IA, primeira fatia). Deriva do W5 (`docs/superpowers/plans/2026-06-17-w5-novo-agente-cloudflare.md`, Tasks 2+3) e do roadmap-mestre §8/§10.
-> **Data:** 2026-06-24 · **Revisado:** 2026-06-25 (2 rounds de review crítico do Codex incorporados).
-> **Status:** Em revisão. Pré-requisito antes do plano: **spike de viabilidade** (§Spike). Depois do spike: writing-plans.
+> **Data:** 2026-06-24 · **Revisado:** 2026-06-25 (3 rounds de review crítico do Codex incorporados).
+> **Status:** **Aprovada para o spike de viabilidade** (veredito round 3). Fechamentos finos pré-plano incorporados (handle lifecycle, matriz por eixos, retry terminal, drift de catálogo, falha de binding). Depois do spike: writing-plans.
 > **Escopo:** apenas esta fatia (esqueleto + Action Layer + canais). RAG, memória, 4+1 e gestão do agente são fases futuras.
 
 ---
@@ -65,6 +65,7 @@ Se 1–4 não fecharem, reavaliar topologia (último recurso: DO cru). Spike des
 A topologia C cria uma fronteira de rede. Modelo de confiança:
 
 - **Handle opaco, não principal.** Na entrada (webhook WhatsApp validado, ou chat autenticado), o **app** cria uma sessão e emite um **handle opaco** (sessionId persistido no app, ou token assinado curto) que codifica `{ clinicId, source, principalRef, conversationId }`. O worker recebe e reapresenta esse handle — **nunca** monta nem envia `principal` livre.
+- **Lifecycle do handle (achado round 3 #1):** vínculo **estrito** handle ↔ `conversationId` ↔ `principalRef` ↔ `source` (o app rejeita uso cruzado — handle de uma conversa não vale para outra, nem troca de principal/source). **Expiração curta** + renovação pelo app. **Anti-replay** (single-use por requisição de execução, ou nonce) e **revogação** (encerrar sessão invalida o handle). A escolha de mecanismo (sessionId persistido vs token assinado) fica para o spike — mas esta semântica de lifecycle é requisito independente do mecanismo.
 - **App reconstrói e revalida.** No endpoint interno de Actions, o app: valida o handle → reconstrói `ActionContext` (`buildSystemContext`/`buildDelegatedContext`) → aplica **enforcement server-side**: `RBAC(ctx)` ∩ `allowlist(canal/persona)` ∩ (matriz de segurança por action) → só então `runAction`. O subset de persona/canal feito no worker é **sugestão de UX**, não barreira; a barreira é server-side.
 - **Endpoint não-público.** Acessível somente via service binding (não roteável externamente); rejeita chamadas sem binding.
 
@@ -75,22 +76,30 @@ Tools deixam de ser objetos locais e viram **contrato remoto versionado**. Catá
 ```
 - **Descoberta** (catálogo filtrado por ctx) e **execução** são endpoints separados.
 - Validação de input **obrigatória server-side** (o app revalida o schema, não confia no worker).
-- `version` permite detectar drift entre a Action Layer e o worker (incompatibilidade falha explícita, não silenciosa).
+- `inputSchemaJson`: dialeto **JSON Schema** derivado do Zod da Action (a definir o conversor no plano).
+- `version`: **catálogo global** versionado (não por-tool); muda quando o conjunto/shape de tools muda.
+- **Drift durante a conversa (achado round 3 #4):** a sessão **fixa (pin)** a `version` do catálogo no início; se a execução chega com `version` divergente, o app **falha explícito** (`stale_catalog`) e o worker **redescobre** o catálogo e refaz o turno — nunca executa contra schema obsoleto em silêncio.
 
 ---
 
 ## Matriz de segurança por action (achado #5)
 
-"Subset seguro" do WhatsApp vira **classificação formal por action**, aplicada server-side. Quatro níveis:
+"Subset seguro" do WhatsApp vira **classificação formal por action**, aplicada server-side. O nível **não** é fixo por action — é **derivado de eixos** (achado round 3 #2), porque a mesma action muda de risco conforme o alvo/dado:
 
-| Nível | Significado | Exemplos (proposta — validar) |
+**Eixos:** (a) **self vs third-party** (o contato age sobre si ou sobre outra pessoa); (b) **leitura vs mutação**; (c) **dado sensível** (clínico/financeiro) **vs operacional**; (d) impacto destrutivo/irreversível.
+
+**Quatro níveis e regra de derivação (autônomo no WhatsApp; proposta para validar):**
+
+| Nível | Significado | Quando se aplica (regra) |
 |---|---|---|
-| **Livre** | Agente autônomo executa sem verificação | `consultarDisponibilidade`, `listarProcedimentos`, dúvidas gerais |
-| **Confirmação** | Exige confirmação explícita do contato no diálogo | `agendarConsulta`, `confirmarConsulta`, `entrarWaitlist` |
-| **Verificação forte** | Exige verificação de identidade adicional | leitura de dado clínico/financeiro do paciente, `atualizarPaciente` |
-| **Proibido/escala** | Agente não executa no WhatsApp; escala humano | `cancelarConsulta`/`remarcarConsulta` de terceiros, dados sensíveis em massa, orçamentos |
+| **Livre** | Executa sem verificação | leitura **operacional** pública (disponibilidade, procedimentos), dúvidas gerais |
+| **Confirmação** | Confirmação explícita no diálogo | mutação **self** + operacional (agendar/confirmar **a própria** consulta, entrar em waitlist) |
+| **Verificação forte** | Verificação de identidade adicional | qualquer acesso a **dado sensível** (clínico/financeiro), ou mutação de **cadastro** self |
+| **Proibido/escala** | Não executa; escala humano | qualquer **third-party**, mutação **destrutiva** (cancelar/remarcar), dado sensível **em massa**, orçamentos |
 
-> Classificação é **proposta inicial para validação** (LGPD/saúde). Telefone é dica fraca: contexto sensível não entra no prompt só com base no número. No chat interno (principal autenticado), a matriz não restringe além do RBAC do usuário. Ajustável por clínica na futura Gestão do Agente.
+Regra de subida: a presença de **third-party**, **dado sensível** ou **destrutivo** sempre **eleva** o nível (nunca rebaixa). Ex.: `confirmarConsulta` self = Confirmação; a "mesma" intenção sobre terceiro = Proibido/escala.
+
+> Classificação é **proposta inicial para validação** (LGPD/saúde). Telefone é dica fraca: contexto sensível não entra no prompt só com base no número. No chat interno (principal autenticado), a matriz **não** restringe além do RBAC do usuário. Ajustável por clínica na futura Gestão do Agente.
 
 ---
 
@@ -142,8 +151,9 @@ Persona = prompt + contexto + **sugestão** de tools. Enforcement real é server
 - **`messages` = fonte de verdade**; DO = cache/scratchpad. Acesso ao Postgres **só via app** (achado #4).
 - **Ordem:** persistir inbound → processar → persistir outbound → enviar. **Chave idempotente outbound** + estado de entrega (`pending`/`sent`/`failed`).
 - **Dono do retry (achado #7):** o **app** é o dono do envio outbound e do retry (não o DO) — fila/estado de entrega no app; replay do mesmo `externalMessageId` (inbound) ou da mesma chave outbound é no-op; sem reorder (entrega em ordem por conversa).
+- **Política terminal de entrega (achado round 3 #3):** N tentativas com backoff (ex.: 3) → estado terminal **`failed`** (dead); mensagens `failed` ficam **visíveis no inbox de Atendimento** para recuperação humana (reenvio manual / escala). Ordem lógica preservada por conversa: uma mensagem em `failed` **não bloqueia** novas mensagens posteriores, mas o `correlationId` e o timestamp mantêm a sequência auditável (o `failed` fica marcado na thread, sem reordenar as seguintes).
 - **Concorrência (achado #8):** **serialização por conversa** — o DO processa um turno por vez (fila no próprio DO); mensagens concorrentes na mesma conversa enfileiram; turno usa o estado mais recente.
-- **Ciclo de vida da sessão DO (achado #6):** TTL de inatividade (ex.: encerra/sumariza sessão após N h sem mensagem); reset explícito ao detectar novo assunto/atendimento; nova sessão lógica não herda scratchpad velho (contexto antigo não contamina). `messages` permanece como histórico durável independente do TTL do DO.
+- **Ciclo de vida da sessão DO (achados #6 + round 3 #6):** o gatilho de reset é **objetivo e do app/orquestrador, não do LLM**: (a) **TTL de inatividade** (ex.: nova mensagem após N h de silêncio inicia sessão lógica nova); (b) **conversa arquivada/encerrada** via Action do Atendimento (`arquivarConversa`); (c) **reset manual** por operador. O modelo **não** decide sozinho "mudou de assunto" (evita ambiguidade). Sessão nova não herda scratchpad velho. `messages` permanece como histórico durável, independente do TTL do DO.
 - **Reidratação:** janela curta no DO + reidratação parcial de `messages` + sumarização.
 
 ## Observabilidade (achado #10)
@@ -153,6 +163,8 @@ Persona = prompt + contexto + **sugestão** de tools. Enforcement real é server
 ## LLM + loop (achados #8, #11)
 
 `provider.complete(messages, tools) → { text, toolCalls }`. Modelo default validado no spike. **Anti-loop:** limite de iterações (~5), budget de tempo por turno, escape (resposta parcial + escala), retry limitado de tool → degrade.
+
+**Falha do service binding (achado round 3 #3):** distinguir dois casos: (a) **falha ao descobrir o catálogo** de tools → o turno **aborta** antes de chamar o LLM, responde fallback ("um momento, já te respondo") e reenfileira/escala; (b) **falha ao executar uma tool** (binding down / timeout) → não inventar resultado: o turno encerra com resposta de fallback + `correlationId` logado, e a operação não-confirmada **não** é reportada como concluída ao contato. Ambos visíveis via observabilidade; sem efeito colateral silencioso.
 
 ---
 
@@ -192,7 +204,7 @@ Persona = prompt + contexto + **sugestão** de tools. Enforcement real é server
 | `docs/superpowers/plans/2026-06-17-w5-novo-agente-cloudflare.md` | Plano arquitetural (Tasks 2+3) |
 | `docs/superpowers/specs/2026-06-21-eixo2-sequenciamento-design.md` | Onda 1; critério |
 | `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md` | Roadmap-mestre (§8/§10/§3.7) |
-| Reviews do Codex (2026-06-25, 2 rounds) | Origem dos achados 1–12 (round 1) e 1–9 (round 2 — fronteira app↔agente) |
+| Reviews do Codex (2026-06-25, 3 rounds) | Achados 1–12 (r1), 1–9 (r2 — fronteira), confirmação + 4 fechamentos finos (r3) |
 | `src/core/actions/agent.ts` · `context.ts` | `agentToolsFor`, contextos |
 | commit `4abe8960` (revertido) | Esqueleto-referência; revelou o conflito de zod |
 | OpenCode Zen | `https://opencode.ai/docs/zen/` |
