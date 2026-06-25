@@ -110,12 +110,12 @@ export class EvolutionApiService extends EventEmitter {
         headers: this.getHeaders(),
         body: body ? JSON.stringify(body) : undefined,
       });
-      const data = await response.json();
+      const data = (await response.json()) as Record<string, unknown>;
       if (!response.ok) {
         whatsappLogger.error('Evolution API error', null, { status: response.status, data });
-        return { success: false, error: data.message || data.error || `HTTP ${response.status}` };
+        return { success: false, error: (data.message as string) || (data.error as string) || `HTTP ${response.status}` };
       }
-      return { success: true, data };
+      return { success: true, data: data as T };
     } catch (error) {
       whatsappLogger.error('Evolution API request failed', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
