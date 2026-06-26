@@ -61,6 +61,7 @@ describe('bridge — matriz de falhas', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-expired',
       alias: normalizeToolName('operacional.consultarDisponibilidade'),
       input: {},
       flags: { confirmed: false },
@@ -76,6 +77,7 @@ describe('bridge — matriz de falhas', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'OTHER',
+      idempotencyKey: 'ik-mismatch',
       alias: normalizeToolName('operacional.consultarDisponibilidade'),
       input: {},
       flags: { confirmed: false },
@@ -83,7 +85,7 @@ describe('bridge — matriz de falhas', () => {
     expect(r).toMatchObject({ ok: false, error: 'conversation_mismatch' });
   });
 
-  it('replay do mesmo handle → replayed', async () => {
+  it('replay por idempotencyKey → duplicate', async () => {
     const seen = new Set<string>();
     const d = deps(seen);
     const { handle } = await issueHandle(SECRET, {
@@ -93,6 +95,7 @@ describe('bridge — matriz de falhas', () => {
     const first = await executeActionLogic(d, {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-replay',
       alias: normalizeToolName('operacional.consultarDisponibilidade'),
       input: {},
       flags: { confirmed: false },
@@ -100,12 +103,13 @@ describe('bridge — matriz de falhas', () => {
     const second = await executeActionLogic(d, {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-replay',
       alias: normalizeToolName('operacional.consultarDisponibilidade'),
       input: {},
       flags: { confirmed: false },
     });
     expect(first.ok).toBe(true);
-    expect(second).toMatchObject({ ok: false, error: 'replayed' });
+    expect(second).toMatchObject({ ok: false, error: 'duplicate' });
   });
 
   it('alias desconhecido → unknown_tool', async () => {
@@ -116,6 +120,7 @@ describe('bridge — matriz de falhas', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-unknown',
       alias: 'nao__existe',
       input: {},
       flags: { confirmed: false },
@@ -131,6 +136,7 @@ describe('bridge — matriz de falhas', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-destructive',
       alias: normalizeToolName('operacional.cancelarConsulta'),
       input: {},
       flags: { confirmed: true },
