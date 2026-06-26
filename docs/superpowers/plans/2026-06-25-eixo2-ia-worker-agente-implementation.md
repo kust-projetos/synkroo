@@ -14,7 +14,7 @@
 
 **Inclui:** **Task 0 — patch do `ia-bridge`** (handle reutilizável + idempotencyKey, correção do contrato do Plano 1); pacote do Worker `ia-agent`; provider Zen; personas (timezone da clínica); loop orquestrador (LLM↔tools, guard, veredictos da matriz, confirmação que vincula args, erro estruturado); casca `AgentOrchestrator` (DO) com histórico real + binding `APP`; wrangler; testes.
 
-**Fora (Plano 3 — canais/integração OpenNext):** webhook inbound, `/api/ia/chat`, resolução de interlocutor (DB → app-side), persistência durável (`atendimento.*`), emissão de handle, service bindings nas rotas Next (`getCloudflareContext`). O `ia-agent` recebe `handle`+`personaType`+`context`+`history`+`timezone` **prontos** e devolve a `reply`.
+**Fora (Plano 3 — canais/integração OpenNext):** webhook inbound, `/api/ia/chat`, resolução de interlocutor (DB → app-side), persistência durável (`atendimento.*`), emissão de handle, service bindings nas rotas Next (`getCloudflareContext`). O caller passa ao `ia-agent` apenas `handle`+`conversationId`+`source`+`personaType`+`context`+`timezone`+`userMessage` (e `confirmedToken`/`identityVerifiedToken` quando aplicável). **`history` e `pendingAction` NÃO são passados pelo caller** — são propriedade do Durable Object (`this.state`).
 
 ---
 
@@ -79,6 +79,16 @@ Substituir o teste "replay do mesmo handle → replayed" por dois casos:
     expect(first.ok).toBe(true);
     expect(second).toMatchObject({ ok: false, error: 'duplicate' });
   });
+
+  it('same raw idempotencyKey in DIFFERENT conversations → no collision (bridge scopes it)', async () => {
+    const d = deps(); // store compartilhado entre as chamadas
+    const h1 = (await issueHandle(SECRET, { clinicId: 'c1', conversationId: 'conv-1', principalRef: 'agente', source: 'system', ttlSeconds: 60 })).handle;
+    const h2 = (await issueHandle(SECRET, { clinicId: 'c1', conversationId: 'conv-2', principalRef: 'agente', source: 'system', ttlSeconds: 60 })).handle;
+    const a = await executeActionLogic(d, { handle: h1, conversationId: 'conv-1', idempotencyKey: 'call-1', alias: 'operacional__consultarDisponibilidade', input: {}, flags: { confirmed: false } });
+    const b = await executeActionLogic(d, { handle: h2, conversationId: 'conv-2', idempotencyKey: 'call-1', alias: 'operacional__consultarDisponibilidade', input: {}, flags: { confirmed: false } });
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+  });
 ```
 
 Nos demais testes (`bridge-service.test.ts` e `bridge-failures.test.ts`) que chamam `executeActionLogic`, adicionar `idempotencyKey: 'call-x'` (string única por chamada) ao input.
@@ -103,8 +113,10 @@ export async function executeActionLogic(deps: BridgeDeps, input: ExecuteInput):
   const v = await verifyHandle(deps.secret, input.handle, { conversationId: input.conversationId, store: deps.store });
   if (!v.ok) return { ok: false, error: v.error };
 
-  // 2. anti-replay por idempotencyKey (não pelo handle)
-  if (await deps.store.wasSeen(input.idempotencyKey)) return { ok: false, error: 'duplicate' };
+  // 2. anti-replay por idempotencyKey — o BRIDGE escopa por conversa (defense in depth);
+  //    o caller passa a key crua (ex.: tool_call_id) e não precisa saber do namespacing.
+  const dedupKey = `${input.conversationId}:${input.idempotencyKey}`;
+  if (await deps.store.wasSeen(dedupKey)) return { ok: false, error: 'duplicate' };
 
   // 3. alias → action.name
   const action = deps.getActions().find((a) => normalizeToolName(a.name) === input.alias);
@@ -116,9 +128,9 @@ export async function executeActionLogic(deps: BridgeDeps, input: ExecuteInput):
     if (!gate.allowed) return { ok: false, error: gate.reason!, level: gate.level };
   }
 
-  // 5. marca a idempotencyKey ANTES de executar (evita double-execution); TTL cobre o exp do handle
+  // 5. marca a key ANTES de executar (evita double-execution); TTL cobre o exp do handle
   const ttlSeconds = Math.max(Math.ceil((v.payload.exp - Date.now()) / 1000) + 30, 60);
-  await deps.store.markSeen(input.idempotencyKey, ttlSeconds);
+  await deps.store.markSeen(dedupKey, ttlSeconds);
 
   // 6. ctx real + runAction
   const ctx = await rebuildCtx(deps, v.payload);
@@ -464,7 +476,7 @@ export async function runTurn(deps: RunTurnDeps, input: RunTurnInput): Promise<R
     const identityVerified = !!input.identityVerifiedToken && input.identityVerifiedToken === pa.token;
     const exec = await deps.app.executeAction({
       handle: input.handle, conversationId: input.conversationId,
-      idempotencyKey: `${input.conversationId}:${pa.token}`,   // escopado por conversa (achado P1 #2)
+      idempotencyKey: pa.token,   // key crua; o ia-bridge escopa por conversationId (P1 #2)
       alias: pa.alias, input: pa.args, flags: { confirmed: true, identityVerified },
     });
     if (!exec.ok) return { reply: errorReply(exec.error), turnsUsed: 1, escalated: exec.error === 'escalate_human' };
@@ -497,7 +509,7 @@ export async function runTurn(deps: RunTurnDeps, input: RunTurnInput): Promise<R
 
       const exec = await deps.app.executeAction({
         handle: input.handle, conversationId: input.conversationId,
-        idempotencyKey: `${input.conversationId}:${call.id}`,   // anti-replay por ação, escopado por conversa
+        idempotencyKey: call.id,   // key crua (tool_call_id); o ia-bridge escopa por conversationId
         alias, input: args, flags: { confirmed: false },
       });
 
