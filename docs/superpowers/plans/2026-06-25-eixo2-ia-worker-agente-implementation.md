@@ -20,14 +20,16 @@
 
 ## Contrato do agente (`runTurn`)
 
+**Fonte de verdade única (achado P2 #3):** o **histórico** e a **ação pendente** vivem no **Durable Object** (`this.state`), NÃO no caller. O caller passa só o turno atual + sinais de confirmação; a casca injeta `history`/`pendingAction` na lógica e persiste o novo estado.
+
 ```
-input:  { handle, conversationId, source, personaType, context, timezone,
-          userMessage, history?: ChatMessage[],
-          pendingAction?: { alias, args, token },   // ação aguardando confirmação (turno anterior)
-          confirmedToken?: string }                 // o usuário confirmou esta ação
-output: { reply, turnsUsed, escalated?, pendingAction? }  // pendingAction = nova pendência a guardar
+caller → DO.runTurn(input):
+  input:  { handle, conversationId, source, personaType, context, timezone,
+            userMessage,
+            confirmedToken?, identityVerifiedToken? }   // sinais do caller ("sim" / identidade verificada)
+  output: { reply, turnsUsed, escalated?, pendingAction? }   // informativo; o estado já é persistido no DO
 ```
-A confirmação **reexecuta os args originais** guardados em `pendingAction` (não os que o LLM gerar de novo). O caller (Plano 3) persiste a `reply`, guarda/repassa `pendingAction` e sinaliza `confirmedToken` ao detectar o "sim" do usuário.
+A confirmação **reexecuta os args originais** guardados em `pendingAction` (não os que o LLM gerar). Ações de **verificação forte** exigem `identityVerifiedToken` (além de `confirmedToken`). O caller (Plano 3) detecta o "sim"/identidade e envia os tokens correspondentes.
 
 ---
 
@@ -127,6 +129,8 @@ export async function executeActionLogic(deps: BridgeDeps, input: ExecuteInput):
 ```
 
 > `verifyHandle` mantém o parâmetro opcional `singleUse` (não removido), mas o bridge **não** o usa mais. O `ExecuteResult` ganha `'duplicate'` como possível `error`.
+>
+> **Trade-off registrado (achado opcional #5):** a `idempotencyKey` é marcada **antes** do `runAction` — prioriza evitar **double-execution** de mutações (mais grave em saúde/agenda) ao custo de "queimar" a chave se houver falha transitória do handler (um retry com a mesma key retornaria `duplicate` em vez de reexecutar). Aceitável para o esqueleto; se virar problema, marcar só após sucesso para ações idempotentes de leitura, ou cachear o resultado por key.
 
 - [ ] **Step 4: Rodar (deve passar)**
 
@@ -182,9 +186,12 @@ export interface RunTurnInput {
   source: 'system' | 'agent_delegated';
   personaType: PersonaType; context: string; timezone: string;
   userMessage: string;
+  // history e pendingAction são injetados pela casca a partir do this.state (DO é dono);
+  // o caller NÃO os passa. confirmedToken/identityVerifiedToken vêm do caller.
   history?: ChatMessage[];
   pendingAction?: PendingAction;
   confirmedToken?: string;
+  identityVerifiedToken?: string;
 }
 export interface RunTurnResult { reply: string; turnsUsed: number; escalated?: boolean; pendingAction?: PendingAction; }
 ```
@@ -397,6 +404,15 @@ describe('runTurn', () => {
     expect(r.reply.length).toBeGreaterThan(0);
   });
 
+  it('strong-verification action succeeds only with identityVerifiedToken', async () => {
+    let gotFlags: any = null;
+    const pending = { alias: 'operacional__obterPaciente', args: { id: 'p1' }, token: 'tok-2' };
+    const a = app({ executeAction: async (i) => { gotFlags = i.flags; return i.flags.identityVerified ? { ok: true, data: {} } : { ok: false, error: 'needs_identity' }; } });
+    const r = await runTurn({ provider: provider([{ text: 'feito' }]), app: a, now: new Date() }, { ...base, pendingAction: pending, confirmedToken: 'tok-2', identityVerifiedToken: 'tok-2' });
+    expect(gotFlags.identityVerified).toBe(true);
+    expect(r.reply.length).toBeGreaterThan(0);
+  });
+
   it('escalates to human on escalate_human', async () => {
     const r = await runTurn({ provider: provider([callTool()]), app: app({ executeAction: async () => ({ ok: false, error: 'escalate_human' }) }), now: new Date() }, base);
     expect(r.escalated).toBe(true);
@@ -445,9 +461,11 @@ export async function runTurn(deps: RunTurnDeps, input: RunTurnInput): Promise<R
   // Caminho de confirmação: reexecuta os args ORIGINAIS (não os do modelo). Vincula alias+args.
   if (input.pendingAction && input.confirmedToken && input.confirmedToken === input.pendingAction.token) {
     const pa = input.pendingAction;
+    const identityVerified = !!input.identityVerifiedToken && input.identityVerifiedToken === pa.token;
     const exec = await deps.app.executeAction({
       handle: input.handle, conversationId: input.conversationId,
-      idempotencyKey: pa.token, alias: pa.alias, input: pa.args, flags: { confirmed: true },
+      idempotencyKey: `${input.conversationId}:${pa.token}`,   // escopado por conversa (achado P1 #2)
+      alias: pa.alias, input: pa.args, flags: { confirmed: true, identityVerified },
     });
     if (!exec.ok) return { reply: errorReply(exec.error), turnsUsed: 1, escalated: exec.error === 'escalate_human' };
     return { reply: 'Pronto, confirmado e executado.', turnsUsed: 1 };
@@ -479,7 +497,7 @@ export async function runTurn(deps: RunTurnDeps, input: RunTurnInput): Promise<R
 
       const exec = await deps.app.executeAction({
         handle: input.handle, conversationId: input.conversationId,
-        idempotencyKey: call.id,                 // anti-replay por ação
+        idempotencyKey: `${input.conversationId}:${call.id}`,   // anti-replay por ação, escopado por conversa
         alias, input: args, flags: { confirmed: false },
       });
 
@@ -505,7 +523,7 @@ function errorReply(error: string): string {
 }
 ```
 
-- [ ] **Step 4: Rodar (PASS)** — `npx jest src/core/ia-agent/__tests__/orchestrator-logic.test.ts -v` → 8/8.
+- [ ] **Step 4: Rodar (PASS)** — `npx jest src/core/ia-agent/__tests__/orchestrator-logic.test.ts -v` → 9/9.
 
 - [ ] **Step 5: Typecheck + commit**
 
@@ -582,7 +600,7 @@ Fiel a `spikes/agent-worker/src/index.ts`: `extends Agent`, `@callable()` no mé
 - [ ] **Step 1: Implementar a casca** (`src/workers/ia-agent/index.ts`)
 
 ```ts
-import { Agent, callable, routeAgentRequest } from 'agents';
+import { Agent, callable, getAgentByName, routeAgentRequest } from 'agents';
 import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
 import type { AppBinding, RunTurnInput, RunTurnResult, ChatMessage, PendingAction } from '@/core/ia-agent/types';
@@ -620,21 +638,30 @@ export class AgentOrchestrator extends Agent<Env, SessionState> {
 
 export default {
   async fetch(request: Request, env: Env) {
+    const url = new URL(request.url);
+    // Smoke do RPC do Agent (achado P2 #4): prova getAgentByName + @callable runTurn.
+    // Sem handle válido, listTools falha no ia-bridge → fallback; o ponto é validar o FIO RPC.
+    if (url.pathname === '/rpc-smoke') {
+      const agent = await getAgentByName(env.AGENT, 'smoke');
+      const out = await agent.runTurn({ handle: 'smoke', conversationId: 'smoke', source: 'system', personaType: 'recepcao', context: '', timezone: 'America/Sao_Paulo', userMessage: 'ping' });
+      return Response.json({ rpcOk: true, reply: out.reply });
+    }
     return (await routeAgentRequest(request, env)) ?? new Response('ia-agent up', { status: 200 });
   },
 };
 ```
 
-> O caller passa `confirmedToken` no `input` quando detecta o "sim" do usuário; a casca repassa `this.state.pendingAction` para a lógica vincular alias+args.
+> O caller passa `confirmedToken`/`identityVerifiedToken` no `input` ao detectar o "sim"/identidade; a casca injeta `this.state.history`/`pendingAction` (DO é a fonte de verdade).
 
 - [ ] **Step 2: Typecheck do worker** — `npm run typecheck:ia-agent` → 0 erros.
 
-- [ ] **Step 3: Smoke determinístico (requer o ia-bridge no ar)**
+- [ ] **Step 3: Smoke determinístico + prova do RPC do Agent (requer o ia-bridge no ar)**
 
 Run (terminais): `npm run dev:ia-bridge` (porta padrão) e `npm run dev:ia-agent` (porta **8788** fixa).
 Run: `curl -s http://localhost:8788/` → Expected: `ia-agent up` (HTTP 200).
+Run: `curl -s http://localhost:8788/rpc-smoke` → Expected: JSON `{ "rpcOk": true, "reply": "..." }` — prova que `getAgentByName(...).runTurn(...)` (RPC do DO via `@callable`) funciona ponta-a-ponta (a `reply` será o fallback, pois o handle `smoke` é inválido no `ia-bridge`).
 
-> O RPC ponta-a-ponta (caller → `runTurn` → `ia-bridge`) é exercitado no Plano 3.
+> O RPC com handle real + persistência entra no Plano 3.
 
 - [ ] **Step 4: Commit**
 
