@@ -34,7 +34,10 @@
     "deploy:cf": "opennextjs-cloudflare deploy",
     "dev:ia-bridge": "wrangler dev --config wrangler.ia-bridge.jsonc",
     "deploy:ia-bridge": "wrangler deploy --config wrangler.ia-bridge.jsonc",
-    "typecheck:ia-bridge": "tsc --noEmit --project src/workers/ia-bridge/tsconfig.json"
+    "typecheck:ia-bridge": "tsc --noEmit --project src/workers/ia-bridge/tsconfig.json",
+    "dev:ia-agent": "wrangler dev --config src/workers/ia-agent/wrangler.jsonc --port 8788",
+    "deploy:ia-agent": "wrangler deploy --config src/workers/ia-agent/wrangler.jsonc",
+    "typecheck:ia-agent": "tsc --noEmit --project src/workers/ia-agent/tsconfig.json"
   },
   "dependencies": {
     "@event-calendar/core": "^5.6.1",
