@@ -108,6 +108,7 @@ describe('executeActionLogic', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-livre',
       alias: normalizeToolName(consultar.name),
       input: {},
       flags: { confirmed: false },
@@ -120,6 +121,7 @@ describe('executeActionLogic', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-confirm-block',
       alias: normalizeToolName(agendar.name),
       input: {},
       flags: { confirmed: false },
@@ -132,6 +134,7 @@ describe('executeActionLogic', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-confirm-allow',
       alias: normalizeToolName(agendar.name),
       input: {},
       flags: { confirmed: true },
@@ -144,6 +147,7 @@ describe('executeActionLogic', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-proibido',
       alias: normalizeToolName(cancelar.name),
       input: {},
       flags: { confirmed: true },
@@ -155,6 +159,7 @@ describe('executeActionLogic', () => {
     const r = await executeActionLogic(deps(), {
       handle: 'forged.sig',
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-forged',
       alias: normalizeToolName(consultar.name),
       input: {},
       flags: { confirmed: false },
@@ -167,6 +172,7 @@ describe('executeActionLogic', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-unknown-alias',
       alias: 'nao__existe',
       input: {},
       flags: { confirmed: false },
@@ -180,10 +186,95 @@ describe('executeActionLogic', () => {
     const r = await executeActionLogic(deps(), {
       handle,
       conversationId: 'conv-1',
+      idempotencyKey: 'ik-delegated',
       alias: normalizeToolName(agendar.name),
       input: {},
       flags: { confirmed: false },
     });
     expect(r).toEqual({ ok: true, data: { done: true } });
+  });
+
+  describe('idempotencyKey anti-replay', () => {
+    it('same handle + different keys → ambos passam', async () => {
+      const handle = await handleFor();
+      const d = deps();
+      const r1 = await executeActionLogic(d, {
+        handle,
+        conversationId: 'conv-1',
+        idempotencyKey: 'ik-primeiro',
+        alias: normalizeToolName(consultar.name),
+        input: {},
+        flags: { confirmed: false },
+      });
+      const r2 = await executeActionLogic(d, {
+        handle,
+        conversationId: 'conv-1',
+        idempotencyKey: 'ik-segundo',
+        alias: normalizeToolName(consultar.name),
+        input: {},
+        flags: { confirmed: false },
+      });
+      expect(r1).toEqual({ ok: true, data: { done: true } });
+      expect(r2).toEqual({ ok: true, data: { done: true } });
+    });
+
+    it('mesma idempotencyKey → duplicate', async () => {
+      const handle = await handleFor();
+      const d = deps();
+      const r1 = await executeActionLogic(d, {
+        handle,
+        conversationId: 'conv-1',
+        idempotencyKey: 'ik-repetida',
+        alias: normalizeToolName(consultar.name),
+        input: {},
+        flags: { confirmed: false },
+      });
+      const r2 = await executeActionLogic(d, {
+        handle,
+        conversationId: 'conv-1',
+        idempotencyKey: 'ik-repetida',
+        alias: normalizeToolName(consultar.name),
+        input: {},
+        flags: { confirmed: false },
+      });
+      expect(r1).toEqual({ ok: true, data: { done: true } });
+      expect(r2).toEqual({ ok: false, error: 'duplicate' });
+    });
+
+    it('mesma key em conversas diferentes → sem colisao', async () => {
+      const { handle: h1 } = await issueHandle(SECRET, {
+        clinicId: 'c1',
+        conversationId: 'conv-a',
+        principalRef: 'agente',
+        source: 'system',
+        ttlSeconds: 60,
+      });
+      const { handle: h2 } = await issueHandle(SECRET, {
+        clinicId: 'c1',
+        conversationId: 'conv-b',
+        principalRef: 'agente',
+        source: 'system',
+        ttlSeconds: 60,
+      });
+      const d = deps();
+      const r1 = await executeActionLogic(d, {
+        handle: h1,
+        conversationId: 'conv-a',
+        idempotencyKey: 'ik-cross',
+        alias: normalizeToolName(consultar.name),
+        input: {},
+        flags: { confirmed: false },
+      });
+      const r2 = await executeActionLogic(d, {
+        handle: h2,
+        conversationId: 'conv-b',
+        idempotencyKey: 'ik-cross',
+        alias: normalizeToolName(consultar.name),
+        input: {},
+        flags: { confirmed: false },
+      });
+      expect(r1).toEqual({ ok: true, data: { done: true } });
+      expect(r2).toEqual({ ok: true, data: { done: true } });
+    });
   });
 });

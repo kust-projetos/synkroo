@@ -50,6 +50,7 @@ export async function listToolsLogic(
 export type ExecuteInput = {
   handle: string;
   conversationId: string;
+  idempotencyKey: string;
   alias: string;
   input: unknown;
   flags: { confirmed: boolean; identityVerified?: boolean };
@@ -63,21 +64,31 @@ export async function executeActionLogic(
   deps: BridgeDeps,
   input: ExecuteInput,
 ): Promise<ExecuteResult> {
-  // 1. handle single-use (anti-replay)
+  // 1. handle reusable (no single-use — dedup é por idempotencyKey)
   const v = await verifyHandle(deps.secret, input.handle, {
     conversationId: input.conversationId,
     store: deps.store,
-    singleUse: true,
   });
   if (!v.ok) return { ok: false, error: v.error };
 
-  // 2. alias → action.name
+  // 2. anti-replay por idempotencyKey
+  const dedupKey = `${input.conversationId}:${input.idempotencyKey}`;
+  if (await deps.store.wasSeen(dedupKey)) {
+    return { ok: false, error: 'duplicate' };
+  }
+  const ttl = Math.max(
+    Math.ceil((v.payload.exp - Date.now()) / 1000) + 30,
+    60,
+  );
+  await deps.store.markSeen(dedupKey, ttl);
+
+  // 3. alias → action.name
   const action = deps
     .getActions()
     .find((a) => normalizeToolName(a.name) === input.alias);
   if (!action) return { ok: false, error: 'unknown_tool' };
 
-  // 3. matriz (só source='system'); delegated cai no RBAC do runAction
+  // 4. matriz (só source='system'); delegated cai no RBAC do runAction
   if (v.payload.source === 'system') {
     const gate = assertSystemAllowed(action.name, input.flags);
     if (!gate.allowed) {
@@ -85,7 +96,7 @@ export async function executeActionLogic(
     }
   }
 
-  // 4. ctx real + runAction (RBAC + manifesto + input zod dentro do runAction)
+  // 5. ctx real + runAction (RBAC + manifesto + input zod dentro do runAction)
   const ctx = await rebuildCtx(deps, v.payload);
   const result = await deps.runAction(action, input.input, ctx);
   if (!result.ok) {

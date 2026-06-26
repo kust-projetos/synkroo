@@ -1,0 +1,12 @@
+{
+  "name": "ia-agent-worker",
+  "private": true,
+  "dependencies": {
+    "agents": "0.16.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "wrangler": "4.104.0",
+    "@cloudflare/workers-types": "^4.20260625.1"
+  }
+}
