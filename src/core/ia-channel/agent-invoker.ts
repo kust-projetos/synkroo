@@ -84,3 +84,15 @@ export async function invokeAgentWithEnv(
     identityVerifiedToken: input.identityVerifiedToken,
   });
 }
+
+// Wrapper runtime: resolve env via getCloudflareContext (sync, fallback async — fiel ao spike).
+export async function invokeAgent(input: InvokeAgentInput): Promise<RunTurnResult> {
+  const { getCloudflareContext } = await import('@opennextjs/cloudflare/cloudflare-context');
+  let env: AgentEnv;
+  try {
+    env = (getCloudflareContext() as unknown as { env: AgentEnv }).env;
+  } catch {
+    env = ((await getCloudflareContext({ async: true })) as unknown as { env: AgentEnv }).env;
+  }
+  return invokeAgentWithEnv(env, input);
+}

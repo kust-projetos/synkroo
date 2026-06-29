@@ -12,6 +12,14 @@ import { processConfirmationResponse, processWaitlistConfirmation } from '@/serv
 import { captureLeadFromWhatsApp } from '@/services/leads/leads.service';
 import { whatsappLogger } from '@/lib/logger';
 import * as repo from '../repositories/conversations-repository';
+import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
+import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
+import { findPatientByPhone } from '@/repositories/patients';
+import { findLeadByPhone } from '@/repositories/leads';
+import { runAction } from '@/core/actions/run';
+import { buildSystemContext } from '@/core/actions/context';
+import { enviarMensagem } from '../actions/enviar-mensagem';
+import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 
 export async function processMetaWebhookEntry(entry: Record<string, unknown>, clinicId?: string) {
   const changes = (entry.changes as Array<Record<string, unknown>>) || [];
@@ -91,10 +99,30 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
   // Lead capture (best-effort)
   try { await captureLeadFromWhatsApp(phone, content, clinicId); } catch { /* non-fatal */ }
 
-  // AI disabled
-  whatsappLogger.info('[webhook-processor] Message stored (AI disabled)', { phone, reason: 'legacy_agent_removed' });
+  // Roteia para o agente IA
+  const agentResult = await routeInboundToAgent({
+    resolveInterlocutor: (cId, ph) =>
+      resolveInterlocutor({ findPatientByPhone, findLeadByPhone }, cId, ph),
+    invokeAgent,
+    sendReply: async (convId, msg) => {
+      const ctx = await buildSystemContext(clinicId);
+      const r = await runAction(
+        enviarMensagem,
+        { conversationId: convId, message: msg, channel: 'whatsapp' },
+        ctx,
+      );
+      if (!r.ok) {
+        whatsappLogger.error('[ia] enviarMensagem falhou', null, {
+          conversationId: convId,
+          error: r.error.code,
+        });
+      }
+      return r.ok;
+    },
+    timezone: 'America/Sao_Paulo',
+  }, { clinicId, conversationId: conv.id, phone, content });
+  results.push(agentResult);
   await repo.updateConversationTimestamp(conv.id);
-  results.push({ from: phone, action: 'stored' });
   return results;
 }
 
@@ -173,9 +201,30 @@ async function storeAndProcessMetaMessage(
   const waitlistResult = await handleWaitlist(cId, from, content, conv.id);
   if (waitlistResult) { await repo.updateConversationTimestamp(conv.id); return waitlistResult; }
 
+  // Roteia para o agente IA
+  const agentResult = await routeInboundToAgent({
+    resolveInterlocutor: (cId, ph) =>
+      resolveInterlocutor({ findPatientByPhone, findLeadByPhone }, cId, ph),
+    invokeAgent,
+    sendReply: async (convId, msg) => {
+      const ctx = await buildSystemContext(cId);
+      const r = await runAction(
+        enviarMensagem,
+        { conversationId: convId, message: msg, channel: 'whatsapp' },
+        ctx,
+      );
+      if (!r.ok) {
+        whatsappLogger.error('[ia] enviarMensagem falhou', null, {
+          conversationId: convId,
+          error: r.error.code,
+        });
+      }
+      return r.ok;
+    },
+    timezone: 'America/Sao_Paulo',
+  }, { clinicId: cId, conversationId: conv.id, phone: from, content });
   await repo.updateConversationTimestamp(conv.id);
-  whatsappLogger.info('[webhook-processor] Meta msg stored (AI disabled)', { from, reason: 'legacy_agent_removed' });
-  return { from, action: 'stored' };
+  return agentResult;
 }
 
 async function handleButtonResponse(
