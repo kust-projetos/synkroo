@@ -39,7 +39,6 @@ async function handlePOST(request: NextRequest) {
 
   return NextResponse.json({
     success: true, processed: allResults.length, messages: allResults,
-    ai_enabled: false, reason: 'legacy_agent_removed', todo: 'TODO(W5.3): reconnect to new agent',
   });
 }
 
