@@ -10,7 +10,7 @@
  *  - sendByChannel (channel abstraction for actions)
  */
 
-import { chromium, Browser, Page, BrowserContext } from 'playwright';
+import type { Browser, Page, BrowserContext } from 'playwright';
 import QRCode from 'qrcode-terminal';
 import { EventEmitter } from 'events';
 import { dbLogger } from '@/lib/logger';
@@ -132,6 +132,7 @@ export class WhatsAppService extends EventEmitter {
 
   async initialize(): Promise<void> {
     const headless = process.env.WHATSAPP_HEADLESS === 'true';
+    const { chromium } = await import('playwright');
     this.context = await chromium.launchPersistentContext(this.sessionPath, {
       headless,
       viewport: { width: 1280, height: 800 },
