@@ -103,6 +103,26 @@ jest.mock('@/lib/rate-limit', () => ({
   })),
 }))
 
+// Mock IA channel modules to avoid loading @opennextjs/cloudflare (ESM, Jest breaks).
+jest.mock('@/core/ia-channel/agent-invoker', () => ({
+  invokeAgentWithEnv: jest.fn(),
+  invokeAgent: jest.fn().mockResolvedValue({ reply: '', turnsUsed: 0 }),
+}))
+jest.mock('@/core/ia-channel/webhook-router', () => ({
+  routeInboundToAgent: jest.fn().mockResolvedValue({ from: '5511999999999', action: 'agent_replied' }),
+}))
+jest.mock('@/core/ia-channel/interlocutor', () => ({
+  resolveInterlocutor: jest.fn().mockResolvedValue({ personaType: 'recepcao', context: '', peerId: '5511' }),
+  resolveFuncionario: jest.fn(),
+}))
+jest.mock('@/repositories/patients', () => ({ findPatientByPhone: jest.fn().mockResolvedValue(null) }))
+jest.mock('@/repositories/leads', () => ({ findLeadByPhone: jest.fn().mockResolvedValue(null) }))
+jest.mock('@/core/actions/run', () => ({ runAction: jest.fn().mockResolvedValue({ ok: true, data: { messageId: 'msg-123' } }) }))
+jest.mock('@/core/actions/context', () => ({ buildSystemContext: jest.fn().mockResolvedValue({ source: 'system', clinicId: 'c1', can: () => true, hasModule: () => true, audit: { actor: 'agente (sistema)' } }) }))
+jest.mock('@/modules/atendimento/actions/enviar-mensagem', () => ({
+  enviarMensagem: { name: 'atendimento.enviarMensagem', module: 'atendimento', requires: 'atendimento:manage_messages', label: 'Enviar mensagem', input: { parse: () => ({}) } },
+}))
+
 global.fetch = jest.fn().mockResolvedValue({
   ok: true,
   text: () => Promise.resolve('{}'),
