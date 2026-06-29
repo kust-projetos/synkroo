@@ -16,11 +16,15 @@ it('expands a preset module list into concrete permission keys from the catalog'
   expect(keys).not.toContain('financeiro:create');
 });
 
-it('agent role has conservative default permissions', () => {
+it('agent role has conservative default permissions (real keys only)', () => {
   expect(AGENT_ROLE_NAME).toBe('Agente');
-  expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:create');
-  expect(DEFAULT_AGENT_PERMISSIONS).toContain('comercial:view');
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:view');
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:manage_appointments');
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('atendimento:manage_messages');
   // conservador: não inclui permissões financeiras
   expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('financeiro:delete');
   expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('financeiro:create');
+  // não contém chaves antigas/inexistentes do primeiro draft
+  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('operacional:create');
+  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('atendimento:reply');
 });
