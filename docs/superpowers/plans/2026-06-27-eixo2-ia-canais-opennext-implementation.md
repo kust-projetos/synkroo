@@ -296,7 +296,7 @@ describe('invokeAgentWithEnv', () => {
     });
     expect(out.reply).toBe('oi');
     expect((calls.issue as any).conversationId).toBe('conv-1');
-    expect(calls.idName).toBe('c1:whatsapp:5511');          // DO endereçado por conversa
+    expect(calls.idName).toBe('c1:whatsapp:conv-1');         // DO endereçado por CONVERSA (conversationId)
     expect((calls.runTurn as any).handle).toBe('H');         // handle repassado ao DO
   });
 });
@@ -337,8 +337,9 @@ export async function invokeAgentWithEnv(env: AgentEnv, input: InvokeAgentInput)
     clinicId: input.clinicId, conversationId: input.conversationId,
     principalRef: input.principalRef, source: input.source, ttlSeconds: 120,
   });
-  // 2. DO por conversa (binding cru — sem getAgentByName)
-  const id = env.AGENT.idFromName(`${input.clinicId}:${input.channel}:${input.peerId}`);
+  // 2. DO por CONVERSA (shard por conversationId — não por peerId; senão o mesmo usuário
+  //    em 2 conversas compartilharia history/pendingAction no DO).
+  const id = env.AGENT.idFromName(`${input.clinicId}:${input.channel}:${input.conversationId}`);
   const stub = env.AGENT.get(id);
   // 3. roda o turno
   return stub.runTurn({
@@ -380,9 +381,8 @@ git commit -m "feat(ia): agent invoker (pure invokeAgentWithEnv + getCloudflareC
 ```ts
 const mockInvoke = jest.fn();
 jest.mock('@/core/ia-channel/agent-invoker', () => ({ invokeAgent: (...a: unknown[]) => mockInvoke(...a) }));
-jest.mock('@/lib/auth/session', () => ({
-  validateApiAuth: jest.fn().mockResolvedValue({ success: true, profile: { id: 'u1', name: 'Ana', clinic_id: 'c1', role: 'admin' } }),
-}));
+const mockBuildCtx = jest.fn();
+jest.mock('@/core/actions/context', () => ({ buildUserContext: () => mockBuildCtx() }));
 jest.mock('@/core/modules/gates', () => ({ withModuleRoute: () => (h: unknown) => h }));
 jest.mock('@/core/modules/manifest', () => ({ moduleManifest: {} }));
 
@@ -390,22 +390,25 @@ import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/ia/chat/route';
 
 function req(body: unknown) { return new Request('http://localhost/api/ia/chat', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }) as unknown as NextRequest; }
+const ctxWith = (can: (k: string) => boolean) => ({ user: { id: 'u1', name: 'Ana' }, clinicId: 'c1', can });
 
 describe('POST /api/ia/chat', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => { jest.clearAllMocks(); mockBuildCtx.mockResolvedValue(ctxWith((k) => k === 'ia:chat')); });
+
   it('delegates to invokeAgent with funcionario persona and returns reply', async () => {
     mockInvoke.mockResolvedValue({ reply: 'Olá Ana!', turnsUsed: 1 });
     const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.reply).toBe('Olá Ana!');
+    expect((await res.json()).reply).toBe('Olá Ana!');
     expect(mockInvoke).toHaveBeenCalledWith(expect.objectContaining({ source: 'agent_delegated', personaType: 'funcionario', channel: 'chat', principalRef: 'u1' }));
   });
   it('401 when unauthenticated', async () => {
-    const { validateApiAuth } = require('@/lib/auth/session');
-    validateApiAuth.mockResolvedValueOnce({ success: false, error: { message: 'Unauthorized', status: 401 } });
-    const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
-    expect(res.status).toBe(401);
+    mockBuildCtx.mockRejectedValueOnce(new Error('unauthenticated'));
+    expect((await POST(req({ conversationId: 'conv-1', message: 'oi' }))).status).toBe(401);
+  });
+  it('403 when missing ia:chat', async () => {
+    mockBuildCtx.mockResolvedValueOnce(ctxWith(() => false));
+    expect((await POST(req({ conversationId: 'conv-1', message: 'oi' }))).status).toBe(403);
   });
 });
 ```
@@ -418,14 +421,18 @@ describe('POST /api/ia/chat', () => {
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
-import { validateApiAuth } from '@/lib/auth/session';
+import { buildUserContext } from '@/core/actions/context';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
-  const auth = await validateApiAuth();
-  if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status });
-  const { id: userId, name, clinic_id: clinicId } = auth.profile!;
+  // buildUserContext lança 'unauthenticated' sem sessão; dá user + can (RBAC real).
+  let ctx: Awaited<ReturnType<typeof buildUserContext>>;
+  try { ctx = await buildUserContext(); }
+  catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); }
+  // autorização específica: exige ia:chat (não basta o módulo ativo).
+  if (!ctx.can('ia:chat')) return NextResponse.json({ error: 'Sem permissão para o assistente.' }, { status: 403 });
+  const userId = ctx.user!.id, name = ctx.user!.name, clinicId = ctx.clinicId;
 
   const body = await request.json().catch(() => ({}));
   const conversationId: string = body.conversationId;
@@ -481,7 +488,7 @@ export interface WebhookRouterDeps {
     principalRef: string; source: 'system'; personaType: Interlocutor['personaType'];
     context: string; timezone: string; userMessage: string;
   }): Promise<RunTurnResult>;
-  sendReply(conversationId: string, message: string): Promise<void>;
+  sendReply(conversationId: string, message: string): Promise<boolean>;   // true = enviado de fato
   timezone: string;
 }
 
@@ -497,8 +504,10 @@ export async function routeInboundToAgent(
     peerId: args.phone, principalRef: 'agente', source: 'system',
     personaType: who.personaType, context: who.context, timezone: deps.timezone, userMessage: args.content,
   });
-  if (result.reply) await deps.sendReply(args.conversationId, result.reply);
-  return { from: args.phone, action: result.escalated ? 'escalated' : 'agent_replied' };
+  if (result.escalated) return { from: args.phone, action: 'escalated' };
+  if (!result.reply) return { from: args.phone, action: 'no_reply' };
+  const sent = await deps.sendReply(args.conversationId, result.reply);   // checa o envio
+  return { from: args.phone, action: sent ? 'agent_replied' : 'send_failed' };
 }
 ```
 
@@ -512,7 +521,7 @@ it('resolves interlocutor, invokes agent (system, conv.id), sends reply', async 
   const result = await routeInboundToAgent({
     resolveInterlocutor: async () => ({ personaType: 'paciente', context: 'Paciente: João', peerId: '5511' }),
     invokeAgent: async (i) => { calls.invoke = i; return { reply: 'Agendado!', turnsUsed: 2 }; },
-    sendReply: async (convId, msg) => { calls.sent = { convId, msg }; },
+    sendReply: async (convId, msg) => { calls.sent = { convId, msg }; return true; },
     timezone: 'America/Sao_Paulo',
   }, { clinicId: 'c1', conversationId: 'conv-uuid', phone: '5511', content: 'quero agendar' });
 
@@ -521,6 +530,16 @@ it('resolves interlocutor, invokes agent (system, conv.id), sends reply', async 
   expect((calls.invoke as any).personaType).toBe('paciente');
   expect(calls.sent).toEqual({ convId: 'conv-uuid', msg: 'Agendado!' });
   expect(result.action).toBe('agent_replied');
+});
+
+it('returns send_failed when sendReply fails (runAction not ok)', async () => {
+  const result = await routeInboundToAgent({
+    resolveInterlocutor: async () => ({ personaType: 'recepcao', context: '', peerId: '5511' }),
+    invokeAgent: async () => ({ reply: 'oi', turnsUsed: 1 }),
+    sendReply: async () => false,            // envio falhou
+    timezone: 'America/Sao_Paulo',
+  }, { clinicId: 'c1', conversationId: 'conv-uuid', phone: '5511', content: 'oi' });
+  expect(result.action).toBe('send_failed');
 });
 ```
 
@@ -544,7 +563,9 @@ const agentResult = await routeInboundToAgent({
   invokeAgent,
   sendReply: async (convId, msg) => {
     const ctx = await buildSystemContext(clinicId);                       // principal = role Agente
-    await runAction(enviarMensagem, { conversationId: convId, message: msg, channel: 'whatsapp' }, ctx);
+    const r = await runAction(enviarMensagem, { conversationId: convId, message: msg, channel: 'whatsapp' }, ctx);
+    if (!r.ok) whatsappLogger.error('[ia] enviarMensagem falhou', null, { conversationId: convId, error: r.error.code });
+    return r.ok;                                                          // runAction NÃO lança; checar ok
   },
   timezone: 'America/Sao_Paulo',   // TODO: timezone real da clínica (clinic settings)
 }, { clinicId, conversationId: conv.id, phone, content });
@@ -553,7 +574,8 @@ await repo.updateConversationTimestamp(conv.id);
 return results;
 ```
 
-> O role **Agente** precisa de `atendimento:manage_messages` (para `enviarMensagem`) + as permissões das tools que ele usa — via `getAgentPermissions(clinicId)` (a futura Gestão do Agente configura isso). Política do webhook preservada (assinatura/dedup/200-no-op). Falha do agente → o próprio `runTurn` já devolve fallback.
+> **Atenção aos nomes de variáveis por caminho** (evita copy/paste errado): em `processEvolutionMessage` o escopo tem `clinicId`, `phone`, `content`, `conv`; em `storeAndProcessMetaMessage` (caminho Meta) os nomes locais são `cId`, `from`, `content`, `conv` — adaptar o snippet ao escopo de cada função.
+> O role **Agente** precisa de `atendimento:manage_messages` + as permissões das tools (corrigidas na Task 6 Step 1) — via `getAgentPermissions(clinicId)`. Política do webhook preservada (assinatura/dedup/200-no-op). Falha do agente → o próprio `runTurn` já devolve fallback.
 
 - [ ] **Step 5: Rodar + typecheck + commit**
 
@@ -569,10 +591,39 @@ git commit -m "feat(ia): route whatsapp inbound (Meta+Evolution) to agent in web
 ## Task 6: Presets RBAC + smoke ponta-a-ponta + limpeza
 
 **Files:**
-- Modify: `src/core/rbac/presets.ts`
+- Modify: `src/core/rbac/agent-access.ts`, `src/core/rbac/presets.ts`
+- Test: `src/core/rbac/__tests__/agent-access.test.ts`
 - Remove: rota descartável do spike (se presente na branch de trabalho)
 
-- [ ] **Step 1: Adicionar `ia` aos presets** (`presets.ts`)
+- [ ] **Step 1 (BLOQUEADOR): alinhar `DEFAULT_AGENT_PERMISSIONS` aos `requires` reais** (`agent-access.ts`)
+
+Hoje `DEFAULT_AGENT_PERMISSIONS` tem permissões que **não existem** (`operacional:create`, `operacional:confirm`) e `atendimento:reply` em vez de `atendimento:manage_messages`. Com isso o agente **não** consegue agendar (action exige `operacional:manage_appointments`) nem enviar a resposta (`enviarMensagem` exige `atendimento:manage_messages`). Corrigir para as permissões reais:
+
+```ts
+export const DEFAULT_AGENT_PERMISSIONS = [
+  'operacional:view',                 // consultar disponibilidade, listar/obter
+  'operacional:manage_appointments',  // agendar/confirmar (matriz exige confirmação no WhatsApp)
+  'atendimento:manage_messages',      // enviar a resposta (enviarMensagem)
+];
+```
+
+> Mantém o espírito §3.7 (não dar `manage_patients`/financeiro/cancelamento por default — a matriz de segurança do ia-bridge ainda barra ações sensíveis/destrutivas mesmo que a permissão exista). Confirme em `src/modules/atendimento/permissions.ts` que `atendimento:manage_messages` é o `requires` de `enviarMensagem`.
+
+- [ ] **Step 2: Teste das permissões do agente** (`__tests__/agent-access.test.ts`)
+
+```ts
+import { DEFAULT_AGENT_PERMISSIONS } from '../agent-access';
+
+it('agent defaults cover the actions it must run (real permission keys)', () => {
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:view');
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:manage_appointments'); // agendar
+  expect(DEFAULT_AGENT_PERMISSIONS).toContain('atendimento:manage_messages');      // enviar resposta
+  // não deve conter chaves inexistentes
+  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('operacional:create');
+});
+```
+
+- [ ] **Step 3: Adicionar `ia` aos presets** (`presets.ts`)
 
 `ia:chat` para quem opera o assistente interno. Sugestão conservadora: Administrador (módulo `ia`); Recepcionista e Dentista recebem `ia:chat` via `extraKeys`. Confirmar com o produto.
 
@@ -582,22 +633,23 @@ git commit -m "feat(ia): route whatsapp inbound (Meta+Evolution) to agent in web
 { name: 'Dentista', ..., extraKeys: ['followup:view', 'ia:chat'] },
 ```
 
-- [ ] **Step 2: Confirmar que a rota do spike não está na branch de trabalho**
+- [ ] **Step 4: Confirmar que a rota do spike não está na branch de trabalho**
 
 Run: `ls src/app/api/ia/spike 2>/dev/null && echo "REMOVER" || echo "ok (só na branch spike)"`
 Se existir, remover (`git rm -r src/app/api/ia/spike`).
 
-- [ ] **Step 3: Smoke ponta-a-ponta (trio local, fiel ao spike §P5)**
+- [ ] **Step 5: Smoke ponta-a-ponta (trio local, fiel ao spike §P5)**
+
+**Pré-condição:** os módulos **`ia` e `atendimento` habilitados** na clínica de teste (`instance_modules`), senão as rotas/gates respondem 404/`module_disabled`. Garantir também `HANDLE_SECRET` (ia-bridge) e `OPENCODE_ZEN_API_KEY` (ia-agent) em `.dev.vars`, e um usuário com `ia:chat`.
 
 ```bash
-# garantir HANDLE_SECRET no .dev.vars do ia-bridge e OPENCODE_ZEN_API_KEY no do ia-agent
 npx wrangler dev --config wrangler.ia-bridge.jsonc --port 8792        # terminal 1
 npx wrangler dev --config src/workers/ia-agent/wrangler.jsonc --port 8793   # terminal 2
 npm run build:cf && npx wrangler dev .open-next/worker.js --config wrangler.toml --port 8791  # terminal 3
 ```
-Validar (autenticado): `POST http://127.0.0.1:8791/api/ia/chat` com `{ "conversationId": "smoke", "message": "quais horários livres na quinta?" }` → resposta com `reply` (agora a cadeia bootstrapa sem o crash de Playwright; com `HANDLE_SECRET` o `issueHandle` funciona).
+Validar (autenticado, com `ia:chat`): `POST http://127.0.0.1:8791/api/ia/chat` com `{ "conversationId": "smoke", "message": "quais horários livres na quinta?" }` → resposta com `reply` (cadeia bootstrapa sem o crash de Playwright; com `HANDLE_SECRET` o `issueHandle` funciona).
 
-- [ ] **Step 4: Gate completo**
+- [ ] **Step 6: Gate completo**
 
 ```bash
 npm run typecheck && npm run typecheck:ia-bridge && npm run typecheck:ia-agent
@@ -606,11 +658,11 @@ npm test
 ```
 Expected: tudo verde.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/core/rbac/presets.ts
-git commit -m "feat(ia): rbac presets (ia:chat) + e2e smoke"
+git add src/core/rbac/agent-access.ts src/core/rbac/__tests__/agent-access.test.ts src/core/rbac/presets.ts
+git commit -m "feat(ia): align agent permissions to real keys + rbac presets (ia:chat)"
 ```
 
 ---
