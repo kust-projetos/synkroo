@@ -30,11 +30,10 @@ O `bootstrapActions()` importa `@/modules/atendimento`, cuja cadeia (`obter-qrco
 |---|---|
 | `src/modules/atendimento/services/channel-service.ts` | **(Task 0)** Playwright lazy (`import type` + `await import`) |
 | `wrangler.toml` | **(Task 1)** bindings `IA_BRIDGE` (service) + `AGENT` (DO cross-worker) |
-| `src/core/ia-channel/interlocutor.ts` | **(Task 2)** resolução telefone→paciente/lead/desconhecido; chat→funcionário (lógica pura) |
-| `src/core/ia-channel/leads-read.ts` | **(Task 2)** adapter de leitura de `leads` (dívida temporária, `// TODO(E-05)`) |
-| `src/core/ia-channel/agent-invoker.ts` | **(Task 3)** acionamento: `getCloudflareContext` → `issueHandle` + binding cru do DO |
+| `src/core/ia-channel/interlocutor.ts` | **(Task 2)** resolução telefone→paciente/lead/desconhecido; chat→funcionário (lógica pura). Usa os repos EXISTENTES (`src/repositories/patients`, `src/repositories/leads`) |
+| `src/core/ia-channel/agent-invoker.ts` | **(Task 3)** acionamento: `invokeAgentWithEnv(env, input)` (puro, testável) + wrapper `invokeAgent` (`getCloudflareContext`) |
 | `src/app/api/ia/chat/route.ts` | **(Task 4)** chat interno (gated + autenticado → delegated) |
-| `src/app/api/whatsapp/webhook/route.ts` | **(Task 5)** inbound → agente (system) + envio pela resposta |
+| `src/modules/atendimento/services/webhook-processor-service.ts` | **(Task 5)** substituir o bloco "AI disabled" por: resolver interlocutor → invocar agente → enviar via `enviarMensagem` (por `conv.id`). Caminhos Meta **e** Evolution |
 | `src/core/rbac/presets.ts` | **(Task 6)** `ia` nos presets |
 | `src/core/ia-channel/__tests__/*.test.ts` | testes da lógica pura |
 
@@ -95,15 +94,16 @@ npx jest src/modules/atendimento -v
 ```
 Expected: verde.
 
-- [ ] **Step 6: Configurar `HANDLE_SECRET` (dev + prod)**
+- [ ] **Step 6: Configurar `HANDLE_SECRET` (apenas no `ia-bridge`)**
+
+Só o **`ia-bridge`** lê `HANDLE_SECRET` (`src/workers/ia-bridge/index.ts`): ele **emite** (`issueHandle`) e **valida** (`executeAction`) o handle. O `ia-agent` e o app **não** leem o secret — só repassam o handle opaco. Portanto o secret vive em um único lugar.
 
 ```bash
-# dev local: .dev.vars de cada worker que usa o secret (gitignored)
-echo "HANDLE_SECRET=$(openssl rand -hex 32)" >> .dev.vars          # ia-bridge (raiz)
+# dev local: .dev.vars do ia-bridge (gitignored)
+echo "HANDLE_SECRET=$(openssl rand -hex 32)" >> .dev.vars
 # prod:
 npx wrangler secret put HANDLE_SECRET --config wrangler.ia-bridge.jsonc
 ```
-> O mesmo `HANDLE_SECRET` deve estar no `ia-bridge` (emite e valida o handle). Documentar em `docs/` que é compartilhado.
 
 - [ ] **Step 7: Commit**
 
@@ -155,8 +155,10 @@ git commit -m "feat(ia): app bindings IA_BRIDGE (service) + AGENT (DO cross-work
 ## Task 2: Resolução de interlocutor (app-side, lógica pura)
 
 **Files:**
-- Create: `src/core/ia-channel/types.ts`, `src/core/ia-channel/leads-read.ts`, `src/core/ia-channel/interlocutor.ts`
+- Create: `src/core/ia-channel/types.ts`, `src/core/ia-channel/interlocutor.ts`
 - Test: `src/core/ia-channel/__tests__/interlocutor.test.ts`
+
+Usa os repos **existentes** (não duplicar): `findPatientByPhone(phone, clinicId)` (`src/repositories/patients/index.ts` — retorna `PatientRow` com `name`) e `findLeadByPhone(phone, clinicId)` (`src/repositories/leads/index.ts` — `LeadRow`). A lógica recebe esses repos como deps (testável).
 
 - [ ] **Step 1: Tipos** (`src/core/ia-channel/types.ts`)
 
@@ -171,31 +173,15 @@ export interface Interlocutor {
   leadId?: string;
 }
 
+// Assinaturas batem com os repos reais: (phone, clinicId). PatientRow/LeadRow têm mais campos;
+// só usamos id + name (estruturalmente compatível).
 export interface InterlocutorDeps {
-  findPatientByPhone(clinicId: string, phone: string): Promise<{ id: string; nome: string } | null>;
-  findLeadByPhone(clinicId: string, phone: string): Promise<{ id: string; nome: string | null } | null>;
+  findPatientByPhone(phone: string, clinicId: string): Promise<{ id: string; name: string } | null>;
+  findLeadByPhone(phone: string, clinicId: string): Promise<{ id: string; name: string | null } | null>;
 }
 ```
 
-- [ ] **Step 2: Adapter de leitura de leads** (`src/core/ia-channel/leads-read.ts`)
-
-```ts
-// DÍVIDA TEMPORÁRIA (// TODO(E-05)): leitura direta de `leads` por não haver módulo Comercial.
-// Migrar para uma Action de leitura quando E-05 existir; remover este adapter.
-import { getDb } from '@/lib/db/client';
-import { leads } from '@/lib/db/schema';
-import { and, eq } from 'drizzle-orm';
-
-export async function findLeadByPhone(clinicId: string, phone: string): Promise<{ id: string; nome: string | null } | null> {
-  const [row] = await getDb().select({ id: leads.id, nome: leads.name }).from(leads)
-    .where(and(eq(leads.clinicId, clinicId), eq(leads.phone, phone))).limit(1);
-  return row ?? null;
-}
-```
-
-> Confirme os nomes reais das colunas em `@/lib/db/schema` (tabela `leads`: `id`, `name`/`nome`, `phone`, `clinicId`). Ajuste se divergirem.
-
-- [ ] **Step 3: Teste da resolução** (`__tests__/interlocutor.test.ts`)
+- [ ] **Step 2: Teste da resolução** (`__tests__/interlocutor.test.ts`)
 
 ```ts
 import { resolveInterlocutor, resolveFuncionario } from '../interlocutor';
@@ -209,13 +195,13 @@ const deps = (over: Partial<InterlocutorDeps> = {}): InterlocutorDeps => ({
 
 describe('resolveInterlocutor (whatsapp)', () => {
   it('patient → persona paciente + name in context', async () => {
-    const r = await resolveInterlocutor(deps({ findPatientByPhone: async () => ({ id: 'p1', nome: 'João' }) }), 'c1', '5511999');
+    const r = await resolveInterlocutor(deps({ findPatientByPhone: async () => ({ id: 'p1', name: 'João' }) }), 'c1', '5511999');
     expect(r.personaType).toBe('paciente');
     expect(r.patientId).toBe('p1');
     expect(r.context).toContain('João');
   });
   it('lead (not patient) → persona vendas', async () => {
-    const r = await resolveInterlocutor(deps({ findLeadByPhone: async () => ({ id: 'l1', nome: 'Maria' }) }), 'c1', '5511999');
+    const r = await resolveInterlocutor(deps({ findLeadByPhone: async () => ({ id: 'l1', name: 'Maria' }) }), 'c1', '5511999');
     expect(r.personaType).toBe('vendas');
     expect(r.leadId).toBe('l1');
   });
@@ -235,21 +221,21 @@ describe('resolveFuncionario (chat)', () => {
 });
 ```
 
-- [ ] **Step 4: Rodar (FAIL)** — `npx jest src/core/ia-channel/__tests__/interlocutor.test.ts -v`
+- [ ] **Step 3: Rodar (FAIL)** — `npx jest src/core/ia-channel/__tests__/interlocutor.test.ts -v`
 
-- [ ] **Step 5: Implementar** (`src/core/ia-channel/interlocutor.ts`)
+- [ ] **Step 4: Implementar** (`src/core/ia-channel/interlocutor.ts`)
 
 ```ts
 import type { Interlocutor, InterlocutorDeps } from './types';
 
 // Identidade por telefone é DICA FRACA: contexto sensível NÃO entra só por isso (spec §Segurança).
-// Aqui só nome (não-sensível) é injetado; dados clínicos/financeiros exigem verificação no ia-bridge.
+// Aqui só o nome (não-sensível) é injetado; dados clínicos/financeiros exigem verificação no ia-bridge.
 export async function resolveInterlocutor(deps: InterlocutorDeps, clinicId: string, phone: string): Promise<Interlocutor> {
-  const patient = await deps.findPatientByPhone(clinicId, phone);
-  if (patient) return { personaType: 'paciente', context: `Paciente: ${patient.nome}`, peerId: phone, patientId: patient.id };
+  const patient = await deps.findPatientByPhone(phone, clinicId);
+  if (patient) return { personaType: 'paciente', context: `Paciente: ${patient.name}`, peerId: phone, patientId: patient.id };
 
-  const lead = await deps.findLeadByPhone(clinicId, phone);
-  if (lead) return { personaType: 'vendas', context: lead.nome ? `Lead: ${lead.nome}` : '', peerId: phone, leadId: lead.id };
+  const lead = await deps.findLeadByPhone(phone, clinicId);
+  if (lead) return { personaType: 'vendas', context: lead.name ? `Lead: ${lead.name}` : '', peerId: phone, leadId: lead.id };
 
   return { personaType: 'recepcao', context: '', peerId: phone };
 }
@@ -260,12 +246,18 @@ export function resolveFuncionario(userId: string, _userName: string): Interlocu
 }
 ```
 
-- [ ] **Step 6: Rodar (PASS) + commit**
+> Wiring (Tasks 4/5): passar os repos reais como deps —
+> `import { findPatientByPhone } from '@/repositories/patients';`
+> `import { findLeadByPhone } from '@/repositories/leads';`
+> `resolveInterlocutor({ findPatientByPhone, findLeadByPhone }, clinicId, phone)`.
+> Nota de dívida (`// TODO(E-05)`): quando o módulo Comercial existir, trocar o repo legado de leads pela Action equivalente.
+
+- [ ] **Step 5: Rodar (PASS) + commit**
 
 ```bash
 npx jest src/core/ia-channel/__tests__/interlocutor.test.ts -v
-git add src/core/ia-channel/types.ts src/core/ia-channel/leads-read.ts src/core/ia-channel/interlocutor.ts src/core/ia-channel/__tests__/interlocutor.test.ts
-git commit -m "feat(ia): interlocutor resolution (patient/lead/unknown/staff) + leads-read adapter"
+git add src/core/ia-channel/types.ts src/core/ia-channel/interlocutor.ts src/core/ia-channel/__tests__/interlocutor.test.ts
+git commit -m "feat(ia): interlocutor resolution (patient/lead/unknown/staff) via existing repos"
 ```
 
 ---
@@ -274,32 +266,61 @@ git commit -m "feat(ia): interlocutor resolution (patient/lead/unknown/staff) + 
 
 **Files:**
 - Create: `src/core/ia-channel/agent-invoker.ts`
-- Test: validado via `wrangler dev` (usa bindings runtime — não roda em Jest)
+- Test: `src/core/ia-channel/__tests__/agent-invoker.test.ts`
 
-Fiel ao spike (caminho vencedor P4-B). **Não** importar `agents` aqui.
+Fiel ao spike (caminho vencedor P4-B). **Não** importar `agents`. A lógica recebe `env` como parâmetro (`invokeAgentWithEnv` — testável em Jest com env mockado); o wrapper `invokeAgent` resolve o `env` via `getCloudflareContext`.
 
-- [ ] **Step 1: Implementar** (`src/core/ia-channel/agent-invoker.ts`)
+- [ ] **Step 1: Teste da lógica** (`__tests__/agent-invoker.test.ts`)
+
+```ts
+import { invokeAgentWithEnv, type AgentEnv } from '../agent-invoker';
+
+function makeEnv() {
+  const calls: Record<string, unknown> = {};
+  const env: AgentEnv = {
+    IA_BRIDGE: { issueHandle: async (i) => { calls.issue = i; return { handle: 'H' }; } },
+    AGENT: {
+      idFromName: (name) => { calls.idName = name; return { name }; },
+      get: (id) => ({ runTurn: async (i) => { calls.runTurn = i; return { reply: 'oi', turnsUsed: 1 }; } }),
+    },
+  };
+  return { env, calls };
+}
+
+describe('invokeAgentWithEnv', () => {
+  it('issues handle, addresses DO by conversation, runs turn', async () => {
+    const { env, calls } = makeEnv();
+    const out = await invokeAgentWithEnv(env, {
+      clinicId: 'c1', conversationId: 'conv-1', channel: 'whatsapp', peerId: '5511', principalRef: 'agente',
+      source: 'system', personaType: 'paciente', context: 'Paciente: João', timezone: 'America/Sao_Paulo', userMessage: 'oi',
+    });
+    expect(out.reply).toBe('oi');
+    expect((calls.issue as any).conversationId).toBe('conv-1');
+    expect(calls.idName).toBe('c1:whatsapp:5511');          // DO endereçado por conversa
+    expect((calls.runTurn as any).handle).toBe('H');         // handle repassado ao DO
+  });
+});
+```
+
+- [ ] **Step 2: Rodar (FAIL)** — `npx jest src/core/ia-channel/__tests__/agent-invoker.test.ts -v`
+
+- [ ] **Step 3: Implementar** (`src/core/ia-channel/agent-invoker.ts`)
 
 ```ts
 // Aciona o ia-agent (DO) e o ia-bridge a partir do app OpenNext.
 // NÃO importar 'agents' (não existe no bundle do app — spike P4-A NO-GO).
 // Caminho validado: env.IA_BRIDGE.issueHandle + env.AGENT.idFromName().get().runTurn() (spike P4-B GO).
-
 import type { RunTurnResult, PersonaType } from '@/core/ia-agent/types';
 
-// Tipos RPC mínimos (o app não tem os tipos dos workers).
 interface IaBridgeRpc {
   issueHandle(input: { clinicId: string; conversationId: string; principalRef: string; source: 'system' | 'agent_delegated'; ttlSeconds?: number }): Promise<{ handle: string }>;
 }
 interface AgentStub {
   runTurn(input: { handle: string; conversationId: string; source: 'system' | 'agent_delegated'; personaType: PersonaType; context: string; timezone: string; userMessage: string; confirmedToken?: string; identityVerifiedToken?: string }): Promise<RunTurnResult>;
 }
-interface AgentNamespace { idFromName(name: string): unknown; get(id: unknown): AgentStub; }
-
-async function getEnv(): Promise<Record<string, unknown>> {
-  const { getCloudflareContext } = await import('@opennextjs/cloudflare/cloudflare-context');
-  try { return (getCloudflareContext() as { env: Record<string, unknown> }).env; }
-  catch { return (await getCloudflareContext({ async: true }) as { env: Record<string, unknown> }).env; }
+export interface AgentEnv {
+  IA_BRIDGE: IaBridgeRpc;
+  AGENT: { idFromName(name: string): unknown; get(id: unknown): AgentStub };
 }
 
 export interface InvokeAgentInput {
@@ -309,21 +330,16 @@ export interface InvokeAgentInput {
   userMessage: string; confirmedToken?: string; identityVerifiedToken?: string;
 }
 
-export async function invokeAgent(input: InvokeAgentInput): Promise<RunTurnResult> {
-  const env = await getEnv();
-  const bridge = env.IA_BRIDGE as IaBridgeRpc;
-  const agentNs = env.AGENT as AgentNamespace;
-
+// Lógica pura (testável): recebe os bindings já resolvidos.
+export async function invokeAgentWithEnv(env: AgentEnv, input: InvokeAgentInput): Promise<RunTurnResult> {
   // 1. handle (ia-bridge é a autoridade do principal)
-  const { handle } = await bridge.issueHandle({
+  const { handle } = await env.IA_BRIDGE.issueHandle({
     clinicId: input.clinicId, conversationId: input.conversationId,
     principalRef: input.principalRef, source: input.source, ttlSeconds: 120,
   });
-
   // 2. DO por conversa (binding cru — sem getAgentByName)
-  const id = agentNs.idFromName(`${input.clinicId}:${input.channel}:${input.peerId}`);
-  const stub = agentNs.get(id);
-
+  const id = env.AGENT.idFromName(`${input.clinicId}:${input.channel}:${input.peerId}`);
+  const stub = env.AGENT.get(id);
   // 3. roda o turno
   return stub.runTurn({
     handle, conversationId: input.conversationId, source: input.source,
@@ -331,15 +347,24 @@ export async function invokeAgent(input: InvokeAgentInput): Promise<RunTurnResul
     userMessage: input.userMessage, confirmedToken: input.confirmedToken, identityVerifiedToken: input.identityVerifiedToken,
   });
 }
+
+// Wrapper runtime: resolve env via getCloudflareContext (sync, fallback async — fiel ao spike).
+export async function invokeAgent(input: InvokeAgentInput): Promise<RunTurnResult> {
+  const { getCloudflareContext } = await import('@opennextjs/cloudflare/cloudflare-context');
+  let env: AgentEnv;
+  try { env = (getCloudflareContext() as { env: AgentEnv }).env; }
+  catch { env = ((await getCloudflareContext({ async: true })) as { env: AgentEnv }).env; }
+  return invokeAgentWithEnv(env, input);
+}
 ```
 
-- [ ] **Step 2: Typecheck** — `npm run typecheck` → 0 erros.
-
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Rodar (PASS) + typecheck + commit**
 
 ```bash
-git add src/core/ia-channel/agent-invoker.ts
-git commit -m "feat(ia): agent invoker (issueHandle + raw DO binding runTurn)"
+npx jest src/core/ia-channel/__tests__/agent-invoker.test.ts -v
+npm run typecheck
+git add src/core/ia-channel/agent-invoker.ts src/core/ia-channel/__tests__/agent-invoker.test.ts
+git commit -m "feat(ia): agent invoker (pure invokeAgentWithEnv + getCloudflareContext wrapper)"
 ```
 
 ---
@@ -438,65 +463,105 @@ git commit -m "feat(ia): /api/ia/chat route (authenticated, delegated)"
 ## Task 5: Webhook WhatsApp inbound → agente (system)
 
 **Files:**
-- Modify: `src/app/api/whatsapp/webhook/route.ts`
-- Test: `src/app/api/whatsapp/webhook/__tests__/agent-routing.test.ts`
+- Create: `src/core/ia-channel/webhook-router.ts`, `src/core/ia-channel/__tests__/webhook-router.test.ts`
+- Modify: `src/modules/atendimento/services/webhook-processor-service.ts` (substituir o bloco "AI disabled" nos caminhos Evolution **e** Meta)
 
-O webhook já valida assinatura + gate (Plano atendimento). Acrescentar: para cada mensagem inbound, resolver `clinicId`+interlocutor, acionar o agente (system) e enviar a resposta de volta — mantendo a política 200-no-op/idempotência existente.
+O fluxo real **não** está no `route.ts` (que só valida e delega), e sim no `webhook-processor-service.ts`. Hoje há um placeholder explícito — `processEvolutionMessage:91-97` registra `"Message stored (AI disabled)"` (`reason: 'legacy_agent_removed'`) **depois** dos handlers de button/confirmação/waitlist. Esse é o ponto de entrada do agente. O caminho Meta (`storeAndProcessMetaMessage`) tem o ponto equivalente. A conversa **já está persistida** (`findOrCreateConversation` → `conv.id`) e a mensagem inbound já foi deduplicada por `externalMessageId`.
 
-- [ ] **Step 1: Teste do roteamento ao agente** (mock invoker + Actions)
+- [ ] **Step 1: Helper testável** (`src/core/ia-channel/webhook-router.ts`)
 
 ```ts
-const mockInvoke = jest.fn();
-jest.mock('@/core/ia-channel/agent-invoker', () => ({ invokeAgent: (...a: unknown[]) => mockInvoke(...a) }));
-const mockResolve = jest.fn();
-jest.mock('@/core/ia-channel/interlocutor', () => ({ resolveInterlocutor: (...a: unknown[]) => mockResolve(...a) }));
-// ... mocks de clinicId-by-instance, enviarMensagem, dedup conforme o webhook real ...
+import type { Interlocutor } from './types';
+import type { RunTurnResult } from '@/core/ia-agent/types';
 
-it('inbound message → resolves interlocutor → invokes agent → sends reply', async () => {
-  mockResolve.mockResolvedValue({ personaType: 'paciente', context: 'Paciente: João', peerId: '5511999' });
-  mockInvoke.mockResolvedValue({ reply: 'Posso agendar para quinta 9h?', turnsUsed: 2 });
-  // POST do webhook com payload Meta válido (1 mensagem) + assinatura válida (mock)
-  // assert: mockInvoke chamado com source:'system', personaType:'paciente'
-  // assert: enviarMensagem chamado com a reply
-  // assert: resposta HTTP 200
+export interface WebhookRouterDeps {
+  resolveInterlocutor(clinicId: string, phone: string): Promise<Interlocutor>;
+  invokeAgent(input: {
+    clinicId: string; conversationId: string; channel: 'whatsapp'; peerId: string;
+    principalRef: string; source: 'system'; personaType: Interlocutor['personaType'];
+    context: string; timezone: string; userMessage: string;
+  }): Promise<RunTurnResult>;
+  sendReply(conversationId: string, message: string): Promise<void>;
+  timezone: string;
+}
+
+// Substitui o antigo "AI disabled": roteia a mensagem inbound ao agente e envia a resposta.
+// Usa conv.id (conversa persistida), NÃO chave sintética.
+export async function routeInboundToAgent(
+  deps: WebhookRouterDeps,
+  args: { clinicId: string; conversationId: string; phone: string; content: string },
+): Promise<{ from: string; action: string }> {
+  const who = await deps.resolveInterlocutor(args.clinicId, args.phone);
+  const result = await deps.invokeAgent({
+    clinicId: args.clinicId, conversationId: args.conversationId, channel: 'whatsapp',
+    peerId: args.phone, principalRef: 'agente', source: 'system',
+    personaType: who.personaType, context: who.context, timezone: deps.timezone, userMessage: args.content,
+  });
+  if (result.reply) await deps.sendReply(args.conversationId, result.reply);
+  return { from: args.phone, action: result.escalated ? 'escalated' : 'agent_replied' };
+}
+```
+
+- [ ] **Step 2: Teste do helper** (`__tests__/webhook-router.test.ts`)
+
+```ts
+import { routeInboundToAgent } from '../webhook-router';
+
+it('resolves interlocutor, invokes agent (system, conv.id), sends reply', async () => {
+  const calls: Record<string, unknown> = {};
+  const result = await routeInboundToAgent({
+    resolveInterlocutor: async () => ({ personaType: 'paciente', context: 'Paciente: João', peerId: '5511' }),
+    invokeAgent: async (i) => { calls.invoke = i; return { reply: 'Agendado!', turnsUsed: 2 }; },
+    sendReply: async (convId, msg) => { calls.sent = { convId, msg }; },
+    timezone: 'America/Sao_Paulo',
+  }, { clinicId: 'c1', conversationId: 'conv-uuid', phone: '5511', content: 'quero agendar' });
+
+  expect((calls.invoke as any).source).toBe('system');
+  expect((calls.invoke as any).conversationId).toBe('conv-uuid');   // conv.id, não sintético
+  expect((calls.invoke as any).personaType).toBe('paciente');
+  expect(calls.sent).toEqual({ convId: 'conv-uuid', msg: 'Agendado!' });
+  expect(result.action).toBe('agent_replied');
 });
 ```
 
-> Implementador: reusar os helpers de assinatura/dedup já existentes no webhook; o teste foca no novo trecho (resolver → invocar → enviar).
+- [ ] **Step 3: Rodar (FAIL→implementar→PASS)** — `npx jest src/core/ia-channel/__tests__/webhook-router.test.ts -v`
 
-- [ ] **Step 2: Rodar (FAIL)**
-
-- [ ] **Step 3: Implementar o roteamento** (no `handlePOST` do webhook, no loop de mensagens)
+- [ ] **Step 4: Wiring no `webhook-processor-service.ts`** — substituir o bloco "AI disabled" (Evolution `:91-97`) e o equivalente no caminho Meta (`storeAndProcessMetaMessage`):
 
 ```ts
-import { invokeAgent } from '@/core/ia-channel/agent-invoker';
+import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
-import { findPatientByPhone } from '@/modules/operacional/...'; // repo real de paciente por telefone
-import { findLeadByPhone } from '@/core/ia-channel/leads-read';
+import { findPatientByPhone } from '@/repositories/patients';
+import { findLeadByPhone } from '@/repositories/leads';
+import { runAction } from '@/core/actions/run';
+import { buildSystemContext } from '@/core/actions/context';
+import { enviarMensagem } from '../actions/enviar-mensagem';
+import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 
-// dentro do loop, para cada mensagem inbound já deduplicada/persistida:
-const clinicId = await resolveClinicByInstance(entry);          // helper existente/novo
-const who = await resolveInterlocutor({ findPatientByPhone, findLeadByPhone }, clinicId, from);
-const conversationId = `${clinicId}:whatsapp:${from}`;
-const result = await invokeAgent({
-  clinicId, conversationId, channel: 'whatsapp', peerId: from,
-  principalRef: 'agente', source: 'system',
-  personaType: who.personaType, context: who.context,
-  timezone: 'America/Sao_Paulo', userMessage: text,
-});
-// envia a resposta pelo canal via Action de atendimento (persistência durável + envio)
-await runAtendimentoSystemAction(enviarMensagem, { to: from, message: result.reply, channel: 'whatsapp' }, clinicId);
+// substitui as linhas do "AI disabled":
+const agentResult = await routeInboundToAgent({
+  resolveInterlocutor: (cId, ph) => resolveInterlocutor({ findPatientByPhone, findLeadByPhone }, cId, ph),
+  invokeAgent,
+  sendReply: async (convId, msg) => {
+    const ctx = await buildSystemContext(clinicId);                       // principal = role Agente
+    await runAction(enviarMensagem, { conversationId: convId, message: msg, channel: 'whatsapp' }, ctx);
+  },
+  timezone: 'America/Sao_Paulo',   // TODO: timezone real da clínica (clinic settings)
+}, { clinicId, conversationId: conv.id, phone, content });
+results.push(agentResult);
+await repo.updateConversationTimestamp(conv.id);
+return results;
 ```
 
-> Mantém a política do webhook: assinatura inválida → 403; payload malformado → 200 + log; duplicado (`externalMessageId`) → 200 no-op. Falha do agente → resposta de fallback já vem do próprio `runTurn`.
+> O role **Agente** precisa de `atendimento:manage_messages` (para `enviarMensagem`) + as permissões das tools que ele usa — via `getAgentPermissions(clinicId)` (a futura Gestão do Agente configura isso). Política do webhook preservada (assinatura/dedup/200-no-op). Falha do agente → o próprio `runTurn` já devolve fallback.
 
-- [ ] **Step 4: Rodar (PASS) + typecheck + commit**
+- [ ] **Step 5: Rodar + typecheck + commit**
 
 ```bash
-npx jest src/app/api/whatsapp/webhook -v
+npx jest src/core/ia-channel src/modules/atendimento -v
 npm run typecheck
-git add src/app/api/whatsapp/webhook/route.ts src/app/api/whatsapp/webhook/__tests__/agent-routing.test.ts
-git commit -m "feat(ia): whatsapp inbound routes to agent (system) + sends reply"
+git add src/core/ia-channel/webhook-router.ts src/core/ia-channel/__tests__/webhook-router.test.ts src/modules/atendimento/services/webhook-processor-service.ts
+git commit -m "feat(ia): route whatsapp inbound (Meta+Evolution) to agent in webhook-processor"
 ```
 
 ---
@@ -554,7 +619,7 @@ git commit -m "feat(ia): rbac presets (ia:chat) + e2e smoke"
 
 - **Task 0 (pré-condição):** Playwright lazy → `bootstrapActions` Workers-safe; `HANDLE_SECRET` configurado. Sem isto, nada roda em Workers (achado do spike).
 - **Bindings** `IA_BRIDGE` + `AGENT` (DO cross-worker) — fiel ao spike (Task 1).
-- **Interlocutor** (paciente/lead/desconhecido/funcionário) + `leads-read` (dívida E-05) — lógica pura testada (Task 2).
+- **Interlocutor** (paciente/lead/desconhecido/funcionário) via repos existentes (`findPatientByPhone`/`findLeadByPhone`) — lógica pura testada (Task 2); dívida E-05 = trocar o repo legado de leads por Action quando o Comercial existir.
 - **Acionamento** via `getCloudflareContext` + `issueHandle` + **binding cru** do DO (não `getAgentByName`) — Task 3.
 - **Canais:** `/api/ia/chat` (delegated, autenticado) e webhook inbound (system) + envio via `atendimento.enviarMensagem` — Tasks 4/5.
 - **RBAC** + smoke trio local + limpeza do spike — Task 6.
