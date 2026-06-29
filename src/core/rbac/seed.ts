@@ -7,7 +7,7 @@ import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from './agent-access';
 
 // Executor aceito: o db compartilhado OU uma transação Drizzle (ambos expõem insert/select).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type DbOrTx = ReturnType<typeof getDb> | any;
+export type DbOrTx = ReturnType<typeof getDb> | any;
 
 export function buildPresetPermissions(preset: PresetDef): string[] {
   const catalog = getPermissionCatalog();
@@ -16,6 +16,21 @@ export function buildPresetPermissions(preset: PresetDef): string[] {
   for (const p of catalog) if (preset.modules.includes(p.module) && !p.key.startsWith('master:')) keys.add(p.key);
   for (const k of preset.extraKeys ?? []) if (!k.startsWith('master:')) keys.add(k);
   return [...keys];
+}
+
+// Insere permissões de role de forma idempotente (ON CONFLICT DO NOTHING).
+export async function syncRolePermissions(
+  db: DbOrTx,
+  roleId: string,
+  keys: string[],
+): Promise<void> {
+  if (!keys.length) return;
+  await db
+    .insert(rolePermissions)
+    .values(
+      keys.map((permissionKey) => ({ roleId, permissionKey })),
+    )
+    .onConflictDoNothing();
 }
 
 // Cria os perfis de sistema (incl. Owner) e suas permissões para uma clínica.
@@ -35,18 +50,37 @@ export async function seedRbacForClinic(clinicId: string, executor?: DbOrTx): Pr
     ...SYSTEM_PRESETS.map((p) => ({ name: p.name, description: p.description, keys: buildPresetPermissions(p) })),
   ];
   for (const preset of presets) {
-    // Idempotência: verifica se o role já existe antes de inserir
-    const existing = await db.select({ id: roles.id })
+    // Resolve roleId: usa existente ou cria novo
+    const existing = await db
+      .select({ id: roles.id })
       .from(roles)
       .where(and(eq(roles.clinicId, clinicId), eq(roles.name, preset.name)))
       .limit(1);
-    if (existing.length) continue;
 
-    const [row] = await db.insert(roles)
-      .values({ clinicId, name: preset.name, description: preset.description, isSystem: true })
-      .returning({ id: roles.id });
-    if (preset.keys.length) {
-      await db.insert(rolePermissions).values(preset.keys.map((permissionKey) => ({ roleId: row.id, permissionKey })));
+    const roleId =
+      existing[0]?.id ??
+      (
+        await db
+          .insert(roles)
+          .values({
+            clinicId,
+            name: preset.name,
+            description: preset.description,
+            isSystem: true,
+          })
+          .returning({ id: roles.id })
+      )[0].id;
+
+    // Agente: sempre reconcilia permissões mínimas (mesmo em rerun).
+    // Roles de staff existentes são preservados; o Agente é role de sistema operacional
+    // que precisa receber novas permissões quando o produto evolui.
+    if (preset.name === AGENT_ROLE_NAME) {
+      await syncRolePermissions(db, roleId, DEFAULT_AGENT_PERMISSIONS);
+      continue;
     }
+
+    // Owner e staff: preserva roles existentes (só cria se não existir)
+    if (existing.length) continue;
+    await syncRolePermissions(db, roleId, preset.keys);
   }
 }
