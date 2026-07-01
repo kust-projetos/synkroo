@@ -111,8 +111,13 @@ export async function runTurn(
     const completion = await deps.provider.complete(messages, llmTools);
 
     // Sem tool calls → resposta final
-    if (!completion.toolCalls.length)
-      return { reply: completion.text ?? FALLBACK, turnsUsed };
+    if (!completion.toolCalls.length) {
+      const text = completion.text ?? '';
+      return {
+        reply: text.trim() ? text : FALLBACK,
+        turnsUsed,
+      };
+    }
 
     messages.push({
       role: 'assistant',

@@ -265,6 +265,28 @@ describe('runTurn', () => {
     expect(r.reply.length).toBeGreaterThan(0);
   });
 
+  it('maps empty text to fallback reply', async () => {
+    const p = provider([{ text: '' }]);
+    const r = await runTurn(
+      { provider: p, app: app(), now: new Date() },
+      base,
+    );
+    expect(r.reply).toBeTruthy();
+    expect(r.reply.length).toBeGreaterThan(0);
+    expect(r.turnsUsed).toBe(1);
+  });
+
+  it('maps whitespace-only text to fallback reply', async () => {
+    const p = provider([{ text: '   \n\t ' }]);
+    const r = await runTurn(
+      { provider: p, app: app(), now: new Date() },
+      base,
+    );
+    expect(r.reply).toBeTruthy();
+    expect(r.reply.length).toBeGreaterThan(0);
+    expect(r.turnsUsed).toBe(1);
+  });
+
   it('stops at guard limit', async () => {
     const r = await runTurn(
       {

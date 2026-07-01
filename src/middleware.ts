@@ -1,14 +1,18 @@
 import { getToken } from 'next-auth/jwt';
 import { NextResponse, type NextRequest } from 'next/server';
 
-const AUTH_SECRET = process.env.AUTH_SECRET;
-
 /**
  * Middleware for authentication — validates Auth.js JWT.
  * Edge-compatible: uses next-auth/jwt getToken instead of auth().
+ *
+ * NOTA sobre OpenNext/Workers:
+ *   process.env é populado por populateProcessEnv() a cada request,
+ *   NÃO em module-init. Portanto, qualquer leitura de env var DEVE
+ *   ser feita dentro da função middleware, não no module scope.
  */
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const AUTH_SECRET = process.env.AUTH_SECRET;
 
   // Dev bypass: skip auth when AUTH_SECRET is missing OR mock mode is active
   if (
