@@ -1,4 +1,4 @@
-import { Agent, callable, getAgentByName, routeAgentRequest } from 'agents';
+import { DurableObject } from 'cloudflare:workers';
 import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
 import type {
@@ -16,20 +16,37 @@ export interface Env extends Cloudflare.Env {
   OPENCODE_ZEN_API_KEY: string;
 }
 
-type SessionState = {
-  history: ChatMessage[];
-  pendingAction: PendingAction | null;
-};
+/**
+ * AgentOrchestrator — DO que processa turnos do agente IA.
+ *
+ * NOTA sobre PartyServer + cross-worker DO bindings (workers SDK):
+ *   No miniflare, DOs endereçados via env.AGENT.idFromName().get() de
+ *   OUTRO worker não têm ctx.id.name populado. PartyServer/agents SDK
+ *   dependem de setName() (via getAgentByName) ou do header x-partykit-room
+ *   para inicializar. Sem isso, this.name lança, this.onStart e this.state
+ *   travam, e o Workers runtime cancela o DO.
+ *
+ *   SOLUÇÃO ADOTADA: o DO usa DurableObject diretamente em vez de Agent.
+ *   RPC exposto via método runTurn() chamado por stub.runTurn() (binding).
+ *   Persistência via this.ctx.storage (history + pendingAction por conversa).
+ */
+export class AgentOrchestrator extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+  }
 
-export class AgentOrchestrator extends Agent<Env, SessionState> {
-  initialState: SessionState = { history: [], pendingAction: null };
-
-  // Exposto via RPC ao caller (Plano 3):
-  // const a = await getAgentByName(env.AGENT, id); await a.runTurn({...})
-  @callable()
+  /**
+   * RPC exposto: chamado pelo app via env.AGENT.idFromName(n).get().runTurn(i).
+   * Sem Agent SDK — PartyServer/observability bypassados.
+   * Estado entre turnos persiste via this.ctx.storage (KV durable do DO).
+   */
   async runTurn(
     input: Omit<RunTurnInput, 'history' | 'pendingAction'>,
   ): Promise<RunTurnResult> {
+    // Carrega estado persistido entre turnos da mesma conversa.
+    const history = (await this.ctx.storage.get<ChatMessage[]>('history')) ?? [];
+    const pendingAction = (await this.ctx.storage.get<PendingAction | null>('pendingAction')) ?? undefined;
+
     const provider = createZenProvider({
       apiKey: this.env.OPENCODE_ZEN_API_KEY,
       model: this.env.IA_LLM_MODEL,
@@ -40,49 +57,27 @@ export class AgentOrchestrator extends Agent<Env, SessionState> {
       { provider, app: this.env.APP as unknown as AppBinding, now: new Date() },
       {
         ...input,
-        history: this.state.history, // memória real entre turnos
-        pendingAction: this.state.pendingAction ?? undefined,
+        history,
+        pendingAction,
       },
     );
 
-    // único scratchpad: this.state (janela curta). Transcript durável = app-side (Plano 3).
-    const nextHistory = [
-      ...this.state.history,
+    // Persiste estado atualizado (janela curta: 20 turnos).
+    const nextHistory: ChatMessage[] = [
+      ...history,
       { role: 'user' as const, content: input.userMessage },
       { role: 'assistant' as const, content: result.reply },
     ].slice(-20);
-    this.setState({
-      history: nextHistory,
-      pendingAction: result.pendingAction ?? null,
-    });
+    await this.ctx.storage.put('history', nextHistory);
+    await this.ctx.storage.put('pendingAction', result.pendingAction ?? null);
+
     return result;
   }
 }
 
 const worker = {
-  async fetch(request: Request, env: Env) {
-    const url = new URL(request.url);
-
-    // Smoke do RPC do Agent: prova getAgentByName + @callable runTurn.
-    // Sem handle válido, listTools falha no ia-bridge → fallback; o ponto é validar o FIO RPC.
-    if (url.pathname === '/rpc-smoke') {
-      const agent = await getAgentByName(env.AGENT as any, 'smoke');
-      const out: RunTurnResult = await (agent as any).runTurn({
-        handle: 'smoke',
-        conversationId: 'smoke',
-        source: 'system',
-        personaType: 'recepcao',
-        context: '',
-        timezone: 'America/Sao_Paulo',
-        userMessage: 'ping',
-      });
-      return Response.json({ rpcOk: true, reply: out.reply });
-    }
-
-    return (
-      (await routeAgentRequest(request, env)) ??
-      new Response('ia-agent up', { status: 200 })
-    );
+  async fetch(_request: Request, _env: Env) {
+    return new Response('ia-agent up', { status: 200 });
   },
 };
 
