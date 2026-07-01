@@ -33,10 +33,29 @@ export async function syncRolePermissions(
     .onConflictDoNothing();
 }
 
+// Lookup de role por nome — injetável para testes (evita fake do AST do Drizzle).
+export type RoleFinder = (name: string) => Promise<string | null>;
+
+async function defaultRoleFinder(db: DbOrTx, clinicId: string, name: string): Promise<string | null> {
+  const existing = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(and(eq(roles.clinicId, clinicId), eq(roles.name, name)))
+    .limit(1);
+  return existing[0]?.id ?? null;
+}
+
 // Cria os perfis de sistema (incl. Owner) e suas permissões para uma clínica.
 // Aceita um executor opcional (db ou tx) para permitir execução dentro da transação de signup.
-export async function seedRbacForClinic(clinicId: string, executor?: DbOrTx): Promise<void> {
+// roleFinder é injetado apenas em testes; em produção usa defaultRoleFinder (Drizzle real).
+export async function seedRbacForClinic(
+  clinicId: string,
+  executor?: DbOrTx,
+  roleFinder?: RoleFinder,
+): Promise<void> {
   const db = executor ?? getDb();
+  const findRole = roleFinder ?? ((name: string) => defaultRoleFinder(db, clinicId, name));
+
   // espelho de permissões (idempotente)
   const catalog = getPermissionCatalog();
   if (catalog.length) {
@@ -51,14 +70,10 @@ export async function seedRbacForClinic(clinicId: string, executor?: DbOrTx): Pr
   ];
   for (const preset of presets) {
     // Resolve roleId: usa existente ou cria novo
-    const existing = await db
-      .select({ id: roles.id })
-      .from(roles)
-      .where(and(eq(roles.clinicId, clinicId), eq(roles.name, preset.name)))
-      .limit(1);
+    const existingId = await findRole(preset.name);
 
     const roleId =
-      existing[0]?.id ??
+      existingId ??
       (
         await db
           .insert(roles)
@@ -80,7 +95,7 @@ export async function seedRbacForClinic(clinicId: string, executor?: DbOrTx): Pr
     }
 
     // Owner e staff: preserva roles existentes (só cria se não existir)
-    if (existing.length) continue;
+    if (existingId) continue;
     await syncRolePermissions(db, roleId, preset.keys);
   }
 }
