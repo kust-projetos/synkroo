@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction, registerActions, clearRegistry } from '@/core/actions';
-import { buildPresetPermissions, seedRbacForClinic, syncRolePermissions } from '../seed';
+import { buildPresetPermissions, seedRbacForClinic, syncRolePermissions, type RoleFinder } from '../seed';
 import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from '../agent-access';
 import type { DbOrTx } from '../seed';
 
@@ -91,4 +91,77 @@ it('syncRolePermissions is the reconciliation mechanism (adds missing keys, skip
   expect(keys).toContain('atendimento:manage_messages');
   // 3 permissões: 1 existente + 2 novas
   expect(keys.length).toBe(3);
+});
+
+// ─── seedRbacForClinic() rerun reconciliation test ──────────────────
+//
+// Usa o parâmetro `roleFinder` injetável de seedRbacForClinic para evitar
+// faking do AST interno do Drizzle (queryChunks / Param constructor).
+// O fake-DB só precisa suportar insert (sem select — lookup é feito via roleFinder).
+
+it('seedRbacForClinic reconciles Agente role perms on rerun (after manual removal)', async () => {
+  // Estado em memória — simulação do banco
+  const existingRoles: Record<string, string> = {};
+  const grants: Record<string, string[]> = {};
+
+  // Fake-DB mínimo: apenas insert (sem select — substituído pelo roleFinder).
+  // Não inspeciona internos do Drizzle.
+  const { rolePermissions: rpTable, roles: rolesTable } =
+    require('@/modules/core/schema/rbac') as { rolePermissions: unknown; roles: unknown };
+
+  const fakeDb = {
+    insert: (table: unknown) => ({
+      values: (vals: unknown) => {
+        const rows = Array.isArray(vals) ? vals : [vals];
+        return {
+          onConflictDoNothing: async () => {
+            if (table === rpTable) {
+              for (const r of rows as { roleId: string; permissionKey: string }[]) {
+                grants[r.roleId] ??= [];
+                if (!grants[r.roleId].includes(r.permissionKey)) {
+                  grants[r.roleId].push(r.permissionKey);
+                }
+              }
+            }
+            // permissions catalog: no-op
+          },
+          returning: async () => {
+            if (table === rolesTable) {
+              return rows.map((r: { name: string }) => {
+                const id = `id-${r.name}`;
+                existingRoles[r.name] = id;
+                return { id };
+              });
+            }
+            return [];
+          },
+        };
+      },
+    }),
+  } as unknown as import('../seed').DbOrTx;
+
+  // RoleFinder injetável: simula lookup no banco sem precisar de Drizzle real.
+  const roleFinder: RoleFinder = async (name) => existingRoles[name] ?? null;
+
+  // ── 1ª run: cria roles + grant DEFAULT_AGENT_PERMISSIONS ao Agente
+  await seedRbacForClinic('clinic-1', fakeDb, roleFinder);
+
+  const agentId = existingRoles[AGENT_ROLE_NAME];
+  expect(agentId).toBeDefined();
+  expect(grants[agentId].sort()).toEqual([...DEFAULT_AGENT_PERMISSIONS].sort());
+
+  // ── SIMULAÇÃO: perms críticas removidas manualmente (só sobra 'operacional:view')
+  grants[agentId] = grants[agentId].filter((k) => k === 'operacional:view');
+  expect(grants[agentId]).toEqual(['operacional:view']);
+
+  // ── 2ª run (rerun do seed) — reconcilia as perms faltantes do Agente
+  await seedRbacForClinic('clinic-1', fakeDb, roleFinder);
+
+  // O role Agente não foi recriado (existingRoles ainda aponta para o mesmo id)
+  expect(existingRoles[AGENT_ROLE_NAME]).toBe(agentId);
+
+  // ★ contrato: as 2 perms removidas voltaram
+  expect(grants[agentId]).toContain('operacional:manage_appointments');
+  expect(grants[agentId]).toContain('atendimento:manage_messages');
+  expect(grants[agentId].sort()).toEqual([...DEFAULT_AGENT_PERMISSIONS].sort());
 });
