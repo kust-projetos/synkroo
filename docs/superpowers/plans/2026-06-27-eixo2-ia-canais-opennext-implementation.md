@@ -504,10 +504,10 @@ export async function routeInboundToAgent(
     peerId: args.phone, principalRef: 'agente', source: 'system',
     personaType: who.personaType, context: who.context, timezone: deps.timezone, userMessage: args.content,
   });
-  if (result.escalated) return { from: args.phone, action: 'escalated' };
   if (!result.reply) return { from: args.phone, action: 'no_reply' };
-  const sent = await deps.sendReply(args.conversationId, result.reply);   // checa o envio
-  return { from: args.phone, action: sent ? 'agent_replied' : 'send_failed' };
+  const sent = await deps.sendReply(args.conversationId, result.reply);   // envia também em escalonamento
+  if (!sent) return { from: args.phone, action: 'send_failed' };
+  return { from: args.phone, action: result.escalated ? 'escalated' : 'agent_replied' };
 }
 ```
 
@@ -540,6 +540,18 @@ it('returns send_failed when sendReply fails (runAction not ok)', async () => {
     timezone: 'America/Sao_Paulo',
   }, { clinicId: 'c1', conversationId: 'conv-uuid', phone: '5511', content: 'oi' });
   expect(result.action).toBe('send_failed');
+});
+
+it('sends escalation reply before returning escalated', async () => {
+  const calls: Record<string, unknown> = {};
+  const result = await routeInboundToAgent({
+    resolveInterlocutor: async () => ({ personaType: 'recepcao', context: '', peerId: '5511' }),
+    invokeAgent: async () => ({ reply: 'Vou encaminhar para um humano.', turnsUsed: 1, escalated: true }),
+    sendReply: async (convId, msg) => { calls.sent = { convId, msg }; return true; },
+    timezone: 'America/Sao_Paulo',
+  }, { clinicId: 'c1', conversationId: 'conv-uuid', phone: '5511', content: 'preciso de ajuda' });
+  expect(calls.sent).toEqual({ convId: 'conv-uuid', msg: 'Vou encaminhar para um humano.' });
+  expect(result.action).toBe('escalated');
 });
 ```
 
@@ -591,8 +603,8 @@ git commit -m "feat(ia): route whatsapp inbound (Meta+Evolution) to agent in web
 ## Task 6: Presets RBAC + smoke ponta-a-ponta + limpeza
 
 **Files:**
-- Modify: `src/core/rbac/agent-access.ts`, `src/core/rbac/presets.ts`
-- Test: `src/core/rbac/__tests__/agent-access.test.ts`
+- Modify: `src/core/rbac/agent-access.ts`, `src/core/rbac/seed.ts`, `src/core/rbac/presets.ts`
+- Test: `src/core/rbac/__tests__/agent-access.test.ts`, `src/core/rbac/__tests__/seed.test.ts`
 - Remove: rota descartável do spike (se presente na branch de trabalho)
 
 - [ ] **Step 1 (BLOQUEADOR): alinhar `DEFAULT_AGENT_PERMISSIONS` aos `requires` reais** (`agent-access.ts`)
@@ -618,12 +630,126 @@ it('agent defaults cover the actions it must run (real permission keys)', () => 
   expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:view');
   expect(DEFAULT_AGENT_PERMISSIONS).toContain('operacional:manage_appointments'); // agendar
   expect(DEFAULT_AGENT_PERMISSIONS).toContain('atendimento:manage_messages');      // enviar resposta
-  // não deve conter chaves inexistentes
-  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('operacional:create');
+  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('operacional:create');           // chave antiga/inexistente
+  expect(DEFAULT_AGENT_PERMISSIONS).not.toContain('atendimento:reply');            // chave antiga/inexistente
 });
 ```
 
-- [ ] **Step 3: Adicionar `ia` aos presets** (`presets.ts`)
+- [ ] **Step 3 (BLOQUEADOR): reconciliar role `Agente` já existente** (`seed.ts`)
+
+Trocar o loop que hoje faz `if (existing.length) continue;` por fluxo que **sempre** reconcilia permissões mínimas do role `Agente`, mesmo quando a clínica já foi seedada antes:
+
+```ts
+async function syncRolePermissions(db: DbOrTx, roleId: string, keys: string[]): Promise<void> {
+  if (!keys.length) return;
+  await db.insert(rolePermissions)
+    .values(keys.map((permissionKey) => ({ roleId, permissionKey })))
+    .onConflictDoNothing();
+}
+
+for (const preset of presets) {
+  const existing = await db.select({ id: roles.id })
+    .from(roles)
+    .where(and(eq(roles.clinicId, clinicId), eq(roles.name, preset.name)))
+    .limit(1);
+
+  const roleId = existing[0]?.id ?? (await db.insert(roles)
+    .values({ clinicId, name: preset.name, description: preset.description, isSystem: true })
+    .returning({ id: roles.id }))[0].id;
+
+  // Roles de staff existentes são preservados. O Agente é role de sistema operacional:
+  // precisa receber novas permissões mínimas quando o produto evolui.
+  if (preset.name === AGENT_ROLE_NAME) {
+    await syncRolePermissions(db, roleId, DEFAULT_AGENT_PERMISSIONS);
+    continue;
+  }
+
+  if (existing.length) continue;
+  await syncRolePermissions(db, roleId, preset.keys);
+}
+```
+
+- [ ] **Step 4: Teste de reconciliação do role `Agente`** (`__tests__/seed.test.ts`)
+
+Adicionar teste com executor fake no próprio `seed.test.ts` (sem depender de Postgres):
+
+```ts
+import { roles, rolePermissions, permissions } from '@/modules/core/schema/rbac';
+import { seedRbacForClinic } from '../seed';
+
+function makeSeedDb() {
+  const state = {
+    roles: [] as Array<{ id: string; clinicId: string; name: string; description: string; isSystem: boolean }>,
+    rolePermissions: [] as Array<{ roleId: string; permissionKey: string }>,
+    permissions: [] as Array<unknown>,
+  };
+  const db = {
+    insert(table: unknown) {
+      return {
+        values(value: unknown) {
+          const rows = Array.isArray(value) ? value : [value];
+          if (table === permissions) {
+            state.permissions.push(...rows);
+            return { onConflictDoNothing: async () => undefined };
+          }
+          if (table === rolePermissions) {
+            for (const row of rows as Array<{ roleId: string; permissionKey: string }>) {
+              const exists = state.rolePermissions.some((x) => x.roleId === row.roleId && x.permissionKey === row.permissionKey);
+              if (!exists) state.rolePermissions.push(row);
+            }
+            return { onConflictDoNothing: async () => undefined };
+          }
+          if (table === roles) {
+            return {
+              returning: async () => {
+                const row = rows[0] as { clinicId: string; name: string; description: string; isSystem: boolean };
+                const inserted = { ...row, id: `role-${state.roles.length + 1}` };
+                state.roles.push(inserted);
+                return [{ id: inserted.id }];
+              },
+            };
+          }
+          throw new Error('unexpected insert table');
+        },
+      };
+    },
+    select() {
+      return {
+        from(table: unknown) {
+          return {
+            where() {
+              return {
+                limit: async () => table === roles ? state.roles.filter((r) => r.clinicId === 'clinic-1') : [],
+              };
+            },
+          };
+        },
+      };
+    },
+  };
+  return { db, state };
+}
+
+it('reconciles existing agent role with new minimum permissions on seed rerun', async () => {
+  const { db, state } = makeSeedDb();
+  await seedRbacForClinic('clinic-1', db);
+  const agent = state.roles.find((r) => r.name === 'Agente')!;
+
+  state.rolePermissions = state.rolePermissions.filter((p) =>
+    p.roleId !== agent.id || !['operacional:manage_appointments', 'atendimento:manage_messages'].includes(p.permissionKey),
+  );
+
+  await seedRbacForClinic('clinic-1', db);
+
+  const keys = state.rolePermissions.filter((p) => p.roleId === agent.id).map((p) => p.permissionKey);
+  expect(keys).toContain('operacional:manage_appointments');
+  expect(keys).toContain('atendimento:manage_messages');
+});
+```
+
+> O fake acima só cobre operações usadas por `seedRbacForClinic`; se o código real do seed ganhar novas queries, atualizar o fake junto. Não remover permissões antigas neste passo. Objetivo é **adicionar as mínimas novas** sem quebrar clínicas existentes.
+
+- [ ] **Step 5: Adicionar `ia` aos presets** (`presets.ts`)
 
 `ia:chat` para quem opera o assistente interno. Sugestão conservadora: Administrador (módulo `ia`); Recepcionista e Dentista recebem `ia:chat` via `extraKeys`. Confirmar com o produto.
 
@@ -633,14 +759,14 @@ it('agent defaults cover the actions it must run (real permission keys)', () => 
 { name: 'Dentista', ..., extraKeys: ['followup:view', 'ia:chat'] },
 ```
 
-- [ ] **Step 4: Confirmar que a rota do spike não está na branch de trabalho**
+- [ ] **Step 6: Confirmar que a rota do spike não está na branch de trabalho**
 
 Run: `ls src/app/api/ia/spike 2>/dev/null && echo "REMOVER" || echo "ok (só na branch spike)"`
 Se existir, remover (`git rm -r src/app/api/ia/spike`).
 
-- [ ] **Step 5: Smoke ponta-a-ponta (trio local, fiel ao spike §P5)**
+- [ ] **Step 7: Smoke ponta-a-ponta (trio local, fiel ao spike §P5)**
 
-**Pré-condição:** os módulos **`ia` e `atendimento` habilitados** na clínica de teste (`instance_modules`), senão as rotas/gates respondem 404/`module_disabled`. Garantir também `HANDLE_SECRET` (ia-bridge) e `OPENCODE_ZEN_API_KEY` (ia-agent) em `.dev.vars`, e um usuário com `ia:chat`.
+**Pré-condição:** os módulos **`ia` e `atendimento` habilitados** na clínica de teste (`instance_modules`), senão as rotas/gates respondem 404/`module_disabled`. Garantir também `HANDLE_SECRET` (ia-bridge) e `OPENCODE_ZEN_API_KEY` (ia-agent) em `.dev.vars`, usuário com `ia:chat`, e role `Agente` reconciliado com `atendimento:manage_messages`.
 
 ```bash
 npx wrangler dev --config wrangler.ia-bridge.jsonc --port 8792        # terminal 1
@@ -649,7 +775,7 @@ npm run build:cf && npx wrangler dev .open-next/worker.js --config wrangler.toml
 ```
 Validar (autenticado, com `ia:chat`): `POST http://127.0.0.1:8791/api/ia/chat` com `{ "conversationId": "smoke", "message": "quais horários livres na quinta?" }` → resposta com `reply` (cadeia bootstrapa sem o crash de Playwright; com `HANDLE_SECRET` o `issueHandle` funciona).
 
-- [ ] **Step 6: Gate completo**
+- [ ] **Step 8: Gate completo**
 
 ```bash
 npm run typecheck && npm run typecheck:ia-bridge && npm run typecheck:ia-agent
@@ -658,11 +784,11 @@ npm test
 ```
 Expected: tudo verde.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add src/core/rbac/agent-access.ts src/core/rbac/__tests__/agent-access.test.ts src/core/rbac/presets.ts
-git commit -m "feat(ia): align agent permissions to real keys + rbac presets (ia:chat)"
+git add src/core/rbac/agent-access.ts src/core/rbac/seed.ts src/core/rbac/__tests__/agent-access.test.ts src/core/rbac/__tests__/seed.test.ts src/core/rbac/presets.ts
+git commit -m "feat(ia): align and reconcile agent permissions + rbac presets"
 ```
 
 ---
@@ -673,8 +799,8 @@ git commit -m "feat(ia): align agent permissions to real keys + rbac presets (ia
 - **Bindings** `IA_BRIDGE` + `AGENT` (DO cross-worker) — fiel ao spike (Task 1).
 - **Interlocutor** (paciente/lead/desconhecido/funcionário) via repos existentes (`findPatientByPhone`/`findLeadByPhone`) — lógica pura testada (Task 2); dívida E-05 = trocar o repo legado de leads por Action quando o Comercial existir.
 - **Acionamento** via `getCloudflareContext` + `issueHandle` + **binding cru** do DO (não `getAgentByName`) — Task 3.
-- **Canais:** `/api/ia/chat` (delegated, autenticado) e webhook inbound (system) + envio via `atendimento.enviarMensagem` — Tasks 4/5.
-- **RBAC** + smoke trio local + limpeza do spike — Task 6.
+- **Canais:** `/api/ia/chat` (delegated, autenticado) e webhook inbound (system) + envio via `atendimento.enviarMensagem`; reply de escalonamento também é enviado — Tasks 4/5.
+- **RBAC:** role `Agente` alinhado e reconciliado para clínicas existentes + smoke trio local + limpeza do spike — Task 6.
 
 > **Notas para o executor:**
 > - **Task 0 primeiro, sempre:** o crash de Playwright derruba o bootstrap em Workers; é o que impediu o `runTurn` real no spike.
