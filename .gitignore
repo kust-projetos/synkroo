@@ -115,3 +115,6 @@ dayprof_after.txt
 
 # OpenNext Cloudflare build artifacts
 .open-next/
+
+# Miniflare/Wrangler runtime state
+.wrangler/state/

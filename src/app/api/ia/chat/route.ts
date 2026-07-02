@@ -35,20 +35,25 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   }
 
   const who = resolveFuncionario(userId, name);
-  const result = await invokeAgent({
-    clinicId,
-    conversationId,
-    channel: 'chat',
-    peerId: userId,
-    principalRef: userId,
-    source: 'agent_delegated',
-    personaType: who.personaType,
-    context: who.context,
-    timezone: 'America/Sao_Paulo', // TODO: timezone real da clínica (clinic settings)
-    userMessage: message,
-    confirmedToken: body.confirmedToken,
-    identityVerifiedToken: body.identityVerifiedToken,
-  });
+  let result;
+  try {
+    result = await invokeAgent({
+      clinicId,
+      conversationId,
+      channel: 'chat',
+      peerId: userId,
+      principalRef: userId,
+      source: 'agent_delegated',
+      personaType: who.personaType,
+      context: who.context,
+      timezone: 'America/Sao_Paulo', // TODO: timezone real da clínica (clinic settings)
+      userMessage: message,
+      confirmedToken: body.confirmedToken,
+      identityVerifiedToken: body.identityVerifiedToken,
+    });
+  } catch {
+    return NextResponse.json({ error: 'Internal server error', turnsUsed: 0 }, { status: 500 });
+  }
 
   return NextResponse.json(result);
 }
