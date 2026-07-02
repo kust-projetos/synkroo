@@ -56,4 +56,13 @@ describe('POST /api/ia/chat', () => {
     const res = await POST(req({}));
     expect(res.status).toBe(422);
   });
+
+  it('500 when invokeAgent throws (hardening)', async () => {
+    mockBuildCtx.mockResolvedValueOnce(ctxWith((k) => k === 'ia:chat'));
+    mockInvoke.mockRejectedValueOnce(new Error('bridge RPC failed'));
+    const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toEqual({ error: 'Internal server error', turnsUsed: 0 });
+  });
 });
