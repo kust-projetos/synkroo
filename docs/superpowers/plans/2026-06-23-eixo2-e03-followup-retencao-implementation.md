@@ -8,7 +8,7 @@
 
 **Tech Stack:** Next.js 15 App Router, React 19, TypeScript 5.6, Drizzle ORM, PostgreSQL, Jest unit/integration, ESLint boundaries.
 
-**Spec:** `docs/superpowers/specs/2026-06-21-eixo2-sequenciamento-design.md` (Onda 1 — E-03 depois de E-02 e E-01); `docs/planning/epics.md` (E-03); `docs/planning/stories/e-03-stories.md` (13 SP, 6 stories).
+**Spec:** `docs/superpowers/specs/2026-06-23-eixo2-followup-retencao-modulo-design.md` (spec oficial do módulo E-03). Contexto adicional: `docs/superpowers/specs/2026-06-21-eixo2-sequenciamento-design.md` (Onda 1 — E-03 depois de E-02 e E-01); `docs/planning/epics.md` (E-03); `docs/planning/stories/e-03-stories.md` (13 SP, 6 stories).
 
 **Parent roadmap:** `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`
 
