@@ -1,5 +1,7 @@
 # Eixo 2 — Módulo Atendimento (E-01) Implementation Plan
 
+> **Status:** Plano canônico de E-01 (Onda 1, módulo Atendimento). **Supersede/substitui** `docs/superpowers/plans/2026-06-23-eixo2-e01-atendimento-multicanal-implementation.md` — manter aquele arquivo como registro histórico.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Consolidar o módulo `atendimento` (já ~70% construído) ao template canônico: fechar gates de rota, migrar o backend legado (conversations + Evolution/WhatsApp) para dentro do módulo, cobrir com testes por-rota, e retirar o legado de forma coordenada com os consumidores cross-module.

@@ -1,5 +1,7 @@
 # Eixo 2 — Módulo Atendimento Multicanal (E-01) Implementation Plan
 
+> **Status: SUPERSEDED / HISTÓRICO.** Este plano foi substituído pelo plano canônico em `docs/superpowers/plans/2026-06-23-eixo2-atendimento-modulo-implementation.md`. Mantido apenas como registro histórico da abordagem multicanal; não usar para execução.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Refatorar o sistema de canais/conversas maduro para o template canônico do Core (`app → action → service → repository → Drizzle`), cobrindo o bounded context Atendimento Multicanal (Mensagens + Conversas + Canais WhatsApp/Instagram/Widget) com Action Layer, gates reais, e seams de escalation/histórico prontos para o agente W5 consumir.
