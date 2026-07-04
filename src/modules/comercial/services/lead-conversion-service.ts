@@ -12,8 +12,7 @@ import { buildSystemContext } from '@/core/actions/context';
 import { findLeadByIdForClinic, updateLead } from '../repositories/leads-repository';
 import { insertActivity } from '../repositories/activities-repository';
 
-import { criarPaciente } from '@/modules/operacional/actions/criar-paciente';
-import { agendarConsulta } from '@/modules/operacional/actions/agendar-consulta';
+import { criarPaciente, agendarConsulta } from '@/modules/operacional/actions';
 
 export interface AgendarAvaliacaoInput {
   leadId: string;

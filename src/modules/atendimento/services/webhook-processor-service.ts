@@ -14,11 +14,11 @@ import * as repo from '../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
 import { findPatientByPhone } from '@/repositories/patients';
-import { findLeadByPhone } from '@/modules/comercial/repositories/leads-repository';
+import { findLeadByPhone } from '@/modules/comercial/repositories';
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
 import { enviarMensagem } from '../actions/enviar-mensagem';
-import { capturarLead } from '@/modules/comercial/actions/capturar-lead';
+import { capturarLead } from '@/modules/comercial/actions';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 
 export async function processMetaWebhookEntry(entry: Record<string, unknown>, clinicId?: string) {
