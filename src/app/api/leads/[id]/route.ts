@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { obterLead } from '@/modules/comercial/actions/obter-lead';
 import { atualizarLead } from '@/modules/comercial/actions/atualizar-lead';
-import { updateLead } from '@/modules/comercial/repositories/leads-repository';
+import { arquivarLead } from '@/modules/comercial/actions/arquivar-lead';
 
 const handleGet = async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
@@ -17,15 +17,9 @@ const handlePut = async (request: NextRequest, { params }: { params: Promise<{ i
   return runComercialAction(atualizarLead, { leadId: id, ...body });
 };
 
-const handleDelete = async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+const handleDelete = async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
-  // Mark as lost via repository directly (no dedicated action for delete)
-  const { buildUserContext } = await import('@/core/actions/context');
-  let ctx;
-  try { ctx = await buildUserContext(); } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); }
-  const updated = await updateLead(id, ctx.clinicId, { status: 'lost', lostReason: 'Archived' });
-  if (!updated) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
-  return NextResponse.json({ success: true });
+  return runComercialAction(arquivarLead, { leadId: id });
 };
 
 export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
