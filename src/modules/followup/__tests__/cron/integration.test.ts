@@ -68,7 +68,7 @@ jest.mock('@/services/leads/lead-notification.service', () => ({
 
 import { NextRequest, NextResponse } from 'next/server';
 import { POST } from '@/app/api/cron/followups/route';
-import { getDb } from '@/lib/db/client';
+import { getDb, closeDb } from '@/lib/db/client';
 import { instanceModules } from '@/lib/db/schema/modules';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
@@ -109,6 +109,7 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
   afterAll(async () => {
     await restoreModuleNeutral();
     delete process.env.CRON_SECRET;
+    await closeDb();
   });
 
   beforeEach(async () => {

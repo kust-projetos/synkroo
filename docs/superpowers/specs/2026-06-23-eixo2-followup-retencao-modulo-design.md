@@ -55,6 +55,7 @@ Um único spec/plano, fases **F1–F8**, **backend-first**: portar o backend com
 - **Sem `getDb()` em actions:** services delegam ao repository do módulo.
 - **Envio de mensagem:** delega a `atendimento.enviarMensagem` (action) — não duplica lógica de canal.
 - **Leitura de agendamentos:** via schema compartilhado (`@/lib/db/schema`), não por acoplamento direto ao repositório do E-02.
+- **Repository layer:** E-03 não tem diretório `repositories/` próprio porque as queries de follow-up operam sobre tabelas de outros módulos (appointments, patients, campaigns). O schema bridge em `src/modules/followup/schema/` reexporta essas tabelas. Queries específicas de follow-up (quando surgirem) vão em `src/modules/followup/repositories/` — criar diretório conforme a necessidade.
 
 ---
 

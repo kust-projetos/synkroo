@@ -11,7 +11,7 @@
 process.env.DATABASE_URL =
   'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
-import { getDb } from '@/lib/db/client';
+import { getDb, closeDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema/core';
 import { patients } from '@/modules/operacional/schema';
 import { appointments } from '@/modules/operacional/schema/appointments';
@@ -107,6 +107,7 @@ describeOrSkip('followup core actions — runAction (DB real)', () => {
     await db.delete(users).where(eq(users.id, USER_ID));
     await db.delete(roles).where(eq(roles.clinicId, CLINIC_ID));
     await db.delete(clinics).where(eq(clinics.id, CLINIC_ID));
+    await closeDb();
   });
 
   // ── executarFollowup ──────────────────────────────────────────────────────
