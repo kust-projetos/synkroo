@@ -26,6 +26,8 @@ import {
   ChevronDoubleRightIcon,
   Bars3Icon,
   CheckCircleIcon,
+  UserGroupIcon,
+  QueueListIcon,
 } from "@heroicons/react/24/outline"
 import {
   Sheet,
@@ -69,14 +71,14 @@ const ICON_MAP: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>
   WrenchScrewdriverIcon,
   ChatBubbleLeftRightIcon,
   CheckCircleIcon,
+  UserGroupIcon,
+  QueueListIcon,
 }
 
 
 const navItems: NavItem[] = [
   { name: "Dashboard", href: "/dashboard", icon: Squares2X2Icon, section: "principal" },
   { name: "CRM", href: "/dashboard/crm", icon: ChartBarIcon, section: "crm" },
-  { name: "Pipeline", href: "/dashboard/crm/pipeline", icon: Squares2X2Icon, section: "crm" },
-  { name: "Leads", href: "/dashboard/leads", icon: FlagIcon, section: "crm" },
   { name: "Campanhas", href: "/dashboard/campanhas", icon: MegaphoneIcon, section: "crm" },
 
   { name: "Tarefas", href: "/dashboard/tarefas", icon: CheckCircleIcon, section: "crm" },
