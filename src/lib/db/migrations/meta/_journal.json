@@ -15,6 +15,13 @@
       "when": 1782223380000,
       "tag": "0001_dapper_overlap",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790344800000,
+      "tag": "0002_comercial_phone_normalized",
+      "breakpoints": true
     }
   ]
 }
