@@ -1,157 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError, ValidationError } from '@/lib/errors'
-import { updateLeadStatus, qualifyLead, LeadStatus } from '@/services/leads/leads.service'
-import * as leadRepo from '@/repositories/leads'
-import { updateLeadSchema } from '@/lib/validations'
-import { eq, and } from 'drizzle-orm'
-import { getDb } from '@/lib/db/client'
-import { leads, patients } from '@/lib/db/schema'
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
+import { obterLead } from '@/modules/comercial/actions/obter-lead';
+import { atualizarLead } from '@/modules/comercial/actions/atualizar-lead';
+import { updateLead } from '@/modules/comercial/repositories/leads-repository';
 
-interface RouteParams {
-  params: Promise<{ id: string }>
-}
+const handleGet = async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  return runComercialAction(obterLead, { leadId: id });
+};
 
-/**
- * GET /api/leads/[id]
- * Get a specific lead with patient info
- */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+const handlePut = async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  const body = await request.json();
+  return runComercialAction(atualizarLead, { leadId: id, ...body });
+};
 
-    const clinicId = authResult.profile!.clinic_id
-    const db = getDb()
+const handleDelete = async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  // Mark as lost via repository directly (no dedicated action for delete)
+  const { buildUserContext } = await import('@/core/actions/context');
+  let ctx;
+  try { ctx = await buildUserContext(); } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); }
+  const updated = await updateLead(id, ctx.clinicId, { status: 'lost', lostReason: 'Archived' });
+  if (!updated) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+  return NextResponse.json({ success: true });
+};
 
-    const [lead] = await db
-      .select()
-      .from(leads)
-      .where(and(eq(leads.id, id), eq(leads.clinicId, clinicId)))
-      .limit(1)
-
-    if (!lead) {
-      return NextResponse.json({ error: 'Lead not found' }, { status: 404 })
-    }
-
-    // Fetch patient info if linked
-    let patient = null
-    if (lead.patientId) {
-      const [patientRow] = await db
-        .select({ id: patients.id, name: patients.name, phone: patients.phone, email: patients.email })
-        .from(patients)
-        .where(eq(patients.id, lead.patientId))
-        .limit(1)
-      patient = patientRow ?? null
-    }
-
-    return NextResponse.json({
-      lead: {
-        ...lead,
-        patients: patient,
-      },
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
-
-/**
- * PUT /api/leads/[id]
- * Update a lead
- */
-export async function PUT(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
-    const rawBody = await request.json()
-    const { status, notes, hasBudget, hasTimeline, interest, deal_value } = updateLeadSchema.parse(rawBody)
-
-    // Handle qualification
-    if (hasBudget !== undefined || hasTimeline !== undefined) {
-      const qualification = await qualifyLead(id, {
-        hasBudget,
-        hasTimeline,
-        interest: interest ?? undefined,
-        notes: notes ?? undefined,
-      })
-
-      if (!qualification) {
-        return NextResponse.json({ error: 'Failed to qualify lead' }, { status: 500 })
-      }
-
-      return NextResponse.json({ qualification })
-    }
-
-    // Handle status update
-    if (status) {
-      const lead = await updateLeadStatus(id, status as LeadStatus, notes ?? undefined)
-      if (!lead) {
-        return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 })
-      }
-      return NextResponse.json({ lead })
-    }
-
-    // General update via repository
-    const updated = await leadRepo.updateLead(id, {
-      notes: notes ?? undefined,
-      interest: interest ?? undefined,
-      dealValue: deal_value !== undefined ? String(deal_value) : undefined,
-    })
-
-    if (!updated) {
-      return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 })
-    }
-
-    return NextResponse.json({ lead: updated })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
-    }
-    return handleApiError(error)
-  }
-}
-
-/**
- * DELETE /api/leads/[id]
- * Archive/delete a lead (mark as lost)
- */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { id } = await params
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
-    const updated = await leadRepo.updateLead(id, {
-      status: 'lost',
-      lostReason: 'Archived',
-    })
-
-    if (!updated) {
-      return NextResponse.json({ error: 'Failed to delete lead' }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
+export const PUT = withModuleRoute('comercial', moduleManifest)(handlePut);
+export const DELETE = withModuleRoute('comercial', moduleManifest)(handleDelete);

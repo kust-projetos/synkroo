@@ -5,9 +5,10 @@
  * Handles phone-normalized upsert, lookup, and update.
  */
 
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, desc } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { leads } from '@/modules/comercial/schema/leads';
+import { pipelineStages } from '@/modules/comercial/schema/pipeline';
 
 export function normalizePhone(v: string): string {
   return v.replace(/\D/g, '');
@@ -96,4 +97,38 @@ export async function listLeadsByClinic(clinicId: string) {
     .from(leads)
     .where(eq(leads.clinicId, clinicId))
     .orderBy(leads.createdAt);
+}
+
+// ─── Kanban / Stage-joined queries ──────────────────────────────────────────────
+
+export async function listAllLeadsWithStage(clinicId: string, stageId?: string) {
+  const db = getDb();
+  const conditions = [eq(leads.clinicId, clinicId)];
+  if (stageId) conditions.push(eq(leads.stageId, stageId));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rows = await db
+    .select()
+    .from(leads)
+    .leftJoin(pipelineStages, eq(leads.stageId, pipelineStages.id))
+    .where(and(...conditions))
+    .orderBy(desc(leads.score)) as any[];
+
+  return rows.map((r: { leads: Record<string, unknown>; pipeline_stages: Record<string, unknown> | null }) => ({
+    id: r.leads.id,
+    name: r.leads.name,
+    phone: r.leads.phone,
+    email: r.leads.email,
+    source: r.leads.source,
+    temperature: r.leads.temperature,
+    score: r.leads.score,
+    stage_id: r.leads.stageId,
+    interest: r.leads.interest,
+    last_contact_at: r.leads.lastContactAt ? new Date(r.leads.lastContactAt as string).toISOString() : null,
+    created_at: r.leads.createdAt ? new Date(r.leads.createdAt as string).toISOString() : null,
+    updated_at: r.leads.updatedAt ? new Date(r.leads.updatedAt as string).toISOString() : null,
+    pipeline_stages: r.pipeline_stages
+      ? { id: r.pipeline_stages.id, name: r.pipeline_stages.name, color: r.pipeline_stages.color, sort_order: r.pipeline_stages.position }
+      : null,
+  }));
 }
