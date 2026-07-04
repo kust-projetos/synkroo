@@ -1,29 +1,22 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
+import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
+import { listarNotificacoes } from '@/modules/comercial/actions/listar-notificacoes';
+import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
 
 /**
- * GET /api/leads/notifications — List unacknowledged hot lead alerts.
- *
- * TODO: Task 5 — implement notification system in comercial module.
- * Currently returns empty list placeholder.
+ * GET /api/leads/notifications — List hot lead notifications.
  */
-const handleGet = async (_request: NextRequest) => {
-  return NextResponse.json({ notifications: [], count: 0 });
+const handleGet = async () => {
+  return runComercialAction(listarNotificacoes, {});
 };
 
 /**
  * POST /api/leads/notifications — Manually trigger hot lead check.
- *
- * TODO: Task 5 — implement notification system in comercial module.
  */
-const handlePost = async (_request: NextRequest) => {
-  return NextResponse.json({
-    success: true,
-    message: 'Hot lead check completed (placeholder — Task 5)',
-    notifications: [],
-    count: 0,
-  });
+const handlePost = async () => {
+  return runComercialAction(processarNotificacoesLeadsQuentes, {});
 };
 
 export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
