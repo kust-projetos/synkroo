@@ -13,7 +13,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { clinics, users } from '../../../lib/db/schema/core';
-import { patients } from '../../operacional/schema';
+import { patients } from '@/modules/operacional/schema';
 
 // ══════════════════════════════════════════════
 // LEADS
