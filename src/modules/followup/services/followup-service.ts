@@ -7,9 +7,6 @@
  * so the cron route never imports @/services/followup directly.
  */
 
-import { getDb } from '@/lib/db/client';
-import { appointments, patients } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
 import * as legacy from '@/services/followup/followup.service';
 import { runInactivityDetection as runInactivity } from './inactive-service';
 import { executarCampanhas as runCampaigns } from './campaign-service';

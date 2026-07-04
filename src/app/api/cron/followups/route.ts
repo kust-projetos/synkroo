@@ -18,6 +18,7 @@ import { checkAllClinicsHotLeads } from '@/services/leads/lead-notification.serv
 import { assertModuleForJob } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // Rate limit cron endpoints
@@ -61,28 +62,28 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   // Process follow-ups (post-consultation, return reminders)
   if (tasks.includes('all') || tasks.includes('followups')) {
-    console.warn('[cron/followups] Processing follow-ups...');
+    logger.info('[cron/followups] Processing follow-ups...');
     await executarAll();
     results.followUps = 'processed';
   }
 
   // Run inactivity detection
   if (tasks.includes('all') || tasks.includes('inactivity')) {
-    console.warn('[cron/followups] Running inactivity detection...');
+    logger.info('[cron/followups] Running inactivity detection...');
     await runInactivityForCron();
     results.inactivity = 'completed';
   }
 
   // Process scheduled campaigns
   if (tasks.includes('all') || tasks.includes('campaigns')) {
-    console.warn('[cron/followups] Processing scheduled campaigns...');
+    logger.info('[cron/followups] Processing scheduled campaigns...');
     await runCampaignsForCron();
     results.campaigns = 'processed';
   }
 
   // Check and notify hot leads across all clinics
   if (tasks.includes('all') || tasks.includes('hot-leads')) {
-    console.warn('[cron/followups] Checking hot leads across clinics...');
+    logger.info('[cron/followups] Checking hot leads across clinics...');
     await checkAllClinicsHotLeads();
     results.hotLeads = 'checked';
   }

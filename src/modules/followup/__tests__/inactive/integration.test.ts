@@ -12,7 +12,7 @@
 process.env.DATABASE_URL =
   'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
-import { getDb } from '@/lib/db/client';
+import { getDb, closeDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema/core';
 import { patients } from '@/modules/operacional/schema';
 import { instanceModules } from '@/lib/db/schema/modules';
@@ -100,6 +100,7 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
     await db.delete(roles).where(eq(roles.clinicId, OTHER_CLINIC_ID));
     await db.delete(clinics).where(eq(clinics.id, CLINIC_ID));
     await db.delete(clinics).where(eq(clinics.id, OTHER_CLINIC_ID));
+    await closeDb();
   });
 
   // ── detectarInativos ──────────────────────────────────────────────────────
