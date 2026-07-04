@@ -18,3 +18,4 @@ export * from './infra';
 export * from './audit';
 export * from '../../../modules/core/schema/rbac';
 export * from './modules';
+export * from '../../../modules/comercial/schema';
