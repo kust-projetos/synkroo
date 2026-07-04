@@ -138,3 +138,46 @@ export async function getLeadsByStage(
     )
     .orderBy(leads.updatedAt);
 }
+
+// ─── Seeding ────────────────────────────────────────────────────────────────────
+
+export type StageDefaults = Array<{
+  name: string;
+  color: string;
+  sortOrder: number;
+  isSystem: boolean;
+  systemKey: string | null;
+  isDefault: boolean;
+}>;
+
+export async function insertDefaultStages(
+  clinicId: string,
+  stages: StageDefaults,
+): Promise<void> {
+  const db = getDb();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await db.insert(pipelineStages).values(
+    stages.map((s) => ({
+      clinicId,
+      name: s.name,
+      color: s.color,
+      position: s.sortOrder,
+      isDefault: s.isDefault,
+      isSystem: s.isSystem,
+      systemKey: s.systemKey,
+    }) as any),
+  );
+}
+
+export async function seedDefaultPipelineStages(clinicId: string): Promise<void> {
+  const defaults: StageDefaults = [
+    { name: 'Novo', color: '#3B82F6', sortOrder: 0, isSystem: false, systemKey: null, isDefault: true },
+    { name: 'Contatado', color: '#8B5CF6', sortOrder: 1, isSystem: false, systemKey: null, isDefault: false },
+    { name: 'Qualificado', color: '#10B981', sortOrder: 2, isSystem: false, systemKey: null, isDefault: false },
+    { name: 'Proposta', color: '#F59E0B', sortOrder: 3, isSystem: false, systemKey: null, isDefault: false },
+    { name: 'Negociação', color: '#EF4444', sortOrder: 4, isSystem: false, systemKey: null, isDefault: false },
+    { name: 'Convertido', color: '#22C55E', sortOrder: 5, isSystem: true, systemKey: 'converted', isDefault: false },
+    { name: 'Perdido', color: '#6B7280', sortOrder: 6, isSystem: true, systemKey: 'lost', isDefault: false },
+  ];
+  await insertDefaultStages(clinicId, defaults);
+}
