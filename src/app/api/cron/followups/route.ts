@@ -14,7 +14,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { executarAll, runInactivityForCron, runCampaignsForCron } from '@/modules/followup/services/followup-service';
-import { checkAllClinicsHotLeads } from '@/services/leads/lead-notification.service';
+import { runAction } from '@/core/actions/run';
+import { buildSystemContext } from '@/core/actions/context';
+import { getDb } from '@/lib/db/client';
+import { eq, isNull } from 'drizzle-orm';
+import { clinics } from '@/lib/db/schema/core';
+import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
 import { assertModuleForJob } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
@@ -84,7 +89,16 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // Check and notify hot leads across all clinics
   if (tasks.includes('all') || tasks.includes('hot-leads')) {
     logger.info('[cron/followups] Checking hot leads across clinics...');
-    await checkAllClinicsHotLeads();
+    // Process hot leads via comercial module (replaces legacy checkAllClinicsHotLeads)
+    try {
+      const allClinics = await getDb().select({ id: clinics.id }).from(clinics).where(isNull(clinics.deletedAt));
+      for (const c of allClinics) {
+        const ctx = await buildSystemContext(c.id);
+        await runAction(processarNotificacoesLeadsQuentes, {}, ctx);
+      }
+    } catch (err) {
+      logger.error('[cron/followups] Hot leads processing error:', err);
+    }
     results.hotLeads = 'checked';
   }
 
