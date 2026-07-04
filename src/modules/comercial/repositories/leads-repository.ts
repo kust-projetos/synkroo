@@ -90,6 +90,21 @@ export async function updateLead(
   return row ?? null;
 }
 
+export async function findLeadByPhone(phone: string, clinicId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(leads)
+    .where(
+      and(
+        eq(leads.clinicId, clinicId),
+        sql`${leads.phoneNormalized} = ${phone} OR ${leads.phone} = ${phone}`,
+      ),
+    )
+    .limit(1);
+  return row ?? null;
+}
+
 export async function listLeadsByClinic(clinicId: string) {
   const db = getDb();
   return db
