@@ -22,9 +22,19 @@ import { criarTaskComercial } from './actions/criar-task-comercial';
 import { listarTasksComerciais } from './actions/listar-tasks-comerciais';
 import { atualizarTaskComercial } from './actions/atualizar-task-comercial';
 import { fecharTaskComercial } from './actions/fechar-task-comercial';
+import { arquivarLead } from './actions/arquivar-lead';
+import { obterEstatisticasLeads } from './actions/obter-estatisticas-leads';
+import { listarLeadsQuentes } from './actions/listar-leads-quentes';
+import { listarLeadsKanban } from './actions/listar-leads-kanban';
+import { obterAnalyticsPipeline } from './actions/obter-analytics-pipeline';
 import { processarNotificacoesLeadsQuentes } from './actions/processar-notificacoes-leads-quentes';
 
 export const comercialActions = [
+  arquivarLead,
+  obterEstatisticasLeads,
+  listarLeadsQuentes,
+  listarLeadsKanban,
+  obterAnalyticsPipeline,
   capturarLead,
   qualificarLead,
   listarLeads,
