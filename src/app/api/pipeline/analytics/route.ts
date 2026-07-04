@@ -1,69 +1,50 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { listPipeline } from '@/modules/comercial/repositories/pipeline-repository';
+import { listLeadsByClinic } from '@/modules/comercial/repositories/leads-repository';
+import { buildUserContext } from '@/core/actions/context';
+
 /**
- * Pipeline Analytics API Route
- *
- * GET /api/pipeline/analytics
- *
- * Provides pipeline analytics data:
- * - conversion_by_stage: Lead conversion rates by pipeline stage
- * - avg_conversion_time: Average lead-to-patient conversion time in days
- * - inactive_patients: Patients with no visits in 90+ days
- * - upsell_opportunities: Completed treatments without active follow-up budget
+ * GET /api/pipeline/analytics — Pipeline analytics data.
+ * Uses repositories directly (no dedicated analytics service exists).
  */
+const handleGet = async (request: NextRequest) => {
+  let ctx;
+  try { ctx = await buildUserContext(); } catch { return NextResponse.json({ error: 'Unauthorized' }, { status: 401 }); }
 
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getConversionByStage, getAvgConversionTime } from '@/services/pipeline/pipeline-analytics.service'
-import { getInactivePatients, getUpsellOpportunities } from '@/services/reports/financial-reports.service'
+  const { searchParams } = new URL(request.url);
+  const action = searchParams.get('action');
 
-export async function GET(request: NextRequest) {
-  try {
-    // Validate authentication
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
+  const stages = await listPipeline(ctx.clinicId);
+  const leads_all = await listLeadsByClinic(ctx.clinicId);
+
+  switch (action) {
+    case 'conversion_by_stage': {
+      const stagesWithCount = stages.map((s) => ({
+        stage_id: s.id,
+        name: s.name,
+        total_leads: leads_all.filter((l) => l.stageId === s.id).length,
+        converted: leads_all.filter((l) => l.stageId === s.id && l.status === 'converted').length,
+      }));
+      return NextResponse.json({ stages: stagesWithCount });
+    }
+    case 'avg_conversion_time': {
+      const converted = leads_all.filter((l) => l.convertedAt && l.createdAt);
+      const avgDays = converted.length > 0
+        ? converted.reduce((sum, l) => {
+            const diff = new Date(l.convertedAt!).getTime() - new Date(l.createdAt!).getTime();
+            return sum + diff / (1000 * 60 * 60 * 24);
+          }, 0) / converted.length
+        : 0;
+      return NextResponse.json({ avgDays: Math.round(avgDays * 10) / 10 });
+    }
+    default:
       return NextResponse.json(
-        { error: authResult.error?.message || 'Unauthorized' },
-        { status: authResult.error?.status || 401 }
-      )
-    }
-
-    const clinicId = authResult.profile!.clinic_id
-    const { searchParams } = new URL(request.url)
-    const action = searchParams.get('action')
-
-    switch (action) {
-      case 'conversion_by_stage': {
-        const conversionData = await getConversionByStage(clinicId)
-        return NextResponse.json({ stages: conversionData })
-      }
-
-      case 'avg_conversion_time': {
-        const avgTime = await getAvgConversionTime(clinicId)
-        return NextResponse.json({ avgDays: avgTime })
-      }
-
-      case 'inactive_patients': {
-        const inactive = await getInactivePatients(clinicId)
-        return NextResponse.json({ patients: inactive })
-      }
-
-      case 'upsell_opportunities': {
-        const upsell = await getUpsellOpportunities(clinicId)
-        return NextResponse.json({ opportunities: upsell })
-      }
-
-      default:
-        return NextResponse.json(
-          {
-            error: 'Invalid action. Use: conversion_by_stage, avg_conversion_time, inactive_patients, upsell_opportunities'
-          },
-          { status: 400 }
-        )
-    }
-  } catch (error) {
-    console.error('Pipeline analytics error:', error)
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    )
+        { error: 'Invalid action. Use: conversion_by_stage, avg_conversion_time' },
+        { status: 400 },
+      );
   }
-}
+};
+
+export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
