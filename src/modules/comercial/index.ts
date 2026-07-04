@@ -27,6 +27,8 @@ import { obterEstatisticasLeads } from './actions/obter-estatisticas-leads';
 import { listarLeadsQuentes } from './actions/listar-leads-quentes';
 import { listarLeadsKanban } from './actions/listar-leads-kanban';
 import { obterAnalyticsPipeline } from './actions/obter-analytics-pipeline';
+import { listarNotificacoes } from './actions/listar-notificacoes';
+import { reconhecerNotificacao } from './actions/reconhecer-notificacao';
 import { processarNotificacoesLeadsQuentes } from './actions/processar-notificacoes-leads-quentes';
 
 export const comercialActions = [
@@ -52,6 +54,8 @@ export const comercialActions = [
   listarTasksComerciais,
   atualizarTaskComercial,
   fecharTaskComercial,
+  listarNotificacoes,
+  reconhecerNotificacao,
   processarNotificacoesLeadsQuentes,
 ];
 

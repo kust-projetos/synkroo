@@ -7,7 +7,7 @@
 
 import { NextResponse } from 'next/server';
 import { runAction } from '@/core/actions/run';
-import { buildUserContext } from '@/core/actions/context';
+import { buildUserContext, buildSystemContext } from '@/core/actions/context';
 import type { ActionDefinition } from '@/core/actions/types';
 
 const errorCodeToStatus: Record<string, number> = {
@@ -61,13 +61,7 @@ export async function runComercialSystemAction(
   clinicId: string,
   opts?: { okStatus?: number },
 ): Promise<NextResponse> {
-  const ctx = {
-    source: 'system' as const,
-    clinicId,
-    can: () => true,
-    hasModule: () => true,
-    audit: { actor: 'cron' },
-  };
+  const ctx = await buildSystemContext(clinicId);
 
   const result = await runAction(action, input, ctx);
   if (result.ok) {

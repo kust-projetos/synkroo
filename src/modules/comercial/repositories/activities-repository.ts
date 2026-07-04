@@ -28,6 +28,29 @@ export async function insertActivity(input: {
   return { id: row.id };
 }
 
+export async function findActivityById(activityId: string) {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(leadActivities)
+    .where(eq(leadActivities.id, activityId))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function updateActivity(
+  activityId: string,
+  patch: Partial<{ metadata: Record<string, unknown> }>,
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(leadActivities)
+    .set(patch)
+    .where(eq(leadActivities.id, activityId))
+    .returning({ id: leadActivities.id });
+  return row ?? null;
+}
+
 export async function listActivitiesByLead(leadId: string) {
   const db = getDb();
   return db

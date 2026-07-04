@@ -12,7 +12,7 @@ import { buildSystemContext } from '@/core/actions/context';
 import { findLeadByIdForClinic, updateLead } from '../repositories/leads-repository';
 import { insertActivity } from '../repositories/activities-repository';
 
-import { criarPaciente, agendarConsulta } from '@/modules/operacional/actions';
+import { criarPaciente, atualizarPaciente, obterPaciente, agendarConsulta } from '@/modules/operacional/actions';
 
 export interface AgendarAvaliacaoInput {
   leadId: string;
@@ -44,6 +44,24 @@ export async function agendarAvaliacao(input: AgendarAvaliacaoInput) {
 
     if (!createResult.ok) throw new Error(createResult.error.message);
     patientId = (createResult.data as { id: string }).id;
+  } else {
+    // Check if lead data changed compared to current patient
+    const ctx = await buildSystemContext(clinicId);
+    const patientResult = await runAction(obterPaciente, { id: patientId }, ctx);
+    if (patientResult.ok) {
+      const patientData = patientResult.data as { name?: string; phone?: string; email?: string | null };
+      const needsUpdate =
+        (lead.name != null && lead.name !== patientData.name) ||
+        (lead.phoneNormalized != null && lead.phoneNormalized !== patientData.phone);
+
+      if (needsUpdate) {
+        const patch: Record<string, unknown> = {};
+        if (lead.name != null && lead.name !== patientData.name) patch.name = lead.name;
+        if (lead.phoneNormalized != null && lead.phoneNormalized !== patientData.phone) patch.phone = lead.phoneNormalized;
+
+        await runAction(atualizarPaciente, { id: patientId, ...patch }, ctx);
+      }
+    }
   }
 
   // 3. Schedule appointment
