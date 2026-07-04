@@ -27,6 +27,8 @@ import { obterEstatisticasLeads } from './obter-estatisticas-leads';
 import { listarLeadsQuentes } from './listar-leads-quentes';
 import { listarLeadsKanban } from './listar-leads-kanban';
 import { obterAnalyticsPipeline } from './obter-analytics-pipeline';
+import { listarNotificacoes } from './listar-notificacoes';
+import { reconhecerNotificacao } from './reconhecer-notificacao';
 import { processarNotificacoesLeadsQuentes } from './processar-notificacoes-leads-quentes';
 
 export * from './arquivar-lead';
@@ -51,6 +53,8 @@ export * from './criar-task-comercial';
 export * from './listar-tasks-comerciais';
 export * from './atualizar-task-comercial';
 export * from './fechar-task-comercial';
+export * from './listar-notificacoes';
+export * from './reconhecer-notificacao';
 export * from './processar-notificacoes-leads-quentes';
 
 // Bootstrap registration — idempotent
@@ -77,5 +81,7 @@ registerActions([
   listarTasksComerciais,
   atualizarTaskComercial,
   fecharTaskComercial,
+  listarNotificacoes,
+  reconhecerNotificacao,
   processarNotificacoesLeadsQuentes,
 ]);

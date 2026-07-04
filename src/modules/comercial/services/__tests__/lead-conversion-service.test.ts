@@ -107,8 +107,10 @@ describe('agendarAvaliacao', () => {
     expect(result).toEqual({ leadId, patientId, appointmentId, status: 'converted' });
   });
 
-  it('updates patient and schedules when lead has existing patientId', async () => {
-    mockFindLead.mockResolvedValue({ ...baseLead, patientId } as any);
+  it('updates patient and schedules when lead has existing patientId (no data change)', async () => {
+    mockFindLead.mockResolvedValue({ ...baseLead, patientId, name: 'Maria', phoneNormalized: '11999990000' } as any);
+    // obterPaciente returns same data → no update needed
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId, name: 'Maria', phone: '11999990000' } });
     mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: appointmentId } });
     mockUpdateLead.mockResolvedValue({ id: leadId });
     mockInsertActivity.mockResolvedValue({ id: 'act-1' });
@@ -119,19 +121,43 @@ describe('agendarAvaliacao', () => {
       scheduledAt: new Date('2026-07-10T14:00:00Z'),
     });
 
-    // Should NOT call criarPaciente
     expect(mockRunAction).not.toHaveBeenCalledWith(
       expect.objectContaining({ name: 'operacional.criarPaciente' }),
       expect.anything(),
       expect.anything(),
     );
-
+    expect(mockRunAction).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'operacional.atualizarPaciente' }),
+      expect.anything(),
+      expect.anything(),
+    );
     expect(mockRunAction).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'operacional.agendarConsulta' }),
       expect.anything(),
       expect.anything(),
     );
+    expect(result.status).toBe('converted');
+  });
 
+  it('calls atualizarPaciente when lead data differs from patient', async () => {
+    mockFindLead.mockResolvedValue({ ...baseLead, patientId, name: 'Maria Updated', phoneNormalized: '11999991111', phone: '11999991111' } as any);
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId, name: 'Maria', phone: '11999990000' } });
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: appointmentId } });
+    mockUpdateLead.mockResolvedValue({ id: leadId });
+    mockInsertActivity.mockResolvedValue({ id: 'act-1' });
+
+    const result = await agendarAvaliacao({
+      leadId,
+      clinicId,
+      scheduledAt: new Date('2026-07-10T14:00:00Z'),
+    });
+
+    expect(mockRunAction).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'operacional.atualizarPaciente' }),
+      expect.objectContaining({ name: 'Maria Updated', phone: '11999991111' }),
+      expect.any(Object),
+    );
     expect(result.status).toBe('converted');
   });
 
