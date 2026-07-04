@@ -47,6 +47,84 @@ export async function moveLeadStage(input: {
   return row ?? null;
 }
 
+export async function createStage(input: {
+  clinicId: string;
+  name: string;
+  position: number;
+  color?: string;
+  winProbability?: number;
+}) {
+  const db = getDb();
+  const [row] = await db
+    .insert(pipelineStages)
+    .values({
+      clinicId: input.clinicId,
+      name: input.name,
+      position: input.position,
+      color: input.color ?? '#6b7280',
+      winProbability: input.winProbability ?? 0,
+    })
+    .returning({ id: pipelineStages.id });
+  return { id: row.id };
+}
+
+export async function updateStage(
+  clinicId: string,
+  stageId: string,
+  patch: Partial<{
+    name: string;
+    position: number;
+    color: string;
+    winProbability: number;
+  }>,
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(pipelineStages)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(
+      and(eq(pipelineStages.id, stageId), eq(pipelineStages.clinicId, clinicId)),
+    )
+    .returning({ id: pipelineStages.id });
+  return row ?? null;
+}
+
+export async function deleteStage(clinicId: string, stageId: string) {
+  const db = getDb();
+  // First unlink leads from this stage
+  await db
+    .update(leads)
+    .set({ stageId: null, updatedAt: new Date() })
+    .where(and(eq(leads.stageId, stageId), eq(leads.clinicId, clinicId)));
+
+  const [row] = await db
+    .delete(pipelineStages)
+    .where(
+      and(eq(pipelineStages.id, stageId), eq(pipelineStages.clinicId, clinicId)),
+    )
+    .returning({ id: pipelineStages.id });
+  return row ?? null;
+}
+
+export async function reorderStages(
+  clinicId: string,
+  stages: { id: string; position: number }[],
+) {
+  const db = getDb();
+  const results: { id: string }[] = [];
+  for (const s of stages) {
+    const [row] = await db
+    .update(pipelineStages)
+    .set({ position: s.position, updatedAt: new Date() })
+      .where(
+        and(eq(pipelineStages.id, s.id), eq(pipelineStages.clinicId, clinicId)),
+      )
+      .returning({ id: pipelineStages.id });
+    if (row) results.push(row);
+  }
+  return results;
+}
+
 export async function getLeadsByStage(
   clinicId: string,
   stageId: string,
