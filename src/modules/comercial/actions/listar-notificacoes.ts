@@ -19,6 +19,8 @@ export const listarNotificacoes = defineAction({
       for (const act of activities) {
         if (act.activityType === 'hot_lead_notified') {
           const meta = (act.metadata ?? {}) as Record<string, unknown>;
+          // Skip acknowledged notifications
+          if (meta.acknowledged_at != null) continue;
           notifications.push({
             id: act.id,
             lead_id: lead.id,
