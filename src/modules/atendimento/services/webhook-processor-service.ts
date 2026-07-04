@@ -9,16 +9,16 @@
  */
 import { sendWhatsAppMessage } from './channel-service';
 import { processConfirmationResponse, processWaitlistConfirmation } from '@/services/appointments/confirmation-handler.service';
-import { captureLeadFromWhatsApp } from '@/services/leads/leads.service';
 import { whatsappLogger } from '@/lib/logger';
 import * as repo from '../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
 import { findPatientByPhone } from '@/repositories/patients';
-import { findLeadByPhone } from '@/repositories/leads';
+import { findLeadByPhone } from '@/modules/comercial/repositories/leads-repository';
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
 import { enviarMensagem } from '../actions/enviar-mensagem';
+import { capturarLead } from '@/modules/comercial/actions/capturar-lead';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 
 export async function processMetaWebhookEntry(entry: Record<string, unknown>, clinicId?: string) {
@@ -96,8 +96,11 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
   const waitlistResult = await handleWaitlist(clinicId, phone, content, conv.id);
   if (waitlistResult) { results.push(waitlistResult); await repo.updateConversationTimestamp(conv.id); return results; }
 
-  // Lead capture (best-effort)
-  try { await captureLeadFromWhatsApp(phone, content, clinicId); } catch { /* non-fatal */ }
+  // Lead capture via comercial action layer (best-effort)
+  try {
+    const capCtx = await buildSystemContext(clinicId);
+    await runAction(capturarLead, { phone, name: phone, source: 'whatsapp' }, capCtx);
+  } catch { /* non-fatal */ }
 
   // Roteia para o agente IA
   const agentResult = await routeInboundToAgent({

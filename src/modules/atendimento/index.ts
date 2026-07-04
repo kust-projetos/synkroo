@@ -25,6 +25,7 @@ import { verificarWebhookInstagram } from './actions/verificar-webhook-instagram
 import { processarWebhookInstagram } from './actions/processar-webhook-instagram';
 import { responderInstagram } from './actions/responder-instagram';
 import { receberWidgetMensagem } from './actions/receber-widget-mensagem';
+import { enviarMensagemDireta } from './actions/enviar-mensagem-direta';
 import { obterQRCode } from './actions/obter-qrcode';
 
 export const atendimentoActions = [
@@ -48,6 +49,7 @@ export const atendimentoActions = [
   responderInstagram,
   receberWidgetMensagem,
   obterQRCode,
+  enviarMensagemDireta,
 ];
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────

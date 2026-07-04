@@ -25,8 +25,10 @@ import { verificarWebhookInstagram } from './verificar-webhook-instagram';
 import { processarWebhookInstagram } from './processar-webhook-instagram';
 import { responderInstagram } from './responder-instagram';
 import { receberWidgetMensagem } from './receber-widget-mensagem';
+import { enviarMensagemDireta } from './enviar-mensagem-direta';
 import { obterQRCode } from './obter-qrcode';
 
+export * from './enviar-mensagem-direta';
 export * from './iniciar-conversa';
 export * from './listar-conversas';
 export * from './obter-conversa';
@@ -70,4 +72,5 @@ registerActions([
   responderInstagram,
   receberWidgetMensagem,
   obterQRCode,
+  enviarMensagemDireta,
 ]);
