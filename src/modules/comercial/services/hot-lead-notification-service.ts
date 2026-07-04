@@ -17,8 +17,8 @@ import { createTask } from '../repositories/tasks-repository';
 import { insertActivity } from '../repositories/activities-repository';
 import { dbLogger } from '@/lib/logger';
 import { listActivitiesByLead } from '../repositories/activities-repository';
-import { enviarMensagemDireta } from '@/modules/atendimento/actions/enviar-mensagem-direta';
-import { listClinicUsers } from '@/modules/core/actions/list-clinic-users';
+import { enviarMensagemDireta } from '@/modules/atendimento/actions';
+import { listClinicUsers } from '@/modules/core/actions';
 
 async function findRecipientPhone(clinicId: string, assignedTo?: string | null): Promise<string | null> {
   const ctx = await buildSystemContext(clinicId);
