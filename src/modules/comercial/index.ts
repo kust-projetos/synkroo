@@ -12,6 +12,7 @@ import { obterLead } from './actions/obter-lead';
 import { atualizarLead } from './actions/atualizar-lead';
 import { moverLeadEtapaAction } from './actions/mover-lead-etapa';
 import { converterLead } from './actions/converter-lead';
+import { converterLeadSemAgendarAction } from './actions/converter-lead-sem-agendar';
 import { agendarAvaliacao } from './actions/agendar-avaliacao';
 import { listarPipeline } from './actions/listar-pipeline';
 import { criarEtapaPipeline } from './actions/criar-etapa-pipeline';
@@ -44,6 +45,7 @@ export const comercialActions = [
   atualizarLead,
   moverLeadEtapaAction,
   converterLead,
+  converterLeadSemAgendarAction,
   agendarAvaliacao,
   listarPipeline,
   criarEtapaPipeline,
