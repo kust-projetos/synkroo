@@ -203,7 +203,7 @@ All routes use `withModuleRoute('crm')` and Action Layer context.
 | `note` patient | `patient_observations` | Operacional |
 | `lead_activity` | `lead_activities` | Comercial |
 | `conversion` | lead `convertedAt/patientId` | Comercial |
-| `message` | conversations/messages when linkable by phone | Atendimento bridge read-only |
+Atendimento/messages fica deferido para slice futuro; MVP evita acoplar CRM a conversas.
 
 Rules:
 - sort `occurredAt DESC`;
@@ -222,6 +222,7 @@ Rules:
 | `contact-detail-panel` | resolver `{ type, id }` |
 | `contact-timeline-tab` | usar timeline normalizada |
 | `contact-notes-tab` | adicionar nota via Action CRM |
+| `contact-create-dialog` | ocultar; criação/edição fora do MVP CRM |
 | `contact-custom-fields-tab` | fora do MVP se exigir schema novo |
 | financial/budget panels | ocultar ou manter fora do fluxo CRM MVP |
 
