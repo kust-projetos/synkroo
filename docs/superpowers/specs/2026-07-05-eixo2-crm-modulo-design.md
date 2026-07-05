@@ -66,7 +66,7 @@ Fontes:
 | Leads | owned por `src/modules/comercial` | CRM lê/coordena; writes via Comercial |
 | Notes lead | `leadActivities` | write via Comercial action |
 | Notes patient | `patientObservations` | write via Operacional action |
-| Tags | arrays/clinic tags legadas | write via owner action no MVP |
+| Tags | free-text arrays no owner record; `clinic_tags` opcional para sugestão/autocomplete | write via owner action no MVP |
 
 ---
 
@@ -81,7 +81,7 @@ src/modules/crm/
 │   ├── adicionar-nota-contato.ts
 │   └── atualizar-tags-contato.ts
 ├── repositories/
-│   └── contact-read-repository.ts   # read-only across owner schemas
+│   └── contact-read-repository.ts   # única exceção read-model cross-schema, SELECT-only
 ├── services/
 │   ├── contact-list-service.ts
 │   ├── contact-detail-service.ts
@@ -96,11 +96,14 @@ src/modules/crm/
 
 Boundary rules:
 1. CRM owns no DB table in this MVP.
-2. CRM repository is read-only; no `insert`, `update`, `delete`.
-3. CRM writes notes/tags only by calling owner actions.
-4. Routes call `runAction`; routes do not import service/repository.
-5. Identity stays `{ type: 'patient' | 'lead', id }`; no synthetic `contactId` table.
-6. `/api/contacts/*` preserves legacy `?type=` contract.
+2. `src/modules/crm/repositories/contact-read-repository.ts` is the only approved cross-schema read-model exception.
+3. The read-model repository may import Operacional/Comercial schemas for `SELECT`/`COUNT` only.
+4. Boundary lint must whitelist only this file for those schema imports.
+5. CRM repository has no `insert`, `update`, `delete`, raw write SQL, or owner table mutation.
+6. CRM writes notes/tags only by calling owner actions.
+7. Routes call `runAction`; routes do not import service/repository.
+8. Identity stays `{ type: 'patient' | 'lead', id }`; no synthetic `contactId` table.
+9. `/api/contacts/*` preserves legacy `?type=` contract.
 
 ---
 
@@ -129,7 +132,7 @@ export type CrmContactSummary = CrmContactId & {
 export type CrmTimelineEvent = {
   id: string;
   contact: CrmContactId;
-  kind: 'note' | 'appointment' | 'lead_activity' | 'conversion' | 'message';
+  kind: 'note' | 'appointment' | 'lead_activity' | 'conversion';
   title: string;
   description: string | null;
   occurredAt: string;
@@ -158,6 +161,12 @@ Bridge owner actions necessárias se ausentes:
 | Comercial | `comercial.registrarNotaLead` | nota de lead via activity |
 | Comercial | `comercial.atualizarTagsLead` | tags de lead |
 
+Tags MVP:
+- tags are free-text arrays stored on owner records;
+- `clinic_tags` can power suggestions/autocomplete, but is not mandatory source of truth;
+- owner actions trim whitespace, remove empties, and deduplicate case-insensitively;
+- CRM does not create or own a global tag catalog in this slice.
+
 Manifesto:
 
 ```ts
@@ -183,15 +192,22 @@ Permissões:
 | Route | Target |
 |---|---|
 | `GET /api/contacts` | `crm.listarContatos` |
-| `POST /api/contacts` | fora do MVP CRM; manter criação por owner route/action quando existir |
+| `POST /api/contacts` | `405 Method Not Allowed` no MVP (`crm_mvp_read_only`) |
 | `GET /api/contacts/:id?type=patient|lead` | `crm.obterContato` |
-| `PUT /api/contacts/:id` | fora do MVP, exceto tags via endpoint dedicado se UI exigir |
-| `PATCH /api/contacts/:id` | fora do MVP arquivamento; owner actions futuras |
+| `PUT /api/contacts/:id` | `405 Method Not Allowed` no MVP (`crm_mvp_read_only`) |
+| `PATCH /api/contacts/:id` | `405 Method Not Allowed` no MVP (`crm_mvp_read_only`) |
 | `GET /api/contacts/:id/timeline?type=...` | `crm.listarTimelineContato` |
 | `GET /api/contacts/:id/notes?type=...` | `crm.listarTimelineContato` filtered note |
 | `POST /api/contacts/:id/notes?type=...` | `crm.adicionarNotaContato` |
 
 All routes use `withModuleRoute('crm')` and Action Layer context.
+
+List semantics:
+- Default sort: `updatedAt DESC`, then `type ASC`, then `id ASC`.
+- Pagination applies after the unified set, not per source.
+- `total` equals filtered patients + filtered leads before page cut.
+- Read-model uses one global query shape (`UNION ALL` or equivalent) to avoid legacy per-source paging drift.
+- Default list hides converted leads with `patientId` or `status='converted'` to avoid duplicate contacts.
 
 ---
 
@@ -204,6 +220,13 @@ All routes use `withModuleRoute('crm')` and Action Layer context.
 | `lead_activity` | `lead_activities` | Comercial |
 | `conversion` | lead `convertedAt/patientId` | Comercial |
 Atendimento/messages fica deferido para slice futuro; MVP evita acoplar CRM a conversas.
+
+Lead convertido:
+- converted lead is hidden from default contacts list when `patientId` exists or `status='converted'`;
+- legacy detail `type=lead&id=...` still resolves for compatibility;
+- lead timeline shows only `lead_activities` and `conversion` in MVP;
+- patient timeline does not stitch pre-conversion lead history in MVP;
+- UI may show badge/link "convertido em paciente" when detail opens a converted lead.
 
 Rules:
 - sort `occurredAt DESC`;
@@ -226,7 +249,11 @@ Rules:
 | `contact-custom-fields-tab` | fora do MVP se exigir schema novo |
 | financial/budget panels | ocultar ou manter fora do fluxo CRM MVP |
 
-UX rule: lead e patient aparecem na mesma lista com badge de tipo. Conversão lead→patient continua Comercial/Operacional, não CRM.
+UX rules:
+- lead e patient aparecem na mesma lista com badge de tipo;
+- converted lead is hidden from default list to avoid duplicate contact;
+- converted lead detail can show badge/link to patient;
+- Conversão lead→patient continua Comercial/Operacional, não CRM.
 
 ---
 
@@ -283,6 +310,12 @@ Integration matrix:
 | note lead | calls Comercial bridge |
 | CRM disabled | `/api/contacts/*` 404 |
 | no `crm:view` | 403 |
+| global ordering patients+leads | sorted by `updatedAt DESC`, `type ASC`, `id ASC` |
+| global pagination | page cut after unified set, `total` before cut |
+| `POST/PUT/PATCH /api/contacts*` | 405 with `crm_mvp_read_only` |
+| converted lead in default list | hidden |
+| converted lead legacy detail | still accessible by `type=lead&id=...` |
+| tags update | trims, removes empties, dedups case-insensitively |
 
 ---
 
@@ -295,6 +328,10 @@ Integration matrix:
 - [ ] CRM reads patients from Operacional-owned schema/actions and leads from Comercial-owned schema/actions.
 - [ ] CRM writes notes/tags only through owner bridge actions.
 - [ ] Legacy `GET /api/contacts/:id?type=patient|lead` contract remains working.
+- [ ] Unified list has global ordering, pagination and `total` semantics.
+- [ ] Legacy `POST/PUT/PATCH /api/contacts*` mutations return explicit `405 crm_mvp_read_only`.
+- [ ] Converted leads do not duplicate default CRM list; legacy lead detail remains accessible.
+- [ ] Tags use MVP free-text semantics with owner-side trim and case-insensitive dedup.
 - [ ] Segmentação and merge remain absent from MVP implementation.
 - [ ] Focused unit/integration tests pass.
 - [ ] `typecheck` and boundaries lint pass.
