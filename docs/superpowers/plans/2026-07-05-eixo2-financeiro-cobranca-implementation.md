@@ -73,6 +73,7 @@ collectionAttempts: clinicId, chargeId?, installmentId?, channel, stage, status,
 | Integration | Jest + Postgres | lead accept → patient conversion → budget patientId |
 | Snapshot | Jest | dashboard/config/collections states |
 | Mutation | Stryker | finance calculations + routing target ≥70% |
+| E2E | Playwright | decide after implementation |
 
 ---
 
@@ -80,7 +81,7 @@ collectionAttempts: clinicId, chargeId?, installmentId?, channel, stage, status,
 
 **Files:**
 - Modify: `src/lib/db/schema/business.ts`
-- Create: `src/lib/db/migrations/0003_financeiro_cobranca.sql`
+- Create: `src/lib/db/migrations/0003_financeiro_cobranca.sql` or Drizzle-generated migration + matching `src/lib/db/migrations/meta/*` update
 - Create: `src/modules/financeiro/repositories/financeiro-repository.ts`
 - Test: `src/modules/financeiro/repositories/__tests__/financeiro-repository.test.ts`
 
@@ -113,8 +114,8 @@ In `src/lib/db/schema/business.ts`, add nullable fields and tables. Add real ind
 
 - [ ] **Step 3: Add migration file and verify**
 
-Prefer: run `npm run db:generate` and rename/review generated SQL into `src/lib/db/migrations/0003_financeiro_cobranca.sql` if stable.
-If `drizzle-kit generate` fails or generates noisy diffs, write manual SQL in `src/lib/db/migrations/0003_financeiro_cobranca.sql` matching schema.
+Option A: run `npm run db:generate`, keep the Drizzle-generated migration filename, and commit the matching `src/lib/db/migrations/meta/*` changes; do not rename generated migrations without updating meta.
+Option B: if generation fails or is noisy, write manual SQL in `src/lib/db/migrations/0003_financeiro_cobranca.sql` matching schema.
 Run: `npm run db:migrate && npm run db:health`
 Expected: migration applies; DB health OK.
 
@@ -136,7 +137,7 @@ Run: `npx jest src/modules/financeiro/repositories/__tests__/financeiro-reposito
 Expected: PASS.
 
 ```bash
-git add src/lib/db/schema/business.ts src/lib/db/migrations/0003_financeiro_cobranca.sql src/modules/financeiro/repositories
+git add src/lib/db/schema/business.ts src/lib/db/migrations src/modules/financeiro/repositories
 git commit -m "feat(financeiro): add finance schema foundation"
 ```
 
@@ -253,8 +254,9 @@ git commit -m "feat(financeiro): scaffold module and gateways"
 **Files:**
 - Create: `src/modules/financeiro/actions/listar-orcamentos.ts`, `obter-orcamento.ts`, `criar-orcamento.ts`, `enviar-orcamento.ts`, `aceitar-orcamento.ts`, `rejeitar-orcamento.ts`
 - Create: `src/modules/financeiro/actions/listar-parcelas.ts`, `salvar-parcelas.ts`, `listar-pagamentos.ts`, `registrar-pagamento.ts`
-- Create: `src/modules/financeiro/actions/gerar-cobranca.ts`, `obter-cobranca.ts`, `cancelar-cobranca.ts`, `obter-dashboard.ts`
-- Create: `src/modules/financeiro/services/budget-service.ts`, `payment-service.ts`, `charge-service.ts`, `dashboard-service.ts`
+- Create: `src/modules/financeiro/actions/gerar-cobranca.ts`, `obter-cobranca.ts`, `cancelar-cobranca.ts`, `listar-cobrancas-atrasadas.ts`, `enviar-lembrete-cobranca.ts`, `obter-dashboard.ts`
+- Create: `src/modules/financeiro/actions/salvar-gateway.ts`, `salvar-regra-roteamento.ts`
+- Create: `src/modules/financeiro/services/budget-service.ts`, `payment-service.ts`, `charge-service.ts`, `collection-service.ts`, `gateway-config-service.ts`, `dashboard-service.ts`
 - Test: `src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts`
 
 - [ ] **Step 1: RED action tests**
@@ -277,7 +279,7 @@ Expected: FAIL.
 
 - [ ] **Step 2: Implement actions/services**
 
-Use Zod `.refine()` for exactly one contact id. `aceitarOrcamento` calls `comercial.converterLeadSemAgendar` when needed. `gerarCobranca` resolves routing then calls Asaas. `cancelarCobranca` only cancels open charge; settled charge is no-op.
+Use Zod `.refine()` for exactly one contact id. `aceitarOrcamento` calls `comercial.converterLeadSemAgendar` when needed. `gerarCobranca` resolves routing then calls Asaas. `listarCobrancasAtrasadas` powers `/collections`. `enviarLembreteCobranca` delegates WhatsApp send through Atendimento. `salvarGateway` masks/encrypts secrets. `salvarRegraRoteamento` enforces one scope. `cancelarCobranca` only cancels open charge; settled charge is no-op.
 
 - [ ] **Step 3: GREEN + commit**
 
@@ -343,7 +345,7 @@ git commit -m "feat(financeiro): expose finance routes"
 
 **Files:**
 - Modify: `src/modules/financeiro/gateways/providers/asaas/client.ts`, `mapper.ts`, `webhook.ts`
-- Create: `src/modules/financeiro/services/collection-service.ts`
+- Modify: `src/modules/financeiro/services/collection-service.ts`
 - Create: `src/app/api/cron/financeiro-collections/route.ts`
 - Test: `src/modules/financeiro/gateways/__tests__/asaas-webhook.test.ts`
 - Test: `src/modules/financeiro/services/__tests__/collection-service.test.ts`
