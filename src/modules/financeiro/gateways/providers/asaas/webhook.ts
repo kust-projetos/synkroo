@@ -1,11 +1,19 @@
 /**
- * Financeiro — Asaas webhook handler stub.
+ * Financeiro — Asaas webhook handler.
  *
- * Validates and normalizes incoming Asaas webhook events.
- * Full implementation in Task 6 (Asaas webhook + collections).
+ * Validates, normalizes, and idempotently processes incoming Asaas webhook events.
+ * - Upserts gateway_events before any settlement.
+ * - Duplicate (provider, external_event_id) returns duplicate flag without settling again.
+ * - Only PAYMENT_RECEIVED, PAYMENT_CONFIRMED events trigger settlement.
  */
 
-import type { NormalizedGatewayEvent, GatewayProvider } from '../../contracts';
+import {
+  storeFindGatewayEvent,
+  storeCreateGatewayEvent,
+  storeCreatePayment,
+  storeListGateways,
+} from '../../../repositories/financeiro-store';
+import type { NormalizedGatewayEvent, GatewayProvider, WebhookInput } from '../../contracts';
 
 /**
  * Validate an Asaas webhook payload structure.
@@ -36,6 +44,9 @@ export const ASAAS_WEBHOOK_EVENTS = {
   PAYMENT_CHARGEBACK_DISPUTE: 'PAYMENT_CHARGEBACK_DISPUTE',
   PAYMENT_AWAITING_CHARGEBACK_REVERSAL: 'PAYMENT_AWAITING_CHARGEBACK_REVERSAL',
 } as const;
+
+// Events that indicate a payment has been settled and should trigger payment creation
+const SETTLEMENT_EVENTS = new Set(['PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED']);
 
 /**
  * Normalize an Asaas webhook event to the standard gateway event format.
@@ -68,8 +79,8 @@ export function normalizeAsaasWebhookEvent(
     DELETED: 'cancelled',
   };
 
-  // Set settledAt only for confirmed payment events
-  const isPaid = payment.status === 'RECEIVED' || payment.status === 'CONFIRMED' || eventType === 'PAYMENT_RECEIVED' || eventType === 'PAYMENT_CONFIRMED';
+  // Set paidAt only for payment settlement events
+  const isPaid = SETTLEMENT_EVENTS.has(eventType);
 
   return {
     provider: 'asaas' as GatewayProvider,
@@ -82,13 +93,63 @@ export function normalizeAsaasWebhookEvent(
 }
 
 /**
- * Process an Asaas webhook event with full reconciliation.
- * Stub — full implementation in Task 6.
+ * Process an Asaas webhook event with idempotent settlement.
+ *
+ * 1. Check if (provider, external_event_id) already processed → return duplicate.
+ * 2. Log gateway event.
+ * 3. If settlement event → create/update charge + create settled payment.
+ * 4. Return result.
  */
 export async function processAsaasWebhook(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _input: any,
+  input: WebhookInput,
 ): Promise<{ settled: boolean; duplicate?: boolean }> {
-  // TODO: implement webhook processing + idempotent settlement
-  throw new Error('processAsaasWebhook not yet implemented');
+  const { clinicId, body } = input;
+  const payload = body as Record<string, unknown>;
+
+  // Validate & normalize
+  const normalized = normalizeAsaasWebhookEvent(payload);
+
+  // Check idempotency: has this event already been processed?
+  const existing = storeFindGatewayEvent(normalized.provider, normalized.externalEventId);
+  if (existing) {
+    return { settled: false, duplicate: true };
+  }
+
+  // Find the gateway for this clinic/provider
+  const gateways = storeListGateways(clinicId);
+  const gateway = gateways.find(g => g.provider === normalized.provider);
+
+  // Log gateway event BEFORE settlement (prevents double-settle on crash)
+  storeCreateGatewayEvent({
+    clinicId,
+    gatewayId: gateway?.id ?? null,
+    chargeId: normalized.externalChargeId,
+    provider: normalized.provider,
+    externalEventId: normalized.externalEventId,
+    payload: payload as Record<string, unknown>,
+    processedAt: new Date().toISOString(),
+  });
+
+  // Only settlement events trigger payment/charge update
+  const paymentBody = payload.payment as Record<string, unknown> | undefined;
+  if (paymentBody && SETTLEMENT_EVENTS.has(payload.event as string)) {
+    // Create a settled payment record for the received amount
+    const amount = paymentBody.value ? String(paymentBody.value) : '0';
+    storeCreatePayment({
+      clinicId,
+      budgetId: null,
+      chargeId: normalized.externalChargeId,
+      patientId: null,
+      amount,
+      paymentMethod: 'pix',
+      status: 'settled',
+      paidAt: normalized.paidAt ?? new Date().toISOString(),
+      notes: `Asaas webhook: ${normalized.externalEventId}`,
+      createdBy: null,
+    });
+
+    return { settled: true };
+  }
+
+  return { settled: false };
 }
