@@ -1,22 +1,18 @@
 /**
  * Budget Detail API — legacy adapter.
- *
- * Thin wrapper over Financeiro module services.
- * Preserves { budget } response shape for backward compatibility.
+ * Uses Drizzle-backed Financeiro repository.
+ * Preserves { budget } response shape.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateApiAuth } from '@/lib/auth/session';
 import { getBudget } from '@/modules/financeiro/services/budget-service';
+import { updateBudget, deleteBudgetDb } from '@/modules/financeiro/repositories/financeiro-repository';
 import { handleApiError, ValidationError } from '@/lib/errors';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-/**
- * GET /api/budgets/[id]
- * Get budget details via Financeiro.
- */
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const auth = await validateApiAuth();
@@ -39,10 +35,6 @@ const updateBudgetSchema = z.object({
   discount_percent: z.number().min(0).max(100).optional(),
 });
 
-/**
- * PUT /api/budgets/[id]
- * Update budget fields via Financeiro.
- */
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     const auth = await validateApiAuth();
@@ -54,8 +46,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const body = updateBudgetSchema.parse(await request.json());
-    const { storeUpdateBudget } = await import('@/modules/financeiro/repositories/financeiro-store');
-
     const patch: Record<string, unknown> = {};
     if (body.status) patch.status = body.status;
     if (body.notes !== undefined) patch.notes = body.notes;
@@ -68,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       patch.finalValue = String(tv - dv);
     }
 
-    const updated = storeUpdateBudget(id, patch);
+    const updated = await updateBudget(id, patch as any);
     if (!updated) return NextResponse.json({ error: 'Failed to update budget' }, { status: 500 });
     return NextResponse.json({ budget: updated });
   } catch (error) {
@@ -77,10 +67,6 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-/**
- * DELETE /api/budgets/[id]
- * Delete or archive a budget.
- */
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const auth = await validateApiAuth();
@@ -90,9 +76,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const budget = await getBudget(id);
     if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
     if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
-    const { storeDeleteBudget } = await import('@/modules/financeiro/repositories/financeiro-store');
-    storeDeleteBudget(id);
+    await deleteBudgetDb(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error);

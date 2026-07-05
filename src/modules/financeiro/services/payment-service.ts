@@ -1,16 +1,17 @@
 /**
  * Financeiro — payment service.
  *
- * Business logic for manual payment registration, linking to installments.
+ * Business logic for manual payment registration.
+ * Uses real Drizzle-backed repository.
  */
 
 import {
-  storeCreatePayment,
-  storeGetCharge,
-  storeUpdateCharge,
-  storeListPayments,
-  type PaymentRecord,
-} from '../repositories/financeiro-store';
+  createPayment as repoCreatePayment,
+  listPaymentsByBudget as repoListPayments,
+  getPaymentCharge,
+  updatePaymentCharge,
+  type PaymentRow,
+} from '../repositories/financeiro-repository';
 
 export interface RegisterManualPaymentInput {
   clinicId: string;
@@ -22,23 +23,18 @@ export interface RegisterManualPaymentInput {
   notes?: string;
 }
 
-/**
- * Register a manual payment.
- * Creates a settled payment record. If linked to a charge, marks charge as paid.
- */
-export async function registerManualPayment(input: RegisterManualPaymentInput): Promise<PaymentRecord> {
+export async function registerManualPayment(input: RegisterManualPaymentInput): Promise<PaymentRow> {
   const { clinicId, budgetId, chargeId, amount, paymentMethod, notes } = input;
   const paidAt = input.paidAt ?? new Date().toISOString();
 
-  // If linked to a charge, mark it as paid
   if (chargeId) {
-    const charge = storeGetCharge(chargeId);
+    const charge = await getPaymentCharge(chargeId);
     if (charge && charge.clinicId === clinicId && charge.status === 'pending') {
-      storeUpdateCharge(chargeId, { status: 'paid', paidAt });
+      await updatePaymentCharge(chargeId, { status: 'paid', paidAt: new Date(paidAt) });
     }
   }
 
-  return storeCreatePayment({
+  return repoCreatePayment({
     clinicId,
     budgetId,
     chargeId: chargeId ?? null,
@@ -52,9 +48,6 @@ export async function registerManualPayment(input: RegisterManualPaymentInput): 
   });
 }
 
-/**
- * List payments for a budget.
- */
-export async function listPayments(budgetId: string): Promise<PaymentRecord[]> {
-  return storeListPayments(budgetId);
+export async function listPayments(budgetId: string): Promise<PaymentRow[]> {
+  return repoListPayments(budgetId);
 }
