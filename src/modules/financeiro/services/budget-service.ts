@@ -105,6 +105,7 @@ export async function createBudget(input: CreateBudgetInput): Promise<BudgetReco
     campaignId: input.campaignId ?? null,
     title: input.title ?? null,
     description: input.description ?? null,
+    notes: null,
     totalValue: String(totals.totalValue),
     discountPercent: String(totals.discountPercent),
     discountValue: String(totals.discountValue),
