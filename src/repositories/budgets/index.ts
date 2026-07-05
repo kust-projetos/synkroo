@@ -38,7 +38,7 @@ export async function softDeleteBudget(budgetId: string): Promise<void> {
 export interface BudgetRow {
 	id: string;
 	clinicId: string;
-	patientId: string;
+	patientId: string | null;
 	treatmentPlanId: string | null;
 	appointmentId: string | null;
 	title: string | null;
@@ -47,18 +47,18 @@ export interface BudgetRow {
 	discountPercent: string | null;
 	discountValue: string | null;
 	finalValue: string | null;
-	status: string;
+	status: string | null;
 	validUntil: Date | null;
 	sentAt: Date | null;
 	respondedAt: Date | null;
 	convertedAt: Date | null;
 	conversionAppointmentId: string | null;
 	notes: string | null;
-	followUpSequence: number;
+	followUpSequence: number | null;
 	nextFollowUpAt: Date | null;
 	createdBy: string | null;
-	createdAt: Date;
-	updatedAt: Date;
+	createdAt: Date | null;
+	updatedAt: Date | null;
 }
 
 export interface BudgetItemRow {
@@ -119,7 +119,7 @@ export async function createWithItems(data: {
 }): Promise<{ budget: BudgetRow; items: BudgetItemRow[] }> {
 	const db = getDb();
 
-	const [budget] = (await db
+	const [budget] = await db
 		.insert(budgets)
 		.values({
 			clinicId: data.clinicId,
@@ -137,7 +137,8 @@ export async function createWithItems(data: {
 			notes: data.notes ?? null,
 			createdBy: data.createdBy ?? null,
 		})
-		.returning()) as [BudgetRow];
+		.returning();
+	if (!budget) throw new Error('Failed to create budget');
 
 	const items: BudgetItemRow[] = [];
 	if (data.items.length > 0) {
@@ -237,11 +238,11 @@ export async function updateFollowUp(
 	},
 ): Promise<BudgetRow | null> {
 	const db = getDb();
-	const [row] = (await db
+	const [row] = await db
 		.update(budgets)
 		.set({ ...data, updatedAt: new Date() } as any)
 		.where(eq(budgets.id, budgetId))
-		.returning()) as [BudgetRow | null];
+		.returning();
 	return row ?? null;
 }
 
@@ -379,11 +380,11 @@ export async function updateStatus(
 	},
 ): Promise<BudgetRow | null> {
 	const db = getDb();
-	const [row] = (await db
+	const [row] = await db
 		.update(budgets)
 		.set({ ...data, updatedAt: new Date() } as any)
 		.where(eq(budgets.id, budgetId))
-		.returning()) as [BudgetRow | null];
+		.returning();
 	return row ?? null;
 }
 
