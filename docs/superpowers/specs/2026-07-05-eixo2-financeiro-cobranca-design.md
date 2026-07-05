@@ -51,14 +51,14 @@ Fora do MVP:
 | REQ-FIN-02 | When a budget is created, the Financeiro module shall calculate item totals, discounts, final value and installments deterministically. |
 | REQ-FIN-03 | When a lead budget is accepted, the Financeiro module shall call Comercial to convert the lead into a patient without creating an appointment. |
 | REQ-FIN-04 | When a manual payment is registered, Financeiro shall create a settled payment and update linked installments. |
-| REQ-FIN-05 | When a PIX/link charge is requested, Financeiro shall create a payment charge and resolve gateway routing by campaign, person and clinic default. |
+| REQ-FIN-05 | When a PIX/link charge is requested, Financeiro shall create a payment charge and resolve gateway routing by campaign, patient, lead and clinic default. |
 | REQ-FIN-06 | When Asaas returns a webhook event, Financeiro shall validate it, normalize it, store the event once and settle payment when applicable. |
 | REQ-FIN-07 | While a charge or installment is overdue, Financeiro shall expose it in the collections queue. |
 | REQ-FIN-08 | When the daily collections job runs, Financeiro shall send configured WhatsApp reminders and save collection attempts. |
 | REQ-FIN-09 | When a user opens the dashboard, Financeiro shall show received, pending, overdue and conversion metrics for the selected period. |
-| REQ-FIN-10 | While Financeiro is disabled, route gates shall hide `/api/financeiro/*` and `/dashboard/financeiro`. |
+| REQ-FIN-10 | While Financeiro is disabled, route gates shall hide `/api/financeiro/*` and `/dashboard/financeiro`, except provider webhooks required to reconcile existing charges. |
 | REQ-FIN-11 | If a budget, charge, payment or gateway belongs to another clinic, Financeiro shall return `not_found` without leaking existence. |
-| REQ-FIN-12 | Where gateway overrides are configured, Financeiro shall use campaign → person → clinic default precedence. |
+| REQ-FIN-12 | Where gateway overrides are configured, Financeiro shall use campaign → patient → lead → clinic default precedence. |
 | REQ-FIN-13 | When gateway credentials are read, Financeiro shall return only masked metadata and never return decrypted secrets. |
 
 ---
@@ -98,6 +98,8 @@ src/modules/financeiro/
 │   ├── listar-pagamentos.ts
 │   ├── registrar-pagamento.ts
 │   ├── gerar-cobranca.ts
+│   ├── obter-cobranca.ts
+│   ├── cancelar-cobranca.ts
 │   ├── listar-cobrancas-atrasadas.ts
 │   ├── enviar-lembrete-cobranca.ts
 │   ├── salvar-gateway.ts
@@ -125,19 +127,19 @@ Boundary exception:
 
 | Tabela | Mudança |
 |---|---|
-| `budgets` | add `lead_id`, `converted_from_lead_id`, `accepted_at`, `rejected_at`, `last_sent_at` |
+| `budgets` | add `lead_id`, `converted_from_lead_id`, `campaign_id`, `accepted_at`, `rejected_at`, `last_sent_at` |
 | `budget_installments` | keep; ensure `payment_id` links only settled payment |
-| `payments` | keep as settled money received; add `charge_id nullable`, `status`, `settled_at` |
+| `payments` | keep as settled money received; add `charge_id nullable`, `status`; keep `paid_at` as canonical settlement timestamp |
 
 ### New tables
 
 | Tabela | Uso |
 |---|---|
-| `payment_charges` | PIX/link charge issued through gateway; stores external id, URL, QR code, due date, status |
-| `payment_gateways` | provider config per clinic; stores encrypted secrets server-side |
-| `gateway_routing_rules` | clinic/person/campaign overrides |
-| `gateway_events` | webhook event log with unique `(provider, external_event_id)` |
-| `collection_attempts` | cobrança manual/automática audit |
+| `payment_charges` | `clinic_id`, `budget_id`, `gateway_id`; PIX/link charge issued through gateway; stores external id, URL, QR code, due date, status |
+| `payment_gateways` | `clinic_id`; provider config per clinic; stores encrypted secrets server-side |
+| `gateway_routing_rules` | `clinic_id`; clinic/patient/lead/campaign overrides |
+| `gateway_events` | `clinic_id`, `gateway_id`, `charge_id nullable`; webhook event log with unique `(provider, external_event_id)` |
+| `collection_attempts` | `clinic_id`, `charge_id nullable`, `installment_id nullable`; cobrança manual/automática audit |
 
 ### Invariantes
 
@@ -145,9 +147,11 @@ Boundary exception:
 |---|---|
 | Budget draft | exactly one of `patient_id` or `lead_id` exists |
 | Lead accepted | Comercial returns `patientId`; budget sets `patient_id`, keeps `converted_from_lead_id` |
-| Payment | represents settled money only; never stores provider checkout URL/QR |
+| Payment | represents settled money only; never stores provider checkout URL/QR; `paid_at` is canonical settlement timestamp |
 | Charge | represents requested external cobrança before settlement |
 | Charge paid | webhook or manual confirmation creates/links one settled `payments` row |
+| Campaign | `budgets.campaign_id` is routing source of truth; `payment_charges` derives campaign through budget |
+| Tenant isolation | new finance tables carry `clinic_id` or mandatory FK to a row with same `clinic_id` |
 | Gateway event | `(provider, external_event_id)` unique |
 | Gateway default | each clinic has at most one default enabled gateway |
 | Routing target | overrides can target only enabled gateways from same clinic |
@@ -178,7 +182,7 @@ Provider-specific fields stay inside `gateways/providers/*`.
 Actions expose normalized finance DTOs only.
 
 Routing precedence:
-1. `campaign_id` override.
+1. `campaign_id` override from `budgets.campaign_id`.
 2. `patient_id` override.
 3. `lead_id` override.
 4. clinic default gateway.
@@ -200,6 +204,7 @@ Credential rules:
 | Processo | Regra |
 |---|---|
 | Webhook Asaas | validate provider secret, map event, upsert `gateway_events`, update `payment_charges` |
+| Module disabled webhook | accepts valid webhook only to reconcile existing charges; never creates new budget/charge |
 | Event replay | already processed `(provider, external_event_id)` returns 200 without duplicate settlement |
 | Daily collections job | `assertModuleForJob('financeiro')`, find overdue charges/installments, apply rule |
 | Manual reminder | user sends WhatsApp reminder from queue |
@@ -232,6 +237,8 @@ Overdue source:
 | `GET /api/financeiro/budgets/:id/payments` | `financeiro.listarPagamentos` |
 | `POST /api/financeiro/payments/manual` | `financeiro.registrarPagamento` |
 | `POST /api/financeiro/charges` | `financeiro.gerarCobranca` |
+| `GET /api/financeiro/charges/:id` | charge detail; also embedded in `obterOrcamento` |
+| `POST /api/financeiro/charges/:id/cancel` | cancel open charge through gateway; no-op for settled charge |
 | `GET /api/financeiro/collections` | `financeiro.listarCobrancasAtrasadas` |
 | `POST /api/financeiro/collections/:id/reminder` | `financeiro.enviarLembreteCobranca` |
 | `GET /api/financeiro/dashboard` | `financeiro.obterDashboard` |
@@ -240,6 +247,7 @@ Overdue source:
 | `POST /api/financeiro/webhooks/[provider]` | provider webhook adapter |
 
 All routes use `withModuleRoute('financeiro')` and Action Layer RBAC, except webhook route which validates provider secret and clinic/provider resolution before mutation.
+When module is disabled, webhook still reconciles existing charges for financial correctness and returns `404` for unknown provider, unknown gateway or unknown charge.
 
 ### Backward compatibility
 
@@ -259,7 +267,7 @@ All routes use `withModuleRoute('financeiro')` and Action Layer RBAC, except web
 | Aba Orçamentos | list/detail/create/send/accept/reject |
 | Aba Parcelas/Pagamentos | installments, manual payments, generated charges |
 | Aba Cobranças | overdue queue + manual reminder |
-| Aba Config | gateways + clinic/person/campaign routing |
+| Aba Config | gateways + clinic/patient/lead/campaign routing |
 | CRM contact tab | read-only summary + Financeiro deep links |
 
 ---
@@ -270,14 +278,14 @@ Period filters use clinic timezone and inclusive `from`/exclusive `to`.
 
 | Métrica | Fórmula |
 |---|---|
-| Received | sum `payments.amount` where `settled_at` in period and clinic matches |
+| Received | sum `payments.amount` where `paid_at` in period and clinic matches |
 | Pending | sum open `payment_charges.amount` + unpaid installments without active charge due in or before period end |
 | Overdue | sum open charge/installment amount with `due_date < today` |
-| Budget conversion | accepted budgets / sent budgets in period |
-| Collection recovery | paid overdue charges after collection attempt / total overdue amount attempted |
+| Budget conversion | accepted budgets / sent budgets in period; returns `null` when sent budgets = 0 |
+| Collection recovery | paid overdue charges after collection attempt / total overdue amount attempted; returns `null` when attempted amount = 0 |
 
 Dashboard excludes rejected budgets from pending revenue.
-Manual payments count by `settled_at`; gateway charges count only after settlement.
+Manual payments count by `paid_at`; gateway charges count only after settlement.
 
 ---
 
@@ -314,9 +322,10 @@ Comercial bridge shall evolve existing conversion code instead of duplicating lo
 - mark lead `converted`, set `convertedAt`, set `patientId`;
 - do not schedule appointment.
 
-Campaign caveat:
-- existing `campaignRecipients` is patient-only;
-- lead-origin budgets must carry optional `campaign_id` on `budgets` or `payment_charges` if campaign routing is needed before conversion.
+Campaign routing:
+- `budgets.campaign_id` is the only source of truth for campaign-based gateway routing;
+- existing `campaignRecipients` is patient-only, so lead-origin budgets may carry `campaign_id` directly from Comercial/campaign context;
+- `payment_charges` does not own campaign identity; it resolves campaign through `budget_id`.
 
 ---
 
@@ -326,7 +335,7 @@ Campaign caveat:
 |---|---|---|
 | Unit | Jest | totals, installments, dashboard formulas, routing precedence, collection rule |
 | Contract | Jest/Zod/MSW | Asaas create charge + webhook payload |
-| Route | Jest | gates, RBAC, webhook secret, masked gateway secrets, legacy adapter shape |
+| Route | Jest | gates, RBAC, webhook secret, charge detail/cancel, masked gateway secrets, legacy adapter shape |
 | Integration | Jest + Postgres | lead budget accepted → Comercial conversion → patientId on budget |
 | Snapshot | Jest | dashboard/collections/config tabs |
 | Mutation | Stryker | finance calculations + routing ≥70% |
