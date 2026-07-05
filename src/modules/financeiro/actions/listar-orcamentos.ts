@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { listBudgets } from '../services/budget-service';
 
 export const listarOrcamentos = defineAction({
   name: 'financeiro.listarOrcamentos',
@@ -14,7 +15,8 @@ export const listarOrcamentos = defineAction({
     page: z.number().int().min(1).default(1),
     limit: z.number().int().min(1).max(100).default(50),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const budgets = await listBudgets(input.clinicId, input.status);
+    return { data: budgets, total: budgets.length };
   },
 });

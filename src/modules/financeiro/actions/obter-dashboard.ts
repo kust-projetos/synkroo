@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { listOverdueCharges, enrichOverdueCharges } from '../services/collection-service';
+import { storeListPayments } from '../repositories/financeiro-store';
 
 export const obterDashboard = defineAction({
   name: 'financeiro.obterDashboard',
@@ -12,5 +14,21 @@ export const obterDashboard = defineAction({
     from: z.string().optional(),
     to: z.string().optional(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet im
+  handler: async (input, _ctx: ActionContext) => {
+    const overdue = await listOverdueCharges(input.clinicId);
+    const enriched = enrichOverdueCharges(overdue);
+
+    // Simple dashboard: overdue counts + total overdue amount
+    const totalOverdue = enriched.reduce((sum, c) => sum + parseFloat(c.amount), 0);
+
+    return {
+      overdueCount: enriched.length,
+      totalOverdue,
+      overdueStages: {
+        light: enriched.filter(c => c.collectionStage === 'light').length,
+        firm: enriched.filter(c => c.collectionStage === 'firm').length,
+        internal: enriched.filter(c => c.collectionStage === 'internal').length,
+      },
+    };
+  },
+});

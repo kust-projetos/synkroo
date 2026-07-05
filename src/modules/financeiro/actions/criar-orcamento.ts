@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { createBudget } from '../services/budget-service';
 
 const createBudgetItem = z.object({
   procedureName: z.string().min(1),
@@ -20,6 +21,7 @@ export const criarOrcamento = defineAction({
     clinicId: z.string().uuid(),
     patientId: z.string().uuid().optional(),
     leadId: z.string().uuid().optional(),
+    campaignId: z.string().uuid().optional(),
     title: z.string().optional(),
     description: z.string().optional(),
     discountPercent: z.number().min(0).max(100).optional(),
@@ -34,7 +36,7 @@ export const criarOrcamento = defineAction({
     { message: 'Exactly one of patientId or leadId is required' },
   ),
   handler: async (input, _ctx: ActionContext) => {
-    // TODO: implement budget creation via budget-service
-    throw new Error('Not yet implemented');
+    const budget = await createBudget(input);
+    return budget;
   },
 });
