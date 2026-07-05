@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     const patch: Partial<BudgetRow> = {};
     if (body.status) patch.status = body.status;
     if (body.notes !== undefined) patch.notes = body.notes;
-    if (body.valid_until !== undefined) patch.validUntil = body.valid_until;
+    if (body.valid_until !== undefined) patch.validUntil = body.valid_until ? new Date(body.valid_until) : null;
     if (body.discount_percent !== undefined) {
       patch.discountPercent = String(body.discount_percent);
       const tv = Number(budget.totalValue);
