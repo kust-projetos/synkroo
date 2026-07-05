@@ -17,7 +17,7 @@ import {
   type PaymentChargeRow,
 } from '../repositories/financeiro-repository';
 import { buildChargeInsert } from '../repositories/financeiro-repository';
-import type { CreateChargeResult } from '../gateways/contracts';
+import type { CreateChargeResult, GatewayProvider } from '../gateways/contracts';
 
 export interface CreateChargeInput {
   clinicId: string;
@@ -40,7 +40,7 @@ export async function createCharge(input: CreateChargeInput): Promise<{
 
   const chargeData = buildChargeInsert({ clinicId, budgetId, gatewayId: gateway.id, amount, dueDate });
 
-  const provider = getGatewayProvider(gateway.provider as any);
+  const provider = getGatewayProvider(gateway.provider as GatewayProvider);
   let gatewayResponse: CreateChargeResult;
 
   if (provider) {
@@ -89,7 +89,7 @@ export async function cancelCharge(input: {
 
   const gateway = await getPaymentGateway(charge.gatewayId);
   if (gateway?.isEnabled) {
-    const provider = getGatewayProvider(gateway.provider as any);
+    const provider = getGatewayProvider(gateway.provider as GatewayProvider);
     if (provider && charge.externalChargeId) {
       await provider.cancelCharge({ externalChargeId: charge.externalChargeId });
     }

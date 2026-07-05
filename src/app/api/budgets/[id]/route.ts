@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateApiAuth } from '@/lib/auth/session';
 import { getBudget } from '@/modules/financeiro/services/budget-service';
-import { updateBudget, deleteBudgetDb } from '@/modules/financeiro/repositories/financeiro-repository';
+import { updateBudget, deleteBudgetDb, type BudgetRow } from '@/modules/financeiro/repositories/financeiro-repository';
 import { handleApiError, ValidationError } from '@/lib/errors';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -46,7 +46,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const body = updateBudgetSchema.parse(await request.json());
-    const patch: Record<string, unknown> = {};
+    const patch: Partial<BudgetRow> = {};
     if (body.status) patch.status = body.status;
     if (body.notes !== undefined) patch.notes = body.notes;
     if (body.valid_until !== undefined) patch.validUntil = body.valid_until;
@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       patch.finalValue = String(tv - dv);
     }
 
-    const updated = await updateBudget(id, patch as any);
+    const updated = await updateBudget(id, patch);
     if (!updated) return NextResponse.json({ error: 'Failed to update budget' }, { status: 500 });
     return NextResponse.json({ budget: updated });
   } catch (error) {
