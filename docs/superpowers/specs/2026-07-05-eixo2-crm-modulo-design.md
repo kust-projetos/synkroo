@@ -78,6 +78,7 @@ src/modules/crm/
 │   ├── listar-contatos.ts
 │   ├── obter-contato.ts
 │   ├── listar-timeline-contato.ts
+│   ├── listar-notas-contato.ts
 │   ├── adicionar-nota-contato.ts
 │   └── atualizar-tags-contato.ts
 ├── repositories/
@@ -149,6 +150,7 @@ export type CrmTimelineEvent = {
 | `crm.listarContatos` | `crm:view` | read | lista patients + leads |
 | `crm.obterContato` | `crm:view` | read | exige `{ type, id }` |
 | `crm.listarTimelineContato` | `crm:view` | read | timeline normalizada |
+| `crm.listarNotasContato` | `crm:view` | read | notas normalizadas sem expor timeline completa |
 | `crm.adicionarNotaContato` | `crm:manage_notes` | write coordinator | chama owner action |
 | `crm.atualizarTagsContato` | `crm:manage_tags` | write coordinator | chama owner action |
 
@@ -197,8 +199,9 @@ Permissões:
 | `PUT /api/contacts/:id` | `405 Method Not Allowed` no MVP (`crm_mvp_read_only`) |
 | `PATCH /api/contacts/:id` | `405 Method Not Allowed` no MVP (`crm_mvp_read_only`) |
 | `GET /api/contacts/:id/timeline?type=...` | `crm.listarTimelineContato` |
-| `GET /api/contacts/:id/notes?type=...` | `crm.listarTimelineContato` filtered note |
+| `GET /api/contacts/:id/notes?type=...` | `crm.listarNotasContato` |
 | `POST /api/contacts/:id/notes?type=...` | `crm.adicionarNotaContato` |
+| `PUT /api/contacts/:id/tags?type=...` | `crm.atualizarTagsContato` |
 
 All routes use `withModuleRoute('crm')` and Action Layer context.
 
@@ -315,7 +318,8 @@ Integration matrix:
 | `POST/PUT/PATCH /api/contacts*` | 405 with `crm_mvp_read_only` |
 | converted lead in default list | hidden |
 | converted lead legacy detail | still accessible by `type=lead&id=...` |
-| tags update | trims, removes empties, dedups case-insensitively |
+| notes list | `crm.listarNotasContato` returns only normalized note events |
+| tags update | `PUT /api/contacts/:id/tags?type=...` trims, removes empties, dedups case-insensitively |
 
 ---
 
@@ -327,6 +331,8 @@ Integration matrix:
 - [ ] `src/services/contacts/contacts.service.ts` is removed or reduced to compatibility shim with no Drizzle direct writes.
 - [ ] CRM reads patients from Operacional-owned schema/actions and leads from Comercial-owned schema/actions.
 - [ ] CRM writes notes/tags only through owner bridge actions.
+- [ ] `GET /api/contacts/:id/notes?type=...` uses `crm.listarNotasContato`.
+- [ ] `PUT /api/contacts/:id/tags?type=...` uses `crm.atualizarTagsContato`.
 - [ ] Legacy `GET /api/contacts/:id?type=patient|lead` contract remains working.
 - [ ] Unified list has global ordering, pagination and `total` semantics.
 - [ ] Legacy `POST/PUT/PATCH /api/contacts*` mutations return explicit `405 crm_mvp_read_only`.
