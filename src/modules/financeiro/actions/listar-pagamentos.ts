@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { listPayments } from '../services/payment-service';
 
 export const listarPagamentos = defineAction({
   name: 'financeiro.listarPagamentos',
@@ -11,7 +12,8 @@ export const listarPagamentos = defineAction({
     clinicId: z.string().uuid(),
     budgetId: z.string().uuid(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const payments = await listPayments(input.budgetId);
+    return { data: payments };
   },
 });

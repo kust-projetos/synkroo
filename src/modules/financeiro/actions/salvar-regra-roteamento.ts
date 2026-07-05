@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { saveRoutingRule } from '../services/gateway-config-service';
 
 export const salvarRegraRoteamento = defineAction({
   name: 'financeiro.salvarRegraRoteamento',
@@ -21,8 +22,8 @@ export const salvarRegraRoteamento = defineAction({
     },
     { message: 'Exactly one scope target is required: campaignId, patientId, or leadId' },
   ),
-  handler: async (_input, _ctx: ActionContext) => {
-    // TODO: persist rule, scope enforcement via assertSingleRoutingScope
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const rule = await saveRoutingRule(input);
+    return rule;
   },
 });

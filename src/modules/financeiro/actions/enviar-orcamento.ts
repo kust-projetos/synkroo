@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { markBudgetSent } from '../services/budget-service';
 
 export const enviarOrcamento = defineAction({
   name: 'financeiro.enviarOrcamento',
@@ -11,7 +12,7 @@ export const enviarOrcamento = defineAction({
     clinicId: z.string().uuid(),
     id: z.string().uuid(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    return markBudgetSent(input.id, input.clinicId);
   },
 });

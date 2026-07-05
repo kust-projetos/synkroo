@@ -12,6 +12,8 @@ export const listarParcelas = defineAction({
     budgetId: z.string().uuid(),
   }),
   handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet implemented');
+    // Installments use budget_installments table - will be implemented when
+    // Task 5/6 adds the installment service.
+    return { data: [] };
   },
 });

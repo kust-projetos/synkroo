@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { registerManualPayment } from '../services/payment-service';
 
 export const registrarPagamento = defineAction({
   name: 'financeiro.registrarPagamento',
@@ -10,12 +11,14 @@ export const registrarPagamento = defineAction({
   input: z.object({
     clinicId: z.string().uuid(),
     budgetId: z.string().uuid(),
+    chargeId: z.string().uuid().optional(),
     amount: z.number().positive(),
     paymentMethod: z.string().min(1),
     paidAt: z.string().optional(),
     notes: z.string().optional(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const payment = await registerManualPayment(input);
+    return payment;
   },
 });

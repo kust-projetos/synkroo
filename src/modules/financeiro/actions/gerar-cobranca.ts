@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { createCharge } from '../services/charge-service';
 
 export const gerarCobranca = defineAction({
   name: 'financeiro.gerarCobranca',
@@ -13,7 +14,13 @@ export const gerarCobranca = defineAction({
     dueDate: z.string(),
     amount: z.number().positive(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const result = await createCharge(input);
+    return {
+      charge: result.charge,
+      paymentUrl: result.gatewayResponse.paymentUrl,
+      pixQrCode: result.gatewayResponse.pixQrCode,
+      status: result.gatewayResponse.status,
+    };
   },
 });
