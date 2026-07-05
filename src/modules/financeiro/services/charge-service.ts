@@ -2,21 +2,20 @@
  * Financeiro — charge service.
  *
  * Gateway charge creation, cancellation, and webhook reconciliation.
+ * Uses real Drizzle-backed repository.
  */
 
 import { getGatewayProvider } from '../gateways/registry';
 import {
-  storeCreateCharge,
-  storeGetCharge,
-  storeUpdateCharge,
-  storeListOverdueCharges,
-  storeGetDefaultGateway,
-  storeGetGateway,
-  storeGetBudget,
-  storeCreatePayment,
-  type PaymentChargeRecord,
-  type BudgetRecord,
-} from '../repositories/financeiro-store';
+  createPaymentCharge as repoCreateCharge,
+  getPaymentCharge as repoGetCharge,
+  updatePaymentCharge as repoUpdateCharge,
+  listOverdueCharges as repoListOverdue,
+  getDefaultGateway,
+  getPaymentGateway,
+  createPayment as repoCreatePayment,
+  type PaymentChargeRow,
+} from '../repositories/financeiro-repository';
 import { buildChargeInsert } from '../repositories/financeiro-repository';
 import type { CreateChargeResult } from '../gateways/contracts';
 
@@ -28,50 +27,27 @@ export interface CreateChargeInput {
 }
 
 /**
- * Resolve gateway routing for a charge.
- * Returns the clinic's default enabled gateway, or throws.
- */
-function resolveGateway(clinicId: string) {
-  const gateway = storeGetDefaultGateway(clinicId);
-  if (!gateway) throw new Error('No enabled default gateway found for clinic');
-  return gateway;
-}
-
-/**
- * Create a payment charge.
- * Resolves gateway routing, calls the provider, and persists the charge.
+ * Create a payment charge, persisted via Drizzle.
  */
 export async function createCharge(input: CreateChargeInput): Promise<{
-  charge: PaymentChargeRecord;
+  charge: PaymentChargeRow;
   gatewayResponse: CreateChargeResult;
 }> {
   const { clinicId, budgetId, amount, dueDate } = input;
 
-  // Resolve gateway
-  const gateway = resolveGateway(clinicId);
+  const gateway = await getDefaultGateway(clinicId);
+  if (!gateway) throw new Error('No enabled default gateway found for clinic');
 
-  // Build charge insert
-  const chargeData = buildChargeInsert({
-    clinicId,
-    budgetId,
-    gatewayId: gateway.id,
-    amount,
-    dueDate,
-  });
+  const chargeData = buildChargeInsert({ clinicId, budgetId, gatewayId: gateway.id, amount, dueDate });
 
-  // Call gateway provider if registered
   const provider = getGatewayProvider(gateway.provider as any);
   let gatewayResponse: CreateChargeResult;
 
   if (provider) {
     gatewayResponse = await provider.createCharge({
-      clinicId,
-      amount,
-      dueDate,
-      customerName: 'Cliente',
+      clinicId, amount, dueDate, customerName: 'Cliente',
     });
   } else {
-    // No real provider registered → simulate gateway response
     gatewayResponse = {
       externalChargeId: `ext-${Date.now()}`,
       paymentUrl: `https://pay.example.com/charge/${Date.now()}`,
@@ -80,8 +56,7 @@ export async function createCharge(input: CreateChargeInput): Promise<{
     };
   }
 
-  // Persist charge
-  const charge = storeCreateCharge({
+  const charge = await repoCreateCharge({
     clinicId: chargeData.clinicId,
     budgetId: chargeData.budgetId,
     gatewayId: chargeData.gatewayId,
@@ -91,55 +66,43 @@ export async function createCharge(input: CreateChargeInput): Promise<{
     dueDate: chargeData.dueDate,
     amount: chargeData.amount,
     status: gatewayResponse.status,
-    paidAt: null,
   });
 
   return { charge, gatewayResponse };
 }
 
 /**
- * Cancel a payment charge.
- * - Settled/paid charges → no-op (returns { cancelled: false })
- * - Open/pending/overdue charges → cancels through gateway + persists
+ * Cancel a charge. Settled → no-op. Open → cancel via gateway + persist.
  */
 export async function cancelCharge(input: {
   clinicId: string;
   chargeId: string;
-}): Promise<{ cancelled: boolean; charge: PaymentChargeRecord }> {
+}): Promise<{ cancelled: boolean; charge: PaymentChargeRow }> {
   const { clinicId, chargeId } = input;
-  const charge = storeGetCharge(chargeId);
-
+  const charge = await repoGetCharge(chargeId);
   if (!charge) throw new Error('Charge not found');
   if (charge.clinicId !== clinicId) throw new Error('Charge not found');
 
-  // Settled charges → no-op
   if (charge.status === 'paid' || charge.status === 'settled') {
     return { cancelled: false, charge };
   }
 
-  // Open charges → cancel
-  const gateway = storeGetGateway(charge.gatewayId);
-  if (gateway && gateway.isEnabled) {
+  const gateway = await getPaymentGateway(charge.gatewayId);
+  if (gateway?.isEnabled) {
     const provider = getGatewayProvider(gateway.provider as any);
     if (provider && charge.externalChargeId) {
       await provider.cancelCharge({ externalChargeId: charge.externalChargeId });
     }
   }
 
-  const updated = storeUpdateCharge(chargeId, { status: 'cancelled' });
+  const updated = await repoUpdateCharge(chargeId, { status: 'cancelled' });
   return { cancelled: true, charge: updated! };
 }
 
-/**
- * Get a charge by id.
- */
-export async function getCharge(id: string): Promise<PaymentChargeRecord | undefined> {
-  return storeGetCharge(id);
+export async function getCharge(id: string): Promise<PaymentChargeRow | undefined> {
+  return repoGetCharge(id);
 }
 
-/**
- * List overdue charges for a clinic.
- */
-export async function listOverdueCharges(clinicId: string): Promise<PaymentChargeRecord[]> {
-  return storeListOverdueCharges(clinicId);
+export async function listOverdueCharges(clinicId: string): Promise<PaymentChargeRow[]> {
+  return repoListOverdue(clinicId);
 }

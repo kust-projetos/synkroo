@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const budget = await getBudget(id);
     if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
     if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    if (!['pending', 'sent'].includes(budget.status)) {
+    if (budget.status && !['pending', 'sent'].includes(budget.status)) {
       return NextResponse.json({ error: 'Budget cannot be accepted in current status' }, { status: 400 });
     }
 
