@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { saveGateway } from '../services/gateway-config-service';
 
 export const salvarGateway = defineAction({
   name: 'financeiro.salvarGateway',
@@ -16,8 +17,8 @@ export const salvarGateway = defineAction({
     maskedLabel: z.string().optional(),
     apiKey: z.string().optional(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    // TODO: mask/encrypt secrets server-side; never return decrypted secret
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const safe = await saveGateway(input);
+    return safe; // safe response — no apiKey field
   },
 });

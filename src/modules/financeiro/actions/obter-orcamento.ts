@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { getBudget } from '../services/budget-service';
 
 export const obterOrcamento = defineAction({
   name: 'financeiro.obterOrcamento',
@@ -11,7 +12,11 @@ export const obterOrcamento = defineAction({
     clinicId: z.string().uuid(),
     id: z.string().uuid(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const budget = await getBudget(input.id);
+    if (!budget || budget.clinicId !== input.clinicId) {
+      throw new Error('Budget not found');
+    }
+    return budget;
   },
 });

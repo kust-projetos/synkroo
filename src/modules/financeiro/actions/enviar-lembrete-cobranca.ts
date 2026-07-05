@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { sendReminder } from '../services/collection-service';
 
 export const enviarLembreteCobranca = defineAction({
   name: 'financeiro.enviarLembreteCobranca',
@@ -11,8 +12,11 @@ export const enviarLembreteCobranca = defineAction({
     clinicId: z.string().uuid(),
     chargeId: z.string().uuid(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    // TODO: delegate WhatsApp send through Atendimento
-    throw new Error('Not yet implemented');
+  handler: async (input, _ctx: ActionContext) => {
+    const result = await sendReminder({
+      clinicId: input.clinicId,
+      chargeId: input.chargeId,
+    });
+    return result;
   },
 });
