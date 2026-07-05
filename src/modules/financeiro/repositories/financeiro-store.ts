@@ -101,6 +101,18 @@ export interface PaymentRecord {
   updatedAt: string;
 }
 
+export interface GatewayEventRecord {
+  id: string;
+  clinicId: string;
+  gatewayId: string | null;
+  chargeId: string | null;
+  provider: string;
+  externalEventId: string;
+  payload: Record<string, unknown> | null;
+  processedAt: string | null;
+  createdAt: string;
+}
+
 export interface CollectionAttemptRecord {
   id: string;
   clinicId: string;
@@ -121,6 +133,7 @@ const chargeStore = new Map<string, PaymentChargeRecord>();
 const gatewayStore = new Map<string, PaymentGatewayRecord>();
 const routingRuleStore = new Map<string, GatewayRoutingRuleRecord>();
 const paymentStore = new Map<string, PaymentRecord>();
+const gatewayEventStore = new Map<string, GatewayEventRecord>();
 const collectionAttemptStore = new Map<string, CollectionAttemptRecord>();
 
 let idCounter = 0;
@@ -239,6 +252,30 @@ export function storeListRoutingRules(clinicId: string): GatewayRoutingRuleRecor
   return Array.from(routingRuleStore.values()).filter(r => r.clinicId === clinicId);
 }
 
+// ─── Gateway event operations ─────────────────────────────────────────────────
+
+export function storeCreateGatewayEvent(record: Omit<GatewayEventRecord, 'id' | 'createdAt'>): GatewayEventRecord {
+  const id = nextId();
+  const result: GatewayEventRecord = { ...record, id, createdAt: now() };
+  gatewayEventStore.set(id, result);
+  return result;
+}
+
+export function storeFindGatewayEvent(provider: string, externalEventId: string): GatewayEventRecord | undefined {
+  return Array.from(gatewayEventStore.values()).find(
+    e => e.provider === provider && e.externalEventId === externalEventId,
+  );
+}
+
+// ─── Collection attempt operations ────────────────────────────────────────────
+
+export function storeCreateCollectionAttempt(record: Omit<CollectionAttemptRecord, 'id' | 'createdAt'>): CollectionAttemptRecord {
+  const id = nextId();
+  const result: CollectionAttemptRecord = { ...record, id, createdAt: now() };
+  collectionAttemptStore.set(id, result);
+  return result;
+}
+
 // ─── Payment operations ────────────────────────────────────────────────────────
 
 export function storeCreatePayment(record: Omit<PaymentRecord, 'id' | 'createdAt' | 'updatedAt'>): PaymentRecord {
@@ -261,6 +298,7 @@ export function storeReset(): void {
   gatewayStore.clear();
   routingRuleStore.clear();
   paymentStore.clear();
+  gatewayEventStore.clear();
   collectionAttemptStore.clear();
   idCounter = 0;
 }
