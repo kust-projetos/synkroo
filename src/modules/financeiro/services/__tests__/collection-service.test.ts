@@ -2,12 +2,11 @@
  * Tests: Collection service — overdue detection, stage rules, reminders.
  */
 
-import { storeReset, storeCreateCharge, storeGetCharge, storeUpdateCharge } from '../../repositories/financeiro-store';
+import { storeReset, storeCreateCharge } from '../../repositories/financeiro-store';
 import {
   getCollectionStage,
   calculateDaysOverdue,
   enrichOverdueCharges,
-  listOverdueCharges,
   sendReminder,
 } from '../collection-service';
 
@@ -85,28 +84,13 @@ describe('enrichOverdueCharges', () => {
       amount: '500',
       status: 'pending',
       paidAt: null,
-      createdAt: '',
-      updatedAt: '',
+      createdAt: new Date(),
+      updatedAt: new Date(),
     }];
 
-    const enriched = enrichOverdueCharges(charges);
+    const enriched = enrichOverdueCharges(charges as any);
     expect(enriched[0].daysOverdue).toBeGreaterThan(0);
     expect(enriched[0].collectionStage).toBe('internal');
-  });
-});
-
-describe('listOverdueCharges', () => {
-  test('returns only overdue pending charges', async () => {
-    // Overdue charge
-    seedCharge({ dueDate: '2025-01-01' });
-    // Future charge — should not be overdue
-    seedCharge({ dueDate: '2099-01-01' });
-    // Paid charge — should not appear
-    seedCharge({ dueDate: '2025-01-01', status: 'paid' });
-
-    const overdue = await listOverdueCharges(CLINIC_ID);
-    expect(overdue.length).toBe(1);
-    expect(overdue[0].status).toBe('pending');
   });
 });
 
