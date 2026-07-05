@@ -12,6 +12,7 @@ import { obterLead } from './obter-lead';
 import { atualizarLead } from './atualizar-lead';
 import { moverLeadEtapaAction } from './mover-lead-etapa';
 import { converterLead } from './converter-lead';
+import { converterLeadSemAgendarAction } from './converter-lead-sem-agendar';
 import { agendarAvaliacao } from './agendar-avaliacao';
 import { listarPipeline } from './listar-pipeline';
 import { criarEtapaPipeline } from './criar-etapa-pipeline';
@@ -43,6 +44,7 @@ export * from './obter-lead';
 export * from './atualizar-lead';
 export * from './mover-lead-etapa';
 export * from './converter-lead';
+export * from './converter-lead-sem-agendar';
 export * from './agendar-avaliacao';
 export * from './listar-pipeline';
 export * from './criar-etapa-pipeline';
@@ -71,6 +73,7 @@ registerActions([
   atualizarLead,
   moverLeadEtapaAction,
   converterLead,
+  converterLeadSemAgendarAction,
   agendarAvaliacao,
   listarPipeline,
   criarEtapaPipeline,
