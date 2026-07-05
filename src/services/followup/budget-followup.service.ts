@@ -4,7 +4,7 @@ import { getDb } from '@/lib/db/client'
 import { budgets, patients } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
 
-export interface UnconvertedBudget { id:string;patient_id:string;patient_name:string;patient_phone:string|null;clinic_id:string;total_value:number;created_at:string;days_since_created:number;followup_stage:number;status:string }
+export interface UnconvertedBudget { id:string;patient_id:string|null;patient_name:string;patient_phone:string|null;clinic_id:string;total_value:number;created_at:string;days_since_created:number;followup_stage:number;status:string }
 const FOLLOWUP_STAGES=[{day:7,message:'Olá! Tudo bem? Gostaria de saber se teve oportunidade de avaliar o orçamento que enviamos. Podemos ajustar se necessário!'},{day:14,message:'Oi! Estamos passando para saber se ainda tem interesse no tratamento. Temos condições especiais de pagamento que podem ajudar!'}]
 
 export async function findUnconvertedBudgets(clinicId:string):Promise<UnconvertedBudget[]>{
