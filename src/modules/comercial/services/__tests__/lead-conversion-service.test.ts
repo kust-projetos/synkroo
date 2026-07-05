@@ -269,7 +269,7 @@ describe('converterLeadSemAgendar', () => {
   });
 
   it('throws when lead is not found', async () => {
-    mockFindLead.mockResolvedValue(null);
+    (mockFindLead as jest.Mock).mockResolvedValue(null);
 
     const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
 

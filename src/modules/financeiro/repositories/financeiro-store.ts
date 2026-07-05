@@ -19,6 +19,7 @@ export interface BudgetRecord {
   campaignId: string | null;
   title: string | null;
   description: string | null;
+  notes: string | null;
   totalValue: string;
   discountPercent: string;
   discountValue: string;

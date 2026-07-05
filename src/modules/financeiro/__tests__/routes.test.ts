@@ -51,6 +51,11 @@ jest.mock('@/core/modules/manifest', () => ({
 import { NextRequest } from 'next/server';
 import { storeReset, storeCreateBudget } from '../repositories/financeiro-store';
 
+// Helper to create a minimal NextRequest from a URL string
+function makeNextRequest(url: string, init?: RequestInit): NextRequest {
+  return new NextRequest(new Request(url, init));
+}
+
 let gatewaysGET: any;
 let legacyPaymentsGET: any;
 let legacyBudgetsGET: any;
@@ -79,6 +84,7 @@ function seedBudget(overrides: Partial<Parameters<typeof storeCreateBudget>[0]> 
     campaignId: null,
     title: 'Test Budget',
     description: null,
+    notes: null,
     totalValue: '500',
     discountPercent: '0',
     discountValue: '0',
@@ -100,7 +106,7 @@ function seedBudget(overrides: Partial<Parameters<typeof storeCreateBudget>[0]> 
 
 describe('GET /api/financeiro/gateways', () => {
   test('returns empty list when no gateways', async () => {
-    const res = await gatewaysGET(new Request('http://localhost/api/financeiro/gateways'));
+    const res = await gatewaysGET(makeNextRequest('http://localhost/api/financeiro/gateways'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty('data');
@@ -116,7 +122,7 @@ describe('GET /api/budgets (legacy)', () => {
   test('returns { budgets } with seeded data', async () => {
     seedBudget();
 
-    const res = await legacyBudgetsGET(new Request('http://localhost/api/budgets'));
+    const res = await legacyBudgetsGET(makeNextRequest('http://localhost/api/budgets'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty('budgets');
@@ -126,7 +132,7 @@ describe('GET /api/budgets (legacy)', () => {
   });
 
   test('returns empty array when no budgets', async () => {
-    const res = await legacyBudgetsGET(new Request('http://localhost/api/budgets'));
+    const res = await legacyBudgetsGET(makeNextRequest('http://localhost/api/budgets'));
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toHaveProperty('budgets');
@@ -142,7 +148,7 @@ describe('GET /api/budgets/[id]/payments (legacy)', () => {
   test('preserves { payments } key shape', async () => {
     const budget = seedBudget();
     const res = await legacyPaymentsGET(
-      new Request('http://localhost/api/budgets/b1/payments'),
+      makeNextRequest('http://localhost/api/budgets/b1/payments'),
       { params: Promise.resolve({ id: budget.id }) },
     );
 
@@ -162,7 +168,7 @@ describe('GET /api/budgets/[id]/installments (legacy)', () => {
     const budget = seedBudget({ finalValue: '900' });
 
     const res = await legacyInstallmentsGET(
-      new Request('http://localhost/api/budgets/'),
+      makeNextRequest('http://localhost/api/budgets/'),
       { params: Promise.resolve({ id: budget.id }) },
     );
 
@@ -185,7 +191,7 @@ describe('POST /api/budgets/[id]/send (legacy)', () => {
     const budget = seedBudget();
 
     const res = await sendPOST(
-      new Request('http://localhost/api/budgets/send', { method: 'POST', body: '{}' }),
+      makeNextRequest('http://localhost/api/budgets/send', { method: 'POST', body: '{}' }),
       { params: Promise.resolve({ id: budget.id }) },
     );
 
@@ -207,7 +213,7 @@ describe('POST /api/budgets/[id]/accept (legacy)', () => {
     const budget = seedBudget();
 
     const res = await acceptPOST(
-      new Request('http://localhost/api/budgets/accept', { method: 'POST', body: '{}' }),
+      makeNextRequest('http://localhost/api/budgets/accept', { method: 'POST', body: '{}' }),
       { params: Promise.resolve({ id: budget.id }) },
     );
 
@@ -222,7 +228,7 @@ describe('POST /api/budgets/[id]/accept (legacy)', () => {
   test('returns 404 for non-existent budget', async () => {
     const { POST: acceptPOST } = await import('@/app/api/budgets/[id]/accept/route');
     const res = await acceptPOST(
-      new Request('http://localhost/api/budgets/accept', { method: 'POST', body: '{}' }),
+      makeNextRequest('http://localhost/api/budgets/accept', { method: 'POST', body: '{}' }),
       { params: Promise.resolve({ id: 'nonexistent' }) },
     );
     expect(res.status).toBe(404);
@@ -239,7 +245,7 @@ describe('POST /api/budgets/[id]/reject (legacy)', () => {
     const budget = seedBudget();
 
     const res = await rejectPOST(
-      new Request('http://localhost/api/budgets/reject', { method: 'POST', body: '{}' }),
+      makeNextRequest('http://localhost/api/budgets/reject', { method: 'POST', body: '{}' }),
       { params: Promise.resolve({ id: budget.id }) },
     );
 
