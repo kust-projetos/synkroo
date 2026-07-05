@@ -1,14 +1,13 @@
 /**
  * Budget Reject API — legacy adapter.
- *
- * Thin wrapper over Financeiro budget service.
- * Preserves { budget, message } response shape.
+ * Uses Drizzle-backed Financeiro repository.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiAuth } from '@/lib/auth/session';
 import { getBudget } from '@/modules/financeiro/services/budget-service';
 import { rejectBudget } from '@/modules/financeiro/services/budget-service';
+import { updateBudget as repoUpdateBudget } from '@/modules/financeiro/repositories/financeiro-repository';
 import { handleApiError } from '@/lib/errors';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -23,15 +22,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const budget = await getBudget(id);
     if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
     if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    if (!['pending', 'sent'].includes(budget.status)) {
+    if (budget.status && !['pending', 'sent'].includes(budget.status)) {
       return NextResponse.json({ error: 'Budget cannot be rejected in current status' }, { status: 400 });
     }
 
-    // Handle rejection reason via the store
     const body = await request.json().catch(() => ({}));
     if (body.reason) {
-      const { storeUpdateBudget } = await import('@/modules/financeiro/repositories/financeiro-store');
-      storeUpdateBudget(id, { notes: `Rejeitado: ${body.reason}` });
+      await repoUpdateBudget(id, { notes: `Rejeitado: ${body.reason}` } as any);
     }
 
     const updated = await rejectBudget(id, clinicId);

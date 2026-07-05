@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { listOverdueCharges, enrichOverdueCharges } from '../services/collection-service';
-import { storeListPayments } from '../repositories/financeiro-store';
 
 export const obterDashboard = defineAction({
   name: 'financeiro.obterDashboard',
@@ -17,8 +16,6 @@ export const obterDashboard = defineAction({
   handler: async (input, _ctx: ActionContext) => {
     const overdue = await listOverdueCharges(input.clinicId);
     const enriched = enrichOverdueCharges(overdue);
-
-    // Simple dashboard: overdue counts + total overdue amount
     const totalOverdue = enriched.reduce((sum, c) => sum + parseFloat(c.amount), 0);
 
     return {
