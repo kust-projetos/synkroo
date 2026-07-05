@@ -176,3 +176,104 @@ describe('agendarAvaliacao', () => {
     expect(mockUpdateLead).not.toHaveBeenCalled();
   });
 });
+
+describe('converterLeadSemAgendar', () => {
+  const clinicId = 'clinic-1';
+  const leadId = 'lead-1';
+  const patientId = 'patient-1';
+
+  const baseLead: Record<string, unknown> = {
+    id: leadId,
+    clinicId,
+    name: 'Maria',
+    phone: '11999990000',
+    phoneNormalized: '11999990000',
+    source: 'whatsapp',
+    status: 'new',
+    patientId: null,
+    email: null,
+    campaignId: null,
+    score: 0,
+    temperature: 'cold',
+    interest: null,
+    hasBudget: null,
+    hasTimeline: null,
+    assignedTo: null,
+    lastContactAt: null,
+    nextFollowupAt: null,
+    contactCount: 0,
+    convertedAt: null,
+    convertedAppointmentId: null,
+    lostReason: null,
+    lostAt: null,
+    notes: null,
+    stageId: null,
+    sourceType: null,
+    dealValue: '0',
+    tags: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it('converts lead to patient without appointment', async () => {
+    mockFindLead.mockResolvedValue(baseLead as any);
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
+    mockUpdateLead.mockResolvedValue({ id: leadId });
+    mockInsertActivity.mockResolvedValue({ id: 'act-1' });
+
+    const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
+    const result = await converterLeadSemAgendar({ leadId, clinicId });
+
+    // Creates patient from lead data
+    expect(mockRunAction).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'operacional.criarPaciente' }),
+      expect.objectContaining({ name: 'Maria', phone: '11999990000' }),
+      expect.any(Object),
+    );
+
+    // No scheduling call
+    expect(mockRunAction).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'operacional.agendarConsulta' }),
+      expect.anything(),
+      expect.anything(),
+    );
+
+    expect(result).toMatchObject({ leadId, status: 'converted' });
+  });
+
+  it('updates patient data when lead differs from existing patient', async () => {
+    mockFindLead.mockResolvedValue({ ...baseLead, patientId, name: 'Maria Updated', phoneNormalized: '11999991111', phone: '11999991111' } as any);
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId, name: 'Maria', phone: '11999990000' } });
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
+    mockUpdateLead.mockResolvedValue({ id: leadId });
+    mockInsertActivity.mockResolvedValue({ id: 'act-1' });
+
+    const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
+    const result = await converterLeadSemAgendar({ leadId, clinicId });
+
+    expect(mockRunAction).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'operacional.atualizarPaciente' }),
+      expect.objectContaining({ name: 'Maria Updated', phone: '11999991111' }),
+      expect.any(Object),
+    );
+    expect(result).toMatchObject({ leadId, status: 'converted' });
+  });
+
+  it('throws when lead is already converted', async () => {
+    mockFindLead.mockResolvedValue({ ...baseLead, status: 'converted' } as any);
+
+    const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
+
+    await expect(converterLeadSemAgendar({ leadId, clinicId })).rejects.toThrow('Lead already converted');
+    expect(mockUpdateLead).not.toHaveBeenCalled();
+  });
+
+  it('throws when lead is not found', async () => {
+    mockFindLead.mockResolvedValue(null);
+
+    const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
+
+    await expect(converterLeadSemAgendar({ leadId, clinicId })).rejects.toThrow('Lead not found');
+    expect(mockUpdateLead).not.toHaveBeenCalled();
+  });
+});
