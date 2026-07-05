@@ -4,7 +4,7 @@ import type { ActionContext } from '@/core/actions/types';
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
 import { acceptBudget, getBudget } from '../services/budget-service';
-import { converterLeadSemAgendarAction } from '@/modules/comercial/actions/converter-lead-sem-agendar';
+import { converterLeadSemAgendarAction } from '@/modules/comercial/actions';
 
 export const aceitarOrcamento = defineAction({
   name: 'financeiro.aceitarOrcamento',
