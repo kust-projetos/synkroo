@@ -155,6 +155,7 @@ Boundary exception:
 | Gateway event | `(provider, external_event_id)` unique |
 | Gateway default | each clinic has at most one default enabled gateway |
 | Routing target | overrides can target only enabled gateways from same clinic |
+| Routing scope | each `gateway_routing_rules` row targets exactly one scope: `campaign_id` xor `patient_id` xor `lead_id`; clinic default lives on `payment_gateways`, not routing rules |
 
 No polymorphic FK. Use explicit nullable FKs: `patient_id`, `lead_id`, `converted_from_lead_id`.
 
@@ -265,7 +266,7 @@ When module is disabled, webhook still reconciles existing charges for financial
 |---|---|
 | `/dashboard/financeiro` | dashboard + tabs |
 | Aba Orçamentos | list/detail/create/send/accept/reject |
-| Aba Parcelas/Pagamentos | installments, manual payments, generated charges |
+| Aba Parcelas/Pagamentos | installments, manual payments, generated charges; show cancel only for open charges and `financeiro:manage_budget` users |
 | Aba Cobranças | overdue queue + manual reminder |
 | Aba Config | gateways + clinic/patient/lead/campaign routing |
 | CRM contact tab | read-only summary + Financeiro deep links |
@@ -286,6 +287,7 @@ Period filters use clinic timezone and inclusive `from`/exclusive `to`.
 
 Dashboard excludes rejected budgets from pending revenue.
 Manual payments count by `paid_at`; gateway charges count only after settlement.
+UI renders `null` ratio metrics as `—`.
 
 ---
 
@@ -333,7 +335,7 @@ Campaign routing:
 
 | Type | Tool | Scope |
 |---|---|---|
-| Unit | Jest | totals, installments, dashboard formulas, routing precedence, collection rule |
+| Unit | Jest | totals, installments, dashboard formulas, `null` ratio rendering, routing precedence/scope exclusivity, collection rule |
 | Contract | Jest/Zod/MSW | Asaas create charge + webhook payload |
 | Route | Jest | gates, RBAC, webhook secret, charge detail/cancel, masked gateway secrets, legacy adapter shape |
 | Integration | Jest + Postgres | lead budget accepted → Comercial conversion → patientId on budget |
