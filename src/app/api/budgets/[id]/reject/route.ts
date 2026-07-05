@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateApiAuth } from '@/lib/auth/session';
 import { getBudget } from '@/modules/financeiro/services/budget-service';
 import { rejectBudget } from '@/modules/financeiro/services/budget-service';
-import { updateBudget as repoUpdateBudget } from '@/modules/financeiro/repositories/financeiro-repository';
+import { updateBudget as repoUpdateBudget, type BudgetRow } from '@/modules/financeiro/repositories/financeiro-repository';
 import { handleApiError } from '@/lib/errors';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -28,7 +28,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     const body = await request.json().catch(() => ({}));
     if (body.reason) {
-      await repoUpdateBudget(id, { notes: `Rejeitado: ${body.reason}` } as any);
+      const patch: Partial<BudgetRow> = { notes: `Rejeitado: ${body.reason}` };
+      await repoUpdateBudget(id, patch);
     }
 
     const updated = await rejectBudget(id, clinicId);
