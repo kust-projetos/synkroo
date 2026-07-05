@@ -18,8 +18,8 @@
 
 - Legacy seams: `src/app/api/budgets/**`, `src/services/budgets/*`, `src/services/payments/*`, `src/services/installments/*`.
 - Preserve consumers: `src/hooks/usePayments.ts`, `src/components/contacts/*`.
-- PITFALLS rule: expand-contract migrations, nullable columns first, no destructive drops.
-- Worktree unrelated files must not be staged: `src/middleware.ts`, `src/app/pi-finance/`, `src/components/pi-finance/`, `src/lib/pi-finance/`.
+- PITFALLS: expand-contract migrations, nullable columns first, no destructive drops.
+- Do not stage unrelated files: `src/middleware.ts`, `src/app/pi-finance/`, `src/components/pi-finance/`, `src/lib/pi-finance/`.
 
 ## Stack
 
@@ -35,10 +35,12 @@
 ## Architecture
 
 ```
-src/modules/financeiro/{actions,gateways,repositories,services,ui,manifest.ts,permissions.ts,types.ts,index.ts}
-src/app/api/financeiro/**
+src/modules/financeiro/
+├── actions, gateways, repositories, services, ui
+├── manifest.ts, permissions.ts, types.ts, index.ts
+src/app/api/financeiro/
 src/app/dashboard/financeiro/page.tsx
-src/components/financeiro/*.tsx
+src/components/financeiro/
 ```
 
 Rules:
@@ -61,31 +63,6 @@ gatewayEvents: clinicId, gatewayId, chargeId?, provider, externalEventId, payloa
 collectionAttempts: clinicId, chargeId?, installmentId?, channel, stage, status, sentAt, errorMessage
 ```
 
-## Endpoints
-
-| Route | Action |
-|---|---|
-| `GET/POST /api/financeiro/budgets` | list/create |
-| `GET /api/financeiro/budgets/:id` | detail with items/installments/payments/charges |
-| `POST /api/financeiro/budgets/:id/send|accept|reject` | state transitions |
-| `GET/PUT /api/financeiro/budgets/:id/installments` | list/save installments |
-| `GET /api/financeiro/budgets/:id/payments` | list settled payments |
-| `POST /api/financeiro/payments/manual` | record settled payment |
-| `POST /api/financeiro/charges` | create Asaas charge |
-| `GET /api/financeiro/charges/:id` | charge detail |
-| `POST /api/financeiro/charges/:id/cancel` | cancel open charge |
-| `GET/POST /api/financeiro/gateways` | masked list/save config |
-| `GET/POST /api/financeiro/gateway-rules` | list/save routing |
-| `POST /api/financeiro/webhooks/[provider]` | provider webhook, reconciliation exception |
-
-## Milestones
-
-| Tasks | Deliverables |
-|---|---|
-| 1-2 | schema/repositories + Comercial bridge |
-| 3-5 | module scaffold + actions + routes/adapters |
-| 6-8 | webhook/collections + UI + verification |
-
 ## Tests
 
 | Type | Tool | Scope |
@@ -96,14 +73,14 @@ collectionAttempts: clinicId, chargeId?, installmentId?, channel, stage, status,
 | Integration | Jest + Postgres | lead accept → patient conversion → budget patientId |
 | Snapshot | Jest | dashboard/config/collections states |
 | Mutation | Stryker | finance calculations + routing target ≥70% |
-| E2E | Playwright | decide after implementation |
 
 ---
 
-## Task 1 — Schema + repository foundation
+## Task 1 — Schema, migration and repository foundation
 
 **Files:**
 - Modify: `src/lib/db/schema/business.ts`
+- Create: `src/lib/db/migrations/0003_financeiro_cobranca.sql`
 - Create: `src/modules/financeiro/repositories/financeiro-repository.ts`
 - Test: `src/modules/financeiro/repositories/__tests__/financeiro-repository.test.ts`
 
@@ -126,11 +103,22 @@ test('charge insert keeps tenant fields', () => {
 Run: `npx jest src/modules/financeiro/repositories/__tests__/financeiro-repository.test.ts --runInBand`
 Expected: FAIL, module missing.
 
-- [ ] **Step 2: Add schema**
+- [ ] **Step 2: Add Drizzle schema + DB constraints**
 
-Add nullable fields to existing tables and create `paymentCharges`, `paymentGateways`, `gatewayRoutingRules`, `gatewayEvents`, `collectionAttempts`. Use explicit `clinicId` on new tables. Keep `payments.paidAt`; add only `chargeId` and `status` to `payments`.
+In `src/lib/db/schema/business.ts`, add nullable fields and tables. Add real indexes/constraints:
+- `gateway_events_provider_external_event_uniq` unique `(provider, external_event_id)`.
+- one enabled default gateway per clinic, e.g. partial unique index on `(clinic_id)` where `is_default=true and is_enabled=true`.
+- `gateway_routing_rules_single_scope` check: `num_nonnulls(campaign_id, patient_id, lead_id) = 1`.
+- FK/clinic fields on every new table.
 
-- [ ] **Step 3: Add repository helpers**
+- [ ] **Step 3: Add migration file and verify**
+
+Prefer: run `npm run db:generate` and rename/review generated SQL into `src/lib/db/migrations/0003_financeiro_cobranca.sql` if stable.
+If `drizzle-kit generate` fails or generates noisy diffs, write manual SQL in `src/lib/db/migrations/0003_financeiro_cobranca.sql` matching schema.
+Run: `npm run db:migrate && npm run db:health`
+Expected: migration applies; DB health OK.
+
+- [ ] **Step 4: Add repository helpers**
 
 ```ts
 export function assertSingleRoutingScope(rule: { campaignId?: string|null; patientId?: string|null; leadId?: string|null }) {
@@ -142,13 +130,13 @@ export function buildChargeInsert(input: { clinicId: string; budgetId: string; g
 }
 ```
 
-- [ ] **Step 4: GREEN + commit**
+- [ ] **Step 5: GREEN + commit**
 
 Run: `npx jest src/modules/financeiro/repositories/__tests__/financeiro-repository.test.ts --runInBand`
 Expected: PASS.
 
 ```bash
-git add src/lib/db/schema/business.ts src/modules/financeiro/repositories
+git add src/lib/db/schema/business.ts src/lib/db/migrations/0003_financeiro_cobranca.sql src/modules/financeiro/repositories
 git commit -m "feat(financeiro): add finance schema foundation"
 ```
 
@@ -158,8 +146,9 @@ git commit -m "feat(financeiro): add finance schema foundation"
 
 **Files:**
 - Modify: `src/modules/comercial/services/lead-conversion-service.ts`
-- Modify: `src/modules/comercial/actions/converter-lead.ts`
-- Modify: `src/modules/comercial/actions/index.ts`, `src/modules/comercial/index.ts`
+- Create: `src/modules/comercial/actions/converter-lead-sem-agendar.ts`
+- Modify: `src/modules/comercial/actions/index.ts`
+- Modify: `src/modules/comercial/index.ts`
 - Test: `src/modules/comercial/services/__tests__/lead-conversion-service.test.ts`
 
 - [ ] **Step 1: RED service test**
@@ -178,20 +167,18 @@ Expected: FAIL, function missing.
 
 - [ ] **Step 2: Extract patient resolution**
 
-Move current patient create/update logic from `agendarAvaliacao` into `ensurePatientForLead(leadId, clinicId)`. It must use existing `criarPaciente`, `obterPaciente`, `atualizarPaciente` actions and return `patientId`.
+Move current patient create/update logic from `agendarAvaliacao` into `ensurePatientForLead(leadId, clinicId)`. Keep `src/modules/comercial/actions/converter-lead.ts` contract unchanged because `/api/leads/[id]/convert` consumes it.
 
-- [ ] **Step 3: Add service + action**
+- [ ] **Step 3: Add new action**
 
+`src/modules/comercial/actions/converter-lead-sem-agendar.ts`:
 ```ts
-export async function converterLeadSemAgendar(input: { leadId: string; clinicId: string }) {
-  const patientId = await ensurePatientForLead(input.leadId, input.clinicId);
-  await updateLead(input.leadId, input.clinicId, { status: 'converted', patientId, convertedAt: new Date() });
-  await insertActivity({ leadId: input.leadId, activityType: 'lead_converted', description: 'Lead converted via Financeiro budget acceptance', metadata: { patientId } });
-  return { leadId: input.leadId, patientId, status: 'converted' as const };
-}
+export const converterLeadSemAgendarAction = defineAction({
+  name: 'comercial.converterLeadSemAgendar', module: 'comercial', requires: 'comercial:edit_leads',
+  label: 'Converter lead sem agendar', input: z.object({ leadId: z.string().uuid(), clinicId: z.string().uuid() }),
+  handler: async (input) => converterLeadSemAgendar(input),
+});
 ```
-
-Action name: `comercial.converterLeadSemAgendar`, permission `comercial:edit_leads`.
 
 - [ ] **Step 4: GREEN + commit**
 
@@ -199,7 +186,7 @@ Run: `npx jest src/modules/comercial/services/__tests__/lead-conversion-service.
 Expected: PASS.
 
 ```bash
-git add src/modules/comercial
+git add src/modules/comercial/services/lead-conversion-service.ts src/modules/comercial/actions/converter-lead-sem-agendar.ts src/modules/comercial/actions/index.ts src/modules/comercial/index.ts
 git commit -m "feat(comercial): convert lead without scheduling"
 ```
 
@@ -208,8 +195,15 @@ git commit -m "feat(comercial): convert lead without scheduling"
 ## Task 3 — Financeiro scaffold + gateway contracts
 
 **Files:**
-- Create: `src/modules/financeiro/{manifest.ts,permissions.ts,index.ts,types.ts}`
-- Create: `src/modules/financeiro/gateways/{contracts.ts,registry.ts,providers/asaas/{mapper.ts,client.ts,webhook.ts}}`
+- Create: `src/modules/financeiro/manifest.ts`
+- Create: `src/modules/financeiro/permissions.ts`
+- Create: `src/modules/financeiro/index.ts`
+- Create: `src/modules/financeiro/types.ts`
+- Create: `src/modules/financeiro/gateways/contracts.ts`
+- Create: `src/modules/financeiro/gateways/registry.ts`
+- Create: `src/modules/financeiro/gateways/providers/asaas/client.ts`
+- Create: `src/modules/financeiro/gateways/providers/asaas/mapper.ts`
+- Create: `src/modules/financeiro/gateways/providers/asaas/webhook.ts`
 - Create: `src/modules/financeiro/ui/route-adapter.ts`
 - Test: `src/modules/financeiro/__tests__/manifest.test.ts`
 - Test: `src/modules/financeiro/gateways/__tests__/routing.test.ts`
@@ -232,8 +226,7 @@ Expected: FAIL.
 - [ ] **Step 2: Create module public surface**
 
 Permissions: `financeiro:view`, `financeiro:create_budget`, `financeiro:manage_budget`, `financeiro:record_payment`, `financeiro:manage_collections`, `financeiro:manage_gateways`.
-
-Manifest menu: `{ moduleId:'financeiro', permission:'financeiro:view', label:'Financeiro', path:'/dashboard/financeiro', icon:'BanknotesIcon' }`.
+Manifest menu path: `/dashboard/financeiro`.
 
 - [ ] **Step 3: Gateway contract**
 
@@ -258,8 +251,10 @@ git commit -m "feat(financeiro): scaffold module and gateways"
 ## Task 4 — Budget, payment and charge actions
 
 **Files:**
-- Create: `src/modules/financeiro/actions/*.ts`
-- Create: `src/modules/financeiro/services/{budget-service.ts,payment-service.ts,charge-service.ts,dashboard-service.ts}`
+- Create: `src/modules/financeiro/actions/listar-orcamentos.ts`, `obter-orcamento.ts`, `criar-orcamento.ts`, `enviar-orcamento.ts`, `aceitar-orcamento.ts`, `rejeitar-orcamento.ts`
+- Create: `src/modules/financeiro/actions/listar-parcelas.ts`, `salvar-parcelas.ts`, `listar-pagamentos.ts`, `registrar-pagamento.ts`
+- Create: `src/modules/financeiro/actions/gerar-cobranca.ts`, `obter-cobranca.ts`, `cancelar-cobranca.ts`, `obter-dashboard.ts`
+- Create: `src/modules/financeiro/services/budget-service.ts`, `payment-service.ts`, `charge-service.ts`, `dashboard-service.ts`
 - Test: `src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts`
 
 - [ ] **Step 1: RED action tests**
@@ -280,19 +275,11 @@ test('dashboard null ratios render as dash', () => {
 Run: `npx jest src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts --runInBand`
 Expected: FAIL.
 
-- [ ] **Step 2: Implement Zod contracts**
+- [ ] **Step 2: Implement actions/services**
 
-`criarOrcamento` input includes `patientId?`, `leadId?`, `campaignId?`, `items`, `discountPercent`, `installments?`. Use `.refine()` for exactly one contact id and non-empty items.
+Use Zod `.refine()` for exactly one contact id. `aceitarOrcamento` calls `comercial.converterLeadSemAgendar` when needed. `gerarCobranca` resolves routing then calls Asaas. `cancelarCobranca` only cancels open charge; settled charge is no-op.
 
-- [ ] **Step 3: Implement services**
-
-- Budget totals match existing `calculateBudgetTotals` behavior.
-- `aceitarOrcamento`: if `leadId` exists and `patientId` missing, call `converterLeadSemAgendar`.
-- `registrarPagamento`: creates settled payment and updates installments.
-- `gerarCobranca`: resolves gateway, calls Asaas, inserts `payment_charges`.
-- `cancelarCobranca`: pending only; settled charge returns no-op.
-
-- [ ] **Step 4: GREEN + commit**
+- [ ] **Step 3: GREEN + commit**
 
 Run: `npx jest src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts --runInBand`
 Expected: PASS.
@@ -307,20 +294,24 @@ git commit -m "feat(financeiro): add finance actions"
 ## Task 5 — Canonical routes + legacy adapters
 
 **Files:**
-- Create: `src/app/api/financeiro/**/route.ts`
-- Modify: `src/app/api/budgets/**/route.ts`
+- Create: `src/app/api/financeiro/budgets/route.ts`, `budgets/[id]/route.ts`, `budgets/[id]/send/route.ts`, `budgets/[id]/accept/route.ts`, `budgets/[id]/reject/route.ts`, `budgets/[id]/installments/route.ts`, `budgets/[id]/payments/route.ts`
+- Create: `src/app/api/financeiro/payments/manual/route.ts`, `charges/route.ts`, `charges/[id]/route.ts`, `charges/[id]/cancel/route.ts`, `collections/route.ts`, `collections/[id]/reminder/route.ts`, `dashboard/route.ts`, `gateways/route.ts`, `gateway-rules/route.ts`, `webhooks/[provider]/route.ts`
+- Modify: `src/app/api/budgets/route.ts`, `src/app/api/budgets/[id]/route.ts`, `src/app/api/budgets/[id]/send/route.ts`, `src/app/api/budgets/[id]/accept/route.ts`, `src/app/api/budgets/[id]/reject/route.ts`, `src/app/api/budgets/[id]/installments/route.ts`, `src/app/api/budgets/[id]/payments/route.ts`
 - Test: `src/modules/financeiro/__tests__/routes.test.ts`
 
 - [ ] **Step 1: RED route tests**
 
 ```ts
+import { GET as gatewaysGET } from '@/app/api/financeiro/gateways/route';
+import { GET as legacyPaymentsGET } from '@/app/api/budgets/[id]/payments/route';
+
 test('gateway list masks secrets', async () => {
-  const res = await GET(makeRequest('/api/financeiro/gateways'));
+  const res = await gatewaysGET(new Request('http://localhost/api/financeiro/gateways'));
   expect(JSON.stringify(await res.json())).not.toContain('apiKey');
 });
 
 test('legacy budget payments route keeps payments key', async () => {
-  const res = await legacyPaymentsGET(makeRequest('/api/budgets/b1/payments'), { params: Promise.resolve({ id: 'b1' }) });
+  const res = await legacyPaymentsGET(new Request('http://localhost/api/budgets/b1/payments'), { params: Promise.resolve({ id: 'b1' }) });
   expect(await res.json()).toHaveProperty('payments');
 });
 ```
@@ -328,15 +319,13 @@ test('legacy budget payments route keeps payments key', async () => {
 Run: `npx jest src/modules/financeiro/__tests__/routes.test.ts --runInBand`
 Expected: FAIL.
 
-- [ ] **Step 2: Add canonical route handlers**
+- [ ] **Step 2: Implement routes**
 
-Use `withModuleRoute('financeiro', moduleManifest)` for all non-webhook routes. Use `runActionRoute` from `src/modules/financeiro/ui/route-adapter.ts`.
-
-Webhook route does not use `withModuleRoute`; it validates provider secret and only reconciles existing charges.
+Use `withModuleRoute('financeiro', moduleManifest)` for all non-webhook routes and `runActionRoute` from `src/modules/financeiro/ui/route-adapter.ts`. Webhook route does not use `withModuleRoute`; it validates provider secret and only reconciles existing charges.
 
 - [ ] **Step 3: Replace legacy routes with adapters**
 
-`src/app/api/budgets/[id]/payments/route.ts` returns `{ payments }`. `installments` route keeps `remaining_balance`. `/api/budgets/**` must stop importing deprecated services after migration.
+`src/app/api/budgets/[id]/payments/route.ts` returns `{ payments }`. `installments` route keeps `remaining_balance`. Budget routes stop importing deprecated services after migration.
 
 - [ ] **Step 4: GREEN + commit**
 
@@ -353,7 +342,7 @@ git commit -m "feat(financeiro): expose finance routes"
 ## Task 6 — Asaas webhook, collections job and reminders
 
 **Files:**
-- Create/modify: `src/modules/financeiro/gateways/providers/asaas/*`
+- Modify: `src/modules/financeiro/gateways/providers/asaas/client.ts`, `mapper.ts`, `webhook.ts`
 - Create: `src/modules/financeiro/services/collection-service.ts`
 - Create: `src/app/api/cron/financeiro-collections/route.ts`
 - Test: `src/modules/financeiro/gateways/__tests__/asaas-webhook.test.ts`
@@ -362,10 +351,14 @@ git commit -m "feat(financeiro): expose finance routes"
 - [ ] **Step 1: RED webhook idempotency test**
 
 ```ts
+import { processAsaasWebhook } from '../providers/asaas/webhook';
+
 test('Asaas webhook settles charge only once', async () => {
-  await handleAsaasWebhook(validPaidPayload);
-  await handleAsaasWebhook(validPaidPayload);
-  expect(await countPaymentsForCharge('charge-1')).toBe(1);
+  const payload = { id: 'evt_1', event: 'PAYMENT_RECEIVED', payment: { id: 'pay_1', value: 100, status: 'RECEIVED' } };
+  const first = await processAsaasWebhook({ clinicId: 'c1', headers: new Headers({ 'x-asaas-token': 'test' }), body: payload });
+  const second = await processAsaasWebhook({ clinicId: 'c1', headers: new Headers({ 'x-asaas-token': 'test' }), body: payload });
+  expect(first).toMatchObject({ settled: true });
+  expect(second).toMatchObject({ duplicate: true, settled: false });
 });
 ```
 
@@ -386,17 +379,17 @@ Run: `npx jest src/modules/financeiro/gateways/__tests__/asaas-webhook.test.ts s
 Expected: PASS.
 
 ```bash
-git add src/modules/financeiro/gateways src/modules/financeiro/services src/app/api/cron/financeiro-collections
+git add src/modules/financeiro/gateways src/modules/financeiro/services/collection-service.ts src/app/api/cron/financeiro-collections
 git commit -m "feat(financeiro): process charges and collections"
 ```
 
 ---
 
-## Task 7 — Dashboard, config UI and CRM summary links
+## Task 7 — Dashboard, config UI and CRM links
 
 **Files:**
 - Create: `src/app/dashboard/financeiro/page.tsx`
-- Create: `src/components/financeiro/*.tsx`
+- Create: `src/components/financeiro/FinanceDashboard.tsx`, `BudgetTab.tsx`, `PaymentTab.tsx`, `CollectionTab.tsx`, `GatewayConfigTab.tsx`
 - Modify: `src/components/contacts/contact-financial-tab.tsx`
 - Test: `src/components/financeiro/__tests__/FinanceDashboard.test.tsx`
 
@@ -420,15 +413,11 @@ test('shows cancel charge only for open charge with permission', () => {
 Run: `npx jest src/components/financeiro/__tests__/FinanceDashboard.test.tsx --runInBand`
 Expected: FAIL.
 
-- [ ] **Step 2: Implement page and tabs**
+- [ ] **Step 2: Implement page/tabs + CRM link**
 
-Tabs: Orçamentos, Parcelas/Pagamentos, Cobranças, Config. Config masks gateway credentials. Cancel button appears only for open charges and users with `financeiro:manage_budget`.
+Tabs: Orçamentos, Parcelas/Pagamentos, Cobranças, Config. Config masks gateway credentials. Cancel button appears only for open charges and users with `financeiro:manage_budget`. CRM contact financial tab remains read-only and deep-links to Financeiro.
 
-- [ ] **Step 3: CRM summary link**
-
-Keep CRM contact financial tab read-only. Add deep links to Financeiro. Do not reintroduce write logic into CRM.
-
-- [ ] **Step 4: GREEN + commit**
+- [ ] **Step 3: GREEN + commit**
 
 Run: `npx jest src/components/financeiro/__tests__/FinanceDashboard.test.tsx --runInBand`
 Expected: PASS.
@@ -443,7 +432,7 @@ git commit -m "feat(financeiro): add finance dashboard"
 ## Task 8 — Focused verification and cleanup
 
 **Files:**
-- Modify only docs/tests needed for verification. No feature expansion.
+- No feature expansion. Modify only docs/tests required by verification.
 
 - [ ] **Step 1: Scan**
 
@@ -490,10 +479,7 @@ Expected: ≥70% mutation score. If config missing, document blocker in handoff.
 
 Ask user after unit/route/integration pass: yes Playwright smoke, no unit+contract+route only, or deferred ADR.
 
-- [ ] **Step 7: Final commit**
+- [ ] **Step 7: Final status**
 
-```bash
-git status --short
-git commit --allow-empty -m "test(financeiro): verify finance module gates"
-```
-
+Run: `git status --short`
+Expected: only intended files changed/staged; unrelated worktree files remain unstaged.
