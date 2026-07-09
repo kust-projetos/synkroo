@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { DashboardCharge } from './FinanceDashboard';
 
 export interface CollectionTabProps {
@@ -9,16 +10,47 @@ export interface CollectionTabProps {
 
 /**
  * Collections tab — shows overdue charges queue and manual reminder actions.
- * Cancel charge button appears only for open charges and users with permission.
+ * Cancel charge button calls /api/financeiro/charges/[id]/cancel via fetch.
  */
 export function CollectionTab({ charges, canManageBudget }: CollectionTabProps) {
+  const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
+  const [error, setError] = useState<string | null>(null);
+
   const openCharges = charges.filter(c => c.status === 'pending' || c.status === 'overdue');
+
+  async function handleCancel(chargeId: string) {
+    setCancellingIds(prev => new Set(prev).add(chargeId));
+    setError(null);
+    try {
+      const res = await fetch(`/api/financeiro/charges/${chargeId}/cancel`, { method: 'POST' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: 'Erro ao cancelar' }));
+        setError(body.error || 'Erro ao cancelar cobrança');
+      }
+      // Success — reload page or let parent refresh data
+      window.location.reload();
+    } catch {
+      setError('Erro de conexão ao cancelar cobrança');
+    } finally {
+      setCancellingIds(prev => {
+        const next = new Set(prev);
+        next.delete(chargeId);
+        return next;
+      });
+    }
+  }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Cobranças atrasadas e pendentes.
       </p>
+
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
       {openCharges.length === 0 && (
         <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
@@ -38,14 +70,13 @@ export function CollectionTab({ charges, canManageBudget }: CollectionTabProps) 
                 </p>
               </div>
               <div className="flex gap-2">
-                {canManageBudget && (
+                {canManageBudget && (charge.status === 'pending' || charge.status === 'overdue') && (
                   <button
-                    className="rounded bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20"
-                    onClick={() => {
-                      // TODO: call cancelarCobranca action
-                    }}
+                    className="rounded bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20 disabled:opacity-50"
+                    onClick={() => handleCancel(charge.id)}
+                    disabled={cancellingIds.has(charge.id)}
                   >
-                    Cancelar cobrança
+                    {cancellingIds.has(charge.id) ? 'Cancelando...' : 'Cancelar cobrança'}
                   </button>
                 )}
               </div>
