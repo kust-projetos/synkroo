@@ -95,8 +95,9 @@ describe('enrichOverdueCharges', () => {
 });
 
 describe('sendReminder', () => {
-  test('returns sent=true (stub)', async () => {
+  test('returns honest failure when WhatsApp integration is pending', async () => {
     const result = await sendReminder({ clinicId: CLINIC_ID, chargeId: 'ch1' });
-    expect(result.sent).toBe(true);
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('whatsapp_integration_pending');
   });
 });
