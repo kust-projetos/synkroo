@@ -22,10 +22,12 @@ export interface CreateChargeInput {
 
 export interface GetChargeInput {
   externalChargeId: string;
+  clinicId: string;
 }
 
 export interface CancelChargeInput {
   externalChargeId: string;
+  clinicId: string;
 }
 
 export interface WebhookInput {

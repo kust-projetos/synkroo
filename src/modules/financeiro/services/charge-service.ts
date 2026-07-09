@@ -91,7 +91,7 @@ export async function cancelCharge(input: {
   if (gateway?.isEnabled) {
     const provider = getGatewayProvider(gateway.provider as GatewayProvider);
     if (provider && charge.externalChargeId) {
-      await provider.cancelCharge({ externalChargeId: charge.externalChargeId });
+      await provider.cancelCharge({ externalChargeId: charge.externalChargeId, clinicId });
     }
   }
 
