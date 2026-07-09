@@ -16,6 +16,7 @@ import {
   type GatewayRoutingRuleRow,
 } from '../repositories/financeiro-repository';
 import { assertSingleRoutingScope } from '../repositories/financeiro-repository';
+import { encrypt } from '../lib/crypto';
 
 export interface SaveGatewayInput {
   clinicId: string;
@@ -79,6 +80,8 @@ export async function saveGateway(input: SaveGatewayInput): Promise<GatewaySafeR
 
     if (apiKey) {
       patch.maskedLabel = maskedLabel ?? maskApiKey(apiKey);
+      const encrypted = encrypt(apiKey);
+      patch.encryptedConfig = { iv: encrypted.iv, data: encrypted.data, tag: encrypted.tag };
     }
 
     const updated = await repoUpdateGateway(id, patch);
@@ -86,13 +89,18 @@ export async function saveGateway(input: SaveGatewayInput): Promise<GatewaySafeR
   }
 
   const safeLabel = maskedLabel ?? (apiKey ? maskApiKey(apiKey) : null);
+  let encryptedConfig: Record<string, unknown> | null = null;
+  if (apiKey) {
+    const encrypted = encrypt(apiKey);
+    encryptedConfig = { iv: encrypted.iv, data: encrypted.data, tag: encrypted.tag };
+  }
   const record = await repoCreateGateway({
     clinicId,
     provider,
     isDefault,
     isEnabled,
     maskedLabel: safeLabel,
-    encryptedConfig: apiKey ? { encrypted: true, keyPrefix: apiKey.slice(0, 6) } : null,
+    encryptedConfig,
   });
   return toSafeGateway(record);
 }
