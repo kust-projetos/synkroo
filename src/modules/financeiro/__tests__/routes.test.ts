@@ -52,6 +52,17 @@ jest.mock('@/modules/financeiro/services/payment-service', () => ({
   registerManualPayment: jest.fn(),
 }));
 
+// Mock installment service for legacy route tests
+const mockListInstallments = jest.fn().mockResolvedValue([]);
+const mockCalcRemainingBalance = jest.fn().mockResolvedValue(0);
+jest.mock('@/modules/financeiro/services/installment-service', () => ({
+  listInstallments: (...args: any[]) => mockListInstallments(...args),
+  calculateRemainingBalance: (...args: any[]) => mockCalcRemainingBalance(...args),
+  replaceInstallments: jest.fn().mockResolvedValue([]),
+  updateInstallment: jest.fn(),
+  deleteInstallment: jest.fn(),
+}));
+
 import { NextRequest } from 'next/server';
 import { storeReset } from '../repositories/financeiro-store';
 

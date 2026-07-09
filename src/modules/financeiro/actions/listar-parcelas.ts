@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { listInstallments, calculateRemainingBalance } from '../services/installment-service';
 
 export const listarParcelas = defineAction({
   name: 'financeiro.listarParcelas',
@@ -11,9 +12,9 @@ export const listarParcelas = defineAction({
     clinicId: z.string().uuid(),
     budgetId: z.string().uuid(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    // Installments use budget_installments table - will be implemented when
-    // Task 5/6 adds the installment service.
-    return { data: [] };
+  handler: async (input, _ctx: ActionContext) => {
+    const installments = await listInstallments(input.budgetId);
+    const remainingBalance = await calculateRemainingBalance(input.budgetId);
+    return { data: installments, remaining_balance: remainingBalance };
   },
 });
