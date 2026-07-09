@@ -1,17 +1,18 @@
 /**
  * Budget Installments API — legacy adapter.
- * Uses Drizzle-backed Financeiro repository.
+ * Uses Drizzle-backed Financeiro repositories.
  * Preserves { installments, remaining_balance } shape.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateApiAuth } from '@/lib/auth/session';
-import { getBudget } from '@/modules/financeiro/services/budget-service';
 import {
-  listPaymentsByBudget,
-  updateBudget as repoUpdateBudget,
-} from '@/modules/financeiro/repositories/financeiro-repository';
+  listInstallments,
+  calculateRemainingBalance,
+  replaceInstallments,
+} from '@/modules/financeiro/services/installment-service';
+import { getBudget } from '@/modules/financeiro/services/budget-service';
 import { handleApiError, ValidationError } from '@/lib/errors';
 
 const createInstallmentsSchema = z.object({
@@ -33,12 +34,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
     if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const payments = await listPaymentsByBudget(id);
-    const paidTotal = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
-    const finalValue = parseFloat(budget.finalValue ?? '0');
-    const remainingBalance = Math.max(0, finalValue - paidTotal);
+    const installments = await listInstallments(id);
+    const remainingBalance = await calculateRemainingBalance(id);
 
-    return NextResponse.json({ installments: [], remaining_balance: remainingBalance });
+    return NextResponse.json({ installments, remaining_balance: remainingBalance });
   } catch (error) {
     return handleApiError(error);
   }
@@ -58,13 +57,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const rawBody = await request.json();
     const body = createInstallmentsSchema.parse(rawBody);
 
-    // Installment creation delegated to DB (Task 6+ scope)
-    return NextResponse.json({
-      installments: body.installments.map((inst, idx) => ({
-        id: `inst-${Date.now()}-${idx}`, budgetId: id,
-        amount: String(inst.amount), dueDate: inst.due_date, status: 'pending',
-      })),
-    }, { status: 201 });
+    // Map legacy snake_case to Financeiro camelCase
+    const installments = body.installments.map(i => ({
+      amount: i.amount,
+      dueDate: i.due_date,
+    }));
+
+    const saved = await replaceInstallments(id, installments);
+
+    return NextResponse.json({ installments: saved }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) return handleApiError(new ValidationError('Validation failed', { issues: error.issues }));
     return handleApiError(error);
@@ -82,8 +83,17 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
     const installmentId = request.nextUrl.searchParams.get('installment_id');
     if (!installmentId) return NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
+
     const body = updateInstallmentSchema.parse(await request.json());
-    return NextResponse.json({ installment: { id: installmentId, ...body } });
+
+    const { updateInstallment } = await import('@/modules/financeiro/services/installment-service');
+    const updated = await updateInstallment(installmentId, {
+      amount: body.amount ? String(body.amount) : undefined,
+      dueDate: body.due_date ?? undefined,
+    } as any);
+
+    if (!updated) return NextResponse.json({ error: 'Installment not found' }, { status: 404 });
+    return NextResponse.json({ installment: updated });
   } catch (error) {
     if (error instanceof z.ZodError) return handleApiError(new ValidationError('Validation failed', { issues: error.issues }));
     return handleApiError(error);
@@ -96,6 +106,9 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
     const installmentId = request.nextUrl.searchParams.get('installment_id');
     if (!installmentId) return NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
+
+    const { deleteInstallment } = await import('@/modules/financeiro/services/installment-service');
+    await deleteInstallment(installmentId);
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error);
