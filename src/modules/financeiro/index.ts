@@ -21,6 +21,8 @@ import { cancelarCobranca } from './actions/cancelar-cobranca';
 import { listarCobrancasAtrasadas } from './actions/listar-cobrancas-atrasadas';
 import { enviarLembreteCobranca } from './actions/enviar-lembrete-cobranca';
 import { obterDashboard } from './actions/obter-dashboard';
+import { listarGateways } from './actions/listar-gateways';
+import { listarRegrasRoteamento } from './actions/listar-regras-roteamento';
 import { salvarGateway } from './actions/salvar-gateway';
 import { salvarRegraRoteamento } from './actions/salvar-regra-roteamento';
 
@@ -41,6 +43,8 @@ export const financeiroActions = [
   listarCobrancasAtrasadas,
   enviarLembreteCobranca,
   obterDashboard,
+  listarGateways,
+  listarRegrasRoteamento,
   salvarGateway,
   salvarRegraRoteamento,
 ];
