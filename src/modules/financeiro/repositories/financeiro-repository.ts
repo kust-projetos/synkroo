@@ -132,6 +132,48 @@ export async function deleteBudgetDb(id: string): Promise<void> {
   await db.delete(budgets).where(eq(budgets.id, id));
 }
 
+// ─── Budget Installment CRUD ────────────────────────────────────────────────────
+
+export type BudgetInstallmentRow = InferSelectModel<typeof budgetInstallments>;
+
+export async function createInstallments(data: Array<{
+  budgetId: string;
+  amount: string;
+  dueDate: string;
+  status: string;
+}>): Promise<BudgetInstallmentRow[]> {
+  const db = getDb();
+  if (data.length === 0) return [];
+  return db.insert(budgetInstallments).values(data).returning();
+}
+
+export async function listInstallments(budgetId: string): Promise<BudgetInstallmentRow[]> {
+  const db = getDb();
+  return db.select().from(budgetInstallments).where(eq(budgetInstallments.budgetId, budgetId)).orderBy(budgetInstallments.dueDate);
+}
+
+export async function deleteInstallmentsByBudget(budgetId: string): Promise<void> {
+  const db = getDb();
+  await db.delete(budgetInstallments).where(eq(budgetInstallments.budgetId, budgetId));
+}
+
+export async function getInstallment(id: string): Promise<BudgetInstallmentRow | undefined> {
+  const db = getDb();
+  const [row] = await db.select().from(budgetInstallments).where(eq(budgetInstallments.id, id)).limit(1);
+  return row;
+}
+
+export async function updateInstallment(id: string, patch: Partial<BudgetInstallmentRow>): Promise<BudgetInstallmentRow | undefined> {
+  const db = getDb();
+  const [row] = await db.update(budgetInstallments).set({ ...patch, updatedAt: new Date() }).where(eq(budgetInstallments.id, id)).returning();
+  return row;
+}
+
+export async function deleteInstallment(id: string): Promise<void> {
+  const db = getDb();
+  await db.delete(budgetInstallments).where(eq(budgetInstallments.id, id));
+}
+
 // ─── PaymentCharge CRUD ────────────────────────────────────────────────────────
 
 export async function createPaymentCharge(data: {

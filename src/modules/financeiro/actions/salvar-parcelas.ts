@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { replaceInstallments } from '../services/installment-service';
 
 export const salvarParcelas = defineAction({
   name: 'financeiro.salvarParcelas',
@@ -15,8 +16,8 @@ export const salvarParcelas = defineAction({
       dueDate: z.string(),
     })).min(1),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    // Installment CRUD will be implemented alongside budget_installments repository
-    return { saved: true };
+  handler: async (input, _ctx: ActionContext) => {
+    const saved = await replaceInstallments(input.budgetId, input.installments);
+    return { saved: true, count: saved.length };
   },
 });
