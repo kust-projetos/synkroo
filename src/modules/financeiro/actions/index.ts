@@ -21,6 +21,8 @@ import { cancelarCobranca } from './cancelar-cobranca';
 import { listarCobrancasAtrasadas } from './listar-cobrancas-atrasadas';
 import { enviarLembreteCobranca } from './enviar-lembrete-cobranca';
 import { obterDashboard } from './obter-dashboard';
+import { listarGateways } from './listar-gateways';
+import { listarRegrasRoteamento } from './listar-regras-roteamento';
 import { salvarGateway } from './salvar-gateway';
 import { salvarRegraRoteamento } from './salvar-regra-roteamento';
 
@@ -40,6 +42,8 @@ export * from './cancelar-cobranca';
 export * from './listar-cobrancas-atrasadas';
 export * from './enviar-lembrete-cobranca';
 export * from './obter-dashboard';
+export * from './listar-gateways';
+export * from './listar-regras-roteamento';
 export * from './salvar-gateway';
 export * from './salvar-regra-roteamento';
 
@@ -61,6 +65,8 @@ registerActions([
   listarCobrancasAtrasadas,
   enviarLembreteCobranca,
   obterDashboard,
+  listarGateways,
+  listarRegrasRoteamento,
   salvarGateway,
   salvarRegraRoteamento,
 ]);
