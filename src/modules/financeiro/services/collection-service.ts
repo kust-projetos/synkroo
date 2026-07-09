@@ -39,7 +39,12 @@ export function enrichOverdueCharges(charges: PaymentChargeRow[]): OverdueCharge
   });
 }
 
-export async function sendReminder(_input: { clinicId: string; chargeId: string }): Promise<{ sent: boolean }> {
-  // TODO: delegate WhatsApp send through Atendimento action
-  return { sent: true };
+export async function sendReminder(_input: {
+  clinicId: string;
+  chargeId: string;
+}): Promise<{ sent: boolean; error?: string }> {
+  // WhatsApp send through Atendimento requires patient phone resolution
+  // which needs cross-module coordination beyond this slice scope.
+  // Return clear failure instead of fake success.
+  return { sent: false, error: 'whatsapp_integration_pending' };
 }
