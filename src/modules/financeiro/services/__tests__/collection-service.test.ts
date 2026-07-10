@@ -10,6 +10,16 @@ import {
   sendReminder,
 } from '../collection-service';
 
+// Mock Atendimento for sendReminder tests
+const mockRunAction = jest.fn();
+jest.mock('@/core/actions/run', () => ({ runAction: mockRunAction }));
+jest.mock('@/core/actions/context', () => ({
+  buildSystemContext: jest.fn().mockResolvedValue({
+    clinicId: '00000000-0000-0000-0000-000000000001',
+    can: () => true, hasModule: () => true, audit: { actor: 'system' },
+  }),
+}));
+
 beforeEach(() => {
   storeReset();
 });
@@ -95,9 +105,51 @@ describe('enrichOverdueCharges', () => {
 });
 
 describe('sendReminder', () => {
-  test('returns honest failure when WhatsApp integration is pending', async () => {
-    const result = await sendReminder({ clinicId: CLINIC_ID, chargeId: 'ch1' });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    storeReset();
+  });
+
+  test('returns sent=true when Atendimento action succeeds with phone', async () => {
+    mockRunAction.mockResolvedValue({ ok: true, data: { messageId: 'msg-1' } });
+
+    const result = await sendReminder({
+      clinicId: CLINIC_ID,
+      chargeId: 'ch1',
+      patientPhone: '11999990000',
+    });
+
+    expect(result.sent).toBe(true);
+    expect(mockRunAction).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'atendimento.enviarMensagemDireta' }),
+      expect.objectContaining({ channel: 'whatsapp', externalId: '11999990000' }),
+      expect.any(Object),
+    );
+  });
+
+  test('returns sent=false when no patient phone', async () => {
+    const result = await sendReminder({
+      clinicId: CLINIC_ID,
+      chargeId: 'ch1',
+    });
+
     expect(result.sent).toBe(false);
-    expect(result.error).toBe('whatsapp_integration_pending');
+    expect(result.error).toBe('missing_patient_phone');
+  });
+
+  test('returns sent=false when Atendimento action fails', async () => {
+    mockRunAction.mockResolvedValue({
+      ok: false,
+      error: { code: 'error', message: 'WhatsApp API error' },
+    });
+
+    const result = await sendReminder({
+      clinicId: CLINIC_ID,
+      chargeId: 'ch1',
+      patientPhone: '11999990000',
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('WhatsApp API error');
   });
 });
