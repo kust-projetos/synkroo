@@ -1,7 +1,7 @@
 /**
  * Financeiro — collection service.
  *
- * Overdue charge detection, reminder rules, and collection attempt audit trail.
+ * Overdue charge detection, reminder rules, WhatsApp send via Atendimento.
  * Uses real Drizzle-backed repository.
  */
 
@@ -39,12 +39,83 @@ export function enrichOverdueCharges(charges: PaymentChargeRow[]): OverdueCharge
   });
 }
 
-export async function sendReminder(_input: {
+/**
+ * Resolve a patient's phone number from a charge's budget.
+ * Returns null if the charge has no budget, the budget has no patient,
+ * or the patient has no phone.
+ */
+async function resolvePatientPhone(clinicId: string, chargeId: string): Promise<string | null> {
+  try {
+    const { getPaymentCharge } = await import('../repositories/financeiro-repository');
+    const { getBudget } = await import('../services/budget-service');
+
+    const charge = await getPaymentCharge(chargeId);
+    if (!charge?.budgetId) return null;
+
+    const budget = await getBudget(charge.budgetId);
+    if (!budget?.patientId) return null;
+
+    // Query patient phone from DB
+    const { getDb } = await import('@/lib/db/client');
+    const { eq } = await import('drizzle-orm');
+    const { patients } = await import('@/lib/db/schema');
+
+    const db = getDb();
+    const [patient] = await db
+      .select({ phone: patients.phone })
+      .from(patients)
+      .where(eq(patients.id, budget.patientId))
+      .limit(1);
+
+    if (!patient) return null;
+    return patient.phone || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Send a collection reminder via WhatsApp through the Atendimento subsystem.
+ *
+ * 1. If `patientPhone` is not provided, resolves from charge → budget → patient.
+ * 2. Calls `atendimento.enviarMensagemDireta` with the phone and reminder message.
+ * 3. Returns result with sent status and optional error.
+ */
+export async function sendReminder(input: {
   clinicId: string;
   chargeId: string;
+  patientPhone?: string;
 }): Promise<{ sent: boolean; error?: string }> {
-  // WhatsApp send through Atendimento requires patient phone resolution
-  // which needs cross-module coordination beyond this slice scope.
-  // Return clear failure instead of fake success.
-  return { sent: false, error: 'whatsapp_integration_pending' };
+  const { clinicId, chargeId } = input;
+  let patientPhone = input.patientPhone;
+
+  // Resolve phone if not provided
+  if (!patientPhone) {
+    patientPhone = await resolvePatientPhone(clinicId, chargeId) ?? undefined;
+  }
+
+  if (!patientPhone) {
+    return { sent: false, error: 'missing_patient_phone' };
+  }
+
+  try {
+    const { enviarMensagemDireta } = await import('@/modules/atendimento/actions/enviar-mensagem-direta');
+    const { runAction } = await import('@/core/actions/run');
+    const { buildSystemContext } = await import('@/core/actions/context');
+
+    const ctx = await buildSystemContext(clinicId);
+    const message = 'Lembrete: sua cobrança está pendente. Entre em contato para regularizar.';
+
+    const result = await runAction(enviarMensagemDireta, {
+      channel: 'whatsapp',
+      externalId: patientPhone,
+      message,
+    }, ctx);
+
+    if (result.ok) return { sent: true };
+    return { sent: false, error: result.error.message };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { sent: false, error: msg };
+  }
 }
