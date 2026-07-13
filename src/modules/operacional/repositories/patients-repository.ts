@@ -140,61 +140,75 @@ export async function mergePatients(
   const loser = await findById(clinicId, loserId);
   if (!winner || !loser) return false;
 
-  // Repoint owner-side FK references to winner
-  const repointTable = async (query: any) => { await query; };
+  await db.transaction(async (tx) => {
+    await tx.update(appointments)
+      .set({ patientId: winnerId } as any)
+      .where(and(eq(appointments.patientId, loserId), eq(appointments.clinicId, clinicId)));
+    await tx.update(waitlist)
+      .set({ patientId: winnerId } as any)
+      .where(and(eq(waitlist.patientId, loserId), eq(waitlist.clinicId, clinicId)));
+    await tx.update(patientObservations)
+      .set({ patientId: winnerId } as any)
+      .where(and(eq(patientObservations.patientId, loserId), eq(patientObservations.clinicId, clinicId)));
+    await tx.update(patientPreferences)
+      .set({ patientId: winnerId } as any)
+      .where(eq(patientPreferences.patientId, loserId));
+    await tx.update(patientRiskScores)
+      .set({ patientId: winnerId } as any)
+      .where(eq(patientRiskScores.patientId, loserId));
+    await tx.update(patientFeedback)
+      .set({ patientId: winnerId } as any)
+      .where(and(eq(patientFeedback.patientId, loserId), eq(patientFeedback.clinicId, clinicId)));
+    await tx.update(budgets)
+      .set({ patientId: winnerId } as any)
+      .where(and(eq(budgets.patientId, loserId), eq(budgets.clinicId, clinicId)));
+    await tx.update(payments)
+      .set({ patientId: winnerId } as any)
+      .where(and(eq(payments.patientId, loserId), eq(payments.clinicId, clinicId)));
+    await tx.update(treatmentPlans)
+      .set({ patientId: winnerId } as any)
+      .where(eq(treatmentPlans.patientId, loserId));
+    await tx.update(campaignRecipients)
+      .set({ patientId: winnerId } as any)
+      .where(eq(campaignRecipients.patientId, loserId));
+    await tx.update(followUps)
+      .set({ patientId: winnerId } as any)
+      .where(and(eq(followUps.patientId, loserId), eq(followUps.clinicId, clinicId)));
+    await tx.update(pendingActions)
+      .set({ patientId: winnerId } as any)
+      .where(eq(pendingActions.patientId, loserId));
+    await tx.update(decisionLogs)
+      .set({ patientId: winnerId } as any)
+      .where(eq(decisionLogs.patientId, loserId));
+    await tx.update(smartTriggerLog)
+      .set({ patientId: winnerId } as any)
+      .where(eq(smartTriggerLog.patientId, loserId));
 
-  await db.update(appointments)
-    .set({ patientId: winnerId } as any)
-    .where(and(eq(appointments.patientId, loserId), eq(appointments.clinicId, clinicId)));
-  await db.update(waitlist)
-    .set({ patientId: winnerId } as any)
-    .where(and(eq(waitlist.patientId, loserId), eq(waitlist.clinicId, clinicId)));
-  await db.update(patientObservations)
-    .set({ patientId: winnerId } as any)
-    .where(and(eq(patientObservations.patientId, loserId), eq(patientObservations.clinicId, clinicId)));
-  await db.update(patientPreferences)
-    .set({ patientId: winnerId } as any)
-    .where(eq(patientPreferences.patientId, loserId));
-  await db.update(patientRiskScores)
-    .set({ patientId: winnerId } as any)
-    .where(eq(patientRiskScores.patientId, loserId));
-  await db.update(patientFeedback)
-    .set({ patientId: winnerId } as any)
-    .where(and(eq(patientFeedback.patientId, loserId), eq(patientFeedback.clinicId, clinicId)));
-  await db.update(budgets)
-    .set({ patientId: winnerId } as any)
-    .where(and(eq(budgets.patientId, loserId), eq(budgets.clinicId, clinicId)));
-  await db.update(payments)
-    .set({ patientId: winnerId } as any)
-    .where(and(eq(payments.patientId, loserId), eq(payments.clinicId, clinicId)));
-  await db.update(treatmentPlans)
-    .set({ patientId: winnerId } as any)
-    .where(eq(treatmentPlans.patientId, loserId));
-  await db.update(campaignRecipients)
-    .set({ patientId: winnerId } as any)
-    .where(eq(campaignRecipients.patientId, loserId));
-  await db.update(followUps)
-    .set({ patientId: winnerId } as any)
-    .where(and(eq(followUps.patientId, loserId), eq(followUps.clinicId, clinicId)));
-  await db.update(pendingActions)
-    .set({ patientId: winnerId } as any)
-    .where(eq(pendingActions.patientId, loserId));
-  await db.update(decisionLogs)
-    .set({ patientId: winnerId } as any)
-    .where(eq(decisionLogs.patientId, loserId));
-  await db.update(smartTriggerLog)
-    .set({ patientId: winnerId } as any)
-    .where(eq(smartTriggerLog.patientId, loserId));
+    // Fill loser gaps into winner
+    const gapFill: Record<string, unknown> = {};
+    if (loser.phone && !winner.phone) gapFill.phone = loser.phone;
+    if (loser.email && !winner.email) gapFill.email = loser.email;
+    if (loser.cpf && !winner.cpf) gapFill.cpf = loser.cpf;
+    if (loser.birthDate && !winner.birthDate) gapFill.birthDate = loser.birthDate;
+    if (loser.gender && !winner.gender) gapFill.gender = loser.gender;
+    if (loser.address && (!winner.address || Object.keys(winner.address).length === 0)) gapFill.address = loser.address;
+    if (loser.notes && !winner.notes) gapFill.notes = loser.notes;
+    if (Object.keys(gapFill).length > 0) {
+      await tx.update(patients)
+        .set({ ...gapFill, updatedAt: new Date() } as any)
+        .where(eq(patients.id, winnerId));
+    }
 
-  // Soft-merge the loser record
-  await db.update(patients)
-    .set({
-      mergeStatus: 'merged',
-      mergedIntoId: winnerId,
-      mergedAt: new Date(),
-      updatedAt: new Date(),
-    } as any)
-    .where(eq(patients.id, loserId));
+    // Soft-merge the loser record
+    await tx.update(patients)
+      .set({
+        mergeStatus: 'merged',
+        mergedIntoId: winnerId,
+        mergedAt: new Date(),
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(patients.id, loserId));
+  });
 
   return true;
 }
