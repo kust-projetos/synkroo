@@ -55,14 +55,17 @@ export async function findByCpf(clinicId: string, cpf: string) {
 
 export async function listPatients(clinicId: string, opts?: { search?: string; limit?: number; offset?: number }) {
   const db = getDb();
-  const conditions = [eq(patients.clinicId, clinicId), sql`${patients.deletedAt} IS NULL`];
+  const conditions = [
+    eq(patients.clinicId, clinicId),
+    sql`${patients.deletedAt} IS NULL`,
+  ];
   if (opts?.search) {
     conditions.push(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       sql`${patients.name} ILIKE ${'%' + opts.search + '%'}` as any,
     );
   }
-  return db
+  const rows = await db
     .select({
       id: patients.id,
       clinicId: patients.clinicId,
@@ -85,6 +88,10 @@ export async function listPatients(clinicId: string, opts?: { search?: string; l
     .orderBy(patients.name)
     .limit(opts?.limit ?? 50)
     .offset(opts?.offset ?? 0);
+  // Hide soft-merged losers from the default patient list.
+  return (rows as Array<{ mergeStatus?: string | null }>).filter(
+    (r) => r.mergeStatus == null || r.mergeStatus !== 'merged',
+  ) as any;
 }
 
 // ─── Mutation helpers ─────────────────────────────────────────────────────────

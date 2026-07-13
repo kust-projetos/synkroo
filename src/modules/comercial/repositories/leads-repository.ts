@@ -107,11 +107,15 @@ export async function findLeadByPhone(phone: string, clinicId: string) {
 
 export async function listLeadsByClinic(clinicId: string) {
   const db = getDb();
-  return db
+  const rows = await db
     .select()
     .from(leads)
     .where(eq(leads.clinicId, clinicId))
     .orderBy(leads.createdAt);
+  // Hide soft-merged losers from the default lead list.
+  return (rows as Array<{ mergeStatus?: string | null }>).filter(
+    (r) => r.mergeStatus == null || r.mergeStatus !== 'merged',
+  ) as any;
 }
 
 // ─── Kanban / Stage-joined queries ──────────────────────────────────────────────

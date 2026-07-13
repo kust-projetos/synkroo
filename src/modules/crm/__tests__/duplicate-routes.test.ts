@@ -137,4 +137,16 @@ describe('CRM duplicate routes', () => {
       expect(status).toBe(401);
     });
   });
+
+  describe('owner merge registry exposure', () => {
+    it('does not expose the owner merge registry publicly (no route/tool/registry leak)', async () => {
+      const crm = await import('@/modules/crm');
+      const exported = Object.keys(crm);
+      expect(exported).not.toContain('ownerMergeRegistry');
+      expect(exported).not.toContain('getOwnerMergeRegistry');
+      expect(exported).not.toContain('listOwnerMerges');
+      // Registration hook exists but never leaks the dispatcher map.
+      expect(typeof crm.registerOwnerMerge).toBe('function');
+    });
+  });
 });
