@@ -34,6 +34,21 @@ describe('DuplicateTab', () => {
     expect(screen.getByRole('alert')).toBeInTheDocument();
   });
 
+  it('shows approve button for pending suggestion', () => {
+    render(<DuplicateTab suggestion={baseSuggestion} />);
+    expect(screen.getByText('Aprovar')).toBeInTheDocument();
+  });
+
+  it('shows merge button for approved suggestion without doc conflict', () => {
+    render(<DuplicateTab suggestion={{ ...baseSuggestion, status: 'approved' }} />);
+    expect(screen.getByText('Mesclar')).toBeInTheDocument();
+  });
+
+  it('hides approve button for merged suggestion', () => {
+    render(<DuplicateTab suggestion={{ ...baseSuggestion, status: 'merged' }} />);
+    expect(screen.queryByText('Aprovar')).not.toBeInTheDocument();
+  });
+
   it('renders nothing when suggestion is null', () => {
     const { container } = render(<DuplicateTab suggestion={null} />);
     expect(container.innerHTML).toBe('');
