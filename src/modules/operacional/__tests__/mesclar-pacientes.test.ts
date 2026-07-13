@@ -93,24 +93,80 @@ describe('Operacional — patient merge (transaction)', () => {
   });
 });
 
-describe('default patient list hides soft-merged losers', () => {
-  it('excludes patients with mergeStatus merged', async () => {
-    const rows = [
-      { id: 'p1', name: 'Ativo', mergeStatus: null },
-      { id: 'p2', name: 'Fundido', mergeStatus: 'merged', mergedIntoId: 'p1' },
-    ];
-    const chain = {
+describe('default patient list hides soft-merged losers (DB-level)', () => {
+  // Mock that models the Drizzle select projection AND the WHERE clause,
+  // so the test reflects the real DB behaviour (not the removed JS filter).
+  function listPatientsDb(rows: any[]) {
+    let projection: Record<string, any> | undefined;
+    const whereFilter = (r: any) => r.mergeStatus == null || r.mergeStatus !== 'merged';
+    const chain: any = {
       from: () => chain,
       where: () => chain,
       orderBy: () => chain,
       limit: () => chain,
-      offset: () => Promise.resolve(rows),
+      offset: async () => {
+        let r = rows.filter(whereFilter);
+        if (projection) {
+          const keys = Object.keys(projection);
+          r = r.map((row: any) => { const o: any = {}; for (const k of keys) o[k] = row[k]; return o; });
+        }
+        return r;
+      },
     };
-    (getDb as jest.Mock).mockReturnValue({ select: () => chain, transaction: jest.fn() });
+    return {
+      select: (p: any) => { projection = p; return chain; },
+      transaction: jest.fn(),
+    };
+  }
+
+  it('excludes patients with mergeStatus merged at the DB layer', async () => {
+    const rows = [
+      { id: 'p1', name: 'Ativo', mergeStatus: null },
+      { id: 'p2', name: 'Fundido', mergeStatus: 'merged', mergedIntoId: 'p1' },
+    ];
+    (getDb as jest.Mock).mockReturnValue(listPatientsDb(rows));
 
     const result = await listPatients('c1');
 
     expect(result.map((r: any) => r.id)).toEqual(['p1']);
+    // mergeStatus is NOT part of the SELECT projection → not leaked to API.
+    expect(result[0]).not.toHaveProperty('mergeStatus');
+  });
+});
+
+describe('listPatients DB-level merge filter (wiring)', () => {
+  // Recursively walk the Drizzle where expression looking for a reference
+  // to the patients.mergeStatus column (DB name 'merge_status'). Handles
+  // sql templates (queryChunks) and and/or wrappers (args).
+  function hasMergeFilter(cond: any): boolean {
+    if (!cond || typeof cond !== 'object') return false;
+    if ('name' in cond && cond.name === 'merge_status') return true;
+    if (Array.isArray((cond as any).queryChunks)) {
+      for (const chunk of (cond as any).queryChunks) if (hasMergeFilter(chunk)) return true;
+    }
+    if (Array.isArray((cond as any).params)) {
+      for (const p of (cond as any).params) if (hasMergeFilter(p)) return true;
+    }
+    if (Array.isArray((cond as any).args)) {
+      for (const a of (cond as any).args) if (hasMergeFilter(a)) return true;
+    }
+    return false;
+  }
+
+  it('includes a merge_status filter in the WHERE clause', async () => {
+    let capturedWhere: any = null;
+    const chain: any = {
+      from: () => chain,
+      where: (cond: any) => { capturedWhere = cond; return chain; },
+      orderBy: () => chain,
+      limit: () => chain,
+      offset: () => Promise.resolve([]),
+    };
+    (getDb as jest.Mock).mockReturnValue({ select: () => chain, transaction: jest.fn() });
+
+    await listPatients('c1');
+
+    expect(hasMergeFilter(capturedWhere)).toBe(true);
   });
 });
 
@@ -131,45 +187,5 @@ describe('runtime owner dispatcher registration', () => {
     await dispatcher('w1', 'r1', 'c1');
 
     expect(spy).toHaveBeenCalledWith('w1', 'r1', 'c1');
-  });
-});
-
-describe('listPatients filter branches', () => {
-  function chainResolve(rows: any[]) {
-    const chain = {
-      from: () => chain,
-      where: () => chain,
-      orderBy: () => chain,
-      limit: () => chain,
-      offset: () => Promise.resolve(rows),
-    };
-    return { select: () => chain, transaction: jest.fn() };
-  }
-
-  it('keeps rows when mergeStatus is undefined', async () => {
-    const rows = [{ id: 'p1', name: 'A' }];
-    (getDb as jest.Mock).mockReturnValue(chainResolve(rows));
-
-    const result = await listPatients('c1');
-
-    expect(result.map((r: any) => r.id)).toEqual(['p1']);
-  });
-
-  it('keeps rows when mergeStatus is a non-merged string', async () => {
-    const rows = [{ id: 'p1', name: 'A', mergeStatus: 'active' }];
-    (getDb as jest.Mock).mockReturnValue(chainResolve(rows));
-
-    const result = await listPatients('c1');
-
-    expect(result.map((r: any) => r.id)).toEqual(['p1']);
-  });
-
-  it('excludes a single row with mergeStatus merged', async () => {
-    const rows = [{ id: 'p1', name: 'A', mergeStatus: 'merged' }];
-    (getDb as jest.Mock).mockReturnValue(chainResolve(rows));
-
-    const result = await listPatients('c1');
-
-    expect(result).toEqual([]);
   });
 });
