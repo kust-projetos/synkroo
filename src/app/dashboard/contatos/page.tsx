@@ -1,7 +1,19 @@
-import { notFound } from 'next/navigation';
+'use client';
+
+import { useState } from 'react';
+import { DuplicateQueuePanel } from '@/components/contacts/duplicate-queue-panel';
 
 export default function ContatosPage() {
-  // Eixo 2 Core: Contatos é a lente unificada do CRM (E-04).
-  // Até o spec E-04 assumir rota/modelo, acesso direto fica indisponível.
-  notFound();
+  const [selectedSuggestion, setSelectedSuggestion] = useState<string | null>(null);
+
+  return (
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-6">Contatos</h1>
+      <DuplicateQueuePanel
+        suggestions={[]}
+        onSelect={setSelectedSuggestion}
+        isLoading={false}
+      />
+    </div>
+  );
 }
