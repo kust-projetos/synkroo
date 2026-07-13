@@ -63,4 +63,5 @@ export const comercialActions = [
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { comercialManifest } from './manifest';
+export { mesclarLeads } from './actions/mesclar-leads';
 export { comercialAccessPermissions } from './permissions';
