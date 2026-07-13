@@ -225,12 +225,14 @@ describe('CRM duplicate review actions', () => {
     );
   });
 
-  it('export action index aggregates all four', async () => {
+  it('export action index aggregates all six review actions', async () => {
     const { crmDuplicateReviewActions } = await import('@/modules/crm/actions');
     const names = crmDuplicateReviewActions.map((a) => a.name).sort();
     expect(names).toEqual([
       'crm.aprovarSugestaoDuplicidade',
       'crm.dispensarSugestaoDuplicidade',
+      'crm.executarMergeLead',
+      'crm.executarMergePatient',
       'crm.listarSugestoesDuplicidade',
       'crm.obterSugestaoDuplicidade',
     ]);
