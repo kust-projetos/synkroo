@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useContact, useContactNotes, useLeadsByPatient } from '@/lib/hooks/use-queries'
+import { useContact, useContactNotes, useLeadsByPatient, useDuplicateSuggestions } from '@/lib/hooks/use-queries'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -37,6 +37,7 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
 
   const { data: contact, isLoading, error } = useContact(contactId || '', contactType || '')
   const { data: notesData } = useContactNotes(contactId || '', contactType || '')
+  const { data: duplicatesData } = useDuplicateSuggestions({})
 
   const updateMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -239,7 +240,12 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
         {activeTab === 'duplicados' && (
           <div className="p-4">
             <DuplicateTab
-              suggestion={null}
+              suggestion={(() => {
+                const rows = (duplicatesData as any)?.data ?? [];
+                return rows.find(
+                  (s: any) => s.leftId === contactId || s.rightId === contactId,
+                ) ?? null;
+              })()}
               onApprove={() => {}}
               onDismiss={() => {}}
               onMerge={() => {}}

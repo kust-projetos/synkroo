@@ -3,7 +3,6 @@
  */
 import { render, screen } from '@testing-library/react';
 import { DuplicateQueuePanel } from '@/components/contacts/duplicate-queue-panel';
-import { DuplicateTab } from '@/components/contacts/duplicate-tab';
 
 const fixture = {
   id: 's1',
@@ -34,30 +33,28 @@ describe('DuplicateQueuePanel', () => {
     expect(screen.getByText('85')).toBeInTheDocument();
   });
 
-  it('shows empty state when no suggestions', () => {
+  it('shows empty title when no suggestions', () => {
     render(<DuplicateQueuePanel suggestions={[]} />);
     expect(screen.getByText(/Possíveis duplicidades/i)).toBeInTheDocument();
   });
-});
 
-describe('DuplicateTab', () => {
-  it('renders suggestion details', () => {
-    render(<DuplicateTab suggestion={fixture} />);
+  it('shows loading skeleton when isLoading is true', () => {
+    const { container } = render(<DuplicateQueuePanel suggestions={[]} isLoading={true} />);
+    expect(container.querySelector('.animate-pulse')).toBeInTheDocument();
+  });
+
+  it('renders multiple suggestions', () => {
+    const s2 = { ...fixture, id: 's2', leftSnapshot: { id: 'l2', name: 'Charlie' }, rightSnapshot: { id: 'r2', name: 'Diana' } };
+    render(<DuplicateQueuePanel suggestions={[fixture, s2]} />);
     expect(screen.getByText('Alice')).toBeInTheDocument();
-    expect(screen.getByText('Bob')).toBeInTheDocument();
+    expect(screen.getByText('Charlie')).toBeInTheDocument();
+    expect(screen.getByText('Diana')).toBeInTheDocument();
   });
 
-  it('shows blocked state when document conflict exists', () => {
-    render(<DuplicateTab suggestion={{
-      ...fixture,
-      leftSnapshot: { id: 'l1', name: 'Alice', document: '111.111.111-11' },
-      rightSnapshot: { id: 'r1', name: 'Bob', document: '222.222.222-22' },
-    }} />);
-    expect(screen.getByText(/documento/i)).toBeInTheDocument();
-  });
-
-  it('renders null when no suggestion', () => {
-    const { container } = render(<DuplicateTab suggestion={null} />);
-    expect(container.innerHTML).toBe('');
+  it('fires onSelect when a suggestion is clicked', () => {
+    const onSelect = jest.fn();
+    render(<DuplicateQueuePanel suggestions={[fixture]} onSelect={onSelect} />);
+    screen.getByRole('button', { name: /Alice.*Bob/i }).click();
+    expect(onSelect).toHaveBeenCalledWith('s1');
   });
 });
