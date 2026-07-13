@@ -12,6 +12,7 @@ export * from './core';
 export * from '../../../modules/operacional/schema';
 export * from './conversations';
 export * from './crm';
+export * from '../../../modules/crm/schema';
 export * from './business';
 export * from './agent';
 export * from './infra';
