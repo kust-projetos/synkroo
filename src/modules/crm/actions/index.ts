@@ -4,6 +4,7 @@ import { aprovarSugestaoDuplicidade } from './aprovar-sugestao-duplicidade';
 import { dispensarSugestaoDuplicidade } from './dispensar-sugestao-duplicidade';
 import { executarMergePatient } from './executar-merge-patient';
 import { executarMergeLead } from './executar-merge-lead';
+import { reprocessarSugestoesDuplicidade } from './reprocessar-sugestoes-duplicidade';
 
 export const crmDuplicateReviewActions = [
   listarSugestoesDuplicidade,
@@ -12,6 +13,7 @@ export const crmDuplicateReviewActions = [
   dispensarSugestaoDuplicidade,
   executarMergePatient,
   executarMergeLead,
+  reprocessarSugestoesDuplicidade,
 ];
 
 export {
@@ -21,4 +23,5 @@ export {
   dispensarSugestaoDuplicidade,
   executarMergePatient,
   executarMergeLead,
+  reprocessarSugestoesDuplicidade,
 };
