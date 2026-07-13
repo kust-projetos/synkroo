@@ -133,7 +133,7 @@ export async function executeMerge(
       ownerSuccess = false;
     }
   } else {
-    ownerSuccess = true;
+    ownerSuccess = false;
   }
 
   if (ownerSuccess) {

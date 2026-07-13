@@ -114,12 +114,10 @@ describe('CRM duplicate execution', () => {
     mockMarkSuggestionMerged.mockResolvedValue(undefined);
     mockDismissSiblings.mockResolvedValue(undefined);
 
-    const result = await executarMergePatient.handler(
-      { id: suggestionId },
-      context,
-    );
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({ code: 'internal' });
 
-    expect(result).toMatchObject({ id: suggestionId, status: 'executing' });
     expect(mockFindDuplicateSource).toHaveBeenCalledTimes(2);
     expect(mockFindSuggestionById).toHaveBeenCalled();
   });
