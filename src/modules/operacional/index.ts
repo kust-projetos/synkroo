@@ -83,4 +83,5 @@ export { gatilhoLembrete } from './actions/gatilho-lembrete';
 export { obterModeloLembrete } from './actions/obter-modelo-lembrete';
 export { processarConfirmacaoResposta } from './actions/processar-confirmacao-resposta';
 export { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
+export { mesclarPacientes } from './actions/mesclar-pacientes';
 export { operacionalAccessPermissions } from './permissions';
