@@ -7,6 +7,13 @@ import { POST as mergeDuplicate } from '@/app/api/contacts/duplicates/[id]/merge
 
 jest.mock('@/lib/auth/session', () => ({
   validateApiAuth: jest.fn(),
+  getUserProfile: jest.fn(),
+}));
+
+jest.mock('@/core/actions/context', () => ({
+  buildUserContext: jest.fn(),
+  buildSystemContext: jest.fn(),
+  buildDelegatedContext: jest.fn(),
 }));
 
 jest.mock('@/modules/crm/repositories/duplicate-suggestions-repository', () => ({
@@ -15,19 +22,28 @@ jest.mock('@/modules/crm/repositories/duplicate-suggestions-repository', () => (
 }));
 
 import { validateApiAuth } from '@/lib/auth/session';
+import { buildUserContext } from '@/core/actions/context';
 import { findSuggestionById } from '@/modules/crm/repositories/duplicate-suggestions-repository';
 
-const mockAuth = (clinicId = 'c1') => {
+const mockAuth = () => {
   (validateApiAuth as jest.Mock).mockResolvedValue({
     success: true,
-    profile: { id: 'u1', clinic_id: clinicId, email: 'u@t.com', name: 'User' },
+    profile: { id: 'u1', clinic_id: 'c1', email: 'u@t.com', name: 'User' },
+  });
+  (buildUserContext as jest.Mock).mockResolvedValue({
+    source: 'user',
+    clinicId: 'c1',
+    user: { id: 'u1', email: 'u@t.com', name: 'User' },
+    can: () => true,
+    hasModule: () => true,
+    audit: { actor: 'u1' },
   });
 };
 
 async function jsonResponse(handler: any, ...args: any[]) {
   const response = await handler(...args);
-  const body = response.status === 200 ? await response.json() : null;
-  return { status: response.status, body, headers: Object.fromEntries(response.headers) };
+  const body = response.status === 200 ? await response.json().catch(() => null) : await response.json().catch(() => null);
+  return { status: response.status, body };
 }
 
 describe('CRM duplicate routes', () => {
@@ -44,25 +60,51 @@ describe('CRM duplicate routes', () => {
   describe('GET /api/contacts/duplicates/[id]', () => {
     it('returns 401 without auth', async () => {
       (validateApiAuth as jest.Mock).mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } });
-      const { status } = await jsonResponse(
-        getDuplicate,
-        new NextRequest('http://localhost'),
-        { params: Promise.resolve({ id: 's1' }) },
-      );
+      const { status } = await jsonResponse(getDuplicate, new NextRequest('http://localhost'), { params: Promise.resolve({ id: 's1' }) });
+      expect(status).toBe(401);
+    });
+  });
+
+  describe('POST /api/contacts/duplicates/[id]/approve', () => {
+    it('returns 401 without auth', async () => {
+      (validateApiAuth as jest.Mock).mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } });
+      const { status } = await jsonResponse(approveDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
+      expect(status).toBe(401);
+    });
+  });
+
+  describe('POST /api/contacts/duplicates/[id]/dismiss', () => {
+    it('returns 401 without auth', async () => {
+      (validateApiAuth as jest.Mock).mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } });
+      const { status } = await jsonResponse(dismissDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
       expect(status).toBe(401);
     });
   });
 
   describe('POST /api/contacts/duplicates/[id]/merge', () => {
-    it.skip('returns 404 when suggestion not found (needs full integration mock)', async () => {
+    it('returns 404 when suggestion not found', async () => {
       mockAuth();
       (findSuggestionById as jest.Mock).mockResolvedValue(null);
-      const { status } = await jsonResponse(
-        mergeDuplicate,
-        new NextRequest('http://localhost', { method: 'POST' }),
-        { params: Promise.resolve({ id: 'nonexistent' }) },
-      );
+      const { status } = await jsonResponse(mergeDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 'nonexistent' }) });
       expect(status).toBe(404);
+    });
+
+    it('dispatches to patient merge for patient suggestions', async () => {
+      mockAuth();
+      (findSuggestionById as jest.Mock).mockResolvedValue({
+        id: 's1', clinicId: 'c1', ownerType: 'patient', leftId: 'l1', rightId: 'r1',
+      });
+      const { status } = await jsonResponse(mergeDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
+      expect(status).toBe(500);
+    });
+
+    it('dispatches to lead merge for lead suggestions', async () => {
+      mockAuth();
+      (findSuggestionById as jest.Mock).mockResolvedValue({
+        id: 's1', clinicId: 'c1', ownerType: 'lead', leftId: 'l1', rightId: 'r1',
+      });
+      const { status } = await jsonResponse(mergeDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
+      expect(status).toBe(500);
     });
   });
 });
