@@ -607,9 +607,69 @@ export function useGrantConsent() {
       if (!res.ok) throw new Error('Failed to grant consent')
       return res.json()
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.consents(variables.contact_id, variables.contact_type) })
+  })
+}
+
+/**
+ * Duplicate suggestions query & mutations
+ */
+export const duplicateKeys = {
+  all: ['duplicates'] as const,
+  list: (params?: string) => ['duplicates', 'list', params] as const,
+}
+
+export function useDuplicateSuggestions(params?: { status?: string; ownerType?: string }) {
+  const paramStr = JSON.stringify(params ?? {})
+  return useQuery({
+    queryKey: duplicateKeys.list(paramStr),
+    queryFn: async () => {
+      const qs = new URLSearchParams()
+      if (params?.status) qs.set('status', params.status)
+      if (params?.ownerType) qs.set('owner_type', params.ownerType)
+      const res = await fetch(`/api/contacts/duplicates?${qs}`)
+      if (!res.ok) throw new Error('Failed to fetch duplicates')
+      return res.json()
     },
+  })
+}
+
+export function useApproveSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/contacts/duplicates/${id}/approve`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to approve')
+      return res.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: duplicateKeys.all }),
+  })
+}
+
+export function useDismissSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const res = await fetch(`/api/contacts/duplicates/${id}/dismiss`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dismiss_reason: reason }),
+      })
+      if (!res.ok) throw new Error('Failed to dismiss')
+      return res.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: duplicateKeys.all }),
+  })
+}
+
+export function useMergeSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/contacts/duplicates/${id}/merge`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to merge')
+      return res.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: duplicateKeys.all }),
   })
 }
 
