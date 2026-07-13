@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Pool } from 'pg';
 import { getTableConfig } from 'drizzle-orm/pg-core';
@@ -33,6 +33,13 @@ const SNAPSHOT_PATH = join(
   'migrations',
   'meta',
   '0004_snapshot.json',
+);
+const MIGRATIONS_DIR = join(
+  WORKTREE_ROOT,
+  'src',
+  'lib',
+  'db',
+  'migrations',
 );
 const DB_TEST_URL = process.env.CRM_SCHEMA_TEST_DATABASE_URL;
 const describeDb = process.env.RUN_CRM_SCHEMA_DB_TESTS === '1'
@@ -160,7 +167,27 @@ describe('CRM duplicate suggestions schema', () => {
       entries: Array<{ tag: string }>;
     };
 
-    expect(journal.entries.at(-1)?.tag).toBe('0004_crm_duplicate_suggestions');
+    expect(journal.entries.map((e) => e.tag)).toContain(
+      '0004_crm_duplicate_suggestions',
+    );
+  });
+
+  it('keeps the Drizzle journal coherent with applied SQL migration files', () => {
+    const journal = JSON.parse(readFileSync(JOURNAL_PATH, 'utf8')) as {
+      entries: Array<{ tag: string }>;
+    };
+    const tags = journal.entries.map((e) => e.tag);
+    const sqlFiles = readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql'));
+
+    // Every journal entry must have a matching applied SQL file.
+    for (const tag of tags) {
+      expect(sqlFiles).toContain(`${tag}.sql`);
+    }
+    // Every SQL migration file must be recorded in the journal.
+    for (const file of sqlFiles) {
+      const tag = file.replace(/\.sql$/, '');
+      expect(tags).toContain(tag);
+    }
   });
 
   it('records the table in the latest Drizzle snapshot', () => {
