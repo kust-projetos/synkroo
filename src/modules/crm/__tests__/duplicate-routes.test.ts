@@ -107,4 +107,34 @@ describe('CRM duplicate routes', () => {
       expect(status).toBe(500);
     });
   });
+
+  describe('POST /api/cron/crm-duplicates', () => {
+    const cronUrl = 'http://localhost/api/cron/crm-duplicates';
+
+    beforeEach(() => {
+      process.env.CRON_SECRET = 'test-secret';
+    });
+
+    afterEach(() => {
+      delete process.env.CRON_SECRET;
+    });
+
+    it('returns 401 with invalid CRON_SECRET', async () => {
+      const { POST: cronHandler } = await import('@/app/api/cron/crm-duplicates/route');
+      const req = new NextRequest(cronUrl, {
+        method: 'POST',
+        headers: { Authorization: 'Bearer invalid-secret' },
+      });
+      const { status } = await jsonResponse(cronHandler, req);
+      expect(status).toBe(401);
+    });
+
+    it('returns 401 with missing CRON_SECRET', async () => {
+      delete process.env.CRON_SECRET;
+      const { POST: cronHandler } = await import('@/app/api/cron/crm-duplicates/route');
+      const req = new NextRequest(cronUrl, { method: 'POST' });
+      const { status } = await jsonResponse(cronHandler, req);
+      expect(status).toBe(401);
+    });
+  });
 });
