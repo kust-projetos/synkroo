@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { recalculateDuplicatesForPatient } from '@/modules/crm';
 import { criarPaciente as service } from '../services/patients-service';
 
 export const criarPaciente = defineAction({
@@ -17,6 +18,12 @@ export const criarPaciente = defineAction({
     gender: z.string().optional(),
     notes: z.string().optional(),
   }),
-  handler: async (input, ctx: ActionContext) =>
-    service({ clinicId: ctx.clinicId, ...input }),
+  handler: async (input, ctx: ActionContext) => {
+    const result = await service({ clinicId: ctx.clinicId, ...input });
+    await recalculateDuplicatesForPatient({
+      clinicId: ctx.clinicId,
+      patientId: result.id,
+    });
+    return result;
+  },
 });
