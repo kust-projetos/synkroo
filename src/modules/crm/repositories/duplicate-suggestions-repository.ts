@@ -1,4 +1,4 @@
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { and, eq, inArray, ne, sql, type SQLWrapper } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import {
   crmDuplicateSuggestions,
@@ -205,4 +205,88 @@ export async function upsertCanonicalSuggestion(
   const pair = canonicalizePair(input.left.id, input.right.id);
   const result = await executeSuggestionUpsert(input, pair);
   return result.rows[0] as { id: string; status: string };
+}
+
+// ─── Review actions repository methods ──────────────────────────────────────
+
+export interface SuggestionFilter {
+  status?: string;
+  ownerType?: string;
+  limit?: number;
+  offset?: number;
+}
+
+function suggestionWhere(clinicId: string, filter?: SuggestionFilter) {
+  const parts: (SQLWrapper | undefined)[] = [
+    eq(crmDuplicateSuggestions.clinicId, clinicId),
+  ];
+  if (filter?.status) parts.push(eq(crmDuplicateSuggestions.status, filter.status as any));
+  if (filter?.ownerType) parts.push(eq(crmDuplicateSuggestions.ownerType, filter.ownerType as any));
+  return and(...parts);
+}
+
+export async function findSuggestionById(clinicId: string, id: string) {
+  const [row] = await getDb()
+    .select()
+    .from(crmDuplicateSuggestions)
+    .where(and(
+      eq(crmDuplicateSuggestions.id, id),
+      eq(crmDuplicateSuggestions.clinicId, clinicId),
+    ))
+    .limit(1);
+  return row ?? null;
+}
+
+export async function listSuggestions(clinicId: string, filter?: SuggestionFilter) {
+  const limit = Math.max(filter?.limit ?? 20, 1);
+  const offset = Math.max(filter?.offset ?? 0, 0);
+  return getDb()
+    .select()
+    .from(crmDuplicateSuggestions)
+    .where(suggestionWhere(clinicId, filter))
+    .orderBy(sql`detected_at DESC`)
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function transitionSuggestionStatus(
+  id: string,
+  expected: string[],
+  target: string,
+  extra?: Partial<typeof crmDuplicateSuggestions.$inferInsert>,
+): Promise<boolean> {
+  const result: any = await getDb()
+    .update(crmDuplicateSuggestions)
+    .set({ status: target as any, updatedAt: new Date(), ...extra } as any)
+    .where(and(
+      eq(crmDuplicateSuggestions.id, id),
+      inArray(crmDuplicateSuggestions.status, expected as any),
+    ));
+  return result?.rowCount !== undefined ? result.rowCount > 0 : true;
+}
+
+export async function refreshSuggestionEvidence(
+  id: string,
+  evidence: {
+    duplicateScore: number;
+    confidence: string;
+    signals: Record<string, unknown>;
+    winnerSuggestedId: string | null;
+    leftSnapshot: Record<string, unknown>;
+    rightSnapshot: Record<string, unknown>;
+  },
+) {
+  await getDb()
+    .update(crmDuplicateSuggestions)
+    .set({
+      duplicateScore: evidence.duplicateScore,
+      confidence: evidence.confidence as any,
+      signals: evidence.signals as any,
+      winnerSuggestedId: evidence.winnerSuggestedId as any,
+      leftSnapshot: evidence.leftSnapshot as any,
+      rightSnapshot: evidence.rightSnapshot as any,
+      refreshedAt: new Date(),
+      updatedAt: new Date(),
+    } as any)
+    .where(eq(crmDuplicateSuggestions.id, id));
 }
