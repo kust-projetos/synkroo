@@ -147,3 +147,59 @@ export async function listAllLeadsWithStage(clinicId: string, stageId?: string) 
       : null,
   }));
 }
+
+// ─── Merge helpers ──────────────────────────────────────────────────────────
+
+import { leadActivities, tasks } from '@/modules/comercial/schema';
+import { budgets, gatewayRoutingRules } from '@/lib/db/schema';
+
+export async function mergeLeads(
+  winnerId: string,
+  loserId: string,
+  clinicId: string,
+): Promise<boolean> {
+  const db = getDb();
+
+  const winner = await findLeadByIdForClinic(winnerId, clinicId);
+  const loser = await findLeadByIdForClinic(loserId, clinicId);
+  if (!winner || !loser) return false;
+  if (loser.convertedAt) return false;
+
+  await db.transaction(async (tx) => {
+    // Move activities to winner
+    await tx.update(leadActivities)
+      .set({ leadId: winnerId } as any)
+      .where(eq(leadActivities.leadId, loserId));
+
+    // Move tasks to winner
+    await tx.update(tasks)
+      .set({ leadId: winnerId } as any)
+      .where(eq(tasks.leadId, loserId));
+
+    // Repoint external FKs
+    await tx.update(budgets)
+      .set({ leadId: winnerId } as any)
+      .where(and(eq(budgets.leadId, loserId), eq(budgets.clinicId, clinicId)));
+    await tx.update(budgets)
+      .set({ convertedFromLeadId: winnerId } as any)
+      .where(and(eq(budgets.convertedFromLeadId, loserId), eq(budgets.clinicId, clinicId)));
+    await tx.update(gatewayRoutingRules)
+      .set({ leadId: winnerId } as any)
+      .where(and(eq(gatewayRoutingRules.leadId, loserId), eq(gatewayRoutingRules.clinicId, clinicId)));
+
+    // Soft-merge loser
+    await tx.update(leads)
+      .set({
+        mergeStatus: 'merged',
+        mergedIntoId: winnerId,
+        mergedAt: new Date(),
+        status: 'lost',
+        lostReason: 'merged_duplicate',
+        phoneNormalized: null,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(leads.id, loserId));
+  });
+
+  return true;
+}

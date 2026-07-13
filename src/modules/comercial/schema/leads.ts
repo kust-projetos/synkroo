@@ -53,6 +53,9 @@ export const leads = pgTable('leads', {
   sourceType: text('source_type'),
   dealValue: numeric('deal_value', { precision: 12, scale: 2 }).default('0'),
   tags: text('tags').array().default([]),
+  mergeStatus: text('merge_status').$type<'merged' | null>(),
+  mergedIntoId: uuid('merged_into_id'),
+  mergedAt: timestamp('merged_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
