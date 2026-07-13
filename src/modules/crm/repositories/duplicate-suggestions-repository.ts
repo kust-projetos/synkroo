@@ -290,3 +290,13 @@ export async function refreshSuggestionEvidence(
     } as any)
     .where(eq(crmDuplicateSuggestions.id, id));
 }
+
+// ─── Cron reprocess helpers ──────────────────────────────────────────────────
+
+export async function listPendingSuggestionsAllClinics() {
+  return getDb()
+    .select()
+    .from(crmDuplicateSuggestions)
+    .where(eq(crmDuplicateSuggestions.status, 'pending' as any))
+    .orderBy(crmDuplicateSuggestions.detectedAt);
+}
