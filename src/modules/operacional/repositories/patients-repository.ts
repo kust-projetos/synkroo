@@ -5,9 +5,11 @@
  * adapted to use module schemas (@/modules/operacional/schema).
  */
 
-import { eq, and, like, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { patients } from '@/modules/operacional/schema/patients';
+import { patients, patientObservations, patientPreferences, patientRiskScores, patientFeedback } from '@/modules/operacional/schema/patients';
+import { appointments, waitlist } from '@/modules/operacional/schema';
+import { budgets, payments, treatmentPlans, campaignRecipients, followUps, pendingActions, decisionLogs, smartTriggerLog } from '@/lib/db/schema';
 
 // ─── Normalizers ─────────────────────────────────────────────────────────────
 
@@ -123,4 +125,76 @@ export async function updatePatient(
     .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)))
     .returning({ id: patients.id });
   return row ?? null;
+}
+
+// ─── Merge helpers ──────────────────────────────────────────────────────────
+
+export async function mergePatients(
+  winnerId: string,
+  loserId: string,
+  clinicId: string,
+): Promise<boolean> {
+  const db = getDb();
+
+  const winner = await findById(clinicId, winnerId);
+  const loser = await findById(clinicId, loserId);
+  if (!winner || !loser) return false;
+
+  // Repoint owner-side FK references to winner
+  const repointTable = async (query: any) => { await query; };
+
+  await db.update(appointments)
+    .set({ patientId: winnerId } as any)
+    .where(and(eq(appointments.patientId, loserId), eq(appointments.clinicId, clinicId)));
+  await db.update(waitlist)
+    .set({ patientId: winnerId } as any)
+    .where(and(eq(waitlist.patientId, loserId), eq(waitlist.clinicId, clinicId)));
+  await db.update(patientObservations)
+    .set({ patientId: winnerId } as any)
+    .where(and(eq(patientObservations.patientId, loserId), eq(patientObservations.clinicId, clinicId)));
+  await db.update(patientPreferences)
+    .set({ patientId: winnerId } as any)
+    .where(eq(patientPreferences.patientId, loserId));
+  await db.update(patientRiskScores)
+    .set({ patientId: winnerId } as any)
+    .where(eq(patientRiskScores.patientId, loserId));
+  await db.update(patientFeedback)
+    .set({ patientId: winnerId } as any)
+    .where(and(eq(patientFeedback.patientId, loserId), eq(patientFeedback.clinicId, clinicId)));
+  await db.update(budgets)
+    .set({ patientId: winnerId } as any)
+    .where(and(eq(budgets.patientId, loserId), eq(budgets.clinicId, clinicId)));
+  await db.update(payments)
+    .set({ patientId: winnerId } as any)
+    .where(and(eq(payments.patientId, loserId), eq(payments.clinicId, clinicId)));
+  await db.update(treatmentPlans)
+    .set({ patientId: winnerId } as any)
+    .where(eq(treatmentPlans.patientId, loserId));
+  await db.update(campaignRecipients)
+    .set({ patientId: winnerId } as any)
+    .where(eq(campaignRecipients.patientId, loserId));
+  await db.update(followUps)
+    .set({ patientId: winnerId } as any)
+    .where(and(eq(followUps.patientId, loserId), eq(followUps.clinicId, clinicId)));
+  await db.update(pendingActions)
+    .set({ patientId: winnerId } as any)
+    .where(eq(pendingActions.patientId, loserId));
+  await db.update(decisionLogs)
+    .set({ patientId: winnerId } as any)
+    .where(eq(decisionLogs.patientId, loserId));
+  await db.update(smartTriggerLog)
+    .set({ patientId: winnerId } as any)
+    .where(eq(smartTriggerLog.patientId, loserId));
+
+  // Soft-merge the loser record
+  await db.update(patients)
+    .set({
+      mergeStatus: 'merged',
+      mergedIntoId: winnerId,
+      mergedAt: new Date(),
+      updatedAt: new Date(),
+    } as any)
+    .where(eq(patients.id, loserId));
+
+  return true;
 }

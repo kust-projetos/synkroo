@@ -37,6 +37,7 @@ import { gatilhoLembrete } from './gatilho-lembrete';
 import { obterModeloLembrete } from './obter-modelo-lembrete';
 import { processarConfirmacaoResposta } from './processar-confirmacao-resposta';
 import { listarTratamentosIncompletos } from './listar-tratamentos-incompletos';
+import { mesclarPacientes } from './mesclar-pacientes';
 
 export * from './agendar-consulta';
 export * from './confirmar-consulta';
@@ -69,6 +70,7 @@ export * from './gatilho-lembrete';
 export * from './obter-modelo-lembrete';
 export * from './processar-confirmacao-resposta';
 export * from './listar-tratamentos-incompletos';
+export * from './mesclar-pacientes';
 
 // Bootstrap registration — idempotent
 registerActions([
