@@ -58,6 +58,9 @@ export async function listPatients(clinicId: string, opts?: { search?: string; l
   const conditions = [
     eq(patients.clinicId, clinicId),
     sql`${patients.deletedAt} IS NULL`,
+    // Hide soft-merged losers at the DB level so the SELECT projection
+    // (and the API response contract) stays unchanged.
+    sql`${patients.mergeStatus} IS NULL OR ${patients.mergeStatus} <> 'merged'`,
   ];
   if (opts?.search) {
     conditions.push(
@@ -65,7 +68,7 @@ export async function listPatients(clinicId: string, opts?: { search?: string; l
       sql`${patients.name} ILIKE ${'%' + opts.search + '%'}` as any,
     );
   }
-  const rows = await db
+  return db
     .select({
       id: patients.id,
       clinicId: patients.clinicId,
@@ -88,10 +91,6 @@ export async function listPatients(clinicId: string, opts?: { search?: string; l
     .orderBy(patients.name)
     .limit(opts?.limit ?? 50)
     .offset(opts?.offset ?? 0);
-  // Hide soft-merged losers from the default patient list.
-  return (rows as Array<{ mergeStatus?: string | null }>).filter(
-    (r) => r.mergeStatus == null || r.mergeStatus !== 'merged',
-  ) as any;
 }
 
 // ─── Mutation helpers ─────────────────────────────────────────────────────────
