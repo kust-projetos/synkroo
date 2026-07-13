@@ -633,6 +633,43 @@ export function useDuplicateSuggestions(params?: { status?: string; ownerType?: 
   })
 }
 
+export interface DuplicateTabSuggestion {
+  id: string;
+  ownerType: string;
+  duplicateScore: number;
+  confidence: string;
+  status: string;
+  winnerSuggestedId: string | null;
+  leftId?: string;
+  rightId?: string;
+  leftSnapshot: { id: string; name?: string; document?: string | null };
+  rightSnapshot: { id: string; name?: string; document?: string | null };
+  signals: Record<string, unknown>;
+  detectedAt: Date | string;
+}
+
+/**
+ * Derive the duplicate suggestion that involves a specific contact from the
+ * clinic-wide duplicate list, using the real contact id and owner type.
+ * Returns the single selected suggestion (never a literal null) plus query state.
+ */
+export function useContactDuplicateSuggestion(
+  contactId: string,
+  contactType: 'patient' | 'lead',
+) {
+  const { data, isLoading, error } = useDuplicateSuggestions({ ownerType: contactType });
+
+  const rows: DuplicateTabSuggestion[] = Array.isArray(data)
+    ? (data as DuplicateTabSuggestion[])
+    : (((data as any)?.data as DuplicateTabSuggestion[]) ?? []);
+
+  const selected = rows.find(
+    (s) => s.leftId === contactId || s.rightId === contactId,
+  );
+
+  return { selected, isLoading, error };
+}
+
 export function useApproveSuggestion() {
   const queryClient = useQueryClient()
   return useMutation({

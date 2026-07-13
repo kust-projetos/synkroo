@@ -3,22 +3,15 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
+import { useContactDuplicateSuggestion, type DuplicateTabSuggestion } from '@/lib/hooks/use-queries';
 
-export interface DuplicateTabSuggestion {
-  id: string;
-  ownerType: string;
-  duplicateScore: number;
-  confidence: string;
-  status: string;
-  winnerSuggestedId: string | null;
-  leftSnapshot: { id: string; name?: string; document?: string | null };
-  rightSnapshot: { id: string; name?: string; document?: string | null };
-  signals: Record<string, unknown>;
-  detectedAt: Date | string;
-}
+export type { DuplicateTabSuggestion };
 
 interface DuplicateTabProps {
-  suggestion: DuplicateTabSuggestion | null;
+  contactId: string;
+  contactType: 'patient' | 'lead';
   onApprove?: (id: string) => void;
   onDismiss?: (id: string) => void;
   onMerge?: (id: string) => void;
@@ -31,9 +24,19 @@ function hasDocumentConflict(s: DuplicateTabSuggestion): boolean {
   return Boolean(leftDoc && rightDoc && leftDoc !== rightDoc);
 }
 
-export function DuplicateTab({ suggestion, onApprove, onDismiss, onMerge, isExecuting }: DuplicateTabProps) {
-  if (!suggestion) return null;
-
+function DuplicateComparison({
+  suggestion,
+  onApprove,
+  onDismiss,
+  onMerge,
+  isExecuting,
+}: {
+  suggestion: DuplicateTabSuggestion;
+  onApprove?: (id: string) => void;
+  onDismiss?: (id: string) => void;
+  onMerge?: (id: string) => void;
+  isExecuting?: boolean;
+}) {
   const blockedByDoc = hasDocumentConflict(suggestion);
   const canApprove = suggestion.status === 'pending' || suggestion.status === 'failed';
   const canMerge = suggestion.status === 'approved' && !blockedByDoc && !isExecuting;
@@ -88,5 +91,47 @@ export function DuplicateTab({ suggestion, onApprove, onDismiss, onMerge, isExec
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+export function DuplicateTab({
+  contactId,
+  contactType,
+  onApprove,
+  onDismiss,
+  onMerge,
+  isExecuting,
+}: DuplicateTabProps) {
+  const { selected, isLoading, error } = useContactDuplicateSuggestion(contactId, contactType);
+
+  if (error) {
+    return (
+      <p className="text-sm text-destructive" role="alert">
+        Erro ao carregar duplicidades.
+      </p>
+    );
+  }
+
+  if (isLoading) {
+    return <Skeleton className="h-40 w-full" />;
+  }
+
+  if (!selected) {
+    return (
+      <EmptyState
+        title="Sem duplicidades"
+        description="Nenhuma duplicidade encontrada para este contato."
+      />
+    );
+  }
+
+  return (
+    <DuplicateComparison
+      suggestion={selected}
+      onApprove={onApprove}
+      onDismiss={onDismiss}
+      onMerge={onMerge}
+      isExecuting={isExecuting}
+    />
   );
 }

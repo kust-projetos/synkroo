@@ -5,7 +5,13 @@ jest.mock('@/lib/db/client', () => ({
   closeDb: jest.fn(),
 }));
 
-import { mergePatients } from '@/modules/operacional/repositories/patients-repository';
+jest.mock('@/modules/crm', () => {
+  const actual = jest.requireActual('@/modules/crm');
+  return { ...actual, registerOwnerMerge: jest.fn(actual.registerOwnerMerge) };
+});
+
+import { mergePatients, listPatients } from '@/modules/operacional/repositories/patients-repository';
+import * as patientsRepo from '@/modules/operacional/repositories/patients-repository';
 
 describe('Operacional — patient merge (transaction)', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -84,5 +90,46 @@ describe('Operacional — patient merge (transaction)', () => {
 
     await expect(mergePatients('w1', 'l1', 'c1')).rejects.toThrow();
     expect(mockTransaction).toHaveBeenCalled();
+  });
+});
+
+describe('default patient list hides soft-merged losers', () => {
+  it('excludes patients with mergeStatus merged', async () => {
+    const rows = [
+      { id: 'p1', name: 'Ativo', mergeStatus: null },
+      { id: 'p2', name: 'Fundido', mergeStatus: 'merged', mergedIntoId: 'p1' },
+    ];
+    const chain = {
+      from: () => chain,
+      where: () => chain,
+      orderBy: () => chain,
+      limit: () => chain,
+      offset: () => Promise.resolve(rows),
+    };
+    (getDb as jest.Mock).mockReturnValue({ select: () => chain, transaction: jest.fn() });
+
+    const result = await listPatients('c1');
+
+    expect(result.map((r: any) => r.id)).toEqual(['p1']);
+  });
+});
+
+describe('runtime owner dispatcher registration', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('registers a patient owner merge dispatcher that delegates to mergePatients', async () => {
+    const spy = jest.spyOn(patientsRepo, 'mergePatients').mockResolvedValue(true);
+    const crm = await import('@/modules/crm');
+    await import('@/modules/operacional/actions/mesclar-pacientes');
+
+    const patientCall = (crm.registerOwnerMerge as jest.Mock).mock.calls.find(
+      ([type]) => type === 'patient',
+    );
+    expect(patientCall).toBeDefined();
+
+    const dispatcher = patientCall![1];
+    await dispatcher('w1', 'r1', 'c1');
+
+    expect(spy).toHaveBeenCalledWith('w1', 'r1', 'c1');
   });
 });
