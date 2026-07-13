@@ -133,3 +133,43 @@ describe('runtime owner dispatcher registration', () => {
     expect(spy).toHaveBeenCalledWith('w1', 'r1', 'c1');
   });
 });
+
+describe('listPatients filter branches', () => {
+  function chainResolve(rows: any[]) {
+    const chain = {
+      from: () => chain,
+      where: () => chain,
+      orderBy: () => chain,
+      limit: () => chain,
+      offset: () => Promise.resolve(rows),
+    };
+    return { select: () => chain, transaction: jest.fn() };
+  }
+
+  it('keeps rows when mergeStatus is undefined', async () => {
+    const rows = [{ id: 'p1', name: 'A' }];
+    (getDb as jest.Mock).mockReturnValue(chainResolve(rows));
+
+    const result = await listPatients('c1');
+
+    expect(result.map((r: any) => r.id)).toEqual(['p1']);
+  });
+
+  it('keeps rows when mergeStatus is a non-merged string', async () => {
+    const rows = [{ id: 'p1', name: 'A', mergeStatus: 'active' }];
+    (getDb as jest.Mock).mockReturnValue(chainResolve(rows));
+
+    const result = await listPatients('c1');
+
+    expect(result.map((r: any) => r.id)).toEqual(['p1']);
+  });
+
+  it('excludes a single row with mergeStatus merged', async () => {
+    const rows = [{ id: 'p1', name: 'A', mergeStatus: 'merged' }];
+    (getDb as jest.Mock).mockReturnValue(chainResolve(rows));
+
+    const result = await listPatients('c1');
+
+    expect(result).toEqual([]);
+  });
+});
