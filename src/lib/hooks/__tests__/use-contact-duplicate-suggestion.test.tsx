@@ -10,13 +10,16 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useContactDuplicateSuggestion, type DuplicateTabSuggestion } from '@/lib/hooks/use-queries';
 
-function createWrapper() {
+function Wrapper({ children }: { children: React.ReactNode }) {
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
-  );
+  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
+}
+Wrapper.displayName = 'UseContactDuplicateSuggestionWrapper';
+
+function createWrapper() {
+  return Wrapper;
 }
 
 function makeSuggestion(overrides: Partial<DuplicateTabSuggestion> = {}): DuplicateTabSuggestion {
