@@ -100,7 +100,7 @@ export async function sendReminder(input: {
 
   try {
     const { enviarMensagemDireta } = await import('@/modules/atendimento/actions/enviar-mensagem-direta');
-    const { runAction } = await import('@/core/actions');
+    const { runAction } = await import('@/core/actions/run');
     const { buildSystemContext } = await import('@/core/actions/context');
 
     const ctx = await buildSystemContext(clinicId);
