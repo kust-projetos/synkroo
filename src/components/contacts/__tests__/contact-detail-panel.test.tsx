@@ -16,10 +16,10 @@
  * - Leave DuplicateTab real so the assertion proves the panel passes the
  *   real contact id/type to it (and DuplicateTab calls the real mocked hook).
  */
+import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 jest.mock('@/components/ui/tabs', () => {
-  const React = require('react');
   const Tabs = ({ value, onValueChange, children }: any) =>
     React.createElement(
       'div',
