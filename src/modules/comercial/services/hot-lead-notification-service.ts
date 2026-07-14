@@ -10,6 +10,14 @@
  * 3. Fallback: create commercial task + log skip
  */
 
+// Minimal inferred shape for the hot-lead filter callback (TS7006).
+interface HotLeadRow {
+  id: string;
+  temperature?: string | null;
+  score?: number | null;
+  status?: string | null;
+}
+
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
 import { listLeadsByClinic } from '../repositories/leads-repository';
@@ -70,7 +78,7 @@ export async function processarNotificacoesLeadsQuentesHandler(input: {
   let skipped = 0;
 
   const hotLeads = leads.filter(
-    (l) => l.temperature === 'hot' && (l.score || 0) >= 70 && l.status !== 'converted' && l.status !== 'lost',
+    (l: HotLeadRow) => l.temperature === 'hot' && (l.score || 0) >= 70 && l.status !== 'converted' && l.status !== 'lost',
   );
 
   for (const lead of hotLeads) {
