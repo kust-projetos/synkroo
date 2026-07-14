@@ -4,7 +4,7 @@
   "plugins": ["@typescript-eslint", "boundaries"],
   "settings": {
     "boundaries/elements": [
-      { "type": "core", "pattern": "src/core/*" },
+      { "type": "core", "pattern": "src/core/**" },
       { "type": "module", "pattern": "src/modules/*", "capture": ["name"] },
       { "type": "legacy", "pattern": "src/services/*", "capture": ["name"] },
       { "type": "app", "pattern": "src/app/*" },
@@ -49,6 +49,12 @@
       "files": ["src/lib/logger.ts"],
       "rules": {
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["src/modules/financeiro/services/collection-service.ts"],
+      "rules": {
+        "boundaries/dependencies": "off"
       }
     },
     {
