@@ -26,7 +26,10 @@ jest.mock('@/components/ui/tabs', () => {
       { 'data-testid': 'tabs', 'data-value': value },
       React.Children.map(children, (child: any) =>
         React.isValidElement(child)
-          ? React.cloneElement(child, { __active: value, __setActive: onValueChange })
+          // The custom __active/__setActive props cannot be expressed in
+          // React.cloneElement's overload (props are constrained to the
+          // element's known props), so a local `as any` is required.
+          ? React.cloneElement(child, { __active: value, __setActive: onValueChange } as any)
           : child,
       ),
     );
@@ -36,7 +39,7 @@ jest.mock('@/components/ui/tabs', () => {
       { role: 'tablist' },
       React.Children.map(children, (child: any) =>
         React.isValidElement(child)
-          ? React.cloneElement(child, { __active, __setActive })
+          ? React.cloneElement(child, { __active, __setActive } as any)
           : child,
       ),
     );

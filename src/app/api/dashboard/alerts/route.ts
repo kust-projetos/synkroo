@@ -8,6 +8,13 @@ import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete
 import { listLeadsByClinic } from '@/modules/comercial/repositories/leads-repository'
 import { findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
 
+// Minimal inferred shape for the hot-lead filter callback (TS7006).
+interface HotLeadRow {
+  temperature?: string | null;
+  score?: number | null;
+  status?: string | null;
+}
+
 /** Alert item shape — preserved from original contract. */
 interface Alert {
   id: string
@@ -70,7 +77,7 @@ export async function GET(request: NextRequest) {
     // 2. Hot leads via comercial repository
     const allLeads = await listLeadsByClinic(clinicId);
     const hotLeads = allLeads
-      .filter((l) => l.temperature === 'hot' && (l.score || 0) >= 70 && l.status !== 'converted' && l.status !== 'lost')
+      .filter((l: HotLeadRow) => l.temperature === 'hot' && (l.score || 0) >= 70 && l.status !== 'converted' && l.status !== 'lost')
       .slice(0, 5);
     for (const lead of hotLeads) {
       alerts.push({
