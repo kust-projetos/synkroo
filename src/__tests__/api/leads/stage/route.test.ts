@@ -1,5 +1,8 @@
 const mockValidateApiAuth = jest.fn()
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth }))
+jest.mock('@/core/modules/manifest', () => require('../../_setup/route-mocks').manifestMock)
+jest.mock('@/core/actions/context', () => require('../../_setup/route-mocks').contextMock)
+import { buildUserContext } from '@/core/actions/context'
 
 let results: any[][] = [], counter = 0
 const mdb = {
@@ -10,8 +13,17 @@ const mdb = {
 jest.mock('@/lib/db/client', () => { let d: any = null; return { getDb: jest.fn(() => { if (!d) d = mdb; return d }) } })
 
 function seed(...s: any[][]) { counter = 0; results = s }
-const authOk = () => mockValidateApiAuth.mockResolvedValue({ success: true, profile: { clinic_id: 'c1' } })
-const authFail = () => mockValidateApiAuth.mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } })
+const authOk = () => {
+  mockValidateApiAuth.mockResolvedValue({ success: true, profile: { clinic_id: 'c1' } })
+  ;(buildUserContext as jest.Mock).mockResolvedValue({
+    source: 'user', clinicId: 'c1', user: { id: 'u1', email: 'u@x.com', name: 'U' },
+    can: () => true, hasModule: () => true, audit: { actor: 'u1' },
+  })
+}
+const authFail = () => {
+  mockValidateApiAuth.mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } })
+  ;(buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'))
+}
 beforeEach(() => { counter = 0; results = []; jest.clearAllMocks() })
 
 import { NextRequest } from 'next/server'

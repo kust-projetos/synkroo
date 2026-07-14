@@ -1,13 +1,25 @@
 /** Tests for budgets/[id]/route */
 const mockValidateApiAuth = jest.fn()
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth }))
+jest.mock('@/core/modules/manifest', () => require('../../_setup/route-mocks').manifestMock)
+jest.mock('@/core/actions/context', () => require('../../_setup/route-mocks').contextMock)
+import { buildUserContext } from '@/core/actions/context'
 jest.mock('@/lib/errors', () => ({ handleApiError: jest.fn((e: any) => { console.error('handleApiError called with:', e?.message || e); return new Response(JSON.stringify({ error: 'Internal' }), { status: 500 }) }), ValidationError: class extends Error { constructor(msg: string, ctx?: any) { super(msg) } } }))
 jest.mock('@/lib/validations', () => ({ updateBudgetSchema: { parse: jest.fn((b: any) => b) } }))
 jest.mock('@/services/budgets/budget.service', () => ({ getBudgetById: jest.fn(), deleteBudget: jest.fn() }))
 
 const { getBudgetById, deleteBudget } = require('@/services/budgets/budget.service')
-const authOk = () => mockValidateApiAuth.mockResolvedValue({ success: true, profile: { clinic_id: 'c1', id: 'u1', role: 'admin' } })
-const authFail = () => mockValidateApiAuth.mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } })
+const authOk = () => {
+  mockValidateApiAuth.mockResolvedValue({ success: true, profile: { clinic_id: 'c1', id: 'u1', role: 'admin' } })
+  ;(buildUserContext as jest.Mock).mockResolvedValue({
+    source: 'user', clinicId: 'c1', user: { id: 'u1', email: 'u@x.com', name: 'U' },
+    can: () => true, hasModule: () => true, audit: { actor: 'u1' },
+  })
+}
+const authFail = () => {
+  mockValidateApiAuth.mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } })
+  ;(buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'))
+}
 
 // DB mock setup
 let results: any[][] = [], counter = 0
