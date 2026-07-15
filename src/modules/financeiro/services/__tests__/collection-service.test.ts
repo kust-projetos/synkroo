@@ -20,6 +20,12 @@ jest.mock('@/core/actions/context', () => ({
   }),
 }));
 
+jest.mock('../../repositories/financeiro-scope-repository', () => ({
+  getPaymentChargeForClinic: jest.fn(),
+}));
+import * as scopeRepo from '../../repositories/financeiro-scope-repository';
+const mockGetPaymentChargeForClinic = scopeRepo.getPaymentChargeForClinic as jest.Mock;
+
 beforeEach(() => {
   storeReset();
 });
@@ -108,6 +114,16 @@ describe('sendReminder', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     storeReset();
+
+    // Default: charge belongs to caller's clinic
+    mockGetPaymentChargeForClinic.mockResolvedValue({
+      id: 'ch1',
+      clinicId: CLINIC_ID,
+      budgetId: '00000000-0000-0000-0000-000000000010',
+      amount: '500',
+      status: 'pending',
+      dueDate: '2026-08-15',
+    });
   });
 
   test('returns sent=true when Atendimento action succeeds with phone', async () => {
@@ -120,6 +136,7 @@ describe('sendReminder', () => {
     });
 
     expect(result.sent).toBe(true);
+    expect(mockGetPaymentChargeForClinic).toHaveBeenCalledWith('ch1', CLINIC_ID);
     expect(mockRunAction).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'atendimento.enviarMensagemDireta' }),
       expect.objectContaining({ channel: 'whatsapp', externalId: '11999990000' }),
@@ -135,6 +152,7 @@ describe('sendReminder', () => {
 
     expect(result.sent).toBe(false);
     expect(result.error).toBe('missing_patient_phone');
+    expect(mockGetPaymentChargeForClinic).toHaveBeenCalledWith('ch1', CLINIC_ID);
   });
 
   test('returns sent=false when Atendimento action fails', async () => {
@@ -151,5 +169,35 @@ describe('sendReminder', () => {
 
     expect(result.sent).toBe(false);
     expect(result.error).toBe('WhatsApp API error');
+  });
+
+  // ── Foreign charge tests (REQ04) ───────────────────
+
+  test('returns missing_patient_phone for foreign charge even with phone provided', async () => {
+    mockGetPaymentChargeForClinic.mockResolvedValue(undefined); // charge belongs to other clinic
+
+    const result = await sendReminder({
+      clinicId: CLINIC_ID,
+      chargeId: 'ch-foreign',
+      patientPhone: '11999990000',
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('missing_patient_phone');
+    // Must NOT attempt to send
+    expect(mockRunAction).not.toHaveBeenCalled();
+  });
+
+  test('returns missing_patient_phone for foreign charge with no phone', async () => {
+    mockGetPaymentChargeForClinic.mockResolvedValue(undefined); // charge belongs to other clinic
+
+    const result = await sendReminder({
+      clinicId: CLINIC_ID,
+      chargeId: 'ch-foreign',
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('missing_patient_phone');
+    expect(mockRunAction).not.toHaveBeenCalled();
   });
 });
