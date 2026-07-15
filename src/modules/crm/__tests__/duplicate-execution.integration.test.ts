@@ -32,10 +32,13 @@ describeOrSkip('Merge execution concurrency (DB real)', () => {
           VALUES (${CLINIC_ID}, 'Merge Concurrency Test', 'merge-concurrency', '11999990001', 'merge@test.com')
           ON CONFLICT (id) DO NOTHING`,
     );
-    // Create an approved suggestion
+    // Create an approved suggestion.
+    // winnerConfirmedId must be set to LEFT_ID (or RIGHT_ID) to satisfy the
+    // crm_duplicate_suggestions_winner_check constraint when status moves to
+    // 'executing' or 'merged'.
     await db.execute(
-      sql`INSERT INTO crm_duplicate_suggestions (id, clinic_id, owner_type, left_id, right_id, status, confidence, duplicate_score, signals, left_snapshot, right_snapshot)
-          VALUES (${SUGGESTION_ID}, ${CLINIC_ID}, ${OWNER_TYPE}, ${LEFT_ID}, ${RIGHT_ID}, 'approved', 'high', 85, '{}'::jsonb, '{"id":"left"}'::jsonb, '{"id":"right"}'::jsonb)
+      sql`INSERT INTO crm_duplicate_suggestions (id, clinic_id, owner_type, left_id, right_id, status, confidence, duplicate_score, winner_confirmed_id, signals, left_snapshot, right_snapshot)
+          VALUES (${SUGGESTION_ID}, ${CLINIC_ID}, ${OWNER_TYPE}, ${LEFT_ID}, ${RIGHT_ID}, 'approved', 'high', 85, ${LEFT_ID}, '{}'::jsonb, '{"id":"left"}'::jsonb, '{"id":"right"}'::jsonb)
           ON CONFLICT (id) DO NOTHING`,
     );
   });
