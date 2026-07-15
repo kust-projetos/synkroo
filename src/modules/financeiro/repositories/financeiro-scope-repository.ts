@@ -9,11 +9,12 @@
 
 import { eq, and } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { budgets, budgetInstallments } from '@/lib/db/schema';
+import { budgets, budgetInstallments, paymentCharges } from '@/lib/db/schema';
 import type { InferSelectModel } from 'drizzle-orm';
 
 export type BudgetRow = InferSelectModel<typeof budgets>;
 export type BudgetInstallmentRow = InferSelectModel<typeof budgetInstallments>;
+export type PaymentChargeRow = InferSelectModel<typeof paymentCharges>;
 
 /**
  * Look up a budget only if it belongs to the given clinic.
@@ -62,5 +63,21 @@ export async function deleteInstallmentForBudget(
     .delete(budgetInstallments)
     .where(and(eq(budgetInstallments.id, installmentId), eq(budgetInstallments.budgetId, budgetId)))
     .returning();
+  return row;
+}
+
+/**
+ * Look up a payment charge only if it belongs to the given clinic.
+ */
+export async function getPaymentChargeForClinic(
+  chargeId: string,
+  clinicId: string,
+): Promise<PaymentChargeRow | undefined> {
+  const db = getDb();
+  const [row] = await db
+    .select()
+    .from(paymentCharges)
+    .where(and(eq(paymentCharges.id, chargeId), eq(paymentCharges.clinicId, clinicId)))
+    .limit(1);
   return row;
 }
