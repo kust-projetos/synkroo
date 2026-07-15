@@ -13,6 +13,7 @@
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { budgets, budgetInstallments } from '@/lib/db/schema';
+import { replaceInstallmentsAtomic } from '@/modules/financeiro/repositories/installment-replacement-repository';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -68,7 +69,8 @@ describeOrSkip('Installments tenant scope (DB real)', () => {
 
   afterAll(async () => {
     const db = getDb();
-    await db.execute(sql`DELETE FROM budget_installments WHERE id IN (${INSTALLMENT_A}, ${INSTALLMENT_B})`);
+    // Replacements auto-generate installment ids, so clean by budget.
+    await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_A}, ${BUDGET_B})`);
     await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_A}, ${BUDGET_B})`);
     await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
     await closeDb();
@@ -124,5 +126,40 @@ describeOrSkip('Installments tenant scope (DB real)', () => {
 
     expect(row).toBeDefined();
     expect(row.id).toBe(INSTALLMENT_A);
+  });
+
+  // ── Atomic replacement (cover installment-replacement-repository) ──
+
+  it('replaceInstallmentsAtomic atomically swaps installments for a budget', async () => {
+    const db = getDb();
+    const rows = await replaceInstallmentsAtomic(BUDGET_A, [
+      { budgetId: BUDGET_A, amount: '75.00', dueDate: '2026-11-01', status: 'pending' },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount).toBe('75.00');
+
+    // Old INSTALLMENT_A deleted, exactly one installment remains for BUDGET_A
+    const remaining = await db
+      .select({ id: budgetInstallments.id, amount: budgetInstallments.amount })
+      .from(budgetInstallments)
+      .where(sql`budget_id = ${BUDGET_A}`);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].id).not.toBe(INSTALLMENT_A);
+    expect(remaining[0].amount).toBe('75.00');
+  });
+
+  it('replaceInstallmentsAtomic does not affect other budgets', async () => {
+    const db = getDb();
+    const rows = await replaceInstallmentsAtomic(BUDGET_A, [
+      { budgetId: BUDGET_A, amount: '10.00', dueDate: '2026-12-01', status: 'pending' },
+    ]);
+    expect(rows).toHaveLength(1);
+
+    // BUDGET_B installments untouched (tenant isolation preserved)
+    const other = await db
+      .select({ id: budgetInstallments.id })
+      .from(budgetInstallments)
+      .where(sql`budget_id = ${BUDGET_B}`);
+    expect(other.map((r) => r.id)).toContain(INSTALLMENT_B);
   });
 });
