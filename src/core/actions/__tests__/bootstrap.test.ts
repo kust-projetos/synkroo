@@ -94,7 +94,7 @@ it('is idempotent for both core and operacional', async () => {
 
 // ─── Atendimento module registry guard (P4) ───────────────────────────────────
 
-it('registers all 20 atendimento actions discovered via getActions()', async () => {
+it('registers all 21 atendimento actions discovered via getActions()', async () => {
   await bootstrapActions();
   const names = getActions().map((a) => a.name);
 
