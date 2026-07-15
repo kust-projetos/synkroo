@@ -109,6 +109,7 @@ it('registers all 20 atendimento actions discovered via getActions()', async () 
     'atendimento.extrairEntidades',
     'atendimento.historicoMensagens',
     'atendimento.enviarMensagem',
+    'atendimento.enviarMensagemDireta',
     'atendimento.agendarMensagem',
     'atendimento.obterModeloMensagem',
     'atendimento.verificarWebhook',
@@ -127,7 +128,7 @@ it('registers all 20 atendimento actions discovered via getActions()', async () 
 
   // Exact count guard — flags regressions if actions are added/removed silently
   const atendimentoCount = names.filter((n) => n.startsWith('atendimento.')).length;
-  expect(atendimentoCount).toBe(20);
+  expect(atendimentoCount).toBe(21);
 });
 
 it('all atendimento actions are retrievable via getAction()', async () => {
@@ -142,4 +143,5 @@ it('all atendimento actions are retrievable via getAction()', async () => {
   expect(getAction('atendimento.obterQRCode')).toBeDefined();
   expect(getAction('atendimento.classificarIntencao')).toBeDefined();
   expect(getAction('atendimento.extrairEntidades')).toBeDefined();
+  expect(getAction('atendimento.enviarMensagemDireta')).toBeDefined();
 });
