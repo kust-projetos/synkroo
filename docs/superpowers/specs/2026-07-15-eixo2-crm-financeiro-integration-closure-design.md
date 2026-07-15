@@ -59,8 +59,8 @@ bootstrap -> action registry -> HTTP adapters
 | REQ-CLOSE-02 | When a CRM user opens a contact, the system shall resolve `{ type, id }` inside caller clinic or return `not_found`. |
 | REQ-CLOSE-03 | When a CRM user reads timeline or notes, the system shall normalize owner events without exposing another clinic. |
 | REQ-CLOSE-04 | When a CRM user adds a note or changes tags, the system shall call owner actions and shall not mutate owner tables directly. |
-| REQ-CLOSE-05 | When `POST`, `PUT`, or `PATCH` targets `/api/contacts/**`, the system shall return `405 { error: 'crm_mvp_read_only' }`. |
-| REQ-CLOSE-06 | While CRM or Financeiro is disabled, the system shall return `404` for its API and direct dashboard route. |
+| REQ-CLOSE-05 | When `POST /api/contacts` or `PUT`/`PATCH /api/contacts/:id` targets CRM entity mutation, the system shall return `405 { error: 'crm_mvp_read_only' }` while notes, tags and duplicate review remain available. |
+| REQ-CLOSE-06 | While CRM or Financeiro is disabled, the system shall return `404` for its API and direct dashboard route; Financeiro provider webhooks shall still reconcile known existing charges. |
 | REQ-CLOSE-07 | When bootstrap runs, the system shall register CRM public actions, Financeiro actions, and both permission catalogs exactly once. |
 | REQ-CLOSE-08 | When a permitted user loads navigation, the system shall show CRM and Financeiro only when their modules are enabled. |
 | REQ-CLOSE-09 | When role presets seed or reconcile, the system shall grant CRM only to approved roles and preserve Financeiro grants for Administrador. |
@@ -74,24 +74,27 @@ bootstrap -> action registry -> HTTP adapters
 | `GET /api/contacts` | `crm.listarContatos` |
 | `GET /api/contacts/:id?type=` | `crm.obterContato` |
 | `GET /api/contacts/:id/timeline?type=` | `crm.listarTimelineContato` |
-| `GET/POST /api/contacts/:id/notes?type=` | CRM note actions |
-| `PUT /api/contacts/:id/tags?type=` | `crm.atualizarTagsContato` |
-| `POST /api/contacts`, `PUT/PATCH /api/contacts/:id` | `405 crm_mvp_read_only` |
+| `GET/POST /api/contacts/:id/notes?type=` | CRM note actions; continua mutável |
+| `PUT /api/contacts/:id/tags?type=` | `crm.atualizarTagsContato`; continua mutável |
+| `GET/POST /api/contacts/duplicates/**` | review/merge humano CRM; continua mutável |
+| `GET /api/contacts/:id/appointments` | adapter CRM gated, read-only; preserva aba de agendamentos |
+| `POST /api/contacts`, `PUT/PATCH /api/contacts/:id` | somente estes retornam `405 crm_mvp_read_only` |
 | Contacts UI | lista/detalhe/timeline/notas/tags/duplicados; sem create/edit/archive |
 
-`/dashboard/contatos` carrega lista, detalhe e fila de duplicados reais; não pode manter `suggestions={[]}`. `/dashboard/contatos` e `/dashboard/financeiro` passam por gate direto, além do menu. Owner bridge actions normalize tags by trim, empty removal and case-insensitive dedup. Converted leads remain available by legacy detail identity, hidden from default list.
+`/dashboard/contatos` carrega split view, lista/detalhe e fila de duplicados reais; não pode manter `suggestions={[]}`. `/dashboard/contatos` e `/dashboard/financeiro` ganham wrapper server-side que consulta manifesto e chama `notFound()` quando o módulo está desligado; componentes client ficam abaixo do wrapper. Menu oculto não é proteção. Owner bridge actions normalize tags by trim, empty removal and case-insensitive dedup. Converted leads remain available by legacy detail identity, hidden from default list.
 
 ## Registry, RBAC e IA
 
 | Área | Decisão |
 |---|---|
-| CRM registry | registra ações CRM de leitura, notas/tags e review humano de duplicados |
-| CRM cron | `reprocessarSugestoesDuplicidade` é exclusivo do cron/system runner; não entra no catálogo IA |
-| Owner merge | merges de patient/lead são internos, chamados pelo coordenador CRM; sem rota, registry público ou tool |
-| Financeiro registry | registra `financeiroActions` e `financeiroAccessPermissions` |
+| CRM públicas/humanas | lista, detalhe, timeline, notas, tags, review e execução humana de duplicidade entram no registry HTTP |
+| CRM system-only | `reprocessarSugestoesDuplicidade` roda somente por cron/system runner; não integra array público ou catálogo IA |
+| Owner merge internas | `operacional.mesclarPacientes` e `comercial.mesclarLeads` ficam fora dos arrays públicos, rotas e catálogo IA; coordenador CRM as chama internamente |
+| Financeiro registry | registra `financeiroActions` e `financeiroAccessPermissions`; `financeiroManifest.jobs` declara `financeiro-collections` |
+| CRM manifest | `crmManifest.jobs` declara `crm-duplicates` |
 | Menu | adiciona `crmManifest` e `financeiroManifest` ao menu central |
-| Presets | Administrador inclui módulos CRM e Financeiro; Recepcionista recebe apenas `crm:view`; Comercial recebe apenas `crm:view`, `crm:manage_notes`, `crm:manage_tags`; nenhum recebe merge por inclusão de módulo |
-| IA | allowlist por action, deny-by-default; CRM review/merge, cron, owner merge, gateway config, pagamentos e cobranças ficam fora; testes exercitam cada exclusão |
+| Presets | Administrador inclui módulos CRM e Financeiro; Recepcionista recebe `crm:view`; Comercial recebe `crm:view`, `crm:manage_notes`, `crm:manage_tags`; permissões existentes são reconciliadas idempotentemente por backfill após registrar catálogos |
+| IA | allowlist literal de actions aplicada em `listToolsLogic` e `executeActionLogic`; deny-by-default. Nesta entrega nenhuma action CRM ou Financeiro é allowlisted. Matriz de segurança permanece segunda barreira. |
 
 ## Fluxos de erro
 
@@ -102,19 +105,31 @@ bootstrap -> action registry -> HTTP adapters
 | permissão ausente | 403 |
 | owner/contact fora da clínica | 404 sem vazamento |
 | `type` ausente/inválido | 400 |
-| mutação CRM fora de escopo | 405 `crm_mvp_read_only` |
-| action fora da allowlist IA | ausente do catálogo e `unknown_tool` se forçada |
+| criação/edição/arquivamento da entidade CRM | 405 `crm_mvp_read_only` |
+| nota, tag ou duplicidade humana válida | executa ação autorizada, nunca 405 por read-only |
+| action fora da allowlist IA | ausente do catálogo e `unknown_tool` se forçada, mesmo registrada globalmente |
 
-## Testes
+## Testes e rastreabilidade
+
+| REQ | Teste RED obrigatório | Prova GREEN |
+|---|---|---|
+| 01-04 | listagem global, detalhe/timeline/notes cross-clinic, bridges owner | unit + integration CRM |
+| 05 | entity `POST/PUT/PATCH` retorna 405; `POST notes`, `PUT tags` e duplicate actions continuam mutáveis | route contracts |
+| 06 | API e wrappers server-side de ambas páginas retornam 404; webhook Financeiro reconcilia known charge com módulo off | route + page + webhook |
+| 07 | bootstrap registra CRM/Financeiro uma vez e registry preserva idempotência | bootstrap test |
+| 08 | menus CRM/Financeiro dependem de manifesto e permission | build-menu test |
+| 09 | seed/backfill idempotente adiciona grants CRM sem merge implícito | preset + reconciliation integration |
+| 10 | listagem e execução forçada rejeitam action fora da allowlist IA | bridge unit tests |
+| 11 | rotas Financeiro existentes mantêm shape e tenant scope após bootstrap | route + integration |
 
 | Tipo | Escopo |
 |---|---|
-| Unit, RED primeiro | mapeamento/lista CRM, ordenação, tags, política agent-safe |
-| Route | gates CRM, contratos `405`, `type`, auth, Financeiro preservado |
+| Unit, RED primeiro | mapping/lista CRM, tags, allowlist literal IA |
+| Route | gates CRM, `405` seletivo, `type`, auth, Financeiro preservado |
 | Contract | chamada CRM -> owner action para notas/tags |
-| Integration | isolamento por clínica, bootstrap/RBAC reconciliation, dedup humano |
-| Snapshot | estados lista/detalhe/duplicados da UI CRM |
-| Mutation | mapping/timeline/tag policy e tool policy, mínimo 70% |
+| Integration | isolamento clínica, bootstrap/RBAC/backfill, dedup humano |
+| Snapshot | split view, lista/detalhe/duplicados CRM |
+| Mutation | mapping/timeline/tag policy e allowlist, mínimo 70% |
 | E2E | decisão registrada após gates unit/route/integration |
 
 ## Critérios de aceite
