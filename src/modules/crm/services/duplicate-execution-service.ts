@@ -17,6 +17,8 @@ import {
 } from '../services/duplicate-scoring-service';
 import { ActionError } from '@/core/actions/types';
 import type { ActionContext } from '@/core/actions/types';
+import { isPatientMerged } from '@/modules/operacional/services/patient-merge-state-service';
+import { isLeadMerged } from '@/modules/comercial/services/merge-state-service';
 
 // ── Lease constants ──────────────────────────────────────────────────────────
 
@@ -75,13 +77,49 @@ export async function executeMerge(
     if (suggestion.executedAt && isLeaseActive(suggestion.executedAt)) {
       throw new ActionError('conflict', 'Concorrência: merge em execução por outro processo.');
     }
-    // Lease expired — mark as failed so the caller can retry fresh
+    // Lease expired — check if owner merge already applied
+    const merged = ownerType === 'patient'
+      ? await isPatientMerged(suggestion.leftId, ctx.clinicId)
+      : await isLeadMerged(suggestion.leftId, ctx.clinicId);
+
+    if (merged) {
+      // Applied recovery: finalize exactly once WITHOUT dispatcher
+      const finalized = await finalizeMergeAndDismissSiblings(
+        id,
+        suggestion.mergeOperationKey ?? '',
+        ctx.clinicId,
+        suggestion.leftId,
+        suggestion.rightId,
+        ownerType,
+      );
+      if (!finalized) {
+        // CAS loss — another process already finalized
+        const updated = await findSuggestionById(ctx.clinicId, id);
+        if (updated?.status === 'merged') {
+          return { id, status: 'merged' };
+        }
+        throw new ActionError('conflict', 'Concorrência: merge já finalizado.');
+      }
+      return { id, status: 'merged' };
+    }
+
+    // Unapplied recovery: allow safe re-claim on fresh suggestion
+    // First release the stale lease by marking failed
     await markSuggestionFailed(
       id,
       suggestion.mergeOperationKey ?? '',
       'lease_expired_recovery',
     );
-    throw new ActionError('conflict', 'Merge anterior expirou. Tente novamente.');
+    // Then re-read the suggestion (now 'failed') and flow through to re-claim
+    const refreshed = await findSuggestionById(ctx.clinicId, id);
+    if (!refreshed || refreshed.status !== 'failed') {
+      throw new ActionError('conflict', 'Recuperação: estado inesperado após liberar lease.');
+    }
+    // Override local variable to continue the normal flow below
+    // We re-assign suggestion to make the rest of the function see 'failed' status
+    // But the flow below checks status !== 'approved', so we can't just reassign.
+    // Instead, fall through to throw a retry-able error.
+    throw new ActionError('conflict', 'Lease expirado. Reivindique novamente.');
   }
 
   if (suggestion.status !== 'approved') {
@@ -173,12 +211,24 @@ export async function executeMerge(
       ownerType,
     );
     if (!finalized) {
-      // CAS failed — another process already finalized this merge
+      // CAS failed — reread to determine outcome
+      const updated = await findSuggestionById(ctx.clinicId, id);
+      if (updated?.status === 'merged') {
+        return { id, status: 'merged' }; // idempotent merged outcome
+      }
       throw new ActionError('conflict', 'Concorrência: merge já finalizado.');
     }
   } else {
     // ── Mark failed with CAS ───────────────────────────────────────────────
-    await markSuggestionFailed(id, mergeOperationKey, 'owner_merge_failed');
+    const failed = await markSuggestionFailed(id, mergeOperationKey, 'owner_merge_failed');
+    if (!failed) {
+      // Failure CAS lost — reread to determine outcome
+      const updated = await findSuggestionById(ctx.clinicId, id);
+      if (updated?.status === 'merged') {
+        return { id, status: 'merged' };
+      }
+      throw new ActionError('conflict', 'Concorrência: estado alterado antes de registrar falha.');
+    }
     throw new ActionError('internal', 'Falha na execução do merge pelo owner.');
   }
 
