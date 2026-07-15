@@ -6,9 +6,7 @@
  */
 
 import {
-  createInstallments as repoCreate,
   listInstallments as repoList,
-  deleteInstallmentsByBudget as repoDeleteByBudget,
   getInstallment as repoGet,
   updateInstallment as repoUpdate,
   deleteInstallment as repoDelete,
@@ -16,6 +14,7 @@ import {
   getBudget as repoGetBudget,
   type BudgetInstallmentRow,
 } from '../repositories/financeiro-repository';
+import { replaceInstallmentsAtomic } from '../repositories/installment-replacement-repository';
 
 export interface InstallmentInput {
   amount: number;
@@ -24,7 +23,7 @@ export interface InstallmentInput {
 
 /**
  * Replace installments for a budget: delete existing, insert new.
- * Enforces atomic replace: all or nothing via a single transaction.
+ * Uses atomic transaction so a failed insert rolls back the delete.
  */
 export async function replaceInstallments(
   budgetId: string,
@@ -32,11 +31,8 @@ export async function replaceInstallments(
 ): Promise<BudgetInstallmentRow[]> {
   if (installments.length === 0) return [];
 
-  // Delete existing
-  await repoDeleteByBudget(budgetId);
-
-  // Insert new
-  return repoCreate(
+  return replaceInstallmentsAtomic(
+    budgetId,
     installments.map(inst => ({
       budgetId,
       amount: String(inst.amount),

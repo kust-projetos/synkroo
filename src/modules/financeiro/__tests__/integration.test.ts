@@ -15,6 +15,9 @@ import {
   listBudgets as repoListBudgets,
   getBudget as repoGetBudget,
 } from '../repositories/financeiro-repository';
+import { replaceInstallments, listInstallments } from '../services/installment-service';
+import { budgets, budgetInstallments } from '@/lib/db/schema';
+import { getDb } from '@/lib/db/client';
 
 const CLINIC_ID = '00000000-0000-0000-0000-000000000001';
 const PATIENT_ID = '00000000-0000-0000-0000-000000000010';
@@ -99,5 +102,75 @@ describe('budget lead acceptance flow', () => {
     expect(gw.id).toBeTruthy();
     expect(gw.provider).toBe('asaas');
     expect(gw.isDefault).toBe(true);
+  });
+});
+
+describe('installment replacement rollback', () => {
+  const BUDGET_ID = '00000000-0000-0000-0000-00000000f001';
+
+  beforeAll(async () => {
+    // Ensure the test budget exists
+    await pool.query(
+      `INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status)
+       VALUES ($1, $2, 'Rollback Test Budget', '300.00', '300.00', 'pending')
+       ON CONFLICT (id) DO NOTHING`,
+      [BUDGET_ID, CLINIC_ID],
+    );
+  });
+
+  beforeEach(async () => {
+    // Clean installments for the test budget before each test
+    await pool.query('DELETE FROM budget_installments WHERE budget_id = $1', [BUDGET_ID]);
+  });
+
+  afterAll(async () => {
+    await pool.query('DELETE FROM budgets WHERE id = $1', [BUDGET_ID]);
+  });
+
+  test('failed insert preserves original installments (rollback)', async () => {
+    // Seed original installments
+    const original = await replaceInstallments(BUDGET_ID, [
+      { amount: 100, dueDate: '2026-08-15' },
+      { amount: 200, dueDate: '2026-09-15' },
+    ]);
+    expect(original).toHaveLength(2);
+
+    const originalIds = original.map(o => o.id);
+    const originalAmounts = original.map(o => o.amount);
+
+    // Attempt replacement with an invalid date that Postgres will reject
+    // This must fail inside the transaction, rolling back the delete
+    await expect(
+      replaceInstallments(BUDGET_ID, [
+        { amount: 300, dueDate: 'not-a-date' },
+      ]),
+    ).rejects.toThrow();
+
+    // Verify original installments are preserved
+    const remaining = await listInstallments(BUDGET_ID);
+    expect(remaining).toHaveLength(2);
+    expect(remaining.map(r => r.id).sort()).toEqual([...originalIds].sort());
+    expect(remaining.map(r => r.amount).sort()).toEqual([...originalAmounts].sort());
+  });
+
+  test('normal replacement succeeds and returns new installments', async () => {
+    // Seed original
+    await replaceInstallments(BUDGET_ID, [
+      { amount: 100, dueDate: '2026-08-15' },
+    ]);
+
+    // Replace with two new installments (valid data)
+    const replaced = await replaceInstallments(BUDGET_ID, [
+      { amount: 150, dueDate: '2026-10-01' },
+      { amount: 150, dueDate: '2026-11-01' },
+    ]);
+
+    expect(replaced).toHaveLength(2);
+    expect(replaced[0].budgetId).toBe(BUDGET_ID);
+
+    // Only the new installments exist
+    const all = await listInstallments(BUDGET_ID);
+    expect(all).toHaveLength(2);
+    expect(all.every(a => a.amount === '150.00')).toBe(true);
   });
 });
