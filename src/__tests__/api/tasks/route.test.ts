@@ -1,8 +1,12 @@
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }));
 
 // Query chain: select → from → leftJoin/where/orderBy → then
-let mockOrderByReturn = Promise.resolve([]);
-const mockSelectQuery = {
+let mockOrderByReturn: Promise<unknown[]> = Promise.resolve([]);
+const mockSelectQuery: {
+  leftJoin: jest.Mock<typeof mockSelectQuery>;
+  where: jest.Mock<typeof mockSelectQuery>;
+  orderBy: jest.Mock<Promise<unknown[]>>;
+} = {
   leftJoin: jest.fn(() => mockSelectQuery),
   where: jest.fn(() => mockSelectQuery),
   orderBy: jest.fn(() => mockOrderByReturn),
