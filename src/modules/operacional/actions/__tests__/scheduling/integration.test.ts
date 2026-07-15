@@ -21,9 +21,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL =
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 import { Pool } from 'pg';
 
 // Skip entire suite when RUN_INTEGRATION_TESTS is not set — hooks run before describe.skip.

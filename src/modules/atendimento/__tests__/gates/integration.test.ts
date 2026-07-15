@@ -15,7 +15,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 process.env.WEBHOOK_SECRET = 'test-gate-secret-32chars-minimum!!';
 process.env.WHATSAPP_VERIFY_TOKEN = 'test-wa-token';
 process.env.WHATSAPP_APP_SECRET = 'test-wa-app-secret-32chars!!';

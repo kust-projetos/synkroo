@@ -9,8 +9,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { bootstrapActions } from '@/core/actions/bootstrap';

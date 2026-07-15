@@ -9,9 +9,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL =
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 import { getDb, closeDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema/core';
 import { patients } from '@/modules/operacional/schema';
