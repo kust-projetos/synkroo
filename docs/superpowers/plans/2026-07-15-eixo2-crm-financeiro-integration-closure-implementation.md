@@ -61,10 +61,11 @@
 **Files:** Modify `src/modules/crm/{actions/index.ts,index.ts,manifest.ts}`, `src/app/api/cron/crm-duplicates/route.ts`; create `src/modules/crm/__tests__/{action-taxonomy,crm-duplicates-cron}.test.ts`.
 
 - [ ] **RED:** Assert `crmActions` contains only read/note/tag and human duplicate review/merge actions; excludes `crm.reprocessarSugestoesDuplicidade`. Assert `operacionalActions` and `comercialActions` exclude merge actions.
-- [ ] **RED:** Cron test expects `crmManifest.jobs` contains `'crm-duplicates'`, verifies `CRON_SECRET`, module job gate, and invokes system-only reprocess action rather than repository logic.
-- [ ] **GREEN:** Export `crmActions` as public actions plus human duplicate actions. Keep `reprocessarSugestoesDuplicidade` importable only by cron. Preserve `mesclarPacientes`/`mesclarLeads` out of `registerActions` arrays and route exports.
-- [ ] **GREEN:** Replace cron's direct repository loop with `assertModuleForJob('crm', moduleManifest)`, system context and `runAction(reprocessarSugestoesDuplicidade, { clinicId }, ctx)`. Preserve timing-safe secret check.
-- [ ] **VERIFY:** `npx jest src/modules/crm/__tests__/action-taxonomy.test.ts src/modules/crm/__tests__/crm-duplicates-cron.test.ts --runInBand` → PASS.
+- [ ] **RED:** In `src/modules/crm/__tests__/action-taxonomy.test.ts`, assert `crmActions` contains only read/note/tag and human duplicate review/merge actions; excludes `crm.reprocessarSugestoesDuplicidade`. Import `operacionalActions` and `comercialActions`; assert merge names are absent but direct imports of `mesclarPacientes`/`mesclarLeads` exist for internal dispatcher use. Run: `npx jest src/modules/crm/__tests__/action-taxonomy.test.ts --runInBand`. Expected: FAIL because `crmActions` is empty.
+- [ ] **RED:** Create `src/app/api/cron/crm-duplicates/route.test.ts`: mock `listClinicIdsWithPendingSuggestions`, `buildSystemContext`, `runAction`; expect one `{ clinicId }` call per clinic, 401 for invalid secret, and `{ skipped:true }` when gate rejects. Run: `npx jest src/app/api/cron/crm-duplicates/route.test.ts --runInBand`. Expected: FAIL because route queries/reprocesses directly.
+- [ ] **GREEN:** Export `crmActions` as public actions plus human duplicate actions. Keep `reprocessarSugestoesDuplicidade` importable only by cron. Preserve merges out of `registerActions` arrays and public route exports.
+- [ ] **GREEN:** Add `listClinicIdsWithPendingSuggestions()` to `duplicate-suggestions-repository.ts`; update cron to verify secret, call `assertModuleForJob('crm', moduleManifest)`, enumerate ids, build one system context and `runAction(reprocessarSugestoesDuplicidade, { clinicId }, ctx)` per clinic. Set `crmManifest.jobs = ['crm-duplicates']`.
+- [ ] **VERIFY:** `npx jest src/modules/crm/__tests__/action-taxonomy.test.ts src/app/api/cron/crm-duplicates/route.test.ts --runInBand` → PASS.
 - [ ] **COMMIT:** `git add src/modules/crm src/app/api/cron/crm-duplicates && git commit -m "refactor(crm): separate public and system actions"`.
 
 ## Task 5 — CRM route cutover and selective read-only contract
@@ -90,24 +91,23 @@
 
 ## Task 7 — Financeiro bootstrap, menu, page gate and job manifest
 
-**Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/modules/financeiro/manifest.ts`, `src/app/dashboard/financeiro/page.tsx`; create `src/app/dashboard/financeiro/financeiro-client.tsx`; modify Financeiro page tests and `src/core/actions/__tests__/bootstrap.test.ts`.
+**Files:** Modify `src/modules/financeiro/manifest.ts`, `src/app/dashboard/financeiro/page.tsx`; create `src/app/dashboard/financeiro/financeiro-client.tsx`, `src/app/dashboard/financeiro/page.test.tsx`, `src/app/api/financeiro/webhooks/[provider]/route.test.ts`.
 
-- [ ] **RED:** Bootstrap test expects all `financeiroActions` and permission keys. Menu test shows Financeiro only for enabled manifest plus `financeiro:view`. Page test expects disabled module `notFound()`.
-- [ ] **GREEN:** Dynamic-import Financeiro in bootstrap, register missing actions idempotently and register its permission catalog. Add its manifest to `getVisibleMenu`.
-- [ ] **GREEN:** Set `financeiroManifest.jobs` to `['financeiro-collections']`. Convert dashboard page to server gate then render client dashboard below it. Do not change provider webhook's disabled-module reconciliation behavior.
-- [ ] **VERIFY:** `npx jest src/core/actions/__tests__/bootstrap.test.ts src/lib/ui/__tests__/build-menu.test.ts src/app/dashboard/financeiro --runInBand` → PASS.
-- [ ] **COMMIT:** `git add src/core/actions src/lib/ui src/modules/financeiro src/app/dashboard/financeiro && git commit -m "feat(financeiro): register menu and page gate"`.
+- [ ] **RED:** In `page.test.tsx`, mock manifest disabled and expect `notFound()`. In webhook test, mock disabled manifest plus known charge and expect reconciliation succeeds; unknown charge remains 404. Run: `npx jest src/app/dashboard/financeiro/page.test.tsx src/app/api/financeiro/webhooks/[provider]/route.test.ts --runInBand`. Expected: FAIL because page is client-only and exception is unproved.
+- [ ] **GREEN:** Set `financeiroManifest.jobs = ['financeiro-collections']`. Move existing page JSX to `financeiro-client.tsx`; server page checks `moduleManifest.isEnabled('financeiro')`, calls `notFound()` when false, else renders client. Do not gate provider webhook with `withModuleRoute`.
+- [ ] **VERIFY:** `npx jest src/app/dashboard/financeiro/page.test.tsx src/app/api/financeiro/webhooks/[provider]/route.test.ts --runInBand` → PASS.
+- [ ] **COMMIT:** `git add src/modules/financeiro/manifest.ts src/app/dashboard/financeiro && git commit -m "feat(financeiro): gate dashboard and declare job"`.
 
 ## Task 8 — Bootstrap CRM, exact RBAC presets and backfill
 
-**Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/core/rbac/presets.ts`, `scripts/backfill-rbac-permissions.mjs`; create/modify bootstrap, preset and backfill tests.
+**Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/core/rbac/presets.ts`, `scripts/backfill-rbac-permissions.mjs`; create `scripts/__tests__/backfill-rbac-permissions.test.mjs`; modify `src/core/actions/__tests__/bootstrap.test.ts`, `src/core/rbac/__tests__/seed.test.ts`, `src/lib/ui/__tests__/build-menu.test.ts`.
 
-- [ ] **RED:** Bootstrap test expects CRM public/human actions and permissions, excludes system-only reprocess. Preset test expects: Administrador CRM+Financeiro modules; Recepcionista only CRM view extra key; Comercial CRM view/notes/tags extra keys, no merge permissions.
-- [ ] **RED:** Backfill test uses two clinics/roles and proves it grants only each role's configured preset keys, not every catalog permission; second run inserts zero rows.
-- [ ] **GREEN:** Add CRM dynamic import/registration and manifest. Update presets exactly as specified. Replace current all-catalog backfill algorithm with preset-name→permission mapping, parameterized inserts, `ON CONFLICT DO NOTHING`, and stdout counts.
-- [ ] **GREEN:** Add deployment runbook step: deploy registry/catalog first, then `DATABASE_URL=... node scripts/backfill-rbac-permissions.mjs`; rerun is safe.
-- [ ] **VERIFY:** `npx jest src/core/actions/__tests__/bootstrap.test.ts src/core/rbac/__tests__/seed.test.ts scripts/__tests__/backfill-rbac-permissions.test.mjs --runInBand` → PASS.
-- [ ] **COMMIT:** `git add src/core/actions src/lib/ui src/core/rbac scripts && git commit -m "feat(rbac): register CRM Financeiro access"`.
+- [ ] **RED:** In bootstrap test expect CRM public/human and all Financeiro names/permissions, never reprocess. In seed test expect Administrador modules include CRM+Financeiro; Recepcionista extras equal `['crm:view']`; Comercial extras contain only CRM view/notes/tags and no merge key. In menu test enable each module independently and assert its item exists only with matching permission.
+- [ ] **RED:** In `backfill-rbac-permissions.test.mjs`, inject fake query client with Owner, Administrador, Recepcionista and Comercial across two clinics; assert only preset-derived keys insert, never every catalog key, and rerun inserts zero. Run: `node --test scripts/__tests__/backfill-rbac-permissions.test.mjs`. Expected: FAIL because current script grants every catalog permission to every system role.
+- [ ] **GREEN:** Add dynamic imports and idempotent registry/catalog registration for both CRM and Financeiro in `bootstrap.ts`; include both manifests in menu. Update exact preset lists. Refactor backfill into exported `backfill(client)` using `SYSTEM_PRESETS`-derived keys; retain CLI `main()` and parameterized `ON CONFLICT DO NOTHING` inserts.
+- [ ] **GREEN:** Add deployment runbook step: deploy registry/catalog, execute `DATABASE_URL=... node scripts/backfill-rbac-permissions.mjs`, rerun safely.
+- [ ] **VERIFY:** `npx jest src/core/actions/__tests__/bootstrap.test.ts src/core/rbac/__tests__/seed.test.ts src/lib/ui/__tests__/build-menu.test.ts --runInBand && node --test scripts/__tests__/backfill-rbac-permissions.test.mjs` → PASS.
+- [ ] **COMMIT:** `git add src/core/actions/bootstrap.ts src/core/actions/__tests__/bootstrap.test.ts src/lib/ui/menu-actions.ts src/lib/ui/__tests__/build-menu.test.ts src/core/rbac/presets.ts src/core/rbac/__tests__/seed.test.ts scripts/backfill-rbac-permissions.mjs scripts/__tests__/backfill-rbac-permissions.test.mjs && git commit -m "feat(rbac): register CRM Financeiro access"`.
 
 ## Task 9 — Quality gates and acceptance verification
 
@@ -126,7 +126,7 @@ npx stryker run --config stryker.services.config.json
 ```
 Expected: every command exits 0. Run `npm audit --omit=dev --audit-level=high`.
 - [ ] **E2E DECISION:** After all prior gates pass, ask user: Playwright contacts read/note/tag/duplicate smoke, no because contract+integration cover it, or deferred ADR.
-- [ ] **COMMIT:** `git add stryker.services.config.json src/core/agent-bridge src/modules/crm src/modules/financeiro src/components/contacts && git commit -m "test(crm): close integration acceptance"`. 
+- [ ] **COMMIT:** `git add stryker.services.config.json src/core/agent-bridge/__tests__ src/modules/crm/__tests__ src/modules/financeiro/__tests__ src/components/contacts/__tests__ && git commit -m "test(crm): close integration acceptance"`.
 
 ## Requirement coverage
 
