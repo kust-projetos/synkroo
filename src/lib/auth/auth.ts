@@ -1,4 +1,5 @@
-import type { NextAuthOptions } from 'next-auth';
+import type { NextAuthOptions, Session, User } from 'next-auth';
+import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import { getDb } from '@/lib/db/client';
 import { users, userCredentials } from '@/lib/db/schema';
@@ -65,12 +66,12 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
   callbacks: {
-    async jwt({ token, user, trigger }) {
+    async jwt({ token, user, trigger }: { token: JWT; user?: User; trigger?: string }) {
       if (user) {
         token.id = user.id;
-        token.clinicId = (user as any).clinicId;
-        token.role = (user as any).role;
-        token.isActive = (user as any).isActive;
+        token.clinicId = user.clinicId;
+        token.role = user.role;
+        token.isActive = user.isActive;
       }
       if (trigger === 'update') {
         try {
@@ -81,9 +82,9 @@ export const authOptions: NextAuthOptions = {
             .where(eq(users.id, token.id!))
             .limit(1);
           if (freshUser) {
-            token.clinicId = freshUser.clinicId;
-            token.role = freshUser.role;
-            token.isActive = freshUser.isActive;
+            token.clinicId = freshUser.clinicId ?? undefined;
+            token.role = freshUser.role ?? undefined;
+            token.isActive = freshUser.isActive ?? undefined;
           }
         } catch {
           // Swallow
@@ -91,7 +92,7 @@ export const authOptions: NextAuthOptions = {
       }
       return token;
     },
-    async session({ session, token }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
         session.user.id = token.id || '';
         session.user.clinicId = token.clinicId || '';
