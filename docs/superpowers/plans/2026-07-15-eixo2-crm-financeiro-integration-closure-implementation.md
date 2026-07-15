@@ -15,7 +15,7 @@
 | Task | Files |
 |---:|---|
 | 1 | `src/core/agent-bridge/{tool-policy,bridge-service}.ts`, tests |
-| 2 | Owner note/tag actions, owner repositories, CRM bridge tests |
+| 2 | Owner note/tag actions, owner repositories, module export arrays, CRM bridge tests |
 | 3 | `src/modules/crm/{repositories,services,actions}/**`, tests |
 | 4 | `src/modules/crm/{index,manifest,actions/index}.ts`, cron route, taxonomy tests |
 | 5 | `src/app/api/contacts/**`, CRM adapter, route tests |
@@ -37,11 +37,11 @@
 
 ## Task 2 — Owner bridges for CRM notes and tags
 
-**Files:** Modify `src/modules/operacional/{repositories/patients-repository.ts,actions/index.ts}` and `src/modules/comercial/{repositories/activities-repository.ts,repositories/leads-repository.ts,actions/index.ts}`; create `operacional/actions/{registrar-observacao-paciente,atualizar-tags-paciente}.ts`, `comercial/actions/{registrar-nota-lead,atualizar-tags-lead}.ts`, `src/modules/crm/__tests__/owner-bridge-actions.test.ts`.
+**Files:** Modify `src/modules/operacional/{repositories/patients-repository.ts,actions/index.ts,index.ts}` and `src/modules/comercial/{repositories/activities-repository.ts,repositories/leads-repository.ts,actions/index.ts,index.ts}`; create `operacional/actions/{registrar-observacao-paciente,atualizar-tags-paciente}.ts`, `comercial/actions/{registrar-nota-lead,atualizar-tags-lead}.ts`, `src/modules/crm/__tests__/owner-bridge-actions.test.ts`.
 
 - [ ] **RED:** Assert four actions are registered and clinic-scoped. Assert tags `[' VIP ', 'vip', '', 'Lead']` become `['VIP', 'Lead']`; foreign patient/lead returns `not_found`. Run: `npx jest src/modules/crm/__tests__/owner-bridge-actions.test.ts --runInBand`. Expected: FAIL with missing owner action exports.
 - [ ] **GREEN:** Add repository functions for patient observation/tags and lead note/tags. Each write predicates owner id plus `clinicId`; lead note resolves the lead before activity insert.
-- [ ] **GREEN:** Define actions with existing permissions: Operacional `operacional:manage_patients`, Comercial `comercial:edit_leads`. Keep action input owner id only; derive clinic from context.
+- [ ] **GREEN:** Define actions with existing permissions: Operacional `operacional:manage_patients`, Comercial `comercial:edit_leads`. Keep action input owner id only; derive clinic from context. Import all four in owner module `index.ts`, add them to `operacionalActions`/`comercialActions`, and export them for CRM coordinator use.
 - [ ] **VERIFY:** `npx jest src/modules/crm/__tests__/owner-bridge-actions.test.ts --runInBand` → PASS.
 - [ ] **COMMIT:** `git add src/modules/operacional src/modules/comercial src/modules/crm/__tests__/owner-bridge-actions.test.ts && git commit -m "feat(crm): add owner note tag bridges"`.
 
@@ -103,11 +103,55 @@
 **Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/core/rbac/presets.ts`, `scripts/backfill-rbac-permissions.mjs`; create `scripts/rbac-backfill-policy.mjs`, `scripts/__tests__/backfill-rbac-permissions.test.mjs`; modify `src/core/actions/__tests__/bootstrap.test.ts`, `src/core/rbac/__tests__/seed.test.ts`, `src/lib/ui/__tests__/build-menu.test.ts`.
 
 - [ ] **RED:** In bootstrap test expect CRM public/human and all Financeiro names/permissions, never reprocess. In seed test expect Administrador modules include CRM+Financeiro; Recepcionista extras equal `['crm:view']`; Comercial extras contain only CRM view/notes/tags and no merge key. In menu test enable each module independently and assert its item exists only with matching permission.
-- [ ] **RED:** In `backfill-rbac-permissions.test.mjs`, inject fake query client with Owner, Administrador, Recepcionista and Comercial across two clinics; assert only preset-derived keys insert, never every catalog key, and rerun inserts zero. Run: `node --test scripts/__tests__/backfill-rbac-permissions.test.mjs`. Expected: FAIL because current script grants every catalog permission to every system role.
+- [ ] **RED:** In `backfill-rbac-permissions.test.mjs`, inject fake query client with Owner, Administrador, Recepcionista and Comercial across two clinics; assert only preset-derived keys insert, never every catalog key, and rerun inserts zero. Add a parity test importing `PRESET_KEYS` and comparing its CRM/Financeiro entries with `SYSTEM_PRESETS`. Run: `node --test scripts/__tests__/backfill-rbac-permissions.test.mjs`. Expected: FAIL because current script grants every catalog permission to every system role.
 - [ ] **GREEN:** Add dynamic imports and idempotent registry/catalog registration for both CRM and Financeiro in `bootstrap.ts`; include both manifests in menu. Update exact preset lists. Create Node-compatible `scripts/rbac-backfill-policy.mjs` exporting literal `PRESET_KEYS` for Administrador, Recepcionista and Comercial; `backfill-rbac-permissions.mjs` imports this `.mjs`, exports `backfill(client)`, retains CLI `main()`, and uses parameterized `ON CONFLICT DO NOTHING` inserts. Do not import TypeScript `SYSTEM_PRESETS` from Node.
 - [ ] **GREEN:** Add deployment runbook step: deploy registry/catalog, execute `DATABASE_URL=... node scripts/backfill-rbac-permissions.mjs`, rerun safely.
 - [ ] **VERIFY:** `npx jest src/core/actions/__tests__/bootstrap.test.ts src/core/rbac/__tests__/seed.test.ts src/lib/ui/__tests__/build-menu.test.ts --runInBand && node --test scripts/__tests__/backfill-rbac-permissions.test.mjs` → PASS.
 - [ ] **COMMIT:** `git add src/core/actions/bootstrap.ts src/core/actions/__tests__/bootstrap.test.ts src/lib/ui/menu-actions.ts src/lib/ui/__tests__/build-menu.test.ts src/core/rbac/presets.ts src/core/rbac/__tests__/seed.test.ts scripts/backfill-rbac-permissions.mjs scripts/__tests__/backfill-rbac-permissions.test.mjs && git commit -m "feat(rbac): register CRM Financeiro access"`.
+
+## Implementation snippets
+
+```ts
+// tool-policy.ts + bridge-service.ts
+const safe = deps.getActions().filter((action) => isAgentSafeAction(action.name));
+if (!isAgentSafeAction(action.name)) return { ok: false, error: 'unknown_tool' };
+```
+
+```ts
+// bootstrap.ts
+const [{ crmActions, crmAccessPermissions }, { financeiroActions, financeiroAccessPermissions }] = await Promise.all([
+  import('@/modules/crm'), import('@/modules/financeiro'),
+]);
+registerActions(crmActions.filter((action) => !getAction(action.name)));
+registerActions(financeiroActions.filter((action) => !getAction(action.name)));
+registerAccessPermissions(crmAccessPermissions);
+registerAccessPermissions(financeiroAccessPermissions);
+```
+
+```tsx
+// dashboard page server wrapper
+if (!(await moduleManifest.isEnabled('crm'))) notFound();
+return <ContactsClient />;
+```
+
+```ts
+// selective entity mutation block
+export function crmReadOnlyResponse() {
+  return NextResponse.json({ error: 'crm_mvp_read_only' }, { status: 405 });
+}
+export async function POST() { return crmReadOnlyResponse(); }
+```
+
+```js
+// backfill-rbac-permissions.mjs
+export async function backfill(client) {
+  for (const role of await systemRoles(client)) {
+    for (const key of PRESET_KEYS[role.name] ?? []) {
+      await client.query(INSERT_MISSING_PERMISSION, [role.id, key]);
+    }
+  }
+}
+```
 
 ## Task 9 — Quality gates and acceptance verification
 
