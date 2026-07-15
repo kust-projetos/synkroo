@@ -12,9 +12,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL =
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 import { Pool } from 'pg';
 
 const CLINIC_ID = '00000000-0000-0000-0000-000000000001';

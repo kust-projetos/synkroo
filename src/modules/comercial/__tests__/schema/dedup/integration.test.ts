@@ -3,10 +3,6 @@
 // Integration: uses real DB — disables jest.setup.ts mock
 jest.unmock('@/lib/db/client');
 
-process.env.DATABASE_URL =
-  process.env.DATABASE_URL ||
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 /**
  * Integration test: Concurrent lead capture dedup via unique partial index.
  *

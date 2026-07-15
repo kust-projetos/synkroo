@@ -4,7 +4,6 @@
 const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 
 jest.unmock('@/lib/db/client');
-process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
 import { resolveAccess } from '../../resolve';
 import type { RbacRepo } from '../../repository';

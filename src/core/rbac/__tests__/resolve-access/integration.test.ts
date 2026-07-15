@@ -8,7 +8,6 @@
 /** @jest-environment node */
 
 jest.unmock('@/lib/db/client');
-process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
 import { resolveAccess } from '../../resolve';
 import type { RbacRepo } from '../../repository';
