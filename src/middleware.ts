@@ -32,6 +32,7 @@ export async function middleware(request: NextRequest) {
   const publicPaths: string[] = [
     '/login',
     '/signup',
+    '/pi-finance',
     '/api/auth',
     '/api/health',
     '/api/webhook',
