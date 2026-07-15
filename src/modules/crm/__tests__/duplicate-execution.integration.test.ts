@@ -12,6 +12,11 @@
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { crmDuplicateSuggestions } from '@/lib/db/schema';
+import {
+  claimSuggestion,
+  markSuggestionFailed,
+  finalizeMergeAndDismissSiblings,
+} from '@/modules/crm/repositories/merge-execution-repository';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -135,5 +140,107 @@ describeOrSkip('Merge execution concurrency (DB real)', () => {
 
     // CAS miss — 0 rows updated because status is 'merged', not 'approved'
     expect(claimResult.rowCount).toBe(0);
+  });
+});
+
+describeOrSkip('Merge execution repository functions (DB real)', () => {
+  const SUGGESTION_2 = '00000000-0000-0000-0000-00000000c002';
+  const KEY_1 = 'merge-repo-winner';
+  const KEY_2 = 'merge-repo-loser';
+  const LEFT = LEFT_ID;
+  const RIGHT = RIGHT_ID;
+  const FOREIGN_CLINIC = '00000000-0000-0000-0000-00000000ffff';
+
+  async function resetToApproved() {
+    const db = getDb();
+    await db.execute(
+      sql`UPDATE crm_duplicate_suggestions
+          SET status = 'approved', merge_operation_key = NULL, executed_at = NULL,
+              failure_reason = NULL, updated_at = now()
+          WHERE id = ${SUGGESTION_2}`,
+    );
+  }
+
+  beforeAll(async () => {
+    const db = getDb();
+    await db.execute(
+      sql`INSERT INTO clinics (id, name, slug, phone, email)
+          VALUES (${CLINIC_ID}, 'Merge Repo Test', 'merge-repo', '11999990001', 'mergerepo@test.com')
+          ON CONFLICT (id) DO NOTHING`,
+    );
+    await db.execute(
+      sql`INSERT INTO crm_duplicate_suggestions (id, clinic_id, owner_type, left_id, right_id, status, confidence, duplicate_score, winner_confirmed_id, signals, left_snapshot, right_snapshot)
+          VALUES (${SUGGESTION_2}, ${CLINIC_ID}, ${OWNER_TYPE}, ${LEFT}, ${RIGHT}, 'approved', 'high', 85, ${LEFT}, '{}'::jsonb, '{"id":"left"}'::jsonb, '{"id":"right"}'::jsonb)
+          ON CONFLICT (id) DO NOTHING`,
+    );
+  });
+
+  afterAll(async () => {
+    const db = getDb();
+    await db.execute(sql`DELETE FROM crm_duplicate_suggestions WHERE id = ${SUGGESTION_2}`);
+    await db.execute(sql`DELETE FROM clinics WHERE id = ${CLINIC_ID}`);
+  });
+
+  it('claimSuggestion claims an approved suggestion via CAS', async () => {
+    const db = getDb();
+    await resetToApproved();
+    const ok = await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+    expect(ok).toBe(true);
+
+    const [row] = await db
+      .select({ status: crmDuplicateSuggestions.status })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1);
+    expect(row.status).toBe('executing');
+  });
+
+  it('claimSuggestion returns false for a foreign clinic', async () => {
+    await resetToApproved();
+    const ok = await claimSuggestion(SUGGESTION_2, FOREIGN_CLINIC, KEY_1, undefined);
+    expect(ok).toBe(false);
+  });
+
+  it('claimSuggestion coerces undefined executedBy to null', async () => {
+    const db = getDb();
+    await resetToApproved();
+    const ok = await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+    expect(ok).toBe(true);
+    const [row] = await db
+      .select({ status: crmDuplicateSuggestions.status, executedBy: crmDuplicateSuggestions.executedBy })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1);
+    expect(row.status).toBe('executing');
+    expect(row.executedBy).toBeNull();
+  });
+
+  it('markSuggestionFailed marks an executing suggestion via CAS', async () => {
+    await resetToApproved();
+    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+    const ok = await markSuggestionFailed(SUGGESTION_2, KEY_1, 'owner_merge_failed');
+    expect(ok).toBe(true);
+
+    const bad = await markSuggestionFailed(SUGGESTION_2, KEY_2, 'owner_merge_failed');
+    expect(bad).toBe(false);
+  });
+
+  it('finalizeMergeAndDismissSiblings finalizes winner via CAS', async () => {
+    const db = getDb();
+    await resetToApproved();
+    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+    const ok = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_1, CLINIC_ID, LEFT, RIGHT, OWNER_TYPE);
+    expect(ok).toBe(true);
+
+    const [row] = await db
+      .select({ status: crmDuplicateSuggestions.status })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1);
+    expect(row.status).toBe('merged');
+
+    // Wrong operation key → CAS miss → false
+    const bad = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_2, CLINIC_ID, LEFT, RIGHT, OWNER_TYPE);
+    expect(bad).toBe(false);
   });
 });
