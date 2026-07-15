@@ -108,8 +108,12 @@ describe('budget lead acceptance flow', () => {
 describe('installment replacement rollback', () => {
   const BUDGET_ID = '00000000-0000-0000-0000-00000000f001';
 
-  beforeAll(async () => {
-    // Ensure the test budget exists
+  // Children-before-parents cleanup order for FK integrity
+  beforeEach(async () => {
+    // Re-create the parent budget after the outer beforeEach deleted it.
+    // Clean children first (defensive — installments, payments on this budget)
+    await pool.query('DELETE FROM budget_installments WHERE budget_id = $1', [BUDGET_ID]);
+    // Re-create parent budget
     await pool.query(
       `INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status)
        VALUES ($1, $2, 'Rollback Test Budget', '300.00', '300.00', 'pending')
@@ -118,12 +122,9 @@ describe('installment replacement rollback', () => {
     );
   });
 
-  beforeEach(async () => {
-    // Clean installments for the test budget before each test
-    await pool.query('DELETE FROM budget_installments WHERE budget_id = $1', [BUDGET_ID]);
-  });
-
   afterAll(async () => {
+    // Children first, then parent
+    await pool.query('DELETE FROM budget_installments WHERE budget_id = $1', [BUDGET_ID]);
     await pool.query('DELETE FROM budgets WHERE id = $1', [BUDGET_ID]);
   });
 

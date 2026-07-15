@@ -19,6 +19,7 @@ const CLINIC_A = '00000000-0000-0000-0000-00000000a001';
 const CLINIC_B = '00000000-0000-0000-0000-00000000b001';
 const BUDGET_A = '00000000-0000-0000-0000-00000000c001';
 const CHARGE_A = '00000000-0000-0000-0000-00000000d001';
+const GATEWAY_A = '00000000-0000-0000-0000-00000000f001';
 const PATIENT_A = '00000000-0000-0000-0000-00000000e001';
 
 const ts = String(Date.now()).slice(-8);
@@ -53,17 +54,26 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
           ON CONFLICT (id) DO NOTHING`,
     );
 
-    // Create charge A (clinic A, budget A)
+    // Create payment_gateway A (parent of payment_charges) — must exist before charges
+    await db.execute(
+      sql`INSERT INTO payment_gateways (id, clinic_id, provider, is_default, is_enabled)
+          VALUES (${GATEWAY_A}, ${CLINIC_A}, 'asaas', true, true)
+          ON CONFLICT (id) DO NOTHING`,
+    );
+
+    // Create charge A (clinic A, budget A, gateway A)
     await db.execute(
       sql`INSERT INTO payment_charges (id, clinic_id, budget_id, gateway_id, due_date, amount, status)
-          VALUES (${CHARGE_A}, ${CLINIC_A}, ${BUDGET_A}, '00000000-0000-0000-0000-00000000f001', '2026-08-15', '500.00', 'pending')
+          VALUES (${CHARGE_A}, ${CLINIC_A}, ${BUDGET_A}, ${GATEWAY_A}, '2026-08-15', '500.00', 'pending')
           ON CONFLICT (id) DO NOTHING`,
     );
   });
 
   afterAll(async () => {
     const db = getDb();
+    // Children first (charges), then parents (gateway, budget, patient, clinics)
     await db.execute(sql`DELETE FROM payment_charges WHERE id = ${CHARGE_A}`);
+    await db.execute(sql`DELETE FROM payment_gateways WHERE id = ${GATEWAY_A}`);
     await db.execute(sql`DELETE FROM budgets WHERE id = ${BUDGET_A}`);
     await db.execute(sql`DELETE FROM patients WHERE id = ${PATIENT_A}`);
     await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
