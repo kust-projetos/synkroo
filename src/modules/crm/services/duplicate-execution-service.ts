@@ -1,17 +1,36 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '@/lib/db/client';
 import { crmDuplicateSuggestions } from '@/lib/db/schema';
-import { and, eq, inArray, ne, sql } from 'drizzle-orm';
+import { and, eq, ne, inArray, sql } from 'drizzle-orm';
 import {
   findDuplicateSource,
   findSuggestionById,
 } from '../repositories/duplicate-suggestions-repository';
+import {
+  claimSuggestion,
+  markSuggestionFailed,
+  finalizeMergeAndDismissSiblings,
+} from '../repositories/merge-execution-repository';
 import {
   scoreDuplicatePair,
   classifyDuplicateScore,
 } from '../services/duplicate-scoring-service';
 import { ActionError } from '@/core/actions/types';
 import type { ActionContext } from '@/core/actions/types';
+
+// ── Lease constants ──────────────────────────────────────────────────────────
+
+export const MERGE_LEASE_MS = 30_000;
+
+/**
+ * Pure function: is the lease still active?
+ * A lease is active when the elapsed time since executedAt is less than MERGE_LEASE_MS.
+ */
+export function isLeaseActive(executedAt: Date, nowMs: number = Date.now()): boolean {
+  return nowMs - executedAt.getTime() < MERGE_LEASE_MS;
+}
+
+// ── Owner merge dispatcher ───────────────────────────────────────────────────
 
 export interface OwnerMergeDispatcher {
   (winnerId: string, loserId: string, clinicId: string): Promise<boolean>;
@@ -26,6 +45,8 @@ export function registerOwnerMerge(
   ownerMergeRegistry.set(ownerType, dispatcher);
 }
 
+// ── Document conflict check ─────────────────────────────────────────────────
+
 function hasDocumentConflict(
   leftSnapshot: Record<string, unknown>,
   rightSnapshot: Record<string, unknown>,
@@ -35,13 +56,11 @@ function hasDocumentConflict(
   return Boolean(leftDoc && rightDoc && leftDoc !== rightDoc);
 }
 
-function detectMaterialDrift(
-  storedScore: number,
-  refreshScore: number,
-): boolean {
-  const diff = Math.abs(storedScore - refreshScore);
-  return diff >= 15;
+function detectMaterialDrift(storedScore: number, refreshScore: number): boolean {
+  return Math.abs(storedScore - refreshScore) >= 15;
 }
+
+// ── Main merge execution ────────────────────────────────────────────────────
 
 export async function executeMerge(
   id: string,
@@ -50,9 +69,29 @@ export async function executeMerge(
 ) {
   const suggestion = await findSuggestionById(ctx.clinicId, id);
   if (!suggestion) throw new ActionError('not_found', 'Sugestão não encontrada.');
-  if (suggestion.status !== 'approved') throw new ActionError('conflict', 'Sugestão não aprovada.');
 
-  if (hasDocumentConflict(suggestion.leftSnapshot as any, suggestion.rightSnapshot as any)) {
+  // ── Recovery path: suggestion is 'executing' with possibly stale lease ──
+  if (suggestion.status === 'executing') {
+    if (suggestion.executedAt && isLeaseActive(suggestion.executedAt)) {
+      throw new ActionError('conflict', 'Concorrência: merge em execução por outro processo.');
+    }
+    // Lease expired — mark as failed so the caller can retry fresh
+    await markSuggestionFailed(
+      id,
+      suggestion.mergeOperationKey ?? '',
+      'lease_expired_recovery',
+    );
+    throw new ActionError('conflict', 'Merge anterior expirou. Tente novamente.');
+  }
+
+  if (suggestion.status !== 'approved') {
+    throw new ActionError('conflict', 'Sugestão não aprovada.');
+  }
+
+  if (hasDocumentConflict(
+    suggestion.leftSnapshot as any,
+    suggestion.rightSnapshot as any,
+  )) {
     throw new ActionError('conflict', 'Conflito de documento entre registros.');
   }
 
@@ -66,7 +105,9 @@ export async function executeMerge(
     ownerType,
     ownerId: suggestion.rightId,
   });
-  if (!source || !candidate) throw new ActionError('not_found', 'Registros de origem não encontrados.');
+  if (!source || !candidate) {
+    throw new ActionError('not_found', 'Registros de origem não encontrados.');
+  }
 
   const scoreResult = scoreDuplicatePair(source, candidate);
   const confidence = classifyDuplicateScore(scoreResult.score);
@@ -100,30 +141,17 @@ export async function executeMerge(
     return { id, status: 'pending' };
   }
 
+  // ── Claim with CAS ───────────────────────────────────────────────────────
   const mergeOperationKey = `merge-${randomUUID()}`;
-  const claimResult: any = await getDb()
-    .update(crmDuplicateSuggestions)
-    .set({
-      status: 'executing',
-      mergeOperationKey,
-      winnerConfirmedId: suggestion.winnerSuggestedId,
-      executedBy: ctx.user?.id,
-      executedAt: new Date(),
-      updatedAt: new Date(),
-    } as any)
-    .where(and(
-      eq(crmDuplicateSuggestions.id, id),
-      eq(crmDuplicateSuggestions.status, 'approved'),
-    ));
-  const claimed = claimResult?.rowCount !== undefined
-    ? claimResult.rowCount > 0
-    : true;
-
-  if (!claimed) throw new ActionError('conflict', 'Concorrência: sugestão alterada.');
+  const claimed = await claimSuggestion(id, ctx.clinicId, mergeOperationKey, ctx.user?.id);
+  if (!claimed) {
+    throw new ActionError('conflict', 'Concorrência: sugestão alterada.');
+  }
 
   const winnerId = suggestion.winnerSuggestedId ?? suggestion.leftId;
   const loserId = winnerId === suggestion.leftId ? suggestion.rightId : suggestion.leftId;
 
+  // ── Dispatch owner merge ─────────────────────────────────────────────────
   const dispatcher = ownerMergeRegistry.get(ownerType);
   let ownerSuccess = false;
   if (dispatcher) {
@@ -132,45 +160,25 @@ export async function executeMerge(
     } catch {
       ownerSuccess = false;
     }
-  } else {
-    ownerSuccess = false;
   }
 
   if (ownerSuccess) {
-    await getDb()
-      .update(crmDuplicateSuggestions)
-      .set({ status: 'merged', updatedAt: new Date() } as any)
-      .where(eq(crmDuplicateSuggestions.id, id));
-
-    await getDb()
-      .update(crmDuplicateSuggestions)
-      .set({
-        status: 'dismissed',
-        dismissReason: 'stale_after_merge',
-        updatedAt: new Date(),
-      } as any)
-      .where(and(
-        eq(crmDuplicateSuggestions.clinicId, ctx.clinicId),
-        eq(crmDuplicateSuggestions.ownerType, ownerType as any),
-        ne(crmDuplicateSuggestions.id, id),
-        sql`(
-          ${crmDuplicateSuggestions.leftId} IN (${[winnerId, loserId].join(',')})
-          OR ${crmDuplicateSuggestions.rightId} IN (${[winnerId, loserId].join(',')})
-        )`,
-        inArray(crmDuplicateSuggestions.status, [
-          'pending',
-          'approved',
-        ] as any),
-      ));
+    // ── Atomic finalize + dismiss siblings ─────────────────────────────────
+    const finalized = await finalizeMergeAndDismissSiblings(
+      id,
+      mergeOperationKey,
+      ctx.clinicId,
+      winnerId,
+      loserId,
+      ownerType,
+    );
+    if (!finalized) {
+      // CAS failed — another process already finalized this merge
+      throw new ActionError('conflict', 'Concorrência: merge já finalizado.');
+    }
   } else {
-    await getDb()
-      .update(crmDuplicateSuggestions)
-      .set({
-        status: 'failed',
-        failureReason: 'owner_merge_failed',
-        updatedAt: new Date(),
-      } as any)
-      .where(eq(crmDuplicateSuggestions.id, id));
+    // ── Mark failed with CAS ───────────────────────────────────────────────
+    await markSuggestionFailed(id, mergeOperationKey, 'owner_merge_failed');
     throw new ActionError('internal', 'Falha na execução do merge pelo owner.');
   }
 
