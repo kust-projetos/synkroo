@@ -1,6 +1,6 @@
 # Eixo 2 — Fechamento de Integração CRM e Financeiro
 
-**Status:** Proposto após auditoria do código em 2026-07-15.
+**Status:** Aguardando revisão do usuário.
 
 ## Contexto
 
@@ -49,7 +49,7 @@ bootstrap -> action registry -> HTTP adapters
 2. CRM não executa `INSERT`, `UPDATE` ou `DELETE` em tabelas owner.
 3. Notas/tags chamam actions de Operacional ou Comercial, com `clinicId` do contexto.
 4. Rotas não importam `src/services/contacts/**`, repository ou DB diretamente.
-5. Catálogo IA aceita somente actions explicitamente marcadas como agent-safe; ausência significa bloqueio.
+5. Catálogo IA usa allowlist explícita por nome de action agent-safe; registry global não implica exposição e ausência significa bloqueio.
 
 ## Requisitos
 
@@ -60,7 +60,7 @@ bootstrap -> action registry -> HTTP adapters
 | REQ-CLOSE-03 | When a CRM user reads timeline or notes, the system shall normalize owner events without exposing another clinic. |
 | REQ-CLOSE-04 | When a CRM user adds a note or changes tags, the system shall call owner actions and shall not mutate owner tables directly. |
 | REQ-CLOSE-05 | When `POST`, `PUT`, or `PATCH` targets `/api/contacts/**`, the system shall return `405 { error: 'crm_mvp_read_only' }`. |
-| REQ-CLOSE-06 | While CRM is disabled, the system shall return `404` for CRM contacts and dashboard routes. |
+| REQ-CLOSE-06 | While CRM or Financeiro is disabled, the system shall return `404` for its API and direct dashboard route. |
 | REQ-CLOSE-07 | When bootstrap runs, the system shall register CRM public actions, Financeiro actions, and both permission catalogs exactly once. |
 | REQ-CLOSE-08 | When a permitted user loads navigation, the system shall show CRM and Financeiro only when their modules are enabled. |
 | REQ-CLOSE-09 | When role presets seed or reconcile, the system shall grant CRM only to approved roles and preserve Financeiro grants for Administrador. |
@@ -79,18 +79,19 @@ bootstrap -> action registry -> HTTP adapters
 | `POST /api/contacts`, `PUT/PATCH /api/contacts/:id` | `405 crm_mvp_read_only` |
 | Contacts UI | lista/detalhe/timeline/notas/tags/duplicados; sem create/edit/archive |
 
-Owner bridge actions normalize tags by trim, empty removal and case-insensitive dedup. Converted leads remain available by legacy detail identity, hidden from default list.
+`/dashboard/contatos` carrega lista, detalhe e fila de duplicados reais; não pode manter `suggestions={[]}`. `/dashboard/contatos` e `/dashboard/financeiro` passam por gate direto, além do menu. Owner bridge actions normalize tags by trim, empty removal and case-insensitive dedup. Converted leads remain available by legacy detail identity, hidden from default list.
 
 ## Registry, RBAC e IA
 
 | Área | Decisão |
 |---|---|
 | CRM registry | registra ações CRM de leitura, notas/tags e review humano de duplicados |
-| CRM internal | reprocessamento e owner merges ficam fora de actions agent-safe |
+| CRM cron | `reprocessarSugestoesDuplicidade` é exclusivo do cron/system runner; não entra no catálogo IA |
+| Owner merge | merges de patient/lead são internos, chamados pelo coordenador CRM; sem rota, registry público ou tool |
 | Financeiro registry | registra `financeiroActions` e `financeiroAccessPermissions` |
 | Menu | adiciona `crmManifest` e `financeiroManifest` ao menu central |
-| Presets | Administrador recebe CRM; Recepcionista recebe `crm:view`; Comercial recebe CRM leitura/notes/tags conforme catálogo aprovado; Financeiro permanece Administrador-only |
-| IA | política agent-safe explícita no catálogo; deny-by-default; testes de catálogo exercitam casos proibidos |
+| Presets | Administrador inclui módulos CRM e Financeiro; Recepcionista recebe apenas `crm:view`; Comercial recebe apenas `crm:view`, `crm:manage_notes`, `crm:manage_tags`; nenhum recebe merge por inclusão de módulo |
+| IA | allowlist por action, deny-by-default; CRM review/merge, cron, owner merge, gateway config, pagamentos e cobranças ficam fora; testes exercitam cada exclusão |
 
 ## Fluxos de erro
 
@@ -100,9 +101,9 @@ Owner bridge actions normalize tags by trim, empty removal and case-insensitive 
 | sessão ausente | 401 |
 | permissão ausente | 403 |
 | owner/contact fora da clínica | 404 sem vazamento |
-| `type` ausente/inválido | 422 |
+| `type` ausente/inválido | 400 |
 | mutação CRM fora de escopo | 405 `crm_mvp_read_only` |
-| action interna pedida ao IA bridge | ausente do catálogo e `unknown_tool` se forçada |
+| action fora da allowlist IA | ausente do catálogo e `unknown_tool` se forçada |
 
 ## Testes
 
