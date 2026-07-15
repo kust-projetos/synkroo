@@ -122,7 +122,7 @@ export async function PUT(request: NextRequest) {
   const [task] = await db
     .update(tasks)
     .set(updateData as any)
-    .where(eq(tasks.id, id))
+    .where(and(eq(tasks.id, id), eq(tasks.clinicId, auth.profile!.clinic_id)))
     .returning()
 
   if (!task) {
@@ -145,7 +145,14 @@ export async function DELETE(request: NextRequest) {
   }
 
   const db = getDb()
-  await db.delete(tasks).where(eq(tasks.id, id))
+  const [task] = await db
+    .delete(tasks)
+    .where(and(eq(tasks.id, id), eq(tasks.clinicId, auth.profile!.clinic_id)))
+    .returning()
+
+  if (!task) {
+    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+  }
 
   return NextResponse.json({ success: true })
 }
