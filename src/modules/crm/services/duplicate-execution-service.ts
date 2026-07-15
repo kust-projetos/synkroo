@@ -17,8 +17,11 @@ import {
 } from '../services/duplicate-scoring-service';
 import { ActionError } from '@/core/actions/types';
 import type { ActionContext } from '@/core/actions/types';
-import { isPatientMerged } from '@/modules/operacional/services/patient-merge-state-service';
-import { isLeadMerged } from '@/modules/comercial/services/merge-state-service';
+import { getOwnerMergeDispatcher } from './owner-merge-registry';
+export { registerOwnerMerge } from './owner-merge-registry';
+export type { OwnerMergeDispatcher } from './owner-merge-registry';
+import { isPatientMerged } from '@/modules/operacional/services';
+import { isLeadMerged } from '@/modules/comercial/services';
 
 // ── Lease constants ──────────────────────────────────────────────────────────
 
@@ -32,20 +35,7 @@ export function isLeaseActive(executedAt: Date, nowMs: number = Date.now()): boo
   return nowMs - executedAt.getTime() < MERGE_LEASE_MS;
 }
 
-// ── Owner merge dispatcher ───────────────────────────────────────────────────
-
-export interface OwnerMergeDispatcher {
-  (winnerId: string, loserId: string, clinicId: string): Promise<boolean>;
-}
-
-const ownerMergeRegistry = new Map<string, OwnerMergeDispatcher>();
-
-export function registerOwnerMerge(
-  ownerType: 'patient' | 'lead',
-  dispatcher: OwnerMergeDispatcher,
-): void {
-  ownerMergeRegistry.set(ownerType, dispatcher);
-}
+// ── Owner merge dispatcher (registry lives in ./owner-merge-registry) ────────
 
 // ── Document conflict check ─────────────────────────────────────────────────
 
@@ -195,7 +185,7 @@ export async function executeMerge(
   const loserId = winnerId === suggestion.leftId ? suggestion.rightId : suggestion.leftId;
 
   // ── Dispatch owner merge ─────────────────────────────────────────────────
-  const dispatcher = ownerMergeRegistry.get(ownerType);
+  const dispatcher = getOwnerMergeDispatcher(ownerType);
   let ownerSuccess = false;
   if (dispatcher) {
     try {
