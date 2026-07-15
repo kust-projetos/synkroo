@@ -22,9 +22,17 @@ jest.mock('@/core/actions/context', () => ({
 
 jest.mock('../../repositories/financeiro-scope-repository', () => ({
   getPaymentChargeForClinic: jest.fn(),
+  getBudgetForClinic: jest.fn(),
 }));
 import * as scopeRepo from '../../repositories/financeiro-scope-repository';
 const mockGetPaymentChargeForClinic = scopeRepo.getPaymentChargeForClinic as jest.Mock;
+const mockGetBudgetForClinic = scopeRepo.getBudgetForClinic as jest.Mock;
+
+jest.mock('@/modules/operacional/services/patients-service', () => ({
+  obterPaciente: jest.fn(),
+}));
+import * as patientsSvc from '@/modules/operacional/services/patients-service';
+const mockObterPaciente = patientsSvc.obterPaciente as jest.Mock;
 
 beforeEach(() => {
   storeReset();
@@ -84,6 +92,25 @@ describe('calculateDaysOverdue', () => {
     const days = calculateDaysOverdue(due);
     expect(days).toBeGreaterThan(400);
   });
+
+  test('returns 0 for today or recent date', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const days = calculateDaysOverdue(today);
+    expect(days).toBeLessThanOrEqual(1);
+  });
+
+  test('returns 0 for today date', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const days = calculateDaysOverdue(today);
+    expect(days).toBeLessThanOrEqual(1);
+  });
+
+  test('getCollectionStage handles boundary values', () => {
+    expect(getCollectionStage(0)).toBe('none');
+    expect(getCollectionStage(6)).toBe('firm');
+    expect(getCollectionStage(7)).toBe('internal');
+    expect(getCollectionStage(100)).toBe('internal');
+  });
 });
 
 describe('enrichOverdueCharges', () => {
@@ -108,6 +135,11 @@ describe('enrichOverdueCharges', () => {
     expect(enriched[0].daysOverdue).toBeGreaterThan(0);
     expect(enriched[0].collectionStage).toBe('internal');
   });
+
+  test('returns empty array for empty input', () => {
+    const enriched = enrichOverdueCharges([]);
+    expect(enriched).toEqual([]);
+  });
 });
 
 describe('sendReminder', () => {
@@ -123,6 +155,19 @@ describe('sendReminder', () => {
       amount: '500',
       status: 'pending',
       dueDate: '2026-08-15',
+    });
+    // Default: patient found via obterPaciente with phone
+    mockObterPaciente.mockResolvedValue({
+      id: 'patient-1',
+      clinicId: CLINIC_ID,
+      name: 'Test Patient',
+      phone: '11999990000',
+    });
+    // Default: budget has patientId
+    mockGetBudgetForClinic.mockResolvedValue({
+      id: 'budget-1',
+      clinicId: CLINIC_ID,
+      patientId: 'patient-1',
     });
   });
 
@@ -145,6 +190,10 @@ describe('sendReminder', () => {
   });
 
   test('returns sent=false when no patient phone', async () => {
+    mockGetBudgetForClinic.mockResolvedValue({
+      id: 'budget-1', clinicId: CLINIC_ID, patientId: null,
+    });
+
     const result = await sendReminder({
       clinicId: CLINIC_ID,
       chargeId: 'ch1',
@@ -199,5 +248,35 @@ describe('sendReminder', () => {
     expect(result.sent).toBe(false);
     expect(result.error).toBe('missing_patient_phone');
     expect(mockRunAction).not.toHaveBeenCalled();
+  });
+
+  test('returns missing_patient_phone when obterPaciente returns patient with no phone', async () => {
+    mockObterPaciente.mockResolvedValue({
+      id: 'patient-2', clinicId: CLINIC_ID, name: 'No Phone', phone: null,
+    });
+
+    const result = await sendReminder({
+      clinicId: CLINIC_ID,
+      chargeId: 'ch1',
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('missing_patient_phone');
+  });
+
+  test('handles Atendimento action throwing an error (catch path)', async () => {
+    mockObterPaciente.mockResolvedValue({
+      id: 'patient-3', clinicId: CLINIC_ID, name: 'Test', phone: '11999990001',
+    });
+    mockRunAction.mockImplementation(() => { throw new Error('connection refused'); });
+
+    const result = await sendReminder({
+      clinicId: CLINIC_ID,
+      chargeId: 'ch1',
+      patientPhone: '11999990001',
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('connection refused');
   });
 });
