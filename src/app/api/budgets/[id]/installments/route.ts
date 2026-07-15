@@ -12,7 +12,11 @@ import {
   calculateRemainingBalance,
   replaceInstallments,
 } from '@/modules/financeiro/services/installment-service';
-import { getBudget } from '@/modules/financeiro/services/budget-service';
+import {
+  getBudgetForClinic,
+  updateInstallmentForBudget,
+  deleteInstallmentForBudget,
+} from '@/modules/financeiro/services/budget-scope-service';
 import { handleApiError, ValidationError } from '@/lib/errors';
 
 const createInstallmentsSchema = z.object({
@@ -81,16 +85,24 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth();
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
-    const installmentId = request.nextUrl.searchParams.get('installment_id');
+    const clinicId = authResult.profile!.clinic_id;
+    const { id: budgetId } = await params;
+
+    const { searchParams } = new URL(request.url);
+    const installmentId = searchParams.get('installment_id');
     if (!installmentId) return NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
+
+    // Scope: budget must belong to caller's clinic
+    const budget = await getBudgetForClinic(budgetId, clinicId);
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
 
     const body = updateInstallmentSchema.parse(await request.json());
 
-    const { updateInstallment } = await import('@/modules/financeiro/services/installment-service');
-    const updated = await updateInstallment(installmentId, {
-      amount: body.amount ? String(body.amount) : undefined,
-      dueDate: body.due_date ?? undefined,
-    } as any);
+    const patch: Record<string, unknown> = {};
+    if (body.amount !== undefined) patch.amount = String(body.amount);
+    if (body.due_date !== undefined) patch.dueDate = body.due_date;
+
+    const updated = await updateInstallmentForBudget(installmentId, budgetId, patch);
 
     if (!updated) return NextResponse.json({ error: 'Installment not found' }, { status: 404 });
     return NextResponse.json({ installment: updated });
@@ -104,11 +116,20 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const authResult = await validateApiAuth();
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
-    const installmentId = request.nextUrl.searchParams.get('installment_id');
+    const clinicId = authResult.profile!.clinic_id;
+    const { id: budgetId } = await params;
+
+    const { searchParams } = new URL(request.url);
+    const installmentId = searchParams.get('installment_id');
     if (!installmentId) return NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
 
-    const { deleteInstallment } = await import('@/modules/financeiro/services/installment-service');
-    await deleteInstallment(installmentId);
+    // Scope: budget must belong to caller's clinic
+    const budget = await getBudgetForClinic(budgetId, clinicId);
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
+
+    const deleted = await deleteInstallmentForBudget(installmentId, budgetId);
+
+    if (!deleted) return NextResponse.json({ error: 'Installment not found' }, { status: 404 });
     return NextResponse.json({ success: true });
   } catch (error) {
     return handleApiError(error);
