@@ -3,11 +3,10 @@ const mockValidateApiAuth = jest.fn()
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth }))
 jest.mock('@/core/modules/manifest', () => require('../../_setup/route-mocks').manifestMock)
 jest.mock('@/core/actions/context', () => require('../../_setup/route-mocks').contextMock)
+jest.mock('@/core/actions/run', () => ({ runAction: jest.fn() }))
+
 import { buildUserContext } from '@/core/actions/context'
-jest.mock('@/services/pipeline/pipeline-analytics.service', () => ({ getConversionByStage: jest.fn(), getAvgConversionTime: jest.fn() }))
-jest.mock('@/services/reports/financial-reports.service', () => ({ getInactivePatients: jest.fn(), getUpsellOpportunities: jest.fn() }))
-const { getConversionByStage, getAvgConversionTime } = require('@/services/pipeline/pipeline-analytics.service')
-const { getInactivePatients, getUpsellOpportunities } = require('@/services/reports/financial-reports.service')
+import { runAction } from '@/core/actions/run'
 
 const authOk = () => {
   mockValidateApiAuth.mockResolvedValue({ success: true, profile: { clinic_id: 'c1' } })
@@ -27,10 +26,58 @@ import { GET } from '../../../../app/api/pipeline/analytics/route'
 beforeEach(() => { jest.clearAllMocks() })
 
 describe('pipeline/analytics', () => {
-  it('returns 401', async () => { authFail(); const r = await GET(new NextRequest('http://localhost')); expect(r.status).toBe(401) })
-  it('returns 400 for invalid action', async () => { authOk(); const r = await GET(new NextRequest('http://localhost')); expect(r.status).toBe(400) })
-  it('returns conversion_by_stage', async () => { authOk(); getConversionByStage.mockResolvedValue([{ stageId: 's1', stageName: 'Novo' }]); const r = await GET(new NextRequest('http://localhost?action=conversion_by_stage')); const b = await r.json(); expect(b.stages).toHaveLength(1) })
-  it('returns avg_conversion_time', async () => { authOk(); getAvgConversionTime.mockResolvedValue(5.5); const r = await GET(new NextRequest('http://localhost?action=avg_conversion_time')); const b = await r.json(); expect(b.avgDays).toBe(5.5) })
-  it('returns inactive_patients', async () => { authOk(); getInactivePatients.mockResolvedValue([{ id: 'p1' }]); const r = await GET(new NextRequest('http://localhost?action=inactive_patients')); const b = await r.json(); expect(b.patients).toHaveLength(1) })
-  it('returns upsell_opportunities', async () => { authOk(); getUpsellOpportunities.mockResolvedValue([{ id: 'b1' }]); const r = await GET(new NextRequest('http://localhost?action=upsell_opportunities')); const b = await r.json(); expect(b.opportunities).toHaveLength(1) })
+  it('returns 401', async () => {
+    authFail()
+    const r = await GET(new NextRequest('http://localhost'))
+    expect(r.status).toBe(401)
+  })
+  it('returns 422 for invalid/missing action (adapter maps invalid_input to 422)', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid_input', message: 'invalid action' },
+    })
+    const r = await GET(new NextRequest('http://localhost'))
+    expect(r.status).toBe(422)
+  })
+  it('returns conversion_by_stage', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({
+      ok: true,
+      data: { stages: [{ stageId: 's1', stageName: 'Novo' }] },
+    })
+    const r = await GET(new NextRequest('http://localhost?action=conversion_by_stage'))
+    const b = await r.json()
+    expect(b.stages).toHaveLength(1)
+  })
+  it('returns avg_conversion_time', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({
+      ok: true,
+      data: { avgDays: 5.5 },
+    })
+    const r = await GET(new NextRequest('http://localhost?action=avg_conversion_time'))
+    const b = await r.json()
+    expect(b.avgDays).toBe(5.5)
+  })
+  it('returns inactive_patients', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({
+      ok: true,
+      data: { patients: [{ id: 'p1' }] },
+    })
+    const r = await GET(new NextRequest('http://localhost?action=inactive_patients'))
+    const b = await r.json()
+    expect(b.patients).toHaveLength(1)
+  })
+  it('returns upsell_opportunities', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({
+      ok: true,
+      data: { opportunities: [{ id: 'b1' }] },
+    })
+    const r = await GET(new NextRequest('http://localhost?action=upsell_opportunities'))
+    const b = await r.json()
+    expect(b.opportunities).toHaveLength(1)
+  })
 })
