@@ -11,7 +11,7 @@ export const reativarPaciente = defineAction({
   input: z.object({
     patientId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    return service.reactivatePatient(input.patientId);
+  handler: async (input, ctx: ActionContext) => {
+    return service.reactivatePatient(ctx.clinicId, input.patientId);
   },
 });

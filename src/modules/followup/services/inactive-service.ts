@@ -5,9 +5,10 @@
  * and adds reactivatePatient (not present in legacy).
  */
 
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { patients } from '@/lib/db/schema';
+import { ActionError } from '@/core/actions/types';
 import * as legacy from '@/services/followup/inactive-patient.service';
 import type { InactivePatient } from '@/services/followup/inactive-patient.service';
 
@@ -28,16 +29,16 @@ export async function findInactivePatients(
   return legacy.identifyInactivePatients(clinicId, minDays);
 }
 
-export async function reactivatePatient(patientId: string): Promise<{ success: boolean }> {
+export async function reactivatePatient(clinicId: string, patientId: string): Promise<{ success: boolean }> {
   const db = getDb();
 
   const [row] = await db
     .select({ tags: patients.tags, clinicId: patients.clinicId })
     .from(patients)
-    .where(eq(patients.id, patientId));
+    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)));
 
   if (!row) {
-    throw new Error(`Patient ${patientId} not found`);
+    throw new ActionError('not_found', 'Paciente não encontrado.');
   }
 
   const currentTags: string[] = (row.tags as string[]) || [];
@@ -45,7 +46,7 @@ export async function reactivatePatient(patientId: string): Promise<{ success: b
     (tag: string) => !tag.startsWith('Inativo') && !tag.startsWith('inativo')
   );
 
-  await db
+  const [updated] = await db
     .update(patients)
     .set({
       status: 'active',
@@ -53,7 +54,12 @@ export async function reactivatePatient(patientId: string): Promise<{ success: b
       riskScore: '0.00',
       updatedAt: new Date(),
     })
-    .where(eq(patients.id, patientId));
+    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+    .returning();
+
+  if (!updated) {
+    throw new ActionError('not_found', 'Paciente não encontrado.');
+  }
 
   return { success: true };
 }
