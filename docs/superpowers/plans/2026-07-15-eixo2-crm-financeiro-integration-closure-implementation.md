@@ -39,7 +39,7 @@
 
 **Files:** Modify `src/modules/operacional/{repositories/patients-repository.ts,actions/index.ts}` and `src/modules/comercial/{repositories/activities-repository.ts,repositories/leads-repository.ts,actions/index.ts}`; create `operacional/actions/{registrar-observacao-paciente,atualizar-tags-paciente}.ts`, `comercial/actions/{registrar-nota-lead,atualizar-tags-lead}.ts`, `src/modules/crm/__tests__/owner-bridge-actions.test.ts`.
 
-- [ ] **RED:** Assert four actions are registered and clinic-scoped. Assert tags `[' VIP ', 'vip', '', 'Lead']` become `['VIP', 'Lead']`; foreign patient/lead returns `not_found`.
+- [ ] **RED:** Assert four actions are registered and clinic-scoped. Assert tags `[' VIP ', 'vip', '', 'Lead']` become `['VIP', 'Lead']`; foreign patient/lead returns `not_found`. Run: `npx jest src/modules/crm/__tests__/owner-bridge-actions.test.ts --runInBand`. Expected: FAIL with missing owner action exports.
 - [ ] **GREEN:** Add repository functions for patient observation/tags and lead note/tags. Each write predicates owner id plus `clinicId`; lead note resolves the lead before activity insert.
 - [ ] **GREEN:** Define actions with existing permissions: Operacional `operacional:manage_patients`, Comercial `comercial:edit_leads`. Keep action input owner id only; derive clinic from context.
 - [ ] **VERIFY:** `npx jest src/modules/crm/__tests__/owner-bridge-actions.test.ts --runInBand` → PASS.
@@ -49,7 +49,7 @@
 
 **Files:** Create `src/modules/crm/repositories/contact-read-repository.ts`, `src/modules/crm/services/{contact-list-service,contact-detail-service,contact-timeline-service,contact-notes-service,contact-tags-service}.ts`, public actions for list/detail/timeline/notes/tags; modify `src/modules/crm/actions/index.ts`, `src/modules/crm/index.ts`, `.eslintrc.json`; create focused CRM tests.
 
-- [ ] **RED:** Test global patient+unconverted-lead ordering `updatedAt DESC, type ASC, id ASC`, page/total after union, owner-clinic isolation, and `{type,id}` detail `not_found`.
+- [ ] **RED:** Test global patient+unconverted-lead ordering `updatedAt DESC, type ASC, id ASC`, page/total after union, owner-clinic isolation, and `{type,id}` detail `not_found`. Run: `npx jest src/modules/crm/__tests__/contact-read-model.test.ts --runInBand`. Expected: FAIL, module `contact-read-repository` missing.
 - [ ] **RED:** Test timeline descending; notes only normalized note records; CRM note/tag actions select owner bridge by `type` and propagate `not_found`.
 - [ ] **GREEN:** Implement parameterized `UNION ALL` and count in `contact-read-repository.ts`. This is CRM's only owner-schema import exception; it performs only `SELECT`/`COUNT`.
 - [ ] **GREEN:** Define `crm.listarContatos`, `crm.obterContato`, `crm.listarTimelineContato`, `crm.listarNotasContato`, `crm.adicionarNotaContato`, `crm.atualizarTagsContato`; register them in the CRM public array.
@@ -63,8 +63,8 @@
 - [ ] **RED:** Assert `crmActions` contains only read/note/tag and human duplicate review/merge actions; excludes `crm.reprocessarSugestoesDuplicidade`. Assert `operacionalActions` and `comercialActions` exclude merge actions.
 - [ ] **RED:** In `src/modules/crm/__tests__/action-taxonomy.test.ts`, assert `crmActions` contains only read/note/tag and human duplicate review/merge actions; excludes `crm.reprocessarSugestoesDuplicidade`. Import `operacionalActions` and `comercialActions`; assert merge names are absent but direct imports of `mesclarPacientes`/`mesclarLeads` exist for internal dispatcher use. Run: `npx jest src/modules/crm/__tests__/action-taxonomy.test.ts --runInBand`. Expected: FAIL because `crmActions` is empty.
 - [ ] **RED:** Create `src/app/api/cron/crm-duplicates/route.test.ts`: mock `listClinicIdsWithPendingSuggestions`, `buildSystemContext`, `runAction`; expect one `{ clinicId }` call per clinic, 401 for invalid secret, and `{ skipped:true }` when gate rejects. Run: `npx jest src/app/api/cron/crm-duplicates/route.test.ts --runInBand`. Expected: FAIL because route queries/reprocesses directly.
-- [ ] **GREEN:** Export `crmActions` as public actions plus human duplicate actions. Keep `reprocessarSugestoesDuplicidade` importable only by cron. Preserve merges out of `registerActions` arrays and public route exports.
-- [ ] **GREEN:** Add `listClinicIdsWithPendingSuggestions()` to `duplicate-suggestions-repository.ts`; update cron to verify secret, call `assertModuleForJob('crm', moduleManifest)`, enumerate ids, build one system context and `runAction(reprocessarSugestoesDuplicidade, { clinicId }, ctx)` per clinic. Set `crmManifest.jobs = ['crm-duplicates']`.
+- [ ] **GREEN:** Export `crmActions` as public actions plus human duplicate actions. Keep `reprocessarSugestoesDuplicidade` importable only by cron. In each owner module index, replace `export { mesclar... }` with side-effect import `import './actions/mesclar-...'`; action file remains internal and registers dispatcher without public export.
+- [ ] **GREEN:** Add `listClinicIdsWithPendingSuggestions()` to `duplicate-suggestions-repository.ts`; update cron to verify secret, catch `ModuleDisabledError` and return `{ skipped:true }`, enumerate ids, build one system context and `runAction(reprocessarSugestoesDuplicidade, { clinicId }, ctx)` per clinic. Return `{ processed: clinicIds.length, results }`; zero ids returns `{ processed:0, results:[] }`; one failed action records `{ clinicId, ok:false, error }` and continues. Set `crmManifest.jobs = ['crm-duplicates']`.
 - [ ] **VERIFY:** `npx jest src/modules/crm/__tests__/action-taxonomy.test.ts src/app/api/cron/crm-duplicates/route.test.ts --runInBand` → PASS.
 - [ ] **COMMIT:** `git add src/modules/crm src/app/api/cron/crm-duplicates && git commit -m "refactor(crm): separate public and system actions"`.
 
@@ -72,10 +72,10 @@
 
 **Files:** Modify `src/app/api/contacts/{route.ts,[id]/route.ts,[id]/timeline/route.ts,[id]/notes/route.ts,[id]/appointments/route.ts,duplicates/**/route.ts}`, create `[id]/tags/route.ts`; modify `src/modules/crm/ui/route-adapter.ts`; create `src/modules/crm/__tests__/routes.test.ts`.
 
-- [ ] **RED:** Disabled CRM returns 404 for every contacts handler. Test `GET` list/detail/timeline/notes, `POST notes`, `PUT tags`, duplicate approve/dismiss/merge use actions.
+- [ ] **RED:** Disabled CRM returns 404 for every contacts handler. Test `GET` list/detail/timeline/notes, `POST notes`, `PUT tags`, duplicate approve/dismiss/merge use actions. Run: `npx jest src/modules/crm/__tests__/routes.test.ts --runInBand`. Expected: FAIL because legacy handlers bypass module gate/actions.
 - [ ] **RED:** Assert only `POST /api/contacts` and `PUT/PATCH /api/contacts/:id` return exactly `{ error:'crm_mvp_read_only' }`, 405. Notes/tags/duplicates must not return 405. Missing/invalid `type` returns 400.
-- [ ] **GREEN:** Wrap handlers with `withModuleRoute('crm', moduleManifest)` and call `runCrmAction`; remove `validateApiAuth`, `getDb`, legacy contact/timeline service imports from routes.
-- [ ] **GREEN:** Preserve `GET /api/contacts/:id/appointments` as CRM-gated, read-only adapter over an Operacional read action, scoped by clinic and patient identity. Lead identity returns CRM `not_found`.
+- [ ] **GREEN:** Wrap handlers with `withModuleRoute('crm', moduleManifest)` and call `runCrmAction`; add `crmReadOnlyResponse() => NextResponse.json({ error:'crm_mvp_read_only' }, { status:405 })`; remove `validateApiAuth`, `getDb`, legacy contact/timeline service imports from routes.
+- [ ] **GREEN:** Preserve `GET /api/contacts/:id/appointments` as CRM-gated, read-only adapter: validate `type === 'patient'`, call `runCrmAction(listarConsultas, { patientId:id, page:1, limit:50 })`, and map its `{ appointments }` contract. Lead identity returns CRM `not_found`.
 - [ ] **VERIFY:** `npx jest src/modules/crm/__tests__/routes.test.ts src/__tests__/api/contacts/appointments/route.test.ts --runInBand` → PASS.
 - [ ] **COMMIT:** `git add src/app/api/contacts src/modules/crm/ui src/modules/crm/__tests__ src/__tests__/api/contacts && git commit -m "feat(crm): cut contacts routes to actions"`.
 
@@ -83,9 +83,9 @@
 
 **Files:** Replace `src/app/dashboard/contatos/page.tsx`; create `src/app/dashboard/contatos/contacts-client.tsx`; modify `src/components/contacts/{contact-list-panel,contact-detail-panel,contact-create-dialog}.tsx`, `src/lib/hooks/use-queries.ts`; create UI tests.
 
-- [ ] **RED:** Server page test mocks manifest disabled and expects `notFound()`. Client tests assert list/detail fetch CRM data, duplicate queue receives fetched suggestions, and no create/edit/archive CTA exists.
+- [ ] **RED:** Server page test mocks manifest disabled and expects `notFound()`. Client tests assert list/detail fetch CRM data, duplicate queue receives fetched suggestions, and no create/edit/archive CTA exists. Run: `npx jest src/app/dashboard/contatos/page.test.tsx src/components/contacts/__tests__/contact-list-panel.test.tsx --runInBand`. Expected: FAIL because page is client-only and queue is literal empty data.
 - [ ] **GREEN:** Make page a server wrapper: check `moduleManifest.isEnabled('crm')`, call `notFound()` when false, render `ContactsClient` when true. Keep hooks/components client-side beneath it.
-- [ ] **GREEN:** Add CRM query keys/hooks for contacts, notes, tags and duplicate queue. Render `ContactSplitView` plus queue using query result, never literal `suggestions={[]}`. Remove `ContactCreateDialog` and entity mutation UI.
+- [ ] **GREEN:** Add CRM query keys/hooks for contacts, notes, tags and duplicate queue. Render `ContactSplitView` plus queue using query result, never literal `suggestions={[]}`. Delete `src/components/contacts/contact-create-dialog.tsx`; remove its imports, create button and edit/archive entity mutation UI.
 - [ ] **VERIFY:** `npx jest src/app/dashboard/contatos src/components/contacts --runInBand` → PASS.
 - [ ] **COMMIT:** `git add src/app/dashboard/contatos src/components/contacts src/lib/hooks/use-queries.ts && git commit -m "feat(crm): gate and wire contacts dashboard"`.
 
@@ -100,11 +100,11 @@
 
 ## Task 8 — Bootstrap CRM, exact RBAC presets and backfill
 
-**Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/core/rbac/presets.ts`, `scripts/backfill-rbac-permissions.mjs`; create `scripts/__tests__/backfill-rbac-permissions.test.mjs`; modify `src/core/actions/__tests__/bootstrap.test.ts`, `src/core/rbac/__tests__/seed.test.ts`, `src/lib/ui/__tests__/build-menu.test.ts`.
+**Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/core/rbac/presets.ts`, `scripts/backfill-rbac-permissions.mjs`; create `scripts/rbac-backfill-policy.mjs`, `scripts/__tests__/backfill-rbac-permissions.test.mjs`; modify `src/core/actions/__tests__/bootstrap.test.ts`, `src/core/rbac/__tests__/seed.test.ts`, `src/lib/ui/__tests__/build-menu.test.ts`.
 
 - [ ] **RED:** In bootstrap test expect CRM public/human and all Financeiro names/permissions, never reprocess. In seed test expect Administrador modules include CRM+Financeiro; Recepcionista extras equal `['crm:view']`; Comercial extras contain only CRM view/notes/tags and no merge key. In menu test enable each module independently and assert its item exists only with matching permission.
 - [ ] **RED:** In `backfill-rbac-permissions.test.mjs`, inject fake query client with Owner, Administrador, Recepcionista and Comercial across two clinics; assert only preset-derived keys insert, never every catalog key, and rerun inserts zero. Run: `node --test scripts/__tests__/backfill-rbac-permissions.test.mjs`. Expected: FAIL because current script grants every catalog permission to every system role.
-- [ ] **GREEN:** Add dynamic imports and idempotent registry/catalog registration for both CRM and Financeiro in `bootstrap.ts`; include both manifests in menu. Update exact preset lists. Refactor backfill into exported `backfill(client)` using `SYSTEM_PRESETS`-derived keys; retain CLI `main()` and parameterized `ON CONFLICT DO NOTHING` inserts.
+- [ ] **GREEN:** Add dynamic imports and idempotent registry/catalog registration for both CRM and Financeiro in `bootstrap.ts`; include both manifests in menu. Update exact preset lists. Create Node-compatible `scripts/rbac-backfill-policy.mjs` exporting literal `PRESET_KEYS` for Administrador, Recepcionista and Comercial; `backfill-rbac-permissions.mjs` imports this `.mjs`, exports `backfill(client)`, retains CLI `main()`, and uses parameterized `ON CONFLICT DO NOTHING` inserts. Do not import TypeScript `SYSTEM_PRESETS` from Node.
 - [ ] **GREEN:** Add deployment runbook step: deploy registry/catalog, execute `DATABASE_URL=... node scripts/backfill-rbac-permissions.mjs`, rerun safely.
 - [ ] **VERIFY:** `npx jest src/core/actions/__tests__/bootstrap.test.ts src/core/rbac/__tests__/seed.test.ts src/lib/ui/__tests__/build-menu.test.ts --runInBand && node --test scripts/__tests__/backfill-rbac-permissions.test.mjs` → PASS.
 - [ ] **COMMIT:** `git add src/core/actions/bootstrap.ts src/core/actions/__tests__/bootstrap.test.ts src/lib/ui/menu-actions.ts src/lib/ui/__tests__/build-menu.test.ts src/core/rbac/presets.ts src/core/rbac/__tests__/seed.test.ts scripts/backfill-rbac-permissions.mjs scripts/__tests__/backfill-rbac-permissions.test.mjs && git commit -m "feat(rbac): register CRM Financeiro access"`.
@@ -113,8 +113,8 @@
 
 **Files:** Modify only focused test/config/doc files required by gates.
 
-- [ ] **RED:** Add mutation targets for CRM mapping/timeline/tag service and IA tool policy. Ensure no integration test rewrites `DATABASE_URL`.
-- [ ] **GREEN:** Add only tests required for 80% changed-file coverage and ≥70% mutation score.
+- [ ] **RED:** Modify `stryker.services.config.json` to add `src/core/agent-bridge/tool-policy.ts`, CRM mapping/timeline/tag services. Run `npx stryker run --config stryker.services.config.json`; expected FAIL/score below 70 until targeted tests exist. Ensure no integration test rewrites `DATABASE_URL`.
+- [ ] **GREEN:** Modify only `stryker.services.config.json` and focused test files created in Tasks 1–8 when needed for 80% changed-file coverage and ≥70% mutation score.
 - [ ] **VERIFY:**
 ```bash
 npx jest src/core/agent-bridge src/modules/crm src/modules/financeiro src/components/contacts --runInBand
@@ -126,7 +126,7 @@ npx stryker run --config stryker.services.config.json
 ```
 Expected: every command exits 0. Run `npm audit --omit=dev --audit-level=high`.
 - [ ] **E2E DECISION:** After all prior gates pass, ask user: Playwright contacts read/note/tag/duplicate smoke, no because contract+integration cover it, or deferred ADR.
-- [ ] **COMMIT:** `git add stryker.services.config.json src/core/agent-bridge/__tests__ src/modules/crm/__tests__ src/modules/financeiro/__tests__ src/components/contacts/__tests__ && git commit -m "test(crm): close integration acceptance"`.
+- [ ] **COMMIT:** If Task 9 changes `stryker.services.config.json`, commit only it: `git add stryker.services.config.json && git commit -m "test(crm): add closure mutation targets"`; otherwise no Task 9 commit.
 
 ## Requirement coverage
 
