@@ -104,21 +104,26 @@ export async function executeMerge(
     }
 
     // Unapplied recovery: allow safe re-claim on fresh suggestion
-    // First release the stale lease by marking failed
-    await markSuggestionFailed(
+    // First release the stale lease by marking failed (CAS on id + key + executing)
+    const failed = await markSuggestionFailed(
       id,
       suggestion.mergeOperationKey ?? '',
       'lease_expired_recovery',
     );
+    if (!failed) {
+      // CAS loss — another process already finalized/merged this suggestion
+      const updated = await findSuggestionById(ctx.clinicId, id);
+      if (updated?.status === 'merged') {
+        return { id, status: 'merged' }; // idempotent merged outcome
+      }
+      throw new ActionError('conflict', 'Concorrência: estado alterado antes de liberar lease.');
+    }
     // Then re-read the suggestion (now 'failed') and flow through to re-claim
     const refreshed = await findSuggestionById(ctx.clinicId, id);
     if (!refreshed || refreshed.status !== 'failed') {
       throw new ActionError('conflict', 'Recuperação: estado inesperado após liberar lease.');
     }
-    // Override local variable to continue the normal flow below
-    // We re-assign suggestion to make the rest of the function see 'failed' status
-    // But the flow below checks status !== 'approved', so we can't just reassign.
-    // Instead, fall through to throw a retry-able error.
+    // Fall through to throw a retry-able error so the caller re-claims.
     throw new ActionError('conflict', 'Lease expirado. Reivindique novamente.');
   }
 

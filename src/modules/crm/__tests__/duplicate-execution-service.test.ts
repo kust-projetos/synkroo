@@ -295,6 +295,66 @@ describe('CRM duplicate execution', () => {
     );
   });
 
+  it('unapplied recovery: CAS loss rereads merged and returns idempotent', async () => {
+    const longAgo = new Date(Date.now() - MERGE_LEASE_MS - 1);
+    mockFindSuggestionById
+      .mockResolvedValueOnce(
+        suggestionFixture({
+          status: 'executing',
+          mergeOperationKey: 'key-stale',
+          executedAt: longAgo,
+        }),
+      )
+      .mockResolvedValueOnce(
+        suggestionFixture({
+          status: 'merged',
+          mergeOperationKey: 'key-stale',
+          executedAt: longAgo,
+        }),
+      );
+    mockIsPatientMerged.mockResolvedValue(false); // owner merge NOT applied
+    mockMarkSuggestionFailed.mockResolvedValue(false); // CAS loss
+
+    const result = await executarMergePatient.handler({ id: suggestionId }, context);
+
+    // Idempotent merged outcome despite CAS loss on the recovery mark-failed
+    expect(result).toMatchObject({ status: 'merged' });
+    expect(mockMarkSuggestionFailed).toHaveBeenCalledWith(
+      suggestionId,
+      'key-stale',
+      'lease_expired_recovery',
+    );
+    expect(mockFindSuggestionById).toHaveBeenCalledTimes(2);
+  });
+
+  it('unapplied recovery: CAS loss reread not merged throws conflict', async () => {
+    const longAgo = new Date(Date.now() - MERGE_LEASE_MS - 1);
+    mockFindSuggestionById
+      .mockResolvedValueOnce(
+        suggestionFixture({
+          status: 'executing',
+          mergeOperationKey: 'key-stale',
+          executedAt: longAgo,
+        }),
+      )
+      .mockResolvedValueOnce(
+        suggestionFixture({
+          status: 'failed',
+          mergeOperationKey: 'key-stale',
+          executedAt: longAgo,
+        }),
+      );
+    mockIsPatientMerged.mockResolvedValue(false); // owner merge NOT applied
+    mockMarkSuggestionFailed.mockResolvedValue(false); // CAS loss
+
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({
+      code: 'conflict',
+      message: 'Concorrência: estado alterado antes de liberar lease.',
+    });
+  });
+
   // ── Active lease ─────────────────────────────────
 
   it('active lease: throws conflict without marking failed', async () => {
