@@ -17,6 +17,7 @@ import {
   updateInstallmentForBudget,
   deleteInstallmentForBudget,
 } from '@/modules/financeiro/services/budget-scope-service';
+import { getBudget } from '@/modules/financeiro/services/budget-service';
 import { handleApiError, ValidationError } from '@/lib/errors';
 
 const createInstallmentsSchema = z.object({

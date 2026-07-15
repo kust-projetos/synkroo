@@ -136,7 +136,9 @@ describe('import inertness', () => {
 describe('run — orchestration', () => {
   const projectRoot = resolve(__dirname, '..');
   const isWin = process.platform === 'win32';
-  const npmBin = isWin ? 'npm.cmd' : 'npm';
+  const comSpec = process.env.ComSpec || 'cmd.exe';
+  const npmBin = isWin ? comSpec : 'npm';
+  const npmPrefix = isWin ? ['/d', '/s', '/c', 'npm.cmd'] : [];
 
   it('calls migrate → seed → Jest in order with correct commands and args', async () => {
     const { run } = await loadRunnerExports();
@@ -148,7 +150,7 @@ describe('run — orchestration', () => {
 
     // Step 1: npm run db:migrate
     assert.equal(calls[0][0], npmBin, 'step 1 command');
-    assert.deepEqual(calls[0][1], ['run', 'db:migrate'], 'step 1 args');
+    assert.deepEqual(calls[0][1], [...npmPrefix, 'run', 'db:migrate'], 'step 1 args');
 
     // Step 2: node scripts/seed-test-clinic.mjs
     assert.equal(calls[1][0], process.execPath, 'step 2 command');
@@ -156,7 +158,7 @@ describe('run — orchestration', () => {
 
     // Step 3: npm exec -- jest --config jest.integration.config.js --verbose
     assert.equal(calls[2][0], npmBin, 'step 3 command');
-    assert.deepEqual(calls[2][1], ['exec', '--', 'jest', '--config', 'jest.integration.config.js', '--verbose'], 'step 3 args');
+    assert.deepEqual(calls[2][1], [...npmPrefix, 'exec', '--', 'jest', '--config', 'jest.integration.config.js', '--verbose'], 'step 3 args');
   });
 
   it('each step receives stdio:inherit and DATABASE_URL in options', async () => {
@@ -178,8 +180,9 @@ describe('run — orchestration', () => {
 
     run(fakeExecute, TEST_URL, []);
 
-    assert.equal(calls[2][1].length, 5, 'jest default args count');
-    assert.deepEqual(calls[2][1], ['exec', '--', 'jest', '--config', 'jest.integration.config.js']);
+    const expectedJestArgs = [...npmPrefix, 'exec', '--', 'jest', '--config', 'jest.integration.config.js'];
+    assert.equal(calls[2][1].length, expectedJestArgs.length, 'jest default args count');
+    assert.deepEqual(calls[2][1], expectedJestArgs);
   });
 
   it('aborts on migrate failure and does not run seed or Jest', async () => {
@@ -212,15 +215,33 @@ describe('run — orchestration', () => {
 describe('npm binary per platform', () => {
   const isWin = process.platform === 'win32';
 
-  it('uses npm.cmd on Windows, npm on other platforms', async () => {
+  it('uses npm.cmd on Windows via cmd.exe, npm on other platforms', async () => {
     const source = readFileSync(runnerPath, 'utf-8');
-    const hasNpmCmd = source.includes("'npm.cmd'");
+    const hasComSpec = source.includes('ComSpec');
+    const hasNpmCmd = source.includes('npm.cmd');
     const hasNpm = source.includes("'npm'");
     if (isWin) {
+      assert.ok(hasComSpec, 'should use ComSpec/cmd.exe on Windows');
       assert.ok(hasNpmCmd, 'should contain npm.cmd on Windows');
     } else {
       assert.ok(hasNpm, 'should contain npm on non-Windows');
     }
+  });
+
+  it('npm binary is spawnable via execFileSync (no EINVAL)', async () => {
+    if (!isWin) return;
+    const { execFileSync } = await import('node:child_process');
+    // On Windows, execFileSync('npm.cmd', ...) is known to fail with EINVAL
+    // in certain Node.js versions. The runner must work around this by
+    // routing through cmd.exe. This test asserts the workaround works.
+    const comSpec = process.env.ComSpec || 'cmd.exe';
+    const r = execFileSync(comSpec, ['/d', '/s', '/c', 'npm.cmd', '--version'], {
+      stdio: 'pipe',
+      env: { ...process.env, TEST_DATABASE_URL: 'postgresql://invalid:0@127.0.0.1:5432/synkroo_test' },
+    });
+    const version = r.toString().trim();
+    assert.ok(version.length > 0, 'npm --version should return a version string');
+    assert.ok(!isNaN(Number(version.split('.')[0])), 'version should start with a number');
   });
 });
 

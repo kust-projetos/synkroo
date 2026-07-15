@@ -55,19 +55,9 @@ async function resolvePatientPhone(clinicId: string, chargeId: string): Promise<
     const budget = await getBudgetForClinic(charge.budgetId, clinicId);
     if (!budget?.patientId) return null;
 
-    // Query patient phone — scoped by clinicId
-    const { getDb } = await import('@/lib/db/client');
-    const { eq, and } = await import('drizzle-orm');
-    const { patients } = await import('@/lib/db/schema');
-
-    const db = getDb();
-    const [patient] = await db
-      .select({ phone: patients.phone })
-      .from(patients)
-      .where(and(eq(patients.id, budget.patientId), eq(patients.clinicId, clinicId)))
-      .limit(1);
-
-    if (!patient) return null;
+    // Use existing obterPaciente (operacional service) for scoped patient lookup
+    const { obterPaciente } = await import('@/modules/operacional/services/patients-service');
+    const patient = await obterPaciente(clinicId, budget.patientId);
     return patient.phone || null;
   } catch {
     return null;

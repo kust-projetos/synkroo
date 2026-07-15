@@ -25,7 +25,12 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, '..');
 
-const NPM_BIN = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+// On Windows, execFileSync('npm.cmd') fails with EINVAL because .cmd files
+// are batch scripts, not executables. Route through cmd.exe.
+const NPM_BIN = process.platform === 'win32'
+  ? (process.env.ComSpec || 'cmd.exe')
+  : 'npm';
+const NPM_PREFIX = process.platform === 'win32' ? ['/d', '/s', '/c', 'npm.cmd'] : [];
 
 // ── URL validation ───────────────────────────────────────────────────────────
 
@@ -117,13 +122,13 @@ export function run(execute = execFileSync, testUrl = process.env.TEST_DATABASE_
   const opts = commandOptions(validated);
 
   // Step 1: Migrate
-  execute(NPM_BIN, ['run', 'db:migrate'], opts);
+  execute(NPM_BIN, [...NPM_PREFIX, 'run', 'db:migrate'], opts);
 
   // Step 2: Seed
   execute(process.execPath, ['scripts/seed-test-clinic.mjs'], opts);
 
   // Step 3: Jest
-  execute(NPM_BIN, ['exec', '--', 'jest', '--config', 'jest.integration.config.js', ...jestArgs], opts);
+  execute(NPM_BIN, [...NPM_PREFIX, 'exec', '--', 'jest', '--config', 'jest.integration.config.js', ...jestArgs], opts);
 }
 
 // ── Entrypoint ───────────────────────────────────────────────────────────────
