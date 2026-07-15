@@ -6,6 +6,7 @@
  */
 
 import { listOverdueCharges as repoListOverdue, type PaymentChargeRow } from '../repositories/financeiro-repository';
+import { getPaymentChargeForClinic } from '../repositories/financeiro-scope-repository';
 
 export function getCollectionStage(daysOverdue: number): 'none' | 'light' | 'firm' | 'internal' {
   if (daysOverdue >= 7) return 'internal';
@@ -41,30 +42,29 @@ export function enrichOverdueCharges(charges: PaymentChargeRow[]): OverdueCharge
 
 /**
  * Resolve a patient's phone number from a charge's budget.
+ * Uses scoped queries so foreign charges/budgets/patients return null.
  * Returns null if the charge has no budget, the budget has no patient,
  * or the patient has no phone.
  */
 async function resolvePatientPhone(clinicId: string, chargeId: string): Promise<string | null> {
   try {
-    const { getPaymentCharge } = await import('../repositories/financeiro-repository');
-    const { getBudget } = await import('../services/budget-service');
-
-    const charge = await getPaymentCharge(chargeId);
+    const charge = await getPaymentChargeForClinic(chargeId, clinicId);
     if (!charge?.budgetId) return null;
 
-    const budget = await getBudget(charge.budgetId);
+    const { getBudgetForClinic } = await import('../repositories/financeiro-scope-repository');
+    const budget = await getBudgetForClinic(charge.budgetId, clinicId);
     if (!budget?.patientId) return null;
 
-    // Query patient phone from DB
+    // Query patient phone — scoped by clinicId
     const { getDb } = await import('@/lib/db/client');
-    const { eq } = await import('drizzle-orm');
+    const { eq, and } = await import('drizzle-orm');
     const { patients } = await import('@/lib/db/schema');
 
     const db = getDb();
     const [patient] = await db
       .select({ phone: patients.phone })
       .from(patients)
-      .where(eq(patients.id, budget.patientId))
+      .where(and(eq(patients.id, budget.patientId), eq(patients.clinicId, clinicId)))
       .limit(1);
 
     if (!patient) return null;
@@ -88,6 +88,12 @@ export async function sendReminder(input: {
 }): Promise<{ sent: boolean; error?: string }> {
   const { clinicId, chargeId } = input;
   let patientPhone = input.patientPhone;
+
+  // ALWAYS validate charge belongs to clinic before processing
+  const charge = await getPaymentChargeForClinic(chargeId, clinicId);
+  if (!charge) {
+    return { sent: false, error: 'missing_patient_phone' };
+  }
 
   // Resolve phone if not provided
   if (!patientPhone) {
