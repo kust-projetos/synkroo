@@ -13,9 +13,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL =
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute, assertModuleForJob, ModuleDisabledError } from '@/core/modules/gates';
 

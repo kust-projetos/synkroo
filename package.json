@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:integration": "node scripts/seed-test-clinic.mjs && jest --config jest.integration.config.js",
+    "test:integration:run": "node scripts/integration-run.mjs",
     "test:integration:watch": "jest --config jest.integration.config.js --watch",
     "test:watch": "jest --watch",
     "whatsapp:start": "ts-node src/services/whatsapp/cli.ts",

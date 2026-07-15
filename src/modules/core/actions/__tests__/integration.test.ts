@@ -1,7 +1,6 @@
 /** @jest-environment node */
 
 jest.unmock('@/lib/db/client');
-process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
 import { runAction } from '@/core/actions/run';
 import { assignUserAccess } from '../assign-user-access';

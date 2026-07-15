@@ -7,9 +7,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL =
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 import { Pool } from 'pg';
 import { closeDb } from '@/lib/db/client';
 import { createBudget, acceptBudget } from '../services/budget-service';

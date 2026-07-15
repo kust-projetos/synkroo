@@ -13,7 +13,7 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/integration.test.ts'],
+  testMatch: ['**/__tests__/**/integration.test.ts', '**/__tests__/**/*.integration.test.ts'],
   // Exclude actual node_modules directories only — avoid matching 'src\\modules' on Windows
   testPathIgnorePatterns: ['/node_modules/'],
   // Serial execution — integration tests share a single Postgres instance

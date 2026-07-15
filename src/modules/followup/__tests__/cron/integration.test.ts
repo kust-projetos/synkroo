@@ -14,9 +14,6 @@
 
 /** @jest-environment node */
 
-process.env.DATABASE_URL =
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 const MOCK_CRON_SECRET = 'test-cron-secret-12345678';
 
 // ── Mocks (must be before imports) ────────────────────────────────────────────
