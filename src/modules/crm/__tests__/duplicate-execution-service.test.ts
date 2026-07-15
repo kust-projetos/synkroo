@@ -1,10 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
 const mockFindSuggestionById = jest.fn();
-const mockClaimSuggestionForExecution = jest.fn();
-const mockMarkSuggestionMerged = jest.fn();
+const mockClaimSuggestion = jest.fn();
 const mockMarkSuggestionFailed = jest.fn();
-const mockDismissSiblings = jest.fn();
+const mockFinalizeMergeAndDismissSiblings = jest.fn();
 const mockFindDuplicateSource = jest.fn();
 
 jest.mock('@/modules/crm/repositories/duplicate-suggestions-repository', () => {
@@ -14,24 +13,23 @@ jest.mock('@/modules/crm/repositories/duplicate-suggestions-repository', () => {
   return {
     ...actual,
     findSuggestionById: (...args: unknown[]) => mockFindSuggestionById(...args),
-    claimSuggestionForExecution: (...args: unknown[]) =>
-      mockClaimSuggestionForExecution(...args),
-    markSuggestionMerged: (...args: unknown[]) =>
-      mockMarkSuggestionMerged(...args),
-    markSuggestionFailed: (...args: unknown[]) =>
-      mockMarkSuggestionFailed(...args),
-    dismissSiblings: (...args: unknown[]) =>
-      mockDismissSiblings(...args),
-    findDuplicateSource: (...args: unknown[]) =>
-      mockFindDuplicateSource(...args),
+    findDuplicateSource: (...args: unknown[]) => mockFindDuplicateSource(...args),
   };
 });
+
+jest.mock('@/modules/crm/repositories/merge-execution-repository', () => ({
+  claimSuggestion: (...args: unknown[]) => mockClaimSuggestion(...args),
+  markSuggestionFailed: (...args: unknown[]) => mockMarkSuggestionFailed(...args),
+  finalizeMergeAndDismissSiblings: (...args: unknown[]) =>
+    mockFinalizeMergeAndDismissSiblings(...args),
+}));
 
 import {
   executarMergePatient,
   executarMergeLead,
 } from '@/modules/crm/actions';
 import { crmDuplicateReviewActions } from '@/modules/crm/actions';
+import { isLeaseActive, MERGE_LEASE_MS } from '../services/duplicate-execution-service';
 
 const clinicId = '00000000-0000-4000-8000-000000000001';
 const suggestionId = '00000000-0000-4000-8000-000000000010';
@@ -60,7 +58,11 @@ function suggestionFixture(overrides: Record<string, unknown> = {}) {
     rightSnapshot: { id: 'right-id', document: null },
     winnerSuggestedId: null,
     winnerConfirmedId: null,
+    mergeOperationKey: null,
     dismissReason: null,
+    failureReason: null,
+    executedBy: null,
+    executedAt: null,
     detectedAt: new Date(),
     refreshedAt: new Date(),
     createdAt: new Date(),
@@ -87,12 +89,106 @@ function detectionRecord(id: string, overrides: Record<string, unknown> = {}) {
   };
 }
 
+// ── isLeaseActive ──────────────────────────────────
+
+describe('isLeaseActive', () => {
+  const base = new Date('2026-01-15T12:00:00Z');
+
+  it('returns true when elapsed < 30s', () => {
+    expect(isLeaseActive(base, base.getTime() + 29_000)).toBe(true);
+  });
+
+  it('returns false when elapsed = 30s', () => {
+    expect(isLeaseActive(base, base.getTime() + 30_000)).toBe(false);
+  });
+
+  it('returns false when elapsed > 30s', () => {
+    expect(isLeaseActive(base, base.getTime() + 31_000)).toBe(false);
+  });
+
+  it('returns true for very recent execution', () => {
+    expect(isLeaseActive(base, base.getTime() + 1)).toBe(true);
+  });
+});
+
+// ── executeMerge ────────────────────────────────────
+
 describe('CRM duplicate execution', () => {
   beforeEach(() => jest.clearAllMocks());
 
-  it('executes an approved patient merge end-to-end', async () => {
+  // ── Recovery: already merged ────────────────────
+
+  it('throws conflict when suggestion is already merged', async () => {
+    mockFindSuggestionById.mockResolvedValue(
+      suggestionFixture({ status: 'merged' }),
+    );
+
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({ code: 'conflict' });
+  });
+
+  // ── Recovery: lease active ───────────────────────
+
+  it('throws conflict when suggestion is executing with active lease', async () => {
+    mockFindSuggestionById.mockResolvedValue(
+      suggestionFixture({
+        status: 'executing',
+        mergeOperationKey: 'key-active',
+        executedAt: new Date(), // just now → lease active
+      }),
+    );
+
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({ code: 'conflict' });
+    expect(mockMarkSuggestionFailed).not.toHaveBeenCalled();
+  });
+
+  // ── Recovery: lease expired ──────────────────────
+
+  it('marks failed and throws conflict when executing with expired lease', async () => {
+    const longAgo = new Date(Date.now() - MERGE_LEASE_MS - 1);
+    mockFindSuggestionById.mockResolvedValue(
+      suggestionFixture({
+        status: 'executing',
+        mergeOperationKey: 'key-stale',
+        executedAt: longAgo,
+      }),
+    );
+    mockMarkSuggestionFailed.mockResolvedValue(true);
+
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({ code: 'conflict' });
+    expect(mockMarkSuggestionFailed).toHaveBeenCalledWith(
+      suggestionId,
+      'key-stale',
+      'lease_expired_recovery',
+    );
+  });
+
+  // ── Recovery: executing without executedAt ───────
+
+  it('treats executing without executedAt as expired lease', async () => {
+    mockFindSuggestionById.mockResolvedValue(
+      suggestionFixture({
+        status: 'executing',
+        mergeOperationKey: 'key-no-date',
+        executedAt: null,
+      }),
+    );
+    mockMarkSuggestionFailed.mockResolvedValue(true);
+
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({ code: 'conflict' });
+  });
+
+  // ── Dispatcher absent before approved claim ──────
+
+  it('executes owner merge end-to-end with claim and finalize', async () => {
     mockFindSuggestionById.mockResolvedValue(suggestionFixture());
-    // matching phone (70) + name contained match (15) = 85, same as stored
     mockFindDuplicateSource.mockResolvedValueOnce(
       detectionRecord('left-id', {
         name: 'Alice',
@@ -107,20 +203,88 @@ describe('CRM duplicate execution', () => {
         email: null,
       }),
     );
-    mockClaimSuggestionForExecution.mockResolvedValue({
-      id: suggestionId,
-      mergeOperationKey: 'key-1',
-    });
-    mockMarkSuggestionMerged.mockResolvedValue(undefined);
-    mockDismissSiblings.mockResolvedValue(undefined);
+    mockClaimSuggestion.mockResolvedValue(true);
+    // No dispatcher registered → ownerSuccess = false
+    mockMarkSuggestionFailed.mockResolvedValue(true);
 
     await expect(
       executarMergePatient.handler({ id: suggestionId }, context),
     ).rejects.toMatchObject({ code: 'internal' });
 
-    expect(mockFindDuplicateSource).toHaveBeenCalledTimes(2);
-    expect(mockFindSuggestionById).toHaveBeenCalled();
+    expect(mockClaimSuggestion).toHaveBeenCalled();
+    expect(mockMarkSuggestionFailed).toHaveBeenCalled();
+    // Should NOT attempt finalize since owner failed
+    expect(mockFinalizeMergeAndDismissSiblings).not.toHaveBeenCalled();
   });
+
+  // ── Dispatcher error → failure ───────────────────
+
+  it('marks failed when dispatcher throws', async () => {
+    mockFindSuggestionById.mockResolvedValue(suggestionFixture());
+    mockFindDuplicateSource.mockResolvedValueOnce(
+      detectionRecord('left-id', { name: 'Alice', phone: '11999990000' }),
+    );
+    mockFindDuplicateSource.mockResolvedValueOnce(
+      detectionRecord('right-id', { name: 'Alice S.', phone: '(11) 99999-0000' }),
+    );
+    mockClaimSuggestion.mockResolvedValue(true);
+    mockMarkSuggestionFailed.mockResolvedValue(true);
+
+    // No dispatcher registered → ownerSuccess = false (no throw, just false)
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({ code: 'internal' });
+    expect(mockMarkSuggestionFailed).toHaveBeenCalled();
+  });
+
+  // ── Finalize CAS: winner wins ────────────────────
+
+  it('finalizes merge atomically when dispatcher succeeds', async () => {
+    // Register a mock dispatcher that returns true
+    const { registerOwnerMerge } = await import('../services/duplicate-execution-service');
+    registerOwnerMerge('patient', async () => true);
+
+    mockFindSuggestionById.mockResolvedValue(suggestionFixture());
+    mockFindDuplicateSource.mockResolvedValueOnce(
+      detectionRecord('left-id', { name: 'Alice', phone: '11999990000' }),
+    );
+    mockFindDuplicateSource.mockResolvedValueOnce(
+      detectionRecord('right-id', { name: 'Alice S.', phone: '(11) 99999-0000' }),
+    );
+    mockClaimSuggestion.mockResolvedValue(true);
+    mockFinalizeMergeAndDismissSiblings.mockResolvedValue(true);
+
+    const result = await executarMergePatient.handler(
+      { id: suggestionId },
+      context,
+    );
+    expect(result).toMatchObject({ status: 'executing' });
+    expect(mockFinalizeMergeAndDismissSiblings).toHaveBeenCalled();
+  });
+
+  // ── Finalize CAS: loser gets conflict ────────────
+
+  it('throws conflict when finalize CAS fails (already merged by another)', async () => {
+    const { registerOwnerMerge } = await import('../services/duplicate-execution-service');
+    registerOwnerMerge('patient', async () => true);
+
+    mockFindSuggestionById.mockResolvedValue(suggestionFixture());
+    mockFindDuplicateSource.mockResolvedValueOnce(
+      detectionRecord('left-id', { name: 'Alice', phone: '11999990000' }),
+    );
+    mockFindDuplicateSource.mockResolvedValueOnce(
+      detectionRecord('right-id', { name: 'Alice S.', phone: '(11) 99999-0000' }),
+    );
+    mockClaimSuggestion.mockResolvedValue(true);
+    // CAS fails — another process already finalized
+    mockFinalizeMergeAndDismissSiblings.mockResolvedValue(false);
+
+    await expect(
+      executarMergePatient.handler({ id: suggestionId }, context),
+    ).rejects.toMatchObject({ code: 'conflict' });
+  });
+
+  // ── Existing tests ──────────────────────────────
 
   it('rejects merge when document conflict exists', async () => {
     mockFindSuggestionById.mockResolvedValue(
@@ -140,27 +304,17 @@ describe('CRM duplicate execution', () => {
       leftSnapshot: { id: 'left-id', document: null },
       rightSnapshot: { id: 'right-id', document: null },
     }));
-    // phone match (70) only; stored is 85, diff 15 >= 15
     mockFindDuplicateSource.mockResolvedValueOnce(
-      detectionRecord('left-id', {
-        phone: '11999990000',
-        email: null,
-        document: null,
-      }),
+      detectionRecord('left-id', { phone: '11999990000', email: null, document: null }),
     );
     mockFindDuplicateSource.mockResolvedValueOnce(
-      detectionRecord('right-id', {
-        phone: '(11) 99999-0000',
-        email: null,
-        document: null,
-      }),
+      detectionRecord('right-id', { phone: '(11) 99999-0000', email: null, document: null }),
     );
 
     const result = await executarMergePatient.handler(
       { id: suggestionId },
       context,
     );
-
     expect(result).toMatchObject({ status: 'pending' });
   });
 
@@ -172,11 +326,7 @@ describe('CRM duplicate execution', () => {
       }),
     );
     mockFindDuplicateSource.mockResolvedValue(
-      detectionRecord('any', {
-        phone: null,
-        email: null,
-        document: null,
-      }),
+      detectionRecord('any', { phone: null, email: null, document: null }),
     );
 
     await expect(
