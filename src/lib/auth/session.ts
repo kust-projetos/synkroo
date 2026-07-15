@@ -1,4 +1,5 @@
 import { getServerSession } from 'next-auth';
+import type { Session } from 'next-auth';
 import { authOptions } from './auth';
 import { findUserProfileById } from '@/repositories/auth';
 
@@ -39,9 +40,9 @@ function toProfileCamel(row: any): ServerUserProfile {
 /**
  * Get the current session from the request context.
  */
-export async function getSession() {
+export async function getSession(): Promise<Session | null> {
   try {
-    return await getServerSession(authOptions);
+    return await getServerSession<typeof authOptions, Session>(authOptions);
   } catch {
     // Return null when no request context (e.g., during build, tests)
     return null;
