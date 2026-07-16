@@ -16,6 +16,7 @@ import {
   getBudget as repoGetBudget,
 } from '../repositories/financeiro-repository';
 import { replaceInstallments, listInstallments } from '../services/installment-service';
+import { replaceInstallmentsAtomic } from '../repositories/installment-replacement-repository';
 import { budgets, budgetInstallments } from '@/lib/db/schema';
 import { getDb } from '@/lib/db/client';
 
@@ -128,30 +129,46 @@ describe('installment replacement rollback', () => {
     await pool.query('DELETE FROM budgets WHERE id = $1', [BUDGET_ID]);
   });
 
-  test('failed insert preserves original installments (rollback)', async () => {
-    // Seed original installments
-    const original = await replaceInstallments(BUDGET_ID, [
-      { amount: 100, dueDate: '2026-08-15' },
-      { amount: 200, dueDate: '2026-09-15' },
-    ]);
-    expect(original).toHaveLength(2);
+  test('atomic replacement rollback on NOT NULL violation preserves originals', async () => {
+    const db = getDb();
 
-    const originalIds = original.map(o => o.id);
-    const originalAmounts = original.map(o => o.amount);
+    try {
+      // Seed original installments via atomic replacement
+      const original = await replaceInstallmentsAtomic(BUDGET_ID, [
+        { budgetId: BUDGET_ID, amount: '100.00', dueDate: '2026-08-15', status: 'pending' },
+        { budgetId: BUDGET_ID, amount: '200.00', dueDate: '2026-09-15', status: 'pending' },
+      ]);
+      expect(original).toHaveLength(2);
 
-    // Attempt replacement with an invalid date that Postgres will reject
-    // This must fail inside the transaction, rolling back the delete
-    await expect(
-      replaceInstallments(BUDGET_ID, [
-        { amount: 300, dueDate: 'not-a-date' },
-      ]),
-    ).rejects.toThrow();
+      const originalIds = [...original.map(r => r.id)].sort();
+      const originalAmounts = original.map(r => r.amount).sort();
+      const originalDueDates = original.map(r => r.dueDate).sort();
 
-    // Verify original installments are preserved
-    const remaining = await listInstallments(BUDGET_ID);
-    expect(remaining).toHaveLength(2);
-    expect(remaining.map(r => r.id).sort()).toEqual([...originalIds].sort());
-    expect(remaining.map(r => r.amount).sort()).toEqual([...originalAmounts].sort());
+      // Attempt replacement with amount=null (type-forced to bypass TS)
+      // PostgreSQL NOT NULL on budget_installments.amount rejects after DELETE
+      // inside the transaction, forcing rollback.
+      await expect(
+        replaceInstallmentsAtomic(BUDGET_ID, [
+          { budgetId: BUDGET_ID, amount: null as unknown as string, dueDate: '2026-10-01', status: 'pending' },
+        ]),
+      ).rejects.toThrow();
+
+      // Transaction rolled back — original installments intact
+      const remaining = await listInstallments(BUDGET_ID);
+      expect(remaining).toHaveLength(2);
+
+      const remainingSorted = [...remaining].sort((a, b) => a.id.localeCompare(b.id));
+      const originalSorted = [...original].sort((a, b) => a.id.localeCompare(b.id));
+
+      for (let i = 0; i < remainingSorted.length; i++) {
+        expect(remainingSorted[i].id).toBe(originalSorted[i].id);
+        expect(remainingSorted[i].amount).toBe(originalSorted[i].amount);
+        expect(remainingSorted[i].dueDate).toBe(originalSorted[i].dueDate);
+      }
+    } finally {
+      // Cleanup children, parent is cleared by outer beforeEach
+      await pool.query('DELETE FROM budget_installments WHERE budget_id = $1', [BUDGET_ID]);
+    }
   });
 
   test('normal replacement succeeds and returns new installments', async () => {
