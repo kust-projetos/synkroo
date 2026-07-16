@@ -41,11 +41,13 @@ export async function claimSuggestion(
 
 /**
  * Mark a claimed suggestion as failed via CAS.
- * Transitions from 'executing' → 'failed' only if id + mergeOperationKey match.
+ * Transitions from 'executing' → 'failed' only if id + clinicId +
+ * mergeOperationKey match.
  * Returns true if the update succeeded (1 row updated).
  */
 export async function markSuggestionFailed(
   id: string,
+  clinicId: string,
   mergeOperationKey: string,
   failureReason: string,
 ): Promise<boolean> {
@@ -59,6 +61,7 @@ export async function markSuggestionFailed(
     } as any)
     .where(and(
       eq(crmDuplicateSuggestions.id, id),
+      eq(crmDuplicateSuggestions.clinicId, clinicId),
       eq(crmDuplicateSuggestions.mergeOperationKey, mergeOperationKey),
       eq(crmDuplicateSuggestions.status, 'executing'),
     ));
@@ -85,12 +88,13 @@ export async function finalizeMergeAndDismissSiblings(
   const db = getDb();
 
   return db.transaction(async (tx) => {
-    // CASE 1: Finalize the winning suggestion
+    // CASE 1: Finalize the winning suggestion (CAS: id + clinicId + key + executing)
     const finalizeResult: any = await tx
       .update(crmDuplicateSuggestions)
       .set({ status: 'merged', updatedAt: new Date() } as any)
       .where(and(
         eq(crmDuplicateSuggestions.id, id),
+        eq(crmDuplicateSuggestions.clinicId, clinicId),
         eq(crmDuplicateSuggestions.mergeOperationKey, mergeOperationKey),
         eq(crmDuplicateSuggestions.status, 'executing'),
       ));

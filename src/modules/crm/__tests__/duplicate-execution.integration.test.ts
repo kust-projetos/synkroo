@@ -218,11 +218,38 @@ describeOrSkip('Merge execution repository functions (DB real)', () => {
   it('markSuggestionFailed marks an executing suggestion via CAS', async () => {
     await resetToApproved();
     await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
-    const ok = await markSuggestionFailed(SUGGESTION_2, KEY_1, 'owner_merge_failed');
+    const ok = await markSuggestionFailed(SUGGESTION_2, CLINIC_ID, KEY_1, 'owner_merge_failed');
     expect(ok).toBe(true);
 
-    const bad = await markSuggestionFailed(SUGGESTION_2, KEY_2, 'owner_merge_failed');
+    const bad = await markSuggestionFailed(SUGGESTION_2, CLINIC_ID, KEY_2, 'owner_merge_failed');
     expect(bad).toBe(false);
+  });
+
+  it('markSuggestionFailed with foreign clinic returns false, suggestion unchanged (RED→GREEN)', async () => {
+    const db = getDb();
+    await resetToApproved();
+    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+
+    // Snapshot before: should be 'executing'
+    const [before] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1) as any;
+    expect(before.status).toBe('executing');
+
+    // Attempt with FOREIGN_CLINIC — must NOT match
+    const foreign = await markSuggestionFailed(SUGGESTION_2, FOREIGN_CLINIC, KEY_1, 'foreign_clinic_attempt');
+    expect(foreign).toBe(false);
+
+    // Suggestion still 'executing' with same key
+    const [after] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1) as any;
+    expect(after.status).toBe('executing');
+    expect(after.mergeOpKey).toBe(before.mergeOpKey);
   });
 
   it('finalizeMergeAndDismissSiblings finalizes winner via CAS', async () => {
@@ -242,5 +269,32 @@ describeOrSkip('Merge execution repository functions (DB real)', () => {
     // Wrong operation key → CAS miss → false
     const bad = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_2, CLINIC_ID, LEFT, RIGHT, OWNER_TYPE);
     expect(bad).toBe(false);
+  });
+
+  it('finalizeMergeAndDismissSiblings with foreign clinic returns false, suggestion unchanged (RED→GREEN)', async () => {
+    const db = getDb();
+    await resetToApproved();
+    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+
+    // Snapshot before
+    const [before] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1) as any;
+    expect(before.status).toBe('executing');
+
+    // Attempt with FOREIGN_CLINIC — winner CAS must include clinicId
+    const foreign = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_1, FOREIGN_CLINIC, LEFT, RIGHT, OWNER_TYPE);
+    expect(foreign).toBe(false);
+
+    // Suggestion still executing
+    const [after] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1) as any;
+    expect(after.status).toBe('executing');
+    expect(after.mergeOpKey).toBe(before.mergeOpKey);
   });
 });
