@@ -10,7 +10,7 @@
 
 /** @jest-environment node */
 
-import { sql } from 'drizzle-orm';
+import { sql, eq } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import {
   getBudgetForClinic,
@@ -18,6 +18,9 @@ import {
   deleteInstallmentForBudget,
   getPaymentChargeForClinic,
 } from '@/modules/financeiro/repositories/financeiro-scope-repository';
+import { sendReminder } from '@/modules/financeiro/services/collection-service';
+import { buildSystemContext } from '@/core/actions/context';
+import { enviarLembreteCobranca } from '@/modules/financeiro/actions/enviar-lembrete-cobranca';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -152,5 +155,77 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
     const deleted = await deleteInstallmentForBudget(INSTALLMENT_A, BUDGET_A);
     expect(deleted).toBeDefined();
     expect(deleted?.id).toBe(INSTALLMENT_A);
+  });
+
+  // ── sendReminder (collection-service) scope ───────────────────────────
+
+  it('sendReminder with forged clinicId returns missing_patient_phone, charge unchanged', async () => {
+    // Call sendReminder with CLINIC_B (charge belongs to CLINIC_A)
+    const result = await sendReminder({
+      clinicId: CLINIC_B,
+      chargeId: CHARGE_A,
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('missing_patient_phone');
+
+    // Verify charge A still exists and unchanged in DB
+    const db = getDb();
+    const [row] = await db
+      .select({ id: sql`id`, clinicId: sql`clinic_id`, amount: sql`amount`, status: sql`status` })
+      .from(sql`payment_charges`)
+      .where(sql`id = ${CHARGE_A}`);
+    expect(row).toBeDefined();
+    expect(row.clinicId).toBe(CLINIC_A);
+    expect(row.amount).toBe('500.00');
+  });
+
+  it('sendReminder foreign charge with provided phone still returns missing_patient_phone (scope check first)', async () => {
+    // Even with a valid phone number provided, the scope check happens before phone resolution
+    const result = await sendReminder({
+      clinicId: CLINIC_B,
+      chargeId: CHARGE_A,
+      patientPhone: '11999999999', // valid phone — but scope check rejects first
+    });
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('missing_patient_phone');
+  });
+
+  it('sendReminder own clinic charge: scope does not block, error is not missing_patient_phone', async () => {
+    const result = await sendReminder({
+      clinicId: CLINIC_A,
+      chargeId: CHARGE_A,
+    });
+
+    // Scope check passed — proceed to phone resolution + send attempt.
+    expect(result.sent).toBe(false);
+    expect(result.error).not.toBe('missing_patient_phone');
+  });
+
+  // ── Action-level entry test ──────────────────────────
+
+  it('enviarLembreteCobranca action handler with forged clinicId returns missing_patient_phone', async () => {
+    const db = getDb();
+
+    // Build context directly — bypass permission check to test handler logic
+    const ctx = await buildSystemContext(CLINIC_A);
+
+    // Call handler directly (test the logic, not the permission gate)
+    const result = await enviarLembreteCobranca.handler({
+      clinicId: CLINIC_B,    // forged — charge belongs to CLINIC_A
+      chargeId: CHARGE_A,
+    }, ctx);
+
+    expect(result.sent).toBe(false);
+    expect(result.error).toBe('missing_patient_phone');
+
+    // Charge A still exists and unchanged
+    const [row] = await db
+      .select({ id: sql`id`, clinicId: sql`clinic_id`, amount: sql`amount` })
+      .from(sql`payment_charges`)
+      .where(sql`id = ${CHARGE_A}`);
+    expect(row).toBeDefined();
+    expect(row.clinicId).toBe(CLINIC_A);
   });
 });

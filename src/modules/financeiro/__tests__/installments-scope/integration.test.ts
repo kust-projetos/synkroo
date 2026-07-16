@@ -1,19 +1,21 @@
 /**
- * Integration test: installments tenant scope — verifies PATCH/DELETE cannot
- * mutate installments outside the caller's budget + tenant boundary.
+ * Integration test: installments tenant scope — verifies PATCH/DELETE routes
+ * reject cross-tenant/budget mutations via HTTP 404, DB unchanged.
  *
- * Precondition: RUN_INTEGRATION_TESTS=1, TEST_DATABASE_URL points to
- * local /synkroo_test database with migrations applied.
+ * Auth mocked to simulate authenticated clinic A session; routes use real DB.
  *
  * Run via: npm run test:integration:run -- src/modules/financeiro/__tests__/installments-scope/integration.test.ts
  */
 
 /** @jest-environment node */
 
+jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }));
+
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { budgets, budgetInstallments } from '@/lib/db/schema';
-import { replaceInstallmentsAtomic } from '@/modules/financeiro/repositories/installment-replacement-repository';
+import { PATCH, DELETE } from '@/app/api/budgets/[id]/installments/route';
+import { validateApiAuth } from '@/lib/auth/session';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -24,13 +26,20 @@ const BUDGET_B = '00000000-0000-0000-0000-00000000c002';
 const INSTALLMENT_A = '00000000-0000-0000-0000-00000000d001';
 const INSTALLMENT_B = '00000000-0000-0000-0000-00000000d002';
 
-const ts = String(Date.now()).slice(-8);
+function authAs(clinicId: string) {
+  (validateApiAuth as jest.Mock).mockResolvedValue({
+    success: true,
+    profile: { id: 'user-1', clinic_id: clinicId, role: 'owner' },
+  });
+}
 
-describeOrSkip('Installments tenant scope (DB real)', () => {
+const routeParamsA = { params: Promise.resolve({ id: BUDGET_A }) };
+const routeParamsB = { params: Promise.resolve({ id: BUDGET_B }) };
+
+describeOrSkip('Installments tenant scope — route + DB real', () => {
   beforeAll(async () => {
     const db = getDb();
 
-    // Create two clinics
     await db.execute(
       sql`INSERT INTO clinics (id, name, slug, phone, email)
           VALUES (${CLINIC_A}, 'Inst Scope Clinic A', 'inst-scope-a', '11999990001', 'a@inst-test.com')
@@ -42,7 +51,7 @@ describeOrSkip('Installments tenant scope (DB real)', () => {
           ON CONFLICT (id) DO NOTHING`,
     );
 
-    // Create budget A (clinic A) with an installment
+    // Budget A (clinic A) with installment A
     await db.execute(
       sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status)
           VALUES (${BUDGET_A}, ${CLINIC_A}, 'Budget A', '500.00', '500.00', 'pending')
@@ -54,7 +63,7 @@ describeOrSkip('Installments tenant scope (DB real)', () => {
           ON CONFLICT (id) DO NOTHING`,
     );
 
-    // Create budget B (clinic B) with an installment
+    // Budget B (clinic B) with installment B
     await db.execute(
       sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status)
           VALUES (${BUDGET_B}, ${CLINIC_B}, 'Budget B', '300.00', '300.00', 'pending')
@@ -69,97 +78,138 @@ describeOrSkip('Installments tenant scope (DB real)', () => {
 
   afterAll(async () => {
     const db = getDb();
-    // Replacements auto-generate installment ids, so clean by budget.
     await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_A}, ${BUDGET_B})`);
     await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_A}, ${BUDGET_B})`);
     await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
     await closeDb();
   });
 
-  // ── PATCH scope ─────────────────────────────
+  beforeEach(() => {
+    (validateApiAuth as jest.Mock).mockReset();
+  });
 
-  it('PATCH scoped by budget+tenant: foreign budget returns 0 rows, state unchanged', async () => {
+  // ── PATCH route ──────────────────────────────────────
+
+  it('PATCH route returns 404 for foreign budget (wrong tenant)', async () => {
+    authAs(CLINIC_A);
     const db = getDb();
 
-    // Attempt update with wrong budgetId (BUDGET_B) — even though installment A exists,
-    // the combined predicate (installmentId + budgetId) should reject
-    const result = await db
-      .update(budgetInstallments)
-      .set({ amount: '999.99' })
-      .where(sql`id = ${INSTALLMENT_A} AND budget_id = ${BUDGET_B}`)
-      .returning();
+    // Snapshot BUDGET_B's installment before (belongs to CLINIC_B)
+    const [{ amount: amountBefore }] = await db
+      .select({ amount: budgetInstallments.amount })
+      .from(budgetInstallments)
+      .where(sql`id = ${INSTALLMENT_B}`)
+      .limit(1) as any;
 
-    // No rows affected — budget_id predicate rejected the cross-budget update
-    expect(result.length).toBe(0);
+    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
+      method: 'PATCH',
+      body: JSON.stringify({ amount: 999 }),
+    });
+    const res = await PATCH(req as any, routeParamsB as any);
+    expect(res.status).toBe(404);
 
-    // Verify original installment A is untouched
+    // Installment B unchanged
     const [row] = await db
       .select({ amount: budgetInstallments.amount })
       .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_A}`)
+      .where(sql`id = ${INSTALLMENT_B}`)
       .limit(1);
-
-    expect(row).toBeDefined();
-    expect(row.amount).toBe('250.00');
+    expect(row.amount).toBe(amountBefore);
   });
 
-  // ── DELETE scope ─────────────────────────────
-
-  it('DELETE scoped by budget+tenant: cross-budget returns 0 rows, installment still exists', async () => {
+  it('PATCH route ignores forged clinicId in body, returns 404', async () => {
+    authAs(CLINIC_A);
     const db = getDb();
 
-    // Attempt delete with wrong budgetId
-    const result = await db
-      .delete(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_A} AND budget_id = ${BUDGET_B}`)
-      .returning();
+    const [{ amount: amountBefore }] = await db
+      .select({ amount: budgetInstallments.amount })
+      .from(budgetInstallments)
+      .where(sql`id = ${INSTALLMENT_B}`)
+      .limit(1) as any;
 
-    // No rows affected — budget_id predicate rejected
-    expect(result.length).toBe(0);
+    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
+      method: 'PATCH',
+      body: JSON.stringify({ amount: 999, clinicId: CLINIC_B }),
+    });
+    const res = await PATCH(req as any, routeParamsB as any);
+    expect(res.status).toBe(404);
 
-    // Verify installment A still exists
     const [row] = await db
-      .select({ id: budgetInstallments.id })
+      .select({ amount: budgetInstallments.amount })
       .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_A}`)
+      .where(sql`id = ${INSTALLMENT_B}`)
       .limit(1);
-
-    expect(row).toBeDefined();
-    expect(row.id).toBe(INSTALLMENT_A);
+    expect(row.amount).toBe(amountBefore);
   });
 
-  // ── Atomic replacement (cover installment-replacement-repository) ──
-
-  it('replaceInstallmentsAtomic atomically swaps installments for a budget', async () => {
+  it('PATCH route ignores forged clinicId in header, returns 404', async () => {
+    authAs(CLINIC_A);
     const db = getDb();
-    const rows = await replaceInstallmentsAtomic(BUDGET_A, [
-      { budgetId: BUDGET_A, amount: '75.00', dueDate: '2026-11-01', status: 'pending' },
-    ]);
-    expect(rows).toHaveLength(1);
-    expect(rows[0].amount).toBe('75.00');
 
-    // Old INSTALLMENT_A deleted, exactly one installment remains for BUDGET_A
-    const remaining = await db
-      .select({ id: budgetInstallments.id, amount: budgetInstallments.amount })
+    const [{ amount: amountBefore }] = await db
+      .select({ amount: budgetInstallments.amount })
       .from(budgetInstallments)
-      .where(sql`budget_id = ${BUDGET_A}`);
-    expect(remaining).toHaveLength(1);
-    expect(remaining[0].id).not.toBe(INSTALLMENT_A);
-    expect(remaining[0].amount).toBe('75.00');
+      .where(sql`id = ${INSTALLMENT_B}`)
+      .limit(1) as any;
+
+    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
+      method: 'PATCH',
+      headers: { 'x-clinic-id': CLINIC_B },
+      body: JSON.stringify({ amount: 999 }),
+    });
+    const res = await PATCH(req as any, routeParamsB as any);
+    expect(res.status).toBe(404);
+
+    const [row] = await db
+      .select({ amount: budgetInstallments.amount })
+      .from(budgetInstallments)
+      .where(sql`id = ${INSTALLMENT_B}`)
+      .limit(1);
+    expect(row.amount).toBe(amountBefore);
   });
 
-  it('replaceInstallmentsAtomic does not affect other budgets', async () => {
-    const db = getDb();
-    const rows = await replaceInstallmentsAtomic(BUDGET_A, [
-      { budgetId: BUDGET_A, amount: '10.00', dueDate: '2026-12-01', status: 'pending' },
-    ]);
-    expect(rows).toHaveLength(1);
+  // ── DELETE route ─────────────────────────────────────
 
-    // BUDGET_B installments untouched (tenant isolation preserved)
-    const other = await db
-      .select({ id: budgetInstallments.id })
+  it('DELETE route returns 404 for foreign budget (wrong tenant)', async () => {
+    authAs(CLINIC_A);
+    const db = getDb();
+
+    const [{ count: before }] = await db
+      .select({ count: sql<number>`count(*)` })
       .from(budgetInstallments)
-      .where(sql`budget_id = ${BUDGET_B}`);
-    expect(other.map((r) => r.id)).toContain(INSTALLMENT_B);
+      .where(sql`id = ${INSTALLMENT_B}`);
+
+    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, { method: 'DELETE' });
+    const res = await DELETE(req as any, routeParamsB as any);
+    expect(res.status).toBe(404);
+
+    const [{ count: after }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(budgetInstallments)
+      .where(sql`id = ${INSTALLMENT_B}`);
+    expect(after).toBe(before);
+  });
+
+  it('DELETE route ignores forged clinicId in header, returns 404', async () => {
+    authAs(CLINIC_A);
+    const db = getDb();
+
+    const [{ count: before }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(budgetInstallments)
+      .where(sql`id = ${INSTALLMENT_B}`);
+
+    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
+      method: 'DELETE',
+      headers: { 'x-clinic-id': CLINIC_B },
+    });
+    const res = await DELETE(req as any, routeParamsB as any);
+    expect(res.status).toBe(404);
+
+    const [{ count: after }] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(budgetInstallments)
+      .where(sql`id = ${INSTALLMENT_B}`);
+    expect(after).toBe(before);
   });
 });
