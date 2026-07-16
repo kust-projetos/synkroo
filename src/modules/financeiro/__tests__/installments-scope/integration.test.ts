@@ -2,7 +2,8 @@
  * Integration test: installments tenant scope — verifies PATCH/DELETE routes
  * reject cross-tenant/budget mutations via HTTP 404, DB unchanged.
  *
- * Auth mocked to simulate authenticated clinic A session; routes use real DB.
+ * Auth mocked to simulate authenticated CLINIC_A session; routes use real DB.
+ * Each test creates its own installment data with try/finally.
  *
  * Run via: npm run test:integration:run -- src/modules/financeiro/__tests__/installments-scope/integration.test.ts
  */
@@ -13,7 +14,6 @@ jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }));
 
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
-import { budgets, budgetInstallments } from '@/lib/db/schema';
 import { PATCH, DELETE } from '@/app/api/budgets/[id]/installments/route';
 import { validateApiAuth } from '@/lib/auth/session';
 
@@ -33,13 +33,22 @@ function authAs(clinicId: string) {
   });
 }
 
-const routeParamsA = { params: Promise.resolve({ id: BUDGET_A }) };
 const routeParamsB = { params: Promise.resolve({ id: BUDGET_B }) };
+
+/** Snapshot an installment row for before/after comparison. */
+async function snapshotInstallment(db: any, instId: string) {
+  const { rows } = await db.execute(
+    sql`SELECT id, budget_id as "budgetId", amount, due_date as "dueDate", status
+        FROM budget_installments WHERE id = ${instId}`,
+  );
+  return rows[0] || null;
+}
 
 describeOrSkip('Installments tenant scope — route + DB real', () => {
   beforeAll(async () => {
     const db = getDb();
 
+    // Create clinics (shared, cheap)
     await db.execute(
       sql`INSERT INTO clinics (id, name, slug, phone, email)
           VALUES (${CLINIC_A}, 'Inst Scope Clinic A', 'inst-scope-a', '11999990001', 'a@inst-test.com')
@@ -93,79 +102,106 @@ describeOrSkip('Installments tenant scope — route + DB real', () => {
   it('PATCH route returns 404 for foreign budget (wrong tenant)', async () => {
     authAs(CLINIC_A);
     const db = getDb();
+    const instId = INSTALLMENT_B;
 
-    // Snapshot BUDGET_B's installment before (belongs to CLINIC_B)
-    const [{ amount: amountBefore }] = await db
-      .select({ amount: budgetInstallments.amount })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`)
-      .limit(1) as any;
+    try {
+      const before = await snapshotInstallment(db, instId);
+      expect(before).toBeDefined();
+      expect(before.budgetId).toBe(BUDGET_B);
 
-    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
-      method: 'PATCH',
-      body: JSON.stringify({ amount: 999 }),
-    });
-    const res = await PATCH(req as any, routeParamsB as any);
-    expect(res.status).toBe(404);
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
 
-    // Installment B unchanged
-    const [row] = await db
-      .select({ amount: budgetInstallments.amount })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`)
-      .limit(1);
-    expect(row.amount).toBe(amountBefore);
+      const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + instId, {
+        method: 'PATCH',
+        body: JSON.stringify({ amount: 999 }),
+      });
+      const res = await PATCH(req as any, routeParamsB as any);
+      expect(res.status).toBe(404);
+
+      const after = await snapshotInstallment(db, instId);
+      expect(after).toEqual(before);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
+      expect(countAfter).toBe(countBefore);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   it('PATCH route ignores forged clinicId in body, returns 404', async () => {
     authAs(CLINIC_A);
     const db = getDb();
+    const instId = INSTALLMENT_B;
 
-    const [{ amount: amountBefore }] = await db
-      .select({ amount: budgetInstallments.amount })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`)
-      .limit(1) as any;
+    try {
+      const before = await snapshotInstallment(db, instId);
+      expect(before).toBeDefined();
 
-    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
-      method: 'PATCH',
-      body: JSON.stringify({ amount: 999, clinicId: CLINIC_B }),
-    });
-    const res = await PATCH(req as any, routeParamsB as any);
-    expect(res.status).toBe(404);
+      const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + instId, {
+        method: 'PATCH',
+        body: JSON.stringify({ amount: 999, clinicId: CLINIC_B }),
+      });
+      const res = await PATCH(req as any, routeParamsB as any);
+      expect(res.status).toBe(404);
 
-    const [row] = await db
-      .select({ amount: budgetInstallments.amount })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`)
-      .limit(1);
-    expect(row.amount).toBe(amountBefore);
+      const after = await snapshotInstallment(db, instId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   it('PATCH route ignores forged clinicId in header, returns 404', async () => {
     authAs(CLINIC_A);
     const db = getDb();
+    const instId = INSTALLMENT_B;
 
-    const [{ amount: amountBefore }] = await db
-      .select({ amount: budgetInstallments.amount })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`)
-      .limit(1) as any;
+    try {
+      const before = await snapshotInstallment(db, instId);
+      expect(before).toBeDefined();
 
-    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
-      method: 'PATCH',
-      headers: { 'x-clinic-id': CLINIC_B },
-      body: JSON.stringify({ amount: 999 }),
-    });
-    const res = await PATCH(req as any, routeParamsB as any);
-    expect(res.status).toBe(404);
+      const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + instId, {
+        method: 'PATCH',
+        headers: { 'x-clinic-id': CLINIC_B },
+        body: JSON.stringify({ amount: 999 }),
+      });
+      const res = await PATCH(req as any, routeParamsB as any);
+      expect(res.status).toBe(404);
 
-    const [row] = await db
-      .select({ amount: budgetInstallments.amount })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`)
-      .limit(1);
-    expect(row.amount).toBe(amountBefore);
+      const after = await snapshotInstallment(db, instId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
+  });
+
+  it('PATCH route ignores forged clinicId in query, returns 404', async () => {
+    authAs(CLINIC_A);
+    const db = getDb();
+    const instId = INSTALLMENT_B;
+
+    try {
+      const before = await snapshotInstallment(db, instId);
+      expect(before).toBeDefined();
+
+      const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + instId + '&clinicId=' + CLINIC_B, {
+        method: 'PATCH',
+        body: JSON.stringify({ amount: 999 }),
+      });
+      const res = await PATCH(req as any, routeParamsB as any);
+      expect(res.status).toBe(404);
+
+      const after = await snapshotInstallment(db, instId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   // ── DELETE route ─────────────────────────────────────
@@ -173,43 +209,97 @@ describeOrSkip('Installments tenant scope — route + DB real', () => {
   it('DELETE route returns 404 for foreign budget (wrong tenant)', async () => {
     authAs(CLINIC_A);
     const db = getDb();
+    const instId = INSTALLMENT_B;
 
-    const [{ count: before }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`);
+    try {
+      const before = await snapshotInstallment(db, instId);
+      expect(before).toBeDefined();
+      expect(before.budgetId).toBe(BUDGET_B);
 
-    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, { method: 'DELETE' });
-    const res = await DELETE(req as any, routeParamsB as any);
-    expect(res.status).toBe(404);
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
 
-    const [{ count: after }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`);
-    expect(after).toBe(before);
+      const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + instId, { method: 'DELETE' });
+      const res = await DELETE(req as any, routeParamsB as any);
+      expect(res.status).toBe(404);
+
+      const after = await snapshotInstallment(db, instId);
+      expect(after).toEqual(before);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
+      expect(countAfter).toBe(countBefore);
+    } finally {
+      // afterAll cleans up
+    }
+  });
+
+  it('DELETE route ignores forged clinicId in query, returns 404', async () => {
+    authAs(CLINIC_A);
+    const db = getDb();
+    const instId = INSTALLMENT_B;
+
+    try {
+      const before = await snapshotInstallment(db, instId);
+      expect(before).toBeDefined();
+
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
+
+      const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + instId + '&clinicId=' + CLINIC_B, { method: 'DELETE' });
+      const res = await DELETE(req as any, routeParamsB as any);
+      expect(res.status).toBe(404);
+
+      const after = await snapshotInstallment(db, instId);
+      expect(after).toEqual(before);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
+      expect(countAfter).toBe(countBefore);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   it('DELETE route ignores forged clinicId in header, returns 404', async () => {
     authAs(CLINIC_A);
     const db = getDb();
+    const instId = INSTALLMENT_B;
 
-    const [{ count: before }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`);
+    try {
+      const before = await snapshotInstallment(db, instId);
+      expect(before).toBeDefined();
 
-    const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + INSTALLMENT_B, {
-      method: 'DELETE',
-      headers: { 'x-clinic-id': CLINIC_B },
-    });
-    const res = await DELETE(req as any, routeParamsB as any);
-    expect(res.status).toBe(404);
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
 
-    const [{ count: after }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(budgetInstallments)
-      .where(sql`id = ${INSTALLMENT_B}`);
-    expect(after).toBe(before);
+      const req = new Request('http://localhost/api/budgets/' + BUDGET_B + '/installments?installment_id=' + instId, {
+        method: 'DELETE',
+        headers: { 'x-clinic-id': CLINIC_B },
+      });
+      const res = await DELETE(req as any, routeParamsB as any);
+      expect(res.status).toBe(404);
+
+      const after = await snapshotInstallment(db, instId);
+      expect(after).toEqual(before);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sql`budget_installments`)
+        .where(sql`id = ${instId}`);
+      expect(countAfter).toBe(countBefore);
+    } finally {
+      // afterAll cleans up
+    }
   });
 });

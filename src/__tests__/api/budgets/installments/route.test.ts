@@ -269,6 +269,19 @@ describe('PATCH /api/budgets/[id]/installments', () => {
     expect(res.status).toBe(404);
     expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
   });
+
+  it('ignores forged clinicId in PATCH query, uses auth clinicId for scope', async () => {
+    auth(CLINIC_A);
+    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID + '&clinicId=' + CLINIC_B, {
+      method: 'PATCH',
+      body: JSON.stringify({ amount: 150 }),
+    });
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
+    const res = await PATCH(req as any, foreignParams as any);
+    expect(res.status).toBe(404);
+    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
+  });
 });
 
 // ── DELETE ─────────────────────────────────────
