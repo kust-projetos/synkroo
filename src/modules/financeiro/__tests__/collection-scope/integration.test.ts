@@ -229,7 +229,7 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
 
       // After fix: ctx.clinicId (A) doesn't own CHARGE_B (B) -> missing_patient_phone
       expect(result.ok).toBe(true);
-      const data = result.data as { sent: boolean; error?: string };
+      const data = (result as any).data as { sent: boolean; error?: string };
       expect(data.sent).toBe(false);
       expect(data.error).toBe('missing_patient_phone');
 
@@ -265,7 +265,7 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
       // ctx.clinicId (A) owns CHARGE_A (A) → scope passes
       // Fails later on phone resolution/WhatsApp send
       expect(result.ok).toBe(true);
-      const data = result.data as { sent: boolean; error?: string };
+      const data = (result as any).data as { sent: boolean; error?: string };
       expect(data.sent).toBe(false);
       // Error is NOT missing_patient_phone — scope passed
       expect(data.error).not.toBe('missing_patient_phone');

@@ -16,6 +16,12 @@ import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { PATCH, DELETE } from '@/app/api/budgets/[id]/installments/route';
 import { validateApiAuth } from '@/lib/auth/session';
+import {
+  getBudgetForClinic,
+  updateInstallmentForBudget,
+  deleteInstallmentForBudget,
+} from '@/modules/financeiro/repositories/financeiro-scope-repository';
+import { replaceInstallmentsAtomic } from '@/modules/financeiro/repositories/installment-replacement-repository';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -202,6 +208,49 @@ describeOrSkip('Installments tenant scope — route + DB real', () => {
     } finally {
       // afterAll cleans up
     }
+  });
+
+  // ── Repository direct coverage ─────────────────────────
+
+  it('getBudgetForClinic returns budget for own clinic only', async () => {
+    const owned = await getBudgetForClinic(BUDGET_A, CLINIC_A);
+    expect(owned).toBeDefined();
+    expect(owned?.clinicId).toBe(CLINIC_A);
+
+    const foreign = await getBudgetForClinic(BUDGET_A, CLINIC_B);
+    expect(foreign).toBeUndefined();
+  });
+
+  it('updateInstallmentForBudget scopes by budgetId', async () => {
+    const updated = await updateInstallmentForBudget(INSTALLMENT_A, BUDGET_A, { amount: '99.00' });
+    expect(updated).toBeDefined();
+    expect(updated?.amount).toBe('99.00');
+
+    const cross = await updateInstallmentForBudget(INSTALLMENT_A, BUDGET_B, { amount: '999.00' });
+    expect(cross).toBeUndefined();
+  });
+
+  it('deleteInstallmentForBudget scopes by budgetId', async () => {
+    const deleted = await deleteInstallmentForBudget(INSTALLMENT_A, BUDGET_A);
+    expect(deleted).toBeDefined();
+    expect(deleted?.id).toBe(INSTALLMENT_A);
+  });
+
+  it('replaceInstallmentsAtomic atomically replaces installments', async () => {
+    const db = getDb();
+    const rows = await replaceInstallmentsAtomic(BUDGET_A, [
+      { budgetId: BUDGET_A, amount: '88.00', dueDate: '2026-12-01', status: 'pending' },
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].amount).toBe('88.00');
+
+    // Replacement succeeded — old installments gone, new one exists
+    const remaining = await db
+      .select({ id: sql`id`, amount: sql`amount` })
+      .from(sql`budget_installments`)
+      .where(sql`budget_id = ${BUDGET_A}`);
+    expect(remaining).toHaveLength(1);
+    expect(remaining[0].amount).toBe('88.00');
   });
 
   // ── DELETE route ─────────────────────────────────────

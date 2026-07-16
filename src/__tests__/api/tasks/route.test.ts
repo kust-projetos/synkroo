@@ -19,13 +19,13 @@ const mockInsert = jest.fn(() => ({ values: jest.fn(() => ({ returning: mockInse
 
 // Update chain: update → set → where → returning
 const mockUpdReturning = jest.fn();
-const mockUpdWhere = jest.fn(() => ({ returning: mockUpdReturning }));
+const mockUpdWhere = jest.fn((..._args: any[]) => ({ returning: mockUpdReturning }));
 const mockUpdSet = jest.fn(() => ({ where: mockUpdWhere }));
 const mockUpdate = jest.fn(() => ({ set: mockUpdSet }));
 
 // Delete chain: delete → where → returning
 const mockDelReturning = jest.fn();
-const mockDelWhere = jest.fn(() => ({ returning: mockDelReturning }));
+const mockDelWhere = jest.fn((..._args: any[]) => ({ returning: mockDelReturning }));
 const mockDelete = jest.fn(() => ({ where: mockDelWhere }));
 
 jest.mock('@/lib/db/client', () => ({
