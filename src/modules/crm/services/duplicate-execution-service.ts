@@ -17,8 +17,8 @@ import {
 } from '../services/duplicate-scoring-service';
 import { ActionError } from '@/core/actions/types';
 import type { ActionContext } from '@/core/actions/types';
-import { isPatientMerged } from '@/modules/operacional/services/patient-merge-state-service';
-import { isLeadMerged } from '@/modules/comercial/services/merge-state-service';
+import { isPatientMerged } from '@/modules/operacional/services';
+import { isLeadMerged } from '@/modules/comercial/services';
 
 // ── Lease constants ──────────────────────────────────────────────────────────
 
