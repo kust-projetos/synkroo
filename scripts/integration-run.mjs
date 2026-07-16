@@ -18,7 +18,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -58,6 +58,12 @@ export function validateTestDatabaseUrl(url) {
     parsed = new URL(trimmed);
   } catch {
     throw new Error(`Invalid TEST_DATABASE_URL: ${trimmed}`);
+  }
+
+  if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+    throw new Error(
+      `TEST_DATABASE_URL must use postgres: or postgresql: protocol, got: ${parsed.protocol}`,
+    );
   }
 
   const hostname = parsed.hostname;
@@ -144,12 +150,14 @@ export function run(execute = execFileSync, testUrl = process.env.TEST_DATABASE_
 
 // ── Entrypoint ───────────────────────────────────────────────────────────────
 
-// Only run as main script — inert on import
-const isEntrypoint = process.argv[1] && (
-  fileURLToPath(import.meta.url) === resolve(process.argv[1])
-);
+/** @param {string} metaUrl @param {string|null|undefined} argv1 @returns {boolean} */
+export function isMainModule(metaUrl, argv1) {
+  if (!argv1) return false;
+  return pathToFileURL(resolve(argv1)).href === metaUrl;
+}
 
-if (isEntrypoint) {
+// Only run as main script — inert on import
+if (isMainModule(import.meta.url, process.argv[1])) {
   try {
     run();
   } catch (err) {
