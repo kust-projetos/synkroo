@@ -36,10 +36,9 @@ describe('Instagram Webhook API', () => {
   beforeEach(() => {
     process.env = {
       ...originalEnv,
-      // Note: The route uses default 'synkroo_instagram_token' if INSTAGRAM_VERIFY_TOKEN is not set
-      // Since modules are loaded before beforeEach runs, we need to use the default token
       INSTAGRAM_ACCESS_TOKEN: 'test_instagram_access',
       INSTAGRAM_ACCOUNT_ID: 'test_account_id',
+      INSTAGRAM_APP_SECRET: 'test-app-secret-for-tests',
       NODE_ENV: 'development',
     }
   })
@@ -78,23 +77,24 @@ describe('Instagram Webhook API', () => {
 
   describe('POST - Message Reception', () => {
     it('should ignore non-Instagram payloads', async () => {
-      const payload = {
-        object: 'other_platform',
-        entry: [],
-      }
+      const { createHmac } = require('crypto');
+      const payload = { object: 'other_platform', entry: [] };
+      const body = JSON.stringify(payload);
+      const appSecret = process.env.INSTAGRAM_APP_SECRET!;
+      const sig = 'sha256=' + createHmac('sha256', appSecret).update(Buffer.from(body)).digest('hex');
 
-      const url = new URL('http://localhost/api/instagram/webhook')
+      const url = new URL('http://localhost/api/instagram/webhook');
       const request = new NextRequest(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
+        headers: { 'Content-Type': 'application/json', 'x-hub-signature-256': sig },
+        body,
+      });
 
-      const response = await POST(request)
-      const data = await response.json()
+      const response = await POST(request);
+      const data = await response.json();
 
-      expect(response.status).toBe(200)
-      expect(data).toHaveProperty('status', 'ignored')
+      expect(response.status).toBe(200);
+      expect(data).toHaveProperty('status', 'ignored');
     })
   })
 })
