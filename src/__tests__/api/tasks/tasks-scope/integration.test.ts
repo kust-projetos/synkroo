@@ -2,8 +2,8 @@
  * Integration test: tasks tenant scope — verifies PUT/DELETE routes reject
  * cross-tenant mutations via HTTP 404, DB unchanged.
  *
- * Auth is mocked to simulate authenticated clinic A session; route handlers
- * use real Drizzle DB.
+ * Auth is mocked to simulate authenticated CLINIC_A session; route handlers
+ * use real Drizzle DB. Each test creates its own task with try/finally.
  *
  * Run via: npm run test:integration:run -- src/__tests__/api/tasks/tasks-scope/integration.test.ts
  */
@@ -22,7 +22,7 @@ const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : de
 
 const CLINIC_A = '00000000-0000-0000-0000-00000000a001';
 const CLINIC_B = '00000000-0000-0000-0000-00000000b001';
-const TASK_ID = '00000000-0000-0000-0000-00000000c001';
+const TASK_A_ID = '00000000-0000-0000-0000-00000000c001';
 const TASK_B_ID = '00000000-0000-0000-0000-00000000c002';
 
 function authAs(clinicId: string) {
@@ -30,6 +30,14 @@ function authAs(clinicId: string) {
     success: true,
     profile: { id: 'user-1', clinic_id: clinicId, role: 'owner' },
   });
+}
+
+/** Snapshot a task row for before/after comparison. */
+async function snapshotTask(db: any, taskId: string) {
+  const { rows } = await db.execute(
+    sql`SELECT id, title, clinic_id as "clinicId", status FROM tasks WHERE id = ${taskId}`,
+  );
+  return rows[0] || null;
 }
 
 describeOrSkip('Tasks tenant scope — route + DB real', () => {
@@ -45,21 +53,11 @@ describeOrSkip('Tasks tenant scope — route + DB real', () => {
           VALUES (${CLINIC_B}, 'Task Scope Clinic B', 'task-scope-b', '11999990002', 'b@test.com')
           ON CONFLICT (id) DO NOTHING`,
     );
-    await db.execute(
-      sql`INSERT INTO tasks (id, clinic_id, title, status, priority)
-          VALUES (${TASK_ID}, ${CLINIC_A}, 'Clinic A Task', 'pending', 'medium')
-          ON CONFLICT (id) DO NOTHING`,
-    );
-    await db.execute(
-      sql`INSERT INTO tasks (id, clinic_id, title, status, priority)
-          VALUES (${TASK_B_ID}, ${CLINIC_B}, 'Clinic B Task', 'pending', 'medium')
-          ON CONFLICT (id) DO NOTHING`,
-    );
   });
 
   afterAll(async () => {
     const db = getDb();
-    await db.execute(sql`DELETE FROM tasks WHERE id IN (${TASK_ID}, ${TASK_B_ID})`);
+    await db.execute(sql`DELETE FROM tasks WHERE id IN (${TASK_A_ID}, ${TASK_B_ID})`);
     await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
     await closeDb();
   });
@@ -68,173 +66,192 @@ describeOrSkip('Tasks tenant scope — route + DB real', () => {
     (validateApiAuth as jest.Mock).mockReset();
   });
 
+  /** Shared: ensure TASK_B_ID exists (belongs to CLINIC_B). Cleanup in afterAll. */
+  async function ensureTaskB() {
+    const db = getDb();
+    await db.execute(
+      sql`INSERT INTO tasks (id, clinic_id, title, status, priority)
+          VALUES (${TASK_B_ID}, ${CLINIC_B}, 'Clinic B Task', 'pending', 'medium')
+          ON CONFLICT (id) DO NOTHING`,
+    );
+  }
+
   // ── PUT route ────────────────────────────────────────
 
   it('PUT route returns 404 when task belongs to other clinic', async () => {
+    await ensureTaskB();
     authAs(CLINIC_A);
     const db = getDb();
+    const taskId = TASK_B_ID;
 
-    // TASK_B_ID belongs to CLINIC_B — CLINIC_A session should not mutate it
-    const [{ count: before }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
+    try {
+      const before = await snapshotTask(db, taskId);
+      expect(before).toBeDefined();
+      expect(before.clinicId).toBe(CLINIC_B);
 
-    const [{ title: titleBefore }] = await db
-      .select({ title: tasks.title })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`)
-      .limit(1) as any;
+      const req = new Request('http://localhost/api/tasks', {
+        method: 'PUT',
+        body: JSON.stringify({ id: taskId, title: 'Hacked via PUT' }),
+      });
+      const res = await PUT(req as any);
+      expect(res.status).toBe(404);
 
-    const req = new Request('http://localhost/api/tasks', {
-      method: 'PUT',
-      body: JSON.stringify({ id: TASK_B_ID, title: 'Hacked via PUT' }),
-    });
-    const res = await PUT(req as any);
-    expect(res.status).toBe(404);
-
-    // Row count unchanged
-    const [{ count: after }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
-    expect(after).toBe(before);
-
-    // Task data unchanged
-    const [row] = await db
-      .select({ title: tasks.title, clinicId: tasks.clinicId })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`)
-      .limit(1);
-    expect(row.title).toBe(titleBefore);
-    expect(row.clinicId).toBe(CLINIC_B);
+      const after = await snapshotTask(db, taskId);
+      expect(after).toEqual(before);
+    } finally {
+      // Keep task for subsequent tests; afterAll cleans up
+    }
   });
 
   it('PUT route ignores forged clinicId in body, returns 404', async () => {
+    await ensureTaskB();
     authAs(CLINIC_A);
     const db = getDb();
+    const taskId = TASK_B_ID;
 
-    // Snapshot clinic B task before
-    const [{ title: titleBefore, clinicId: clinicBefore }] = await db
-      .select({ title: tasks.title, clinicId: tasks.clinicId })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`)
-      .limit(1) as any;
+    try {
+      const before = await snapshotTask(db, taskId);
+      expect(before).toBeDefined();
+      expect(before.clinicId).toBe(CLINIC_B);
 
-    // PUT with forged clinicId in body — route must ignore it
-    const req = new Request('http://localhost/api/tasks', {
-      method: 'PUT',
-      body: JSON.stringify({ id: TASK_B_ID, title: 'Hacked', clinicId: CLINIC_B }),
-    });
-    const res = await PUT(req as any);
-    expect(res.status).toBe(404);
+      const req = new Request('http://localhost/api/tasks', {
+        method: 'PUT',
+        body: JSON.stringify({ id: taskId, title: 'Hacked', clinicId: CLINIC_B }),
+      });
+      const res = await PUT(req as any);
+      expect(res.status).toBe(404);
 
-    // Clinic B task unchanged
-    const [row] = await db
-      .select({ title: tasks.title, clinicId: tasks.clinicId })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`)
-      .limit(1);
-    expect(row.title).toBe(titleBefore);
-    expect(row.clinicId).toBe(clinicBefore);
+      const after = await snapshotTask(db, taskId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   it('PUT route ignores forged clinicId in x-clinic-id header, returns 404', async () => {
+    await ensureTaskB();
     authAs(CLINIC_A);
     const db = getDb();
+    const taskId = TASK_B_ID;
 
-    const [{ title: titleBefore }] = await db
-      .select({ title: tasks.title })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`)
-      .limit(1) as any;
+    try {
+      const before = await snapshotTask(db, taskId);
+      expect(before).toBeDefined();
 
-    const req = new Request('http://localhost/api/tasks', {
-      method: 'PUT',
-      headers: { 'x-clinic-id': CLINIC_B },
-      body: JSON.stringify({ id: TASK_B_ID, title: 'Hacked via header' }),
-    });
-    const res = await PUT(req as any);
-    expect(res.status).toBe(404);
+      const req = new Request('http://localhost/api/tasks', {
+        method: 'PUT',
+        headers: { 'x-clinic-id': CLINIC_B },
+        body: JSON.stringify({ id: taskId, title: 'Hacked via header' }),
+      });
+      const res = await PUT(req as any);
+      expect(res.status).toBe(404);
 
-    const [row] = await db
-      .select({ title: tasks.title })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`)
-      .limit(1);
-    expect(row.title).toBe(titleBefore);
+      const after = await snapshotTask(db, taskId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   // ── DELETE route ─────────────────────────────────────
 
   it('DELETE route returns 404 when task belongs to other clinic', async () => {
+    await ensureTaskB();
     authAs(CLINIC_A);
     const db = getDb();
+    const taskId = TASK_B_ID;
 
-    // TASK_B_ID belongs to CLINIC_B — CLINIC_A session should not delete it
-    const [{ count: before }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
+    try {
+      const before = await snapshotTask(db, taskId);
+      expect(before).toBeDefined();
+      expect(before.clinicId).toBe(CLINIC_B);
 
-    const req = new Request('http://localhost/api/tasks?id=' + TASK_B_ID, { method: 'DELETE' });
-    const res = await DELETE(req as any);
-    expect(res.status).toBe(404);
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(sql`id = ${taskId}`);
 
-    const [{ count: after }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
-    expect(after).toBe(before);
+      const req = new Request('http://localhost/api/tasks?id=' + taskId, { method: 'DELETE' });
+      const res = await DELETE(req as any);
+      expect(res.status).toBe(404);
 
-    const [row] = await db
-      .select({ id: tasks.id })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`)
-      .limit(1);
-    expect(row).toBeDefined();
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(sql`id = ${taskId}`);
+      expect(countAfter).toBe(countBefore);
+
+      const after = await snapshotTask(db, taskId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   it('DELETE route ignores forged clinicId in query, returns 404', async () => {
+    await ensureTaskB();
     authAs(CLINIC_A);
     const db = getDb();
+    const taskId = TASK_B_ID;
 
-    const [{ count: before }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
+    try {
+      const before = await snapshotTask(db, taskId);
+      expect(before).toBeDefined();
 
-    const req = new Request('http://localhost/api/tasks?id=' + TASK_B_ID + '&clinicId=' + CLINIC_B, { method: 'DELETE' });
-    const res = await DELETE(req as any);
-    expect(res.status).toBe(404);
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(sql`id = ${taskId}`);
 
-    const [{ count: after }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
-    expect(after).toBe(before);
+      const req = new Request('http://localhost/api/tasks?id=' + taskId + '&clinicId=' + CLINIC_B, { method: 'DELETE' });
+      const res = await DELETE(req as any);
+      expect(res.status).toBe(404);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(sql`id = ${taskId}`);
+      expect(countAfter).toBe(countBefore);
+
+      const after = await snapshotTask(db, taskId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
   });
 
   it('DELETE route ignores forged clinicId in header, returns 404', async () => {
+    await ensureTaskB();
     authAs(CLINIC_A);
     const db = getDb();
+    const taskId = TASK_B_ID;
 
-    const [{ count: before }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
+    try {
+      const before = await snapshotTask(db, taskId);
+      expect(before).toBeDefined();
 
-    const req = new Request('http://localhost/api/tasks?id=' + TASK_B_ID, {
-      method: 'DELETE',
-      headers: { 'x-clinic-id': CLINIC_B },
-    });
-    const res = await DELETE(req as any);
-    expect(res.status).toBe(404);
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(sql`id = ${taskId}`);
 
-    const [{ count: after }] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(tasks)
-      .where(sql`id = ${TASK_B_ID}`);
-    expect(after).toBe(before);
+      const req = new Request('http://localhost/api/tasks?id=' + taskId, {
+        method: 'DELETE',
+        headers: { 'x-clinic-id': CLINIC_B },
+      });
+      const res = await DELETE(req as any);
+      expect(res.status).toBe(404);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(tasks)
+        .where(sql`id = ${taskId}`);
+      expect(countAfter).toBe(countBefore);
+
+      const after = await snapshotTask(db, taskId);
+      expect(after).toEqual(before);
+    } finally {
+      // afterAll cleans up
+    }
   });
 });
