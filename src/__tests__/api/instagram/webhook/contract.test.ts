@@ -258,4 +258,19 @@ describe('POST /api/instagram/webhook — valid', () => {
     const res = await POST(req as any);
     expect(res.status).toBe(200);
   });
+
+  it('returns 200 with status=ignored for non-Instagram payload', async () => {
+    const payload = { object: 'page', entry: [] };
+    const body = JSON.stringify(payload);
+    const rawBytes = Buffer.from(body, 'utf-8');
+    const sig = signRaw(rawBytes, VALID_APP_SECRET);
+
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body: rawBytes,
+    });
+    const res = await POST(req as any);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toBe('ignored');
+  });
 });
