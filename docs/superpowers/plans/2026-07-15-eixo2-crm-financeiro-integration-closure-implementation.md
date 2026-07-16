@@ -19,9 +19,9 @@
 | 3 | `src/modules/crm/{repositories,services,actions}/**`, tests |
 | 4 | `src/modules/crm/{index,manifest,actions/index}.ts`, cron route, taxonomy tests |
 | 5 | `src/app/api/contacts/**`, CRM adapter, route tests |
-| 6 | CRM dashboard wrapper/client view, contacts hooks/components, snapshots |
-| 7 | Financeiro manifest/bootstrap/menu/page gate, tests |
-| 8 | `bootstrap.ts`, RBAC presets/backfill, manifests/menu, integration tests |
+| 6 | CRM dashboard wrapper/client view, contacts hooks/components, delete create dialog, snapshots |
+| 7 | Financeiro manifest/page gate, live dashboard queries, tests |
+| 8 | `bootstrap.ts`, RBAC presets/backfill policy, manifests/menu, integration tests |
 | 9 | Mutation configs/tests, static gates, verification docs only |
 
 ## Task 1 — IA tool allowlist, deny by default
@@ -60,7 +60,6 @@
 
 **Files:** Modify `src/modules/crm/{actions/index.ts,index.ts,manifest.ts}`, `src/app/api/cron/crm-duplicates/route.ts`; create `src/modules/crm/__tests__/{action-taxonomy,crm-duplicates-cron}.test.ts`.
 
-- [ ] **RED:** Assert `crmActions` contains only read/note/tag and human duplicate review/merge actions; excludes `crm.reprocessarSugestoesDuplicidade`. Assert `operacionalActions` and `comercialActions` exclude merge actions.
 - [ ] **RED:** In `src/modules/crm/__tests__/action-taxonomy.test.ts`, assert `crmActions` contains only read/note/tag and human duplicate review/merge actions; excludes `crm.reprocessarSugestoesDuplicidade`. Import `operacionalActions` and `comercialActions`; assert merge names are absent but direct imports of `mesclarPacientes`/`mesclarLeads` exist for internal dispatcher use. Run: `npx jest src/modules/crm/__tests__/action-taxonomy.test.ts --runInBand`. Expected: FAIL because `crmActions` is empty.
 - [ ] **RED:** Create `src/app/api/cron/crm-duplicates/route.test.ts`: mock `listClinicIdsWithPendingSuggestions`, `buildSystemContext`, `runAction`; expect one `{ clinicId }` call per clinic, 401 for invalid secret, and `{ skipped:true }` when gate rejects. Run: `npx jest src/app/api/cron/crm-duplicates/route.test.ts --runInBand`. Expected: FAIL because route queries/reprocesses directly.
 - [ ] **GREEN:** Export `crmActions` as public actions plus human duplicate actions. Keep `reprocessarSugestoesDuplicidade` importable only by cron. In each owner module index, replace `export { mesclar... }` with side-effect import `import './actions/mesclar-...'`; action file remains internal and registers dispatcher without public export.
@@ -75,13 +74,13 @@
 - [ ] **RED:** Disabled CRM returns 404 for every contacts handler. Test `GET` list/detail/timeline/notes, `POST notes`, `PUT tags`, duplicate approve/dismiss/merge use actions. Run: `npx jest src/modules/crm/__tests__/routes.test.ts --runInBand`. Expected: FAIL because legacy handlers bypass module gate/actions.
 - [ ] **RED:** Assert only `POST /api/contacts` and `PUT/PATCH /api/contacts/:id` return exactly `{ error:'crm_mvp_read_only' }`, 405. Notes/tags/duplicates must not return 405. Missing/invalid `type` returns 400.
 - [ ] **GREEN:** Wrap handlers with `withModuleRoute('crm', moduleManifest)` and call `runCrmAction`; add `crmReadOnlyResponse() => NextResponse.json({ error:'crm_mvp_read_only' }, { status:405 })`; remove `validateApiAuth`, `getDb`, legacy contact/timeline service imports from routes.
-- [ ] **GREEN:** Preserve `GET /api/contacts/:id/appointments` as CRM-gated, read-only adapter: validate `type === 'patient'`, call `runCrmAction(listarConsultas, { patientId:id, page:1, limit:50 })`, and map its `{ appointments }` contract. Lead identity returns CRM `not_found`.
+- [ ] **GREEN:** Preserve `GET /api/contacts/:id/appointments` as CRM-gated, read-only adapter: validate `type === 'patient'`, call `runCrmAction(listarConsultas, { patientId:id, page:1, limit:50 })`, and map its `{ appointments }` contract. Lead identity and a disabled Operacional module both map to CRM `not_found` so appointment existence never leaks.
 - [ ] **VERIFY:** `npx jest src/modules/crm/__tests__/routes.test.ts src/__tests__/api/contacts/appointments/route.test.ts --runInBand` → PASS.
 - [ ] **COMMIT:** `git add src/app/api/contacts src/modules/crm/ui src/modules/crm/__tests__ src/__tests__/api/contacts && git commit -m "feat(crm): cut contacts routes to actions"`.
 
 ## Task 6 — CRM server gate and real UI data
 
-**Files:** Replace `src/app/dashboard/contatos/page.tsx`; create `src/app/dashboard/contatos/contacts-client.tsx`; modify `src/components/contacts/{contact-list-panel,contact-detail-panel,contact-create-dialog}.tsx`, `src/lib/hooks/use-queries.ts`; create UI tests.
+**Files:** Replace `src/app/dashboard/contatos/page.tsx`; create `src/app/dashboard/contatos/contacts-client.tsx`; modify `src/components/contacts/{contact-list-panel,contact-detail-panel}.tsx`, `src/lib/hooks/use-queries.ts`; delete `src/components/contacts/contact-create-dialog.tsx`; create UI tests.
 
 - [ ] **RED:** Server page test mocks manifest disabled and expects `notFound()`. Client tests assert list/detail fetch CRM data, duplicate queue receives fetched suggestions, and no create/edit/archive CTA exists. Run: `npx jest src/app/dashboard/contatos/page.test.tsx src/components/contacts/__tests__/contact-list-panel.test.tsx --runInBand`. Expected: FAIL because page is client-only and queue is literal empty data.
 - [ ] **GREEN:** Make page a server wrapper: check `moduleManifest.isEnabled('crm')`, call `notFound()` when false, render `ContactsClient` when true. Keep hooks/components client-side beneath it.
@@ -91,20 +90,20 @@
 
 ## Task 7 — Financeiro bootstrap, menu, page gate and job manifest
 
-**Files:** Modify `src/modules/financeiro/manifest.ts`, `src/app/dashboard/financeiro/page.tsx`; create `src/app/dashboard/financeiro/financeiro-client.tsx`, `src/app/dashboard/financeiro/page.test.tsx`, `src/app/api/financeiro/webhooks/[provider]/route.test.ts`.
+**Files:** Modify `src/modules/financeiro/manifest.ts`, `src/app/dashboard/financeiro/page.tsx`, `src/components/financeiro/{FinanceDashboard,BudgetTab,PaymentTab,CollectionTab,GatewayConfigTab}.tsx`, `src/lib/hooks/use-queries.ts`; create `src/app/dashboard/financeiro/financeiro-client.tsx`, `src/app/dashboard/financeiro/page.test.tsx`, `src/app/api/financeiro/webhooks/[provider]/route.test.ts`.
 
-- [ ] **RED:** In `page.test.tsx`, mock manifest disabled and expect `notFound()`. In webhook test, mock disabled manifest plus known charge and expect reconciliation succeeds; unknown charge remains 404. Run: `npx jest src/app/dashboard/financeiro/page.test.tsx src/app/api/financeiro/webhooks/[provider]/route.test.ts --runInBand`. Expected: FAIL because page is client-only and exception is unproved.
-- [ ] **GREEN:** Set `financeiroManifest.jobs = ['financeiro-collections']`. Move existing page JSX to `financeiro-client.tsx`; server page checks `moduleManifest.isEnabled('financeiro')`, calls `notFound()` when false, else renders client. Do not gate provider webhook with `withModuleRoute`.
+- [ ] **RED:** In `page.test.tsx`, mock manifest disabled and expect `notFound()`. Add `src/components/financeiro/__tests__/financeiro-client.test.tsx`: mock `/api/financeiro/dashboard`, budgets, payments, charges and gateways; expect fetched metric/rows, not null metrics or placeholder empty text. In webhook test, mock disabled manifest plus known charge and expect reconciliation succeeds; unknown charge remains 404. Run: `npx jest src/app/dashboard/financeiro/page.test.tsx src/components/financeiro/__tests__/financeiro-client.test.tsx src/app/api/financeiro/webhooks/[provider]/route.test.ts --runInBand`. Expected: FAIL because page is client-only, dashboard props are empty, and tabs contain placeholders.
+- [ ] **GREEN:** Set `financeiroManifest.jobs = ['financeiro-collections']`. Move existing page JSX to `financeiro-client.tsx`; server page checks `moduleManifest.isEnabled('financeiro')`, calls `notFound()` when false, else renders client. Add typed Financeiro query hooks for dashboard, budgets, payments, charges and gateways; pass their results to tabs and render loading/error/empty states. Do not gate provider webhook with `withModuleRoute`.
 - [ ] **VERIFY:** `npx jest src/app/dashboard/financeiro/page.test.tsx src/app/api/financeiro/webhooks/[provider]/route.test.ts --runInBand` → PASS.
 - [ ] **COMMIT:** `git add src/modules/financeiro/manifest.ts src/app/dashboard/financeiro && git commit -m "feat(financeiro): gate dashboard and declare job"`.
 
 ## Task 8 — Bootstrap CRM, exact RBAC presets and backfill
 
-**Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/core/rbac/presets.ts`, `scripts/backfill-rbac-permissions.mjs`; create `scripts/rbac-backfill-policy.mjs`, `scripts/__tests__/backfill-rbac-permissions.test.mjs`; modify `src/core/actions/__tests__/bootstrap.test.ts`, `src/core/rbac/__tests__/seed.test.ts`, `src/lib/ui/__tests__/build-menu.test.ts`.
+**Files:** Modify `src/core/actions/bootstrap.ts`, `src/lib/ui/menu-actions.ts`, `src/core/rbac/presets.ts`, `scripts/backfill-rbac-permissions.mjs`; create `src/core/rbac/preset-policy.json`, `scripts/__tests__/backfill-rbac-permissions.test.mjs`; modify `src/core/actions/__tests__/bootstrap.test.ts`, `src/core/rbac/__tests__/seed.test.ts`, `src/lib/ui/__tests__/build-menu.test.ts`.
 
 - [ ] **RED:** In bootstrap test expect CRM public/human and all Financeiro names/permissions, never reprocess. In seed test expect Administrador modules include CRM+Financeiro; Recepcionista extras equal `['crm:view']`; Comercial extras contain only CRM view/notes/tags and no merge key. In menu test enable each module independently and assert its item exists only with matching permission.
-- [ ] **RED:** In `backfill-rbac-permissions.test.mjs`, inject fake query client with Owner, Administrador, Recepcionista and Comercial across two clinics; assert only preset-derived keys insert, never every catalog key, and rerun inserts zero. Add a parity test importing `PRESET_KEYS` and comparing its CRM/Financeiro entries with `SYSTEM_PRESETS`. Run: `node --test scripts/__tests__/backfill-rbac-permissions.test.mjs`. Expected: FAIL because current script grants every catalog permission to every system role.
-- [ ] **GREEN:** Add dynamic imports and idempotent registry/catalog registration for both CRM and Financeiro in `bootstrap.ts`; include both manifests in menu. Update exact preset lists. Create Node-compatible `scripts/rbac-backfill-policy.mjs` exporting literal `PRESET_KEYS` for Administrador, Recepcionista and Comercial; `backfill-rbac-permissions.mjs` imports this `.mjs`, exports `backfill(client)`, retains CLI `main()`, and uses parameterized `ON CONFLICT DO NOTHING` inserts. Do not import TypeScript `SYSTEM_PRESETS` from Node.
+- [ ] **RED:** In `backfill-rbac-permissions.test.mjs`, load `preset-policy.json`, inject fake query client with Owner, Administrador, Recepcionista and Comercial across two clinics; assert Owner receives every non-master catalog key, staff receives only policy-derived keys, and rerun inserts zero. In `seed.test.ts`, assert `SYSTEM_PRESETS` is derived from same JSON CRM/Financeiro policy. Run: `node --test scripts/__tests__/backfill-rbac-permissions.test.mjs`. Expected: FAIL because current script grants every catalog permission to every system role.
+- [ ] **GREEN:** Add dynamic imports and idempotent registry/catalog registration for both CRM and Financeiro in `bootstrap.ts`; include both manifests in menu. Create `preset-policy.json` as canonical Node/TypeScript-compatible role-module/extra-key source. Make `presets.ts` import JSON and build `SYSTEM_PRESETS`; make backfill import same JSON with `assert { type:'json' }`, expand staff module keys from DB catalog, and grant Owner every non-master catalog key. Export `backfill(client)`, retain CLI `main()`, and use parameterized `ON CONFLICT DO NOTHING` inserts.
 - [ ] **GREEN:** Add deployment runbook step: deploy registry/catalog, execute `DATABASE_URL=... node scripts/backfill-rbac-permissions.mjs`, rerun safely.
 - [ ] **VERIFY:** `npx jest src/core/actions/__tests__/bootstrap.test.ts src/core/rbac/__tests__/seed.test.ts src/lib/ui/__tests__/build-menu.test.ts --runInBand && node --test scripts/__tests__/backfill-rbac-permissions.test.mjs` → PASS.
 - [ ] **COMMIT:** `git add src/core/actions/bootstrap.ts src/core/actions/__tests__/bootstrap.test.ts src/lib/ui/menu-actions.ts src/lib/ui/__tests__/build-menu.test.ts src/core/rbac/presets.ts src/core/rbac/__tests__/seed.test.ts scripts/backfill-rbac-permissions.mjs scripts/__tests__/backfill-rbac-permissions.test.mjs && git commit -m "feat(rbac): register CRM Financeiro access"`.
