@@ -33,9 +33,13 @@ const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : de
 const CLINIC_A = '00000000-0000-0000-0000-00000000a001';
 const CLINIC_B = '00000000-0000-0000-0000-00000000b001';
 const BUDGET_A = '00000000-0000-0000-0000-00000000c001';
+const BUDGET_B = '00000000-0000-0000-0000-00000000c002';
 const CHARGE_A = '00000000-0000-0000-0000-00000000d001';
+const CHARGE_B = '00000000-0000-0000-0000-00000000d003';
 const GATEWAY_A = '00000000-0000-0000-0000-00000000f001';
+const GATEWAY_B = '00000000-0000-0000-0000-00000000f003';
 const PATIENT_A = '00000000-0000-0000-0000-00000000e001';
+const PATIENT_B = '00000000-0000-0000-0000-00000000e003';
 const INSTALLMENT_A = '00000000-0000-0000-0000-00000000d002';
 const USER_ID = '00000000-0000-0000-0000-00000000f002';
 
@@ -92,7 +96,7 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
     // Build delegated context (user has financeiro:manage_collections via Owner role)
     ctx = await buildDelegatedContext(USER_ID, CLINIC_A);
 
-    // Create patient, gateway, budget, charge
+    // Create patient, gateway, budget, installment, charge for CLINIC_A
     await db.execute(
       sql`INSERT INTO patients (id, clinic_id, name, phone)
           VALUES (${PATIENT_A}, ${CLINIC_A}, 'Patient Coll A', '11999990001')
@@ -118,16 +122,38 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
           VALUES (${CHARGE_A}, ${CLINIC_A}, ${BUDGET_A}, ${GATEWAY_A}, '2026-08-15', '500.00', 'pending')
           ON CONFLICT (id) DO NOTHING`,
     );
+
+    // Create patient, gateway, budget, charge for CLINIC_B (for RED test proving bypass)
+    await db.execute(
+      sql`INSERT INTO patients (id, clinic_id, name, phone)
+          VALUES (${PATIENT_B}, ${CLINIC_B}, 'Patient Coll B', '11999990002')
+          ON CONFLICT (id) DO NOTHING`,
+    );
+    await db.execute(
+      sql`INSERT INTO payment_gateways (id, clinic_id, provider, is_default, is_enabled)
+          VALUES (${GATEWAY_B}, ${CLINIC_B}, 'asaas', true, true)
+          ON CONFLICT (id) DO NOTHING`,
+    );
+    await db.execute(
+      sql`INSERT INTO budgets (id, clinic_id, patient_id, title, total_value, final_value, status)
+          VALUES (${BUDGET_B}, ${CLINIC_B}, ${PATIENT_B}, 'Budget B', '300.00', '300.00', 'pending')
+          ON CONFLICT (id) DO NOTHING`,
+    );
+    await db.execute(
+      sql`INSERT INTO payment_charges (id, clinic_id, budget_id, gateway_id, due_date, amount, status)
+          VALUES (${CHARGE_B}, ${CLINIC_B}, ${BUDGET_B}, ${GATEWAY_B}, '2026-09-01', '300.00', 'pending')
+          ON CONFLICT (id) DO NOTHING`,
+    );
   });
 
   afterAll(async () => {
     const db = getDb();
     await db.update(instanceModules).set({ enabled: false }).where(eq(instanceModules.moduleId, 'financeiro'));
-    await db.execute(sql`DELETE FROM payment_charges WHERE id = ${CHARGE_A}`);
-    await db.execute(sql`DELETE FROM budget_installments WHERE id = ${INSTALLMENT_A}`);
-    await db.execute(sql`DELETE FROM payment_gateways WHERE id = ${GATEWAY_A}`);
-    await db.execute(sql`DELETE FROM budgets WHERE id = ${BUDGET_A}`);
-    await db.execute(sql`DELETE FROM patients WHERE id = ${PATIENT_A}`);
+    await db.execute(sql`DELETE FROM payment_charges WHERE id IN (${CHARGE_A}, ${CHARGE_B})`);
+    await db.execute(sql`DELETE FROM budget_installments WHERE id IN (${INSTALLMENT_A})`);
+    await db.execute(sql`DELETE FROM payment_gateways WHERE id IN (${GATEWAY_A}, ${GATEWAY_B})`);
+    await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_A}, ${BUDGET_B})`);
+    await db.execute(sql`DELETE FROM patients WHERE id IN (${PATIENT_A}, ${PATIENT_B})`);
     await db.delete(userClinicAccess).where(eq(userClinicAccess.userId, USER_ID));
     await db.delete(users).where(eq(users.id, USER_ID));
     await db.delete(roles).where(eq(roles.clinicId, CLINIC_A));
@@ -177,32 +203,37 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
 
   // ── Action entry (via runAction) ──────────────────────
 
-  it('action entry: forged clinicId in input returns missing_patient_phone, charge unchanged', async () => {
+  // RED TEST: ctx CLINIC_A, input clinicId=CLINIC_B, charge=CHARGE_B (belongs to B)
+  // Before fix: action uses input.clinicId (CLINIC_B) -> scope passes -> may access B's data
+  // After fix: action uses ctx.clinicId (CLINIC_A) -> scope fails -> missing_patient_phone
+  it('RED: action uses ctx.clinicId not input.clinicId; forged clinicId cannot access foreign charge', async () => {
     const db = getDb();
-    const chargeId = CHARGE_A;
+    const chargeId = CHARGE_B;
 
     try {
       const before = await snapshotCharge(db, chargeId);
       expect(before).toBeDefined();
-      expect(before.clinicId).toBe(CLINIC_A);
+      expect(before.clinicId).toBe(CLINIC_B);
 
       const [{ count: countBefore }] = await db
         .select({ count: sql<number>`count(*)` })
         .from(sql`payment_charges`)
         .where(sql`id = ${chargeId}`);
 
-      // Action entry with clinicId falseado no input
+      // ctx is CLINIC_A, input says CLINIC_B — action must use ctx.clinicId
       const result = await runAction(enviarLembreteCobranca, {
         clinicId: CLINIC_B,
         chargeId,
+        patientPhone: '11999999999',  // valid phone — would proceed if scope passed
       }, ctx);
 
-      // Handler returns { sent, error } — not an ActionError, so runAction wraps as ok=true
+      // After fix: ctx.clinicId (A) doesn't own CHARGE_B (B) -> missing_patient_phone
       expect(result.ok).toBe(true);
       const data = result.data as { sent: boolean; error?: string };
       expect(data.sent).toBe(false);
       expect(data.error).toBe('missing_patient_phone');
 
+      // Charge B untouched
       const after = await snapshotCharge(db, chargeId);
       expect(after).toEqual(before);
 
@@ -211,6 +242,36 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
         .from(sql`payment_charges`)
         .where(sql`id = ${chargeId}`);
       expect(countAfter).toBe(countBefore);
+    } finally {
+      // afterAll cleans up
+    }
+  });
+
+  it('action entry: forged clinicId in input is ignored, own-clinic charge scope passes', async () => {
+    const db = getDb();
+    const chargeId = CHARGE_A;
+
+    try {
+      const before = await snapshotCharge(db, chargeId);
+      expect(before).toBeDefined();
+      expect(before.clinicId).toBe(CLINIC_A);
+
+      // Action entry with clinicId falseado no input — ctx.clinicId (A) used
+      const result = await runAction(enviarLembreteCobranca, {
+        clinicId: CLINIC_B,  // forged — action ignores, uses ctx.clinicId
+        chargeId,
+      }, ctx);
+
+      // ctx.clinicId (A) owns CHARGE_A (A) → scope passes
+      // Fails later on phone resolution/WhatsApp send
+      expect(result.ok).toBe(true);
+      const data = result.data as { sent: boolean; error?: string };
+      expect(data.sent).toBe(false);
+      // Error is NOT missing_patient_phone — scope passed
+      expect(data.error).not.toBe('missing_patient_phone');
+
+      const after = await snapshotCharge(db, chargeId);
+      expect(after).toEqual(before);
     } finally {
       // afterAll cleans up
     }
