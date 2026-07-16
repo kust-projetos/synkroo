@@ -400,6 +400,57 @@ export function useContactNotes(id: string, type: string) {
 }
 
 /**
+ * Add a note to a contact (CRM owner-bridge).
+ * Routes POST → crm.adicionarNotaContato (Task 5).
+ */
+export function useAddContactNote() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { type: 'patient' | 'lead'; id: string; content: string }) => {
+      const { id, ...body } = input
+      const res = await fetch(`/api/contacts/${id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`Failed to add note: ${res.status}`)
+      return res.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: ['contacts', variables.id, 'notes', variables.type],
+      })
+    },
+  })
+}
+
+/**
+ * Update tags of a contact (CRM owner-bridge).
+ * Routes PUT → crm.atualizarTagsContato (Task 5).
+ */
+export function useUpdateContactTags() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { type: 'patient' | 'lead'; id: string; tags: string[] }) => {
+      const { id, ...body } = input
+      const res = await fetch(`/api/contacts/${id}/tags`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`Failed to update tags: ${res.status}`)
+      return res.json()
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.contact(variables.id, variables.type),
+      })
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts() })
+    },
+  })
+}
+
+/**
  * Custom field definitions — cached for 5 min
  */
 export function useCustomFieldDefinitions(clinicId?: string) {
@@ -443,6 +494,88 @@ export function useContactTimeline(id: string, type: 'patient' | 'lead', sourceF
     staleTime: 30 * 1000,
   })
 }
+
+// ─── Financeiro hooks (Task 7 — CRM Integration Closure) ────────────────
+
+/**
+ * Budgets list — cached for 1 min
+ */
+export function useBudgets() {
+  return useQuery({
+    queryKey: ['financeiro', 'budgets'],
+    queryFn: () => fetcher<any>('/api/financeiro/budgets'),
+    staleTime: 60 * 1000,
+  })
+}
+
+/**
+ * Payments for a specific budget
+ */
+export function usePayments(budgetId: string | null) {
+  return useQuery({
+    queryKey: ['financeiro', 'payments', budgetId],
+    queryFn: () => fetcher<any>(`/api/financeiro/budgets/${budgetId}/payments`),
+    enabled: !!budgetId,
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Collections (charges) — cached for 30 s
+ */
+export function useCollections() {
+  return useQuery({
+    queryKey: ['financeiro', 'collections'],
+    queryFn: () => fetcher<any>('/api/financeiro/collections'),
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Gateways — cached for 5 min
+ */
+export function useGateways() {
+  return useQuery({
+    queryKey: ['financeiro', 'gateways'],
+    queryFn: () => fetcher<any>('/api/financeiro/gateways'),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Financeiro dashboard summary — calls GET /api/financeiro/dashboard.
+ * Returns { metrics: { budgetConversion, collectionRecovery }, charges: [...] }.
+ */
+export function useFinanceDashboard() {
+  return useQuery({
+    queryKey: ['financeiro', 'dashboard'],
+    queryFn: () => fetcher<any>('/api/financeiro/dashboard'),
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * Budget status update mutation
+ */
+export function useUpdateBudgetStatus() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { id: string; status: string }) => {
+      const res = await fetch(`/api/financeiro/budgets/${input.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: input.status }),
+      })
+      if (!res.ok) throw new Error('Failed to update budget status')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['financeiro', 'budgets'] })
+    },
+  })
+}
+
+// ─── Tasks hooks ────────────────────────────────────────────────────────────
 
 /**
  * Tasks hooks for CRM task management

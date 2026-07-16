@@ -14,5 +14,5 @@ export const financeiroManifest = {
       icon: 'CurrencyDollarIcon',
     },
   ],
-  jobs: [],
+  jobs: ['financeiro-collections'],
 };

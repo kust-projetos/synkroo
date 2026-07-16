@@ -300,3 +300,21 @@ export async function listPendingSuggestionsAllClinics() {
     .where(eq(crmDuplicateSuggestions.status, 'pending' as any))
     .orderBy(crmDuplicateSuggestions.detectedAt);
 }
+
+/**
+ * Lista os clinicIds que possuem pelo menos uma sugestão pendente.
+ * Usado pelo cron /api/cron/crm-duplicates para construir um system
+ * context por clínica e disparar a action system-only
+ * `crm.reprocessarSugestoesDuplicidade`.
+ *
+ * DISTINCT evita disparar o reprocess múltiplas vezes por clínica.
+ */
+export async function listClinicIdsWithPendingSuggestions(): Promise<string[]> {
+  const rows = await getDb()
+    .selectDistinct({ clinicId: crmDuplicateSuggestions.clinicId })
+    .from(crmDuplicateSuggestions)
+    .where(eq(crmDuplicateSuggestions.status, 'pending' as any));
+  return rows
+    .map((r) => (r as { clinicId?: string }).clinicId)
+    .filter((id): id is string => typeof id === 'string' && id.length > 0);
+}

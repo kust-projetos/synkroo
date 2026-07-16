@@ -1,20 +1,38 @@
 import { z } from 'zod';
 import { defineAction, registerActions, clearRegistry } from '@/core/actions';
+import { getPermissionCatalog } from '../catalog';
 import { buildPresetPermissions, seedRbacForClinic, syncRolePermissions, type RoleFinder } from '../seed';
+import { SYSTEM_PRESETS, RESERVED_ROLE_OWNER } from '../presets';
 import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from '../agent-access';
 import type { DbOrTx } from '../seed';
 
 beforeEach(() => clearRegistry());
 
-it('expands a preset module list into concrete permission keys from the catalog', () => {
+it('buildPresetPermissions expands preset modules from runtime catalog (ghost actions incluídos)', () => {
+  // Registra actions FANTASMAS no catalog — com catalog-driven,
+  // ESTES APARECEM se o módulo corresponder ao preset.
   registerActions([
-    defineAction({ name: 'op.c', module: 'operacional', requires: 'operacional:create', label: 'Criar', input: z.object({}), handler: async () => null }),
-    defineAction({ name: 'fin.c', module: 'financeiro', requires: 'financeiro:create', label: 'Criar', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'op.ghost', module: 'operacional', requires: 'operacional:ghost', label: 'Ghost', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'fin.ghost', module: 'financeiro', requires: 'financeiro:ghost', label: 'Ghost', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'op.real', module: 'operacional', requires: 'operacional:view', label: 'View', input: z.object({}), handler: async () => null }),
   ]);
-  const keys = buildPresetPermissions({ name: 'Recepcionista', description: '', modules: ['operacional'], extraKeys: ['comercial:view'] });
-  expect(keys).toContain('operacional:create');
+
+  const keys = buildPresetPermissions({
+    name: 'Recepcionista',
+    description: '',
+    modules: ['operacional'],
+    extraKeys: ['comercial:view'],
+  });
+
+  // operacional:* do catalog (incluindo ghost) são expandidos
+  expect(keys).toContain('operacional:view');
+  expect(keys).toContain('operacional:ghost');  // catalog-driven: ghost INCLUÍDO
+  // extraKeys adicionada verbatim
   expect(keys).toContain('comercial:view');
-  expect(keys).not.toContain('financeiro:create');
+  // chaves de módulos não inclusos NÃO devem aparecer
+  expect(keys).not.toContain('financeiro:view');
+  expect(keys).not.toContain('financeiro:ghost');
+  expect(keys).not.toContain('master:admin');
 });
 
 it('agent role has conservative default permissions (real keys only)', () => {
@@ -37,6 +55,103 @@ it('agent role has conservative default permissions (real keys only)', () => {
 // seedRbacForClinic invoca o helper para o role Agente.
 //
 // syncRolePermissions já tem teste próprio em sync-role-permissions.test.ts.
+
+it('buildPresetPermissions expande módulo crm do catalog runtime (inclui ghost registrado)', () => {
+  clearRegistry();
+  registerActions([
+    defineAction({ name: 'crm.ghost', module: 'crm', requires: 'crm:ghost', label: 'Ghost', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'crm.view', module: 'crm', requires: 'crm:view', label: 'View', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'crm.manage_notes', module: 'crm', requires: 'crm:manage_notes', label: 'Notes', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'crm.merge_patients', module: 'crm', requires: 'crm:merge_patients', label: 'Merge', input: z.object({}), handler: async () => null }),
+  ]);
+
+  const keys = buildPresetPermissions({
+    name: 'Administrador', description: '',
+    modules: ['crm'],
+  });
+
+  // catalog-driven: TODAS as chaves crm:* registradas aparecem
+  expect(keys).toContain('crm:view');
+  expect(keys).toContain('crm:manage_notes');
+  expect(keys).toContain('crm:merge_patients');
+  expect(keys).toContain('crm:ghost');  // catalog-driven: ghost INCLUÍDO
+  // chaves de outros módulos NÃO aparecem
+  expect(keys).not.toContain('financeiro:view');
+  expect(keys).not.toContain('master:admin');
+});
+
+it('buildPresetPermissions for Comercial: catalog-driven — inclui comercial:* do catalog + extraKeys CRM', () => {
+  clearRegistry();
+  // Registra actions comerciais (que NÃO estão em modulePermissions.comercial=[],
+  // mas EXISTEM no catalog runtime)
+  registerActions([
+    defineAction({ name: 'comercial.view', module: 'comercial', requires: 'comercial:view', label: 'View', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'comercial.capture_leads', module: 'comercial', requires: 'comercial:capture_leads', label: 'Capture', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'crm.merge', module: 'crm', requires: 'crm:merge_patients', label: 'Merge', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'crm.review', module: 'crm', requires: 'crm:review_duplicates', label: 'Review', input: z.object({}), handler: async () => null }),
+  ]);
+
+  const comercial = SYSTEM_PRESETS.find((p) => p.name === 'Comercial');
+  expect(comercial).toBeDefined();
+  expect(comercial!.modules).toEqual(['comercial', 'followup']);
+
+  const keys = buildPresetPermissions(comercial!);
+  // comercial:* do catalog runtime (2 keys)
+  expect(keys).toContain('comercial:view');
+  expect(keys).toContain('comercial:capture_leads');
+  // followup:* — nada registrado no catalog, então NENHUMA followup key
+  // extraKeys: crm:view, crm:manage_notes, crm:manage_tags (adicionadas verbatim)
+  expect(keys).toContain('crm:view');
+  expect(keys).toContain('crm:manage_notes');
+  expect(keys).toContain('crm:manage_tags');
+  // crm merge/review NÃO estão nos módulos do Comercial (crm não está em modules)
+  expect(keys).not.toContain('crm:merge_patients');
+  expect(keys).not.toContain('crm:review_duplicates');
+  // operacional NÃO está nos módulos do Comercial
+  expect(keys).not.toContain('operacional:view');
+});
+
+it('buildPresetPermissions excludes master:* permissions', () => {
+  clearRegistry();
+  registerActions([
+    defineAction({ name: 'master.admin', module: 'core', requires: 'master:admin', label: 'Master admin', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'op.view', module: 'operacional', requires: 'operacional:view', label: 'Ver', input: z.object({}), handler: async () => null }),
+  ]);
+
+  const keys = buildPresetPermissions({
+    name: 'Admin', description: '',
+    modules: ['core', 'operacional'],
+  });
+  expect(keys).not.toContain('master:admin');
+  expect(keys).toContain('operacional:view');
+});
+
+// ─── Owner preservation ────────────────────────────────────────────
+// O Owner continua derivando grants do RUNTIME CATALOG (não do JSON).
+// Este teste trava o contrato: o Owner recebe todas as chaves do catalog
+// menos `master:*`, inclusive chaves-fantasma registradas em runtime que
+// não existem no JSON modulePermissions. Isso é proposital — Owner é
+// o super-admin e deve refletir o que o produto realmente autorizou.
+
+it('Owner grants derivam do runtime catalog (não do JSON), filtrando master:*', () => {
+  clearRegistry();
+  registerActions([
+    defineAction({ name: 'op.view', module: 'operacional', requires: 'operacional:view', label: 'View', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'op.ghost', module: 'operacional', requires: 'operacional:ghost', label: 'Ghost', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'master.admin', module: 'core', requires: 'master:admin', label: 'Master', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'fin.view', module: 'financeiro', requires: 'financeiro:view', label: 'View Fin', input: z.object({}), handler: async () => null }),
+  ]);
+
+  // Mesma fórmula usada em seedRbacForClinic para Owner (preservada).
+  const catalog = getPermissionCatalog();
+  const ownerKeys = catalog.map((p) => p.key).filter((k) => !k.startsWith('master:'));
+
+  expect(ownerKeys).toContain('operacional:view');
+  expect(ownerKeys).toContain('operacional:ghost'); // catalog-only: Owner PODE ter
+  expect(ownerKeys).toContain('financeiro:view');
+  expect(ownerKeys.every((k) => !k.startsWith('master:'))).toBe(true);
+  expect(ownerKeys).not.toContain('master:admin');
+});
 
 it('syncRolePermissions inserts keys idempotently (no duplicate on second call)', async () => {
   const inserted: Array<{ roleId: string; permissionKey: string }> = [];

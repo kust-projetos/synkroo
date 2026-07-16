@@ -31,6 +31,11 @@ import { obterAnalyticsPipeline } from './actions/obter-analytics-pipeline';
 import { listarNotificacoes } from './actions/listar-notificacoes';
 import { reconhecerNotificacao } from './actions/reconhecer-notificacao';
 import { processarNotificacoesLeadsQuentes } from './actions/processar-notificacoes-leads-quentes';
+import { registrarNotaLead } from './actions/registrar-nota-lead';
+import { atualizarTagsLead } from './actions/atualizar-tags-lead';
+// Side-effect: registra o dispatcher de merge de leads com o coordenador CRM.
+// Não cria symbols no action registry global; apenas popula o owner-merge-registry.
+import '@/modules/crm/services/lead-merge-dispatcher';
 
 export const comercialActions = [
   arquivarLead,
@@ -59,9 +64,13 @@ export const comercialActions = [
   listarNotificacoes,
   reconhecerNotificacao,
   processarNotificacoesLeadsQuentes,
+  registrarNotaLead,
+  atualizarTagsLead,
 ];
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { comercialManifest } from './manifest';
-export { mesclarLeads } from './actions/mesclar-leads';
+// mesclarLeads removido: merge agora passa pelo dispatcher CRM (human: crm.executarMergeLead).
+export { registrarNotaLead } from './actions/registrar-nota-lead';
+export { atualizarTagsLead } from './actions/atualizar-tags-lead';
 export { comercialAccessPermissions } from './permissions';

@@ -1,83 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { searchContacts, createContact } from '@/services/contacts/contacts.service'
-import { z } from 'zod'
-import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit'
+/**
+ * /api/contacts — Task 5: gated por withModuleRoute('crm') + action system.
+ *
+ * - GET → crm.listarContatos (paginação, search).
+ * - POST → 405 crm_mvp_read_only (criação de contato é via operacional/comercial).
+ */
+import { NextRequest } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runCrmAction, crmReadOnlyResponse } from '@/modules/crm/ui/route-adapter';
+import { listarContatos } from '@/modules/crm/actions';
 
-const createContactSchema = z.object({
-  type: z.enum(['patient', 'lead']),
-  name: z.string().min(1),
-  phone: z.string().min(1),
-  email: z.string().email().optional(),
-  cpf: z.string().optional(),
-  birth_date: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-  notes: z.string().optional(),
-  source: z.string().optional(),
-  interest: z.string().optional(),
-})
-
-export async function GET(request: NextRequest) {
-  const clientId = getClientIdentifier(request)
-  const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
-    )
-  }
-
-  const auth = await validateApiAuth()
-  if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
-  }
-
-  const clinicId = auth.profile!.clinic_id
-  const { searchParams } = new URL(request.url)
-
-  const params = {
-    search: searchParams.get('search') || undefined,
-    type: (searchParams.get('type') as 'all' | 'patient' | 'lead') || 'all',
-    tags: searchParams.get('tags')?.split(',').filter(Boolean),
-    status: searchParams.get('status') || undefined,
-    page: parseInt(searchParams.get('page') || '1'),
-    limit: parseInt(searchParams.get('limit') || '20'),
-  }
-
-  try {
-    const result = await searchContacts(clinicId, params)
-    return NextResponse.json(result)
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to search contacts' }, { status: 500 })
-  }
+async function handleGET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const input = {
+    search: searchParams.get('search') ?? undefined,
+    limit: searchParams.get('limit') ? Number(searchParams.get('limit')) : undefined,
+    offset: searchParams.get('offset') ? Number(searchParams.get('offset')) : undefined,
+  };
+  return runCrmAction(listarContatos, input);
 }
 
-export async function POST(request: NextRequest) {
-  const clientId = getClientIdentifier(request)
-  const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
-    )
-  }
+const handlePOST = crmReadOnlyResponse;
 
-  const auth = await validateApiAuth()
-  if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
-  }
-
-  const clinicId = auth.profile!.clinic_id
-
-  try {
-    const body = await request.json()
-    const validated = createContactSchema.parse(body)
-    const contact = await createContact(clinicId, validated)
-    return NextResponse.json(contact, { status: 201 })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
-    }
-    return NextResponse.json({ error: 'Failed to create contact' }, { status: 500 })
-  }
-}
+export const GET = withModuleRoute('crm', moduleManifest)(handleGET);
+export const POST = withModuleRoute('crm', moduleManifest)(handlePOST);
