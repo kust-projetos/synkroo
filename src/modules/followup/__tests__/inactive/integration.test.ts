@@ -126,22 +126,23 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
   });
 
   it('listarInativos respects clinic isolation (other clinic patients not visible)', async () => {
-    // Create a patient in OTHER_CLINIC with old lastVisitAt
     const db = getDb();
-    const otherPatientId = `f0000000-0000-4000-8000-${ts.padStart(12, '0')}`;
-    await db.insert(patients).values({
-      id: otherPatientId, clinicId: OTHER_CLINIC_ID, name: 'Paciente Outra Clinica', phone: '11999999903', lastVisitAt: LONG_AGO,
-    }).onConflictDoNothing();
+    const otherPatientId = `f0000000-0000-4000-8000-${(Number(ts) + 10).toString().padStart(12, '0')}`;
 
-    const result = await runAction(listarInativos, { minDays: 30, page: 1, limit: 100 }, ctx);
-    expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error('expected ok');
+    try {
+      await db.insert(patients).values({
+        id: otherPatientId, clinicId: OTHER_CLINIC_ID, name: 'Paciente Outra Clinica', phone: '11999999903', lastVisitAt: LONG_AGO,
+      }).onConflictDoNothing();
 
-    const names = result.data.patients.map((p: any) => p.patientName);
-    expect(names).not.toContain('Paciente Outra Clinica');
+      const result = await runAction(listarInativos, { minDays: 30, page: 1, limit: 100 }, ctx);
+      expect(result.ok).toBe(true);
+      if (!result.ok) throw new Error('expected ok');
 
-    // Cleanup
-    await db.delete(patients).where(eq(patients.id, otherPatientId));
+      const names = result.data.patients.map((p: any) => p.patientName);
+      expect(names).not.toContain('Paciente Outra Clinica');
+    } finally {
+      await db.delete(patients).where(eq(patients.id, otherPatientId));
+    }
   });
 
   // ── reativarPaciente ──────────────────────────────────────────────────────
@@ -155,6 +156,9 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
     const db = getDb();
     const [row] = await db.select({ status: patients.status }).from(patients).where(eq(patients.id, PATIENT_A));
     expect(row?.status).toBe('active');
+
+    // Restore original status for subsequent tests
+    await db.update(patients).set({ status: 'inactive' }).where(eq(patients.id, PATIENT_A));
   });
 
   it('reativarPaciente returns not_found for patient from another clinic', async () => {
@@ -166,11 +170,16 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
         id: foreignPatientId, clinicId: OTHER_CLINIC_ID, name: 'Paciente Foreign', phone: '11999999904', lastVisitAt: LONG_AGO,
       }).onConflictDoNothing();
 
-      // Snapshot full patient row before
+      // Snapshot full patient row + count before
       const beforeSql = sql`SELECT id, clinic_id as "clinicId", name, phone, status, last_visit_at as "lastVisitAt", tags, risk_score as "riskScore"
                             FROM patients WHERE id = ${foreignPatientId}`;
       const { rows: [beforeRow] } = await db.execute(beforeSql);
       expect(beforeRow).toBeDefined();
+
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(patients)
+        .where(eq(patients.id, foreignPatientId));
 
       // ctx is scoped to CLINIC_ID — trying to reactivate OTHER_CLINIC patient
       const result = await runAction(reativarPaciente, { patientId: foreignPatientId }, ctx);
@@ -183,6 +192,12 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
       // Full row unchanged after action (no mutation)
       const { rows: [afterRow] } = await db.execute(beforeSql);
       expect(afterRow).toEqual(beforeRow);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(patients)
+        .where(eq(patients.id, foreignPatientId));
+      expect(countAfter).toBe(countBefore);
     } finally {
       await db.delete(patients).where(eq(patients.id, foreignPatientId));
     }
@@ -197,11 +212,16 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
         id: foreignPatientId, clinicId: OTHER_CLINIC_ID, name: 'Paciente Foreign Forgery', phone: '11999999905', lastVisitAt: LONG_AGO,
       }).onConflictDoNothing();
 
-      // Snapshot full patient row before
+      // Snapshot full patient row + count before
       const beforeSql = sql`SELECT id, clinic_id as "clinicId", name, phone, status, last_visit_at as "lastVisitAt", tags, risk_score as "riskScore"
                             FROM patients WHERE id = ${foreignPatientId}`;
       const { rows: [beforeRow] } = await db.execute(beforeSql);
       expect(beforeRow).toBeDefined();
+
+      const [{ count: countBefore }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(patients)
+        .where(eq(patients.id, foreignPatientId));
 
       // Pass explicit clinicId in input — action schema strips it, ctx.clinicId used for scope
       const result = await runAction(reativarPaciente, {
@@ -217,6 +237,12 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
       // Full row unchanged after action
       const { rows: [afterRow] } = await db.execute(beforeSql);
       expect(afterRow).toEqual(beforeRow);
+
+      const [{ count: countAfter }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(patients)
+        .where(eq(patients.id, foreignPatientId));
+      expect(countAfter).toBe(countBefore);
     } finally {
       await db.delete(patients).where(eq(patients.id, foreignPatientId));
     }
