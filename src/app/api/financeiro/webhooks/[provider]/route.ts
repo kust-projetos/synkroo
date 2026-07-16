@@ -39,9 +39,11 @@ export async function POST(
     return NextResponse.json({ error: 'Missing x-asaas-token header' }, { status: 401 });
   }
 
-  // Find the Asaas gateway for this clinic and validate the token
+  // Find the Asaas gateway for this clinic and validate the token.
+  // Webhooks must process even when the gateway is DISABLED,
+  // so that settlement reconciliation works for existing charges.
   const gateways = await listGateways(clinicId);
-  const asaasGw = gateways.find(g => g.provider === 'asaas' && g.isEnabled);
+  const asaasGw = gateways.find(g => g.provider === 'asaas');
 
   if (!asaasGw) {
     return NextResponse.json({ error: 'No Asaas gateway configured for clinic' }, { status: 404 });
@@ -86,5 +88,14 @@ export async function POST(
     return NextResponse.json({ received: true, duplicate: true }, { status: 200 });
   }
 
-  return NextResponse.json({ received: true, settled: result.settled });
+  // chargeFound=false ⇒ cobrança genuinamente desconhecida (sem gateway configurado)
+  // Retorna 404 para que o provider não reenvie o evento.
+  if (result.chargeFound === false) {
+    return NextResponse.json({ error: 'Charge not found' }, { status: 404 });
+  }
+
+  // Cobrança conhecida: evento foi recebido e processado (settled ou não).
+  // Se settled=false, é um evento não-settlement legítimo (ex.: PAYMENT_OVERDUE)
+  // ou settlement com gateway desabilitado — em ambos os casos o provider NÃO deve reenviar.
+  return NextResponse.json({ received: true, settled: result.settled ?? false }, { status: 200 });
 }

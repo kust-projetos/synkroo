@@ -31,7 +31,8 @@ import { obterAnalyticsPipeline } from './obter-analytics-pipeline';
 import { listarNotificacoes } from './listar-notificacoes';
 import { reconhecerNotificacao } from './reconhecer-notificacao';
 import { processarNotificacoesLeadsQuentes } from './processar-notificacoes-leads-quentes';
-import { mesclarLeads } from './mesclar-leads';
+import { registrarNotaLead } from './registrar-nota-lead';
+import { atualizarTagsLead } from './atualizar-tags-lead';
 
 export * from './arquivar-lead';
 export * from './obter-estatisticas-leads';
@@ -59,6 +60,8 @@ export * from './fechar-task-comercial';
 export * from './listar-notificacoes';
 export * from './reconhecer-notificacao';
 export * from './processar-notificacoes-leads-quentes';
+export * from './registrar-nota-lead';
+export * from './atualizar-tags-lead';
 
 // Bootstrap registration — idempotent
 registerActions([
@@ -88,4 +91,6 @@ registerActions([
   listarNotificacoes,
   reconhecerNotificacao,
   processarNotificacoesLeadsQuentes,
+  registrarNotaLead,
+  atualizarTagsLead,
 ]);

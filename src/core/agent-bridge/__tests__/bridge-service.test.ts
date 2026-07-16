@@ -142,7 +142,9 @@ describe('executeActionLogic', () => {
     expect(r).toEqual({ ok: true, data: { done: true } });
   });
 
-  it('blocks proibido action (system) — escalate_human', async () => {
+  it('blocks unsafe action outside allowlist (system) — unknown_tool BEFORE matrix', async () => {
+    // operacional.cancelarConsulta é destrutivo e não está em AGENT_SAFE_ACTIONS:
+    // a allowlist deny-by-default deve interceptar ANTES de assertSystemAllowed.
     const handle = await handleFor();
     const r = await executeActionLogic(deps(), {
       handle,
@@ -152,7 +154,7 @@ describe('executeActionLogic', () => {
       input: {},
       flags: { confirmed: true },
     });
-    expect(r).toMatchObject({ ok: false, error: 'escalate_human' });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
   });
 
   it('rejects forged handle', async () => {
@@ -276,5 +278,145 @@ describe('executeActionLogic', () => {
       expect(r1).toEqual({ ok: true, data: { done: true } });
       expect(r2).toEqual({ ok: true, data: { done: true } });
     });
+  });
+});
+
+describe('allowlist deny-by-default (AGENT_SAFE_ACTIONS)', () => {
+  // Ações declaradas globalmente no registry mas FORA da allowlist.
+  // Devem ser invisíveis para a IA — listTools omite e executeAction devolve
+  // unknown_tool ANTES de marcar idempotência e ANTES de chamar runAction.
+  const crmAprovar = {
+    name: 'crm.aprovarSugestaoDuplicidade',
+    module: 'crm',
+    requires: 'crm:manage',
+    label: 'CRM aprovar',
+    input: z.object({ id: z.string() }),
+  } as unknown as ActionDefinition<any, any>;
+
+  const finCriar = {
+    name: 'financeiro.criarOrcamento',
+    module: 'financeiro',
+    requires: 'financeiro:manage',
+    label: 'Criar orçamento',
+    input: z.object({ pacienteId: z.string() }),
+  } as unknown as ActionDefinition<any, any>;
+
+  const mergePacs = {
+    name: 'operacional.mesclarPacientes',
+    module: 'operacional',
+    requires: 'operacional:manage',
+    label: 'Mesclar pacientes',
+    input: z.object({ origem: z.string(), destino: z.string() }),
+  } as unknown as ActionDefinition<any, any>;
+
+  const mergeLeads = {
+    name: 'comercial.mesclarLeads',
+    module: 'comercial',
+    requires: 'comercial:manage',
+    label: 'Mesclar leads',
+    input: z.object({ origem: z.string(), destino: z.string() }),
+  } as unknown as ActionDefinition<any, any>;
+
+  const unsafeActions = [crmAprovar, finCriar, mergePacs, mergeLeads];
+
+  function unsafeDeps(opts: {
+    runAction: BridgeDeps['runAction'];
+    store?: BridgeDeps['store'];
+  }): BridgeDeps {
+    return deps({
+      getActions: () => [...actions, ...unsafeActions],
+      runAction: opts.runAction,
+      ...(opts.store ? { store: opts.store } : {}),
+    });
+  }
+
+  it('listToolsLogic OMITE ações fora da allowlist mesmo que registradas', async () => {
+    const handle = await handleFor();
+    const r = await listToolsLogic(unsafeDeps({
+      runAction: async () => ({ ok: true as const, data: {} }),
+    }), { handle, conversationId: 'conv-1' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const names = r.catalog.tools.map((t) => t.name);
+    expect(names).not.toContain('crm.aprovarSugestaoDuplicidade');
+    expect(names).not.toContain('financeiro.criarOrcamento');
+    expect(names).not.toContain('operacional.mesclarPacientes');
+    expect(names).not.toContain('comercial.mesclarLeads');
+    // E mantém as 3 ações safe do módulo operacional usadas no teste
+    expect(names).toContain('operacional.consultarDisponibilidade');
+  });
+
+  it('executeActionLogic retorna unknown_tool para cada ação fora da allowlist', async () => {
+    for (const unsafe of unsafeActions) {
+      const handle = await handleFor();
+      const r = await executeActionLogic(unsafeDeps({
+        runAction: async () => ({ ok: true as const, data: {} }),
+      }), {
+        handle,
+        conversationId: 'conv-1',
+        idempotencyKey: `ik-unsafe-${unsafe.name}`,
+        alias: normalizeToolName(unsafe.name),
+        input: {},
+        flags: { confirmed: true, identityVerified: true },
+      });
+      expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    }
+  });
+
+  it('executeActionLogic NÃO chama runAction quando ação é fora da allowlist', async () => {
+    let called = 0;
+    const handle = await handleFor();
+    const r = await executeActionLogic(unsafeDeps({
+      runAction: async () => { called += 1; return { ok: true as const, data: {} }; },
+    }), {
+      handle,
+      conversationId: 'conv-1',
+      idempotencyKey: 'ik-unsafe-no-call',
+      alias: normalizeToolName('financeiro.criarOrcamento'),
+      input: {},
+      flags: { confirmed: true },
+    });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    expect(called).toBe(0);
+  });
+
+  it('executeActionLogic NÃO marca idempotência quando ação é fora da allowlist', async () => {
+    const seen = new Set<string>();
+    const handle = await handleFor();
+    const r = await executeActionLogic(unsafeDeps({
+      runAction: async () => ({ ok: true as const, data: {} }),
+      store: {
+        async wasSeen(j: string) { return seen.has(j); },
+        async markSeen(j: string) { seen.add(j); },
+      },
+    }), {
+      handle,
+      conversationId: 'conv-1',
+      idempotencyKey: 'ik-unsafe-no-mark',
+      alias: normalizeToolName('operacional.mesclarPacientes'),
+      input: {},
+      flags: { confirmed: true },
+    });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    // A chave NÃO deve ter sido gravada — re-tentativa deve responder
+    // unknown_tool novamente (sem consumir slot de idempotência).
+    expect(seen.has('conv-1:ik-unsafe-no-mark')).toBe(false);
+  });
+
+  it('ordem do deny: alias inválido e unsafe action retornam unknown_tool sem chamar runAction', async () => {
+    let called = 0;
+    const handle = await handleFor();
+    const r = await executeActionLogic(unsafeDeps({
+      runAction: async () => { called += 1; return { ok: true as const, data: {} }; },
+    }), {
+      handle,
+      conversationId: 'conv-1',
+      idempotencyKey: 'ik-ordem-deny',
+      alias: 'comercial__mesclarLeads',
+      input: {},
+      flags: { confirmed: true },
+    });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    expect(called).toBe(0);
   });
 });

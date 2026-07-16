@@ -38,6 +38,11 @@ import { gatilhoLembrete } from './actions/gatilho-lembrete';
 import { obterModeloLembrete } from './actions/obter-modelo-lembrete';
 import { processarConfirmacaoResposta } from './actions/processar-confirmacao-resposta';
 import { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
+import { registrarObservacaoPaciente } from './actions/registrar-observacao-paciente';
+// Side-effect: registra o dispatcher de merge de pacientes com o coordenador CRM.
+// Não cria symbols no action registry global; apenas popula o owner-merge-registry.
+import '@/modules/crm/services/patient-merge-dispatcher';
+import { atualizarTagsPaciente } from './actions/atualizar-tags-paciente';
 
 export const operacionalActions = [
   agendarConsulta,
@@ -71,6 +76,8 @@ export const operacionalActions = [
   obterModeloLembrete,
   processarConfirmacaoResposta,
   listarTratamentosIncompletos,
+  registrarObservacaoPaciente,
+  atualizarTagsPaciente,
 ];
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
@@ -83,5 +90,7 @@ export { gatilhoLembrete } from './actions/gatilho-lembrete';
 export { obterModeloLembrete } from './actions/obter-modelo-lembrete';
 export { processarConfirmacaoResposta } from './actions/processar-confirmacao-resposta';
 export { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
-export { mesclarPacientes } from './actions/mesclar-pacientes';
+// mesclarPacientes removido: merge agora passa pelo dispatcher CRM (human: crm.executarMergePatient).
+export { registrarObservacaoPaciente } from './actions/registrar-observacao-paciente';
+export { atualizarTagsPaciente } from './actions/atualizar-tags-paciente';
 export { operacionalAccessPermissions } from './permissions';

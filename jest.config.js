@@ -6,7 +6,14 @@ module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   roots: ['<rootDir>/src'],
-  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
+  testMatch: [
+    '**/__tests__/**/*.test.ts',
+    '**/__tests__/**/*.test.tsx',
+    // Co-located route/page tests (Tasks 4 & 6 — cron route + dashboard pages).
+    '**/route.test.ts',
+    '**/page.test.ts',
+    '**/page.test.tsx',
+  ],
   // Integration tests run exclusively via `npm run test:integration`.
   // Exclude them from the default suite so hooks don't execute against mocked DB.
   testPathIgnorePatterns: ['/node_modules/', 'integration.test.ts'],

@@ -1,59 +1,48 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, desc } from 'drizzle-orm'
-import { getDb } from '@/lib/db/client'
-import { appointments, patients, dentists, procedures } from '@/lib/db/schema'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+/**
+ * /api/contacts/[id]/appointments — Task 5: CRM-gated, patient-only.
+ *
+ *  - CRM disabled → 404 (via withModuleRoute).
+ *  - Apenas type=patient é suportado. type=lead/operacional/outros → 404
+ *    (sem leak — não diferencia "lead não tem appointments" de "lead não
+ *    pertence à clínica").
+ *  - Patient → action operacional.listarConsultas com page:1, limit:50
+ *    enforced server-side (não aceita valores do cliente).
+ *  - Sem imports legados de drizzle/validateApiAuth/services.
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runCrmAction } from '@/modules/crm/ui/route-adapter';
+import { listarConsultas } from '@/modules/operacional/actions/listar-consultas';
 
-interface RouteParams {
-  params: Promise<{ id: string }>
-}
-
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
-
-    const { id } = await params
-    if (!id) {
-      return NextResponse.json({ error: 'Contact ID is required' }, { status: 400 })
-    }
-
-    const db = getDb()
-    const rows = await db
-      .select({
-        id: appointments.id,
-        scheduledAt: appointments.scheduledAt,
-        status: appointments.status,
-        notes: appointments.notes,
-        durationMinutes: appointments.durationMinutes,
-        patientName: patients.name,
-        dentistName: dentists.name,
-        procedureName: procedures.name,
-      })
-      .from(appointments)
-      .leftJoin(patients, eq(appointments.patientId, patients.id))
-      .leftJoin(dentists, eq(appointments.dentistId, dentists.id))
-      .leftJoin(procedures, eq(appointments.procedureId, procedures.id))
-      .where(and(eq(appointments.patientId, id), eq(appointments.clinicId, clinicId)))
-      .orderBy(desc(appointments.scheduledAt))
-
-    const result = rows.map((apt) => ({
-      id: apt.id,
-      scheduledAt: apt.scheduledAt?.toISOString?.() ?? null,
-      status: apt.status,
-      notes: apt.notes,
-      durationMinutes: apt.durationMinutes,
-      patientName: apt.patientName || '',
-      dentistName: apt.dentistName || '',
-      procedureName: apt.procedureName || '',
-    }))
-
-    return NextResponse.json({ appointments: result })
-  } catch (error) {
-    return handleApiError(error)
+async function handleGET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { searchParams } = new URL(request.url);
+  const typeRaw = searchParams.get('type');
+  // Aceita patient | lead | operacional como tipos "conhecidos" para
+  // distinguir unknown (→ 400) de known-but-not-supported (→ 404, sem leak).
+  if (
+    typeRaw !== 'patient' &&
+    typeRaw !== 'lead' &&
+    typeRaw !== 'operacional'
+  ) {
+    return NextResponse.json(
+      { error: 'type query parameter required (patient|lead)' },
+      { status: 400 },
+    );
   }
+  if (typeRaw !== 'patient') {
+    // lead / operacional → 404 sem leak.
+    return NextResponse.json({ error: 'not_found' }, { status: 404 });
+  }
+  const { id } = await params;
+  return runCrmAction(listarConsultas, {
+    patientId: id,
+    page: 1,
+    limit: 50,
+  });
 }
+
+export const GET = withModuleRoute('crm', moduleManifest)(handleGET);

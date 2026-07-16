@@ -7,20 +7,22 @@ import { SearchInput } from '@/components/ui/search-input'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { EmptyState } from '@/components/ui/empty-state'
-import { ContactCreateDialog } from './contact-create-dialog'
-import { PlusIcon } from '@heroicons/react/24/outline'
-import { Button } from '@/components/ui/button'
 
 interface ContactListPanelProps {
   selectedId?: string | null
   selectedType?: 'patient' | 'lead' | null
 }
 
+/**
+ * Task 6: painel de contatos em modo READ-ONLY no MVP CRM.
+ * - Sem botão "Novo Contato" (criação via operacional.criarPaciente / comercial.capturarLead).
+ * - Sem ContactCreateDialog / PlusIcon / Button de criação.
+ * - Lista populada via useContacts → /api/contacts (não array literal).
+ */
 export function ContactListPanel({ selectedId, selectedType }: ContactListPanelProps) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'patient' | 'lead'>('all')
-  const [createOpen, setCreateOpen] = useState(false)
 
   const queryParams = useMemo(() => {
     const params: Record<string, string> = {}
@@ -62,7 +64,7 @@ export function ContactListPanel({ selectedId, selectedType }: ContactListPanelP
         ) : contacts.length === 0 ? (
           <EmptyState
             title="Nenhum contato encontrado"
-            description="Tente ajustar os filtros ou adicione um novo contato"
+            description="Tente ajustar os filtros de busca"
           />
         ) : (
           <div className="divide-y divide-border">
@@ -86,15 +88,6 @@ export function ContactListPanel({ selectedId, selectedType }: ContactListPanelP
           </div>
         )}
       </div>
-
-      <div className="p-4 border-t border-border">
-        <Button onClick={() => setCreateOpen(true)} className="w-full gap-2">
-          <PlusIcon className="h-4 w-4" />
-          Novo Contato
-        </Button>
-      </div>
-
-      <ContactCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   )
 }

@@ -1,84 +1,192 @@
 /**
- * RBAC Permission Backfill Script
+ * backfill-rbac-permissions.mjs — Task 8 / Eixo 2 Integration Closure.
  *
- * Idempotent: adds any catalog permissions not yet assigned to existing system roles.
- * Safe to run on any environment — only INSERTs missing rows, never DELETEs.
+ * Parameterized idempotent script + exported `backfill(client)` function.
  *
- * Usage: node scripts/backfill-rbac-permissions.mjs
- * Requires: DATABASE_URL env var (defaults to local dev)
+ * Pipeline:
+ *   1. Lê preset-policy.json (readFileSync + new URL + JSON.parse).
+ *   2. Insere PermissionEntry objects na tabela `permissions` (ON CONFLICT DO NOTHING).
+ *   3. Para cada clínica, cria role Owner + 4 presets + Agente e sincroniza grants:
+ *      - Owner: TODAS as chaves não-master do catálogo `permissions`.
+ *      - Staff: chaves da tabela `permissions` filtradas por módulo do preset + extraKeys.
+ *      - Agente: agentPermissions do policy.
  *
- * Run after deploying new action modules (e.g., operacional) to ensure
- * existing clinics have their preset roles populated with the new permissions.
+ * Export:
+ *   import { backfill } from './scripts/backfill-rbac-permissions.mjs';
+ *   const client = { query: async (text, params) => await pool.query(text, params) };
+ *   const result = await backfill(client, { clinicId: 'uuid', dryRun: false });
+ *
+ * CLI:
+ *   node scripts/backfill-rbac-permissions.mjs [--dry-run] [--clinic=<id>]
+ *
+ * Runbook:
+ *   docs/runbook-backfill-rbac-permissions.md
  */
 
-import pg from 'pg';
-const { Client } = pg;
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
-const CONN_STRING =
-  process.env.DATABASE_URL ||
-  'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
+// ─── Load canonical policy from JSON ─────────────────────────────────────────
 
-const client = new Client({ connectionString: CONN_STRING });
+const policy = JSON.parse(readFileSync(new URL('../src/core/rbac/preset-policy.json', import.meta.url), 'utf-8'));
 
-async function getCatalogPermissions(client) {
-  // Reads permissions table — populated by getPermissionCatalog() at seed time.
-  // If new action modules were deployed after seed, their keys may not be here.
-  const { rows } = await client.query(
-    `SELECT key FROM permissions WHERE key NOT LIKE 'master:%'`
-  );
-  return new Set(rows.map(r => r.key));
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+function keyEscape(k) {
+  return k.replace(/'/g, "''");
 }
 
-async function getExistingRolePerms(client) {
-  const { rows } = await client.query(`
-    SELECT rp.role_id, rp.permission_key
-    FROM role_permissions rp
-    JOIN roles r ON r.id = rp.role_id
-    WHERE r.is_system = true
-  `);
-  const map = new Map();
-  for (const row of rows) {
-    if (!map.has(row.role_id)) map.set(row.role_id, new Set());
-    map.get(row.role_id).add(row.permission_key);
+async function ensurePolicyPermissions(client) {
+  const entries = [];
+  for (const [mod, perms] of Object.entries(policy.modulePermissions ?? {})) {
+    for (const p of perms) {
+      entries.push(`('${keyEscape(p.key)}', '${keyEscape(p.module)}', '${keyEscape(p.label)}')`);
+    }
   }
-  return map;
+  if (entries.length === 0) return 0;
+  const result = await client.query(
+    `INSERT INTO permissions (key, module, label)
+     VALUES ${entries.join(',')}
+     ON CONFLICT (key) DO NOTHING`,
+  );
+  return result.rowCount ?? 0;
 }
 
-async function main() {
-  await client.connect();
-
-  const catalog = await getCatalogPermissions(client);
-  const existingPerms = await getExistingRolePerms(client);
-
-  const { rows: systemRoles } = await client.query(
-    `SELECT id, name, clinic_id FROM roles WHERE is_system = true`
+async function queryCatalogKeys(client) {
+  const { rows } = await client.query(
+    `SELECT p.key, p.module FROM permissions p ORDER BY p.key`,
   );
+  return rows;
+}
 
-  let inserted = 0;
-  for (const role of systemRoles) {
-    const rolePerms = existingPerms.get(role.id) || new Set();
-    const missing = [...catalog].filter(k => !rolePerms.has(k));
+async function ensureRole(client, clinicId, name) {
+  const { rows } = await client.query(
+    `INSERT INTO roles (clinic_id, name)
+     VALUES ($1, $2)
+     ON CONFLICT (clinic_id, name) DO NOTHING
+     RETURNING id`,
+    [clinicId, name],
+  );
+  if (rows.length > 0) return rows[0].id;
+  const { rows: existing } = await client.query(
+    'SELECT id FROM roles WHERE clinic_id = $1 AND name = $2 LIMIT 1',
+    [clinicId, name],
+  );
+  return existing[0]?.id;
+}
 
-    if (missing.length === 0) {
-      console.log(`[SKIP] ${role.name} (${role.id}) — no missing permissions`);
+async function syncRolePermissions(client, roleId, permissionKeys) {
+  if (!permissionKeys || permissionKeys.length === 0) return 0;
+  const values = permissionKeys.map((key) => `('${roleId}', '${keyEscape(key)}')`).join(',');
+  const result = await client.query(
+    `INSERT INTO role_permissions (role_id, permission_key)
+     VALUES ${values}
+     ON CONFLICT DO NOTHING`,
+  );
+  return result.rowCount ?? 0;
+}
+
+// ─── Backfill function (exportada) ───────────────────────────────────────────
+
+/**
+ * @param {import('node:child_process').ExecSyncOptions['query']} client - PG client com .query(text, params)
+ * @param {{ clinicId?: string; dryRun?: boolean }} options
+ */
+export async function backfill(client, options = {}) {
+  const { clinicId, dryRun = false } = options;
+  const results = [];
+
+  // Step 1: Policy permission entries → `permissions` table (catálogo canônico)
+  if (!dryRun) {
+    await ensurePolicyPermissions(client);
+  }
+
+  const clinics = clinicId
+    ? [{ id: clinicId }]
+    : (await client.query('SELECT id FROM clinics WHERE deleted_at IS NULL ORDER BY created_at')).rows;
+
+  if (clinics.length === 0) {
+    return { processed: 0, results: [] };
+  }
+
+  for (const clinic of clinics) {
+    const clinicResults = [];
+
+    if (dryRun) {
+      results.push({ clinicId: clinic.id, dryRun: true, roles: [] });
       continue;
     }
 
-    for (const key of missing) {
-      await client.query(
-        `INSERT INTO role_permissions (role_id, permission_key) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-        [role.id, key]
-      );
-      inserted++;
+    // Catálogo canônico (já populado pelo step 1)
+    const catalog = await queryCatalogKeys(client);
+
+    // Owner — all non-master permissions from catalog
+    const ownerRoleId = await ensureRole(client, clinic.id, policy.reservedRole);
+    const ownerKeys = catalog
+      .filter((p) => !policy.owner.excludePrefixes.some((pre) => p.key.startsWith(pre)))
+      .map((p) => p.key);
+    const ownerInserted = await syncRolePermissions(client, ownerRoleId, ownerKeys);
+    clinicResults.push({ role: policy.reservedRole, inserted: ownerInserted, total: ownerKeys.length });
+
+    // Presets (staff) — deriva grants do catálogo + extraKeys do policy JSON
+    for (const preset of policy.presets) {
+      const roleId = await ensureRole(client, clinic.id, preset.name);
+      const permissionKeys = [];
+
+      // Expande módulos do preset via catálogo (permissions table)
+      for (const p of catalog) {
+        if (preset.modules.includes(p.module) && !policy.owner.excludePrefixes.some((pre) => p.key.startsWith(pre))) {
+          permissionKeys.push(p.key);
+        }
+      }
+      // Adiciona extraKeys do policy JSON (verbatim, sem passar pelo catálogo)
+      for (const extra of preset.extraKeys ?? []) {
+        if (!permissionKeys.includes(extra)) permissionKeys.push(extra);
+      }
+
+      const inserted = await syncRolePermissions(client, roleId, permissionKeys);
+      clinicResults.push({ role: preset.name, inserted, total: permissionKeys.length });
     }
-    console.log(`[OK] ${role.name} (role_id=${role.id}, clinic=${role.clinic_id}) — +${missing.length} perms`);
+
+    // Agent
+    const agentRoleId = await ensureRole(client, clinic.id, policy.agentRoleName);
+    const agentInserted = await syncRolePermissions(client, agentRoleId, policy.agentPermissions);
+    clinicResults.push({ role: policy.agentRoleName, inserted: agentInserted, total: policy.agentPermissions.length });
+
+    results.push({ clinicId: clinic.id, roles: clinicResults });
   }
 
-  console.log(`\nDone. Inserted ${inserted} missing role_permissions across ${systemRoles.length} system roles.`);
-  await client.end();
+  return { processed: clinics.length, results };
 }
 
-main().catch((err) => {
-  console.error('ERROR:', err.message);
-  process.exit(1);
-});
+// ─── CLI entry point ─────────────────────────────────────────────────────────
+
+async function mainCLI() {
+  const dryRun = process.argv.includes('--dry-run');
+  const clinicFilter = process.argv.find((a) => a.startsWith('--clinic='))?.split('=')[1];
+
+  const { Pool } = require('pg');
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+
+  const client = {
+    query: async (text, params) => {
+      const conn = await pool.connect();
+      try { return await conn.query(text, params); } finally { conn.release(); }
+    },
+  };
+
+  if (dryRun) console.log('═══ DRY RUN — no mutations ═══');
+  console.log('Reading policy from JSON, seeding permissions table...');
+
+  const result = await backfill(client, { clinicId: clinicFilter, dryRun });
+  console.log(`Processed ${result.processed} clinic(s):`, JSON.stringify(result.results, null, 2));
+
+  await pool.end();
+}
+
+const isMainScript = process.argv[1] &&
+  process.argv[1].replace(/\\/g, '/').endsWith('backfill-rbac-permissions.mjs');
+if (isMainScript) {
+  mainCLI().catch((err) => { console.error('Fatal:', err); process.exit(1); });
+}
