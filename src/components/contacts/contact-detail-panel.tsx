@@ -6,12 +6,8 @@ import { useContact, useContactNotes, useLeadsByPatient } from '@/lib/hooks/use-
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { PencilIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline'
 import { ContactTimelineTab } from './contact-timeline-tab'
 import { ContactNotesTab } from './contact-notes-tab'
 import { ContactCustomFieldsTab } from './contact-custom-fields-tab'
@@ -29,47 +25,19 @@ interface ContactDetailPanelProps {
   onClearSelection?: () => void
 }
 
+/**
+ * Task 6: painel de detalhe READ-ONLY no MVP CRM.
+ *  - Sem PencilIcon / botão "Editar" (PUT /api/contacts/:id retorna 405).
+ *  - Sem ArchiveBoxIcon / botão "Arquivar" (PATCH idem).
+ *  - Sem useMutation PUT/PATCH; sem Input/Label de edição inline.
+ *  - Mantém tabs de notas, timeline, campos customizados, financeiro,
+ *    whatsapp e duplicados (somente leitura ou via owner-bridge).
+ */
 export function ContactDetailPanel({ contactId, contactType, onClearSelection }: ContactDetailPanelProps) {
-  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState('info')
-  const [isEditing, setIsEditing] = useState(false)
-  const [editData, setEditData] = useState<any>({})
 
   const { data: contact, isLoading, error } = useContact(contactId || '', contactType || '')
   const { data: notesData } = useContactNotes(contactId || '', contactType || '')
-
-  const updateMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await fetch(`/api/contacts/${contactId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, type: contactType }),
-      })
-      if (!res.ok) throw new Error('Failed to update')
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts', contactId, contactType] })
-      queryClient.invalidateQueries({ queryKey: ['contacts'] })
-      setIsEditing(false)
-    },
-  })
-
-  const archiveMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/contacts/${contactId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: contactType }),
-      })
-      if (!res.ok) throw new Error('Failed to archive')
-      return res.json()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] })
-      onClearSelection?.()
-    },
-  })
 
   if (!contactId || !contactType) {
     return (
@@ -110,16 +78,6 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
     )
   }
 
-  const handleSave = () => {
-    updateMutation.mutate(editData)
-  }
-
-  const handleArchive = () => {
-    if (confirm('Tem certeza que deseja arquivar este contato?')) {
-      archiveMutation.mutate()
-    }
-  }
-
   const ownershipCopy = getContactOwnershipCopy(contact.type)
 
   return (
@@ -132,14 +90,7 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
               {contact.type === 'patient' ? 'Paciente' : 'Lead'}
             </Badge>
           </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => { setEditData(contact); setIsEditing(true) }}>
-              <PencilIcon className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleArchive}>
-              <ArchiveBoxIcon className="h-4 w-4" />
-            </Button>
-          </div>
+          {/* Task 6: read-only MVP — sem CTAs de editar/arquivar (PUT/PATCH → 405). */}
         </div>
 
         <div className="mb-4 rounded-lg border border-sky-200/70 bg-sky-50/60 p-3 dark:border-sky-900 dark:bg-sky-950/20">
@@ -147,37 +98,16 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
           <p className="mt-1 text-sm text-muted-foreground">{ownershipCopy.description}</p>
         </div>
 
-        {isEditing ? (
-          <div className="space-y-3">
-            <div>
-              <Label>Nome</Label>
-              <Input value={editData.name || ''} onChange={(e) => setEditData({ ...editData, name: e.target.value })} />
-            </div>
-            <div>
-              <Label>Telefone</Label>
-              <Input value={editData.phone || ''} onChange={(e) => setEditData({ ...editData, phone: e.target.value })} />
-            </div>
-            <div>
-              <Label>Email</Label>
-              <Input value={editData.email || ''} onChange={(e) => setEditData({ ...editData, email: e.target.value })} />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleSave} size="sm">Salvar</Button>
-              <Button variant="outline" onClick={() => setIsEditing(false)} size="sm">Cancelar</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div><span className="text-muted-foreground">Telefone:</span> {contact.phone}</div>
-            <div><span className="text-muted-foreground">Email:</span> {contact.email || '-'}</div>
-            {contact.type === 'lead' && (
-              <>
-                <div><span className="text-muted-foreground">Source:</span> {contact.source || '-'}</div>
-                <div><span className="text-muted-foreground">Score:</span> {contact.score || '-'}</div>
-              </>
-            )}
-          </div>
-        )}
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div><span className="text-muted-foreground">Telefone:</span> {contact.phone}</div>
+          <div><span className="text-muted-foreground">Email:</span> {contact.email || '-'}</div>
+          {contact.type === 'lead' && (
+            <>
+              <div><span className="text-muted-foreground">Source:</span> {contact.source || '-'}</div>
+              <div><span className="text-muted-foreground">Score:</span> {contact.score || '-'}</div>
+            </>
+          )}
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
@@ -286,23 +216,16 @@ function RelatedLeadsSection({ contactId }: { contactId: string }) {
       {leads.length > 5 && (
         <p className="text-xs text-muted-foreground">+{leads.length - 5} mais leads</p>
       )}
-    </div>
-  )
+    </div>  )
 }
 
 function WhatsAppTab({ contactPhone, contactId }: { contactPhone?: string; contactId: string }) {
-  const { messages, isLoading } = useWhatsAppMessages({
-    contactId,
-    contactPhone: contactPhone ?? '',
-  })
+  const { messages, isLoading } = useWhatsAppMessages({ contactId, contactPhone })
 
   if (!contactPhone) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <EmptyState
-          title="Sem telefone"
-          description="Este contato não possui numero de WhatsApp cadastrado"
-        />
+      <div className="p-4">
+        <EmptyState title="Sem telefone" description="Este contato não possui telefone para WhatsApp" />
       </div>
     )
   }
@@ -310,23 +233,20 @@ function WhatsAppTab({ contactPhone, contactId }: { contactPhone?: string; conta
   if (isLoading) {
     return (
       <div className="flex justify-center items-center h-full">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600" />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-muted/20">
-        {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center p-4">
-            <h3 className="font-medium text-foreground mb-1">Nenhuma conversa ainda</h3>
-            <p className="text-sm text-muted-foreground">Inicie uma conversa via WhatsApp para ver as mensagens aqui</p>
-          </div>
-        ) : (
-          messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} showStatus={msg.direction === 'outbound'} />
+      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {messages?.length ? (
+          messages.map((msg: any) => (
+            <MessageBubble key={msg.id} message={msg} />
           ))
+        ) : (
+          <EmptyState title="Sem mensagens" />
         )}
       </div>
       <MessageComposer contactPhone={contactPhone} />

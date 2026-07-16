@@ -1,25 +1,18 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { validateRequest } from '@/modules/crm/ui/route-adapter';
-import { runAction } from '@/core/actions/run';
-import { buildUserContext } from '@/core/actions/context';
+/**
+ * /api/contacts/duplicates/[id] — Task 5: gated + action-driven.
+ */
+import { NextRequest } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runCrmAction } from '@/modules/crm/ui/route-adapter';
 import { obterSugestaoDuplicidade } from '@/modules/crm/actions';
 
-export async function GET(
+async function handleGET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await validateRequest();
-  if (!auth.ok) return auth.response;
-
   const { id } = await params;
-  const ctx = await buildUserContext();
-  const input = { id };
-  const result = await runAction(obterSugestaoDuplicidade, input, ctx);
-  if (result.ok) {
-    return NextResponse.json(result.data);
-  }
-  return NextResponse.json(
-    { error: result.error.message },
-    { status: result.error.code === 'not_found' ? 404 : 409 },
-  );
+  return runCrmAction(obterSugestaoDuplicidade, { id });
 }
+
+export const GET = withModuleRoute('crm', moduleManifest)(handleGET);

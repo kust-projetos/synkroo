@@ -2,21 +2,37 @@
  * POST /api/cron/crm-duplicates — reprocess duplicate suggestions (cron)
  * GET  /api/cron/crm-duplicates — health check
  *
- * Security: CRON_SECRET Bearer token verification.
- * Calls the crm.reprocessarSugestoesDuplicidade system action.
+ * Task 4 / Eixo 2 Integration Closure — cron CRM via action system:
+ *  - Bearer CRON_SECRET via crypto.timingSafeEqual.
+ *  - assertModuleForJob('crm', moduleManifest) gate → { skipped: true } se
+ *    módulo desabilitado.
+ *  - Lista clinicIds com sugestões pendentes.
+ *  - Para cada clinicId: buildSystemContext + runAction da action
+ *    system-only `crm.reprocessarSugestoesDuplicidade`.
+ *  - Erros por clínica são logados e o loop continua (resultado.ok=false).
+ *  - Zero clínicas → { processed: 0, results: [] }.
  */
-
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
-import {
-  listPendingSuggestionsAllClinics,
-  findDuplicateSource,
-  transitionSuggestionStatus,
-} from '@/modules/crm/repositories/duplicate-suggestions-repository';
-import { scoreDuplicatePair, classifyDuplicateScore } from '@/modules/crm/services/duplicate-scoring-service';
+import { logger } from '@/lib/logger';
+import { listClinicIdsWithPendingSuggestions } from '@/modules/crm/repositories/duplicate-suggestions-repository';
+import { reprocessarSugestoesDuplicidade } from '@/modules/crm/actions';
+import { buildSystemContext } from '@/core/actions/context';
+import { runAction } from '@/core/actions/run';
+import { assertModuleForJob, ModuleDisabledError } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+
+interface ClinicResult {
+  clinicId: string;
+  ok: boolean;
+  evaluated?: number;
+  dismissed?: number;
+  error?: string;
+}
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  // Rate limit cron endpoints
   const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
   if (!rateLimit.allowed) {
     return NextResponse.json(
@@ -25,6 +41,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Secure gate — CRON_SECRET via timingSafeEqual
   const auth = request.headers.get('Authorization') ?? '';
   const expected = `Bearer ${process.env.CRON_SECRET ?? ''}`;
   if (
@@ -35,50 +52,75 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let evaluated = 0;
-  let dismissed = 0;
-  const clinics = new Set<string>();
-
-  const allSuggestions = await listPendingSuggestionsAllClinics();
-  for (const s of allSuggestions) {
-    clinics.add(s.clinicId);
-    evaluated += 1;
-    const left = await findDuplicateSource({
-      clinicId: s.clinicId,
-      ownerType: s.ownerType as 'patient' | 'lead',
-      ownerId: s.leftId,
-    });
-    const right = await findDuplicateSource({
-      clinicId: s.clinicId,
-      ownerType: s.ownerType as 'patient' | 'lead',
-      ownerId: s.rightId,
-    });
-
-    if (!left || !right) {
-      await transitionSuggestionStatus(s.id, ['pending'], 'dismissed', {
-        dismissReason: 'stale_after_merge',
-      });
-      dismissed += 1;
-      continue;
+  // Module gate — skip when CRM not contracted
+  try {
+    await assertModuleForJob('crm', moduleManifest);
+  } catch (err) {
+    if (err instanceof ModuleDisabledError) {
+      logger.info('[cron/crm-duplicates] skipped: crm module disabled');
+      return NextResponse.json(
+        {
+          success: true,
+          skipped: true,
+          reason: 'crm module disabled',
+          timestamp: new Date().toISOString(),
+        },
+        { status: 200 },
+      );
     }
+    throw err;
+  }
 
-    const score = scoreDuplicatePair(left, right);
-    const confidence = classifyDuplicateScore(score.score);
-    if (!confidence) {
-      await transitionSuggestionStatus(s.id, ['pending'], 'dismissed', {
-        dismissReason: 'stale_after_merge',
-      });
-      dismissed += 1;
+  // List clinics with pending suggestions
+  const clinicIds = await listClinicIdsWithPendingSuggestions();
+  const results: ClinicResult[] = [];
+
+  for (const clinicId of clinicIds) {
+    try {
+      const ctx = await buildSystemContext(clinicId);
+      const actionResult = await runAction(
+        reprocessarSugestoesDuplicidade,
+        { clinicId },
+        ctx,
+      );
+      if (actionResult.ok) {
+        const data = actionResult.data as { evaluated?: number; dismissed?: number };
+        results.push({
+          clinicId,
+          ok: true,
+          evaluated: data.evaluated,
+          dismissed: data.dismissed,
+        });
+      } else {
+        logger.warn(
+          `[cron/crm-duplicates] clinic ${clinicId} action returned error`,
+          { error: actionResult.error.code, message: actionResult.error.message },
+        );
+        results.push({
+          clinicId,
+          ok: false,
+          error: actionResult.error.message ?? actionResult.error.code,
+        });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(
+        `[cron/crm-duplicates] clinic ${clinicId} threw`,
+        err,
+      );
+      results.push({ clinicId, ok: false, error: msg });
     }
   }
 
-  return NextResponse.json({
-    success: true,
-    evaluated,
-    dismissed,
-    clinicsAffected: clinics.size,
-    timestamp: new Date().toISOString(),
-  });
+  return NextResponse.json(
+    {
+      success: true,
+      processed: results.length,
+      results,
+      timestamp: new Date().toISOString(),
+    },
+    { status: 200 },
+  );
 }
 
 async function handleGET(): Promise<NextResponse> {

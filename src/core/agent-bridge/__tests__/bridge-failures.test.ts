@@ -128,7 +128,9 @@ describe('bridge — matriz de falhas', () => {
     expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
   });
 
-  it('ação destrutiva (system) → escalate_human', async () => {
+  it('ação destrutiva fora da allowlist (system) → unknown_tool (allowlist deny)', async () => {
+    // operacional.cancelarConsulta é destrutivo E não está em AGENT_SAFE_ACTIONS.
+    // Com deny-by-default na allowlist, ele nunca chega ao assertSystemAllowed.
     const { handle } = await issueHandle(SECRET, {
       ...issueArgs,
       ttlSeconds: 60,
@@ -141,6 +143,113 @@ describe('bridge — matriz de falhas', () => {
       input: {},
       flags: { confirmed: true },
     });
-    expect(r).toMatchObject({ ok: false, error: 'escalate_human' });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+  });
+
+  it('ação interna CRM globalmente registrada → unknown_tool (allowlist deny)', async () => {
+    const seen = new Set<string>();
+    let runCalled = 0;
+    const d: BridgeDeps = {
+      ...deps(seen),
+      getActions: () => [
+        mk('operacional.consultarDisponibilidade'),
+        mk('crm.executarMergePatient', 'crm:manage'),
+      ],
+      runAction: async () => { runCalled += 1; return { ok: true as const, data: {} }; },
+    };
+    const { handle } = await issueHandle(SECRET, {
+      ...issueArgs,
+      ttlSeconds: 60,
+    });
+    const r = await executeActionLogic(d, {
+      handle,
+      conversationId: 'conv-1',
+      idempotencyKey: 'ik-crm-merge',
+      alias: normalizeToolName('crm.executarMergePatient'),
+      input: {},
+      flags: { confirmed: true, identityVerified: true },
+    });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    expect(runCalled).toBe(0);
+    // idempotency NÃO marcada — pode re-tentar e ainda obtém unknown_tool
+    expect(seen.has('conv-1:ik-crm-merge')).toBe(false);
+  });
+
+  it('ação interna Financeiro globalmente registrada → unknown_tool (allowlist deny)', async () => {
+    let runCalled = 0;
+    const d: BridgeDeps = {
+      ...deps(),
+      getActions: () => [
+        mk('operacional.consultarDisponibilidade'),
+        mk('financeiro.criarOrcamento', 'financeiro:manage'),
+      ],
+      runAction: async () => { runCalled += 1; return { ok: true as const, data: {} }; },
+    };
+    const { handle } = await issueHandle(SECRET, {
+      ...issueArgs,
+      ttlSeconds: 60,
+    });
+    const r = await executeActionLogic(d, {
+      handle,
+      conversationId: 'conv-1',
+      idempotencyKey: 'ik-fin-create',
+      alias: normalizeToolName('financeiro.criarOrcamento'),
+      input: {},
+      flags: { confirmed: true },
+    });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    expect(runCalled).toBe(0);
+  });
+
+  it('operacional.mesclarPacientes globalmente registrada → unknown_tool', async () => {
+    let runCalled = 0;
+    const d: BridgeDeps = {
+      ...deps(),
+      getActions: () => [
+        mk('operacional.consultarDisponibilidade'),
+        mk('operacional.mesclarPacientes', 'operacional:manage'),
+      ],
+      runAction: async () => { runCalled += 1; return { ok: true as const, data: {} }; },
+    };
+    const { handle } = await issueHandle(SECRET, {
+      ...issueArgs,
+      ttlSeconds: 60,
+    });
+    const r = await executeActionLogic(d, {
+      handle,
+      conversationId: 'conv-1',
+      idempotencyKey: 'ik-merge-pac',
+      alias: normalizeToolName('operacional.mesclarPacientes'),
+      input: {},
+      flags: { confirmed: true, identityVerified: true },
+    });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    expect(runCalled).toBe(0);
+  });
+
+  it('comercial.mesclarLeads globalmente registrada → unknown_tool', async () => {
+    let runCalled = 0;
+    const d: BridgeDeps = {
+      ...deps(),
+      getActions: () => [
+        mk('operacional.consultarDisponibilidade'),
+        mk('comercial.mesclarLeads', 'comercial:manage'),
+      ],
+      runAction: async () => { runCalled += 1; return { ok: true as const, data: {} }; },
+    };
+    const { handle } = await issueHandle(SECRET, {
+      ...issueArgs,
+      ttlSeconds: 60,
+    });
+    const r = await executeActionLogic(d, {
+      handle,
+      conversationId: 'conv-1',
+      idempotencyKey: 'ik-merge-leads',
+      alias: normalizeToolName('comercial.mesclarLeads'),
+      input: {},
+      flags: { confirmed: true },
+    });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    expect(runCalled).toBe(0);
   });
 });

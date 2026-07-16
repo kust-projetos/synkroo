@@ -1,6 +1,7 @@
 import type { ActionContext, ActionDefinition, ActionResult } from '@/core/actions/types';
 import { verifyHandle, type SeenStore } from './handle';
 import { buildToolCatalogFromList, normalizeToolName } from './tool-catalog';
+import { isAgentSafeAction } from './tool-policy';
 import { assertSystemAllowed } from './security-matrix';
 import type { ToolCatalog } from './types';
 
@@ -41,7 +42,12 @@ export async function listToolsLogic(
   const ctx = await rebuildCtx(deps, v.payload);
   const allowed = deps
     .getActions()
-    .filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires));
+    .filter(
+      (a) =>
+        isAgentSafeAction(a.name) &&
+        ctx.hasModule(a.module) &&
+        ctx.can(a.requires),
+    );
   return { ok: true, catalog: buildToolCatalogFromList(allowed) };
 }
 
@@ -71,7 +77,21 @@ export async function executeActionLogic(
   });
   if (!v.ok) return { ok: false, error: v.error };
 
-  // 2. anti-replay por idempotencyKey
+  // 2. alias → action.name (precisa vir ANTES do safe-check para que a allowlist
+  //    seja aplicada sobre o action resolvido, não sobre strings arbitrárias).
+  const action = deps
+    .getActions()
+    .find((a) => normalizeToolName(a.name) === input.alias);
+  if (!action) return { ok: false, error: 'unknown_tool' };
+
+  // 3. allowlist deny-by-default — filtragem ANTES de idempotency/matrix/runAction.
+  //    Garante que ações internas (CRM/Financeiro/mesclagens) não executem nem
+  //    consumam slot de idempotência, mesmo quando registradas no registry.
+  if (!isAgentSafeAction(action.name)) {
+    return { ok: false, error: 'unknown_tool' };
+  }
+
+  // 4. anti-replay por idempotencyKey (só ações safe chegam aqui)
   const dedupKey = `${input.conversationId}:${input.idempotencyKey}`;
   if (await deps.store.wasSeen(dedupKey)) {
     return { ok: false, error: 'duplicate' };
@@ -82,13 +102,9 @@ export async function executeActionLogic(
   );
   await deps.store.markSeen(dedupKey, ttl);
 
-  // 3. alias → action.name
-  const action = deps
-    .getActions()
-    .find((a) => normalizeToolName(a.name) === input.alias);
-  if (!action) return { ok: false, error: 'unknown_tool' };
-
-  // 4. matriz (só source='system'); delegated cai no RBAC do runAction
+  // 5. matriz (só source='system'); delegated cai no RBAC do runAction.
+  //    Segunda barreira (defesa em profundidade) — assertSystemAllowed continua
+  //    ativo para qualquer action em AGENT_SAFE_ACTIONS que exija confirmação/identidade.
   if (v.payload.source === 'system') {
     const gate = assertSystemAllowed(action.name, input.flags);
     if (!gate.allowed) {
@@ -96,7 +112,7 @@ export async function executeActionLogic(
     }
   }
 
-  // 5. ctx real + runAction (RBAC + manifesto + input zod dentro do runAction)
+  // 6. ctx real + runAction (RBAC + manifesto + input zod dentro do runAction)
   const ctx = await rebuildCtx(deps, v.payload);
   const result = await deps.runAction(action, input.input, ctx);
   if (!result.ok) {
