@@ -128,19 +128,33 @@ describe('bridge — matriz de falhas', () => {
     expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
   });
 
-  it('ação destrutiva (system) → escalate_human', async () => {
+  it('ação fora do allowlist (system) → unknown_tool, sem marcação de idempotência nem runAction', async () => {
+    const seen = new Set<string>();
+    let runCalls = 0;
+    const d = deps(seen);
+    const dWithProbe: BridgeDeps = {
+      ...d,
+      runAction: async () => {
+        runCalls++;
+        return { ok: true as const, data: {} };
+      },
+    };
     const { handle } = await issueHandle(SECRET, {
       ...issueArgs,
       ttlSeconds: 60,
     });
-    const r = await executeActionLogic(deps(), {
+    const r = await executeActionLogic(dWithProbe, {
       handle,
       conversationId: 'conv-1',
-      idempotencyKey: 'ik-destructive',
+      idempotencyKey: 'ik-cancel-fora-allowlist',
       alias: normalizeToolName('operacional.cancelarConsulta'),
       input: {},
       flags: { confirmed: true },
     });
-    expect(r).toMatchObject({ ok: false, error: 'escalate_human' });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    // A barreira do allowlist é a primeira a ser aplicada — não chama runAction.
+    expect(runCalls).toBe(0);
+    // Não consome a chave de idempotência — IA pode corrigir o alias.
+    expect(seen.has('conv-1:ik-cancel-fora-allowlist')).toBe(false);
   });
 });
