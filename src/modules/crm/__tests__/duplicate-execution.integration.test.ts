@@ -271,6 +271,39 @@ describeOrSkip('Merge execution repository functions (DB real)', () => {
     expect(bad).toBe(false);
   });
 
+  it('winner_member_check rejects outsider winner_confirmed_id, accepts left_id and right_id', async () => {
+    const db = getDb();
+    const sid = '00000000-0000-0000-0000-00000000c003';
+    const leftId = '00000000-0000-0000-0000-00000000b003';
+    const rightId = '00000000-0000-0000-0000-00000000b004';
+    const outsiderId = '00000000-0000-0000-0000-00000000ffff';
+
+    try {
+      // Insert with winner_confirmed_id = leftId → must be accepted
+      await db.execute(
+        sql`INSERT INTO crm_duplicate_suggestions
+            (id, clinic_id, owner_type, left_id, right_id, status, confidence, duplicate_score,
+             winner_confirmed_id, signals, left_snapshot, right_snapshot)
+            VALUES (${sid}, ${CLINIC_ID}, 'patient', ${leftId}, ${rightId}, 'pending', 'high', 80,
+                    ${leftId}, '{}'::jsonb, '{"id":"left"}'::jsonb, '{"id":"right"}'::jsonb)`,
+      );
+
+      // Update to winner_confirmed_id = rightId → must be accepted
+      await db.execute(
+        sql`UPDATE crm_duplicate_suggestions SET winner_confirmed_id = ${rightId} WHERE id = ${sid}`,
+      );
+
+      // Update to outsider UUID → must be rejected by constraint
+      await expect(
+        db.execute(
+          sql`UPDATE crm_duplicate_suggestions SET winner_confirmed_id = ${outsiderId} WHERE id = ${sid}`,
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await db.execute(sql`DELETE FROM crm_duplicate_suggestions WHERE id = ${sid}`);
+    }
+  });
+
   it('finalizeMergeAndDismissSiblings with foreign clinic returns false, suggestion unchanged (RED→GREEN)', async () => {
     const db = getDb();
     await resetToApproved();

@@ -188,18 +188,20 @@ describe('POST /api/instagram/webhook — strict signature format', () => {
     expect(res.status).toBe(403);
   });
 
-  it('returns 403 for uppercase hex (case-sensitive HMAC compare)', async () => {
+  it('accepts uppercase hex signature (case-insensitive binary compare)', async () => {
     const payload = { object: 'instagram', entry: [] };
     const body = JSON.stringify(payload);
     const sig = signRaw(Buffer.from(body), VALID_APP_SECRET);
-    const upperSig = sig.replace(/[a-f]/g, (c) => c.toUpperCase());
+    // Only uppercase hex portion (after 'sha256='), keep prefix lowercase
+    const prefix = sig.slice(0, 7); // 'sha256='
+    const hexPart = sig.slice(7);
+    const upperSig = prefix + hexPart.replace(/[a-f]/g, (c) => c.toUpperCase());
     const req = new Request('https://localhost/api/instagram/webhook', {
       method: 'POST', headers: { 'x-hub-signature-256': upperSig }, body: Buffer.from(body),
     });
-    // Regex allows [0-9a-fA-F] but HMAC digest is lowercase;
-    // timingSafeEqual on bytes rejects case mismatch → 403
+    // Both sides decoded from hex → binary compare is case-insensitive
     const res = await POST(req as any);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 

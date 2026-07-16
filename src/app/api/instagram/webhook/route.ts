@@ -43,10 +43,12 @@ async function handlePOST(request: NextRequest) {
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'ig-webhook' });
   if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
 
-  // 5. HMAC validation over raw bytes with timingSafeEqual
-  const expectedHex = createHmac('sha256', appSecret).update(rawBody).digest('hex');
-  const expected = 'sha256=' + expectedHex;
-  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+  // 5. HMAC validation over raw bytes with timingSafeEqual on binary digests
+  // Decode both sides from hex for case-insensitive comparison
+  const expectedDigest = createHmac('sha256', appSecret).update(rawBody).digest();
+  const providedDigest = Buffer.from(signature.slice(7), 'hex');
+  if (providedDigest.length !== expectedDigest.length ||
+      !timingSafeEqual(providedDigest, expectedDigest)) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
   }
 
