@@ -1,47 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { updatePipelineStage, deletePipelineStage } from '@/services/pipeline/stages.service'
+import { NextRequest } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
+import { atualizarEtapaPipeline } from '@/modules/comercial/actions/atualizar-etapa-pipeline';
+import { removerEtapaPipeline } from '@/modules/comercial/actions/remover-etapa-pipeline';
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const auth = await validateApiAuth()
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+const handlePatch = async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  const body = await request.json();
+  const { name, color, sort_order } = body;
+  return runComercialAction(atualizarEtapaPipeline, {
+    stageId: id,
+    name,
+    color,
+    position: sort_order,
+  });
+};
 
-    const { id } = await params
-    const body = await req.json()
-    const { name, color, sort_order } = body
+const handleDelete = async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
+  const { id } = await params;
+  return runComercialAction(removerEtapaPipeline, { stageId: id });
+};
 
-    try {
-      const stage = await updatePipelineStage(id, { name, color, sort_order })
-      return NextResponse.json({ data: stage })
-    } catch (error: any) {
-      if (error.message === 'Cannot update default stage') {
-        return NextResponse.json({ error: 'Cannot update default stage' }, { status: 403 })
-      }
-      throw error
-    }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-}
-
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
-    const auth = await validateApiAuth()
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
-
-    const { id } = await params
-
-    try {
-      await deletePipelineStage(id)
-      return NextResponse.json({ success: true })
-    } catch (error: any) {
-      if (error.message === 'Cannot delete default stage') return NextResponse.json({ error: error.message }, { status: 400 })
-      if (error.message?.includes('Cannot delete stage with leads')) return NextResponse.json({ error: error.message }, { status: 400 })
-      if (error.message?.includes('no default stage configured')) return NextResponse.json({ error: error.message }, { status: 400 })
-      throw error
-    }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-}
+export const PATCH = withModuleRoute('comercial', moduleManifest)(handlePatch);
+export const DELETE = withModuleRoute('comercial', moduleManifest)(handleDelete);

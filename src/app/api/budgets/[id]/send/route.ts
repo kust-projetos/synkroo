@@ -1,44 +1,88 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getBudgetById, markBudgetSent } from '@/services/budgets/budget.service'
-import { sendWhatsAppMessage } from '@/services/whatsapp'
-import { handleApiError } from '@/lib/errors'
+/**
+ * Budget Send API — legacy adapter.
+ * Delegates WhatsApp send to Atendimento action when requested.
+ * Resolves patient phone from budget → patient DB.
+ */
 
-type RouteParams = { params: Promise<{ id: string }> }
+import { NextRequest, NextResponse } from 'next/server';
+import { validateApiAuth } from '@/lib/auth/session';
+import { getBudget, markBudgetSent } from '@/modules/financeiro/services/budget-service';
+import { handleApiError } from '@/lib/errors';
+
+type RouteParams = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-
-    const clinicId = authResult.profile!.clinic_id
-    const { id } = await params
-    const budget = await getBudgetById(id)
-    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
-    if ((budget as any).clinic_id !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-    const body = await request.json().catch(() => ({}))
-    const { send_whatsapp = false, custom_message } = body
-
-    const updatedBudget = await markBudgetSent(id)
-    if (!updatedBudget) return NextResponse.json({ error: 'Failed to update budget' }, { status: 500 })
-
-    let whatsappSent = false, whatsappError: string | null = null
-    if (send_whatsapp && budget.patient?.phone) {
-      try {
-        const message = custom_message || formatBudgetMessage(budget)
-        const result = await sendWhatsAppMessage(budget.patient.phone, message)
-        whatsappSent = result.success
-        if (!result.success) whatsappError = result.error ?? null
-      } catch (error) { whatsappError = error instanceof Error ? error.message : 'Unknown error' }
+    const authResult = await validateApiAuth();
+    if (!authResult.success) {
+      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
     }
 
-    return NextResponse.json({ budget: updatedBudget, whatsapp_sent: whatsappSent, whatsapp_error: whatsappError })
-  } catch (error) { return handleApiError(error) }
-}
+    const clinicId = authResult.profile!.clinic_id;
+    const { id } = await params;
+    const budget = await getBudget(id);
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
+    if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-function formatBudgetMessage(budget: any): string {
-  const items = budget.items?.map((item: any) => `• ${item.procedure_name} - R$ ${item.total_price.toFixed(2)}`).join('\n') || ''
-  const validUntil = budget.valid_until ? new Date(budget.valid_until).toLocaleDateString('pt-BR') : '7 dias'
-  return `🏥 *Orçamento - ${budget.title || 'Tratamento Dental'}*\n\nOlá, ${budget.patient?.name || 'Paciente'}!\n\nAqui está o orçamento solicitado:\n\n📋 *Procedimentos:*\n${items}\n\n💰 *Valor Total:* R$ ${budget.total_value.toFixed(2)}\n${budget.discount_percent > 0 ? `🎉 *Desconto:* ${budget.discount_percent}% (-R$ ${budget.discount_value.toFixed(2)})` : ''}\n✨ *Valor Final:* R$ ${budget.final_value.toFixed(2)}\n\n📅 *Válido até:* ${validUntil}\n\n💳 Temos opções de parcelamento!\n\nPara aceitar ou tirar dúvidas, é só responder esta mensagem. 😊`
+    const body = await request.json().catch(() => ({}));
+    const { send_whatsapp = false } = body;
+
+    const updatedBudget = await markBudgetSent(id, clinicId);
+    if (!updatedBudget) return NextResponse.json({ error: 'Failed to update budget' }, { status: 500 });
+
+    let whatsappSent = false;
+    let whatsappError: string | null = null;
+
+    if (send_whatsapp) {
+      try {
+        // Resolve patient phone via DB
+        const { getDb } = await import('@/lib/db/client');
+        const { eq } = await import('drizzle-orm');
+        const { patients } = await import('@/lib/db/schema');
+
+        let patientPhone: string | null = null;
+
+        if (budget.patientId) {
+          const db = getDb();
+          const [patient] = await db
+            .select({ phone: patients.phone })
+            .from(patients)
+            .where(eq(patients.id, budget.patientId))
+            .limit(1);
+
+          if (patient) {
+            patientPhone = patient.phone || null;
+          }
+        }
+
+        if (!patientPhone) {
+          whatsappError = 'missing_patient_phone';
+        } else {
+          const { enviarMensagemDireta } = await import('@/modules/atendimento/actions/enviar-mensagem-direta');
+          const { runAction } = await import('@/core/actions/run');
+          const { buildSystemContext } = await import('@/core/actions/context');
+
+          const ctx = await buildSystemContext(clinicId);
+          const result = await runAction(enviarMensagemDireta, {
+            channel: 'whatsapp',
+            externalId: patientPhone,
+            message: `Olá! Seu orçamento foi enviado.`,
+          }, ctx);
+
+          whatsappSent = result.ok;
+          if (!result.ok) whatsappError = result.error.message;
+        }
+      } catch (err) {
+        whatsappError = err instanceof Error ? err.message : 'unknown_error';
+      }
+    }
+
+    return NextResponse.json({
+      budget: updatedBudget,
+      whatsapp_sent: whatsappSent,
+      whatsapp_error: whatsappError,
+    });
+  } catch (error) {
+    return handleApiError(error);
+  }
 }

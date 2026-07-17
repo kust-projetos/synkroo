@@ -4,7 +4,7 @@
   "plugins": ["@typescript-eslint", "boundaries"],
   "settings": {
     "boundaries/elements": [
-      { "type": "core", "pattern": "src/core/*" },
+      { "type": "core", "pattern": "src/core/**" },
       { "type": "module", "pattern": "src/modules/*", "capture": ["name"] },
       { "type": "legacy", "pattern": "src/services/*", "capture": ["name"] },
       { "type": "app", "pattern": "src/app/*" },
@@ -20,12 +20,17 @@
     "react-hooks/exhaustive-deps": "off",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/no-unused-vars": "off",
-    "boundaries/dependencies": ["warn", {
+    "boundaries/dependencies": ["error", {
       "default": "allow",
       "rules": [
         {
           "from": { "type": "module" },
           "disallow": { "to": { "type": "module" } },
+          "message": "Importe apenas o index.ts de outro módulo"
+        },
+        {
+          "from": { "type": "module" },
+          "allow": { "to": { "type": "module", "internalPath": "**/index.ts" } },
           "message": "Importe apenas o index.ts de outro módulo"
         }
       ]
@@ -44,6 +49,12 @@
       "files": ["src/lib/logger.ts"],
       "rules": {
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["src/modules/financeiro/services/collection-service.ts"],
+      "rules": {
+        "boundaries/dependencies": "off"
       }
     },
     {

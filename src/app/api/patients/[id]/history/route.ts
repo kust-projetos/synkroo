@@ -1,45 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
-import { getPatientHistory } from '@/services/patients/patient-history.service'
-import * as patientRepo from '@/repositories/patients'
-
-interface RouteParams {
-  params: Promise<{ id: string }>
-}
-
 /**
- * GET /api/patients/[id]/history
- * Get complete patient attendance history
+ * GET /api/patients/[id]/history — deprecated (410 Gone)
+ *
+ * Patient history is available via operational.consultarDisponibilidade
+ * and appointments listing. Full history port in a future wave.
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
 
-    const { id } = await params
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
 
-    if (!id) {
-      return NextResponse.json({ error: 'Patient ID is required' }, { status: 400 })
-    }
+const OPERACIONAL_MODULE = 'operacional';
 
-    // Verify patient belongs to user's clinic
-    const patient = await patientRepo.findByIdScoped(id, clinicId)
-    if (!patient) {
-      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
-    }
+const DEPRECATED = NextResponse.json(
+  { error: 'deprecated', message: 'Patient history is not available in this API version.' },
+  { status: 410 },
+);
 
-    const result = await getPatientHistory(id)
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 404 })
-    }
-
-    return NextResponse.json({ history: result.history })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+async function handle(): Promise<NextResponse> { return DEPRECATED; }
+const wrapped = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handle);
+export { wrapped as GET };

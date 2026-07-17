@@ -1,38 +1,13 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { processConfirmationResponse } from '@/services/appointments/confirmation-handler.service'
-import { handleApiError, ValidationError } from '@/lib/errors'
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
+import { processarConfirmacaoResposta } from '@/modules/operacional/actions/processar-confirmacao-resposta';
 
-/**
- * POST /api/appointments/confirm-response
- * Process a patient's confirmation/cancellation response via WhatsApp
- * Body: { clinicId, patientPhone, message }
- */
-export async function POST(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
-    const body = await request.json()
-    const { clinicId, patientPhone, message } = body as {
-      clinicId?: string
-      patientPhone?: string
-      message?: string
-    }
-
-    if (!clinicId || !patientPhone || !message) {
-      return handleApiError(new ValidationError('Missing required fields: clinicId, patientPhone, message'))
-    }
-
-    const result = await processConfirmationResponse(clinicId, patientPhone, message)
-
-    return NextResponse.json(result)
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  const body = await request.json();
+  return runActionRoute(processarConfirmacaoResposta, body);
 }
+
+const wrapped = withModuleRoute('operacional', moduleManifest)(handlePOST);
+export { wrapped as POST };

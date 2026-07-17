@@ -8,7 +8,7 @@ import { eq, and, asc } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { appointmentReminderConfigs, procedureTypes } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
-import { fillTemplate } from '@/services/whatsapp/message-templates.service'
+import { fillTemplate } from '@/lib/templates/fill'
 import { type ReminderConfigPerProcedure } from '@/components/whatsapp/reminder-config-types'
 
 export type { ReminderConfigPerProcedure }

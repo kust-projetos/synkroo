@@ -1,59 +1,63 @@
-import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
-import { processAllReminders } from '@/services/reminders/reminder.service'
-import { handleApiError } from '@/lib/errors'
-import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
-
 /**
- * POST /api/cron/reminders
- * Cron job endpoint to process appointment reminders
+ * POST /api/cron/reminders — process appointment reminders (cron)
+ * GET  /api/cron/reminders — health check
  *
- * This endpoint should be called every 5 minutes by a cron job
- * or scheduled task (Supabase pg_cron, Vercel Cron, etc.)
- *
- * Security: Requires CRON_SECRET header for authentication
+ * Security: CRON_SECRET Bearer token verification.
+ * Module gate: skips processing if operacional module is disabled (returns 200 with skipped).
  */
-export async function POST(request: NextRequest) {
-  try {
-    // Rate limit cron endpoints
-    const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
-    if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
-      )
-    }
 
-    // Verify cron secret for security
-    const cronSecret = request.headers.get('Authorization') || ''
-    const expectedSecret = `Bearer ${process.env.CRON_SECRET}`
+import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
+import { processAllReminders } from '@/modules/operacional/services/reminders-service';
+import { assertModuleForJob } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 
-    if (!process.env.CRON_SECRET ||
-        cronSecret.length !== expectedSecret.length ||
-        !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Process all reminders
-    await processAllReminders()
-
-    return NextResponse.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-    })
-  } catch (error) {
-    return handleApiError(error)
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
+    );
   }
+
+  // Verify CRON_SECRET
+  const cronSecret = request.headers.get('Authorization') ?? '';
+  const expectedSecret = `Bearer ${process.env.CRON_SECRET ?? ''}`;
+  if (
+    !process.env.CRON_SECRET ||
+    cronSecret.length !== expectedSecret.length ||
+    !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
+  ) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Module gate — skip if disabled (200, not error)
+  try {
+    await assertModuleForJob('operacional', moduleManifest);
+  } catch {
+    return NextResponse.json(
+      { success: true, skipped: 'operacional module disabled', timestamp: new Date().toISOString() },
+      { status: 200 },
+    );
+  }
+
+  const result = await processAllReminders();
+  return NextResponse.json({
+    success: true,
+    processed: result.processed,
+    errors: result.errors,
+    timestamp: new Date().toISOString(),
+  });
 }
 
-/**
- * GET /api/cron/reminders
- * Health check for cron endpoint
- */
-export async function GET() {
+async function handleGET(): Promise<NextResponse> {
   return NextResponse.json({
     status: 'ok',
     message: 'Reminder cron endpoint is active',
     timestamp: new Date().toISOString(),
-  })
+  });
 }
+
+export { handleGET as GET, handlePOST as POST };

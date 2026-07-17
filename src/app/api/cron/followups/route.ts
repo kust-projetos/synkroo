@@ -1,15 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
-import crypto from 'crypto'
-import { processAllFollowUps } from '@/services/followup/followup.service'
-import { runInactivityDetection } from '@/services/followup/inactive-patient.service'
-import { processScheduledCampaigns } from '@/services/followup/campaign.service'
-import { checkAllClinicsHotLeads } from '@/services/leads/lead-notification.service'
-import { handleApiError } from '@/lib/errors'
-import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
-
 /**
  * POST /api/cron/followups
- * Cron job endpoint to process follow-ups, inactivity detection, and campaigns
+ * Cron job endpoint to process follow-ups, inactivity detection, and campaigns.
  *
  * Recommended schedule:
  * - Every 5 minutes for post-consultation follow-ups
@@ -17,84 +8,117 @@ import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
  * - Daily at 6am for inactivity detection
  * - Every 30 minutes for scheduled campaigns
  *
- * Security: Requires CRON_SECRET header for authentication
+ * Security: CRON_SECRET Bearer token + module gate (skips if followup disabled).
+ * Service layer called directly (not action layer — cron has no user session).
  */
-export async function POST(request: NextRequest) {
-  try {
-    // Rate limit cron endpoints (authenticated but protect against misconfiguration)
-    const rateLimit = checkRateLimit('cron', {
-      ...rateLimitPresets.cron,
-      maxRequests: 30,
-    })
-    if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
-      )
-    }
+import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
+import { executarAll, runInactivityForCron, runCampaignsForCron } from '@/modules/followup/services/followup-service';
+import { runAction } from '@/core/actions/run';
+import { buildSystemContext } from '@/core/actions/context';
+import { getDb } from '@/lib/db/client';
+import { eq, isNull } from 'drizzle-orm';
+import { clinics } from '@/lib/db/schema/core';
+import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
+import { assertModuleForJob } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
-    // Verify cron secret for security
-    const cronSecret = request.headers.get('Authorization') || ''
-    const expectedSecret = `Bearer ${process.env.CRON_SECRET}`
-
-    if (!process.env.CRON_SECRET ||
-        cronSecret.length !== expectedSecret.length ||
-        !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Get query params to filter what to process
-    const { searchParams } = new URL(request.url)
-    const tasks = searchParams.get('tasks')?.split(',') || ['all']
-
-    const results: Record<string, unknown> = {}
-
-    // Process follow-ups (post-consultation, return reminders)
-    if (tasks.includes('all') || tasks.includes('followups')) {
-      console.warn('Processing follow-ups...')
-      results.followUps = await processAllFollowUps()
-    }
-
-    // Run inactivity detection
-    if (tasks.includes('all') || tasks.includes('inactivity')) {
-      console.warn('Running inactivity detection...')
-      await runInactivityDetection()
-      results.inactivity = 'completed'
-    }
-
-    // Process scheduled campaigns
-    if (tasks.includes('all') || tasks.includes('campaigns')) {
-      console.warn('Processing scheduled campaigns...')
-      await processScheduledCampaigns()
-      results.campaigns = 'processed'
-    }
-
-    // Check and notify hot leads across all clinics
-    if (tasks.includes('all') || tasks.includes('hot-leads')) {
-      console.warn('Checking hot leads across clinics...')
-      await checkAllClinicsHotLeads()
-      results.hotLeads = 'checked'
-    }
-
-    return NextResponse.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-      results,
-    })
-  } catch (error) {
-    return handleApiError(error)
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  // Rate limit cron endpoints
+  const rateLimit = checkRateLimit('cron', {
+    ...rateLimitPresets.cron,
+    maxRequests: 30,
+  });
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+    );
   }
+
+  // Verify CRON_SECRET
+  const cronSecret = request.headers.get('Authorization') ?? '';
+  const expectedSecret = `Bearer ${process.env.CRON_SECRET ?? ''}`;
+  if (
+    !process.env.CRON_SECRET ||
+    cronSecret.length !== expectedSecret.length ||
+    !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
+  ) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Module gate — skip if followup module is not contracted
+  try {
+    await assertModuleForJob('followup', moduleManifest);
+  } catch {
+    return NextResponse.json(
+      { success: true, skipped: 'followup module disabled', timestamp: new Date().toISOString() },
+      { status: 200 },
+    );
+  }
+
+  // Get query params to filter what to process
+  const { searchParams } = new URL(request.url);
+  const tasks = searchParams.get('tasks')?.split(',') || ['all'];
+
+  const results: Record<string, unknown> = {};
+
+  // Process follow-ups (post-consultation, return reminders)
+  if (tasks.includes('all') || tasks.includes('followups')) {
+    logger.info('[cron/followups] Processing follow-ups...');
+    await executarAll();
+    results.followUps = 'processed';
+  }
+
+  // Run inactivity detection
+  if (tasks.includes('all') || tasks.includes('inactivity')) {
+    logger.info('[cron/followups] Running inactivity detection...');
+    await runInactivityForCron();
+    results.inactivity = 'completed';
+  }
+
+  // Process scheduled campaigns
+  if (tasks.includes('all') || tasks.includes('campaigns')) {
+    logger.info('[cron/followups] Processing scheduled campaigns...');
+    await runCampaignsForCron();
+    results.campaigns = 'processed';
+  }
+
+  // Check and notify hot leads across all clinics
+  if (tasks.includes('all') || tasks.includes('hot-leads')) {
+    logger.info('[cron/followups] Checking hot leads across clinics...');
+    // Process hot leads via comercial module (replaces legacy checkAllClinicsHotLeads)
+    try {
+      const allClinics = await getDb().select({ id: clinics.id }).from(clinics).where(isNull(clinics.deletedAt));
+      for (const c of allClinics) {
+        const ctx = await buildSystemContext(c.id);
+        await runAction(processarNotificacoesLeadsQuentes, {}, ctx);
+      }
+    } catch (err) {
+      logger.error('[cron/followups] Hot leads processing error:', err);
+    }
+    results.hotLeads = 'checked';
+  }
+
+  return NextResponse.json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    results,
+  });
 }
 
 /**
- * GET /api/cron/followups
- * Health check for cron endpoint
+ * GET /api/cron/followups — health check
  */
-export async function GET() {
+async function handleGET(): Promise<NextResponse> {
   return NextResponse.json({
     status: 'ok',
     message: 'Follow-up cron endpoint is active',
     availableTasks: ['followups', 'inactivity', 'campaigns', 'hot-leads', 'all'],
     timestamp: new Date().toISOString(),
-  })
+  });
 }
+
+export { handleGET as GET, handlePOST as POST };

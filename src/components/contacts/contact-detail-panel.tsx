@@ -17,6 +17,7 @@ import { ContactNotesTab } from './contact-notes-tab'
 import { ContactCustomFieldsTab } from './contact-custom-fields-tab'
 import { ContactFinancialTab } from './contact-financial-tab'
 import { ConsentSection } from './consent-section'
+import { DuplicateTab } from './duplicate-tab'
 import { MessageBubble } from '@/components/whatsapp/message-bubble'
 import { MessageComposer } from '@/components/whatsapp/message-composer'
 import { useWhatsAppMessages } from '@/lib/hooks/use-whatsapp-messages'
@@ -187,6 +188,7 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
           <TabsTrigger value="custom">Campos</TabsTrigger>
           <TabsTrigger value="whatsapp" className="data-[state=active]:text-teal-600">WhatsApp</TabsTrigger>
           <TabsTrigger value="financeiro" className="data-[state=active]:text-teal-600">Financeiro</TabsTrigger>
+          <TabsTrigger value="duplicados" className="data-[state=active]:text-teal-600">Duplicados</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -233,6 +235,17 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
         )}
         {activeTab === 'financeiro' && (
           <ContactFinancialTab contactId={contactId!} />
+        )}
+        {activeTab === 'duplicados' && (
+          <div className="p-4">
+            <DuplicateTab
+              contactId={contactId!}
+              contactType={contactType!}
+              onApprove={() => {}}
+              onDismiss={() => {}}
+              onMerge={() => {}}
+            />
+          </div>
         )}
       </div>
     </div>

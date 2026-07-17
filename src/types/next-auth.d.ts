@@ -11,6 +11,7 @@ declare module 'next-auth' {
       name: string;
       email: string;
     };
+    expires: string;
   }
 
   interface User {
