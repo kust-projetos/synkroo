@@ -1,0 +1,84 @@
+import { DurableObject } from 'cloudflare:workers';
+import { createZenProvider } from '@/core/ia-agent/provider-zen';
+import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
+import type {
+  AppBinding,
+  RunTurnInput,
+  RunTurnResult,
+  ChatMessage,
+  PendingAction,
+} from '@/core/ia-agent/types';
+
+// Estende Cloudflare.Env (gerado por wrangler types) para satisfazer
+// Agent<Env extends Cloudflare.Env>. APP/AGENT vêm com tipos genéricos;
+// AppBinding e AgentOrchestrator são aplicados via cast no ponto de uso.
+export interface Env extends Cloudflare.Env {
+  OPENCODE_ZEN_API_KEY: string;
+}
+
+/**
+ * AgentOrchestrator — DO que processa turnos do agente IA.
+ *
+ * NOTA sobre PartyServer + cross-worker DO bindings (workers SDK):
+ *   No miniflare, DOs endereçados via env.AGENT.idFromName().get() de
+ *   OUTRO worker não têm ctx.id.name populado. PartyServer/agents SDK
+ *   dependem de setName() (via getAgentByName) ou do header x-partykit-room
+ *   para inicializar. Sem isso, this.name lança, this.onStart e this.state
+ *   travam, e o Workers runtime cancela o DO.
+ *
+ *   SOLUÇÃO ADOTADA: o DO usa DurableObject diretamente em vez de Agent.
+ *   RPC exposto via método runTurn() chamado por stub.runTurn() (binding).
+ *   Persistência via this.ctx.storage (history + pendingAction por conversa).
+ */
+export class AgentOrchestrator extends DurableObject<Env> {
+  constructor(ctx: DurableObjectState, env: Env) {
+    super(ctx, env);
+  }
+
+  /**
+   * RPC exposto: chamado pelo app via env.AGENT.idFromName(n).get().runTurn(i).
+   * Sem Agent SDK — PartyServer/observability bypassados.
+   * Estado entre turnos persiste via this.ctx.storage (KV durable do DO).
+   */
+  async runTurn(
+    input: Omit<RunTurnInput, 'history' | 'pendingAction'>,
+  ): Promise<RunTurnResult> {
+    // Carrega estado persistido entre turnos da mesma conversa.
+    const history = (await this.ctx.storage.get<ChatMessage[]>('history')) ?? [];
+    const pendingAction = (await this.ctx.storage.get<PendingAction | null>('pendingAction')) ?? undefined;
+
+    const provider = createZenProvider({
+      apiKey: this.env.OPENCODE_ZEN_API_KEY,
+      model: this.env.IA_LLM_MODEL,
+      baseUrl: this.env.IA_LLM_BASE_URL,
+    });
+
+    const result = await runAgentTurn(
+      { provider, app: this.env.APP as unknown as AppBinding, now: new Date() },
+      {
+        ...input,
+        history,
+        pendingAction,
+      },
+    );
+
+    // Persiste estado atualizado (janela curta: 20 turnos).
+    const nextHistory: ChatMessage[] = [
+      ...history,
+      { role: 'user' as const, content: input.userMessage },
+      { role: 'assistant' as const, content: result.reply },
+    ].slice(-20);
+    await this.ctx.storage.put('history', nextHistory);
+    await this.ctx.storage.put('pendingAction', result.pendingAction ?? null);
+
+    return result;
+  }
+}
+
+const worker = {
+  async fetch(_request: Request, _env: Env) {
+    return new Response('ia-agent up', { status: 200 });
+  },
+};
+
+export default worker;

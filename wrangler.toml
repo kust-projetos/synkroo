@@ -33,6 +33,21 @@ index_name = "synkroo-embeddings"
 binding = "SYNKROO_CACHE"
 id = "8f2a4d355686427585f665688d1cc082"
 
+# ── Service & DO bindings (IA) ─────────────────────────
+
+# Service binding to ia-bridge (AppService entrypoint for handle/action RPC).
+[[services]]
+binding = "IA_BRIDGE"
+service = "synkroo-ia-bridge"
+entrypoint = "AppService"
+
+# DO cross-worker binding to ia-agent (AgentOrchestrator class).
+# NÃO usar 'agents' — binding cru: env.AGENT.idFromName(name).get().runTurn(input).
+[[durable_objects.bindings]]
+name = "AGENT"
+class_name = "AgentOrchestrator"
+script_name = "synkroo-ia-agent"
+
 # ── Environment vars ──────────────────────────────────
 
 [vars]

@@ -1,81 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
-import {
-  getApprovedTemplates,
-  getAllTemplates,
-  createTemplate,
-  type MessageTemplate,
-} from '@/services/whatsapp/message-templates.service'
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runAtendimentoAction } from '@/modules/atendimento/ui/route-adapter';
+import { obterModeloMensagem } from '@/modules/atendimento/actions/obter-modelo-mensagem';
 
-/**
- * GET /api/whatsapp/templates
- * List message templates (approved only by default)
- */
-export async function GET(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
-    const clinicId = authResult.profile!.clinic_id
-    const all = new URL(request.url).searchParams.get('all') === 'true'
-
-    const templates = all
-      ? await getAllTemplates(clinicId)
-      : await getApprovedTemplates(clinicId)
-
-    return NextResponse.json({ templates })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handleGET(_request: NextRequest): Promise<NextResponse> {
+  return runAtendimentoAction(obterModeloMensagem, {});
 }
 
-/**
- * POST /api/whatsapp/templates
- * Create a new message template
- */
-export async function POST(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
-    const clinicId = authResult.profile!.clinic_id
-    const body = await request.json()
-    const { name, category, body: templateBody, header, footer, buttons } = body
-
-    if (!name || !category || !templateBody) {
-      return NextResponse.json(
-        { error: 'Missing required fields: name, category, body' },
-        { status: 400 }
-      )
-    }
-
-    const template = await createTemplate({
-      clinicId,
-      name,
-      category,
-      body: templateBody,
-      header,
-      footer,
-      buttons,
-    })
-
-    if (!template) {
-      return NextResponse.json({ error: 'Failed to create template' }, { status: 500 })
-    }
-
-    return NextResponse.json({ template })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+const wrapped = withModuleRoute('atendimento', moduleManifest)(handleGET);
+export { wrapped as GET };

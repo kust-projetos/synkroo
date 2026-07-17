@@ -1,9 +1,13 @@
 import { getDb } from '@/lib/db/client';
-import { roles, rolePermissions, permissions } from '@/lib/db/schema/rbac';
+import { roles, rolePermissions, permissions } from '@/modules/core/schema/rbac';
 import { getPermissionCatalog } from './catalog';
 import { and, eq } from 'drizzle-orm';
 import { SYSTEM_PRESETS, RESERVED_ROLE_OWNER, type PresetDef } from './presets';
 import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from './agent-access';
+
+// Executor aceito: o db compartilhado OU uma transação Drizzle (ambos expõem insert/select).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type DbOrTx = ReturnType<typeof getDb> | any;
 
 export function buildPresetPermissions(preset: PresetDef): string[] {
   const catalog = getPermissionCatalog();
@@ -14,9 +18,44 @@ export function buildPresetPermissions(preset: PresetDef): string[] {
   return [...keys];
 }
 
+// Insere permissões de role de forma idempotente (ON CONFLICT DO NOTHING).
+export async function syncRolePermissions(
+  db: DbOrTx,
+  roleId: string,
+  keys: string[],
+): Promise<void> {
+  if (!keys.length) return;
+  await db
+    .insert(rolePermissions)
+    .values(
+      keys.map((permissionKey) => ({ roleId, permissionKey })),
+    )
+    .onConflictDoNothing();
+}
+
+// Lookup de role por nome — injetável para testes (evita fake do AST do Drizzle).
+export type RoleFinder = (name: string) => Promise<string | null>;
+
+async function defaultRoleFinder(db: DbOrTx, clinicId: string, name: string): Promise<string | null> {
+  const existing = await db
+    .select({ id: roles.id })
+    .from(roles)
+    .where(and(eq(roles.clinicId, clinicId), eq(roles.name, name)))
+    .limit(1);
+  return existing[0]?.id ?? null;
+}
+
 // Cria os perfis de sistema (incl. Owner) e suas permissões para uma clínica.
-export async function seedRbacForClinic(clinicId: string): Promise<void> {
-  const db = getDb();
+// Aceita um executor opcional (db ou tx) para permitir execução dentro da transação de signup.
+// roleFinder é injetado apenas em testes; em produção usa defaultRoleFinder (Drizzle real).
+export async function seedRbacForClinic(
+  clinicId: string,
+  executor?: DbOrTx,
+  roleFinder?: RoleFinder,
+): Promise<void> {
+  const db = executor ?? getDb();
+  const findRole = roleFinder ?? ((name: string) => defaultRoleFinder(db, clinicId, name));
+
   // espelho de permissões (idempotente)
   const catalog = getPermissionCatalog();
   if (catalog.length) {
@@ -30,18 +69,33 @@ export async function seedRbacForClinic(clinicId: string): Promise<void> {
     ...SYSTEM_PRESETS.map((p) => ({ name: p.name, description: p.description, keys: buildPresetPermissions(p) })),
   ];
   for (const preset of presets) {
-    // Idempotência: verifica se o role já existe antes de inserir
-    const existing = await db.select({ id: roles.id })
-      .from(roles)
-      .where(and(eq(roles.clinicId, clinicId), eq(roles.name, preset.name)))
-      .limit(1);
-    if (existing.length) continue;
+    // Resolve roleId: usa existente ou cria novo
+    const existingId = await findRole(preset.name);
 
-    const [row] = await db.insert(roles)
-      .values({ clinicId, name: preset.name, description: preset.description, isSystem: true })
-      .returning({ id: roles.id });
-    if (preset.keys.length) {
-      await db.insert(rolePermissions).values(preset.keys.map((permissionKey) => ({ roleId: row.id, permissionKey })));
+    const roleId =
+      existingId ??
+      (
+        await db
+          .insert(roles)
+          .values({
+            clinicId,
+            name: preset.name,
+            description: preset.description,
+            isSystem: true,
+          })
+          .returning({ id: roles.id })
+      )[0].id;
+
+    // Agente: sempre reconcilia permissões mínimas (mesmo em rerun).
+    // Roles de staff existentes são preservados; o Agente é role de sistema operacional
+    // que precisa receber novas permissões quando o produto evolui.
+    if (preset.name === AGENT_ROLE_NAME) {
+      await syncRolePermissions(db, roleId, DEFAULT_AGENT_PERMISSIONS);
+      continue;
     }
+
+    // Owner e staff: preserva roles existentes (só cria se não existir)
+    if (existingId) continue;
+    await syncRolePermissions(db, roleId, preset.keys);
   }
 }

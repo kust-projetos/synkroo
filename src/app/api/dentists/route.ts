@@ -1,79 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { validateApiAuth } from '@/lib/auth/session'
-import { createDentistSchema } from '@/lib/validations'
-import { handleApiError, ValidationError, DatabaseError } from '@/lib/errors'
-import { PAGINATION } from '@/lib/config'
-import * as dentistRepo from '@/repositories/dentists'
-
 /**
- * GET /api/dentists
- * List dentists for a clinic
+ * GET  /api/dentists — list dentists
+ * POST /api/dentists — create dentist
+ *
+ * Migrated to operacional module action system.
+ * No direct DB access in this file.
  */
-export async function GET(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
 
-    const { searchParams } = new URL(request.url)
-    const limit = Math.min(
-      parseInt(searchParams.get('limit') || String(PAGINATION.defaultLimit)),
-      PAGINATION.maxLimit,
-    )
-    const offset = parseInt(searchParams.get('offset') || '0')
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
+import { criarDentista } from '@/modules/operacional/actions/criar-dentista';
+import { listarDentistas } from '@/modules/operacional/actions/listar-dentistas';
 
-    const list = await dentistRepo.findByClinic(clinicId, { activeOnly: true })
+const OPERACIONAL_MODULE = 'operacional';
 
-    // Slice after fetch for efficient query
-    const dentists = list.slice(offset, offset + limit).map((d) => ({
-      id: d.id,
-      name: d.name,
-      phone: d.phone,
-      email: d.email,
-      specialty: d.specialty,
-      cro: d.cro,
-      is_active: d.isActive,
-      created_at: d.createdAt,
-    }))
-
-    return NextResponse.json({ dentists, pagination: { limit, offset } })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handleGET(request: NextRequest): Promise<NextResponse> {
+  const sp = new URL(request.url).searchParams;
+  return runActionRoute(listarDentistas, {
+    activeOnly: sp.get('activeOnly') === 'true',
+  });
 }
 
-/**
- * POST /api/dentists
- * Create a new dentist
- */
-export async function POST(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
-
-    const rawBody = await request.json()
-    const data = createDentistSchema.parse(rawBody)
-
-    const dentist = await dentistRepo.create({
-      clinicId,
-      name: data.name,
-      phone: data.phone || null,
-      email: data.email || null,
-      specialty: data.specialty || null,
-      cro: (data as any).cro || null,
-    })
-
-    return NextResponse.json({ dentist }, { status: 201 })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
-    }
-    return handleApiError(error)
-  }
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  const body = await request.json();
+  return runActionRoute(criarDentista, body, { okStatus: 201 });
 }
+
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);
+const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePOST);
+
+export { wrappedGET as GET, wrappedPOST as POST };

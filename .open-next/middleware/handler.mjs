@@ -709,3367 +709,74 @@ var init_fetch = __esm({
 var require_edge_instrumentation = __commonJS({
   ".next/server/edge-instrumentation.js"() {
     "use strict";
-    (self.webpackChunk_N_E = self.webpackChunk_N_E || []).push([[183], { 242: (a, b, c) => {
+    (self.webpackChunk_N_E = self.webpackChunk_N_E || []).push([[183], { 2: (a, b, c) => {
       "use strict";
-      c.d(b, { i: () => d, is: () => e });
-      let d = Symbol.for("drizzle:entityKind");
-      function e(a2, b2) {
-        if (!a2 || "object" != typeof a2) return false;
-        if (a2 instanceof b2) return true;
-        if (!Object.prototype.hasOwnProperty.call(b2, d)) throw Error(`Class "${b2.name ?? "<unknown>"}" doesn't look like a Drizzle entity. If this is incorrect and the class is provided by Drizzle, please report this as a bug.`);
-        let c2 = Object.getPrototypeOf(a2).constructor;
+      c.r(b), c.d(b, { register: () => k });
+      let d = Symbol.for("__cloudflare-context__");
+      function e() {
+        return globalThis[d];
+      }
+      function f() {
+        let a2 = globalThis;
+        return a2.__NEXT_DATA__?.nextExport === true;
+      }
+      async function g() {
+        let a2 = e();
+        if (a2) return a2;
+        if (f()) {
+          var b2;
+          let a3 = await h();
+          return b2 = a3, globalThis[d] = b2, a3;
+        }
+        throw Error(i);
+      }
+      async function h(a2) {
+        let { getPlatformProxy: b2 } = await import(`${"__wrangler".replaceAll("_", "")}`), c2 = a2?.environment ?? process.env.NEXT_DEV_WRANGLER_ENV, { env: d2, cf: e2, ctx: f2 } = await b2({ ...a2, envFiles: [], environment: c2 });
+        return { env: d2, cf: e2, ctx: f2 };
+      }
+      let i = '\n\nERROR: `getCloudflareContext` has been called without having called `initOpenNextCloudflareForDev` from the Next.js config file.\nYou should update your Next.js config file as shown below:\n\n   ```\n   // next.config.mjs\n\n   import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";\n\n   initOpenNextCloudflareForDev();\n\n   const nextConfig = { ... };\n   export default nextConfig;\n   ```\n\n';
+      async function j() {
+        try {
+          let a2 = function(a3 = { async: false }) {
+            return a3.async ? g() : function() {
+              let a4 = e();
+              if (a4) return a4;
+              if (f()) throw Error("\n\nERROR: `getCloudflareContext` has been called in sync mode in either a static route or at the top level of a non-static one, both cases are not allowed but can be solved by either:\n  - make sure that the call is not at the top level and that the route is not static\n  - call `getCloudflareContext({async: true})` to use the `async` mode\n  - avoid calling `getCloudflareContext` in the route\n");
+              throw Error(i);
+            }();
+          }();
+          if (a2?.env?.HYPERDRIVE?.connectionString) {
+            let { setDbConnectionString: b2 } = await Promise.resolve().then(c.bind(c, 697));
+            b2(a2.env.HYPERDRIVE.connectionString);
+          }
+        } catch {
+        }
+      }
+      async function k() {
+        await j();
+      }
+    }, 697: (a, b, c) => {
+      "use strict";
+      let d, e;
+      c.d(b, { setDbConnectionString: () => cx }), pg;
+      let f = Symbol.for("drizzle:entityKind");
+      function g(a10, b10) {
+        if (!a10 || "object" != typeof a10) return false;
+        if (a10 instanceof b10) return true;
+        if (!Object.prototype.hasOwnProperty.call(b10, f)) throw Error(`Class "${b10.name ?? "<unknown>"}" doesn't look like a Drizzle entity. If this is incorrect and the class is provided by Drizzle, please report this as a bug.`);
+        let c2 = Object.getPrototypeOf(a10).constructor;
         if (c2) for (; c2; ) {
-          if (d in c2 && c2[d] === b2[d]) return true;
+          if (f in c2 && c2[f] === b10[f]) return true;
           c2 = Object.getPrototypeOf(c2);
         }
         return false;
       }
       Symbol.for("drizzle:hasOwnEntityKind");
-    }, 903: (a, b, c) => {
-      "use strict";
-      c.d(b, { Lf: () => bu });
-      var d = {};
-      c.r(d), c.d(d, { actionLogs: () => bo.i, agentDlq: () => bf, agentLogs: () => bg, agentQueue: () => be, appointmentReminderConfigs: () => aO, appointmentReminders: () => aM, appointmentStatus: () => aF.K0, appointments: () => aK, auditLogs: () => bn, budgetInstallments: () => a7, budgetItems: () => a6, budgets: () => a5, campaignRecipients: () => a_, campaignSegments: () => a4, campaigns: () => a$, channelType: () => aF.w9, clinicTags: () => a3, clinics: () => aG.wW, clinicsRelations: () => aG.Pq, consents: () => bk, conversationMemories: () => aV, conversationSessions: () => aU, conversationStates: () => aT, conversationStatus: () => aF.qu, conversations: () => aR, customFieldDefinitions: () => bl, customFieldValues: () => bm, decisionLogs: () => bc, dentists: () => aG.zz, followUpConfigs: () => a1, followUps: () => a0, instanceModules: () => bq.T, knowledgeBase: () => bh, leadActivities: () => aY, leads: () => aX, messageDirection: () => aF.H1, messageTemplates: () => bj, messageType: () => aF.IR, messages: () => aS, patientFeedback: () => aG.B_, patientObservations: () => aG.lu, patientPreferences: () => aG.k7, patientRiskScores: () => aG.EC, patients: () => aG.PA, payments: () => a8, pendingActions: () => bb, permissions: () => bp.P, pipelineStages: () => aZ, procedureGuidelines: () => aG.ZM, procedureTypes: () => aP, procedures: () => aG.lF, rolePermissions: () => bp.dN, roles: () => bp.Ot, scheduleBlocks: () => aL, smartTriggerLog: () => bd, tasks: () => a2, treatmentPlanItems: () => ba, treatmentPlans: () => a9, userClinicAccess: () => bp.uq, userCredentials: () => aG.CO, userPermissionOverrides: () => bp.g8, userRole: () => aF.KZ, users: () => aG.VV, usersRelations: () => aG.mY, waitlist: () => aN, whatsappInstances: () => bi });
-      let e = pg;
-      var f = c(242);
-      class g {
-        static [f.i] = "ConsoleLogWriter";
-        write(a10) {
-          console.log(a10);
-        }
-      }
       class h {
-        static [f.i] = "DefaultLogger";
-        writer;
-        constructor(a10) {
-          this.writer = a10?.writer ?? new g();
-        }
-        logQuery(a10, b2) {
-          let c2 = b2.map((a11) => {
-            try {
-              return JSON.stringify(a11);
-            } catch {
-              return String(a11);
-            }
-          }), d2 = c2.length ? ` -- params: [${c2.join(", ")}]` : "";
-          this.writer.write(`Query: ${a10}${d2}`);
-        }
-      }
-      class i {
-        static [f.i] = "NoopLogger";
-        logQuery() {
-        }
-      }
-      var j = c(9393), k = c(4096), l = c(2701), m = c(2926);
-      class n {
-        constructor(a10) {
-          this.table = a10;
-        }
-        static [f.i] = "ColumnAliasProxyHandler";
-        get(a10, b2) {
-          return "table" === b2 ? this.table : a10[b2];
-        }
-      }
-      class o {
-        constructor(a10, b2) {
-          this.alias = a10, this.replaceOriginalName = b2;
-        }
-        static [f.i] = "TableAliasProxyHandler";
-        get(a10, b2) {
-          if (b2 === l.XI.Symbol.IsAlias) return true;
-          if (b2 === l.XI.Symbol.Name || this.replaceOriginalName && b2 === l.XI.Symbol.OriginalName) return this.alias;
-          if (b2 === m.n) return { ...a10[m.n], name: this.alias, isAlias: true };
-          if (b2 === l.XI.Symbol.Columns) {
-            let b3 = a10[l.XI.Symbol.Columns];
-            if (!b3) return b3;
-            let c3 = {};
-            return Object.keys(b3).map((d2) => {
-              c3[d2] = new Proxy(b3[d2], new n(new Proxy(a10, this)));
-            }), c3;
-          }
-          let c2 = a10[b2];
-          return (0, f.is)(c2, j.V) ? new Proxy(c2, new n(new Proxy(a10, this))) : c2;
-        }
-      }
-      class p {
-        constructor(a10) {
-          this.alias = a10;
-        }
-        static [f.i] = null;
-        get(a10, b2) {
-          return "sourceTable" === b2 ? q(a10.sourceTable, this.alias) : a10[b2];
-        }
-      }
-      function q(a10, b2) {
-        return new Proxy(a10, new o(b2, false));
-      }
-      function r(a10, b2) {
-        return new Proxy(a10, new n(new Proxy(a10.table, new o(b2, false))));
-      }
-      function s(a10, b2) {
-        return new k.Xs.Aliased(t(a10.sql, b2), a10.fieldAlias);
-      }
-      function t(a10, b2) {
-        return k.ll.join(a10.queryChunks.map((a11) => (0, f.is)(a11, j.V) ? r(a11, b2) : (0, f.is)(a11, k.Xs) ? t(a11, b2) : (0, f.is)(a11, k.Xs.Aliased) ? s(a11, b2) : a11));
-      }
-      function u(a10) {
-        return (a10.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? []).map((a11) => a11.toLowerCase()).join("_");
-      }
-      function v(a10) {
-        return (a10.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? []).reduce((a11, b2, c2) => a11 + (0 === c2 ? b2.toLowerCase() : `${b2[0].toUpperCase()}${b2.slice(1)}`), "");
-      }
-      function w(a10) {
-        return a10;
-      }
-      class x {
-        static [f.i] = "CasingCache";
-        cache = {};
-        cachedTables = {};
-        convert;
-        constructor(a10) {
-          this.convert = "snake_case" === a10 ? u : "camelCase" === a10 ? v : w;
-        }
-        getColumnCasing(a10) {
-          if (!a10.keyAsName) return a10.name;
-          let b2 = a10.table[l.XI.Symbol.Schema] ?? "public", c2 = a10.table[l.XI.Symbol.OriginalName], d2 = `${b2}.${c2}.${a10.name}`;
-          return this.cache[d2] || this.cacheTable(a10.table), this.cache[d2];
-        }
-        cacheTable(a10) {
-          let b2 = a10[l.XI.Symbol.Schema] ?? "public", c2 = a10[l.XI.Symbol.OriginalName], d2 = `${b2}.${c2}`;
-          if (!this.cachedTables[d2]) {
-            for (let b3 of Object.values(a10[l.XI.Symbol.Columns])) {
-              let a11 = `${d2}.${b3.name}`;
-              this.cache[a11] = this.convert(b3.name);
-            }
-            this.cachedTables[d2] = true;
-          }
-        }
-        clearCache() {
-          this.cache = {}, this.cachedTables = {};
-        }
-      }
-      class y extends Error {
-        static [f.i] = "DrizzleError";
-        constructor({ message: a10, cause: b2 }) {
-          super(a10), this.name = "DrizzleError", this.cause = b2;
-        }
-      }
-      class z extends Error {
-        constructor(a10, b2, c2) {
-          super(`Failed query: ${a10}
-params: ${b2}`), this.query = a10, this.params = b2, this.cause = c2, Error.captureStackTrace(this, z), c2 && (this.cause = c2);
-        }
-      }
-      class A extends y {
-        static [f.i] = "TransactionRollbackError";
-        constructor() {
-          super({ message: "Rollback" });
-        }
-      }
-      var B = c(4080), C = c(1457), D = c(9977), E = c(1308), F = c(1912), G = c(7097), H = c(6903), I = c(7238), J = c(6123), K = c(6778), L = c(1582), M = c(8245), N = c(3090);
-      class O extends k.Ss {
-        static [f.i] = "PgViewBase";
-      }
-      class P {
-        static [f.i] = "PgDialect";
-        casing;
-        constructor(a10) {
-          this.casing = new x(a10?.casing);
-        }
-        async migrate(a10, b2, c2) {
-          let d2 = "string" == typeof c2 ? "__drizzle_migrations" : c2.migrationsTable ?? "__drizzle_migrations", e2 = "string" == typeof c2 ? "drizzle" : c2.migrationsSchema ?? "drizzle", f2 = (0, k.ll)`
-			CREATE TABLE IF NOT EXISTS ${k.ll.identifier(e2)}.${k.ll.identifier(d2)} (
-				id SERIAL PRIMARY KEY,
-				hash text NOT NULL,
-				created_at bigint
-			)
-		`;
-          await b2.execute((0, k.ll)`CREATE SCHEMA IF NOT EXISTS ${k.ll.identifier(e2)}`), await b2.execute(f2);
-          let g2 = (await b2.all((0, k.ll)`select id, hash, created_at from ${k.ll.identifier(e2)}.${k.ll.identifier(d2)} order by created_at desc limit 1`))[0];
-          await b2.transaction(async (b3) => {
-            for await (let c3 of a10) if (!g2 || Number(g2.created_at) < c3.folderMillis) {
-              for (let a11 of c3.sql) await b3.execute(k.ll.raw(a11));
-              await b3.execute((0, k.ll)`insert into ${k.ll.identifier(e2)}.${k.ll.identifier(d2)} ("hash", "created_at") values(${c3.hash}, ${c3.folderMillis})`);
-            }
-          });
-        }
-        escapeName(a10) {
-          return `"${a10.replace(/"/g, '""')}"`;
-        }
-        escapeParam(a10) {
-          return `$${a10 + 1}`;
-        }
-        escapeString(a10) {
-          return `'${a10.replace(/'/g, "''")}'`;
-        }
-        buildWithCTE(a10) {
-          if (!a10?.length) return;
-          let b2 = [(0, k.ll)`with `];
-          for (let [c2, d2] of a10.entries()) b2.push((0, k.ll)`${k.ll.identifier(d2._.alias)} as (${d2._.sql})`), c2 < a10.length - 1 && b2.push((0, k.ll)`, `);
-          return b2.push((0, k.ll)` `), k.ll.join(b2);
-        }
-        buildDeleteQuery({ table: a10, where: b2, returning: c2, withList: d2 }) {
-          let e2 = this.buildWithCTE(d2), f2 = c2 ? (0, k.ll)` returning ${this.buildSelection(c2, { isSingleTable: true })}` : void 0, g2 = b2 ? (0, k.ll)` where ${b2}` : void 0;
-          return (0, k.ll)`${e2}delete from ${a10}${g2}${f2}`;
-        }
-        buildUpdateSet(a10, b2) {
-          let c2 = a10[l.XI.Symbol.Columns], d2 = Object.keys(c2).filter((a11) => void 0 !== b2[a11] || c2[a11]?.onUpdateFn !== void 0), e2 = d2.length;
-          return k.ll.join(d2.flatMap((a11, d3) => {
-            let g2 = c2[a11], h2 = g2.onUpdateFn?.(), i2 = b2[a11] ?? ((0, f.is)(h2, k.Xs) ? h2 : k.ll.param(h2, g2)), j2 = (0, k.ll)`${k.ll.identifier(this.casing.getColumnCasing(g2))} = ${i2}`;
-            return d3 < e2 - 1 ? [j2, k.ll.raw(", ")] : [j2];
-          }));
-        }
-        buildUpdateQuery({ table: a10, set: b2, where: c2, returning: d2, withList: e2, from: f2, joins: g2 }) {
-          let h2 = this.buildWithCTE(e2), i2 = a10[J.mu.Symbol.Name], j2 = a10[J.mu.Symbol.Schema], l2 = a10[J.mu.Symbol.OriginalName], m2 = i2 === l2 ? void 0 : i2, n2 = (0, k.ll)`${j2 ? (0, k.ll)`${k.ll.identifier(j2)}.` : void 0}${k.ll.identifier(l2)}${m2 && (0, k.ll)` ${k.ll.identifier(m2)}`}`, o2 = this.buildUpdateSet(a10, b2), p2 = f2 && k.ll.join([k.ll.raw(" from "), this.buildFromTable(f2)]), q2 = this.buildJoins(g2), r2 = d2 ? (0, k.ll)` returning ${this.buildSelection(d2, { isSingleTable: !f2 })}` : void 0, s2 = c2 ? (0, k.ll)` where ${c2}` : void 0;
-          return (0, k.ll)`${h2}update ${n2} set ${o2}${p2}${q2}${s2}${r2}`;
-        }
-        buildSelection(a10, { isSingleTable: b2 = false } = {}) {
-          let c2 = a10.length, d2 = a10.flatMap(({ field: a11 }, d3) => {
-            let e2 = [];
-            if ((0, f.is)(a11, k.Xs.Aliased) && a11.isSelectionField) e2.push(k.ll.identifier(a11.fieldAlias));
-            else if ((0, f.is)(a11, k.Xs.Aliased) || (0, f.is)(a11, k.Xs)) {
-              let c3 = (0, f.is)(a11, k.Xs.Aliased) ? a11.sql : a11;
-              b2 ? e2.push(new k.Xs(c3.queryChunks.map((a12) => (0, f.is)(a12, B.Kl) ? k.ll.identifier(this.casing.getColumnCasing(a12)) : a12))) : e2.push(c3), (0, f.is)(a11, k.Xs.Aliased) && e2.push((0, k.ll)` as ${k.ll.identifier(a11.fieldAlias)}`);
-            } else if ((0, f.is)(a11, j.V)) b2 ? e2.push(k.ll.identifier(this.casing.getColumnCasing(a11))) : e2.push(a11);
-            else if ((0, f.is)(a11, M.n)) {
-              let b3 = Object.entries(a11._.selectedFields);
-              if (1 === b3.length) {
-                let c3 = b3[0][1], d4 = (0, f.is)(c3, k.Xs) ? c3.decoder : (0, f.is)(c3, j.V) ? { mapFromDriverValue: (a12) => c3.mapFromDriverValue(a12) } : c3.sql.decoder;
-                d4 && (a11._.sql.decoder = d4);
-              }
-              e2.push(a11);
-            }
-            return d3 < c2 - 1 && e2.push((0, k.ll)`, `), e2;
-          });
-          return k.ll.join(d2);
-        }
-        buildJoins(a10) {
-          if (!a10 || 0 === a10.length) return;
-          let b2 = [];
-          for (let [c2, d2] of a10.entries()) {
-            0 === c2 && b2.push((0, k.ll)` `);
-            let e2 = d2.table, g2 = d2.lateral ? (0, k.ll)` lateral` : void 0, h2 = d2.on ? (0, k.ll)` on ${d2.on}` : void 0;
-            if ((0, f.is)(e2, J.mu)) {
-              let a11 = e2[J.mu.Symbol.Name], c3 = e2[J.mu.Symbol.Schema], f2 = e2[J.mu.Symbol.OriginalName], i2 = a11 === f2 ? void 0 : d2.alias;
-              b2.push((0, k.ll)`${k.ll.raw(d2.joinType)} join${g2} ${c3 ? (0, k.ll)`${k.ll.identifier(c3)}.` : void 0}${k.ll.identifier(f2)}${i2 && (0, k.ll)` ${k.ll.identifier(i2)}`}${h2}`);
-            } else if ((0, f.is)(e2, k.Ss)) {
-              let a11 = e2[m.n].name, c3 = e2[m.n].schema, f2 = e2[m.n].originalName, i2 = a11 === f2 ? void 0 : d2.alias;
-              b2.push((0, k.ll)`${k.ll.raw(d2.joinType)} join${g2} ${c3 ? (0, k.ll)`${k.ll.identifier(c3)}.` : void 0}${k.ll.identifier(f2)}${i2 && (0, k.ll)` ${k.ll.identifier(i2)}`}${h2}`);
-            } else b2.push((0, k.ll)`${k.ll.raw(d2.joinType)} join${g2} ${e2}${h2}`);
-            c2 < a10.length - 1 && b2.push((0, k.ll)` `);
-          }
-          return k.ll.join(b2);
-        }
-        buildFromTable(a10) {
-          if ((0, f.is)(a10, l.XI) && a10[l.XI.Symbol.IsAlias]) {
-            let b2 = (0, k.ll)`${k.ll.identifier(a10[l.XI.Symbol.OriginalName])}`;
-            return a10[l.XI.Symbol.Schema] && (b2 = (0, k.ll)`${k.ll.identifier(a10[l.XI.Symbol.Schema])}.${b2}`), (0, k.ll)`${b2} ${k.ll.identifier(a10[l.XI.Symbol.Name])}`;
-          }
-          return a10;
-        }
-        buildSelectQuery({ withList: a10, fields: b2, fieldsFlat: c2, where: d2, having: e2, table: g2, joins: h2, orderBy: i2, groupBy: n2, limit: o2, offset: p2, lockingClause: q2, distinct: r2, setOperators: s2 }) {
-          let t2, u2, v2, w2 = c2 ?? (0, N.He)(b2);
-          for (let a11 of w2) {
-            let b3;
-            if ((0, f.is)(a11.field, j.V) && (0, l.Io)(a11.field.table) !== ((0, f.is)(g2, M.n) ? g2._.alias : (0, f.is)(g2, O) ? g2[m.n].name : (0, f.is)(g2, k.Xs) ? void 0 : (0, l.Io)(g2)) && (b3 = a11.field.table, !h2?.some(({ alias: a12 }) => a12 === (b3[l.XI.Symbol.IsAlias] ? (0, l.Io)(b3) : b3[l.XI.Symbol.BaseName])))) {
-              let b4 = (0, l.Io)(a11.field.table);
-              throw Error(`Your "${a11.path.join("->")}" field references a column "${b4}"."${a11.field.name}", but the table "${b4}" is not part of the query! Did you forget to join it?`);
-            }
-          }
-          let x2 = !h2 || 0 === h2.length, y2 = this.buildWithCTE(a10);
-          r2 && (t2 = true === r2 ? (0, k.ll)` distinct` : (0, k.ll)` distinct on (${k.ll.join(r2.on, (0, k.ll)`, `)})`);
-          let z2 = this.buildSelection(w2, { isSingleTable: x2 }), A2 = this.buildFromTable(g2), B2 = this.buildJoins(h2), C2 = d2 ? (0, k.ll)` where ${d2}` : void 0, D2 = e2 ? (0, k.ll)` having ${e2}` : void 0;
-          i2 && i2.length > 0 && (u2 = (0, k.ll)` order by ${k.ll.join(i2, (0, k.ll)`, `)}`), n2 && n2.length > 0 && (v2 = (0, k.ll)` group by ${k.ll.join(n2, (0, k.ll)`, `)}`);
-          let E2 = "object" == typeof o2 || "number" == typeof o2 && o2 >= 0 ? (0, k.ll)` limit ${o2}` : void 0, F2 = p2 ? (0, k.ll)` offset ${p2}` : void 0, G2 = k.ll.empty();
-          if (q2) {
-            let a11 = (0, k.ll)` for ${k.ll.raw(q2.strength)}`;
-            q2.config.of && a11.append((0, k.ll)` of ${k.ll.join(Array.isArray(q2.config.of) ? q2.config.of : [q2.config.of], (0, k.ll)`, `)}`), q2.config.noWait ? a11.append((0, k.ll)` nowait`) : q2.config.skipLocked && a11.append((0, k.ll)` skip locked`), G2.append(a11);
-          }
-          let H2 = (0, k.ll)`${y2}select${t2} ${z2} from ${A2}${B2}${C2}${v2}${D2}${u2}${E2}${F2}${G2}`;
-          return s2.length > 0 ? this.buildSetOperations(H2, s2) : H2;
-        }
-        buildSetOperations(a10, b2) {
-          let [c2, ...d2] = b2;
-          if (!c2) throw Error("Cannot pass undefined values to any set operator");
-          return 0 === d2.length ? this.buildSetOperationQuery({ leftSelect: a10, setOperator: c2 }) : this.buildSetOperations(this.buildSetOperationQuery({ leftSelect: a10, setOperator: c2 }), d2);
-        }
-        buildSetOperationQuery({ leftSelect: a10, setOperator: { type: b2, isAll: c2, rightSelect: d2, limit: e2, orderBy: g2, offset: h2 } }) {
-          let i2, j2 = (0, k.ll)`(${a10.getSQL()}) `, l2 = (0, k.ll)`(${d2.getSQL()})`;
-          if (g2 && g2.length > 0) {
-            let a11 = [];
-            for (let b3 of g2) if ((0, f.is)(b3, B.Kl)) a11.push(k.ll.identifier(b3.name));
-            else if ((0, f.is)(b3, k.Xs)) {
-              for (let a12 = 0; a12 < b3.queryChunks.length; a12++) {
-                let c3 = b3.queryChunks[a12];
-                (0, f.is)(c3, B.Kl) && (b3.queryChunks[a12] = k.ll.identifier(c3.name));
-              }
-              a11.push((0, k.ll)`${b3}`);
-            } else a11.push((0, k.ll)`${b3}`);
-            i2 = (0, k.ll)` order by ${k.ll.join(a11, (0, k.ll)`, `)} `;
-          }
-          let m2 = "object" == typeof e2 || "number" == typeof e2 && e2 >= 0 ? (0, k.ll)` limit ${e2}` : void 0, n2 = k.ll.raw(`${b2} ${c2 ? "all " : ""}`), o2 = h2 ? (0, k.ll)` offset ${h2}` : void 0;
-          return (0, k.ll)`${j2}${n2}${l2}${i2}${m2}${o2}`;
-        }
-        buildInsertQuery({ table: a10, values: b2, onConflict: c2, returning: d2, withList: e2, select: g2, overridingSystemValue_: h2 }) {
-          let i2 = [], j2 = Object.entries(a10[l.XI.Symbol.Columns]).filter(([a11, b3]) => !b3.shouldDisableInsert()), m2 = j2.map(([, a11]) => k.ll.identifier(this.casing.getColumnCasing(a11)));
-          if (g2) (0, f.is)(b2, k.Xs) ? i2.push(b2) : i2.push(b2.getSQL());
-          else for (let [a11, c3] of (i2.push(k.ll.raw("values ")), b2.entries())) {
-            let d3 = [];
-            for (let [a12, b3] of j2) {
-              let e3 = c3[a12];
-              if (void 0 === e3 || (0, f.is)(e3, k.Iw) && void 0 === e3.value) if (void 0 !== b3.defaultFn) {
-                let a13 = b3.defaultFn(), c4 = (0, f.is)(a13, k.Xs) ? a13 : k.ll.param(a13, b3);
-                d3.push(c4);
-              } else if (b3.default || void 0 === b3.onUpdateFn) d3.push((0, k.ll)`default`);
-              else {
-                let a13 = b3.onUpdateFn(), c4 = (0, f.is)(a13, k.Xs) ? a13 : k.ll.param(a13, b3);
-                d3.push(c4);
-              }
-              else d3.push(e3);
-            }
-            i2.push(d3), a11 < b2.length - 1 && i2.push((0, k.ll)`, `);
-          }
-          let n2 = this.buildWithCTE(e2), o2 = k.ll.join(i2), p2 = d2 ? (0, k.ll)` returning ${this.buildSelection(d2, { isSingleTable: true })}` : void 0, q2 = c2 ? (0, k.ll)` on conflict ${c2}` : void 0, r2 = true === h2 ? (0, k.ll)`overriding system value ` : void 0;
-          return (0, k.ll)`${n2}insert into ${a10} ${m2} ${r2}${o2}${q2}${p2}`;
-        }
-        buildRefreshMaterializedViewQuery({ view: a10, concurrently: b2, withNoData: c2 }) {
-          let d2 = b2 ? (0, k.ll)` concurrently` : void 0, e2 = c2 ? (0, k.ll)` with no data` : void 0;
-          return (0, k.ll)`refresh materialized view${d2} ${a10}${e2}`;
-        }
-        prepareTyping(a10) {
-          if ((0, f.is)(a10, C.kn) || (0, f.is)(a10, D.iX)) return "json";
-          if ((0, f.is)(a10, E.Z5)) return "decimal";
-          if ((0, f.is)(a10, F.Xd)) return "time";
-          if ((0, f.is)(a10, G.KM) || (0, f.is)(a10, G.xQ)) return "timestamp";
-          if ((0, f.is)(a10, H.qw) || (0, f.is)(a10, H.dw)) return "date";
-          else if ((0, f.is)(a10, I.dL)) return "uuid";
-          else return "none";
-        }
-        sqlToQuery(a10, b2) {
-          return a10.toQuery({ casing: this.casing, escapeName: this.escapeName, escapeParam: this.escapeParam, escapeString: this.escapeString, prepareTyping: this.prepareTyping, invokeSource: b2 });
-        }
-        buildRelationalQueryWithoutPK({ fullSchema: a10, schema: b2, tableNamesMap: c2, table: d2, tableConfig: e2, queryConfig: g2, tableAlias: h2, nestedQueryRelation: i2, joinOn: m2 }) {
-          let n2, o2 = [], p2, u2, v2 = [], w2, x2 = [];
-          if (true === g2) o2 = Object.entries(e2.columns).map(([a11, b3]) => ({ dbKey: b3.name, tsKey: a11, field: r(b3, h2), relationTableTsKey: void 0, isJson: false, selection: [] }));
-          else {
-            let d3 = Object.fromEntries(Object.entries(e2.columns).map(([a11, b3]) => [a11, r(b3, h2)]));
-            if (g2.where) {
-              let a11 = "function" == typeof g2.where ? g2.where(d3, (0, K.mm)()) : g2.where;
-              w2 = a11 && t(a11, h2);
-            }
-            let i3 = [], m3 = [];
-            if (g2.columns) {
-              let a11 = false;
-              for (let [b3, c3] of Object.entries(g2.columns)) void 0 !== c3 && b3 in e2.columns && (a11 || true !== c3 || (a11 = true), m3.push(b3));
-              m3.length > 0 && (m3 = a11 ? m3.filter((a12) => g2.columns?.[a12] === true) : Object.keys(e2.columns).filter((a12) => !m3.includes(a12)));
-            } else m3 = Object.keys(e2.columns);
-            for (let a11 of m3) {
-              let b3 = e2.columns[a11];
-              i3.push({ tsKey: a11, value: b3 });
-            }
-            let n3 = [];
-            if (g2.with && (n3 = Object.entries(g2.with).filter((a11) => !!a11[1]).map(([a11, b3]) => ({ tsKey: a11, queryConfig: b3, relation: e2.relations[a11] }))), g2.extras) for (let [a11, b3] of Object.entries("function" == typeof g2.extras ? g2.extras(d3, { sql: k.ll }) : g2.extras)) i3.push({ tsKey: a11, value: s(b3, h2) });
-            for (let { tsKey: a11, value: b3 } of i3) o2.push({ dbKey: (0, f.is)(b3, k.Xs.Aliased) ? b3.fieldAlias : e2.columns[a11].name, tsKey: a11, field: (0, f.is)(b3, j.V) ? r(b3, h2) : b3, relationTableTsKey: void 0, isJson: false, selection: [] });
-            let q2 = "function" == typeof g2.orderBy ? g2.orderBy(d3, (0, K.rl)()) : g2.orderBy ?? [];
-            for (let { tsKey: d4, queryConfig: e3, relation: i4 } of (Array.isArray(q2) || (q2 = [q2]), v2 = q2.map((a11) => (0, f.is)(a11, j.V) ? r(a11, h2) : t(a11, h2)), p2 = g2.limit, u2 = g2.offset, n3)) {
-              let g3 = (0, K.W0)(b2, c2, i4), j2 = c2[(0, l.Lf)(i4.referencedTable)], m4 = `${h2}_${d4}`, n4 = (0, L.Uo)(...g3.fields.map((a11, b3) => (0, L.eq)(r(g3.references[b3], m4), r(a11, h2)))), p3 = this.buildRelationalQueryWithoutPK({ fullSchema: a10, schema: b2, tableNamesMap: c2, table: a10[j2], tableConfig: b2[j2], queryConfig: (0, f.is)(i4, K.pD) ? true === e3 ? { limit: 1 } : { ...e3, limit: 1 } : e3, tableAlias: m4, joinOn: n4, nestedQueryRelation: i4 }), q3 = (0, k.ll)`${k.ll.identifier(m4)}.${k.ll.identifier("data")}`.as(d4);
-              x2.push({ on: (0, k.ll)`true`, table: new M.n(p3.sql, {}, m4), alias: m4, joinType: "left", lateral: true }), o2.push({ dbKey: d4, tsKey: d4, field: q3, relationTableTsKey: j2, isJson: true, selection: p3.selection });
-            }
-          }
-          if (0 === o2.length) throw new y({ message: `No fields selected for table "${e2.tsName}" ("${h2}")` });
-          if (w2 = (0, L.Uo)(m2, w2), i2) {
-            let a11 = (0, k.ll)`json_build_array(${k.ll.join(o2.map(({ field: a12, tsKey: b4, isJson: c3 }) => c3 ? (0, k.ll)`${k.ll.identifier(`${h2}_${b4}`)}.${k.ll.identifier("data")}` : (0, f.is)(a12, k.Xs.Aliased) ? a12.sql : a12), (0, k.ll)`, `)})`;
-            (0, f.is)(i2, K.iv) && (a11 = (0, k.ll)`coalesce(json_agg(${a11}${v2.length > 0 ? (0, k.ll)` order by ${k.ll.join(v2, (0, k.ll)`, `)}` : void 0}), '[]'::json)`);
-            let b3 = [{ dbKey: "data", tsKey: "data", field: a11.as("data"), isJson: true, relationTableTsKey: e2.tsName, selection: o2 }];
-            void 0 !== p2 || void 0 !== u2 || v2.length > 0 ? (n2 = this.buildSelectQuery({ table: q(d2, h2), fields: {}, fieldsFlat: [{ path: [], field: k.ll.raw("*") }], where: w2, limit: p2, offset: u2, orderBy: v2, setOperators: [] }), w2 = void 0, p2 = void 0, u2 = void 0, v2 = []) : n2 = q(d2, h2), n2 = this.buildSelectQuery({ table: (0, f.is)(n2, J.mu) ? n2 : new M.n(n2, {}, h2), fields: {}, fieldsFlat: b3.map(({ field: a12 }) => ({ path: [], field: (0, f.is)(a12, j.V) ? r(a12, h2) : a12 })), joins: x2, where: w2, limit: p2, offset: u2, orderBy: v2, setOperators: [] });
-          } else n2 = this.buildSelectQuery({ table: q(d2, h2), fields: {}, fieldsFlat: o2.map(({ field: a11 }) => ({ path: [], field: (0, f.is)(a11, j.V) ? r(a11, h2) : a11 })), joins: x2, where: w2, limit: p2, offset: u2, orderBy: v2, setOperators: [] });
-          return { tableTsKey: e2.tsName, sql: n2, selection: o2 };
-        }
-      }
-      class Q {
-        static [f.i] = "SelectionProxyHandler";
+        static [f] = "ColumnBuilder";
         config;
-        constructor(a10) {
-          this.config = { ...a10 };
-        }
-        get(a10, b2) {
-          if ("_" === b2) return { ...a10._, selectedFields: new Proxy(a10._.selectedFields, this) };
-          if (b2 === m.n) return { ...a10[m.n], selectedFields: new Proxy(a10[m.n].selectedFields, this) };
-          if ("symbol" == typeof b2) return a10[b2];
-          let c2 = ((0, f.is)(a10, M.n) ? a10._.selectedFields : (0, f.is)(a10, k.Ss) ? a10[m.n].selectedFields : a10)[b2];
-          if ((0, f.is)(c2, k.Xs.Aliased)) {
-            if ("sql" === this.config.sqlAliasedBehavior && !c2.isSelectionField) return c2.sql;
-            let a11 = c2.clone();
-            return a11.isSelectionField = true, a11;
-          }
-          if ((0, f.is)(c2, k.Xs)) {
-            if ("sql" === this.config.sqlBehavior) return c2;
-            throw Error(`You tried to reference "${b2}" field from a subquery, which is a raw SQL field, but it doesn't have an alias declared. Please add an alias to the field using ".as('alias')" method.`);
-          }
-          return (0, f.is)(c2, j.V) ? this.config.alias ? new Proxy(c2, new n(new Proxy(c2.table, new o(this.config.alias, this.config.replaceOriginalName ?? false)))) : c2 : "object" != typeof c2 || null === c2 ? c2 : new Proxy(c2, new Q(this.config));
-        }
-      }
-      class R {
-        static [f.i] = "TypedQueryBuilder";
-        getSelectedFields() {
-          return this._.selectedFields;
-        }
-      }
-      class S {
-        static [f.i] = "QueryPromise";
-        [Symbol.toStringTag] = "QueryPromise";
-        catch(a10) {
-          return this.then(void 0, a10);
-        }
-        finally(a10) {
-          return this.then((b2) => (a10?.(), b2), (b2) => {
-            throw a10?.(), b2;
-          });
-        }
-        then(a10, b2) {
-          return this.execute().then(a10, b2);
-        }
-      }
-      var T = c(1664);
-      function U(a10) {
-        return (0, f.is)(a10, J.mu) ? [a10[l.Sj] ? `${a10[l.Sj]}.${a10[l.XI.Symbol.BaseName]}` : a10[l.XI.Symbol.BaseName]] : (0, f.is)(a10, M.n) ? a10._.usedTables ?? [] : (0, f.is)(a10, k.Xs) ? a10.usedTables ?? [] : [];
-      }
-      class V {
-        static [f.i] = "PgSelectBuilder";
-        fields;
-        session;
-        dialect;
-        withList = [];
-        distinct;
-        constructor(a10) {
-          this.fields = a10.fields, this.session = a10.session, this.dialect = a10.dialect, a10.withList && (this.withList = a10.withList), this.distinct = a10.distinct;
-        }
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        from(a10) {
-          let b2, c2 = !!this.fields;
-          return b2 = this.fields ? this.fields : (0, f.is)(a10, M.n) ? Object.fromEntries(Object.keys(a10._.selectedFields).map((b3) => [b3, a10[b3]])) : (0, f.is)(a10, O) ? a10[m.n].selectedFields : (0, f.is)(a10, k.Xs) ? {} : (0, N.YD)(a10), new X({ table: a10, fields: b2, isPartialSelect: c2, session: this.session, dialect: this.dialect, withList: this.withList, distinct: this.distinct }).setToken(this.authToken);
-        }
-      }
-      class W extends R {
-        static [f.i] = "PgSelectQueryBuilder";
-        _;
-        config;
-        joinsNotNullableMap;
-        tableName;
-        isPartialSelect;
-        session;
-        dialect;
-        cacheConfig = void 0;
-        usedTables = /* @__PURE__ */ new Set();
-        constructor({ table: a10, fields: b2, isPartialSelect: c2, session: d2, dialect: e2, withList: f2, distinct: g2 }) {
-          for (let h2 of (super(), this.config = { withList: f2, table: a10, fields: { ...b2 }, distinct: g2, setOperators: [] }, this.isPartialSelect = c2, this.session = d2, this.dialect = e2, this._ = { selectedFields: b2, config: this.config }, this.tableName = (0, N.zN)(a10), this.joinsNotNullableMap = "string" == typeof this.tableName ? { [this.tableName]: true } : {}, U(a10))) this.usedTables.add(h2);
-        }
-        getUsedTables() {
-          return [...this.usedTables];
-        }
-        createJoin(a10, b2) {
-          return (c2, d2) => {
-            let e2 = this.tableName, g2 = (0, N.zN)(c2);
-            for (let a11 of U(c2)) this.usedTables.add(a11);
-            if ("string" == typeof g2 && this.config.joins?.some((a11) => a11.alias === g2)) throw Error(`Alias "${g2}" is already used in this query`);
-            if (!this.isPartialSelect && (1 === Object.keys(this.joinsNotNullableMap).length && "string" == typeof e2 && (this.config.fields = { [e2]: this.config.fields }), "string" == typeof g2 && !(0, f.is)(c2, k.Xs))) {
-              let a11 = (0, f.is)(c2, M.n) ? c2._.selectedFields : (0, f.is)(c2, k.Ss) ? c2[m.n].selectedFields : c2[l.XI.Symbol.Columns];
-              this.config.fields[g2] = a11;
-            }
-            if ("function" == typeof d2 && (d2 = d2(new Proxy(this.config.fields, new Q({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })))), this.config.joins || (this.config.joins = []), this.config.joins.push({ on: d2, table: c2, joinType: a10, alias: g2, lateral: b2 }), "string" == typeof g2) switch (a10) {
-              case "left":
-                this.joinsNotNullableMap[g2] = false;
-                break;
-              case "right":
-                this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([a11]) => [a11, false])), this.joinsNotNullableMap[g2] = true;
-                break;
-              case "cross":
-              case "inner":
-                this.joinsNotNullableMap[g2] = true;
-                break;
-              case "full":
-                this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([a11]) => [a11, false])), this.joinsNotNullableMap[g2] = false;
-            }
-            return this;
-          };
-        }
-        leftJoin = this.createJoin("left", false);
-        leftJoinLateral = this.createJoin("left", true);
-        rightJoin = this.createJoin("right", false);
-        innerJoin = this.createJoin("inner", false);
-        innerJoinLateral = this.createJoin("inner", true);
-        fullJoin = this.createJoin("full", false);
-        crossJoin = this.createJoin("cross", false);
-        crossJoinLateral = this.createJoin("cross", true);
-        createSetOperator(a10, b2) {
-          return (c2) => {
-            let d2 = "function" == typeof c2 ? c2(Z()) : c2;
-            if (!(0, N.DV)(this.getSelectedFields(), d2.getSelectedFields())) throw Error("Set operator error (union / intersect / except): selected fields are not the same or are in a different order");
-            return this.config.setOperators.push({ type: a10, isAll: b2, rightSelect: d2 }), this;
-          };
-        }
-        union = this.createSetOperator("union", false);
-        unionAll = this.createSetOperator("union", true);
-        intersect = this.createSetOperator("intersect", false);
-        intersectAll = this.createSetOperator("intersect", true);
-        except = this.createSetOperator("except", false);
-        exceptAll = this.createSetOperator("except", true);
-        addSetOperators(a10) {
-          return this.config.setOperators.push(...a10), this;
-        }
-        where(a10) {
-          return "function" == typeof a10 && (a10 = a10(new Proxy(this.config.fields, new Q({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })))), this.config.where = a10, this;
-        }
-        having(a10) {
-          return "function" == typeof a10 && (a10 = a10(new Proxy(this.config.fields, new Q({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })))), this.config.having = a10, this;
-        }
-        groupBy(...a10) {
-          if ("function" == typeof a10[0]) {
-            let b2 = a10[0](new Proxy(this.config.fields, new Q({ sqlAliasedBehavior: "alias", sqlBehavior: "sql" })));
-            this.config.groupBy = Array.isArray(b2) ? b2 : [b2];
-          } else this.config.groupBy = a10;
-          return this;
-        }
-        orderBy(...a10) {
-          if ("function" == typeof a10[0]) {
-            let b2 = a10[0](new Proxy(this.config.fields, new Q({ sqlAliasedBehavior: "alias", sqlBehavior: "sql" }))), c2 = Array.isArray(b2) ? b2 : [b2];
-            this.config.setOperators.length > 0 ? this.config.setOperators.at(-1).orderBy = c2 : this.config.orderBy = c2;
-          } else this.config.setOperators.length > 0 ? this.config.setOperators.at(-1).orderBy = a10 : this.config.orderBy = a10;
-          return this;
-        }
-        limit(a10) {
-          return this.config.setOperators.length > 0 ? this.config.setOperators.at(-1).limit = a10 : this.config.limit = a10, this;
-        }
-        offset(a10) {
-          return this.config.setOperators.length > 0 ? this.config.setOperators.at(-1).offset = a10 : this.config.offset = a10, this;
-        }
-        for(a10, b2 = {}) {
-          return this.config.lockingClause = { strength: a10, config: b2 }, this;
-        }
-        getSQL() {
-          return this.dialect.buildSelectQuery(this.config);
-        }
-        toSQL() {
-          let { typings: a10, ...b2 } = this.dialect.sqlToQuery(this.getSQL());
-          return b2;
-        }
-        as(a10) {
-          let b2 = [];
-          if (b2.push(...U(this.config.table)), this.config.joins) for (let a11 of this.config.joins) b2.push(...U(a11.table));
-          return new Proxy(new M.n(this.getSQL(), this.config.fields, a10, false, [...new Set(b2)]), new Q({ alias: a10, sqlAliasedBehavior: "alias", sqlBehavior: "error" }));
-        }
-        getSelectedFields() {
-          return new Proxy(this.config.fields, new Q({ alias: this.tableName, sqlAliasedBehavior: "alias", sqlBehavior: "error" }));
-        }
-        $dynamic() {
-          return this;
-        }
-        $withCache(a10) {
-          return this.cacheConfig = void 0 === a10 ? { config: {}, enable: true, autoInvalidate: true } : false === a10 ? { enable: false } : { enable: true, autoInvalidate: true, ...a10 }, this;
-        }
-      }
-      class X extends W {
-        static [f.i] = "PgSelect";
-        _prepare(a10) {
-          let { session: b2, config: c2, dialect: d2, joinsNotNullableMap: e2, authToken: f2, cacheConfig: g2, usedTables: h2 } = this;
-          if (!b2) throw Error("Cannot execute a query on a query builder. Please use a database instance instead.");
-          let { fields: i2 } = c2;
-          return T.k.startActiveSpan("drizzle.prepareQuery", () => {
-            let c3 = (0, N.He)(i2), j2 = b2.prepareQuery(d2.sqlToQuery(this.getSQL()), c3, a10, true, void 0, { type: "select", tables: [...h2] }, g2);
-            return j2.joinsNotNullableMap = e2, j2.setToken(f2);
-          });
-        }
-        prepare(a10) {
-          return this._prepare(a10);
-        }
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        execute = (a10) => T.k.startActiveSpan("drizzle.operation", () => this._prepare().execute(a10, this.authToken));
-      }
-      function Y(a10, b2) {
-        return (c2, d2, ...e2) => {
-          let f2 = [d2, ...e2].map((c3) => ({ type: a10, isAll: b2, rightSelect: c3 }));
-          for (let a11 of f2) if (!(0, N.DV)(c2.getSelectedFields(), a11.rightSelect.getSelectedFields())) throw Error("Set operator error (union / intersect / except): selected fields are not the same or are in a different order");
-          return c2.addSetOperators(f2);
-        };
-      }
-      (0, N.XJ)(X, [S]);
-      let Z = () => ({ union: $, unionAll: _, intersect: aa, intersectAll: ab, except: ac, exceptAll: ad }), $ = Y("union", false), _ = Y("union", true), aa = Y("intersect", false), ab = Y("intersect", true), ac = Y("except", false), ad = Y("except", true);
-      class ae {
-        static [f.i] = "PgQueryBuilder";
-        dialect;
-        dialectConfig;
-        constructor(a10) {
-          this.dialect = (0, f.is)(a10, P) ? a10 : void 0, this.dialectConfig = (0, f.is)(a10, P) ? void 0 : a10;
-        }
-        $with = (a10, b2) => {
-          let c2 = this;
-          return { as: (d2) => ("function" == typeof d2 && (d2 = d2(c2)), new Proxy(new M.J(d2.getSQL(), b2 ?? ("getSelectedFields" in d2 ? d2.getSelectedFields() ?? {} : {}), a10, true), new Q({ alias: a10, sqlAliasedBehavior: "alias", sqlBehavior: "error" }))) };
-        };
-        with(...a10) {
-          let b2 = this;
-          return { select: function(c2) {
-            return new V({ fields: c2 ?? void 0, session: void 0, dialect: b2.getDialect(), withList: a10 });
-          }, selectDistinct: function(a11) {
-            return new V({ fields: a11 ?? void 0, session: void 0, dialect: b2.getDialect(), distinct: true });
-          }, selectDistinctOn: function(a11, c2) {
-            return new V({ fields: c2 ?? void 0, session: void 0, dialect: b2.getDialect(), distinct: { on: a11 } });
-          } };
-        }
-        select(a10) {
-          return new V({ fields: a10 ?? void 0, session: void 0, dialect: this.getDialect() });
-        }
-        selectDistinct(a10) {
-          return new V({ fields: a10 ?? void 0, session: void 0, dialect: this.getDialect(), distinct: true });
-        }
-        selectDistinctOn(a10, b2) {
-          return new V({ fields: b2 ?? void 0, session: void 0, dialect: this.getDialect(), distinct: { on: a10 } });
-        }
-        getDialect() {
-          return this.dialect || (this.dialect = new P(this.dialectConfig)), this.dialect;
-        }
-      }
-      class af {
-        constructor(a10, b2, c2, d2) {
-          this.table = a10, this.session = b2, this.dialect = c2, this.withList = d2;
-        }
-        static [f.i] = "PgUpdateBuilder";
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        set(a10) {
-          return new ag(this.table, (0, N.q)(this.table, a10), this.session, this.dialect, this.withList).setToken(this.authToken);
-        }
-      }
-      class ag extends S {
-        constructor(a10, b2, c2, d2, e2) {
-          super(), this.session = c2, this.dialect = d2, this.config = { set: b2, table: a10, withList: e2, joins: [] }, this.tableName = (0, N.zN)(a10), this.joinsNotNullableMap = "string" == typeof this.tableName ? { [this.tableName]: true } : {};
-        }
-        static [f.i] = "PgUpdate";
-        config;
-        tableName;
-        joinsNotNullableMap;
-        cacheConfig;
-        from(a10) {
-          let b2 = (0, N.zN)(a10);
-          return "string" == typeof b2 && (this.joinsNotNullableMap[b2] = true), this.config.from = a10, this;
-        }
-        getTableLikeFields(a10) {
-          return (0, f.is)(a10, J.mu) ? a10[l.XI.Symbol.Columns] : (0, f.is)(a10, M.n) ? a10._.selectedFields : a10[m.n].selectedFields;
-        }
-        createJoin(a10) {
-          return (b2, c2) => {
-            let d2 = (0, N.zN)(b2);
-            if ("string" == typeof d2 && this.config.joins.some((a11) => a11.alias === d2)) throw Error(`Alias "${d2}" is already used in this query`);
-            if ("function" == typeof c2) {
-              let a11 = this.config.from && !(0, f.is)(this.config.from, k.Xs) ? this.getTableLikeFields(this.config.from) : void 0;
-              c2 = c2(new Proxy(this.config.table[l.XI.Symbol.Columns], new Q({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })), a11 && new Proxy(a11, new Q({ sqlAliasedBehavior: "sql", sqlBehavior: "sql" })));
-            }
-            if (this.config.joins.push({ on: c2, table: b2, joinType: a10, alias: d2 }), "string" == typeof d2) switch (a10) {
-              case "left":
-                this.joinsNotNullableMap[d2] = false;
-                break;
-              case "right":
-                this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([a11]) => [a11, false])), this.joinsNotNullableMap[d2] = true;
-                break;
-              case "inner":
-                this.joinsNotNullableMap[d2] = true;
-                break;
-              case "full":
-                this.joinsNotNullableMap = Object.fromEntries(Object.entries(this.joinsNotNullableMap).map(([a11]) => [a11, false])), this.joinsNotNullableMap[d2] = false;
-            }
-            return this;
-          };
-        }
-        leftJoin = this.createJoin("left");
-        rightJoin = this.createJoin("right");
-        innerJoin = this.createJoin("inner");
-        fullJoin = this.createJoin("full");
-        where(a10) {
-          return this.config.where = a10, this;
-        }
-        returning(a10) {
-          if (!a10 && (a10 = Object.assign({}, this.config.table[l.XI.Symbol.Columns]), this.config.from)) {
-            let b2 = (0, N.zN)(this.config.from);
-            if ("string" == typeof b2 && this.config.from && !(0, f.is)(this.config.from, k.Xs)) {
-              let c2 = this.getTableLikeFields(this.config.from);
-              a10[b2] = c2;
-            }
-            for (let b3 of this.config.joins) {
-              let c2 = (0, N.zN)(b3.table);
-              if ("string" == typeof c2 && !(0, f.is)(b3.table, k.Xs)) {
-                let d2 = this.getTableLikeFields(b3.table);
-                a10[c2] = d2;
-              }
-            }
-          }
-          return this.config.returningFields = a10, this.config.returning = (0, N.He)(a10), this;
-        }
-        getSQL() {
-          return this.dialect.buildUpdateQuery(this.config);
-        }
-        toSQL() {
-          let { typings: a10, ...b2 } = this.dialect.sqlToQuery(this.getSQL());
-          return b2;
-        }
-        _prepare(a10) {
-          let b2 = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, a10, true, void 0, { type: "insert", tables: U(this.config.table) }, this.cacheConfig);
-          return b2.joinsNotNullableMap = this.joinsNotNullableMap, b2;
-        }
-        prepare(a10) {
-          return this._prepare(a10);
-        }
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        execute = (a10) => this._prepare().execute(a10, this.authToken);
-        getSelectedFields() {
-          return this.config.returningFields ? new Proxy(this.config.returningFields, new Q({ alias: (0, l.Io)(this.config.table), sqlAliasedBehavior: "alias", sqlBehavior: "error" })) : void 0;
-        }
-        $dynamic() {
-          return this;
-        }
-      }
-      class ah {
-        constructor(a10, b2, c2, d2, e2) {
-          this.table = a10, this.session = b2, this.dialect = c2, this.withList = d2, this.overridingSystemValue_ = e2;
-        }
-        static [f.i] = "PgInsertBuilder";
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        overridingSystemValue() {
-          return this.overridingSystemValue_ = true, this;
-        }
-        values(a10) {
-          if (0 === (a10 = Array.isArray(a10) ? a10 : [a10]).length) throw Error("values() must be called with at least one value");
-          let b2 = a10.map((a11) => {
-            let b3 = {}, c2 = this.table[l.XI.Symbol.Columns];
-            for (let d2 of Object.keys(a11)) {
-              let e2 = a11[d2];
-              b3[d2] = (0, f.is)(e2, k.Xs) ? e2 : new k.Iw(e2, c2[d2]);
-            }
-            return b3;
-          });
-          return new ai(this.table, b2, this.session, this.dialect, this.withList, false, this.overridingSystemValue_).setToken(this.authToken);
-        }
-        select(a10) {
-          let b2 = "function" == typeof a10 ? a10(new ae()) : a10;
-          if (!(0, f.is)(b2, k.Xs) && !(0, N.DV)(this.table[l.e], b2._.selectedFields)) throw Error("Insert select error: selected fields are not the same or are in a different order compared to the table definition");
-          return new ai(this.table, b2, this.session, this.dialect, this.withList, true);
-        }
-      }
-      class ai extends S {
-        constructor(a10, b2, c2, d2, e2, f2, g2) {
-          super(), this.session = c2, this.dialect = d2, this.config = { table: a10, values: b2, withList: e2, select: f2, overridingSystemValue_: g2 };
-        }
-        static [f.i] = "PgInsert";
-        config;
-        cacheConfig;
-        returning(a10 = this.config.table[l.XI.Symbol.Columns]) {
-          return this.config.returningFields = a10, this.config.returning = (0, N.He)(a10), this;
-        }
-        onConflictDoNothing(a10 = {}) {
-          if (void 0 === a10.target) this.config.onConflict = (0, k.ll)`do nothing`;
-          else {
-            let b2 = "";
-            b2 = Array.isArray(a10.target) ? a10.target.map((a11) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(a11))).join(",") : this.dialect.escapeName(this.dialect.casing.getColumnCasing(a10.target));
-            let c2 = a10.where ? (0, k.ll)` where ${a10.where}` : void 0;
-            this.config.onConflict = (0, k.ll)`(${k.ll.raw(b2)})${c2} do nothing`;
-          }
-          return this;
-        }
-        onConflictDoUpdate(a10) {
-          if (a10.where && (a10.targetWhere || a10.setWhere)) throw Error('You cannot use both "where" and "targetWhere"/"setWhere" at the same time - "where" is deprecated, use "targetWhere" or "setWhere" instead.');
-          let b2 = a10.where ? (0, k.ll)` where ${a10.where}` : void 0, c2 = a10.targetWhere ? (0, k.ll)` where ${a10.targetWhere}` : void 0, d2 = a10.setWhere ? (0, k.ll)` where ${a10.setWhere}` : void 0, e2 = this.dialect.buildUpdateSet(this.config.table, (0, N.q)(this.config.table, a10.set)), f2 = "";
-          return f2 = Array.isArray(a10.target) ? a10.target.map((a11) => this.dialect.escapeName(this.dialect.casing.getColumnCasing(a11))).join(",") : this.dialect.escapeName(this.dialect.casing.getColumnCasing(a10.target)), this.config.onConflict = (0, k.ll)`(${k.ll.raw(f2)})${c2} do update set ${e2}${b2}${d2}`, this;
-        }
-        getSQL() {
-          return this.dialect.buildInsertQuery(this.config);
-        }
-        toSQL() {
-          let { typings: a10, ...b2 } = this.dialect.sqlToQuery(this.getSQL());
-          return b2;
-        }
-        _prepare(a10) {
-          return T.k.startActiveSpan("drizzle.prepareQuery", () => this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, a10, true, void 0, { type: "insert", tables: U(this.config.table) }, this.cacheConfig));
-        }
-        prepare(a10) {
-          return this._prepare(a10);
-        }
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        execute = (a10) => T.k.startActiveSpan("drizzle.operation", () => this._prepare().execute(a10, this.authToken));
-        getSelectedFields() {
-          return this.config.returningFields ? new Proxy(this.config.returningFields, new Q({ alias: (0, l.Io)(this.config.table), sqlAliasedBehavior: "alias", sqlBehavior: "error" })) : void 0;
-        }
-        $dynamic() {
-          return this;
-        }
-      }
-      class aj extends S {
-        constructor(a10, b2, c2, d2) {
-          super(), this.session = b2, this.dialect = c2, this.config = { table: a10, withList: d2 };
-        }
-        static [f.i] = "PgDelete";
-        config;
-        cacheConfig;
-        where(a10) {
-          return this.config.where = a10, this;
-        }
-        returning(a10 = this.config.table[l.XI.Symbol.Columns]) {
-          return this.config.returningFields = a10, this.config.returning = (0, N.He)(a10), this;
-        }
-        getSQL() {
-          return this.dialect.buildDeleteQuery(this.config);
-        }
-        toSQL() {
-          let { typings: a10, ...b2 } = this.dialect.sqlToQuery(this.getSQL());
-          return b2;
-        }
-        _prepare(a10) {
-          return T.k.startActiveSpan("drizzle.prepareQuery", () => this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), this.config.returning, a10, true, void 0, { type: "delete", tables: U(this.config.table) }, this.cacheConfig));
-        }
-        prepare(a10) {
-          return this._prepare(a10);
-        }
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        execute = (a10) => T.k.startActiveSpan("drizzle.operation", () => this._prepare().execute(a10, this.authToken));
-        getSelectedFields() {
-          return this.config.returningFields ? new Proxy(this.config.returningFields, new Q({ alias: (0, l.Io)(this.config.table), sqlAliasedBehavior: "alias", sqlBehavior: "error" })) : void 0;
-        }
-        $dynamic() {
-          return this;
-        }
-      }
-      class ak extends k.Xs {
-        constructor(a10) {
-          super(ak.buildEmbeddedCount(a10.source, a10.filters).queryChunks), this.params = a10, this.mapWith(Number), this.session = a10.session, this.sql = ak.buildCount(a10.source, a10.filters);
-        }
-        sql;
-        token;
-        static [f.i] = "PgCountBuilder";
-        [Symbol.toStringTag] = "PgCountBuilder";
-        session;
-        static buildEmbeddedCount(a10, b2) {
-          return (0, k.ll)`(select count(*) from ${a10}${k.ll.raw(" where ").if(b2)}${b2})`;
-        }
-        static buildCount(a10, b2) {
-          return (0, k.ll)`select count(*) as count from ${a10}${k.ll.raw(" where ").if(b2)}${b2};`;
-        }
-        setToken(a10) {
-          return this.token = a10, this;
-        }
-        then(a10, b2) {
-          return Promise.resolve(this.session.count(this.sql, this.token)).then(a10, b2);
-        }
-        catch(a10) {
-          return this.then(void 0, a10);
-        }
-        finally(a10) {
-          return this.then((b2) => (a10?.(), b2), (b2) => {
-            throw a10?.(), b2;
-          });
-        }
-      }
-      class al {
-        constructor(a10, b2, c2, d2, e2, f2, g2) {
-          this.fullSchema = a10, this.schema = b2, this.tableNamesMap = c2, this.table = d2, this.tableConfig = e2, this.dialect = f2, this.session = g2;
-        }
-        static [f.i] = "PgRelationalQueryBuilder";
-        findMany(a10) {
-          return new am(this.fullSchema, this.schema, this.tableNamesMap, this.table, this.tableConfig, this.dialect, this.session, a10 || {}, "many");
-        }
-        findFirst(a10) {
-          return new am(this.fullSchema, this.schema, this.tableNamesMap, this.table, this.tableConfig, this.dialect, this.session, a10 ? { ...a10, limit: 1 } : { limit: 1 }, "first");
-        }
-      }
-      class am extends S {
-        constructor(a10, b2, c2, d2, e2, f2, g2, h2, i2) {
-          super(), this.fullSchema = a10, this.schema = b2, this.tableNamesMap = c2, this.table = d2, this.tableConfig = e2, this.dialect = f2, this.session = g2, this.config = h2, this.mode = i2;
-        }
-        static [f.i] = "PgRelationalQuery";
-        _prepare(a10) {
-          return T.k.startActiveSpan("drizzle.prepareQuery", () => {
-            let { query: b2, builtQuery: c2 } = this._toSQL();
-            return this.session.prepareQuery(c2, void 0, a10, true, (a11, c3) => {
-              let d2 = a11.map((a12) => (0, K.I$)(this.schema, this.tableConfig, a12, b2.selection, c3));
-              return "first" === this.mode ? d2[0] : d2;
-            });
-          });
-        }
-        prepare(a10) {
-          return this._prepare(a10);
-        }
-        _getQuery() {
-          return this.dialect.buildRelationalQueryWithoutPK({ fullSchema: this.fullSchema, schema: this.schema, tableNamesMap: this.tableNamesMap, table: this.table, tableConfig: this.tableConfig, queryConfig: this.config, tableAlias: this.tableConfig.tsName });
-        }
-        getSQL() {
-          return this._getQuery().sql;
-        }
-        _toSQL() {
-          let a10 = this._getQuery(), b2 = this.dialect.sqlToQuery(a10.sql);
-          return { query: a10, builtQuery: b2 };
-        }
-        toSQL() {
-          return this._toSQL().builtQuery;
-        }
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        execute() {
-          return T.k.startActiveSpan("drizzle.operation", () => this._prepare().execute(void 0, this.authToken));
-        }
-      }
-      class an extends S {
-        constructor(a10, b2, c2, d2) {
-          super(), this.execute = a10, this.sql = b2, this.query = c2, this.mapBatchResult = d2;
-        }
-        static [f.i] = "PgRaw";
-        getSQL() {
-          return this.sql;
-        }
-        getQuery() {
-          return this.query;
-        }
-        mapResult(a10, b2) {
-          return b2 ? this.mapBatchResult(a10) : a10;
-        }
-        _prepare() {
-          return this;
-        }
-        isResponseInArrayMode() {
-          return false;
-        }
-      }
-      class ao extends S {
-        constructor(a10, b2, c2) {
-          super(), this.session = b2, this.dialect = c2, this.config = { view: a10 };
-        }
-        static [f.i] = "PgRefreshMaterializedView";
-        config;
-        concurrently() {
-          if (void 0 !== this.config.withNoData) throw Error("Cannot use concurrently and withNoData together");
-          return this.config.concurrently = true, this;
-        }
-        withNoData() {
-          if (void 0 !== this.config.concurrently) throw Error("Cannot use concurrently and withNoData together");
-          return this.config.withNoData = true, this;
-        }
-        getSQL() {
-          return this.dialect.buildRefreshMaterializedViewQuery(this.config);
-        }
-        toSQL() {
-          let { typings: a10, ...b2 } = this.dialect.sqlToQuery(this.getSQL());
-          return b2;
-        }
-        _prepare(a10) {
-          return T.k.startActiveSpan("drizzle.prepareQuery", () => this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), void 0, a10, true));
-        }
-        prepare(a10) {
-          return this._prepare(a10);
-        }
-        authToken;
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        execute = (a10) => T.k.startActiveSpan("drizzle.operation", () => this._prepare().execute(a10, this.authToken));
-      }
-      class ap {
-        constructor(a10, b2, c2) {
-          if (this.dialect = a10, this.session = b2, this._ = c2 ? { schema: c2.schema, fullSchema: c2.fullSchema, tableNamesMap: c2.tableNamesMap, session: b2 } : { schema: void 0, fullSchema: {}, tableNamesMap: {}, session: b2 }, this.query = {}, this._.schema) for (let [d2, e2] of Object.entries(this._.schema)) this.query[d2] = new al(c2.fullSchema, this._.schema, this._.tableNamesMap, c2.fullSchema[d2], e2, a10, b2);
-          this.$cache = { invalidate: async (a11) => {
-          } };
-        }
-        static [f.i] = "PgDatabase";
-        query;
-        $with = (a10, b2) => {
-          let c2 = this;
-          return { as: (d2) => ("function" == typeof d2 && (d2 = d2(new ae(c2.dialect))), new Proxy(new M.J(d2.getSQL(), b2 ?? ("getSelectedFields" in d2 ? d2.getSelectedFields() ?? {} : {}), a10, true), new Q({ alias: a10, sqlAliasedBehavior: "alias", sqlBehavior: "error" }))) };
-        };
-        $count(a10, b2) {
-          return new ak({ source: a10, filters: b2, session: this.session });
-        }
-        $cache;
-        with(...a10) {
-          let b2 = this;
-          return { select: function(c2) {
-            return new V({ fields: c2 ?? void 0, session: b2.session, dialect: b2.dialect, withList: a10 });
-          }, selectDistinct: function(c2) {
-            return new V({ fields: c2 ?? void 0, session: b2.session, dialect: b2.dialect, withList: a10, distinct: true });
-          }, selectDistinctOn: function(c2, d2) {
-            return new V({ fields: d2 ?? void 0, session: b2.session, dialect: b2.dialect, withList: a10, distinct: { on: c2 } });
-          }, update: function(c2) {
-            return new af(c2, b2.session, b2.dialect, a10);
-          }, insert: function(c2) {
-            return new ah(c2, b2.session, b2.dialect, a10);
-          }, delete: function(c2) {
-            return new aj(c2, b2.session, b2.dialect, a10);
-          } };
-        }
-        select(a10) {
-          return new V({ fields: a10 ?? void 0, session: this.session, dialect: this.dialect });
-        }
-        selectDistinct(a10) {
-          return new V({ fields: a10 ?? void 0, session: this.session, dialect: this.dialect, distinct: true });
-        }
-        selectDistinctOn(a10, b2) {
-          return new V({ fields: b2 ?? void 0, session: this.session, dialect: this.dialect, distinct: { on: a10 } });
-        }
-        update(a10) {
-          return new af(a10, this.session, this.dialect);
-        }
-        insert(a10) {
-          return new ah(a10, this.session, this.dialect);
-        }
-        delete(a10) {
-          return new aj(a10, this.session, this.dialect);
-        }
-        refreshMaterializedView(a10) {
-          return new ao(a10, this.session, this.dialect);
-        }
-        authToken;
-        execute(a10) {
-          let b2 = "string" == typeof a10 ? k.ll.raw(a10) : a10.getSQL(), c2 = this.dialect.sqlToQuery(b2), d2 = this.session.prepareQuery(c2, void 0, void 0, false);
-          return new an(() => d2.execute(void 0, this.authToken), b2, c2, (a11) => d2.mapResult(a11, true));
-        }
-        transaction(a10, b2) {
-          return this.session.transaction(a10, b2);
-        }
-      }
-      class aq {
-        static [f.i] = "Cache";
-      }
-      class ar extends aq {
-        strategy() {
-          return "all";
-        }
-        static [f.i] = "NoopCache";
-        async get(a10) {
-        }
-        async put(a10, b2, c2, d2) {
-        }
-        async onMutate(a10) {
-        }
-      }
-      async function as(a10, b2) {
-        let c2 = `${a10}-${JSON.stringify(b2)}`, d2 = new TextEncoder().encode(c2);
-        return [...new Uint8Array(await crypto.subtle.digest("SHA-256", d2))].map((a11) => a11.toString(16).padStart(2, "0")).join("");
-      }
-      class at {
-        constructor(a10, b2, c2, d2) {
-          this.query = a10, this.cache = b2, this.queryMetadata = c2, this.cacheConfig = d2, b2 && "all" === b2.strategy() && void 0 === d2 && (this.cacheConfig = { enable: true, autoInvalidate: true }), this.cacheConfig?.enable || (this.cacheConfig = void 0);
-        }
-        authToken;
-        getQuery() {
-          return this.query;
-        }
-        mapResult(a10, b2) {
-          return a10;
-        }
-        setToken(a10) {
-          return this.authToken = a10, this;
-        }
-        static [f.i] = "PgPreparedQuery";
-        joinsNotNullableMap;
-        async queryWithCache(a10, b2, c2) {
-          if (void 0 === this.cache || (0, f.is)(this.cache, ar) || void 0 === this.queryMetadata || this.cacheConfig && !this.cacheConfig.enable) try {
-            return await c2();
-          } catch (c3) {
-            throw new z(a10, b2, c3);
-          }
-          if (("insert" === this.queryMetadata.type || "update" === this.queryMetadata.type || "delete" === this.queryMetadata.type) && this.queryMetadata.tables.length > 0) try {
-            let [a11] = await Promise.all([c2(), this.cache.onMutate({ tables: this.queryMetadata.tables })]);
-            return a11;
-          } catch (c3) {
-            throw new z(a10, b2, c3);
-          }
-          if (!this.cacheConfig) try {
-            return await c2();
-          } catch (c3) {
-            throw new z(a10, b2, c3);
-          }
-          if ("select" === this.queryMetadata.type) {
-            let d2 = await this.cache.get(this.cacheConfig.tag ?? await as(a10, b2), this.queryMetadata.tables, void 0 !== this.cacheConfig.tag, this.cacheConfig.autoInvalidate);
-            if (void 0 === d2) {
-              let d3;
-              try {
-                d3 = await c2();
-              } catch (c3) {
-                throw new z(a10, b2, c3);
-              }
-              return await this.cache.put(this.cacheConfig.tag ?? await as(a10, b2), d3, this.cacheConfig.autoInvalidate ? this.queryMetadata.tables : [], void 0 !== this.cacheConfig.tag, this.cacheConfig.config), d3;
-            }
-            return d2;
-          }
-          try {
-            return await c2();
-          } catch (c3) {
-            throw new z(a10, b2, c3);
-          }
-        }
-      }
-      class au {
-        constructor(a10) {
-          this.dialect = a10;
-        }
-        static [f.i] = "PgSession";
-        execute(a10, b2) {
-          return T.k.startActiveSpan("drizzle.operation", () => T.k.startActiveSpan("drizzle.prepareQuery", () => this.prepareQuery(this.dialect.sqlToQuery(a10), void 0, void 0, false)).setToken(b2).execute(void 0, b2));
-        }
-        all(a10) {
-          return this.prepareQuery(this.dialect.sqlToQuery(a10), void 0, void 0, false).all();
-        }
-        async count(a10, b2) {
-          return Number((await this.execute(a10, b2))[0].count);
-        }
-      }
-      class av extends ap {
-        constructor(a10, b2, c2, d2 = 0) {
-          super(a10, b2, c2), this.schema = c2, this.nestedIndex = d2;
-        }
-        static [f.i] = "PgTransaction";
-        rollback() {
-          throw new A();
-        }
-        getTransactionConfigSQL(a10) {
-          let b2 = [];
-          return a10.isolationLevel && b2.push(`isolation level ${a10.isolationLevel}`), a10.accessMode && b2.push(a10.accessMode), "boolean" == typeof a10.deferrable && b2.push(a10.deferrable ? "deferrable" : "not deferrable"), k.ll.raw(b2.join(" "));
-        }
-        setTransaction(a10) {
-          return this.session.execute((0, k.ll)`set transaction ${this.getTransactionConfigSQL(a10)}`);
-        }
-      }
-      let { Pool: aw, types: ax } = e;
-      class ay extends at {
-        constructor(a10, b2, c2, d2, e2, f2, g2, h2, i2, j2, k2) {
-          super({ sql: b2, params: c2 }, e2, f2, g2), this.client = a10, this.queryString = b2, this.params = c2, this.logger = d2, this.fields = h2, this._isResponseInArrayMode = j2, this.customResultMapper = k2, this.rawQueryConfig = { name: i2, text: b2, types: { getTypeParser: (a11, b3) => a11 === ax.builtins.TIMESTAMPTZ || a11 === ax.builtins.TIMESTAMP || a11 === ax.builtins.DATE || a11 === ax.builtins.INTERVAL || 1231 === a11 || 1115 === a11 || 1185 === a11 || 1187 === a11 || 1182 === a11 ? (a12) => a12 : ax.getTypeParser(a11, b3) } }, this.queryConfig = { name: i2, text: b2, rowMode: "array", types: { getTypeParser: (a11, b3) => a11 === ax.builtins.TIMESTAMPTZ || a11 === ax.builtins.TIMESTAMP || a11 === ax.builtins.DATE || a11 === ax.builtins.INTERVAL || 1231 === a11 || 1115 === a11 || 1185 === a11 || 1187 === a11 || 1182 === a11 ? (a12) => a12 : ax.getTypeParser(a11, b3) } };
-        }
-        static [f.i] = "NodePgPreparedQuery";
-        rawQueryConfig;
-        queryConfig;
-        async execute(a10 = {}) {
-          return T.k.startActiveSpan("drizzle.execute", async () => {
-            let b2 = (0, k.Ct)(this.params, a10);
-            this.logger.logQuery(this.rawQueryConfig.text, b2);
-            let { fields: c2, rawQueryConfig: d2, client: e2, queryConfig: f2, joinsNotNullableMap: g2, customResultMapper: h2 } = this;
-            if (!c2 && !h2) return T.k.startActiveSpan("drizzle.driver.execute", async (a11) => (a11?.setAttributes({ "drizzle.query.name": d2.name, "drizzle.query.text": d2.text, "drizzle.query.params": JSON.stringify(b2) }), this.queryWithCache(d2.text, b2, async () => await e2.query(d2, b2))));
-            let i2 = await T.k.startActiveSpan("drizzle.driver.execute", (a11) => (a11?.setAttributes({ "drizzle.query.name": f2.name, "drizzle.query.text": f2.text, "drizzle.query.params": JSON.stringify(b2) }), this.queryWithCache(f2.text, b2, async () => await e2.query(f2, b2))));
-            return T.k.startActiveSpan("drizzle.mapResponse", () => h2 ? h2(i2.rows) : i2.rows.map((a11) => (0, N.a6)(c2, a11, g2)));
-          });
-        }
-        all(a10 = {}) {
-          return T.k.startActiveSpan("drizzle.execute", () => {
-            let b2 = (0, k.Ct)(this.params, a10);
-            return this.logger.logQuery(this.rawQueryConfig.text, b2), T.k.startActiveSpan("drizzle.driver.execute", (a11) => (a11?.setAttributes({ "drizzle.query.name": this.rawQueryConfig.name, "drizzle.query.text": this.rawQueryConfig.text, "drizzle.query.params": JSON.stringify(b2) }), this.queryWithCache(this.rawQueryConfig.text, b2, async () => this.client.query(this.rawQueryConfig, b2)).then((a12) => a12.rows)));
-          });
-        }
-        isResponseInArrayMode() {
-          return this._isResponseInArrayMode;
-        }
-      }
-      class az extends au {
-        constructor(a10, b2, c2, d2 = {}) {
-          super(b2), this.client = a10, this.schema = c2, this.options = d2, this.logger = d2.logger ?? new i(), this.cache = d2.cache ?? new ar();
-        }
-        static [f.i] = "NodePgSession";
-        logger;
-        cache;
-        prepareQuery(a10, b2, c2, d2, e2, f2, g2) {
-          return new ay(this.client, a10.sql, a10.params, this.logger, this.cache, f2, g2, b2, c2, d2, e2);
-        }
-        async transaction(a10, b2) {
-          let c2 = this.client instanceof aw || Object.getPrototypeOf(this.client).constructor.name.includes("Pool"), d2 = c2 ? new az(await this.client.connect(), this.dialect, this.schema, this.options) : this, e2 = new aA(this.dialect, d2, this.schema);
-          await e2.execute((0, k.ll)`begin${b2 ? (0, k.ll)` ${e2.getTransactionConfigSQL(b2)}` : void 0}`);
-          try {
-            let b3 = await a10(e2);
-            return await e2.execute((0, k.ll)`commit`), b3;
-          } catch (a11) {
-            throw await e2.execute((0, k.ll)`rollback`), a11;
-          } finally {
-            c2 && d2.client.release();
-          }
-        }
-        async count(a10) {
-          return Number((await this.execute(a10)).rows[0].count);
-        }
-      }
-      class aA extends av {
-        static [f.i] = "NodePgTransaction";
-        async transaction(a10) {
-          let b2 = `sp${this.nestedIndex + 1}`, c2 = new aA(this.dialect, this.session, this.schema, this.nestedIndex + 1);
-          await c2.execute(k.ll.raw(`savepoint ${b2}`));
-          try {
-            let d2 = await a10(c2);
-            return await c2.execute(k.ll.raw(`release savepoint ${b2}`)), d2;
-          } catch (a11) {
-            throw await c2.execute(k.ll.raw(`rollback to savepoint ${b2}`)), a11;
-          }
-        }
-      }
-      class aB {
-        constructor(a10, b2, c2 = {}) {
-          this.client = a10, this.dialect = b2, this.options = c2;
-        }
-        static [f.i] = "NodePgDriver";
-        createSession(a10) {
-          return new az(this.client, this.dialect, a10, { logger: this.options.logger, cache: this.options.cache });
-        }
-      }
-      class aC extends ap {
-        static [f.i] = "NodePgDatabase";
-      }
-      function aD(a10, b2 = {}) {
-        let c2, d2, e2 = new P({ casing: b2.casing });
-        if (true === b2.logger ? c2 = new h() : false !== b2.logger && (c2 = b2.logger), b2.schema) {
-          let a11 = (0, K._k)(b2.schema, K.DZ);
-          d2 = { fullSchema: b2.schema, schema: a11.tables, tableNamesMap: a11.tableNamesMap };
-        }
-        let f2 = new aB(a10, e2, { logger: c2, cache: b2.cache }).createSession(d2), g2 = new aC(e2, f2, d2);
-        return g2.$client = a10, g2.$cache = b2.cache, g2.$cache && (g2.$cache.invalidate = b2.cache?.onMutate), g2;
-      }
-      function aE(...a10) {
-        if ("string" == typeof a10[0]) return aD(new e.Pool({ connectionString: a10[0] }), a10[1]);
-        if ((0, N.Lq)(a10[0])) {
-          let { connection: b2, client: c2, ...d2 } = a10[0];
-          return c2 ? aD(c2, d2) : aD(new e.Pool("string" == typeof b2 ? { connectionString: b2 } : b2), d2);
-        }
-        return aD(a10[0], a10[1]);
-      }
-      (aE || (aE = {})).mock = function(a10) {
-        return aD({}, a10);
-      };
-      var aF = c(2338), aG = c(2933), aH = c(4051), aI = c(3946), aJ = c(3193);
-      let aK = (0, J.cJ)("appointments", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").notNull().references(() => aG.PA.id, { onDelete: "cascade" }), dentistId: (0, I.uR)("dentist_id").references(() => aG.zz.id, { onDelete: "set null" }), procedureId: (0, I.uR)("procedure_id").references(() => aG.lF.id, { onDelete: "set null" }), scheduledAt: (0, G.vE)("scheduled_at", { withTimezone: true }).notNull(), durationMinutes: (0, aH.nd)("duration_minutes").default(30), status: (0, aF.K0)("status").notNull().default("scheduled"), notes: (0, aI.Qq)("notes"), totalValue: (0, E.sH)("total_value", { precision: 10, scale: 2 }).default("0"), cancelledAt: (0, G.vE)("cancelled_at", { withTimezone: true }), cancellationReason: (0, aI.Qq)("cancellation_reason"), rescheduledAt: (0, G.vE)("rescheduled_at", { withTimezone: true }), rescheduleReason: (0, aI.Qq)("reschedule_reason"), confirmationSentAt: (0, G.vE)("confirmation_sent_at", { withTimezone: true }), reminderSentAt: (0, G.vE)("reminder_sent_at", { withTimezone: true }), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow(), deletedAt: (0, G.vE)("deleted_at", { withTimezone: true }) }), aL = (0, J.cJ)("schedule_blocks", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), dentistId: (0, I.uR)("dentist_id").references(() => aG.zz.id, { onDelete: "cascade" }), dayOfWeek: (0, aH.nd)("day_of_week"), startTime: (0, F.kB)("start_time").notNull(), endTime: (0, F.kB)("end_time").notNull(), isAvailable: (0, aJ.zM)("is_available").default(true), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), aM = (0, J.cJ)("appointment_reminders", { id: (0, I.uR)("id").primaryKey().defaultRandom(), appointmentId: (0, I.uR)("appointment_id").notNull().references(() => aK.id, { onDelete: "cascade" }), reminderType: (0, aI.Qq)("reminder_type").notNull(), channel: (0, aI.Qq)("channel").default("whatsapp"), status: (0, aI.Qq)("status").default("pending"), messageId: (0, aI.Qq)("message_id"), errorMessage: (0, aI.Qq)("error_message"), sentAt: (0, G.vE)("sent_at", { withTimezone: true }), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }), aN = (0, J.cJ)("waitlist", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").notNull().references(() => aG.PA.id, { onDelete: "cascade" }), dentistId: (0, I.uR)("dentist_id").references(() => aG.zz.id, { onDelete: "set null" }), preferredDate: (0, G.vE)("preferred_date", { withTimezone: true }), preferredTimeStart: (0, F.kB)("preferred_time_start"), preferredTimeEnd: (0, F.kB)("preferred_time_end"), priority: (0, aH.nd)("priority").default(0), notes: (0, aI.Qq)("notes"), status: (0, aI.Qq)("status").default("waiting"), procedureId: (0, I.uR)("procedure_id").references(() => aG.lF.id, { onDelete: "set null" }), notifiedAt: (0, G.vE)("notified_at", { withTimezone: true }), scheduledAppointmentId: (0, I.uR)("scheduled_appointment_id").references(() => aK.id, { onDelete: "set null" }), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), aO = (0, J.cJ)("appointment_reminder_configs", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), procedureTypeId: (0, I.uR)("procedure_type_id").notNull(), hoursBefore: (0, aH.nd)("hours_before").notNull(), messageTemplate: (0, aI.Qq)("message_template").notNull(), enabled: (0, aJ.zM)("enabled").default(true), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), aP = (0, J.cJ)("procedure_types", { id: (0, I.uR)("id").primaryKey().defaultRandom(), name: (0, aI.Qq)("name").notNull(), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() });
-      var aQ = c(9466);
-      let aR = (0, J.cJ)("conversations", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").references(() => aG.PA.id, { onDelete: "set null" }), channel: (0, aF.w9)("channel").notNull(), externalId: (0, aI.Qq)("external_id").notNull(), status: (0, aF.qu)("status").notNull().default("active"), assignedTo: (0, I.uR)("assigned_to").references(() => aG.VV.id, { onDelete: "set null" }), lastMessageAt: (0, G.vE)("last_message_at", { withTimezone: true }).defaultNow(), messageCount: (0, aH.nd)("message_count").default(0), metadata: (0, C.Fx)("metadata").default("{}"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), aS = (0, J.cJ)("messages", { id: (0, I.uR)("id").primaryKey().defaultRandom(), conversationId: (0, I.uR)("conversation_id").notNull().references(() => aR.id, { onDelete: "cascade" }), direction: (0, aF.H1)("direction").notNull(), content: (0, aI.Qq)("content").notNull(), messageType: (0, aF.IR)("message_type").notNull().default("text"), mediaUrl: (0, aI.Qq)("media_url"), metadata: (0, C.Fx)("metadata").default("{}"), intent: (0, aI.Qq)("intent"), entities: (0, C.Fx)("entities").default("{}"), confidence: (0, E._)("confidence", { precision: 3, scale: 2 }), embedding: (0, aQ.i1)("embedding", { dimensions: 1536 }), isAi: (0, aJ.zM)("is_ai").default(false), deliveredAt: (0, G.vE)("delivered_at", { withTimezone: true }), readAt: (0, G.vE)("read_at", { withTimezone: true }), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }), aT = (0, J.cJ)("conversation_states", { id: (0, I.uR)("id").primaryKey().defaultRandom(), conversationId: (0, I.uR)("conversation_id").notNull().references(() => aR.id, { onDelete: "cascade" }), state: (0, C.Fx)("state").default("{}").notNull(), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), aU = (0, J.cJ)("conversation_sessions", { id: (0, I.uR)("id").primaryKey().defaultRandom(), conversationId: (0, I.uR)("conversation_id").notNull().references(() => aR.id, { onDelete: "cascade" }), entries: (0, C.Fx)("entries").default("[]").notNull(), extractedInfo: (0, C.Fx)("extracted_info").default("{}").notNull(), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow().notNull(), lastActivityAt: (0, G.vE)("last_activity_at", { withTimezone: true }).defaultNow().notNull() }, (a10) => ({ uniqueConversation: { name: "unique_conversation_session", columns: [a10.conversationId], type: "unique" } })), aV = (0, J.cJ)("conversation_memories", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), conversationId: (0, I.uR)("conversation_id").references(() => aR.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").references(() => aG.PA.id, { onDelete: "set null" }), content: (0, aI.Qq)("content").notNull(), contentType: (0, aI.Qq)("content_type").default("message"), embedding: (0, aQ.i1)("embedding", { dimensions: 1536 }), metadata: (0, C.Fx)("metadata").default("{}"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() });
-      var aW = c(7514);
-      let aX = (0, J.cJ)("leads", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").references(() => aG.PA.id, { onDelete: "set null" }), name: (0, aI.Qq)("name").notNull(), phone: (0, aW.yf)("phone", { length: 20 }).notNull(), email: (0, aI.Qq)("email"), source: (0, aI.Qq)("source").default("other"), campaignId: (0, I.uR)("campaign_id"), score: (0, aH.nd)("score").default(0), temperature: (0, aI.Qq)("temperature").default("cold"), status: (0, aI.Qq)("status").default("new"), interest: (0, aI.Qq)("interest"), hasBudget: (0, aJ.zM)("has_budget"), hasTimeline: (0, aJ.zM)("has_timeline"), assignedTo: (0, I.uR)("assigned_to").references(() => aG.VV.id, { onDelete: "set null" }), lastContactAt: (0, G.vE)("last_contact_at", { withTimezone: true }), nextFollowupAt: (0, G.vE)("next_followup_at", { withTimezone: true }), contactCount: (0, aH.nd)("contact_count").default(0), convertedAt: (0, G.vE)("converted_at", { withTimezone: true }), convertedAppointmentId: (0, I.uR)("converted_appointment_id"), lostReason: (0, aI.Qq)("lost_reason"), lostAt: (0, G.vE)("lost_at", { withTimezone: true }), notes: (0, aI.Qq)("notes"), stageId: (0, I.uR)("stage_id"), sourceType: (0, aI.Qq)("source_type"), dealValue: (0, E.sH)("deal_value", { precision: 12, scale: 2 }).default("0"), tags: (0, aI.Qq)("tags").array().default([]), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), aY = (0, J.cJ)("lead_activities", { id: (0, I.uR)("id").primaryKey().defaultRandom(), leadId: (0, I.uR)("lead_id").notNull().references(() => aX.id, { onDelete: "cascade" }), activityType: (0, aI.Qq)("activity_type").notNull(), description: (0, aI.Qq)("description"), performedBy: (0, I.uR)("performed_by").references(() => aG.VV.id, { onDelete: "set null" }), performedAt: (0, G.vE)("performed_at", { withTimezone: true }).defaultNow(), metadata: (0, C.Fx)("metadata").default("{}"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }), aZ = (0, J.cJ)("pipeline_stages", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), name: (0, aI.Qq)("name").notNull(), position: (0, aH.nd)("position").default(0), color: (0, aW.yf)("color", { length: 7 }).default("#6b7280"), isDefault: (0, aJ.zM)("is_default").default(false), isSystem: (0, aJ.zM)("is_system").default(false), systemKey: (0, aI.Qq)("system_key"), winProbability: (0, aH.nd)("win_probability").default(0), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ clinicStageNameUniq: { name: "pipelinestages_clinic_name_uniq", columns: [a10.clinicId, a10.name], type: "unique" } })), a$ = (0, J.cJ)("campaigns", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), name: (0, aI.Qq)("name").notNull(), description: (0, aI.Qq)("description"), campaignType: (0, aI.Qq)("campaign_type").notNull(), targetSegment: (0, aI.Qq)("target_segment"), messageTemplate: (0, aI.Qq)("message_template").notNull(), channel: (0, aI.Qq)("channel").default("whatsapp"), status: (0, aI.Qq)("status").default("draft"), scheduledAt: (0, G.vE)("scheduled_at", { withTimezone: true }), startedAt: (0, G.vE)("started_at", { withTimezone: true }), completedAt: (0, G.vE)("completed_at", { withTimezone: true }), totalRecipients: (0, aH.nd)("total_recipients").default(0), sentCount: (0, aH.nd)("sent_count").default(0), responseCount: (0, aH.nd)("response_count").default(0), conversionCount: (0, aH.nd)("conversion_count").default(0), optOutCount: (0, aH.nd)("opt_out_count").default(0), createdBy: (0, I.uR)("created_by").references(() => aG.VV.id), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), a_ = (0, J.cJ)("campaign_recipients", { id: (0, I.uR)("id").primaryKey().defaultRandom(), campaignId: (0, I.uR)("campaign_id").notNull().references(() => a$.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").notNull().references(() => aG.PA.id, { onDelete: "cascade" }), status: (0, aI.Qq)("status").default("pending"), sentAt: (0, G.vE)("sent_at", { withTimezone: true }), deliveredAt: (0, G.vE)("delivered_at", { withTimezone: true }), respondedAt: (0, G.vE)("responded_at", { withTimezone: true }), responseContent: (0, aI.Qq)("response_content"), convertedAt: (0, G.vE)("converted_at", { withTimezone: true }), conversionAppointmentId: (0, I.uR)("conversion_appointment_id"), errorMessage: (0, aI.Qq)("error_message"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }, (a10) => ({ campaignPatientUniq: { name: "campaign_recipients_campaign_patient_uniq", columns: [a10.campaignId, a10.patientId], type: "unique" } })), a0 = (0, J.cJ)("follow_ups", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").notNull().references(() => aG.PA.id, { onDelete: "cascade" }), appointmentId: (0, I.uR)("appointment_id").references(() => aK.id, { onDelete: "set null" }), type: (0, aI.Qq)("type").notNull(), scheduledAt: (0, G.vE)("scheduled_at", { withTimezone: true }).notNull(), sentAt: (0, G.vE)("sent_at", { withTimezone: true }), status: (0, aI.Qq)("status").default("pending"), content: (0, aI.Qq)("content"), response: (0, aI.Qq)("response"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), a1 = (0, J.cJ)("follow_up_configs", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), configType: (0, aI.Qq)("config_type").notNull(), procedureId: (0, I.uR)("procedure_id").references(() => aG.lF.id, { onDelete: "cascade" }), procedureName: (0, aI.Qq)("procedure_name"), delayHours: (0, aH.nd)("delay_hours"), delayDays: (0, aH.nd)("delay_days"), delayMonths: (0, aH.nd)("delay_months"), messageTemplate: (0, aI.Qq)("message_template").notNull(), isActive: (0, aJ.zM)("is_active").default(true), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), a2 = (0, J.cJ)("tasks", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), leadId: (0, I.uR)("lead_id").references(() => aX.id, { onDelete: "set null" }), title: (0, aI.Qq)("title").notNull(), description: (0, aI.Qq)("description"), dueDate: (0, G.vE)("due_date", { withTimezone: true }), status: (0, aI.Qq)("status").default("pending"), priority: (0, aI.Qq)("priority").default("medium"), assignedTo: (0, I.uR)("assigned_to").references(() => aG.VV.id, { onDelete: "set null" }), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), a3 = (0, J.cJ)("clinic_tags", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), name: (0, aI.Qq)("name").notNull(), color: (0, aW.yf)("color", { length: 7 }).default("#6b7280"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }, (a10) => ({ clinicTagNameUniq: { name: "clinictags_clinic_name_uniq", columns: [a10.clinicId, a10.name], type: "unique" } })), a4 = (0, J.cJ)("campaign_segments", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), name: (0, aI.Qq)("name").notNull(), description: (0, aI.Qq)("description"), criteria: (0, C.Fx)("criteria").notNull(), patientCount: (0, aH.nd)("patient_count").default(0), createdBy: (0, I.uR)("created_by"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow(), deletedAt: (0, G.vE)("deleted_at", { withTimezone: true }) }), a5 = (0, J.cJ)("budgets", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").notNull().references(() => aG.PA.id, { onDelete: "cascade" }), appointmentId: (0, I.uR)("appointment_id").references(() => aK.id, { onDelete: "set null" }), title: (0, aI.Qq)("title"), description: (0, aI.Qq)("description"), totalValue: (0, E.sH)("total_value", { precision: 10, scale: 2 }).notNull(), discountPercent: (0, E.sH)("discount_percent", { precision: 5, scale: 2 }).default("0"), discountValue: (0, E.sH)("discount_value", { precision: 10, scale: 2 }).default("0"), finalValue: (0, E.sH)("final_value", { precision: 10, scale: 2 }).notNull(), status: (0, aI.Qq)("status").default("pending"), validUntil: (0, G.vE)("valid_until", { withTimezone: true }), sentAt: (0, G.vE)("sent_at", { withTimezone: true }), respondedAt: (0, G.vE)("responded_at", { withTimezone: true }), convertedAt: (0, G.vE)("converted_at", { withTimezone: true }), conversionAppointmentId: (0, I.uR)("conversion_appointment_id"), notes: (0, aI.Qq)("notes"), followUpSequence: (0, aH.nd)("follow_up_sequence").default(0), nextFollowUpAt: (0, G.vE)("next_follow_up_at", { withTimezone: true }), createdBy: (0, I.uR)("created_by").references(() => aG.VV.id), treatmentPlanId: (0, I.uR)("treatment_plan_id"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), a6 = (0, J.cJ)("budget_items", { id: (0, I.uR)("id").primaryKey().defaultRandom(), budgetId: (0, I.uR)("budget_id").notNull().references(() => a5.id, { onDelete: "cascade" }), procedureId: (0, I.uR)("procedure_id").references(() => aG.lF.id, { onDelete: "set null" }), procedureName: (0, aI.Qq)("procedure_name").notNull(), quantity: (0, aH.nd)("quantity").default(1), unitPrice: (0, E.sH)("unit_price", { precision: 10, scale: 2 }).notNull(), discountPercent: (0, E.sH)("discount_percent", { precision: 5, scale: 2 }).default("0"), totalPrice: (0, E.sH)("total_price", { precision: 10, scale: 2 }).notNull(), notes: (0, aI.Qq)("notes"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }), a7 = (0, J.cJ)("budget_installments", { id: (0, I.uR)("id").primaryKey().defaultRandom(), budgetId: (0, I.uR)("budget_id").notNull().references(() => a5.id, { onDelete: "cascade" }), amount: (0, E.sH)("amount", { precision: 12, scale: 2 }).notNull(), dueDate: (0, H.p6)("due_date").notNull(), status: (0, aI.Qq)("status").default("pending"), paidAt: (0, G.vE)("paid_at", { withTimezone: true }), paymentId: (0, I.uR)("payment_id"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), a8 = (0, J.cJ)("payments", { id: (0, I.uR)("id").primaryKey().defaultRandom(), patientId: (0, I.uR)("patient_id").references(() => aG.PA.id, { onDelete: "set null" }), clinicId: (0, I.uR)("clinic_id").references(() => aG.wW.id, { onDelete: "cascade" }), budgetId: (0, I.uR)("budget_id").references(() => a5.id, { onDelete: "set null" }), amount: (0, E.sH)("amount", { precision: 12, scale: 2 }).notNull(), paymentMethod: (0, aI.Qq)("payment_method").notNull(), paidAt: (0, G.vE)("paid_at", { withTimezone: true }).defaultNow(), notes: (0, aI.Qq)("notes"), createdBy: (0, I.uR)("created_by").references(() => aG.VV.id, { onDelete: "set null" }), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), a9 = (0, J.cJ)("treatment_plans", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").notNull().references(() => aG.PA.id, { onDelete: "cascade" }), title: (0, aI.Qq)("title").notNull(), description: (0, aI.Qq)("description"), totalSessions: (0, aH.nd)("total_sessions").default(1), completedSessions: (0, aH.nd)("completed_sessions").default(0), status: (0, aI.Qq)("status").default("in_progress"), startedAt: (0, G.vE)("started_at", { withTimezone: true }), expectedCompletionAt: (0, G.vE)("expected_completion_at", { withTimezone: true }), completedAt: (0, G.vE)("completed_at", { withTimezone: true }), lastSessionAt: (0, G.vE)("last_session_at", { withTimezone: true }), nextSessionDueAt: (0, G.vE)("next_session_due_at", { withTimezone: true }), notes: (0, aI.Qq)("notes"), createdBy: (0, I.uR)("created_by").references(() => aG.VV.id), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), ba = (0, J.cJ)("treatment_plan_items", { id: (0, I.uR)("id").primaryKey().defaultRandom(), treatmentPlanId: (0, I.uR)("treatment_plan_id").notNull().references(() => a9.id, { onDelete: "cascade" }), procedureId: (0, I.uR)("procedure_id").references(() => aG.lF.id, { onDelete: "set null" }), procedureName: (0, aI.Qq)("procedure_name").notNull(), sessionNumber: (0, aH.nd)("session_number").notNull(), appointmentId: (0, I.uR)("appointment_id").references(() => aK.id, { onDelete: "set null" }), status: (0, aI.Qq)("status").default("pending"), scheduledAt: (0, G.vE)("scheduled_at", { withTimezone: true }), completedAt: (0, G.vE)("completed_at", { withTimezone: true }), notes: (0, aI.Qq)("notes"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }, (a10) => ({ planSessionUniq: { name: "treatment_plan_items_plan_session_uniq", columns: [a10.treatmentPlanId, a10.sessionNumber], type: "unique" } })), bb = (0, J.cJ)("pending_actions", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), conversationId: (0, I.uR)("conversation_id").references(() => aR.id, { onDelete: "set null" }), patientId: (0, I.uR)("patient_id").references(() => aG.PA.id, { onDelete: "set null" }), appointmentId: (0, I.uR)("appointment_id").references(() => aK.id, { onDelete: "set null" }), actionType: (0, aI.Qq)("action_type").notNull(), riskScore: (0, aH.nd)("risk_score").default(0).notNull(), riskLevel: (0, aI.Qq)("risk_level").default("LOW").notNull(), status: (0, aI.Qq)("status").default("pending").notNull(), snapshotBefore: (0, C.Fx)("snapshot_before").default("{}"), snapshotAfter: (0, C.Fx)("snapshot_after").default("{}"), undoPayload: (0, C.Fx)("undo_payload").default("{}"), confirmationCount: (0, aH.nd)("confirmation_count").default(0), maxConfirmations: (0, aH.nd)("max_confirmations").default(1), confirmedAt: (0, G.vE)("confirmed_at", { withTimezone: true }), undoDeadline: (0, G.vE)("undo_deadline", { withTimezone: true }).notNull(), undoneAt: (0, G.vE)("undone_at", { withTimezone: true }), reasoning: (0, aI.Qq)("reasoning"), agentIntent: (0, aI.Qq)("agent_intent"), confidence: (0, E._)("confidence", { precision: 3, scale: 2 }), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), bc = (0, J.cJ)("decision_logs", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), conversationId: (0, I.uR)("conversation_id").references(() => aR.id, { onDelete: "set null" }), patientId: (0, I.uR)("patient_id").references(() => aG.PA.id, { onDelete: "set null" }), intentClassified: (0, aI.Qq)("intent_classified").notNull(), confidenceScore: (0, E._)("confidence_score", { precision: 3, scale: 2 }).notNull(), actionTaken: (0, aI.Qq)("action_taken").notNull(), riskLevel: (0, aI.Qq)("risk_level").default("LOW"), reasoning: (0, aI.Qq)("reasoning").notNull(), escalationTriggered: (0, aJ.zM)("escalation_triggered").default(false), humanOverride: (0, aJ.zM)("human_override").default(false), messageSummary: (0, aI.Qq)("message_summary"), entitiesExtracted: (0, C.Fx)("entities_extracted").default("{}"), ragSources: (0, C.Fx)("rag_sources").default("[]"), responseTimeMs: (0, aH.nd)("response_time_ms"), tokensUsed: (0, aH.nd)("tokens_used"), llmModel: (0, aI.Qq)("llm_model"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }), bd = (0, J.cJ)("smart_trigger_log", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), patientId: (0, I.uR)("patient_id").notNull().references(() => aG.PA.id, { onDelete: "cascade" }), appointmentId: (0, I.uR)("appointment_id").references(() => aK.id, { onDelete: "set null" }), triggerType: (0, aI.Qq)("trigger_type").notNull(), priority: (0, aH.nd)("priority").default(5), messageSent: (0, aI.Qq)("message_sent"), channel: (0, aI.Qq)("channel").default("whatsapp"), status: (0, aI.Qq)("status").default("sent"), patientResponded: (0, aJ.zM)("patient_responded").default(false), responseAt: (0, G.vE)("response_at", { withTimezone: true }), patientResponse: (0, aI.Qq)("patient_response"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }), be = (0, J.cJ)("agent_queue", { id: (0, I.uR)("id").primaryKey().defaultRandom(), fromAgent: (0, aI.Qq)("from_agent").notNull(), toAgent: (0, aI.Qq)("to_agent").notNull(), payload: (0, C.Fx)("payload").notNull(), status: (0, aI.Qq)("status").default("pending"), retryCount: (0, aH.nd)("retry_count").default(0), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), processAfter: (0, G.vE)("process_after", { withTimezone: true }).defaultNow(), completedAt: (0, G.vE)("completed_at", { withTimezone: true }), error: (0, aI.Qq)("error") }), bf = (0, J.cJ)("agent_dlq", { id: (0, I.uR)("id").primaryKey().defaultRandom(), originalQueueId: (0, I.uR)("original_queue_id"), fromAgent: (0, aI.Qq)("from_agent"), toAgent: (0, aI.Qq)("to_agent"), payload: (0, C.Fx)("payload"), error: (0, aI.Qq)("error"), retryCount: (0, aH.nd)("retry_count"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), manualActionRequired: (0, aJ.zM)("manual_action_required").default(true) }), bg = (0, J.cJ)("agent_logs", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull(), conversationId: (0, I.uR)("conversation_id"), intent: (0, aI.Qq)("intent"), confidence: (0, E._)("confidence", { precision: 3, scale: 2 }), responseTimeMs: (0, aH.nd)("response_time_ms"), actionTaken: (0, aI.Qq)("action_taken"), escalation: (0, aJ.zM)("escalation").default(false), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() }), bh = (0, J.cJ)("knowledge_base", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), category: (0, aI.Qq)("category").notNull(), question: (0, aI.Qq)("question").notNull(), answer: (0, aI.Qq)("answer").notNull(), keywords: (0, aI.Qq)("keywords").array().default([]), embedding: (0, aQ.i1)("embedding", { dimensions: 1536 }), isActive: (0, aJ.zM)("is_active").default(true), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), bi = (0, J.cJ)("whatsapp_instances", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), phoneNumberId: (0, aW.yf)("phone_number_id", { length: 100 }).notNull(), businessAccountId: (0, aI.Qq)("business_account_id"), displayName: (0, aI.Qq)("display_name"), qualityRating: (0, aI.Qq)("quality_rating"), status: (0, aI.Qq)("status").default("pending"), lastConnectedAt: (0, G.vE)("last_connected_at", { withTimezone: true }), evolutionInstanceName: (0, aI.Qq)("evolution_instance_name"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), bj = (0, J.cJ)("message_templates", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), name: (0, aI.Qq)("name").notNull(), category: (0, aI.Qq)("category").notNull(), language: (0, aI.Qq)("language").default("pt_BR"), header: (0, aI.Qq)("header"), body: (0, aI.Qq)("body").notNull(), footer: (0, aI.Qq)("footer"), buttons: (0, C.Fx)("buttons").default("[]"), variables: (0, C.Fx)("variables").default("[]"), metaTemplateId: (0, aI.Qq)("meta_template_id"), status: (0, aI.Qq)("status").default("pending"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }), bk = (0, J.cJ)("consents", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), contactId: (0, I.uR)("contact_id").notNull(), contactType: (0, aW.yf)("contact_type", { length: 10 }).notNull(), purpose: (0, aW.yf)("purpose", { length: 50 }).notNull(), granted: (0, aJ.zM)("granted").default(true).notNull(), grantedAt: (0, G.vE)("granted_at", { withTimezone: true }).defaultNow(), revokedAt: (0, G.vE)("revoked_at", { withTimezone: true }), channel: (0, aW.yf)("channel", { length: 20 }).default("web"), notes: (0, aI.Qq)("notes"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ contactPurposeUniq: { name: "consents_contact_purpose_uniq", columns: [a10.contactId, a10.contactType, a10.purpose], type: "unique" } })), bl = (0, J.cJ)("custom_field_definitions", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), name: (0, aI.Qq)("name").notNull(), fieldType: (0, aW.yf)("field_type", { length: 20 }).notNull(), options: (0, C.Fx)("options").default("[]"), required: (0, aJ.zM)("required").default(false), sortOrder: (0, aH.nd)("sort_order").default(0), isActive: (0, aJ.zM)("is_active").default(true), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ clinicDefNameUniq: { name: "customfields_clinic_name_uniq", columns: [a10.clinicId, a10.name], type: "unique" } })), bm = (0, J.cJ)("custom_field_values", { id: (0, I.uR)("id").primaryKey().defaultRandom(), definitionId: (0, I.uR)("definition_id").notNull().references(() => bl.id, { onDelete: "cascade" }), contactId: (0, I.uR)("contact_id").notNull(), contactType: (0, aW.yf)("contact_type", { length: 10 }).notNull(), clinicId: (0, I.uR)("clinic_id").notNull().references(() => aG.wW.id, { onDelete: "cascade" }), valueText: (0, aI.Qq)("value_text"), valueNumber: (0, aH.nd)("value_number"), valueDate: (0, G.vE)("value_date", { withTimezone: true }), valueBoolean: (0, aJ.zM)("value_boolean"), valueJson: (0, C.Fx)("value_json"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, G.vE)("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ defContactUniq: { name: "customfields_def_contact_uniq", columns: [a10.definitionId, a10.contactId, a10.contactType], type: "unique" } })), bn = (0, J.cJ)("audit_logs", { id: (0, I.uR)("id").primaryKey().defaultRandom(), clinicId: (0, I.uR)("clinic_id").references(() => aG.wW.id, { onDelete: "set null" }), userId: (0, I.uR)("user_id").references(() => aG.VV.id, { onDelete: "set null" }), action: (0, aI.Qq)("action").notNull(), entityType: (0, aI.Qq)("entity_type").notNull(), entityId: (0, I.uR)("entity_id"), oldValues: (0, C.Fx)("old_values"), newValues: (0, C.Fx)("new_values"), ipAddress: (0, aI.Qq)("ip_address"), userAgent: (0, aI.Qq)("user_agent"), createdAt: (0, G.vE)("created_at", { withTimezone: true }).defaultNow() });
-      var bo = c(2693), bp = c(4688), bq = c(9219);
-      let br = null, bs = null, bt = null;
-      function bu() {
-        let a10 = function() {
-          let a11 = process.env.DATABASE_URL;
-          if (a11) return a11;
-          throw Error("[DB] No database connection available.\n  In production (Workers): call setDbConnectionString(env.HYPERDRIVE.connectionString) at bootstrap.\n  In dev/local: set DATABASE_URL in .env.local or .env.\n  Example: DATABASE_URL=postgres://synkroo:synkroo_dev@localhost:5432/synkroo");
-        }();
-        return bs && a10 !== bt && (bs = null, br = null, bt = null), bs || (br = new e.Pool({ connectionString: a10 }), bs = aE(br, { schema: d }), bt = a10), bs;
-      }
-    }, 969: (a, b, c) => {
-      "use strict";
-      c.d(b, { bootstrapActions: () => f });
-      var d = c(7916);
-      let e = false;
-      async function f() {
-        if (e) return;
-        let [{ registerAccessPermissions: a2 }, { coreActions: b2, coreAccessPermissions: f2 }] = await Promise.all([Promise.resolve().then(c.bind(c, 6481)), Promise.resolve().then(c.bind(c, 2970))]);
-        (0, d.n_)(b2.filter((a3) => !(0, d.Th)(a3.name))), a2(f2), e = true;
-      }
-    }, 1308: (a, b, c) => {
-      "use strict";
-      c.d(b, { Z5: () => h, _: () => n, sH: () => m });
-      var d = c(242), e = c(3090), f = c(4080);
-      class g extends f.pe {
-        static [d.i] = "PgNumericBuilder";
-        constructor(a2, b2, c2) {
-          super(a2, "string", "PgNumeric"), this.config.precision = b2, this.config.scale = c2;
-        }
-        build(a2) {
-          return new h(a2, this.config);
-        }
-      }
-      class h extends f.Kl {
-        static [d.i] = "PgNumeric";
-        precision;
-        scale;
-        constructor(a2, b2) {
-          super(a2, b2), this.precision = b2.precision, this.scale = b2.scale;
-        }
-        mapFromDriverValue(a2) {
-          return "string" == typeof a2 ? a2 : String(a2);
-        }
-        getSQLType() {
-          return void 0 !== this.precision && void 0 !== this.scale ? `numeric(${this.precision}, ${this.scale})` : void 0 === this.precision ? "numeric" : `numeric(${this.precision})`;
-        }
-      }
-      class i extends f.pe {
-        static [d.i] = "PgNumericNumberBuilder";
-        constructor(a2, b2, c2) {
-          super(a2, "number", "PgNumericNumber"), this.config.precision = b2, this.config.scale = c2;
-        }
-        build(a2) {
-          return new j(a2, this.config);
-        }
-      }
-      class j extends f.Kl {
-        static [d.i] = "PgNumericNumber";
-        precision;
-        scale;
-        constructor(a2, b2) {
-          super(a2, b2), this.precision = b2.precision, this.scale = b2.scale;
-        }
-        mapFromDriverValue(a2) {
-          return "number" == typeof a2 ? a2 : Number(a2);
-        }
-        mapToDriverValue = String;
-        getSQLType() {
-          return void 0 !== this.precision && void 0 !== this.scale ? `numeric(${this.precision}, ${this.scale})` : void 0 === this.precision ? "numeric" : `numeric(${this.precision})`;
-        }
-      }
-      class k extends f.pe {
-        static [d.i] = "PgNumericBigIntBuilder";
-        constructor(a2, b2, c2) {
-          super(a2, "bigint", "PgNumericBigInt"), this.config.precision = b2, this.config.scale = c2;
-        }
-        build(a2) {
-          return new l(a2, this.config);
-        }
-      }
-      class l extends f.Kl {
-        static [d.i] = "PgNumericBigInt";
-        precision;
-        scale;
-        constructor(a2, b2) {
-          super(a2, b2), this.precision = b2.precision, this.scale = b2.scale;
-        }
-        mapFromDriverValue = BigInt;
-        mapToDriverValue = String;
-        getSQLType() {
-          return void 0 !== this.precision && void 0 !== this.scale ? `numeric(${this.precision}, ${this.scale})` : void 0 === this.precision ? "numeric" : `numeric(${this.precision})`;
-        }
-      }
-      function m(a2, b2) {
-        let { name: c2, config: d2 } = (0, e.Ll)(a2, b2), f2 = d2?.mode;
-        return "number" === f2 ? new i(c2, d2?.precision, d2?.scale) : "bigint" === f2 ? new k(c2, d2?.precision, d2?.scale) : new g(c2, d2?.precision, d2?.scale);
-      }
-      let n = m;
-    }, 1457: (a, b, c) => {
-      "use strict";
-      c.d(b, { Fx: () => h, kn: () => g });
-      var d = c(242), e = c(4080);
-      class f extends e.pe {
-        static [d.i] = "PgJsonbBuilder";
-        constructor(a2) {
-          super(a2, "json", "PgJsonb");
-        }
-        build(a2) {
-          return new g(a2, this.config);
-        }
-      }
-      class g extends e.Kl {
-        static [d.i] = "PgJsonb";
-        constructor(a2, b2) {
-          super(a2, b2);
-        }
-        getSQLType() {
-          return "jsonb";
-        }
-        mapToDriverValue(a2) {
-          return JSON.stringify(a2);
-        }
-        mapFromDriverValue(a2) {
-          if ("string" == typeof a2) try {
-            return JSON.parse(a2);
-          } catch {
-          }
-          return a2;
-        }
-      }
-      function h(a2) {
-        return new f(a2 ?? "");
-      }
-    }, 1582: (a, b, c) => {
-      "use strict";
-      c.d(b, { AU: () => m, B3: () => B, KJ: () => w, KL: () => s, Pe: () => u, RK: () => A, RO: () => o, RV: () => r, Tq: () => x, Uo: () => k, eq: () => i, gt: () => n, kZ: () => t, lt: () => p, mj: () => z, ne: () => j, o8: () => y, or: () => l, q1: () => C, t2: () => v, wJ: () => q });
-      var d = c(9393), e = c(242), f = c(2701), g = c(4096);
-      function h(a2, b2) {
-        return !(0, g.eG)(b2) || (0, g.qt)(a2) || (0, e.is)(a2, g.Iw) || (0, e.is)(a2, g.Or) || (0, e.is)(a2, d.V) || (0, e.is)(a2, f.XI) || (0, e.is)(a2, g.Ss) ? a2 : new g.Iw(a2, b2);
-      }
-      let i = (a2, b2) => (0, g.ll)`${a2} = ${h(b2, a2)}`, j = (a2, b2) => (0, g.ll)`${a2} <> ${h(b2, a2)}`;
-      function k(...a2) {
-        let b2 = a2.filter((a3) => void 0 !== a3);
-        if (0 !== b2.length) return new g.Xs(1 === b2.length ? b2 : [new g.DJ("("), g.ll.join(b2, new g.DJ(" and ")), new g.DJ(")")]);
-      }
-      function l(...a2) {
-        let b2 = a2.filter((a3) => void 0 !== a3);
-        if (0 !== b2.length) return new g.Xs(1 === b2.length ? b2 : [new g.DJ("("), g.ll.join(b2, new g.DJ(" or ")), new g.DJ(")")]);
-      }
-      function m(a2) {
-        return (0, g.ll)`not ${a2}`;
-      }
-      let n = (a2, b2) => (0, g.ll)`${a2} > ${h(b2, a2)}`, o = (a2, b2) => (0, g.ll)`${a2} >= ${h(b2, a2)}`, p = (a2, b2) => (0, g.ll)`${a2} < ${h(b2, a2)}`, q = (a2, b2) => (0, g.ll)`${a2} <= ${h(b2, a2)}`;
-      function r(a2, b2) {
-        return Array.isArray(b2) ? 0 === b2.length ? (0, g.ll)`false` : (0, g.ll)`${a2} in ${b2.map((b3) => h(b3, a2))}` : (0, g.ll)`${a2} in ${h(b2, a2)}`;
-      }
-      function s(a2, b2) {
-        return Array.isArray(b2) ? 0 === b2.length ? (0, g.ll)`true` : (0, g.ll)`${a2} not in ${b2.map((b3) => h(b3, a2))}` : (0, g.ll)`${a2} not in ${h(b2, a2)}`;
-      }
-      function t(a2) {
-        return (0, g.ll)`${a2} is null`;
-      }
-      function u(a2) {
-        return (0, g.ll)`${a2} is not null`;
-      }
-      function v(a2) {
-        return (0, g.ll)`exists ${a2}`;
-      }
-      function w(a2) {
-        return (0, g.ll)`not exists ${a2}`;
-      }
-      function x(a2, b2, c2) {
-        return (0, g.ll)`${a2} between ${h(b2, a2)} and ${h(c2, a2)}`;
-      }
-      function y(a2, b2, c2) {
-        return (0, g.ll)`${a2} not between ${h(b2, a2)} and ${h(c2, a2)}`;
-      }
-      function z(a2, b2) {
-        return (0, g.ll)`${a2} like ${b2}`;
-      }
-      function A(a2, b2) {
-        return (0, g.ll)`${a2} not like ${b2}`;
-      }
-      function B(a2, b2) {
-        return (0, g.ll)`${a2} ilike ${b2}`;
-      }
-      function C(a2, b2) {
-        return (0, g.ll)`${a2} not ilike ${b2}`;
-      }
-    }, 1591: (a, b, c) => {
-      "use strict";
-      function d(a2, ...b2) {
-        return a2(...b2);
-      }
-      c.d(b, { i: () => d });
-    }, 1664: (a, b, c) => {
-      "use strict";
-      let d, e;
-      c.d(b, { k: () => g });
-      var f = c(1591);
-      let g = { startActiveSpan: (a2, b2) => d ? (e || (e = d.trace.getTracer("drizzle-orm", "0.45.2")), (0, f.i)((c2, d2) => d2.startActiveSpan(a2, (a3) => {
-        try {
-          return b2(a3);
-        } catch (b3) {
-          throw a3.setStatus({ code: c2.SpanStatusCode.ERROR, message: b3 instanceof Error ? b3.message : "Unknown error" }), b3;
-        } finally {
-          a3.end();
-        }
-      }), d, e)) : b2() };
-    }, 1800: (a, b, c) => {
-      "use strict";
-      c.d(b, { u: () => g });
-      var d = c(242), e = c(4096), f = c(4080);
-      class g extends f.pe {
-        static [d.i] = "PgDateColumnBaseBuilder";
-        defaultNow() {
-          return this.default((0, e.ll)`now()`);
-        }
-      }
-    }, 1912: (a, b, c) => {
-      "use strict";
-      c.d(b, { Xd: () => i, kB: () => j });
-      var d = c(242), e = c(3090), f = c(4080), g = c(1800);
-      class h extends g.u {
-        constructor(a2, b2, c2) {
-          super(a2, "string", "PgTime"), this.withTimezone = b2, this.precision = c2, this.config.withTimezone = b2, this.config.precision = c2;
-        }
-        static [d.i] = "PgTimeBuilder";
-        build(a2) {
-          return new i(a2, this.config);
-        }
-      }
-      class i extends f.Kl {
-        static [d.i] = "PgTime";
-        withTimezone;
-        precision;
-        constructor(a2, b2) {
-          super(a2, b2), this.withTimezone = b2.withTimezone, this.precision = b2.precision;
-        }
-        getSQLType() {
-          let a2 = void 0 === this.precision ? "" : `(${this.precision})`;
-          return `time${a2}${this.withTimezone ? " with time zone" : ""}`;
-        }
-      }
-      function j(a2, b2 = {}) {
-        let { name: c2, config: d2 } = (0, e.Ll)(a2, b2);
-        return new h(c2, d2.withTimezone ?? false, d2.precision);
-      }
-    }, 2187: (a, b, c) => {
-      "use strict";
-      async function d() {
-        try {
-          let { bootstrapActions: a2 } = await Promise.resolve().then(c.bind(c, 969));
-          await a2();
-        } catch (a2) {
-          console.warn("[synkroo:boot] bootstrapActions skipped:", a2 instanceof Error ? a2.message : String(a2));
-        }
-        console.warn("[synkroo:boot] Workers runtime (EdgeRuntime)");
-      }
-      c.r(b), c.d(b, { register: () => d });
-    }, 2338: (a, b, c) => {
-      "use strict";
-      c.d(b, { H1: () => h, IR: () => i, K0: () => j, KZ: () => e, qu: () => g, w9: () => f });
-      var d = c(3688);
-      let e = (0, d.rL)("user_role", ["owner", "admin", "dentist", "receptionist"]), f = (0, d.rL)("channel_type", ["whatsapp", "instagram", "web", "telegram"]), g = (0, d.rL)("conversation_status", ["active", "waiting", "closed", "escalated"]), h = (0, d.rL)("message_direction", ["inbound", "outbound"]), i = (0, d.rL)("message_type", ["text", "image", "audio", "document", "video"]), j = (0, d.rL)("appointment_status", ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]);
-    }, 2693: (a, b, c) => {
-      "use strict";
-      c.d(b, { i: () => j });
-      var d = c(6123), e = c(7238), f = c(3946), g = c(1457), h = c(7097), i = c(2933);
-      let j = (0, d.cJ)("action_logs", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").references(() => i.wW.id, { onDelete: "set null" }), principalType: (0, f.Qq)("principal_type"), actor: (0, f.Qq)("actor").notNull(), onBehalfOf: (0, e.uR)("on_behalf_of"), actionName: (0, f.Qq)("action_name").notNull(), module: (0, f.Qq)("module").notNull(), inputRedacted: (0, g.Fx)("input_redacted").default("{}"), result: (0, f.Qq)("result").notNull(), errorCode: (0, f.Qq)("error_code"), createdAt: (0, h.vE)("created_at", { withTimezone: true }).defaultNow().notNull() });
-    }, 2701: (a, b, c) => {
-      "use strict";
-      c.d(b, { HE: () => k, Io: () => o, Lf: () => p, Sj: () => f, XI: () => n, e: () => g });
-      var d = c(242), e = c(8056);
-      let f = Symbol.for("drizzle:Schema"), g = Symbol.for("drizzle:Columns"), h = Symbol.for("drizzle:ExtraConfigColumns"), i = Symbol.for("drizzle:OriginalName"), j = Symbol.for("drizzle:BaseName"), k = Symbol.for("drizzle:IsAlias"), l = Symbol.for("drizzle:ExtraConfigBuilder"), m = Symbol.for("drizzle:IsDrizzleTable");
-      class n {
-        static [d.i] = "Table";
-        static Symbol = { Name: e.E, Schema: f, OriginalName: i, Columns: g, ExtraConfigColumns: h, BaseName: j, IsAlias: k, ExtraConfigBuilder: l };
-        [e.E];
-        [i];
-        [f];
-        [g];
-        [h];
-        [j];
-        [k] = false;
-        [m] = true;
-        [l] = void 0;
-        constructor(a2, b2, c2) {
-          this[e.E] = this[i] = a2, this[f] = b2, this[j] = c2;
-        }
-      }
-      function o(a2) {
-        return a2[e.E];
-      }
-      function p(a2) {
-        return `${a2[f] ?? "public"}.${a2[e.E]}`;
-      }
-    }, 2926: (a, b, c) => {
-      "use strict";
-      c.d(b, { n: () => d });
-      let d = Symbol.for("drizzle:ViewBaseConfig");
-    }, 2933: (a, b, c) => {
-      "use strict";
-      c.d(b, { B_: () => y, CO: () => r, EC: () => x, PA: () => u, Pq: () => A, VV: () => q, ZM: () => z, k7: () => w, lF: () => t, lu: () => v, mY: () => B, wW: () => p, zz: () => s });
-      var d = c(6123), e = c(7238), f = c(3946), g = c(7514), h = c(1457), i = c(7097), j = c(3193), k = c(4051), l = c(1308), m = c(6903), n = c(6778), o = c(2338);
-      let p = (0, d.cJ)("clinics", { id: (0, e.uR)("id").primaryKey().defaultRandom(), name: (0, f.Qq)("name").notNull(), slug: (0, f.Qq)("slug").unique().notNull(), phone: (0, g.yf)("phone", { length: 20 }).notNull(), email: (0, f.Qq)("email").notNull(), website: (0, f.Qq)("website"), address: (0, h.Fx)("address").default("{}"), settings: (0, h.Fx)("settings").default("{}"), subscriptionPlan: (0, f.Qq)("subscription_plan").default("starter"), subscriptionStatus: (0, f.Qq)("subscription_status").default("active"), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow(), deletedAt: (0, i.vE)("deleted_at", { withTimezone: true }) }), q = (0, d.cJ)("users", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), email: (0, f.Qq)("email").notNull(), name: (0, f.Qq)("name").notNull(), role: (0, o.KZ)("role").notNull().default("receptionist"), phone: (0, g.yf)("phone", { length: 20 }), avatarUrl: (0, f.Qq)("avatar_url"), isActive: (0, j.zM)("is_active").default(true).notNull(), isMaster: (0, j.zM)("is_master").default(false).notNull(), lastLoginAt: (0, i.vE)("last_login_at", { withTimezone: true }), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow(), deletedAt: (0, i.vE)("deleted_at", { withTimezone: true }) }, (a2) => ({ clinicEmailUniq: { name: "users_clinic_email_uniq", columns: [a2.clinicId, a2.email], type: "unique" } })), r = (0, d.cJ)("user_credentials", { userId: (0, e.uR)("user_id").primaryKey().references(() => q.id, { onDelete: "cascade" }), passwordHash: (0, f.Qq)("password_hash").notNull(), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow().notNull() }), s = (0, d.cJ)("dentists", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), name: (0, f.Qq)("name").notNull(), phone: (0, g.yf)("phone", { length: 20 }), email: (0, f.Qq)("email"), cro: (0, f.Qq)("cro"), specialty: (0, f.Qq)("specialty"), croNumber: (0, f.Qq)("cro_number"), avatarUrl: (0, f.Qq)("avatar_url"), isActive: (0, j.zM)("is_active").default(true), workingHours: (0, h.Fx)("working_hours").default("{}"), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow(), deletedAt: (0, i.vE)("deleted_at", { withTimezone: true }) }), t = (0, d.cJ)("procedures", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), name: (0, f.Qq)("name").notNull(), description: (0, f.Qq)("description"), durationMinutes: (0, k.nd)("duration_minutes").default(30), price: (0, l._)("price", { precision: 10, scale: 2 }), category: (0, f.Qq)("category"), isActive: (0, j.zM)("is_active").default(true), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow(), deletedAt: (0, i.vE)("deleted_at", { withTimezone: true }) }), u = (0, d.cJ)("patients", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), name: (0, f.Qq)("name").notNull(), phone: (0, g.yf)("phone", { length: 20 }).notNull(), email: (0, f.Qq)("email"), cpf: (0, g.yf)("cpf", { length: 14 }), birthDate: (0, m.p6)("birth_date"), gender: (0, f.Qq)("gender"), address: (0, h.Fx)("address").default("{}"), notes: (0, f.Qq)("notes"), status: (0, f.Qq)("status").default("active"), tags: (0, f.Qq)("tags").array().default([]), riskScore: (0, l._)("risk_score", { precision: 3, scale: 2 }).default("0.00"), lastVisitAt: (0, i.vE)("last_visit_at", { withTimezone: true }), optOutMarketing: (0, j.zM)("opt_out_marketing").default(false), optOutReminders: (0, j.zM)("opt_out_reminders").default(false), optOutAt: (0, i.vE)("opt_out_at", { withTimezone: true }), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow(), deletedAt: (0, i.vE)("deleted_at", { withTimezone: true }) }, (a2) => ({ clinicPhoneUniq: { name: "patients_clinic_phone_uniq", columns: [a2.clinicId, a2.phone], type: "unique" } })), v = (0, d.cJ)("patient_observations", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), patientId: (0, e.uR)("patient_id").notNull().references(() => u.id, { onDelete: "cascade" }), content: (0, f.Qq)("content").notNull(), createdBy: (0, e.uR)("created_by").references(() => q.id, { onDelete: "set null" }), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow() }), w = (0, d.cJ)("patient_preferences", { id: (0, e.uR)("id").primaryKey().defaultRandom(), patientId: (0, e.uR)("patient_id").notNull().references(() => u.id, { onDelete: "cascade" }), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), key: (0, f.Qq)("key").notNull(), value: (0, f.Qq)("value").notNull(), category: (0, f.Qq)("category").notNull(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow() }, (a2) => ({ patientKeyUniq: { name: "patient_preferences_patient_key_uniq", columns: [a2.patientId, a2.key], type: "unique" } })), x = (0, d.cJ)("patient_risk_scores", { id: (0, e.uR)("id").primaryKey().defaultRandom(), patientId: (0, e.uR)("patient_id").notNull().references(() => u.id, { onDelete: "cascade" }), score: (0, l._)("score", { precision: 3, scale: 2 }).notNull(), factors: (0, h.Fx)("factors").default("{}"), calculatedAt: (0, i.vE)("calculated_at", { withTimezone: true }).defaultNow() }), y = (0, d.cJ)("patient_feedback", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), patientId: (0, e.uR)("patient_id").notNull().references(() => u.id, { onDelete: "cascade" }), appointmentId: (0, e.uR)("appointment_id"), feedbackType: (0, f.Qq)("feedback_type").default("post_consultation"), rating: (0, k.nd)("rating"), npsScore: (0, k.nd)("nps_score"), wouldRecommend: (0, j.zM)("would_recommend"), comments: (0, f.Qq)("comments"), improvements: (0, f.Qq)("improvements").array().default([]), collectedAt: (0, i.vE)("collected_at", { withTimezone: true }).defaultNow(), channel: (0, f.Qq)("channel").default("whatsapp"), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow() }), z = (0, d.cJ)("procedure_guidelines", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => p.id, { onDelete: "cascade" }), procedureId: (0, e.uR)("procedure_id").references(() => t.id, { onDelete: "set null" }), procedureName: (0, f.Qq)("procedure_name").notNull(), title: (0, f.Qq)("title").notNull(), instructions: (0, f.Qq)("instructions").notNull(), emergencyContact: (0, j.zM)("emergency_contact").default(false), recoveryTimeDays: (0, k.nd)("recovery_time_days"), restrictions: (0, f.Qq)("restrictions").array().default([]), warningSigns: (0, f.Qq)("warning_signs").array().default([]), isActive: (0, j.zM)("is_active").default(true), createdAt: (0, i.vE)("created_at", { withTimezone: true }).defaultNow(), updatedAt: (0, i.vE)("updated_at", { withTimezone: true }).defaultNow() }, (a2) => ({ clinicProcedureUniq: { name: "guidelines_clinic_procedure_uniq", columns: [a2.clinicId, a2.procedureName], type: "unique" } })), A = (0, n.K1)(p, ({ many: a2 }) => ({ users: a2(q), patients: a2(u), dentists: a2(s), procedures: a2(t) })), B = (0, n.K1)(q, ({ one: a2 }) => ({ clinic: a2(p, { fields: [q.clinicId], references: [p.id] }), credentials: a2(r, { fields: [q.id], references: [r.userId] }) }));
-    }, 2970: (a, b, c) => {
-      "use strict";
-      let d;
-      c.r(b), c.d(b, { coreAccessPermissions: () => aL, coreActions: () => aM, coreManifest: () => aK }), function(a2) {
-        a2.assertEqual = (a3) => {
-        }, a2.assertIs = function(a3) {
-        }, a2.assertNever = function(a3) {
-          throw Error();
-        }, a2.arrayToEnum = (a3) => {
-          let b2 = {};
-          for (let c2 of a3) b2[c2] = c2;
-          return b2;
-        }, a2.getValidEnumValues = (b2) => {
-          let c2 = a2.objectKeys(b2).filter((a3) => "number" != typeof b2[b2[a3]]), d2 = {};
-          for (let a3 of c2) d2[a3] = b2[a3];
-          return a2.objectValues(d2);
-        }, a2.objectValues = (b2) => a2.objectKeys(b2).map(function(a3) {
-          return b2[a3];
-        }), a2.objectKeys = "function" == typeof Object.keys ? (a3) => Object.keys(a3) : (a3) => {
-          let b2 = [];
-          for (let c2 in a3) Object.prototype.hasOwnProperty.call(a3, c2) && b2.push(c2);
-          return b2;
-        }, a2.find = (a3, b2) => {
-          for (let c2 of a3) if (b2(c2)) return c2;
-        }, a2.isInteger = "function" == typeof Number.isInteger ? (a3) => Number.isInteger(a3) : (a3) => "number" == typeof a3 && Number.isFinite(a3) && Math.floor(a3) === a3, a2.joinValues = function(a3, b2 = " | ") {
-          return a3.map((a4) => "string" == typeof a4 ? `'${a4}'` : a4).join(b2);
-        }, a2.jsonStringifyReplacer = (a3, b2) => "bigint" == typeof b2 ? b2.toString() : b2;
-      }(az || (az = {})), (aA || (aA = {})).mergeShapes = (a2, b2) => ({ ...a2, ...b2 });
-      let e = az.arrayToEnum(["string", "nan", "number", "integer", "float", "boolean", "date", "bigint", "symbol", "function", "undefined", "null", "array", "object", "unknown", "promise", "void", "never", "map", "set"]), f = (a2) => {
-        switch (typeof a2) {
-          case "undefined":
-            return e.undefined;
-          case "string":
-            return e.string;
-          case "number":
-            return Number.isNaN(a2) ? e.nan : e.number;
-          case "boolean":
-            return e.boolean;
-          case "function":
-            return e.function;
-          case "bigint":
-            return e.bigint;
-          case "symbol":
-            return e.symbol;
-          case "object":
-            if (Array.isArray(a2)) return e.array;
-            if (null === a2) return e.null;
-            if (a2.then && "function" == typeof a2.then && a2.catch && "function" == typeof a2.catch) return e.promise;
-            if ("undefined" != typeof Map && a2 instanceof Map) return e.map;
-            if ("undefined" != typeof Set && a2 instanceof Set) return e.set;
-            if ("undefined" != typeof Date && a2 instanceof Date) return e.date;
-            return e.object;
-          default:
-            return e.unknown;
-        }
-      }, g = az.arrayToEnum(["invalid_type", "invalid_literal", "custom", "invalid_union", "invalid_union_discriminator", "invalid_enum_value", "unrecognized_keys", "invalid_arguments", "invalid_return_type", "invalid_date", "invalid_string", "too_small", "too_big", "invalid_intersection_types", "not_multiple_of", "not_finite"]);
-      class h extends Error {
-        get errors() {
-          return this.issues;
-        }
-        constructor(a2) {
-          super(), this.issues = [], this.addIssue = (a3) => {
-            this.issues = [...this.issues, a3];
-          }, this.addIssues = (a3 = []) => {
-            this.issues = [...this.issues, ...a3];
-          };
-          let b2 = new.target.prototype;
-          Object.setPrototypeOf ? Object.setPrototypeOf(this, b2) : this.__proto__ = b2, this.name = "ZodError", this.issues = a2;
-        }
-        format(a2) {
-          let b2 = a2 || function(a3) {
-            return a3.message;
-          }, c2 = { _errors: [] }, d2 = (a3) => {
-            for (let e2 of a3.issues) if ("invalid_union" === e2.code) e2.unionErrors.map(d2);
-            else if ("invalid_return_type" === e2.code) d2(e2.returnTypeError);
-            else if ("invalid_arguments" === e2.code) d2(e2.argumentsError);
-            else if (0 === e2.path.length) c2._errors.push(b2(e2));
-            else {
-              let a4 = c2, d3 = 0;
-              for (; d3 < e2.path.length; ) {
-                let c3 = e2.path[d3];
-                d3 === e2.path.length - 1 ? (a4[c3] = a4[c3] || { _errors: [] }, a4[c3]._errors.push(b2(e2))) : a4[c3] = a4[c3] || { _errors: [] }, a4 = a4[c3], d3++;
-              }
-            }
-          };
-          return d2(this), c2;
-        }
-        static assert(a2) {
-          if (!(a2 instanceof h)) throw Error(`Not a ZodError: ${a2}`);
-        }
-        toString() {
-          return this.message;
-        }
-        get message() {
-          return JSON.stringify(this.issues, az.jsonStringifyReplacer, 2);
-        }
-        get isEmpty() {
-          return 0 === this.issues.length;
-        }
-        flatten(a2 = (a3) => a3.message) {
-          let b2 = {}, c2 = [];
-          for (let d2 of this.issues) if (d2.path.length > 0) {
-            let c3 = d2.path[0];
-            b2[c3] = b2[c3] || [], b2[c3].push(a2(d2));
-          } else c2.push(a2(d2));
-          return { formErrors: c2, fieldErrors: b2 };
-        }
-        get formErrors() {
-          return this.flatten();
-        }
-      }
-      h.create = (a2) => new h(a2);
-      let i = (a2, b2) => {
-        let c2;
-        switch (a2.code) {
-          case g.invalid_type:
-            c2 = a2.received === e.undefined ? "Required" : `Expected ${a2.expected}, received ${a2.received}`;
-            break;
-          case g.invalid_literal:
-            c2 = `Invalid literal value, expected ${JSON.stringify(a2.expected, az.jsonStringifyReplacer)}`;
-            break;
-          case g.unrecognized_keys:
-            c2 = `Unrecognized key(s) in object: ${az.joinValues(a2.keys, ", ")}`;
-            break;
-          case g.invalid_union:
-            c2 = "Invalid input";
-            break;
-          case g.invalid_union_discriminator:
-            c2 = `Invalid discriminator value. Expected ${az.joinValues(a2.options)}`;
-            break;
-          case g.invalid_enum_value:
-            c2 = `Invalid enum value. Expected ${az.joinValues(a2.options)}, received '${a2.received}'`;
-            break;
-          case g.invalid_arguments:
-            c2 = "Invalid function arguments";
-            break;
-          case g.invalid_return_type:
-            c2 = "Invalid function return type";
-            break;
-          case g.invalid_date:
-            c2 = "Invalid date";
-            break;
-          case g.invalid_string:
-            "object" == typeof a2.validation ? "includes" in a2.validation ? (c2 = `Invalid input: must include "${a2.validation.includes}"`, "number" == typeof a2.validation.position && (c2 = `${c2} at one or more positions greater than or equal to ${a2.validation.position}`)) : "startsWith" in a2.validation ? c2 = `Invalid input: must start with "${a2.validation.startsWith}"` : "endsWith" in a2.validation ? c2 = `Invalid input: must end with "${a2.validation.endsWith}"` : az.assertNever(a2.validation) : c2 = "regex" !== a2.validation ? `Invalid ${a2.validation}` : "Invalid";
-            break;
-          case g.too_small:
-            c2 = "array" === a2.type ? `Array must contain ${a2.exact ? "exactly" : a2.inclusive ? "at least" : "more than"} ${a2.minimum} element(s)` : "string" === a2.type ? `String must contain ${a2.exact ? "exactly" : a2.inclusive ? "at least" : "over"} ${a2.minimum} character(s)` : "number" === a2.type || "bigint" === a2.type ? `Number must be ${a2.exact ? "exactly equal to " : a2.inclusive ? "greater than or equal to " : "greater than "}${a2.minimum}` : "date" === a2.type ? `Date must be ${a2.exact ? "exactly equal to " : a2.inclusive ? "greater than or equal to " : "greater than "}${new Date(Number(a2.minimum))}` : "Invalid input";
-            break;
-          case g.too_big:
-            c2 = "array" === a2.type ? `Array must contain ${a2.exact ? "exactly" : a2.inclusive ? "at most" : "less than"} ${a2.maximum} element(s)` : "string" === a2.type ? `String must contain ${a2.exact ? "exactly" : a2.inclusive ? "at most" : "under"} ${a2.maximum} character(s)` : "number" === a2.type ? `Number must be ${a2.exact ? "exactly" : a2.inclusive ? "less than or equal to" : "less than"} ${a2.maximum}` : "bigint" === a2.type ? `BigInt must be ${a2.exact ? "exactly" : a2.inclusive ? "less than or equal to" : "less than"} ${a2.maximum}` : "date" === a2.type ? `Date must be ${a2.exact ? "exactly" : a2.inclusive ? "smaller than or equal to" : "smaller than"} ${new Date(Number(a2.maximum))}` : "Invalid input";
-            break;
-          case g.custom:
-            c2 = "Invalid input";
-            break;
-          case g.invalid_intersection_types:
-            c2 = "Intersection results could not be merged";
-            break;
-          case g.not_multiple_of:
-            c2 = `Number must be a multiple of ${a2.multipleOf}`;
-            break;
-          case g.not_finite:
-            c2 = "Number must be finite";
-            break;
-          default:
-            c2 = b2.defaultError, az.assertNever(a2);
-        }
-        return { message: c2 };
-      };
-      !function(a2) {
-        a2.errToObj = (a3) => "string" == typeof a3 ? { message: a3 } : a3 || {}, a2.toString = (a3) => "string" == typeof a3 ? a3 : a3?.message;
-      }(aB || (aB = {}));
-      let j = (a2) => {
-        let { data: b2, path: c2, errorMaps: d2, issueData: e2 } = a2, f2 = [...c2, ...e2.path || []], g2 = { ...e2, path: f2 };
-        if (void 0 !== e2.message) return { ...e2, path: f2, message: e2.message };
-        let h2 = "";
-        for (let a3 of d2.filter((a4) => !!a4).slice().reverse()) h2 = a3(g2, { data: b2, defaultError: h2 }).message;
-        return { ...e2, path: f2, message: h2 };
-      };
-      function k(a2, b2) {
-        let c2 = j({ issueData: b2, data: a2.data, path: a2.path, errorMaps: [a2.common.contextualErrorMap, a2.schemaErrorMap, i, void 0].filter((a3) => !!a3) });
-        a2.common.issues.push(c2);
-      }
-      class l {
-        constructor() {
-          this.value = "valid";
-        }
-        dirty() {
-          "valid" === this.value && (this.value = "dirty");
-        }
-        abort() {
-          "aborted" !== this.value && (this.value = "aborted");
-        }
-        static mergeArray(a2, b2) {
-          let c2 = [];
-          for (let d2 of b2) {
-            if ("aborted" === d2.status) return m;
-            "dirty" === d2.status && a2.dirty(), c2.push(d2.value);
-          }
-          return { status: a2.value, value: c2 };
-        }
-        static async mergeObjectAsync(a2, b2) {
-          let c2 = [];
-          for (let a3 of b2) {
-            let b3 = await a3.key, d2 = await a3.value;
-            c2.push({ key: b3, value: d2 });
-          }
-          return l.mergeObjectSync(a2, c2);
-        }
-        static mergeObjectSync(a2, b2) {
-          let c2 = {};
-          for (let d2 of b2) {
-            let { key: b3, value: e2 } = d2;
-            if ("aborted" === b3.status || "aborted" === e2.status) return m;
-            "dirty" === b3.status && a2.dirty(), "dirty" === e2.status && a2.dirty(), "__proto__" !== b3.value && (void 0 !== e2.value || d2.alwaysSet) && (c2[b3.value] = e2.value);
-          }
-          return { status: a2.value, value: c2 };
-        }
-      }
-      let m = Object.freeze({ status: "aborted" }), n = (a2) => ({ status: "dirty", value: a2 }), o = (a2) => ({ status: "valid", value: a2 }), p = (a2) => "undefined" != typeof Promise && a2 instanceof Promise;
-      class q {
-        constructor(a2, b2, c2, d2) {
-          this._cachedPath = [], this.parent = a2, this.data = b2, this._path = c2, this._key = d2;
-        }
-        get path() {
-          return this._cachedPath.length || (Array.isArray(this._key) ? this._cachedPath.push(...this._path, ...this._key) : this._cachedPath.push(...this._path, this._key)), this._cachedPath;
-        }
-      }
-      let r = (a2, b2) => {
-        if ("valid" === b2.status) return { success: true, data: b2.value };
-        if (!a2.common.issues.length) throw Error("Validation failed but no issues detected.");
-        return { success: false, get error() {
-          if (this._error) return this._error;
-          let b3 = new h(a2.common.issues);
-          return this._error = b3, this._error;
-        } };
-      };
-      function s(a2) {
-        if (!a2) return {};
-        let { errorMap: b2, invalid_type_error: c2, required_error: d2, description: e2 } = a2;
-        if (b2 && (c2 || d2)) throw Error(`Can't use "invalid_type_error" or "required_error" in conjunction with custom error map.`);
-        return b2 ? { errorMap: b2, description: e2 } : { errorMap: (b3, e3) => {
-          let { message: f2 } = a2;
-          return "invalid_enum_value" === b3.code ? { message: f2 ?? e3.defaultError } : void 0 === e3.data ? { message: f2 ?? d2 ?? e3.defaultError } : "invalid_type" !== b3.code ? { message: e3.defaultError } : { message: f2 ?? c2 ?? e3.defaultError };
-        }, description: e2 };
-      }
-      class t {
-        get description() {
-          return this._def.description;
-        }
-        _getType(a2) {
-          return f(a2.data);
-        }
-        _getOrReturnCtx(a2, b2) {
-          return b2 || { common: a2.parent.common, data: a2.data, parsedType: f(a2.data), schemaErrorMap: this._def.errorMap, path: a2.path, parent: a2.parent };
-        }
-        _processInputParams(a2) {
-          return { status: new l(), ctx: { common: a2.parent.common, data: a2.data, parsedType: f(a2.data), schemaErrorMap: this._def.errorMap, path: a2.path, parent: a2.parent } };
-        }
-        _parseSync(a2) {
-          let b2 = this._parse(a2);
-          if (p(b2)) throw Error("Synchronous parse encountered promise.");
-          return b2;
-        }
-        _parseAsync(a2) {
-          return Promise.resolve(this._parse(a2));
-        }
-        parse(a2, b2) {
-          let c2 = this.safeParse(a2, b2);
-          if (c2.success) return c2.data;
-          throw c2.error;
-        }
-        safeParse(a2, b2) {
-          let c2 = { common: { issues: [], async: b2?.async ?? false, contextualErrorMap: b2?.errorMap }, path: b2?.path || [], schemaErrorMap: this._def.errorMap, parent: null, data: a2, parsedType: f(a2) }, d2 = this._parseSync({ data: a2, path: c2.path, parent: c2 });
-          return r(c2, d2);
-        }
-        "~validate"(a2) {
-          let b2 = { common: { issues: [], async: !!this["~standard"].async }, path: [], schemaErrorMap: this._def.errorMap, parent: null, data: a2, parsedType: f(a2) };
-          if (!this["~standard"].async) try {
-            let c2 = this._parseSync({ data: a2, path: [], parent: b2 });
-            return "valid" === c2.status ? { value: c2.value } : { issues: b2.common.issues };
-          } catch (a3) {
-            a3?.message?.toLowerCase()?.includes("encountered") && (this["~standard"].async = true), b2.common = { issues: [], async: true };
-          }
-          return this._parseAsync({ data: a2, path: [], parent: b2 }).then((a3) => "valid" === a3.status ? { value: a3.value } : { issues: b2.common.issues });
-        }
-        async parseAsync(a2, b2) {
-          let c2 = await this.safeParseAsync(a2, b2);
-          if (c2.success) return c2.data;
-          throw c2.error;
-        }
-        async safeParseAsync(a2, b2) {
-          let c2 = { common: { issues: [], contextualErrorMap: b2?.errorMap, async: true }, path: b2?.path || [], schemaErrorMap: this._def.errorMap, parent: null, data: a2, parsedType: f(a2) }, d2 = this._parse({ data: a2, path: c2.path, parent: c2 });
-          return r(c2, await (p(d2) ? d2 : Promise.resolve(d2)));
-        }
-        refine(a2, b2) {
-          return this._refinement((c2, d2) => {
-            let e2 = a2(c2), f2 = () => d2.addIssue({ code: g.custom, ..."string" == typeof b2 || void 0 === b2 ? { message: b2 } : "function" == typeof b2 ? b2(c2) : b2 });
-            return "undefined" != typeof Promise && e2 instanceof Promise ? e2.then((a3) => !!a3 || (f2(), false)) : !!e2 || (f2(), false);
-          });
-        }
-        refinement(a2, b2) {
-          return this._refinement((c2, d2) => !!a2(c2) || (d2.addIssue("function" == typeof b2 ? b2(c2, d2) : b2), false));
-        }
-        _refinement(a2) {
-          return new am({ schema: this, typeName: aC.ZodEffects, effect: { type: "refinement", refinement: a2 } });
-        }
-        superRefine(a2) {
-          return this._refinement(a2);
-        }
-        constructor(a2) {
-          this.spa = this.safeParseAsync, this._def = a2, this.parse = this.parse.bind(this), this.safeParse = this.safeParse.bind(this), this.parseAsync = this.parseAsync.bind(this), this.safeParseAsync = this.safeParseAsync.bind(this), this.spa = this.spa.bind(this), this.refine = this.refine.bind(this), this.refinement = this.refinement.bind(this), this.superRefine = this.superRefine.bind(this), this.optional = this.optional.bind(this), this.nullable = this.nullable.bind(this), this.nullish = this.nullish.bind(this), this.array = this.array.bind(this), this.promise = this.promise.bind(this), this.or = this.or.bind(this), this.and = this.and.bind(this), this.transform = this.transform.bind(this), this.brand = this.brand.bind(this), this.default = this.default.bind(this), this.catch = this.catch.bind(this), this.describe = this.describe.bind(this), this.pipe = this.pipe.bind(this), this.readonly = this.readonly.bind(this), this.isNullable = this.isNullable.bind(this), this.isOptional = this.isOptional.bind(this), this["~standard"] = { version: 1, vendor: "zod", validate: (a3) => this["~validate"](a3) };
-        }
-        optional() {
-          return an.create(this, this._def);
-        }
-        nullable() {
-          return ao.create(this, this._def);
-        }
-        nullish() {
-          return this.nullable().optional();
-        }
-        array() {
-          return X.create(this);
-        }
-        promise() {
-          return al.create(this, this._def);
-        }
-        or(a2) {
-          return Z.create([this, a2], this._def);
-        }
-        and(a2) {
-          return aa.create(this, a2, this._def);
-        }
-        transform(a2) {
-          return new am({ ...s(this._def), schema: this, typeName: aC.ZodEffects, effect: { type: "transform", transform: a2 } });
-        }
-        default(a2) {
-          return new ap({ ...s(this._def), innerType: this, defaultValue: "function" == typeof a2 ? a2 : () => a2, typeName: aC.ZodDefault });
-        }
-        brand() {
-          return new as({ typeName: aC.ZodBranded, type: this, ...s(this._def) });
-        }
-        catch(a2) {
-          return new aq({ ...s(this._def), innerType: this, catchValue: "function" == typeof a2 ? a2 : () => a2, typeName: aC.ZodCatch });
-        }
-        describe(a2) {
-          return new this.constructor({ ...this._def, description: a2 });
-        }
-        pipe(a2) {
-          return at.create(this, a2);
-        }
-        readonly() {
-          return au.create(this);
-        }
-        isOptional() {
-          return this.safeParse(void 0).success;
-        }
-        isNullable() {
-          return this.safeParse(null).success;
-        }
-      }
-      let u = /^c[^\s-]{8,}$/i, v = /^[0-9a-z]+$/, w = /^[0-9A-HJKMNP-TV-Z]{26}$/i, x = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/i, y = /^[a-z0-9_-]{21}$/i, z = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/, A = /^[-+]?P(?!$)(?:(?:[-+]?\d+Y)|(?:[-+]?\d+[.,]\d+Y$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:(?:[-+]?\d+W)|(?:[-+]?\d+[.,]\d+W$))?(?:(?:[-+]?\d+D)|(?:[-+]?\d+[.,]\d+D$))?(?:T(?=[\d+-])(?:(?:[-+]?\d+H)|(?:[-+]?\d+[.,]\d+H$))?(?:(?:[-+]?\d+M)|(?:[-+]?\d+[.,]\d+M$))?(?:[-+]?\d+(?:[.,]\d+)?S)?)??$/, B = /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-\.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9\-]*\.)+[A-Z]{2,}$/i, C = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$/, D = /^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\/(3[0-2]|[12]?[0-9])$/, E = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))$/, F = /^(([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,7}:|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|:((:[0-9a-fA-F]{1,4}){1,7}|:)|fe80:(:[0-9a-fA-F]{0,4}){0,4}%[0-9a-zA-Z]{1,}|::(ffff(:0{1,4}){0,1}:){0,1}((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])|([0-9a-fA-F]{1,4}:){1,4}:((25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9])\.){3,3}(25[0-5]|(2[0-4]|1{0,1}[0-9]){0,1}[0-9]))\/(12[0-8]|1[01][0-9]|[1-9]?[0-9])$/, G = /^([0-9a-zA-Z+/]{4})*(([0-9a-zA-Z+/]{2}==)|([0-9a-zA-Z+/]{3}=))?$/, H = /^([0-9a-zA-Z-_]{4})*(([0-9a-zA-Z-_]{2}(==)?)|([0-9a-zA-Z-_]{3}(=)?))?$/, I = "((\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-((0[13578]|1[02])-(0[1-9]|[12]\\d|3[01])|(0[469]|11)-(0[1-9]|[12]\\d|30)|(02)-(0[1-9]|1\\d|2[0-8])))", J = RegExp(`^${I}$`);
-      function K(a2) {
-        let b2 = "[0-5]\\d";
-        a2.precision ? b2 = `${b2}\\.\\d{${a2.precision}}` : null == a2.precision && (b2 = `${b2}(\\.\\d+)?`);
-        let c2 = a2.precision ? "+" : "?";
-        return `([01]\\d|2[0-3]):[0-5]\\d(:${b2})${c2}`;
-      }
-      class L extends t {
-        _parse(a2) {
-          var b2, c2, f2, h2;
-          let i2;
-          if (this._def.coerce && (a2.data = String(a2.data)), this._getType(a2) !== e.string) {
-            let b3 = this._getOrReturnCtx(a2);
-            return k(b3, { code: g.invalid_type, expected: e.string, received: b3.parsedType }), m;
-          }
-          let j2 = new l();
-          for (let e2 of this._def.checks) if ("min" === e2.kind) a2.data.length < e2.value && (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.too_small, minimum: e2.value, type: "string", inclusive: true, exact: false, message: e2.message }), j2.dirty());
-          else if ("max" === e2.kind) a2.data.length > e2.value && (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.too_big, maximum: e2.value, type: "string", inclusive: true, exact: false, message: e2.message }), j2.dirty());
-          else if ("length" === e2.kind) {
-            let b3 = a2.data.length > e2.value, c3 = a2.data.length < e2.value;
-            (b3 || c3) && (i2 = this._getOrReturnCtx(a2, i2), b3 ? k(i2, { code: g.too_big, maximum: e2.value, type: "string", inclusive: true, exact: true, message: e2.message }) : c3 && k(i2, { code: g.too_small, minimum: e2.value, type: "string", inclusive: true, exact: true, message: e2.message }), j2.dirty());
-          } else if ("email" === e2.kind) B.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "email", code: g.invalid_string, message: e2.message }), j2.dirty());
-          else if ("emoji" === e2.kind) d || (d = RegExp("^(\\p{Extended_Pictographic}|\\p{Emoji_Component})+$", "u")), d.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "emoji", code: g.invalid_string, message: e2.message }), j2.dirty());
-          else if ("uuid" === e2.kind) x.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "uuid", code: g.invalid_string, message: e2.message }), j2.dirty());
-          else if ("nanoid" === e2.kind) y.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "nanoid", code: g.invalid_string, message: e2.message }), j2.dirty());
-          else if ("cuid" === e2.kind) u.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "cuid", code: g.invalid_string, message: e2.message }), j2.dirty());
-          else if ("cuid2" === e2.kind) v.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "cuid2", code: g.invalid_string, message: e2.message }), j2.dirty());
-          else if ("ulid" === e2.kind) w.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "ulid", code: g.invalid_string, message: e2.message }), j2.dirty());
-          else if ("url" === e2.kind) try {
-            new URL(a2.data);
-          } catch {
-            k(i2 = this._getOrReturnCtx(a2, i2), { validation: "url", code: g.invalid_string, message: e2.message }), j2.dirty();
-          }
-          else "regex" === e2.kind ? (e2.regex.lastIndex = 0, e2.regex.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "regex", code: g.invalid_string, message: e2.message }), j2.dirty())) : "trim" === e2.kind ? a2.data = a2.data.trim() : "includes" === e2.kind ? a2.data.includes(e2.value, e2.position) || (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.invalid_string, validation: { includes: e2.value, position: e2.position }, message: e2.message }), j2.dirty()) : "toLowerCase" === e2.kind ? a2.data = a2.data.toLowerCase() : "toUpperCase" === e2.kind ? a2.data = a2.data.toUpperCase() : "startsWith" === e2.kind ? a2.data.startsWith(e2.value) || (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.invalid_string, validation: { startsWith: e2.value }, message: e2.message }), j2.dirty()) : "endsWith" === e2.kind ? a2.data.endsWith(e2.value) || (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.invalid_string, validation: { endsWith: e2.value }, message: e2.message }), j2.dirty()) : "datetime" === e2.kind ? function(a3) {
-            let b3 = `${I}T${K(a3)}`, c3 = [];
-            return c3.push(a3.local ? "Z?" : "Z"), a3.offset && c3.push("([+-]\\d{2}:?\\d{2})"), b3 = `${b3}(${c3.join("|")})`, RegExp(`^${b3}$`);
-          }(e2).test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.invalid_string, validation: "datetime", message: e2.message }), j2.dirty()) : "date" === e2.kind ? J.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.invalid_string, validation: "date", message: e2.message }), j2.dirty()) : "time" === e2.kind ? RegExp(`^${K(e2)}$`).test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { code: g.invalid_string, validation: "time", message: e2.message }), j2.dirty()) : "duration" === e2.kind ? A.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "duration", code: g.invalid_string, message: e2.message }), j2.dirty()) : "ip" === e2.kind ? (b2 = a2.data, !(("v4" === (c2 = e2.version) || !c2) && C.test(b2) || ("v6" === c2 || !c2) && E.test(b2)) && 1 && (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "ip", code: g.invalid_string, message: e2.message }), j2.dirty())) : "jwt" === e2.kind ? !function(a3, b3) {
-            if (!z.test(a3)) return false;
-            try {
-              let [c3] = a3.split(".");
-              if (!c3) return false;
-              let d2 = c3.replace(/-/g, "+").replace(/_/g, "/").padEnd(c3.length + (4 - c3.length % 4) % 4, "="), e3 = JSON.parse(atob(d2));
-              if ("object" != typeof e3 || null === e3 || "typ" in e3 && e3?.typ !== "JWT" || !e3.alg || b3 && e3.alg !== b3) return false;
-              return true;
-            } catch {
-              return false;
-            }
-          }(a2.data, e2.alg) && (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "jwt", code: g.invalid_string, message: e2.message }), j2.dirty()) : "cidr" === e2.kind ? (f2 = a2.data, !(("v4" === (h2 = e2.version) || !h2) && D.test(f2) || ("v6" === h2 || !h2) && F.test(f2)) && 1 && (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "cidr", code: g.invalid_string, message: e2.message }), j2.dirty())) : "base64" === e2.kind ? G.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "base64", code: g.invalid_string, message: e2.message }), j2.dirty()) : "base64url" === e2.kind ? H.test(a2.data) || (k(i2 = this._getOrReturnCtx(a2, i2), { validation: "base64url", code: g.invalid_string, message: e2.message }), j2.dirty()) : az.assertNever(e2);
-          return { status: j2.value, value: a2.data };
-        }
-        _regex(a2, b2, c2) {
-          return this.refinement((b3) => a2.test(b3), { validation: b2, code: g.invalid_string, ...aB.errToObj(c2) });
-        }
-        _addCheck(a2) {
-          return new L({ ...this._def, checks: [...this._def.checks, a2] });
-        }
-        email(a2) {
-          return this._addCheck({ kind: "email", ...aB.errToObj(a2) });
-        }
-        url(a2) {
-          return this._addCheck({ kind: "url", ...aB.errToObj(a2) });
-        }
-        emoji(a2) {
-          return this._addCheck({ kind: "emoji", ...aB.errToObj(a2) });
-        }
-        uuid(a2) {
-          return this._addCheck({ kind: "uuid", ...aB.errToObj(a2) });
-        }
-        nanoid(a2) {
-          return this._addCheck({ kind: "nanoid", ...aB.errToObj(a2) });
-        }
-        cuid(a2) {
-          return this._addCheck({ kind: "cuid", ...aB.errToObj(a2) });
-        }
-        cuid2(a2) {
-          return this._addCheck({ kind: "cuid2", ...aB.errToObj(a2) });
-        }
-        ulid(a2) {
-          return this._addCheck({ kind: "ulid", ...aB.errToObj(a2) });
-        }
-        base64(a2) {
-          return this._addCheck({ kind: "base64", ...aB.errToObj(a2) });
-        }
-        base64url(a2) {
-          return this._addCheck({ kind: "base64url", ...aB.errToObj(a2) });
-        }
-        jwt(a2) {
-          return this._addCheck({ kind: "jwt", ...aB.errToObj(a2) });
-        }
-        ip(a2) {
-          return this._addCheck({ kind: "ip", ...aB.errToObj(a2) });
-        }
-        cidr(a2) {
-          return this._addCheck({ kind: "cidr", ...aB.errToObj(a2) });
-        }
-        datetime(a2) {
-          return "string" == typeof a2 ? this._addCheck({ kind: "datetime", precision: null, offset: false, local: false, message: a2 }) : this._addCheck({ kind: "datetime", precision: void 0 === a2?.precision ? null : a2?.precision, offset: a2?.offset ?? false, local: a2?.local ?? false, ...aB.errToObj(a2?.message) });
-        }
-        date(a2) {
-          return this._addCheck({ kind: "date", message: a2 });
-        }
-        time(a2) {
-          return "string" == typeof a2 ? this._addCheck({ kind: "time", precision: null, message: a2 }) : this._addCheck({ kind: "time", precision: void 0 === a2?.precision ? null : a2?.precision, ...aB.errToObj(a2?.message) });
-        }
-        duration(a2) {
-          return this._addCheck({ kind: "duration", ...aB.errToObj(a2) });
-        }
-        regex(a2, b2) {
-          return this._addCheck({ kind: "regex", regex: a2, ...aB.errToObj(b2) });
-        }
-        includes(a2, b2) {
-          return this._addCheck({ kind: "includes", value: a2, position: b2?.position, ...aB.errToObj(b2?.message) });
-        }
-        startsWith(a2, b2) {
-          return this._addCheck({ kind: "startsWith", value: a2, ...aB.errToObj(b2) });
-        }
-        endsWith(a2, b2) {
-          return this._addCheck({ kind: "endsWith", value: a2, ...aB.errToObj(b2) });
-        }
-        min(a2, b2) {
-          return this._addCheck({ kind: "min", value: a2, ...aB.errToObj(b2) });
-        }
-        max(a2, b2) {
-          return this._addCheck({ kind: "max", value: a2, ...aB.errToObj(b2) });
-        }
-        length(a2, b2) {
-          return this._addCheck({ kind: "length", value: a2, ...aB.errToObj(b2) });
-        }
-        nonempty(a2) {
-          return this.min(1, aB.errToObj(a2));
-        }
-        trim() {
-          return new L({ ...this._def, checks: [...this._def.checks, { kind: "trim" }] });
-        }
-        toLowerCase() {
-          return new L({ ...this._def, checks: [...this._def.checks, { kind: "toLowerCase" }] });
-        }
-        toUpperCase() {
-          return new L({ ...this._def, checks: [...this._def.checks, { kind: "toUpperCase" }] });
-        }
-        get isDatetime() {
-          return !!this._def.checks.find((a2) => "datetime" === a2.kind);
-        }
-        get isDate() {
-          return !!this._def.checks.find((a2) => "date" === a2.kind);
-        }
-        get isTime() {
-          return !!this._def.checks.find((a2) => "time" === a2.kind);
-        }
-        get isDuration() {
-          return !!this._def.checks.find((a2) => "duration" === a2.kind);
-        }
-        get isEmail() {
-          return !!this._def.checks.find((a2) => "email" === a2.kind);
-        }
-        get isURL() {
-          return !!this._def.checks.find((a2) => "url" === a2.kind);
-        }
-        get isEmoji() {
-          return !!this._def.checks.find((a2) => "emoji" === a2.kind);
-        }
-        get isUUID() {
-          return !!this._def.checks.find((a2) => "uuid" === a2.kind);
-        }
-        get isNANOID() {
-          return !!this._def.checks.find((a2) => "nanoid" === a2.kind);
-        }
-        get isCUID() {
-          return !!this._def.checks.find((a2) => "cuid" === a2.kind);
-        }
-        get isCUID2() {
-          return !!this._def.checks.find((a2) => "cuid2" === a2.kind);
-        }
-        get isULID() {
-          return !!this._def.checks.find((a2) => "ulid" === a2.kind);
-        }
-        get isIP() {
-          return !!this._def.checks.find((a2) => "ip" === a2.kind);
-        }
-        get isCIDR() {
-          return !!this._def.checks.find((a2) => "cidr" === a2.kind);
-        }
-        get isBase64() {
-          return !!this._def.checks.find((a2) => "base64" === a2.kind);
-        }
-        get isBase64url() {
-          return !!this._def.checks.find((a2) => "base64url" === a2.kind);
-        }
-        get minLength() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "min" === b2.kind && (null === a2 || b2.value > a2) && (a2 = b2.value);
-          return a2;
-        }
-        get maxLength() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "max" === b2.kind && (null === a2 || b2.value < a2) && (a2 = b2.value);
-          return a2;
-        }
-      }
-      L.create = (a2) => new L({ checks: [], typeName: aC.ZodString, coerce: a2?.coerce ?? false, ...s(a2) });
-      class M extends t {
-        constructor() {
-          super(...arguments), this.min = this.gte, this.max = this.lte, this.step = this.multipleOf;
-        }
-        _parse(a2) {
-          let b2;
-          if (this._def.coerce && (a2.data = Number(a2.data)), this._getType(a2) !== e.number) {
-            let b3 = this._getOrReturnCtx(a2);
-            return k(b3, { code: g.invalid_type, expected: e.number, received: b3.parsedType }), m;
-          }
-          let c2 = new l();
-          for (let d2 of this._def.checks) "int" === d2.kind ? az.isInteger(a2.data) || (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.invalid_type, expected: "integer", received: "float", message: d2.message }), c2.dirty()) : "min" === d2.kind ? (d2.inclusive ? a2.data < d2.value : a2.data <= d2.value) && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.too_small, minimum: d2.value, type: "number", inclusive: d2.inclusive, exact: false, message: d2.message }), c2.dirty()) : "max" === d2.kind ? (d2.inclusive ? a2.data > d2.value : a2.data >= d2.value) && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.too_big, maximum: d2.value, type: "number", inclusive: d2.inclusive, exact: false, message: d2.message }), c2.dirty()) : "multipleOf" === d2.kind ? 0 !== function(a3, b3) {
-            let c3 = (a3.toString().split(".")[1] || "").length, d3 = (b3.toString().split(".")[1] || "").length, e2 = c3 > d3 ? c3 : d3;
-            return Number.parseInt(a3.toFixed(e2).replace(".", "")) % Number.parseInt(b3.toFixed(e2).replace(".", "")) / 10 ** e2;
-          }(a2.data, d2.value) && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.not_multiple_of, multipleOf: d2.value, message: d2.message }), c2.dirty()) : "finite" === d2.kind ? Number.isFinite(a2.data) || (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.not_finite, message: d2.message }), c2.dirty()) : az.assertNever(d2);
-          return { status: c2.value, value: a2.data };
-        }
-        gte(a2, b2) {
-          return this.setLimit("min", a2, true, aB.toString(b2));
-        }
-        gt(a2, b2) {
-          return this.setLimit("min", a2, false, aB.toString(b2));
-        }
-        lte(a2, b2) {
-          return this.setLimit("max", a2, true, aB.toString(b2));
-        }
-        lt(a2, b2) {
-          return this.setLimit("max", a2, false, aB.toString(b2));
-        }
-        setLimit(a2, b2, c2, d2) {
-          return new M({ ...this._def, checks: [...this._def.checks, { kind: a2, value: b2, inclusive: c2, message: aB.toString(d2) }] });
-        }
-        _addCheck(a2) {
-          return new M({ ...this._def, checks: [...this._def.checks, a2] });
-        }
-        int(a2) {
-          return this._addCheck({ kind: "int", message: aB.toString(a2) });
-        }
-        positive(a2) {
-          return this._addCheck({ kind: "min", value: 0, inclusive: false, message: aB.toString(a2) });
-        }
-        negative(a2) {
-          return this._addCheck({ kind: "max", value: 0, inclusive: false, message: aB.toString(a2) });
-        }
-        nonpositive(a2) {
-          return this._addCheck({ kind: "max", value: 0, inclusive: true, message: aB.toString(a2) });
-        }
-        nonnegative(a2) {
-          return this._addCheck({ kind: "min", value: 0, inclusive: true, message: aB.toString(a2) });
-        }
-        multipleOf(a2, b2) {
-          return this._addCheck({ kind: "multipleOf", value: a2, message: aB.toString(b2) });
-        }
-        finite(a2) {
-          return this._addCheck({ kind: "finite", message: aB.toString(a2) });
-        }
-        safe(a2) {
-          return this._addCheck({ kind: "min", inclusive: true, value: Number.MIN_SAFE_INTEGER, message: aB.toString(a2) })._addCheck({ kind: "max", inclusive: true, value: Number.MAX_SAFE_INTEGER, message: aB.toString(a2) });
-        }
-        get minValue() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "min" === b2.kind && (null === a2 || b2.value > a2) && (a2 = b2.value);
-          return a2;
-        }
-        get maxValue() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "max" === b2.kind && (null === a2 || b2.value < a2) && (a2 = b2.value);
-          return a2;
-        }
-        get isInt() {
-          return !!this._def.checks.find((a2) => "int" === a2.kind || "multipleOf" === a2.kind && az.isInteger(a2.value));
-        }
-        get isFinite() {
-          let a2 = null, b2 = null;
-          for (let c2 of this._def.checks) if ("finite" === c2.kind || "int" === c2.kind || "multipleOf" === c2.kind) return true;
-          else "min" === c2.kind ? (null === b2 || c2.value > b2) && (b2 = c2.value) : "max" === c2.kind && (null === a2 || c2.value < a2) && (a2 = c2.value);
-          return Number.isFinite(b2) && Number.isFinite(a2);
-        }
-      }
-      M.create = (a2) => new M({ checks: [], typeName: aC.ZodNumber, coerce: a2?.coerce || false, ...s(a2) });
-      class N extends t {
-        constructor() {
-          super(...arguments), this.min = this.gte, this.max = this.lte;
-        }
-        _parse(a2) {
-          let b2;
-          if (this._def.coerce) try {
-            a2.data = BigInt(a2.data);
-          } catch {
-            return this._getInvalidInput(a2);
-          }
-          if (this._getType(a2) !== e.bigint) return this._getInvalidInput(a2);
-          let c2 = new l();
-          for (let d2 of this._def.checks) "min" === d2.kind ? (d2.inclusive ? a2.data < d2.value : a2.data <= d2.value) && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.too_small, type: "bigint", minimum: d2.value, inclusive: d2.inclusive, message: d2.message }), c2.dirty()) : "max" === d2.kind ? (d2.inclusive ? a2.data > d2.value : a2.data >= d2.value) && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.too_big, type: "bigint", maximum: d2.value, inclusive: d2.inclusive, message: d2.message }), c2.dirty()) : "multipleOf" === d2.kind ? a2.data % d2.value !== BigInt(0) && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.not_multiple_of, multipleOf: d2.value, message: d2.message }), c2.dirty()) : az.assertNever(d2);
-          return { status: c2.value, value: a2.data };
-        }
-        _getInvalidInput(a2) {
-          let b2 = this._getOrReturnCtx(a2);
-          return k(b2, { code: g.invalid_type, expected: e.bigint, received: b2.parsedType }), m;
-        }
-        gte(a2, b2) {
-          return this.setLimit("min", a2, true, aB.toString(b2));
-        }
-        gt(a2, b2) {
-          return this.setLimit("min", a2, false, aB.toString(b2));
-        }
-        lte(a2, b2) {
-          return this.setLimit("max", a2, true, aB.toString(b2));
-        }
-        lt(a2, b2) {
-          return this.setLimit("max", a2, false, aB.toString(b2));
-        }
-        setLimit(a2, b2, c2, d2) {
-          return new N({ ...this._def, checks: [...this._def.checks, { kind: a2, value: b2, inclusive: c2, message: aB.toString(d2) }] });
-        }
-        _addCheck(a2) {
-          return new N({ ...this._def, checks: [...this._def.checks, a2] });
-        }
-        positive(a2) {
-          return this._addCheck({ kind: "min", value: BigInt(0), inclusive: false, message: aB.toString(a2) });
-        }
-        negative(a2) {
-          return this._addCheck({ kind: "max", value: BigInt(0), inclusive: false, message: aB.toString(a2) });
-        }
-        nonpositive(a2) {
-          return this._addCheck({ kind: "max", value: BigInt(0), inclusive: true, message: aB.toString(a2) });
-        }
-        nonnegative(a2) {
-          return this._addCheck({ kind: "min", value: BigInt(0), inclusive: true, message: aB.toString(a2) });
-        }
-        multipleOf(a2, b2) {
-          return this._addCheck({ kind: "multipleOf", value: a2, message: aB.toString(b2) });
-        }
-        get minValue() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "min" === b2.kind && (null === a2 || b2.value > a2) && (a2 = b2.value);
-          return a2;
-        }
-        get maxValue() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "max" === b2.kind && (null === a2 || b2.value < a2) && (a2 = b2.value);
-          return a2;
-        }
-      }
-      N.create = (a2) => new N({ checks: [], typeName: aC.ZodBigInt, coerce: a2?.coerce ?? false, ...s(a2) });
-      class O extends t {
-        _parse(a2) {
-          if (this._def.coerce && (a2.data = !!a2.data), this._getType(a2) !== e.boolean) {
-            let b2 = this._getOrReturnCtx(a2);
-            return k(b2, { code: g.invalid_type, expected: e.boolean, received: b2.parsedType }), m;
-          }
-          return o(a2.data);
-        }
-      }
-      O.create = (a2) => new O({ typeName: aC.ZodBoolean, coerce: a2?.coerce || false, ...s(a2) });
-      class P extends t {
-        _parse(a2) {
-          let b2;
-          if (this._def.coerce && (a2.data = new Date(a2.data)), this._getType(a2) !== e.date) {
-            let b3 = this._getOrReturnCtx(a2);
-            return k(b3, { code: g.invalid_type, expected: e.date, received: b3.parsedType }), m;
-          }
-          if (Number.isNaN(a2.data.getTime())) return k(this._getOrReturnCtx(a2), { code: g.invalid_date }), m;
-          let c2 = new l();
-          for (let d2 of this._def.checks) "min" === d2.kind ? a2.data.getTime() < d2.value && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.too_small, message: d2.message, inclusive: true, exact: false, minimum: d2.value, type: "date" }), c2.dirty()) : "max" === d2.kind ? a2.data.getTime() > d2.value && (k(b2 = this._getOrReturnCtx(a2, b2), { code: g.too_big, message: d2.message, inclusive: true, exact: false, maximum: d2.value, type: "date" }), c2.dirty()) : az.assertNever(d2);
-          return { status: c2.value, value: new Date(a2.data.getTime()) };
-        }
-        _addCheck(a2) {
-          return new P({ ...this._def, checks: [...this._def.checks, a2] });
-        }
-        min(a2, b2) {
-          return this._addCheck({ kind: "min", value: a2.getTime(), message: aB.toString(b2) });
-        }
-        max(a2, b2) {
-          return this._addCheck({ kind: "max", value: a2.getTime(), message: aB.toString(b2) });
-        }
-        get minDate() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "min" === b2.kind && (null === a2 || b2.value > a2) && (a2 = b2.value);
-          return null != a2 ? new Date(a2) : null;
-        }
-        get maxDate() {
-          let a2 = null;
-          for (let b2 of this._def.checks) "max" === b2.kind && (null === a2 || b2.value < a2) && (a2 = b2.value);
-          return null != a2 ? new Date(a2) : null;
-        }
-      }
-      P.create = (a2) => new P({ checks: [], coerce: a2?.coerce || false, typeName: aC.ZodDate, ...s(a2) });
-      class Q extends t {
-        _parse(a2) {
-          if (this._getType(a2) !== e.symbol) {
-            let b2 = this._getOrReturnCtx(a2);
-            return k(b2, { code: g.invalid_type, expected: e.symbol, received: b2.parsedType }), m;
-          }
-          return o(a2.data);
-        }
-      }
-      Q.create = (a2) => new Q({ typeName: aC.ZodSymbol, ...s(a2) });
-      class R extends t {
-        _parse(a2) {
-          if (this._getType(a2) !== e.undefined) {
-            let b2 = this._getOrReturnCtx(a2);
-            return k(b2, { code: g.invalid_type, expected: e.undefined, received: b2.parsedType }), m;
-          }
-          return o(a2.data);
-        }
-      }
-      R.create = (a2) => new R({ typeName: aC.ZodUndefined, ...s(a2) });
-      class S extends t {
-        _parse(a2) {
-          if (this._getType(a2) !== e.null) {
-            let b2 = this._getOrReturnCtx(a2);
-            return k(b2, { code: g.invalid_type, expected: e.null, received: b2.parsedType }), m;
-          }
-          return o(a2.data);
-        }
-      }
-      S.create = (a2) => new S({ typeName: aC.ZodNull, ...s(a2) });
-      class T extends t {
-        constructor() {
-          super(...arguments), this._any = true;
-        }
-        _parse(a2) {
-          return o(a2.data);
-        }
-      }
-      T.create = (a2) => new T({ typeName: aC.ZodAny, ...s(a2) });
-      class U extends t {
-        constructor() {
-          super(...arguments), this._unknown = true;
-        }
-        _parse(a2) {
-          return o(a2.data);
-        }
-      }
-      U.create = (a2) => new U({ typeName: aC.ZodUnknown, ...s(a2) });
-      class V extends t {
-        _parse(a2) {
-          let b2 = this._getOrReturnCtx(a2);
-          return k(b2, { code: g.invalid_type, expected: e.never, received: b2.parsedType }), m;
-        }
-      }
-      V.create = (a2) => new V({ typeName: aC.ZodNever, ...s(a2) });
-      class W extends t {
-        _parse(a2) {
-          if (this._getType(a2) !== e.undefined) {
-            let b2 = this._getOrReturnCtx(a2);
-            return k(b2, { code: g.invalid_type, expected: e.void, received: b2.parsedType }), m;
-          }
-          return o(a2.data);
-        }
-      }
-      W.create = (a2) => new W({ typeName: aC.ZodVoid, ...s(a2) });
-      class X extends t {
-        _parse(a2) {
-          let { ctx: b2, status: c2 } = this._processInputParams(a2), d2 = this._def;
-          if (b2.parsedType !== e.array) return k(b2, { code: g.invalid_type, expected: e.array, received: b2.parsedType }), m;
-          if (null !== d2.exactLength) {
-            let a3 = b2.data.length > d2.exactLength.value, e2 = b2.data.length < d2.exactLength.value;
-            (a3 || e2) && (k(b2, { code: a3 ? g.too_big : g.too_small, minimum: e2 ? d2.exactLength.value : void 0, maximum: a3 ? d2.exactLength.value : void 0, type: "array", inclusive: true, exact: true, message: d2.exactLength.message }), c2.dirty());
-          }
-          if (null !== d2.minLength && b2.data.length < d2.minLength.value && (k(b2, { code: g.too_small, minimum: d2.minLength.value, type: "array", inclusive: true, exact: false, message: d2.minLength.message }), c2.dirty()), null !== d2.maxLength && b2.data.length > d2.maxLength.value && (k(b2, { code: g.too_big, maximum: d2.maxLength.value, type: "array", inclusive: true, exact: false, message: d2.maxLength.message }), c2.dirty()), b2.common.async) return Promise.all([...b2.data].map((a3, c3) => d2.type._parseAsync(new q(b2, a3, b2.path, c3)))).then((a3) => l.mergeArray(c2, a3));
-          let f2 = [...b2.data].map((a3, c3) => d2.type._parseSync(new q(b2, a3, b2.path, c3)));
-          return l.mergeArray(c2, f2);
-        }
-        get element() {
-          return this._def.type;
-        }
-        min(a2, b2) {
-          return new X({ ...this._def, minLength: { value: a2, message: aB.toString(b2) } });
-        }
-        max(a2, b2) {
-          return new X({ ...this._def, maxLength: { value: a2, message: aB.toString(b2) } });
-        }
-        length(a2, b2) {
-          return new X({ ...this._def, exactLength: { value: a2, message: aB.toString(b2) } });
-        }
-        nonempty(a2) {
-          return this.min(1, a2);
-        }
-      }
-      X.create = (a2, b2) => new X({ type: a2, minLength: null, maxLength: null, exactLength: null, typeName: aC.ZodArray, ...s(b2) });
-      class Y extends t {
-        constructor() {
-          super(...arguments), this._cached = null, this.nonstrict = this.passthrough, this.augment = this.extend;
-        }
-        _getCached() {
-          if (null !== this._cached) return this._cached;
-          let a2 = this._def.shape(), b2 = az.objectKeys(a2);
-          return this._cached = { shape: a2, keys: b2 }, this._cached;
-        }
-        _parse(a2) {
-          if (this._getType(a2) !== e.object) {
-            let b3 = this._getOrReturnCtx(a2);
-            return k(b3, { code: g.invalid_type, expected: e.object, received: b3.parsedType }), m;
-          }
-          let { status: b2, ctx: c2 } = this._processInputParams(a2), { shape: d2, keys: f2 } = this._getCached(), h2 = [];
-          if (!(this._def.catchall instanceof V && "strip" === this._def.unknownKeys)) for (let a3 in c2.data) f2.includes(a3) || h2.push(a3);
-          let i2 = [];
-          for (let a3 of f2) {
-            let b3 = d2[a3], e2 = c2.data[a3];
-            i2.push({ key: { status: "valid", value: a3 }, value: b3._parse(new q(c2, e2, c2.path, a3)), alwaysSet: a3 in c2.data });
-          }
-          if (this._def.catchall instanceof V) {
-            let a3 = this._def.unknownKeys;
-            if ("passthrough" === a3) for (let a4 of h2) i2.push({ key: { status: "valid", value: a4 }, value: { status: "valid", value: c2.data[a4] } });
-            else if ("strict" === a3) h2.length > 0 && (k(c2, { code: g.unrecognized_keys, keys: h2 }), b2.dirty());
-            else if ("strip" === a3) ;
-            else throw Error("Internal ZodObject error: invalid unknownKeys value.");
-          } else {
-            let a3 = this._def.catchall;
-            for (let b3 of h2) {
-              let d3 = c2.data[b3];
-              i2.push({ key: { status: "valid", value: b3 }, value: a3._parse(new q(c2, d3, c2.path, b3)), alwaysSet: b3 in c2.data });
-            }
-          }
-          return c2.common.async ? Promise.resolve().then(async () => {
-            let a3 = [];
-            for (let b3 of i2) {
-              let c3 = await b3.key, d3 = await b3.value;
-              a3.push({ key: c3, value: d3, alwaysSet: b3.alwaysSet });
-            }
-            return a3;
-          }).then((a3) => l.mergeObjectSync(b2, a3)) : l.mergeObjectSync(b2, i2);
-        }
-        get shape() {
-          return this._def.shape();
-        }
-        strict(a2) {
-          return aB.errToObj, new Y({ ...this._def, unknownKeys: "strict", ...void 0 !== a2 ? { errorMap: (b2, c2) => {
-            let d2 = this._def.errorMap?.(b2, c2).message ?? c2.defaultError;
-            return "unrecognized_keys" === b2.code ? { message: aB.errToObj(a2).message ?? d2 } : { message: d2 };
-          } } : {} });
-        }
-        strip() {
-          return new Y({ ...this._def, unknownKeys: "strip" });
-        }
-        passthrough() {
-          return new Y({ ...this._def, unknownKeys: "passthrough" });
-        }
-        extend(a2) {
-          return new Y({ ...this._def, shape: () => ({ ...this._def.shape(), ...a2 }) });
-        }
-        merge(a2) {
-          return new Y({ unknownKeys: a2._def.unknownKeys, catchall: a2._def.catchall, shape: () => ({ ...this._def.shape(), ...a2._def.shape() }), typeName: aC.ZodObject });
-        }
-        setKey(a2, b2) {
-          return this.augment({ [a2]: b2 });
-        }
-        catchall(a2) {
-          return new Y({ ...this._def, catchall: a2 });
-        }
-        pick(a2) {
-          let b2 = {};
-          for (let c2 of az.objectKeys(a2)) a2[c2] && this.shape[c2] && (b2[c2] = this.shape[c2]);
-          return new Y({ ...this._def, shape: () => b2 });
-        }
-        omit(a2) {
-          let b2 = {};
-          for (let c2 of az.objectKeys(this.shape)) a2[c2] || (b2[c2] = this.shape[c2]);
-          return new Y({ ...this._def, shape: () => b2 });
-        }
-        deepPartial() {
-          return function a2(b2) {
-            if (b2 instanceof Y) {
-              let c2 = {};
-              for (let d2 in b2.shape) {
-                let e2 = b2.shape[d2];
-                c2[d2] = an.create(a2(e2));
-              }
-              return new Y({ ...b2._def, shape: () => c2 });
-            }
-            if (b2 instanceof X) return new X({ ...b2._def, type: a2(b2.element) });
-            if (b2 instanceof an) return an.create(a2(b2.unwrap()));
-            if (b2 instanceof ao) return ao.create(a2(b2.unwrap()));
-            if (b2 instanceof ab) return ab.create(b2.items.map((b3) => a2(b3)));
-            else return b2;
-          }(this);
-        }
-        partial(a2) {
-          let b2 = {};
-          for (let c2 of az.objectKeys(this.shape)) {
-            let d2 = this.shape[c2];
-            a2 && !a2[c2] ? b2[c2] = d2 : b2[c2] = d2.optional();
-          }
-          return new Y({ ...this._def, shape: () => b2 });
-        }
-        required(a2) {
-          let b2 = {};
-          for (let c2 of az.objectKeys(this.shape)) if (a2 && !a2[c2]) b2[c2] = this.shape[c2];
-          else {
-            let a3 = this.shape[c2];
-            for (; a3 instanceof an; ) a3 = a3._def.innerType;
-            b2[c2] = a3;
-          }
-          return new Y({ ...this._def, shape: () => b2 });
-        }
-        keyof() {
-          return ai(az.objectKeys(this.shape));
-        }
-      }
-      Y.create = (a2, b2) => new Y({ shape: () => a2, unknownKeys: "strip", catchall: V.create(), typeName: aC.ZodObject, ...s(b2) }), Y.strictCreate = (a2, b2) => new Y({ shape: () => a2, unknownKeys: "strict", catchall: V.create(), typeName: aC.ZodObject, ...s(b2) }), Y.lazycreate = (a2, b2) => new Y({ shape: a2, unknownKeys: "strip", catchall: V.create(), typeName: aC.ZodObject, ...s(b2) });
-      class Z extends t {
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2), c2 = this._def.options;
-          if (b2.common.async) return Promise.all(c2.map(async (a3) => {
-            let c3 = { ...b2, common: { ...b2.common, issues: [] }, parent: null };
-            return { result: await a3._parseAsync({ data: b2.data, path: b2.path, parent: c3 }), ctx: c3 };
-          })).then(function(a3) {
-            for (let b3 of a3) if ("valid" === b3.result.status) return b3.result;
-            for (let c4 of a3) if ("dirty" === c4.result.status) return b2.common.issues.push(...c4.ctx.common.issues), c4.result;
-            let c3 = a3.map((a4) => new h(a4.ctx.common.issues));
-            return k(b2, { code: g.invalid_union, unionErrors: c3 }), m;
-          });
-          {
-            let a3, d2 = [];
-            for (let e3 of c2) {
-              let c3 = { ...b2, common: { ...b2.common, issues: [] }, parent: null }, f2 = e3._parseSync({ data: b2.data, path: b2.path, parent: c3 });
-              if ("valid" === f2.status) return f2;
-              "dirty" !== f2.status || a3 || (a3 = { result: f2, ctx: c3 }), c3.common.issues.length && d2.push(c3.common.issues);
-            }
-            if (a3) return b2.common.issues.push(...a3.ctx.common.issues), a3.result;
-            let e2 = d2.map((a4) => new h(a4));
-            return k(b2, { code: g.invalid_union, unionErrors: e2 }), m;
-          }
-        }
-        get options() {
-          return this._def.options;
-        }
-      }
-      Z.create = (a2, b2) => new Z({ options: a2, typeName: aC.ZodUnion, ...s(b2) });
-      let $ = (a2) => {
-        if (a2 instanceof ag) return $(a2.schema);
-        if (a2 instanceof am) return $(a2.innerType());
-        if (a2 instanceof ah) return [a2.value];
-        if (a2 instanceof aj) return a2.options;
-        if (a2 instanceof ak) return az.objectValues(a2.enum);
-        else if (a2 instanceof ap) return $(a2._def.innerType);
-        else if (a2 instanceof R) return [void 0];
-        else if (a2 instanceof S) return [null];
-        else if (a2 instanceof an) return [void 0, ...$(a2.unwrap())];
-        else if (a2 instanceof ao) return [null, ...$(a2.unwrap())];
-        else if (a2 instanceof as) return $(a2.unwrap());
-        else if (a2 instanceof au) return $(a2.unwrap());
-        else if (a2 instanceof aq) return $(a2._def.innerType);
-        else return [];
-      };
-      class _ extends t {
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2);
-          if (b2.parsedType !== e.object) return k(b2, { code: g.invalid_type, expected: e.object, received: b2.parsedType }), m;
-          let c2 = this.discriminator, d2 = b2.data[c2], f2 = this.optionsMap.get(d2);
-          return f2 ? b2.common.async ? f2._parseAsync({ data: b2.data, path: b2.path, parent: b2 }) : f2._parseSync({ data: b2.data, path: b2.path, parent: b2 }) : (k(b2, { code: g.invalid_union_discriminator, options: Array.from(this.optionsMap.keys()), path: [c2] }), m);
-        }
-        get discriminator() {
-          return this._def.discriminator;
-        }
-        get options() {
-          return this._def.options;
-        }
-        get optionsMap() {
-          return this._def.optionsMap;
-        }
-        static create(a2, b2, c2) {
-          let d2 = /* @__PURE__ */ new Map();
-          for (let c3 of b2) {
-            let b3 = $(c3.shape[a2]);
-            if (!b3.length) throw Error(`A discriminator value for key \`${a2}\` could not be extracted from all schema options`);
-            for (let e2 of b3) {
-              if (d2.has(e2)) throw Error(`Discriminator property ${String(a2)} has duplicate value ${String(e2)}`);
-              d2.set(e2, c3);
-            }
-          }
-          return new _({ typeName: aC.ZodDiscriminatedUnion, discriminator: a2, options: b2, optionsMap: d2, ...s(c2) });
-        }
-      }
-      class aa extends t {
-        _parse(a2) {
-          let { status: b2, ctx: c2 } = this._processInputParams(a2), d2 = (a3, d3) => {
-            if ("aborted" === a3.status || "aborted" === d3.status) return m;
-            let h2 = function a4(b3, c3) {
-              let d4 = f(b3), g2 = f(c3);
-              if (b3 === c3) return { valid: true, data: b3 };
-              if (d4 === e.object && g2 === e.object) {
-                let d5 = az.objectKeys(c3), e2 = az.objectKeys(b3).filter((a5) => -1 !== d5.indexOf(a5)), f2 = { ...b3, ...c3 };
-                for (let d6 of e2) {
-                  let e3 = a4(b3[d6], c3[d6]);
-                  if (!e3.valid) return { valid: false };
-                  f2[d6] = e3.data;
-                }
-                return { valid: true, data: f2 };
-              }
-              if (d4 === e.array && g2 === e.array) {
-                if (b3.length !== c3.length) return { valid: false };
-                let d5 = [];
-                for (let e2 = 0; e2 < b3.length; e2++) {
-                  let f2 = a4(b3[e2], c3[e2]);
-                  if (!f2.valid) return { valid: false };
-                  d5.push(f2.data);
-                }
-                return { valid: true, data: d5 };
-              }
-              if (d4 === e.date && g2 === e.date && +b3 == +c3) return { valid: true, data: b3 };
-              return { valid: false };
-            }(a3.value, d3.value);
-            return h2.valid ? (("dirty" === a3.status || "dirty" === d3.status) && b2.dirty(), { status: b2.value, value: h2.data }) : (k(c2, { code: g.invalid_intersection_types }), m);
-          };
-          return c2.common.async ? Promise.all([this._def.left._parseAsync({ data: c2.data, path: c2.path, parent: c2 }), this._def.right._parseAsync({ data: c2.data, path: c2.path, parent: c2 })]).then(([a3, b3]) => d2(a3, b3)) : d2(this._def.left._parseSync({ data: c2.data, path: c2.path, parent: c2 }), this._def.right._parseSync({ data: c2.data, path: c2.path, parent: c2 }));
-        }
-      }
-      aa.create = (a2, b2, c2) => new aa({ left: a2, right: b2, typeName: aC.ZodIntersection, ...s(c2) });
-      class ab extends t {
-        _parse(a2) {
-          let { status: b2, ctx: c2 } = this._processInputParams(a2);
-          if (c2.parsedType !== e.array) return k(c2, { code: g.invalid_type, expected: e.array, received: c2.parsedType }), m;
-          if (c2.data.length < this._def.items.length) return k(c2, { code: g.too_small, minimum: this._def.items.length, inclusive: true, exact: false, type: "array" }), m;
-          !this._def.rest && c2.data.length > this._def.items.length && (k(c2, { code: g.too_big, maximum: this._def.items.length, inclusive: true, exact: false, type: "array" }), b2.dirty());
-          let d2 = [...c2.data].map((a3, b3) => {
-            let d3 = this._def.items[b3] || this._def.rest;
-            return d3 ? d3._parse(new q(c2, a3, c2.path, b3)) : null;
-          }).filter((a3) => !!a3);
-          return c2.common.async ? Promise.all(d2).then((a3) => l.mergeArray(b2, a3)) : l.mergeArray(b2, d2);
-        }
-        get items() {
-          return this._def.items;
-        }
-        rest(a2) {
-          return new ab({ ...this._def, rest: a2 });
-        }
-      }
-      ab.create = (a2, b2) => {
-        if (!Array.isArray(a2)) throw Error("You must pass an array of schemas to z.tuple([ ... ])");
-        return new ab({ items: a2, typeName: aC.ZodTuple, rest: null, ...s(b2) });
-      };
-      class ac extends t {
-        get keySchema() {
-          return this._def.keyType;
-        }
-        get valueSchema() {
-          return this._def.valueType;
-        }
-        _parse(a2) {
-          let { status: b2, ctx: c2 } = this._processInputParams(a2);
-          if (c2.parsedType !== e.object) return k(c2, { code: g.invalid_type, expected: e.object, received: c2.parsedType }), m;
-          let d2 = [], f2 = this._def.keyType, h2 = this._def.valueType;
-          for (let a3 in c2.data) d2.push({ key: f2._parse(new q(c2, a3, c2.path, a3)), value: h2._parse(new q(c2, c2.data[a3], c2.path, a3)), alwaysSet: a3 in c2.data });
-          return c2.common.async ? l.mergeObjectAsync(b2, d2) : l.mergeObjectSync(b2, d2);
-        }
-        get element() {
-          return this._def.valueType;
-        }
-        static create(a2, b2, c2) {
-          return new ac(b2 instanceof t ? { keyType: a2, valueType: b2, typeName: aC.ZodRecord, ...s(c2) } : { keyType: L.create(), valueType: a2, typeName: aC.ZodRecord, ...s(b2) });
-        }
-      }
-      class ad extends t {
-        get keySchema() {
-          return this._def.keyType;
-        }
-        get valueSchema() {
-          return this._def.valueType;
-        }
-        _parse(a2) {
-          let { status: b2, ctx: c2 } = this._processInputParams(a2);
-          if (c2.parsedType !== e.map) return k(c2, { code: g.invalid_type, expected: e.map, received: c2.parsedType }), m;
-          let d2 = this._def.keyType, f2 = this._def.valueType, h2 = [...c2.data.entries()].map(([a3, b3], e2) => ({ key: d2._parse(new q(c2, a3, c2.path, [e2, "key"])), value: f2._parse(new q(c2, b3, c2.path, [e2, "value"])) }));
-          if (c2.common.async) {
-            let a3 = /* @__PURE__ */ new Map();
-            return Promise.resolve().then(async () => {
-              for (let c3 of h2) {
-                let d3 = await c3.key, e2 = await c3.value;
-                if ("aborted" === d3.status || "aborted" === e2.status) return m;
-                ("dirty" === d3.status || "dirty" === e2.status) && b2.dirty(), a3.set(d3.value, e2.value);
-              }
-              return { status: b2.value, value: a3 };
-            });
-          }
-          {
-            let a3 = /* @__PURE__ */ new Map();
-            for (let c3 of h2) {
-              let d3 = c3.key, e2 = c3.value;
-              if ("aborted" === d3.status || "aborted" === e2.status) return m;
-              ("dirty" === d3.status || "dirty" === e2.status) && b2.dirty(), a3.set(d3.value, e2.value);
-            }
-            return { status: b2.value, value: a3 };
-          }
-        }
-      }
-      ad.create = (a2, b2, c2) => new ad({ valueType: b2, keyType: a2, typeName: aC.ZodMap, ...s(c2) });
-      class ae extends t {
-        _parse(a2) {
-          let { status: b2, ctx: c2 } = this._processInputParams(a2);
-          if (c2.parsedType !== e.set) return k(c2, { code: g.invalid_type, expected: e.set, received: c2.parsedType }), m;
-          let d2 = this._def;
-          null !== d2.minSize && c2.data.size < d2.minSize.value && (k(c2, { code: g.too_small, minimum: d2.minSize.value, type: "set", inclusive: true, exact: false, message: d2.minSize.message }), b2.dirty()), null !== d2.maxSize && c2.data.size > d2.maxSize.value && (k(c2, { code: g.too_big, maximum: d2.maxSize.value, type: "set", inclusive: true, exact: false, message: d2.maxSize.message }), b2.dirty());
-          let f2 = this._def.valueType;
-          function h2(a3) {
-            let c3 = /* @__PURE__ */ new Set();
-            for (let d3 of a3) {
-              if ("aborted" === d3.status) return m;
-              "dirty" === d3.status && b2.dirty(), c3.add(d3.value);
-            }
-            return { status: b2.value, value: c3 };
-          }
-          let i2 = [...c2.data.values()].map((a3, b3) => f2._parse(new q(c2, a3, c2.path, b3)));
-          return c2.common.async ? Promise.all(i2).then((a3) => h2(a3)) : h2(i2);
-        }
-        min(a2, b2) {
-          return new ae({ ...this._def, minSize: { value: a2, message: aB.toString(b2) } });
-        }
-        max(a2, b2) {
-          return new ae({ ...this._def, maxSize: { value: a2, message: aB.toString(b2) } });
-        }
-        size(a2, b2) {
-          return this.min(a2, b2).max(a2, b2);
-        }
-        nonempty(a2) {
-          return this.min(1, a2);
-        }
-      }
-      ae.create = (a2, b2) => new ae({ valueType: a2, minSize: null, maxSize: null, typeName: aC.ZodSet, ...s(b2) });
-      class af extends t {
-        constructor() {
-          super(...arguments), this.validate = this.implement;
-        }
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2);
-          if (b2.parsedType !== e.function) return k(b2, { code: g.invalid_type, expected: e.function, received: b2.parsedType }), m;
-          function c2(a3, c3) {
-            return j({ data: a3, path: b2.path, errorMaps: [b2.common.contextualErrorMap, b2.schemaErrorMap, i, i].filter((a4) => !!a4), issueData: { code: g.invalid_arguments, argumentsError: c3 } });
-          }
-          function d2(a3, c3) {
-            return j({ data: a3, path: b2.path, errorMaps: [b2.common.contextualErrorMap, b2.schemaErrorMap, i, i].filter((a4) => !!a4), issueData: { code: g.invalid_return_type, returnTypeError: c3 } });
-          }
-          let f2 = { errorMap: b2.common.contextualErrorMap }, l2 = b2.data;
-          if (this._def.returns instanceof al) {
-            let a3 = this;
-            return o(async function(...b3) {
-              let e2 = new h([]), g2 = await a3._def.args.parseAsync(b3, f2).catch((a4) => {
-                throw e2.addIssue(c2(b3, a4)), e2;
-              }), i2 = await Reflect.apply(l2, this, g2);
-              return await a3._def.returns._def.type.parseAsync(i2, f2).catch((a4) => {
-                throw e2.addIssue(d2(i2, a4)), e2;
-              });
-            });
-          }
-          {
-            let a3 = this;
-            return o(function(...b3) {
-              let e2 = a3._def.args.safeParse(b3, f2);
-              if (!e2.success) throw new h([c2(b3, e2.error)]);
-              let g2 = Reflect.apply(l2, this, e2.data), i2 = a3._def.returns.safeParse(g2, f2);
-              if (!i2.success) throw new h([d2(g2, i2.error)]);
-              return i2.data;
-            });
-          }
-        }
-        parameters() {
-          return this._def.args;
-        }
-        returnType() {
-          return this._def.returns;
-        }
-        args(...a2) {
-          return new af({ ...this._def, args: ab.create(a2).rest(U.create()) });
-        }
-        returns(a2) {
-          return new af({ ...this._def, returns: a2 });
-        }
-        implement(a2) {
-          return this.parse(a2);
-        }
-        strictImplement(a2) {
-          return this.parse(a2);
-        }
-        static create(a2, b2, c2) {
-          return new af({ args: a2 || ab.create([]).rest(U.create()), returns: b2 || U.create(), typeName: aC.ZodFunction, ...s(c2) });
-        }
-      }
-      class ag extends t {
-        get schema() {
-          return this._def.getter();
-        }
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2);
-          return this._def.getter()._parse({ data: b2.data, path: b2.path, parent: b2 });
-        }
-      }
-      ag.create = (a2, b2) => new ag({ getter: a2, typeName: aC.ZodLazy, ...s(b2) });
-      class ah extends t {
-        _parse(a2) {
-          if (a2.data !== this._def.value) {
-            let b2 = this._getOrReturnCtx(a2);
-            return k(b2, { received: b2.data, code: g.invalid_literal, expected: this._def.value }), m;
-          }
-          return { status: "valid", value: a2.data };
-        }
-        get value() {
-          return this._def.value;
-        }
-      }
-      function ai(a2, b2) {
-        return new aj({ values: a2, typeName: aC.ZodEnum, ...s(b2) });
-      }
-      ah.create = (a2, b2) => new ah({ value: a2, typeName: aC.ZodLiteral, ...s(b2) });
-      class aj extends t {
-        _parse(a2) {
-          if ("string" != typeof a2.data) {
-            let b2 = this._getOrReturnCtx(a2), c2 = this._def.values;
-            return k(b2, { expected: az.joinValues(c2), received: b2.parsedType, code: g.invalid_type }), m;
-          }
-          if (this._cache || (this._cache = new Set(this._def.values)), !this._cache.has(a2.data)) {
-            let b2 = this._getOrReturnCtx(a2), c2 = this._def.values;
-            return k(b2, { received: b2.data, code: g.invalid_enum_value, options: c2 }), m;
-          }
-          return o(a2.data);
-        }
-        get options() {
-          return this._def.values;
-        }
-        get enum() {
-          let a2 = {};
-          for (let b2 of this._def.values) a2[b2] = b2;
-          return a2;
-        }
-        get Values() {
-          let a2 = {};
-          for (let b2 of this._def.values) a2[b2] = b2;
-          return a2;
-        }
-        get Enum() {
-          let a2 = {};
-          for (let b2 of this._def.values) a2[b2] = b2;
-          return a2;
-        }
-        extract(a2, b2 = this._def) {
-          return aj.create(a2, { ...this._def, ...b2 });
-        }
-        exclude(a2, b2 = this._def) {
-          return aj.create(this.options.filter((b3) => !a2.includes(b3)), { ...this._def, ...b2 });
-        }
-      }
-      aj.create = ai;
-      class ak extends t {
-        _parse(a2) {
-          let b2 = az.getValidEnumValues(this._def.values), c2 = this._getOrReturnCtx(a2);
-          if (c2.parsedType !== e.string && c2.parsedType !== e.number) {
-            let a3 = az.objectValues(b2);
-            return k(c2, { expected: az.joinValues(a3), received: c2.parsedType, code: g.invalid_type }), m;
-          }
-          if (this._cache || (this._cache = new Set(az.getValidEnumValues(this._def.values))), !this._cache.has(a2.data)) {
-            let a3 = az.objectValues(b2);
-            return k(c2, { received: c2.data, code: g.invalid_enum_value, options: a3 }), m;
-          }
-          return o(a2.data);
-        }
-        get enum() {
-          return this._def.values;
-        }
-      }
-      ak.create = (a2, b2) => new ak({ values: a2, typeName: aC.ZodNativeEnum, ...s(b2) });
-      class al extends t {
-        unwrap() {
-          return this._def.type;
-        }
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2);
-          return b2.parsedType !== e.promise && false === b2.common.async ? (k(b2, { code: g.invalid_type, expected: e.promise, received: b2.parsedType }), m) : o((b2.parsedType === e.promise ? b2.data : Promise.resolve(b2.data)).then((a3) => this._def.type.parseAsync(a3, { path: b2.path, errorMap: b2.common.contextualErrorMap })));
-        }
-      }
-      al.create = (a2, b2) => new al({ type: a2, typeName: aC.ZodPromise, ...s(b2) });
-      class am extends t {
-        innerType() {
-          return this._def.schema;
-        }
-        sourceType() {
-          return this._def.schema._def.typeName === aC.ZodEffects ? this._def.schema.sourceType() : this._def.schema;
-        }
-        _parse(a2) {
-          let { status: b2, ctx: c2 } = this._processInputParams(a2), d2 = this._def.effect || null, e2 = { addIssue: (a3) => {
-            k(c2, a3), a3.fatal ? b2.abort() : b2.dirty();
-          }, get path() {
-            return c2.path;
-          } };
-          if (e2.addIssue = e2.addIssue.bind(e2), "preprocess" === d2.type) {
-            let a3 = d2.transform(c2.data, e2);
-            if (c2.common.async) return Promise.resolve(a3).then(async (a4) => {
-              if ("aborted" === b2.value) return m;
-              let d3 = await this._def.schema._parseAsync({ data: a4, path: c2.path, parent: c2 });
-              return "aborted" === d3.status ? m : "dirty" === d3.status || "dirty" === b2.value ? n(d3.value) : d3;
-            });
-            {
-              if ("aborted" === b2.value) return m;
-              let d3 = this._def.schema._parseSync({ data: a3, path: c2.path, parent: c2 });
-              return "aborted" === d3.status ? m : "dirty" === d3.status || "dirty" === b2.value ? n(d3.value) : d3;
-            }
-          }
-          if ("refinement" === d2.type) {
-            let a3 = (a4) => {
-              let b3 = d2.refinement(a4, e2);
-              if (c2.common.async) return Promise.resolve(b3);
-              if (b3 instanceof Promise) throw Error("Async refinement encountered during synchronous parse operation. Use .parseAsync instead.");
-              return a4;
-            };
-            if (false !== c2.common.async) return this._def.schema._parseAsync({ data: c2.data, path: c2.path, parent: c2 }).then((c3) => "aborted" === c3.status ? m : ("dirty" === c3.status && b2.dirty(), a3(c3.value).then(() => ({ status: b2.value, value: c3.value }))));
-            {
-              let d3 = this._def.schema._parseSync({ data: c2.data, path: c2.path, parent: c2 });
-              return "aborted" === d3.status ? m : ("dirty" === d3.status && b2.dirty(), a3(d3.value), { status: b2.value, value: d3.value });
-            }
-          }
-          if ("transform" === d2.type) if (false !== c2.common.async) return this._def.schema._parseAsync({ data: c2.data, path: c2.path, parent: c2 }).then((a3) => "valid" !== a3.status ? m : Promise.resolve(d2.transform(a3.value, e2)).then((a4) => ({ status: b2.value, value: a4 })));
-          else {
-            let a3 = this._def.schema._parseSync({ data: c2.data, path: c2.path, parent: c2 });
-            if ("valid" !== a3.status) return m;
-            let f2 = d2.transform(a3.value, e2);
-            if (f2 instanceof Promise) throw Error("Asynchronous transform encountered during synchronous parse operation. Use .parseAsync instead.");
-            return { status: b2.value, value: f2 };
-          }
-          az.assertNever(d2);
-        }
-      }
-      am.create = (a2, b2, c2) => new am({ schema: a2, typeName: aC.ZodEffects, effect: b2, ...s(c2) }), am.createWithPreprocess = (a2, b2, c2) => new am({ schema: b2, effect: { type: "preprocess", transform: a2 }, typeName: aC.ZodEffects, ...s(c2) });
-      class an extends t {
-        _parse(a2) {
-          return this._getType(a2) === e.undefined ? o(void 0) : this._def.innerType._parse(a2);
-        }
-        unwrap() {
-          return this._def.innerType;
-        }
-      }
-      an.create = (a2, b2) => new an({ innerType: a2, typeName: aC.ZodOptional, ...s(b2) });
-      class ao extends t {
-        _parse(a2) {
-          return this._getType(a2) === e.null ? o(null) : this._def.innerType._parse(a2);
-        }
-        unwrap() {
-          return this._def.innerType;
-        }
-      }
-      ao.create = (a2, b2) => new ao({ innerType: a2, typeName: aC.ZodNullable, ...s(b2) });
-      class ap extends t {
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2), c2 = b2.data;
-          return b2.parsedType === e.undefined && (c2 = this._def.defaultValue()), this._def.innerType._parse({ data: c2, path: b2.path, parent: b2 });
-        }
-        removeDefault() {
-          return this._def.innerType;
-        }
-      }
-      ap.create = (a2, b2) => new ap({ innerType: a2, typeName: aC.ZodDefault, defaultValue: "function" == typeof b2.default ? b2.default : () => b2.default, ...s(b2) });
-      class aq extends t {
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2), c2 = { ...b2, common: { ...b2.common, issues: [] } }, d2 = this._def.innerType._parse({ data: c2.data, path: c2.path, parent: { ...c2 } });
-          return p(d2) ? d2.then((a3) => ({ status: "valid", value: "valid" === a3.status ? a3.value : this._def.catchValue({ get error() {
-            return new h(c2.common.issues);
-          }, input: c2.data }) })) : { status: "valid", value: "valid" === d2.status ? d2.value : this._def.catchValue({ get error() {
-            return new h(c2.common.issues);
-          }, input: c2.data }) };
-        }
-        removeCatch() {
-          return this._def.innerType;
-        }
-      }
-      aq.create = (a2, b2) => new aq({ innerType: a2, typeName: aC.ZodCatch, catchValue: "function" == typeof b2.catch ? b2.catch : () => b2.catch, ...s(b2) });
-      class ar extends t {
-        _parse(a2) {
-          if (this._getType(a2) !== e.nan) {
-            let b2 = this._getOrReturnCtx(a2);
-            return k(b2, { code: g.invalid_type, expected: e.nan, received: b2.parsedType }), m;
-          }
-          return { status: "valid", value: a2.data };
-        }
-      }
-      ar.create = (a2) => new ar({ typeName: aC.ZodNaN, ...s(a2) }), Symbol("zod_brand");
-      class as extends t {
-        _parse(a2) {
-          let { ctx: b2 } = this._processInputParams(a2), c2 = b2.data;
-          return this._def.type._parse({ data: c2, path: b2.path, parent: b2 });
-        }
-        unwrap() {
-          return this._def.type;
-        }
-      }
-      class at extends t {
-        _parse(a2) {
-          let { status: b2, ctx: c2 } = this._processInputParams(a2);
-          if (c2.common.async) return (async () => {
-            let a3 = await this._def.in._parseAsync({ data: c2.data, path: c2.path, parent: c2 });
-            return "aborted" === a3.status ? m : "dirty" === a3.status ? (b2.dirty(), n(a3.value)) : this._def.out._parseAsync({ data: a3.value, path: c2.path, parent: c2 });
-          })();
-          {
-            let a3 = this._def.in._parseSync({ data: c2.data, path: c2.path, parent: c2 });
-            return "aborted" === a3.status ? m : "dirty" === a3.status ? (b2.dirty(), { status: "dirty", value: a3.value }) : this._def.out._parseSync({ data: a3.value, path: c2.path, parent: c2 });
-          }
-        }
-        static create(a2, b2) {
-          return new at({ in: a2, out: b2, typeName: aC.ZodPipeline });
-        }
-      }
-      class au extends t {
-        _parse(a2) {
-          let b2 = this._def.innerType._parse(a2), c2 = (a3) => ("valid" === a3.status && (a3.value = Object.freeze(a3.value)), a3);
-          return p(b2) ? b2.then((a3) => c2(a3)) : c2(b2);
-        }
-        unwrap() {
-          return this._def.innerType;
-        }
-      }
-      au.create = (a2, b2) => new au({ innerType: a2, typeName: aC.ZodReadonly, ...s(b2) }), Y.lazycreate, function(a2) {
-        a2.ZodString = "ZodString", a2.ZodNumber = "ZodNumber", a2.ZodNaN = "ZodNaN", a2.ZodBigInt = "ZodBigInt", a2.ZodBoolean = "ZodBoolean", a2.ZodDate = "ZodDate", a2.ZodSymbol = "ZodSymbol", a2.ZodUndefined = "ZodUndefined", a2.ZodNull = "ZodNull", a2.ZodAny = "ZodAny", a2.ZodUnknown = "ZodUnknown", a2.ZodNever = "ZodNever", a2.ZodVoid = "ZodVoid", a2.ZodArray = "ZodArray", a2.ZodObject = "ZodObject", a2.ZodUnion = "ZodUnion", a2.ZodDiscriminatedUnion = "ZodDiscriminatedUnion", a2.ZodIntersection = "ZodIntersection", a2.ZodTuple = "ZodTuple", a2.ZodRecord = "ZodRecord", a2.ZodMap = "ZodMap", a2.ZodSet = "ZodSet", a2.ZodFunction = "ZodFunction", a2.ZodLazy = "ZodLazy", a2.ZodLiteral = "ZodLiteral", a2.ZodEnum = "ZodEnum", a2.ZodEffects = "ZodEffects", a2.ZodNativeEnum = "ZodNativeEnum", a2.ZodOptional = "ZodOptional", a2.ZodNullable = "ZodNullable", a2.ZodDefault = "ZodDefault", a2.ZodCatch = "ZodCatch", a2.ZodPromise = "ZodPromise", a2.ZodBranded = "ZodBranded", a2.ZodPipeline = "ZodPipeline", a2.ZodReadonly = "ZodReadonly";
-      }(aC || (aC = {}));
-      let av = L.create;
-      M.create, ar.create, N.create;
-      let aw = O.create;
-      P.create, Q.create, R.create, S.create, T.create, U.create, V.create, W.create;
-      let ax = X.create, ay = Y.create;
-      Y.strictCreate, Z.create, _.create, aa.create, ab.create, ac.create, ad.create, ae.create, af.create, ag.create, ah.create, aj.create, ak.create, al.create, am.create, an.create, ao.create, am.createWithPreprocess, at.create, c(5560);
-      var az, aA, aB, aC, aD = c(7916), aE = c(903), aF = c(4688);
-      let aG = (0, aD.QP)({ name: "core.assignUserAccess", module: "core", requires: "core:manage_users", label: "Conceder acesso de usu\xE1rio a uma cl\xEDnica", input: ay({ userId: av().min(1), clinicId: av().min(1), roleId: av().min(1) }), handler: async (a2) => (await (0, aE.Lf)().insert(aF.uq).values({ userId: a2.userId, clinicId: a2.clinicId, roleId: a2.roleId }).onConflictDoUpdate({ target: [aF.uq.userId, aF.uq.clinicId], set: { roleId: a2.roleId } }), { ok: true }) }), aH = (0, aD.QP)({ name: "core.createRole", module: "core", requires: "core:manage_users", label: "Criar perfil de acesso", input: ay({ clinicId: av().min(1), name: av().min(1), description: av().optional(), permissionKeys: ax(av()).default([]) }), handler: async (a2) => {
-        let b2 = (0, aE.Lf)(), [c2] = await b2.insert(aF.Ot).values({ clinicId: a2.clinicId, name: a2.name, description: a2.description, isSystem: false }).returning({ id: aF.Ot.id });
-        return a2.permissionKeys.length && await b2.insert(aF.dN).values(a2.permissionKeys.map((a3) => ({ roleId: c2.id, permissionKey: a3 }))), { id: c2.id };
-      } });
-      var aI = c(9219);
-      let aJ = (0, aD.QP)({ name: "master.setModuleContract", module: "core", requires: "master:manage_modules", label: "Contratar/desativar m\xF3dulo (fornecedor)", input: ay({ moduleId: av(), enabled: aw() }), handler: async (a2) => (await (0, aE.Lf)().insert(aI.T).values({ moduleId: a2.moduleId, enabled: a2.enabled, contractedAt: /* @__PURE__ */ new Date() }).onConflictDoUpdate({ target: aI.T.moduleId, set: { enabled: a2.enabled, updatedAt: /* @__PURE__ */ new Date() } }), { ok: true }) }), aK = { id: "core", name: "N\xFAcleo", alwaysOn: true, menu: [{ moduleId: "core", permission: "core:manage_users", label: "Usu\xE1rios e acessos", path: "/dashboard/configuracoes/acessos" }], jobs: [] }, aL = [{ key: "core:view", module: "core", label: "Acessar configura\xE7\xF5es" }, { key: "core:manage_users", module: "core", label: "Gerenciar usu\xE1rios e acessos" }], aM = [aG, aH, aJ];
-    }, 3090: (a, b, c) => {
-      "use strict";
-      c.d(b, { DV: () => k, He: () => function a2(b2, c2) {
-        return Object.entries(b2).reduce((b3, [i2, j2]) => {
-          if ("string" != typeof i2) return b3;
-          let k2 = c2 ? [...c2, i2] : [i2];
-          return (0, e.is)(j2, d.V) || (0, e.is)(j2, f.Xs) || (0, e.is)(j2, f.Xs.Aliased) || (0, e.is)(j2, g.n) ? b3.push({ path: k2, field: j2 }) : (0, e.is)(j2, h.XI) ? b3.push(...a2(j2[h.XI.Symbol.Columns], k2)) : b3.push(...a2(j2, k2)), b3;
-        }, []);
-      }, Ll: () => p, Lq: () => q, XJ: () => m, YD: () => n, a6: () => j, q: () => l, zN: () => o });
-      var d = c(9393), e = c(242), f = c(4096), g = c(8245), h = c(2701), i = c(2926);
-      function j(a2, b2, c2) {
-        let i2 = {}, j2 = a2.reduce((a3, { path: j3, field: k2 }, l2) => {
-          let m2;
-          m2 = (0, e.is)(k2, d.V) ? k2 : (0, e.is)(k2, f.Xs) ? k2.decoder : (0, e.is)(k2, g.n) ? k2._.sql.decoder : k2.sql.decoder;
-          let n2 = a3;
-          for (let [a4, f2] of j3.entries()) if (a4 < j3.length - 1) f2 in n2 || (n2[f2] = {}), n2 = n2[f2];
-          else {
-            let a5 = b2[l2], g2 = n2[f2] = null === a5 ? null : m2.mapFromDriverValue(a5);
-            if (c2 && (0, e.is)(k2, d.V) && 2 === j3.length) {
-              let a6 = j3[0];
-              a6 in i2 ? "string" == typeof i2[a6] && i2[a6] !== (0, h.Io)(k2.table) && (i2[a6] = false) : i2[a6] = null === g2 && (0, h.Io)(k2.table);
-            }
-          }
-          return a3;
-        }, {});
-        if (c2 && Object.keys(i2).length > 0) for (let [a3, b3] of Object.entries(i2)) "string" != typeof b3 || c2[b3] || (j2[a3] = null);
-        return j2;
-      }
-      function k(a2, b2) {
-        let c2 = Object.keys(a2), d2 = Object.keys(b2);
-        if (c2.length !== d2.length) return false;
-        for (let [a3, b3] of c2.entries()) if (b3 !== d2[a3]) return false;
-        return true;
-      }
-      function l(a2, b2) {
-        let c2 = Object.entries(b2).filter(([, a3]) => void 0 !== a3).map(([b3, c3]) => (0, e.is)(c3, f.Xs) || (0, e.is)(c3, d.V) ? [b3, c3] : [b3, new f.Iw(c3, a2[h.XI.Symbol.Columns][b3])]);
-        if (0 === c2.length) throw Error("No values to set");
-        return Object.fromEntries(c2);
-      }
-      function m(a2, b2) {
-        for (let c2 of b2) for (let b3 of Object.getOwnPropertyNames(c2.prototype)) "constructor" !== b3 && Object.defineProperty(a2.prototype, b3, Object.getOwnPropertyDescriptor(c2.prototype, b3) || /* @__PURE__ */ Object.create(null));
-      }
-      function n(a2) {
-        return a2[h.XI.Symbol.Columns];
-      }
-      function o(a2) {
-        return (0, e.is)(a2, g.n) ? a2._.alias : (0, e.is)(a2, f.Ss) ? a2[i.n].name : (0, e.is)(a2, f.Xs) ? void 0 : a2[h.XI.Symbol.IsAlias] ? a2[h.XI.Symbol.Name] : a2[h.XI.Symbol.BaseName];
-      }
-      function p(a2, b2) {
-        return { name: "string" == typeof a2 && a2.length > 0 ? a2 : "", config: "object" == typeof a2 ? a2 : b2 };
-      }
-      function q(a2) {
-        if ("object" != typeof a2 || null === a2 || "Object" !== a2.constructor.name) return false;
-        if ("logger" in a2) {
-          let b2 = typeof a2.logger;
-          return "boolean" === b2 || "object" === b2 && "function" == typeof a2.logger.logQuery || "undefined" === b2;
-        }
-        if ("schema" in a2) {
-          let b2 = typeof a2.schema;
-          return "object" === b2 || "undefined" === b2;
-        }
-        if ("casing" in a2) {
-          let b2 = typeof a2.casing;
-          return "string" === b2 || "undefined" === b2;
-        }
-        if ("mode" in a2) return "default" === a2.mode && "planetscale" === a2.mode && void 0 === a2.mode;
-        if ("connection" in a2) {
-          let b2 = typeof a2.connection;
-          return "string" === b2 || "object" === b2 || "undefined" === b2;
-        }
-        if ("client" in a2) {
-          let b2 = typeof a2.client;
-          return "object" === b2 || "function" === b2 || "undefined" === b2;
-        }
-        return 0 === Object.keys(a2).length;
-      }
-      "undefined" == typeof TextDecoder || new TextDecoder();
-    }, 3193: (a, b, c) => {
-      "use strict";
-      c.d(b, { zM: () => h });
-      var d = c(242), e = c(4080);
-      class f extends e.pe {
-        static [d.i] = "PgBooleanBuilder";
-        constructor(a2) {
-          super(a2, "boolean", "PgBoolean");
-        }
-        build(a2) {
-          return new g(a2, this.config);
-        }
-      }
-      class g extends e.Kl {
-        static [d.i] = "PgBoolean";
-        getSQLType() {
-          return "boolean";
-        }
-      }
-      function h(a2) {
-        return new f(a2 ?? "");
-      }
-    }, 3591: (a, b, c) => {
-      "use strict";
-      c.d(b, { p: () => f });
-      var d = c(242), e = c(4080);
-      class f extends e.pe {
-        static [d.i] = "PgIntColumnBaseBuilder";
-        generatedAlwaysAsIdentity(a2) {
-          if (a2) {
-            let { name: b2, ...c2 } = a2;
-            this.config.generatedIdentity = { type: "always", sequenceName: b2, sequenceOptions: c2 };
-          } else this.config.generatedIdentity = { type: "always" };
-          return this.config.hasDefault = true, this.config.notNull = true, this;
-        }
-        generatedByDefaultAsIdentity(a2) {
-          if (a2) {
-            let { name: b2, ...c2 } = a2;
-            this.config.generatedIdentity = { type: "byDefault", sequenceName: b2, sequenceOptions: c2 };
-          } else this.config.generatedIdentity = { type: "byDefault" };
-          return this.config.hasDefault = true, this.config.notNull = true, this;
-        }
-      }
-    }, 3688: (a, b, c) => {
-      "use strict";
-      c.d(b, { BU: () => i, rL: () => l });
-      var d = c(242), e = c(4080);
-      class f extends e.pe {
-        static [d.i] = "PgEnumObjectColumnBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgEnumObjectColumn"), this.config.enum = b2;
-        }
-        build(a2) {
-          return new g(a2, this.config);
-        }
-      }
-      class g extends e.Kl {
-        static [d.i] = "PgEnumObjectColumn";
-        enum;
-        enumValues = this.config.enum.enumValues;
-        constructor(a2, b2) {
-          super(a2, b2), this.enum = b2.enum;
-        }
-        getSQLType() {
-          return this.enum.enumName;
-        }
-      }
-      let h = Symbol.for("drizzle:isPgEnum");
-      function i(a2) {
-        return !!a2 && "function" == typeof a2 && h in a2 && true === a2[h];
-      }
-      class j extends e.pe {
-        static [d.i] = "PgEnumColumnBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgEnumColumn"), this.config.enum = b2;
-        }
-        build(a2) {
-          return new k(a2, this.config);
-        }
-      }
-      class k extends e.Kl {
-        static [d.i] = "PgEnumColumn";
-        enum = this.config.enum;
-        enumValues = this.config.enum.enumValues;
-        constructor(a2, b2) {
-          super(a2, b2), this.enum = b2.enum;
-        }
-        getSQLType() {
-          return this.enum.enumName;
-        }
-      }
-      function l(a2, b2) {
-        return Array.isArray(b2) ? function(a3, b3, c2) {
-          let d2 = Object.assign((a4) => new j(a4 ?? "", d2), { enumName: a3, enumValues: b3, schema: c2, [h]: true });
-          return d2;
-        }(a2, [...b2], void 0) : function(a3, b3, c2) {
-          let d2 = Object.assign((a4) => new f(a4 ?? "", d2), { enumName: a3, enumValues: Object.values(b3), schema: c2, [h]: true });
-          return d2;
-        }(a2, b2, void 0);
-      }
-    }, 3825: (a, b, c) => {
-      "use strict";
-      c.d(b, { runAction: () => n });
-      var d = c(5560), e = c(903), f = c(2693);
-      let g = { debug: 0, info: 1, warn: 2, error: 3 };
-      class h {
-        constructor(a2 = "app", b2) {
-          this.service = a2, this.config = { level: process.env.LOG_LEVEL || "info", isDevelopment: false, enableConsole: true, ...b2 };
-        }
-        shouldLog(a2) {
-          return g[a2] >= g[this.config.level];
-        }
-        formatEntry(a2, b2, c2) {
-          return { timestamp: (/* @__PURE__ */ new Date()).toISOString(), level: a2, message: b2, context: c2, service: this.service };
-        }
-        output(a2) {
-          if (!this.config.enableConsole) return;
-          let b2 = this.config.isDevelopment ? `[${a2.timestamp}] [${a2.level.toUpperCase()}] [${a2.service}]` : `[${a2.level.toUpperCase()}]`, c2 = a2.context ? `${a2.message} ${JSON.stringify(a2.context)}` : a2.message;
-          switch (a2.level) {
-            case "debug":
-              this.config.isDevelopment && console.log(b2, c2);
-              break;
-            case "info":
-              console.log(b2, c2);
-              break;
-            case "warn":
-              console.warn(b2, c2);
-              break;
-            case "error":
-              console.error(b2, c2);
-          }
-        }
-        debug(a2, b2) {
-          this.shouldLog("debug") && this.output(this.formatEntry("debug", a2, b2));
-        }
-        info(a2, b2) {
-          this.shouldLog("info") && this.output(this.formatEntry("info", a2, b2));
-        }
-        warn(a2, b2) {
-          this.shouldLog("warn") && this.output(this.formatEntry("warn", a2, b2));
-        }
-        error(a2, b2, c2) {
-          if (!this.shouldLog("error")) return;
-          let d2 = b2 instanceof Error ? { ...c2, error: b2.message, stack: b2.stack } : { ...c2, error: b2 };
-          this.output(this.formatEntry("error", a2, d2));
-        }
-        child(a2) {
-          return new h(`${this.service}:${a2}`, this.config);
-        }
-      }
-      let i = new h();
-      i.child("api");
-      let j = i.child("db");
-      async function k(a2) {
-        try {
-          await (0, e.Lf)().insert(f.i).values({ clinicId: a2.clinicId, principalType: a2.principalType, actor: a2.actor, onBehalfOf: a2.onBehalfOf ?? null, actionName: a2.actionName, module: a2.module, inputRedacted: a2.inputRedacted, result: a2.result, errorCode: a2.errorCode ?? null });
-        } catch (b2) {
-          j.error("failed to write action_log", b2, { actionName: a2.actionName });
-        }
-      }
-      function l(a2, b2) {
-        if (!a2 || "object" != typeof a2) return a2;
-        let c2 = { ...a2 };
-        for (let a3 of b2) a3 in c2 && (c2[a3] = "[REDACTED]");
-        return c2;
-      }
-      function m(a2, b2) {
-        return { ok: false, error: { code: a2, message: b2 } };
-      }
-      async function n(a2, b2, c2) {
-        if (!c2 || !c2.clinicId || "system" !== c2.source && !c2.user) return await k({ clinicId: c2?.clinicId ?? null, principalType: c2?.source ?? null, actor: c2?.audit?.actor ?? "unknown", onBehalfOf: c2?.audit?.onBehalfOf, actionName: a2.name, module: a2.module, inputRedacted: l(b2, a2.sensitiveFields ?? []), result: "error", errorCode: "unauthenticated" }), m("unauthenticated", "N\xE3o autenticado.");
-        let e2 = { clinicId: c2.clinicId, principalType: c2.source, actor: c2.audit.actor, onBehalfOf: c2.audit.onBehalfOf, actionName: a2.name, module: a2.module, inputRedacted: l(b2, a2.sensitiveFields ?? []) }, f2 = (a3) => k({ ...e2, result: "error", errorCode: a3 });
-        if (!c2.hasModule(a2.module)) return await f2("module_disabled"), m("module_disabled", "M\xF3dulo n\xE3o dispon\xEDvel.");
-        if (!c2.can(a2.requires)) return await f2("forbidden"), m("forbidden", "Sem permiss\xE3o.");
-        let g2 = a2.input.safeParse(b2);
-        if (!g2.success) return await f2("invalid_input"), m("invalid_input", "Dados inv\xE1lidos.");
-        try {
-          let b3 = await a2.handler(g2.data, c2);
-          return await k({ ...e2, result: "ok", errorCode: null }), { ok: true, data: b3 };
-        } catch (c3) {
-          let b3 = c3 instanceof d.l ? c3.code : "internal";
-          return "internal" === b3 && j.error("action handler threw", c3, { action: a2.name }), await f2(b3), m(b3, c3 instanceof d.l ? c3.message : "Erro interno.");
-        }
-      }
-      i.child("ai"), i.child("whatsapp");
-    }, 3946: (a, b, c) => {
-      "use strict";
-      c.d(b, { Qq: () => i });
-      var d = c(242), e = c(3090), f = c(4080);
-      class g extends f.pe {
-        static [d.i] = "PgTextBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgText"), this.config.enumValues = b2.enum;
-        }
-        build(a2) {
-          return new h(a2, this.config);
-        }
-      }
-      class h extends f.Kl {
-        static [d.i] = "PgText";
-        enumValues = this.config.enumValues;
-        getSQLType() {
-          return "text";
-        }
-      }
-      function i(a2, b2 = {}) {
-        let { name: c2, config: d2 } = (0, e.Ll)(a2, b2);
-        return new g(c2, d2);
-      }
-    }, 4051: (a, b, c) => {
-      "use strict";
-      c.d(b, { nd: () => i });
-      var d = c(242), e = c(4080), f = c(3591);
-      class g extends f.p {
-        static [d.i] = "PgIntegerBuilder";
-        constructor(a2) {
-          super(a2, "number", "PgInteger");
-        }
-        build(a2) {
-          return new h(a2, this.config);
-        }
-      }
-      class h extends e.Kl {
-        static [d.i] = "PgInteger";
-        getSQLType() {
-          return "integer";
-        }
-        mapFromDriverValue(a2) {
-          return "string" == typeof a2 ? Number.parseInt(a2) : a2;
-        }
-      }
-      function i(a2) {
-        return new g(a2 ?? "");
-      }
-    }, 4080: (a, b, c) => {
-      "use strict";
-      c.d(b, { Kl: () => q, pe: () => p });
-      var d = c(242);
-      class e {
-        static [d.i] = "ColumnBuilder";
-        config;
-        constructor(a2, b2, c2) {
-          this.config = { name: a2, keyAsName: "" === a2, notNull: false, default: void 0, hasDefault: false, primaryKey: false, isUnique: false, uniqueName: void 0, uniqueType: void 0, dataType: b2, columnType: c2, generated: void 0 };
+        constructor(a10, b10, c2) {
+          this.config = { name: a10, keyAsName: "" === a10, notNull: false, default: void 0, hasDefault: false, primaryKey: false, isUnique: false, uniqueName: void 0, uniqueType: void 0, dataType: b10, columnType: c2, generated: void 0 };
         }
         $type() {
           return this;
@@ -4077,1400 +784,29 @@ params: ${b2}`), this.query = a10, this.params = b2, this.cause = c2, Error.capt
         notNull() {
           return this.config.notNull = true, this;
         }
-        default(a2) {
-          return this.config.default = a2, this.config.hasDefault = true, this;
+        default(a10) {
+          return this.config.default = a10, this.config.hasDefault = true, this;
         }
-        $defaultFn(a2) {
-          return this.config.defaultFn = a2, this.config.hasDefault = true, this;
+        $defaultFn(a10) {
+          return this.config.defaultFn = a10, this.config.hasDefault = true, this;
         }
         $default = this.$defaultFn;
-        $onUpdateFn(a2) {
-          return this.config.onUpdateFn = a2, this.config.hasDefault = true, this;
+        $onUpdateFn(a10) {
+          return this.config.onUpdateFn = a10, this.config.hasDefault = true, this;
         }
         $onUpdate = this.$onUpdateFn;
         primaryKey() {
           return this.config.primaryKey = true, this.config.notNull = true, this;
         }
-        setName(a2) {
-          "" === this.config.name && (this.config.name = a2);
-        }
-      }
-      var f = c(9393), g = c(8056);
-      class h {
-        static [d.i] = "PgForeignKeyBuilder";
-        reference;
-        _onUpdate = "no action";
-        _onDelete = "no action";
-        constructor(a2, b2) {
-          this.reference = () => {
-            let { name: b3, columns: c2, foreignColumns: d2 } = a2();
-            return { name: b3, columns: c2, foreignTable: d2[0].table, foreignColumns: d2 };
-          }, b2 && (this._onUpdate = b2.onUpdate, this._onDelete = b2.onDelete);
-        }
-        onUpdate(a2) {
-          return this._onUpdate = void 0 === a2 ? "no action" : a2, this;
-        }
-        onDelete(a2) {
-          return this._onDelete = void 0 === a2 ? "no action" : a2, this;
-        }
-        build(a2) {
-          return new i(a2, this);
+        setName(a10) {
+          "" === this.config.name && (this.config.name = a10);
         }
       }
       class i {
-        constructor(a2, b2) {
-          this.table = a2, this.reference = b2.reference, this.onUpdate = b2._onUpdate, this.onDelete = b2._onDelete;
+        constructor(a10, b10) {
+          this.table = a10, this.config = b10, this.name = b10.name, this.keyAsName = b10.keyAsName, this.notNull = b10.notNull, this.default = b10.default, this.defaultFn = b10.defaultFn, this.onUpdateFn = b10.onUpdateFn, this.hasDefault = b10.hasDefault, this.primary = b10.primaryKey, this.isUnique = b10.isUnique, this.uniqueName = b10.uniqueName, this.uniqueType = b10.uniqueType, this.dataType = b10.dataType, this.columnType = b10.columnType, this.generated = b10.generated, this.generatedIdentity = b10.generatedIdentity;
         }
-        static [d.i] = "PgForeignKey";
-        reference;
-        onUpdate;
-        onDelete;
-        getName() {
-          let { name: a2, columns: b2, foreignColumns: c2 } = this.reference(), d2 = b2.map((a3) => a3.name), e2 = c2.map((a3) => a3.name), f2 = [this.table[g.E], ...d2, c2[0].table[g.E], ...e2];
-          return a2 ?? `${f2.join("_")}_fk`;
-        }
-      }
-      var j = c(1591);
-      function k(a2, b2) {
-        return `${a2[g.E]}_${b2.join("_")}_unique`;
-      }
-      class l {
-        constructor(a2, b2) {
-          this.name = b2, this.columns = a2;
-        }
-        static [d.i] = null;
-        columns;
-        nullsNotDistinctConfig = false;
-        nullsNotDistinct() {
-          return this.nullsNotDistinctConfig = true, this;
-        }
-        build(a2) {
-          return new n(a2, this.columns, this.nullsNotDistinctConfig, this.name);
-        }
-      }
-      class m {
-        static [d.i] = null;
-        name;
-        constructor(a2) {
-          this.name = a2;
-        }
-        on(...a2) {
-          return new l(a2, this.name);
-        }
-      }
-      class n {
-        constructor(a2, b2, c2, d2) {
-          this.table = a2, this.columns = b2, this.name = d2 ?? k(this.table, this.columns.map((a3) => a3.name)), this.nullsNotDistinct = c2;
-        }
-        static [d.i] = null;
-        columns;
-        name;
-        nullsNotDistinct = false;
-        getName() {
-          return this.name;
-        }
-      }
-      function o(a2, b2, c2) {
-        for (let d2 = b2; d2 < a2.length; d2++) {
-          let e2 = a2[d2];
-          if ("\\" === e2) {
-            d2++;
-            continue;
-          }
-          if ('"' === e2) return [a2.slice(b2, d2).replace(/\\/g, ""), d2 + 1];
-          if (!c2 && ("," === e2 || "}" === e2)) return [a2.slice(b2, d2).replace(/\\/g, ""), d2];
-        }
-        return [a2.slice(b2).replace(/\\/g, ""), a2.length];
-      }
-      class p extends e {
-        foreignKeyConfigs = [];
-        static [d.i] = "PgColumnBuilder";
-        array(a2) {
-          return new t(this.config.name, this, a2);
-        }
-        references(a2, b2 = {}) {
-          return this.foreignKeyConfigs.push({ ref: a2, actions: b2 }), this;
-        }
-        unique(a2, b2) {
-          return this.config.isUnique = true, this.config.uniqueName = a2, this.config.uniqueType = b2?.nulls, this;
-        }
-        generatedAlwaysAs(a2) {
-          return this.config.generated = { as: a2, type: "always", mode: "stored" }, this;
-        }
-        buildForeignKeys(a2, b2) {
-          return this.foreignKeyConfigs.map(({ ref: c2, actions: d2 }) => (0, j.i)((c3, d3) => {
-            let e2 = new h(() => ({ columns: [a2], foreignColumns: [c3()] }));
-            return d3.onUpdate && e2.onUpdate(d3.onUpdate), d3.onDelete && e2.onDelete(d3.onDelete), e2.build(b2);
-          }, c2, d2));
-        }
-        buildExtraConfigColumn(a2) {
-          return new r(a2, this.config);
-        }
-      }
-      class q extends f.V {
-        constructor(a2, b2) {
-          b2.uniqueName || (b2.uniqueName = k(a2, [b2.name])), super(a2, b2), this.table = a2;
-        }
-        static [d.i] = "PgColumn";
-      }
-      class r extends q {
-        static [d.i] = "ExtraConfigColumn";
-        getSQLType() {
-          return this.getSQLType();
-        }
-        indexConfig = { order: this.config.order ?? "asc", nulls: this.config.nulls ?? "last", opClass: this.config.opClass };
-        defaultConfig = { order: "asc", nulls: "last", opClass: void 0 };
-        asc() {
-          return this.indexConfig.order = "asc", this;
-        }
-        desc() {
-          return this.indexConfig.order = "desc", this;
-        }
-        nullsFirst() {
-          return this.indexConfig.nulls = "first", this;
-        }
-        nullsLast() {
-          return this.indexConfig.nulls = "last", this;
-        }
-        op(a2) {
-          return this.indexConfig.opClass = a2, this;
-        }
-      }
-      class s {
-        static [d.i] = null;
-        constructor(a2, b2, c2, d2) {
-          this.name = a2, this.keyAsName = b2, this.type = c2, this.indexConfig = d2;
-        }
-        name;
-        keyAsName;
-        type;
-        indexConfig;
-      }
-      class t extends p {
-        static [d.i] = "PgArrayBuilder";
-        constructor(a2, b2, c2) {
-          super(a2, "array", "PgArray"), this.config.baseBuilder = b2, this.config.size = c2;
-        }
-        build(a2) {
-          let b2 = this.config.baseBuilder.build(a2);
-          return new u(a2, this.config, b2);
-        }
-      }
-      class u extends q {
-        constructor(a2, b2, c2, d2) {
-          super(a2, b2), this.baseColumn = c2, this.range = d2, this.size = b2.size;
-        }
-        size;
-        static [d.i] = "PgArray";
-        getSQLType() {
-          return `${this.baseColumn.getSQLType()}[${"number" == typeof this.size ? this.size : ""}]`;
-        }
-        mapFromDriverValue(a2) {
-          return "string" == typeof a2 && (a2 = function(a3) {
-            let [b2] = function a4(b3, c2 = 0) {
-              let d2 = [], e2 = c2, f2 = false;
-              for (; e2 < b3.length; ) {
-                let g2 = b3[e2];
-                if ("," === g2) {
-                  (f2 || e2 === c2) && d2.push(""), f2 = true, e2++;
-                  continue;
-                }
-                if (f2 = false, "\\" === g2) {
-                  e2 += 2;
-                  continue;
-                }
-                if ('"' === g2) {
-                  let [a5, c3] = o(b3, e2 + 1, true);
-                  d2.push(a5), e2 = c3;
-                  continue;
-                }
-                if ("}" === g2) return [d2, e2 + 1];
-                if ("{" === g2) {
-                  let [c3, f3] = a4(b3, e2 + 1);
-                  d2.push(c3), e2 = f3;
-                  continue;
-                }
-                let [h2, i2] = o(b3, e2, false);
-                d2.push(h2), e2 = i2;
-              }
-              return [d2, e2];
-            }(a3, 1);
-            return b2;
-          }(a2)), a2.map((a3) => this.baseColumn.mapFromDriverValue(a3));
-        }
-        mapToDriverValue(a2, b2 = false) {
-          let c2 = a2.map((a3) => null === a3 ? null : (0, d.is)(this.baseColumn, u) ? this.baseColumn.mapToDriverValue(a3, true) : this.baseColumn.mapToDriverValue(a3));
-          return b2 ? c2 : function a3(b3) {
-            return `{${b3.map((b4) => Array.isArray(b4) ? a3(b4) : "string" == typeof b4 ? `"${b4.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : `${b4}`).join(",")}}`;
-          }(c2);
-        }
-      }
-    }, 4096: (a, b, c) => {
-      "use strict";
-      c.d(b, { Ct: () => v, DJ: () => m, Iw: () => s, Or: () => u, Ss: () => x, Xs: () => n, eG: () => p, ll: () => t, qt: () => l });
-      var d = c(242), e = c(3688), f = c(8245), g = c(1664), h = c(2926), i = c(9393), j = c(2701);
-      class k {
-        static [d.i] = null;
-      }
-      function l(a2) {
-        return null != a2 && "function" == typeof a2.getSQL;
-      }
-      class m {
-        static [d.i] = "StringChunk";
-        value;
-        constructor(a2) {
-          this.value = Array.isArray(a2) ? a2 : [a2];
-        }
-        getSQL() {
-          return new n([this]);
-        }
-      }
-      class n {
-        constructor(a2) {
-          for (let b2 of (this.queryChunks = a2, a2)) if ((0, d.is)(b2, j.XI)) {
-            let a3 = b2[j.XI.Symbol.Schema];
-            this.usedTables.push(void 0 === a3 ? b2[j.XI.Symbol.Name] : a3 + "." + b2[j.XI.Symbol.Name]);
-          }
-        }
-        static [d.i] = "SQL";
-        decoder = q;
-        shouldInlineParams = false;
-        usedTables = [];
-        append(a2) {
-          return this.queryChunks.push(...a2.queryChunks), this;
-        }
-        toQuery(a2) {
-          return g.k.startActiveSpan("drizzle.buildSQL", (b2) => {
-            let c2 = this.buildQueryFromSourceParams(this.queryChunks, a2);
-            return b2?.setAttributes({ "drizzle.query.text": c2.sql, "drizzle.query.params": JSON.stringify(c2.params) }), c2;
-          });
-        }
-        buildQueryFromSourceParams(a2, b2) {
-          let c2 = Object.assign({}, b2, { inlineParams: b2.inlineParams || this.shouldInlineParams, paramStartIndex: b2.paramStartIndex || { value: 0 } }), { casing: g2, escapeName: k2, escapeParam: p2, prepareTyping: q2, inlineParams: r2, paramStartIndex: t2 } = c2;
-          var v2 = a2.map((a3) => {
-            if ((0, d.is)(a3, m)) return { sql: a3.value.join(""), params: [] };
-            if ((0, d.is)(a3, o)) return { sql: k2(a3.value), params: [] };
-            if (void 0 === a3) return { sql: "", params: [] };
-            if (Array.isArray(a3)) {
-              let b3 = [new m("(")];
-              for (let [c3, d2] of a3.entries()) b3.push(d2), c3 < a3.length - 1 && b3.push(new m(", "));
-              return b3.push(new m(")")), this.buildQueryFromSourceParams(b3, c2);
-            }
-            if ((0, d.is)(a3, n)) return this.buildQueryFromSourceParams(a3.queryChunks, { ...c2, inlineParams: r2 || a3.shouldInlineParams });
-            if ((0, d.is)(a3, j.XI)) {
-              let b3 = a3[j.XI.Symbol.Schema], c3 = a3[j.XI.Symbol.Name];
-              return { sql: void 0 === b3 || a3[j.HE] ? k2(c3) : k2(b3) + "." + k2(c3), params: [] };
-            }
-            if ((0, d.is)(a3, i.V)) {
-              let c3 = g2.getColumnCasing(a3);
-              if ("indexes" === b2.invokeSource) return { sql: k2(c3), params: [] };
-              let d2 = a3.table[j.XI.Symbol.Schema];
-              return { sql: a3.table[j.HE] || void 0 === d2 ? k2(a3.table[j.XI.Symbol.Name]) + "." + k2(c3) : k2(d2) + "." + k2(a3.table[j.XI.Symbol.Name]) + "." + k2(c3), params: [] };
-            }
-            if ((0, d.is)(a3, x)) {
-              let b3 = a3[h.n].schema, c3 = a3[h.n].name;
-              return { sql: void 0 === b3 || a3[h.n].isAlias ? k2(c3) : k2(b3) + "." + k2(c3), params: [] };
-            }
-            if ((0, d.is)(a3, s)) {
-              if ((0, d.is)(a3.value, u)) return { sql: p2(t2.value++, a3), params: [a3], typings: ["none"] };
-              let b3 = null === a3.value ? null : a3.encoder.mapToDriverValue(a3.value);
-              if ((0, d.is)(b3, n)) return this.buildQueryFromSourceParams([b3], c2);
-              if (r2) return { sql: this.mapInlineParam(b3, c2), params: [] };
-              let e2 = ["none"];
-              return q2 && (e2 = [q2(a3.encoder)]), { sql: p2(t2.value++, b3), params: [b3], typings: e2 };
-            }
-            return (0, d.is)(a3, u) ? { sql: p2(t2.value++, a3), params: [a3], typings: ["none"] } : (0, d.is)(a3, n.Aliased) && void 0 !== a3.fieldAlias ? { sql: k2(a3.fieldAlias), params: [] } : (0, d.is)(a3, f.n) ? a3._.isWith ? { sql: k2(a3._.alias), params: [] } : this.buildQueryFromSourceParams([new m("("), a3._.sql, new m(") "), new o(a3._.alias)], c2) : (0, e.BU)(a3) ? a3.schema ? { sql: k2(a3.schema) + "." + k2(a3.enumName), params: [] } : { sql: k2(a3.enumName), params: [] } : l(a3) ? a3.shouldOmitSQLParens?.() ? this.buildQueryFromSourceParams([a3.getSQL()], c2) : this.buildQueryFromSourceParams([new m("("), a3.getSQL(), new m(")")], c2) : r2 ? { sql: this.mapInlineParam(a3, c2), params: [] } : { sql: p2(t2.value++, a3), params: [a3], typings: ["none"] };
-          });
-          let w2 = { sql: "", params: [] };
-          for (let a3 of v2) w2.sql += a3.sql, w2.params.push(...a3.params), a3.typings?.length && (w2.typings || (w2.typings = []), w2.typings.push(...a3.typings));
-          return w2;
-        }
-        mapInlineParam(a2, { escapeString: b2 }) {
-          if (null === a2) return "null";
-          if ("number" == typeof a2 || "boolean" == typeof a2) return a2.toString();
-          if ("string" == typeof a2) return b2(a2);
-          if ("object" == typeof a2) {
-            let c2 = a2.toString();
-            return "[object Object]" === c2 ? b2(JSON.stringify(a2)) : b2(c2);
-          }
-          throw Error("Unexpected param value: " + a2);
-        }
-        getSQL() {
-          return this;
-        }
-        as(a2) {
-          return void 0 === a2 ? this : new n.Aliased(this, a2);
-        }
-        mapWith(a2) {
-          return this.decoder = "function" == typeof a2 ? { mapFromDriverValue: a2 } : a2, this;
-        }
-        inlineParams() {
-          return this.shouldInlineParams = true, this;
-        }
-        if(a2) {
-          return a2 ? this : void 0;
-        }
-      }
-      class o {
-        constructor(a2) {
-          this.value = a2;
-        }
-        static [d.i] = "Name";
-        brand;
-        getSQL() {
-          return new n([this]);
-        }
-      }
-      function p(a2) {
-        return "object" == typeof a2 && null !== a2 && "mapToDriverValue" in a2 && "function" == typeof a2.mapToDriverValue;
-      }
-      let q = { mapFromDriverValue: (a2) => a2 }, r = { mapToDriverValue: (a2) => a2 };
-      ({ ...q, ...r });
-      class s {
-        constructor(a2, b2 = r) {
-          this.value = a2, this.encoder = b2;
-        }
-        static [d.i] = "Param";
-        brand;
-        getSQL() {
-          return new n([this]);
-        }
-      }
-      function t(a2, ...b2) {
-        let c2 = [];
-        for (let [d2, e2] of ((b2.length > 0 || a2.length > 0 && "" !== a2[0]) && c2.push(new m(a2[0])), b2.entries())) c2.push(e2, new m(a2[d2 + 1]));
-        return new n(c2);
-      }
-      ((a2) => {
-        a2.empty = function() {
-          return new n([]);
-        }, a2.fromList = function(a3) {
-          return new n(a3);
-        }, a2.raw = function(a3) {
-          return new n([new m(a3)]);
-        }, a2.join = function(a3, b2) {
-          let c2 = [];
-          for (let [d2, e2] of a3.entries()) d2 > 0 && void 0 !== b2 && c2.push(b2), c2.push(e2);
-          return new n(c2);
-        }, a2.identifier = function(a3) {
-          return new o(a3);
-        }, a2.placeholder = function(a3) {
-          return new u(a3);
-        }, a2.param = function(a3, b2) {
-          return new s(a3, b2);
-        };
-      })(t || (t = {})), ((a2) => {
-        class b2 {
-          constructor(a3, b3) {
-            this.sql = a3, this.fieldAlias = b3;
-          }
-          static [d.i] = "SQL.Aliased";
-          isSelectionField = false;
-          getSQL() {
-            return this.sql;
-          }
-          clone() {
-            return new b2(this.sql, this.fieldAlias);
-          }
-        }
-        a2.Aliased = b2;
-      })(n || (n = {}));
-      class u {
-        constructor(a2) {
-          this.name = a2;
-        }
-        static [d.i] = "Placeholder";
-        getSQL() {
-          return new n([this]);
-        }
-      }
-      function v(a2, b2) {
-        return a2.map((a3) => {
-          if ((0, d.is)(a3, u)) {
-            if (!(a3.name in b2)) throw Error(`No value for placeholder "${a3.name}" was provided`);
-            return b2[a3.name];
-          }
-          if ((0, d.is)(a3, s) && (0, d.is)(a3.value, u)) {
-            if (!(a3.value.name in b2)) throw Error(`No value for placeholder "${a3.value.name}" was provided`);
-            return a3.encoder.mapToDriverValue(b2[a3.value.name]);
-          }
-          return a3;
-        });
-      }
-      let w = Symbol.for("drizzle:IsDrizzleView");
-      class x {
-        static [d.i] = "View";
-        [h.n];
-        [w] = true;
-        constructor({ name: a2, schema: b2, selectedFields: c2, query: d2 }) {
-          this[h.n] = { name: a2, originalName: a2, schema: b2, selectedFields: c2, query: d2, isExisting: !d2, isAlias: false };
-        }
-        getSQL() {
-          return new n([this]);
-        }
-      }
-      i.V.prototype.getSQL = function() {
-        return new n([this]);
-      }, j.XI.prototype.getSQL = function() {
-        return new n([this]);
-      }, f.n.prototype.getSQL = function() {
-        return new n([this]);
-      };
-    }, 4612: (a, b, c) => {
-      "use strict";
-      c.d(b, { hv: () => g, ie: () => f });
-      var d = c(242), e = c(6123);
-      function f(...a2) {
-        return a2[0].columns ? new g(a2[0].columns, a2[0].name) : new g(a2);
-      }
-      class g {
-        static [d.i] = "PgPrimaryKeyBuilder";
-        columns;
-        name;
-        constructor(a2, b2) {
-          this.columns = a2, this.name = b2;
-        }
-        build(a2) {
-          return new h(a2, this.columns, this.name);
-        }
-      }
-      class h {
-        constructor(a2, b2, c2) {
-          this.table = a2, this.columns = b2, this.name = c2;
-        }
-        static [d.i] = "PgPrimaryKey";
-        columns;
-        name;
-        getName() {
-          return this.name ?? `${this.table[e.mu.Symbol.Name]}_${this.columns.map((a2) => a2.name).join("_")}_pk`;
-        }
-      }
-    }, 4688: (a, b, c) => {
-      "use strict";
-      c.d(b, { Ot: () => k, P: () => o, dN: () => l, g8: () => n, uq: () => m });
-      var d = c(6123), e = c(7238), f = c(3946), g = c(3193), h = c(7097), i = c(4612), j = c(2933);
-      let k = (0, d.cJ)("roles", { id: (0, e.uR)("id").primaryKey().defaultRandom(), clinicId: (0, e.uR)("clinic_id").notNull().references(() => j.wW.id, { onDelete: "cascade" }), name: (0, f.Qq)("name").notNull(), description: (0, f.Qq)("description"), isSystem: (0, g.zM)("is_system").default(false).notNull(), createdAt: (0, h.vE)("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: (0, h.vE)("updated_at", { withTimezone: true }).defaultNow().notNull() }), l = (0, d.cJ)("role_permissions", { roleId: (0, e.uR)("role_id").notNull().references(() => k.id, { onDelete: "cascade" }), permissionKey: (0, f.Qq)("permission_key").notNull() }, (a2) => ({ pk: (0, i.ie)({ columns: [a2.roleId, a2.permissionKey] }) })), m = (0, d.cJ)("user_clinic_access", { userId: (0, e.uR)("user_id").notNull().references(() => j.VV.id, { onDelete: "cascade" }), clinicId: (0, e.uR)("clinic_id").notNull().references(() => j.wW.id, { onDelete: "cascade" }), roleId: (0, e.uR)("role_id").notNull().references(() => k.id, { onDelete: "restrict" }), createdAt: (0, h.vE)("created_at", { withTimezone: true }).defaultNow().notNull() }, (a2) => ({ pk: (0, i.ie)({ columns: [a2.userId, a2.clinicId] }) })), n = (0, d.cJ)("user_permission_overrides", { userId: (0, e.uR)("user_id").notNull().references(() => j.VV.id, { onDelete: "cascade" }), clinicId: (0, e.uR)("clinic_id").notNull().references(() => j.wW.id, { onDelete: "cascade" }), permissionKey: (0, f.Qq)("permission_key").notNull(), granted: (0, g.zM)("granted").notNull() }, (a2) => ({ pk: (0, i.ie)({ columns: [a2.userId, a2.clinicId, a2.permissionKey] }) })), o = (0, d.cJ)("permissions", { key: (0, f.Qq)("key").primaryKey(), module: (0, f.Qq)("module").notNull(), label: (0, f.Qq)("label").notNull() });
-    }, 5560: (a, b, c) => {
-      "use strict";
-      c.d(b, { l: () => d });
-      class d extends Error {
-        constructor(a2, b2) {
-          super(b2), this.code = a2, this.name = "ActionError";
-        }
-      }
-    }, 6123: (a, b, c) => {
-      "use strict";
-      c.d(b, { mu: () => aO, cJ: () => aP });
-      var d = c(242), e = c(2701), f = c(3090), g = c(4080), h = c(3591);
-      class i extends h.p {
-        static [d.i] = "PgBigInt53Builder";
-        constructor(a2) {
-          super(a2, "number", "PgBigInt53");
-        }
-        build(a2) {
-          return new j(a2, this.config);
-        }
-      }
-      class j extends g.Kl {
-        static [d.i] = "PgBigInt53";
-        getSQLType() {
-          return "bigint";
-        }
-        mapFromDriverValue(a2) {
-          return "number" == typeof a2 ? a2 : Number(a2);
-        }
-      }
-      class k extends h.p {
-        static [d.i] = "PgBigInt64Builder";
-        constructor(a2) {
-          super(a2, "bigint", "PgBigInt64");
-        }
-        build(a2) {
-          return new l(a2, this.config);
-        }
-      }
-      class l extends g.Kl {
-        static [d.i] = "PgBigInt64";
-        getSQLType() {
-          return "bigint";
-        }
-        mapFromDriverValue(a2) {
-          return BigInt(a2);
-        }
-      }
-      function m(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return "number" === d2.mode ? new i(c2) : new k(c2);
-      }
-      class n extends g.pe {
-        static [d.i] = "PgBigSerial53Builder";
-        constructor(a2) {
-          super(a2, "number", "PgBigSerial53"), this.config.hasDefault = true, this.config.notNull = true;
-        }
-        build(a2) {
-          return new o(a2, this.config);
-        }
-      }
-      class o extends g.Kl {
-        static [d.i] = "PgBigSerial53";
-        getSQLType() {
-          return "bigserial";
-        }
-        mapFromDriverValue(a2) {
-          return "number" == typeof a2 ? a2 : Number(a2);
-        }
-      }
-      class p extends g.pe {
-        static [d.i] = "PgBigSerial64Builder";
-        constructor(a2) {
-          super(a2, "bigint", "PgBigSerial64"), this.config.hasDefault = true;
-        }
-        build(a2) {
-          return new q(a2, this.config);
-        }
-      }
-      class q extends g.Kl {
-        static [d.i] = "PgBigSerial64";
-        getSQLType() {
-          return "bigserial";
-        }
-        mapFromDriverValue(a2) {
-          return BigInt(a2);
-        }
-      }
-      function r(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return "number" === d2.mode ? new n(c2) : new p(c2);
-      }
-      var s = c(3193);
-      class t extends g.pe {
-        static [d.i] = "PgCharBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgChar"), this.config.length = b2.length, this.config.enumValues = b2.enum;
-        }
-        build(a2) {
-          return new u(a2, this.config);
-        }
-      }
-      class u extends g.Kl {
-        static [d.i] = "PgChar";
-        length = this.config.length;
-        enumValues = this.config.enumValues;
-        getSQLType() {
-          return void 0 === this.length ? "char" : `char(${this.length})`;
-        }
-      }
-      function v(a2, b2 = {}) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return new t(c2, d2);
-      }
-      class w extends g.pe {
-        static [d.i] = "PgCidrBuilder";
-        constructor(a2) {
-          super(a2, "string", "PgCidr");
-        }
-        build(a2) {
-          return new x(a2, this.config);
-        }
-      }
-      class x extends g.Kl {
-        static [d.i] = "PgCidr";
-        getSQLType() {
-          return "cidr";
-        }
-      }
-      function y(a2) {
-        return new w(a2 ?? "");
-      }
-      class z extends g.pe {
-        static [d.i] = "PgCustomColumnBuilder";
-        constructor(a2, b2, c2) {
-          super(a2, "custom", "PgCustomColumn"), this.config.fieldConfig = b2, this.config.customTypeParams = c2;
-        }
-        build(a2) {
-          return new A(a2, this.config);
-        }
-      }
-      class A extends g.Kl {
-        static [d.i] = "PgCustomColumn";
-        sqlName;
-        mapTo;
-        mapFrom;
-        constructor(a2, b2) {
-          super(a2, b2), this.sqlName = b2.customTypeParams.dataType(b2.fieldConfig), this.mapTo = b2.customTypeParams.toDriver, this.mapFrom = b2.customTypeParams.fromDriver;
-        }
-        getSQLType() {
-          return this.sqlName;
-        }
-        mapFromDriverValue(a2) {
-          return "function" == typeof this.mapFrom ? this.mapFrom(a2) : a2;
-        }
-        mapToDriverValue(a2) {
-          return "function" == typeof this.mapTo ? this.mapTo(a2) : a2;
-        }
-      }
-      function B(a2) {
-        return (b2, c2) => {
-          let { name: d2, config: e2 } = (0, f.Ll)(b2, c2);
-          return new z(d2, e2, a2);
-        };
-      }
-      var C = c(6903);
-      class D extends g.pe {
-        static [d.i] = "PgDoublePrecisionBuilder";
-        constructor(a2) {
-          super(a2, "number", "PgDoublePrecision");
-        }
-        build(a2) {
-          return new E(a2, this.config);
-        }
-      }
-      class E extends g.Kl {
-        static [d.i] = "PgDoublePrecision";
-        getSQLType() {
-          return "double precision";
-        }
-        mapFromDriverValue(a2) {
-          return "string" == typeof a2 ? Number.parseFloat(a2) : a2;
-        }
-      }
-      function F(a2) {
-        return new D(a2 ?? "");
-      }
-      class G extends g.pe {
-        static [d.i] = "PgInetBuilder";
-        constructor(a2) {
-          super(a2, "string", "PgInet");
-        }
-        build(a2) {
-          return new H(a2, this.config);
-        }
-      }
-      class H extends g.Kl {
-        static [d.i] = "PgInet";
-        getSQLType() {
-          return "inet";
-        }
-      }
-      function I(a2) {
-        return new G(a2 ?? "");
-      }
-      var J = c(4051);
-      class K extends g.pe {
-        static [d.i] = "PgIntervalBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgInterval"), this.config.intervalConfig = b2;
-        }
-        build(a2) {
-          return new L(a2, this.config);
-        }
-      }
-      class L extends g.Kl {
-        static [d.i] = "PgInterval";
-        fields = this.config.intervalConfig.fields;
-        precision = this.config.intervalConfig.precision;
-        getSQLType() {
-          let a2 = this.fields ? ` ${this.fields}` : "", b2 = this.precision ? `(${this.precision})` : "";
-          return `interval${a2}${b2}`;
-        }
-      }
-      function M(a2, b2 = {}) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return new K(c2, d2);
-      }
-      var N = c(9977), O = c(1457);
-      class P extends g.pe {
-        static [d.i] = "PgLineBuilder";
-        constructor(a2) {
-          super(a2, "array", "PgLine");
-        }
-        build(a2) {
-          return new Q(a2, this.config);
-        }
-      }
-      class Q extends g.Kl {
-        static [d.i] = "PgLine";
-        getSQLType() {
-          return "line";
-        }
-        mapFromDriverValue(a2) {
-          let [b2, c2, d2] = a2.slice(1, -1).split(",");
-          return [Number.parseFloat(b2), Number.parseFloat(c2), Number.parseFloat(d2)];
-        }
-        mapToDriverValue(a2) {
-          return `{${a2[0]},${a2[1]},${a2[2]}}`;
-        }
-      }
-      class R extends g.pe {
-        static [d.i] = "PgLineABCBuilder";
-        constructor(a2) {
-          super(a2, "json", "PgLineABC");
-        }
-        build(a2) {
-          return new S(a2, this.config);
-        }
-      }
-      class S extends g.Kl {
-        static [d.i] = "PgLineABC";
-        getSQLType() {
-          return "line";
-        }
-        mapFromDriverValue(a2) {
-          let [b2, c2, d2] = a2.slice(1, -1).split(",");
-          return { a: Number.parseFloat(b2), b: Number.parseFloat(c2), c: Number.parseFloat(d2) };
-        }
-        mapToDriverValue(a2) {
-          return `{${a2.a},${a2.b},${a2.c}}`;
-        }
-      }
-      function T(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return d2?.mode && "tuple" !== d2.mode ? new R(c2) : new P(c2);
-      }
-      class U extends g.pe {
-        static [d.i] = "PgMacaddrBuilder";
-        constructor(a2) {
-          super(a2, "string", "PgMacaddr");
-        }
-        build(a2) {
-          return new V(a2, this.config);
-        }
-      }
-      class V extends g.Kl {
-        static [d.i] = "PgMacaddr";
-        getSQLType() {
-          return "macaddr";
-        }
-      }
-      function W(a2) {
-        return new U(a2 ?? "");
-      }
-      class X extends g.pe {
-        static [d.i] = "PgMacaddr8Builder";
-        constructor(a2) {
-          super(a2, "string", "PgMacaddr8");
-        }
-        build(a2) {
-          return new Y(a2, this.config);
-        }
-      }
-      class Y extends g.Kl {
-        static [d.i] = "PgMacaddr8";
-        getSQLType() {
-          return "macaddr8";
-        }
-      }
-      function Z(a2) {
-        return new X(a2 ?? "");
-      }
-      var $ = c(1308);
-      class _ extends g.pe {
-        static [d.i] = "PgPointTupleBuilder";
-        constructor(a2) {
-          super(a2, "array", "PgPointTuple");
-        }
-        build(a2) {
-          return new aa(a2, this.config);
-        }
-      }
-      class aa extends g.Kl {
-        static [d.i] = "PgPointTuple";
-        getSQLType() {
-          return "point";
-        }
-        mapFromDriverValue(a2) {
-          if ("string" == typeof a2) {
-            let [b2, c2] = a2.slice(1, -1).split(",");
-            return [Number.parseFloat(b2), Number.parseFloat(c2)];
-          }
-          return [a2.x, a2.y];
-        }
-        mapToDriverValue(a2) {
-          return `(${a2[0]},${a2[1]})`;
-        }
-      }
-      class ab extends g.pe {
-        static [d.i] = "PgPointObjectBuilder";
-        constructor(a2) {
-          super(a2, "json", "PgPointObject");
-        }
-        build(a2) {
-          return new ac(a2, this.config);
-        }
-      }
-      class ac extends g.Kl {
-        static [d.i] = "PgPointObject";
-        getSQLType() {
-          return "point";
-        }
-        mapFromDriverValue(a2) {
-          if ("string" == typeof a2) {
-            let [b2, c2] = a2.slice(1, -1).split(",");
-            return { x: Number.parseFloat(b2), y: Number.parseFloat(c2) };
-          }
-          return a2;
-        }
-        mapToDriverValue(a2) {
-          return `(${a2.x},${a2.y})`;
-        }
-      }
-      function ad(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return d2?.mode && "tuple" !== d2.mode ? new ab(c2) : new _(c2);
-      }
-      function ae(a2, b2) {
-        let c2 = new DataView(new ArrayBuffer(8));
-        for (let d2 = 0; d2 < 8; d2++) c2.setUint8(d2, a2[b2 + d2]);
-        return c2.getFloat64(0, true);
-      }
-      function af(a2) {
-        let b2 = function(a3) {
-          let b3 = [];
-          for (let c3 = 0; c3 < a3.length; c3 += 2) b3.push(Number.parseInt(a3.slice(c3, c3 + 2), 16));
-          return new Uint8Array(b3);
-        }(a2), c2 = 0, d2 = b2[0];
-        c2 += 1;
-        let e2 = new DataView(b2.buffer), f2 = e2.getUint32(c2, 1 === d2);
-        if (c2 += 4, 536870912 & f2 && (e2.getUint32(c2, 1 === d2), c2 += 4), (65535 & f2) == 1) {
-          let a3 = ae(b2, c2), d3 = ae(b2, c2 += 8);
-          return c2 += 8, [a3, d3];
-        }
-        throw Error("Unsupported geometry type");
-      }
-      class ag extends g.pe {
-        static [d.i] = "PgGeometryBuilder";
-        constructor(a2) {
-          super(a2, "array", "PgGeometry");
-        }
-        build(a2) {
-          return new ah(a2, this.config);
-        }
-      }
-      class ah extends g.Kl {
-        static [d.i] = "PgGeometry";
-        getSQLType() {
-          return "geometry(point)";
-        }
-        mapFromDriverValue(a2) {
-          return af(a2);
-        }
-        mapToDriverValue(a2) {
-          return `point(${a2[0]} ${a2[1]})`;
-        }
-      }
-      class ai extends g.pe {
-        static [d.i] = "PgGeometryObjectBuilder";
-        constructor(a2) {
-          super(a2, "json", "PgGeometryObject");
-        }
-        build(a2) {
-          return new aj(a2, this.config);
-        }
-      }
-      class aj extends g.Kl {
-        static [d.i] = "PgGeometryObject";
-        getSQLType() {
-          return "geometry(point)";
-        }
-        mapFromDriverValue(a2) {
-          let b2 = af(a2);
-          return { x: b2[0], y: b2[1] };
-        }
-        mapToDriverValue(a2) {
-          return `point(${a2.x} ${a2.y})`;
-        }
-      }
-      function ak(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return d2?.mode && "tuple" !== d2.mode ? new ai(c2) : new ag(c2);
-      }
-      class al extends g.pe {
-        static [d.i] = "PgRealBuilder";
-        constructor(a2, b2) {
-          super(a2, "number", "PgReal"), this.config.length = b2;
-        }
-        build(a2) {
-          return new am(a2, this.config);
-        }
-      }
-      class am extends g.Kl {
-        static [d.i] = "PgReal";
-        constructor(a2, b2) {
-          super(a2, b2);
-        }
-        getSQLType() {
-          return "real";
-        }
-        mapFromDriverValue = (a2) => "string" == typeof a2 ? Number.parseFloat(a2) : a2;
-      }
-      function an(a2) {
-        return new al(a2 ?? "");
-      }
-      class ao extends g.pe {
-        static [d.i] = "PgSerialBuilder";
-        constructor(a2) {
-          super(a2, "number", "PgSerial"), this.config.hasDefault = true, this.config.notNull = true;
-        }
-        build(a2) {
-          return new ap(a2, this.config);
-        }
-      }
-      class ap extends g.Kl {
-        static [d.i] = "PgSerial";
-        getSQLType() {
-          return "serial";
-        }
-      }
-      function aq(a2) {
-        return new ao(a2 ?? "");
-      }
-      class ar extends h.p {
-        static [d.i] = "PgSmallIntBuilder";
-        constructor(a2) {
-          super(a2, "number", "PgSmallInt");
-        }
-        build(a2) {
-          return new as(a2, this.config);
-        }
-      }
-      class as extends g.Kl {
-        static [d.i] = "PgSmallInt";
-        getSQLType() {
-          return "smallint";
-        }
-        mapFromDriverValue = (a2) => "string" == typeof a2 ? Number(a2) : a2;
-      }
-      function at(a2) {
-        return new ar(a2 ?? "");
-      }
-      class au extends g.pe {
-        static [d.i] = "PgSmallSerialBuilder";
-        constructor(a2) {
-          super(a2, "number", "PgSmallSerial"), this.config.hasDefault = true, this.config.notNull = true;
-        }
-        build(a2) {
-          return new av(a2, this.config);
-        }
-      }
-      class av extends g.Kl {
-        static [d.i] = "PgSmallSerial";
-        getSQLType() {
-          return "smallserial";
-        }
-      }
-      function aw(a2) {
-        return new au(a2 ?? "");
-      }
-      var ax = c(3946), ay = c(1912), az = c(7097), aA = c(7238), aB = c(7514);
-      class aC extends g.pe {
-        static [d.i] = "PgBinaryVectorBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgBinaryVector"), this.config.dimensions = b2.dimensions;
-        }
-        build(a2) {
-          return new aD(a2, this.config);
-        }
-      }
-      class aD extends g.Kl {
-        static [d.i] = "PgBinaryVector";
-        dimensions = this.config.dimensions;
-        getSQLType() {
-          return `bit(${this.dimensions})`;
-        }
-      }
-      function aE(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return new aC(c2, d2);
-      }
-      class aF extends g.pe {
-        static [d.i] = "PgHalfVectorBuilder";
-        constructor(a2, b2) {
-          super(a2, "array", "PgHalfVector"), this.config.dimensions = b2.dimensions;
-        }
-        build(a2) {
-          return new aG(a2, this.config);
-        }
-      }
-      class aG extends g.Kl {
-        static [d.i] = "PgHalfVector";
-        dimensions = this.config.dimensions;
-        getSQLType() {
-          return `halfvec(${this.dimensions})`;
-        }
-        mapToDriverValue(a2) {
-          return JSON.stringify(a2);
-        }
-        mapFromDriverValue(a2) {
-          return a2.slice(1, -1).split(",").map((a3) => Number.parseFloat(a3));
-        }
-      }
-      function aH(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return new aF(c2, d2);
-      }
-      class aI extends g.pe {
-        static [d.i] = "PgSparseVectorBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgSparseVector"), this.config.dimensions = b2.dimensions;
-        }
-        build(a2) {
-          return new aJ(a2, this.config);
-        }
-      }
-      class aJ extends g.Kl {
-        static [d.i] = "PgSparseVector";
-        dimensions = this.config.dimensions;
-        getSQLType() {
-          return `sparsevec(${this.dimensions})`;
-        }
-      }
-      function aK(a2, b2) {
-        let { name: c2, config: d2 } = (0, f.Ll)(a2, b2);
-        return new aI(c2, d2);
-      }
-      var aL = c(9466);
-      let aM = Symbol.for("drizzle:PgInlineForeignKeys"), aN = Symbol.for("drizzle:EnableRLS");
-      class aO extends e.XI {
-        static [d.i] = "PgTable";
-        static Symbol = Object.assign({}, e.XI.Symbol, { InlineForeignKeys: aM, EnableRLS: aN });
-        [aM] = [];
-        [aN] = false;
-        [e.XI.Symbol.ExtraConfigBuilder] = void 0;
-        [e.XI.Symbol.ExtraConfigColumns] = {};
-      }
-      let aP = (a2, b2, c2) => function(a3, b3, c3, d2, f2 = a3) {
-        let g2 = new aO(a3, d2, f2), h2 = "function" == typeof b3 ? b3({ bigint: m, bigserial: r, boolean: s.zM, char: v, cidr: y, customType: B, date: C.p6, doublePrecision: F, inet: I, integer: J.nd, interval: M, json: N.Pq, jsonb: O.Fx, line: T, macaddr: W, macaddr8: Z, numeric: $.sH, point: ad, geometry: ak, real: an, serial: aq, smallint: at, smallserial: aw, text: ax.Qq, time: ay.kB, timestamp: az.vE, uuid: aA.uR, varchar: aB.yf, bit: aE, halfvec: aH, sparsevec: aK, vector: aL.i1 }) : b3, i2 = Object.fromEntries(Object.entries(h2).map(([a4, b4]) => {
-          b4.setName(a4);
-          let c4 = b4.build(g2);
-          return g2[aM].push(...b4.buildForeignKeys(c4, g2)), [a4, c4];
-        })), j2 = Object.fromEntries(Object.entries(h2).map(([a4, b4]) => (b4.setName(a4), [a4, b4.buildExtraConfigColumn(g2)]))), k2 = Object.assign(g2, i2);
-        return k2[e.XI.Symbol.Columns] = i2, k2[e.XI.Symbol.ExtraConfigColumns] = j2, c3 && (k2[aO.Symbol.ExtraConfigBuilder] = c3), Object.assign(k2, { enableRLS: () => (k2[aO.Symbol.EnableRLS] = true, k2) });
-      }(a2, b2, c2, void 0);
-    }, 6481: (a, b, c) => {
-      "use strict";
-      c.r(b), c.d(b, { getPermissionCatalog: () => g, registerAccessPermissions: () => f });
-      var d = c(7916);
-      let e = [];
-      function f(a2) {
-        e.push(...a2);
-      }
-      function g() {
-        let a2 = /* @__PURE__ */ new Map();
-        for (let b2 of (0, d.ko)()) a2.has(b2.requires) || a2.set(b2.requires, { key: b2.requires, module: b2.module, label: b2.label });
-        for (let b2 of e) a2.has(b2.key) || a2.set(b2.key, b2);
-        return [...a2.values()];
-      }
-    }, 6778: (a, b, c) => {
-      "use strict";
-      c.d(b, { iv: () => o, pD: () => n, DZ: () => u, _k: () => r, mm: () => p, rl: () => q, I$: () => function a2(b2, c2, d2, g2, h2 = (a3) => a3) {
-        let j2 = {};
-        for (let [k2, l2] of g2.entries()) if (l2.isJson) {
-          let e2 = c2.relations[l2.tsKey], g3 = d2[k2], i2 = "string" == typeof g3 ? JSON.parse(g3) : g3;
-          j2[l2.tsKey] = (0, f.is)(e2, n) ? i2 && a2(b2, b2[l2.relationTableTsKey], i2, l2.selection, h2) : i2.map((c3) => a2(b2, b2[l2.relationTableTsKey], c3, l2.selection, h2));
-        } else {
-          let a3, b3 = h2(d2[k2]), c3 = l2.field;
-          a3 = (0, f.is)(c3, e.V) ? c3 : (0, f.is)(c3, i.Xs) ? c3.decoder : c3.sql.decoder, j2[l2.tsKey] = null === b3 ? null : a3.mapFromDriverValue(b3);
-        }
-        return j2;
-      }, W0: () => t, K1: () => s });
-      var d = c(2701), e = c(9393), f = c(242), g = c(4612), h = c(1582), i = c(4096);
-      function j(a2) {
-        return (0, i.ll)`${a2} asc`;
-      }
-      function k(a2) {
-        return (0, i.ll)`${a2} desc`;
-      }
-      class l {
-        constructor(a2, b2, c2) {
-          this.sourceTable = a2, this.referencedTable = b2, this.relationName = c2, this.referencedTableName = b2[d.XI.Symbol.Name];
-        }
-        static [f.i] = "Relation";
-        referencedTableName;
-        fieldName;
-      }
-      class m {
-        constructor(a2, b2) {
-          this.table = a2, this.config = b2;
-        }
-        static [f.i] = "Relations";
-      }
-      class n extends l {
-        constructor(a2, b2, c2, d2) {
-          super(a2, b2, c2?.relationName), this.config = c2, this.isNullable = d2;
-        }
-        static [f.i] = "One";
-        withFieldName(a2) {
-          let b2 = new n(this.sourceTable, this.referencedTable, this.config, this.isNullable);
-          return b2.fieldName = a2, b2;
-        }
-      }
-      class o extends l {
-        constructor(a2, b2, c2) {
-          super(a2, b2, c2?.relationName), this.config = c2;
-        }
-        static [f.i] = "Many";
-        withFieldName(a2) {
-          let b2 = new o(this.sourceTable, this.referencedTable, this.config);
-          return b2.fieldName = a2, b2;
-        }
-      }
-      function p() {
-        return { and: h.Uo, between: h.Tq, eq: h.eq, exists: h.t2, gt: h.gt, gte: h.RO, ilike: h.B3, inArray: h.RV, isNull: h.kZ, isNotNull: h.Pe, like: h.mj, lt: h.lt, lte: h.wJ, ne: h.ne, not: h.AU, notBetween: h.o8, notExists: h.KJ, notLike: h.RK, notIlike: h.q1, notInArray: h.KL, or: h.or, sql: i.ll };
-      }
-      function q() {
-        return { sql: i.ll, asc: j, desc: k };
-      }
-      function r(a2, b2) {
-        1 === Object.keys(a2).length && "default" in a2 && !(0, f.is)(a2.default, d.XI) && (a2 = a2.default);
-        let c2 = {}, e2 = {}, h2 = {};
-        for (let [i2, j2] of Object.entries(a2)) if ((0, f.is)(j2, d.XI)) {
-          let a3 = (0, d.Lf)(j2), b3 = e2[a3];
-          for (let e3 of (c2[a3] = i2, h2[i2] = { tsName: i2, dbName: j2[d.XI.Symbol.Name], schema: j2[d.XI.Symbol.Schema], columns: j2[d.XI.Symbol.Columns], relations: b3?.relations ?? {}, primaryKey: b3?.primaryKey ?? [] }, Object.values(j2[d.XI.Symbol.Columns]))) e3.primary && h2[i2].primaryKey.push(e3);
-          let k2 = j2[d.XI.Symbol.ExtraConfigBuilder]?.(j2[d.XI.Symbol.ExtraConfigColumns]);
-          if (k2) for (let a4 of Object.values(k2)) (0, f.is)(a4, g.hv) && h2[i2].primaryKey.push(...a4.columns);
-        } else if ((0, f.is)(j2, m)) {
-          let a3, f2 = (0, d.Lf)(j2.table), g2 = c2[f2];
-          for (let [c3, d2] of Object.entries(j2.config(b2(j2.table)))) if (g2) {
-            let b3 = h2[g2];
-            b3.relations[c3] = d2, a3 && b3.primaryKey.push(...a3);
-          } else f2 in e2 || (e2[f2] = { relations: {}, primaryKey: a3 }), e2[f2].relations[c3] = d2;
-        }
-        return { tables: h2, tableNamesMap: c2 };
-      }
-      function s(a2, b2) {
-        return new m(a2, (a3) => Object.fromEntries(Object.entries(b2(a3)).map(([a4, b3]) => [a4, b3.withFieldName(a4)])));
-      }
-      function t(a2, b2, c2) {
-        if ((0, f.is)(c2, n) && c2.config) return { fields: c2.config.fields, references: c2.config.references };
-        let e2 = b2[(0, d.Lf)(c2.referencedTable)];
-        if (!e2) throw Error(`Table "${c2.referencedTable[d.XI.Symbol.Name]}" not found in schema`);
-        let g2 = a2[e2];
-        if (!g2) throw Error(`Table "${e2}" not found in schema`);
-        let h2 = c2.sourceTable, i2 = b2[(0, d.Lf)(h2)];
-        if (!i2) throw Error(`Table "${h2[d.XI.Symbol.Name]}" not found in schema`);
-        let j2 = [];
-        for (let a3 of Object.values(g2.relations)) (c2.relationName && c2 !== a3 && a3.relationName === c2.relationName || !c2.relationName && a3.referencedTable === c2.sourceTable) && j2.push(a3);
-        if (j2.length > 1) throw c2.relationName ? Error(`There are multiple relations with name "${c2.relationName}" in table "${e2}"`) : Error(`There are multiple relations between "${e2}" and "${c2.sourceTable[d.XI.Symbol.Name]}". Please specify relation name`);
-        if (j2[0] && (0, f.is)(j2[0], n) && j2[0].config) return { fields: j2[0].config.references, references: j2[0].config.fields };
-        throw Error(`There is not enough information to infer relation "${i2}.${c2.fieldName}"`);
-      }
-      function u(a2) {
-        return { one: function(b2, c2) {
-          return new n(a2, b2, c2, c2?.fields.reduce((a3, b3) => a3 && b3.notNull, true) ?? false);
-        }, many: function(b2, c2) {
-          return new o(a2, b2, c2);
-        } };
-      }
-    }, 6903: (a, b, c) => {
-      "use strict";
-      c.d(b, { dw: () => k, p6: () => l, qw: () => i });
-      var d = c(242), e = c(3090), f = c(4080), g = c(1800);
-      class h extends g.u {
-        static [d.i] = "PgDateBuilder";
-        constructor(a2) {
-          super(a2, "date", "PgDate");
-        }
-        build(a2) {
-          return new i(a2, this.config);
-        }
-      }
-      class i extends f.Kl {
-        static [d.i] = "PgDate";
-        getSQLType() {
-          return "date";
-        }
-        mapFromDriverValue(a2) {
-          return "string" == typeof a2 ? new Date(a2) : a2;
-        }
-        mapToDriverValue(a2) {
-          return a2.toISOString();
-        }
-      }
-      class j extends g.u {
-        static [d.i] = "PgDateStringBuilder";
-        constructor(a2) {
-          super(a2, "string", "PgDateString");
-        }
-        build(a2) {
-          return new k(a2, this.config);
-        }
-      }
-      class k extends f.Kl {
-        static [d.i] = "PgDateString";
-        getSQLType() {
-          return "date";
-        }
-        mapFromDriverValue(a2) {
-          return "string" == typeof a2 ? a2 : a2.toISOString().slice(0, -14);
-        }
-      }
-      function l(a2, b2) {
-        let { name: c2, config: d2 } = (0, e.Ll)(a2, b2);
-        return d2?.mode === "date" ? new h(c2) : new j(c2);
-      }
-    }, 7097: (a, b, c) => {
-      "use strict";
-      c.d(b, { KM: () => i, vE: () => l, xQ: () => k });
-      var d = c(242), e = c(3090), f = c(4080), g = c(1800);
-      class h extends g.u {
-        static [d.i] = "PgTimestampBuilder";
-        constructor(a2, b2, c2) {
-          super(a2, "date", "PgTimestamp"), this.config.withTimezone = b2, this.config.precision = c2;
-        }
-        build(a2) {
-          return new i(a2, this.config);
-        }
-      }
-      class i extends f.Kl {
-        static [d.i] = "PgTimestamp";
-        withTimezone;
-        precision;
-        constructor(a2, b2) {
-          super(a2, b2), this.withTimezone = b2.withTimezone, this.precision = b2.precision;
-        }
-        getSQLType() {
-          let a2 = void 0 === this.precision ? "" : ` (${this.precision})`;
-          return `timestamp${a2}${this.withTimezone ? " with time zone" : ""}`;
-        }
-        mapFromDriverValue(a2) {
-          return "string" == typeof a2 ? new Date(this.withTimezone ? a2 : a2 + "+0000") : a2;
-        }
-        mapToDriverValue = (a2) => a2.toISOString();
-      }
-      class j extends g.u {
-        static [d.i] = "PgTimestampStringBuilder";
-        constructor(a2, b2, c2) {
-          super(a2, "string", "PgTimestampString"), this.config.withTimezone = b2, this.config.precision = c2;
-        }
-        build(a2) {
-          return new k(a2, this.config);
-        }
-      }
-      class k extends f.Kl {
-        static [d.i] = "PgTimestampString";
-        withTimezone;
-        precision;
-        constructor(a2, b2) {
-          super(a2, b2), this.withTimezone = b2.withTimezone, this.precision = b2.precision;
-        }
-        getSQLType() {
-          let a2 = void 0 === this.precision ? "" : `(${this.precision})`;
-          return `timestamp${a2}${this.withTimezone ? " with time zone" : ""}`;
-        }
-        mapFromDriverValue(a2) {
-          if ("string" == typeof a2) return a2;
-          let b2 = a2.toISOString().slice(0, -1).replace("T", " ");
-          if (this.withTimezone) {
-            let c2 = a2.getTimezoneOffset();
-            return `${b2}${c2 <= 0 ? "+" : "-"}${Math.floor(Math.abs(c2) / 60).toString().padStart(2, "0")}`;
-          }
-          return b2;
-        }
-      }
-      function l(a2, b2 = {}) {
-        let { name: c2, config: d2 } = (0, e.Ll)(a2, b2);
-        return d2?.mode === "string" ? new j(c2, d2.withTimezone ?? false, d2.precision) : new h(c2, d2?.withTimezone ?? false, d2?.precision);
-      }
-    }, 7238: (a, b, c) => {
-      "use strict";
-      c.d(b, { dL: () => h, uR: () => i });
-      var d = c(242), e = c(4096), f = c(4080);
-      class g extends f.pe {
-        static [d.i] = "PgUUIDBuilder";
-        constructor(a2) {
-          super(a2, "string", "PgUUID");
-        }
-        defaultRandom() {
-          return this.default((0, e.ll)`gen_random_uuid()`);
-        }
-        build(a2) {
-          return new h(a2, this.config);
-        }
-      }
-      class h extends f.Kl {
-        static [d.i] = "PgUUID";
-        getSQLType() {
-          return "uuid";
-        }
-      }
-      function i(a2) {
-        return new g(a2 ?? "");
-      }
-    }, 7514: (a, b, c) => {
-      "use strict";
-      c.d(b, { yf: () => i });
-      var d = c(242), e = c(3090), f = c(4080);
-      class g extends f.pe {
-        static [d.i] = "PgVarcharBuilder";
-        constructor(a2, b2) {
-          super(a2, "string", "PgVarchar"), this.config.length = b2.length, this.config.enumValues = b2.enum;
-        }
-        build(a2) {
-          return new h(a2, this.config);
-        }
-      }
-      class h extends f.Kl {
-        static [d.i] = "PgVarchar";
-        length = this.config.length;
-        enumValues = this.config.enumValues;
-        getSQLType() {
-          return void 0 === this.length ? "varchar" : `varchar(${this.length})`;
-        }
-      }
-      function i(a2, b2 = {}) {
-        let { name: c2, config: d2 } = (0, e.Ll)(a2, b2);
-        return new g(c2, d2);
-      }
-    }, 7916: (a, b, c) => {
-      "use strict";
-      c.d(b, { QP: () => e, Th: () => h, ko: () => g, n_: () => f });
-      let d = /* @__PURE__ */ new Map();
-      function e(a2) {
-        return a2;
-      }
-      function f(a2) {
-        for (let b2 of a2) {
-          if (d.has(b2.name)) throw Error(`duplicate action name: ${b2.name}`);
-          d.set(b2.name, b2);
-        }
-      }
-      function g() {
-        return [...d.values()];
-      }
-      function h(a2) {
-        return d.get(a2);
-      }
-    }, 8056: (a, b, c) => {
-      "use strict";
-      c.d(b, { E: () => d });
-      let d = Symbol.for("drizzle:Name");
-    }, 8245: (a, b, c) => {
-      "use strict";
-      c.d(b, { J: () => f, n: () => e });
-      var d = c(242);
-      class e {
-        static [d.i] = "Subquery";
-        constructor(a2, b2, c2, d2 = false, e2 = []) {
-          this._ = { brand: "Subquery", sql: a2, selectedFields: b2, alias: c2, isWith: d2, usedTables: e2 };
-        }
-      }
-      class f extends e {
-        static [d.i] = "WithSubquery";
-      }
-    }, 9219: (a, b, c) => {
-      "use strict";
-      c.d(b, { T: () => h });
-      var d = c(6123), e = c(3946), f = c(3193), g = c(7097);
-      let h = (0, d.cJ)("instance_modules", { moduleId: (0, e.Qq)("module_id").primaryKey(), enabled: (0, f.zM)("enabled").default(false).notNull(), contractedAt: (0, g.vE)("contracted_at", { withTimezone: true }), updatedAt: (0, g.vE)("updated_at", { withTimezone: true }).defaultNow().notNull() });
-    }, 9393: (a, b, c) => {
-      "use strict";
-      c.d(b, { V: () => e });
-      var d = c(242);
-      class e {
-        constructor(a2, b2) {
-          this.table = a2, this.config = b2, this.name = b2.name, this.keyAsName = b2.keyAsName, this.notNull = b2.notNull, this.default = b2.default, this.defaultFn = b2.defaultFn, this.onUpdateFn = b2.onUpdateFn, this.hasDefault = b2.hasDefault, this.primary = b2.primaryKey, this.isUnique = b2.isUnique, this.uniqueName = b2.uniqueName, this.uniqueType = b2.uniqueType, this.dataType = b2.dataType, this.columnType = b2.columnType, this.generated = b2.generated, this.generatedIdentity = b2.generatedIdentity;
-        }
-        static [d.i] = "Column";
+        static [f] = "Column";
         name;
         keyAsName;
         primary;
@@ -5488,83 +824,1578 @@ params: ${b2}`), this.query = a10, this.params = b2, this.cause = c2, Error.capt
         generated = void 0;
         generatedIdentity = void 0;
         config;
-        mapFromDriverValue(a2) {
-          return a2;
+        mapFromDriverValue(a10) {
+          return a10;
         }
-        mapToDriverValue(a2) {
-          return a2;
+        mapToDriverValue(a10) {
+          return a10;
         }
         shouldDisableInsert() {
           return void 0 !== this.config.generated && "byDefault" !== this.config.generated.type;
         }
       }
-    }, 9466: (a, b, c) => {
-      "use strict";
-      c.d(b, { i1: () => i });
-      var d = c(242), e = c(3090), f = c(4080);
-      class g extends f.pe {
-        static [d.i] = "PgVectorBuilder";
-        constructor(a2, b2) {
-          super(a2, "array", "PgVector"), this.config.dimensions = b2.dimensions;
+      let j = Symbol.for("drizzle:Name");
+      class k {
+        static [f] = "PgForeignKeyBuilder";
+        reference;
+        _onUpdate = "no action";
+        _onDelete = "no action";
+        constructor(a10, b10) {
+          this.reference = () => {
+            let { name: b11, columns: c2, foreignColumns: d2 } = a10();
+            return { name: b11, columns: c2, foreignTable: d2[0].table, foreignColumns: d2 };
+          }, b10 && (this._onUpdate = b10.onUpdate, this._onDelete = b10.onDelete);
         }
-        build(a2) {
-          return new h(a2, this.config);
+        onUpdate(a10) {
+          return this._onUpdate = void 0 === a10 ? "no action" : a10, this;
+        }
+        onDelete(a10) {
+          return this._onDelete = void 0 === a10 ? "no action" : a10, this;
+        }
+        build(a10) {
+          return new l(a10, this);
         }
       }
-      class h extends f.Kl {
-        static [d.i] = "PgVector";
-        dimensions = this.config.dimensions;
+      class l {
+        constructor(a10, b10) {
+          this.table = a10, this.reference = b10.reference, this.onUpdate = b10._onUpdate, this.onDelete = b10._onDelete;
+        }
+        static [f] = "PgForeignKey";
+        reference;
+        onUpdate;
+        onDelete;
+        getName() {
+          let { name: a10, columns: b10, foreignColumns: c2 } = this.reference(), d2 = b10.map((a11) => a11.name), e2 = c2.map((a11) => a11.name), f2 = [this.table[j], ...d2, c2[0].table[j], ...e2];
+          return a10 ?? `${f2.join("_")}_fk`;
+        }
+      }
+      function m(a10, ...b10) {
+        return a10(...b10);
+      }
+      function n(a10, b10) {
+        return `${a10[j]}_${b10.join("_")}_unique`;
+      }
+      class o {
+        constructor(a10, b10) {
+          this.name = b10, this.columns = a10;
+        }
+        static [f] = null;
+        columns;
+        nullsNotDistinctConfig = false;
+        nullsNotDistinct() {
+          return this.nullsNotDistinctConfig = true, this;
+        }
+        build(a10) {
+          return new q(a10, this.columns, this.nullsNotDistinctConfig, this.name);
+        }
+      }
+      class p {
+        static [f] = null;
+        name;
+        constructor(a10) {
+          this.name = a10;
+        }
+        on(...a10) {
+          return new o(a10, this.name);
+        }
+      }
+      class q {
+        constructor(a10, b10, c2, d2) {
+          this.table = a10, this.columns = b10, this.name = d2 ?? n(this.table, this.columns.map((a11) => a11.name)), this.nullsNotDistinct = c2;
+        }
+        static [f] = null;
+        columns;
+        name;
+        nullsNotDistinct = false;
+        getName() {
+          return this.name;
+        }
+      }
+      function r(a10, b10, c2) {
+        for (let d2 = b10; d2 < a10.length; d2++) {
+          let e2 = a10[d2];
+          if ("\\" === e2) {
+            d2++;
+            continue;
+          }
+          if ('"' === e2) return [a10.slice(b10, d2).replace(/\\/g, ""), d2 + 1];
+          if (!c2 && ("," === e2 || "}" === e2)) return [a10.slice(b10, d2).replace(/\\/g, ""), d2];
+        }
+        return [a10.slice(b10).replace(/\\/g, ""), a10.length];
+      }
+      class s extends h {
+        foreignKeyConfigs = [];
+        static [f] = "PgColumnBuilder";
+        array(a10) {
+          return new w(this.config.name, this, a10);
+        }
+        references(a10, b10 = {}) {
+          return this.foreignKeyConfigs.push({ ref: a10, actions: b10 }), this;
+        }
+        unique(a10, b10) {
+          return this.config.isUnique = true, this.config.uniqueName = a10, this.config.uniqueType = b10?.nulls, this;
+        }
+        generatedAlwaysAs(a10) {
+          return this.config.generated = { as: a10, type: "always", mode: "stored" }, this;
+        }
+        buildForeignKeys(a10, b10) {
+          return this.foreignKeyConfigs.map(({ ref: c2, actions: d2 }) => m((c3, d3) => {
+            let e2 = new k(() => ({ columns: [a10], foreignColumns: [c3()] }));
+            return d3.onUpdate && e2.onUpdate(d3.onUpdate), d3.onDelete && e2.onDelete(d3.onDelete), e2.build(b10);
+          }, c2, d2));
+        }
+        buildExtraConfigColumn(a10) {
+          return new u(a10, this.config);
+        }
+      }
+      class t extends i {
+        constructor(a10, b10) {
+          b10.uniqueName || (b10.uniqueName = n(a10, [b10.name])), super(a10, b10), this.table = a10;
+        }
+        static [f] = "PgColumn";
+      }
+      class u extends t {
+        static [f] = "ExtraConfigColumn";
         getSQLType() {
-          return `vector(${this.dimensions})`;
+          return this.getSQLType();
         }
-        mapToDriverValue(a2) {
-          return JSON.stringify(a2);
+        indexConfig = { order: this.config.order ?? "asc", nulls: this.config.nulls ?? "last", opClass: this.config.opClass };
+        defaultConfig = { order: "asc", nulls: "last", opClass: void 0 };
+        asc() {
+          return this.indexConfig.order = "asc", this;
         }
-        mapFromDriverValue(a2) {
-          return a2.slice(1, -1).split(",").map((a3) => Number.parseFloat(a3));
+        desc() {
+          return this.indexConfig.order = "desc", this;
         }
-      }
-      function i(a2, b2) {
-        let { name: c2, config: d2 } = (0, e.Ll)(a2, b2);
-        return new g(c2, d2);
-      }
-    }, 9977: (a, b, c) => {
-      "use strict";
-      c.d(b, { Pq: () => h, iX: () => g });
-      var d = c(242), e = c(4080);
-      class f extends e.pe {
-        static [d.i] = "PgJsonBuilder";
-        constructor(a2) {
-          super(a2, "json", "PgJson");
+        nullsFirst() {
+          return this.indexConfig.nulls = "first", this;
         }
-        build(a2) {
-          return new g(a2, this.config);
+        nullsLast() {
+          return this.indexConfig.nulls = "last", this;
+        }
+        op(a10) {
+          return this.indexConfig.opClass = a10, this;
         }
       }
-      class g extends e.Kl {
-        static [d.i] = "PgJson";
-        constructor(a2, b2) {
-          super(a2, b2);
+      class v {
+        static [f] = null;
+        constructor(a10, b10, c2, d2) {
+          this.name = a10, this.keyAsName = b10, this.type = c2, this.indexConfig = d2;
+        }
+        name;
+        keyAsName;
+        type;
+        indexConfig;
+      }
+      class w extends s {
+        static [f] = "PgArrayBuilder";
+        constructor(a10, b10, c2) {
+          super(a10, "array", "PgArray"), this.config.baseBuilder = b10, this.config.size = c2;
+        }
+        build(a10) {
+          let b10 = this.config.baseBuilder.build(a10);
+          return new x(a10, this.config, b10);
+        }
+      }
+      class x extends t {
+        constructor(a10, b10, c2, d2) {
+          super(a10, b10), this.baseColumn = c2, this.range = d2, this.size = b10.size;
+        }
+        size;
+        static [f] = "PgArray";
+        getSQLType() {
+          return `${this.baseColumn.getSQLType()}[${"number" == typeof this.size ? this.size : ""}]`;
+        }
+        mapFromDriverValue(a10) {
+          return "string" == typeof a10 && (a10 = function(a11) {
+            let [b10] = function a12(b11, c2 = 0) {
+              let d2 = [], e2 = c2, f2 = false;
+              for (; e2 < b11.length; ) {
+                let g2 = b11[e2];
+                if ("," === g2) {
+                  (f2 || e2 === c2) && d2.push(""), f2 = true, e2++;
+                  continue;
+                }
+                if (f2 = false, "\\" === g2) {
+                  e2 += 2;
+                  continue;
+                }
+                if ('"' === g2) {
+                  let [a13, c3] = r(b11, e2 + 1, true);
+                  d2.push(a13), e2 = c3;
+                  continue;
+                }
+                if ("}" === g2) return [d2, e2 + 1];
+                if ("{" === g2) {
+                  let [c3, f3] = a12(b11, e2 + 1);
+                  d2.push(c3), e2 = f3;
+                  continue;
+                }
+                let [h2, i2] = r(b11, e2, false);
+                d2.push(h2), e2 = i2;
+              }
+              return [d2, e2];
+            }(a11, 1);
+            return b10;
+          }(a10)), a10.map((a11) => this.baseColumn.mapFromDriverValue(a11));
+        }
+        mapToDriverValue(a10, b10 = false) {
+          let c2 = a10.map((a11) => null === a11 ? null : g(this.baseColumn, x) ? this.baseColumn.mapToDriverValue(a11, true) : this.baseColumn.mapToDriverValue(a11));
+          return b10 ? c2 : function a11(b11) {
+            return `{${b11.map((b12) => Array.isArray(b12) ? a11(b12) : "string" == typeof b12 ? `"${b12.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"` : `${b12}`).join(",")}}`;
+          }(c2);
+        }
+      }
+      class y extends s {
+        static [f] = "PgEnumObjectColumnBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgEnumObjectColumn"), this.config.enum = b10;
+        }
+        build(a10) {
+          return new z(a10, this.config);
+        }
+      }
+      class z extends t {
+        static [f] = "PgEnumObjectColumn";
+        enum;
+        enumValues = this.config.enum.enumValues;
+        constructor(a10, b10) {
+          super(a10, b10), this.enum = b10.enum;
+        }
+        getSQLType() {
+          return this.enum.enumName;
+        }
+      }
+      let A = Symbol.for("drizzle:isPgEnum");
+      class B extends s {
+        static [f] = "PgEnumColumnBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgEnumColumn"), this.config.enum = b10;
+        }
+        build(a10) {
+          return new C(a10, this.config);
+        }
+      }
+      class C extends t {
+        static [f] = "PgEnumColumn";
+        enum = this.config.enum;
+        enumValues = this.config.enum.enumValues;
+        constructor(a10, b10) {
+          super(a10, b10), this.enum = b10.enum;
+        }
+        getSQLType() {
+          return this.enum.enumName;
+        }
+      }
+      function D(a10, b10) {
+        return Array.isArray(b10) ? function(a11, b11, c2) {
+          let d2 = Object.assign((a12) => new B(a12 ?? "", d2), { enumName: a11, enumValues: b11, schema: c2, [A]: true });
+          return d2;
+        }(a10, [...b10], void 0) : function(a11, b11, c2) {
+          let d2 = Object.assign((a12) => new y(a12 ?? "", d2), { enumName: a11, enumValues: Object.values(b11), schema: c2, [A]: true });
+          return d2;
+        }(a10, b10, void 0);
+      }
+      let E = D("user_role", ["owner", "admin", "dentist", "receptionist"]), F = D("channel_type", ["whatsapp", "instagram", "web", "telegram"]), G = D("conversation_status", ["active", "waiting", "closed", "escalated"]), H = D("message_direction", ["inbound", "outbound"]), I = D("message_type", ["text", "image", "audio", "document", "video"]), J = D("appointment_status", ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"]), K = Symbol.for("drizzle:Schema"), L = Symbol.for("drizzle:Columns"), M = Symbol.for("drizzle:ExtraConfigColumns"), N = Symbol.for("drizzle:OriginalName"), O = Symbol.for("drizzle:BaseName"), P = Symbol.for("drizzle:IsAlias"), Q = Symbol.for("drizzle:ExtraConfigBuilder"), R = Symbol.for("drizzle:IsDrizzleTable");
+      class S {
+        static [f] = "Table";
+        static Symbol = { Name: j, Schema: K, OriginalName: N, Columns: L, ExtraConfigColumns: M, BaseName: O, IsAlias: P, ExtraConfigBuilder: Q };
+        [j];
+        [N];
+        [K];
+        [L];
+        [M];
+        [O];
+        [P] = false;
+        [R] = true;
+        [Q] = void 0;
+        constructor(a10, b10, c2) {
+          this[j] = this[N] = a10, this[K] = b10, this[O] = c2;
+        }
+      }
+      function T(a10, b10) {
+        return { name: "string" == typeof a10 && a10.length > 0 ? a10 : "", config: "object" == typeof a10 ? a10 : b10 };
+      }
+      "undefined" == typeof TextDecoder || new TextDecoder();
+      class U extends s {
+        static [f] = "PgIntColumnBaseBuilder";
+        generatedAlwaysAsIdentity(a10) {
+          if (a10) {
+            let { name: b10, ...c2 } = a10;
+            this.config.generatedIdentity = { type: "always", sequenceName: b10, sequenceOptions: c2 };
+          } else this.config.generatedIdentity = { type: "always" };
+          return this.config.hasDefault = true, this.config.notNull = true, this;
+        }
+        generatedByDefaultAsIdentity(a10) {
+          if (a10) {
+            let { name: b10, ...c2 } = a10;
+            this.config.generatedIdentity = { type: "byDefault", sequenceName: b10, sequenceOptions: c2 };
+          } else this.config.generatedIdentity = { type: "byDefault" };
+          return this.config.hasDefault = true, this.config.notNull = true, this;
+        }
+      }
+      class V extends U {
+        static [f] = "PgBigInt53Builder";
+        constructor(a10) {
+          super(a10, "number", "PgBigInt53");
+        }
+        build(a10) {
+          return new W(a10, this.config);
+        }
+      }
+      class W extends t {
+        static [f] = "PgBigInt53";
+        getSQLType() {
+          return "bigint";
+        }
+        mapFromDriverValue(a10) {
+          return "number" == typeof a10 ? a10 : Number(a10);
+        }
+      }
+      class X extends U {
+        static [f] = "PgBigInt64Builder";
+        constructor(a10) {
+          super(a10, "bigint", "PgBigInt64");
+        }
+        build(a10) {
+          return new Y(a10, this.config);
+        }
+      }
+      class Y extends t {
+        static [f] = "PgBigInt64";
+        getSQLType() {
+          return "bigint";
+        }
+        mapFromDriverValue(a10) {
+          return BigInt(a10);
+        }
+      }
+      function Z(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return "number" === d2.mode ? new V(c2) : new X(c2);
+      }
+      class $ extends s {
+        static [f] = "PgBigSerial53Builder";
+        constructor(a10) {
+          super(a10, "number", "PgBigSerial53"), this.config.hasDefault = true, this.config.notNull = true;
+        }
+        build(a10) {
+          return new _(a10, this.config);
+        }
+      }
+      class _ extends t {
+        static [f] = "PgBigSerial53";
+        getSQLType() {
+          return "bigserial";
+        }
+        mapFromDriverValue(a10) {
+          return "number" == typeof a10 ? a10 : Number(a10);
+        }
+      }
+      class aa extends s {
+        static [f] = "PgBigSerial64Builder";
+        constructor(a10) {
+          super(a10, "bigint", "PgBigSerial64"), this.config.hasDefault = true;
+        }
+        build(a10) {
+          return new ab(a10, this.config);
+        }
+      }
+      class ab extends t {
+        static [f] = "PgBigSerial64";
+        getSQLType() {
+          return "bigserial";
+        }
+        mapFromDriverValue(a10) {
+          return BigInt(a10);
+        }
+      }
+      function ac(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return "number" === d2.mode ? new $(c2) : new aa(c2);
+      }
+      class ad extends s {
+        static [f] = "PgBooleanBuilder";
+        constructor(a10) {
+          super(a10, "boolean", "PgBoolean");
+        }
+        build(a10) {
+          return new ae(a10, this.config);
+        }
+      }
+      class ae extends t {
+        static [f] = "PgBoolean";
+        getSQLType() {
+          return "boolean";
+        }
+      }
+      function af(a10) {
+        return new ad(a10 ?? "");
+      }
+      class ag extends s {
+        static [f] = "PgCharBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgChar"), this.config.length = b10.length, this.config.enumValues = b10.enum;
+        }
+        build(a10) {
+          return new ah(a10, this.config);
+        }
+      }
+      class ah extends t {
+        static [f] = "PgChar";
+        length = this.config.length;
+        enumValues = this.config.enumValues;
+        getSQLType() {
+          return void 0 === this.length ? "char" : `char(${this.length})`;
+        }
+      }
+      function ai(a10, b10 = {}) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new ag(c2, d2);
+      }
+      class aj extends s {
+        static [f] = "PgCidrBuilder";
+        constructor(a10) {
+          super(a10, "string", "PgCidr");
+        }
+        build(a10) {
+          return new ak(a10, this.config);
+        }
+      }
+      class ak extends t {
+        static [f] = "PgCidr";
+        getSQLType() {
+          return "cidr";
+        }
+      }
+      function al(a10) {
+        return new aj(a10 ?? "");
+      }
+      class am extends s {
+        static [f] = "PgCustomColumnBuilder";
+        constructor(a10, b10, c2) {
+          super(a10, "custom", "PgCustomColumn"), this.config.fieldConfig = b10, this.config.customTypeParams = c2;
+        }
+        build(a10) {
+          return new an(a10, this.config);
+        }
+      }
+      class an extends t {
+        static [f] = "PgCustomColumn";
+        sqlName;
+        mapTo;
+        mapFrom;
+        constructor(a10, b10) {
+          super(a10, b10), this.sqlName = b10.customTypeParams.dataType(b10.fieldConfig), this.mapTo = b10.customTypeParams.toDriver, this.mapFrom = b10.customTypeParams.fromDriver;
+        }
+        getSQLType() {
+          return this.sqlName;
+        }
+        mapFromDriverValue(a10) {
+          return "function" == typeof this.mapFrom ? this.mapFrom(a10) : a10;
+        }
+        mapToDriverValue(a10) {
+          return "function" == typeof this.mapTo ? this.mapTo(a10) : a10;
+        }
+      }
+      function ao(a10) {
+        return (b10, c2) => {
+          let { name: d2, config: e2 } = T(b10, c2);
+          return new am(d2, e2, a10);
+        };
+      }
+      class ap {
+        static [f] = "Subquery";
+        constructor(a10, b10, c2, d2 = false, e2 = []) {
+          this._ = { brand: "Subquery", sql: a10, selectedFields: b10, alias: c2, isWith: d2, usedTables: e2 };
+        }
+      }
+      class aq extends null {
+        static [f] = null;
+      }
+      let ar = { startActiveSpan: (a10, b10) => d ? (e || (e = d.trace.getTracer("drizzle-orm", "0.45.2")), m((c2, d2) => d2.startActiveSpan(a10, (a11) => {
+        try {
+          return b10(a11);
+        } catch (b11) {
+          throw a11.setStatus({ code: c2.SpanStatusCode.ERROR, message: b11 instanceof Error ? b11.message : "Unknown error" }), b11;
+        } finally {
+          a11.end();
+        }
+      }), d, e)) : b10() }, as = Symbol.for("drizzle:ViewBaseConfig");
+      class at {
+        static [f] = null;
+      }
+      class au {
+        static [f] = "StringChunk";
+        value;
+        constructor(a10) {
+          this.value = Array.isArray(a10) ? a10 : [a10];
+        }
+        getSQL() {
+          return new av([this]);
+        }
+      }
+      class av {
+        constructor(a10) {
+          for (let b10 of (this.queryChunks = a10, a10)) if (g(b10, S)) {
+            let a11 = b10[S.Symbol.Schema];
+            this.usedTables.push(void 0 === a11 ? b10[S.Symbol.Name] : a11 + "." + b10[S.Symbol.Name]);
+          }
+        }
+        static [f] = "SQL";
+        decoder = ax;
+        shouldInlineParams = false;
+        usedTables = [];
+        append(a10) {
+          return this.queryChunks.push(...a10.queryChunks), this;
+        }
+        toQuery(a10) {
+          return ar.startActiveSpan("drizzle.buildSQL", (b10) => {
+            let c2 = this.buildQueryFromSourceParams(this.queryChunks, a10);
+            return b10?.setAttributes({ "drizzle.query.text": c2.sql, "drizzle.query.params": JSON.stringify(c2.params) }), c2;
+          });
+        }
+        buildQueryFromSourceParams(a10, b10) {
+          let c2 = Object.assign({}, b10, { inlineParams: b10.inlineParams || this.shouldInlineParams, paramStartIndex: b10.paramStartIndex || { value: 0 } }), { casing: d2, escapeName: e2, escapeParam: f2, prepareTyping: h2, inlineParams: j2, paramStartIndex: k2 } = c2;
+          var l2 = a10.map((a11) => {
+            if (g(a11, au)) return { sql: a11.value.join(""), params: [] };
+            if (g(a11, aw)) return { sql: e2(a11.value), params: [] };
+            if (void 0 === a11) return { sql: "", params: [] };
+            if (Array.isArray(a11)) {
+              let b11 = [new au("(")];
+              for (let [c3, d3] of a11.entries()) b11.push(d3), c3 < a11.length - 1 && b11.push(new au(", "));
+              return b11.push(new au(")")), this.buildQueryFromSourceParams(b11, c2);
+            }
+            if (g(a11, av)) return this.buildQueryFromSourceParams(a11.queryChunks, { ...c2, inlineParams: j2 || a11.shouldInlineParams });
+            if (g(a11, S)) {
+              let b11 = a11[S.Symbol.Schema], c3 = a11[S.Symbol.Name];
+              return { sql: void 0 === b11 || a11[P] ? e2(c3) : e2(b11) + "." + e2(c3), params: [] };
+            }
+            if (g(a11, i)) {
+              let c3 = d2.getColumnCasing(a11);
+              if ("indexes" === b10.invokeSource) return { sql: e2(c3), params: [] };
+              let f3 = a11.table[S.Symbol.Schema];
+              return { sql: a11.table[P] || void 0 === f3 ? e2(a11.table[S.Symbol.Name]) + "." + e2(c3) : e2(f3) + "." + e2(a11.table[S.Symbol.Name]) + "." + e2(c3), params: [] };
+            }
+            if (g(a11, aD)) {
+              let b11 = a11[as].schema, c3 = a11[as].name;
+              return { sql: void 0 === b11 || a11[as].isAlias ? e2(c3) : e2(b11) + "." + e2(c3), params: [] };
+            }
+            if (g(a11, az)) {
+              if (g(a11.value, aB)) return { sql: f2(k2.value++, a11), params: [a11], typings: ["none"] };
+              let b11 = null === a11.value ? null : a11.encoder.mapToDriverValue(a11.value);
+              if (g(b11, av)) return this.buildQueryFromSourceParams([b11], c2);
+              if (j2) return { sql: this.mapInlineParam(b11, c2), params: [] };
+              let d3 = ["none"];
+              return h2 && (d3 = [h2(a11.encoder)]), { sql: f2(k2.value++, b11), params: [b11], typings: d3 };
+            }
+            return g(a11, aB) ? { sql: f2(k2.value++, a11), params: [a11], typings: ["none"] } : g(a11, av.Aliased) && void 0 !== a11.fieldAlias ? { sql: e2(a11.fieldAlias), params: [] } : g(a11, ap) ? a11._.isWith ? { sql: e2(a11._.alias), params: [] } : this.buildQueryFromSourceParams([new au("("), a11._.sql, new au(") "), new aw(a11._.alias)], c2) : a11 && "function" == typeof a11 && A in a11 && true === a11[A] ? a11.schema ? { sql: e2(a11.schema) + "." + e2(a11.enumName), params: [] } : { sql: e2(a11.enumName), params: [] } : null != a11 && "function" == typeof a11.getSQL ? a11.shouldOmitSQLParens?.() ? this.buildQueryFromSourceParams([a11.getSQL()], c2) : this.buildQueryFromSourceParams([new au("("), a11.getSQL(), new au(")")], c2) : j2 ? { sql: this.mapInlineParam(a11, c2), params: [] } : { sql: f2(k2.value++, a11), params: [a11], typings: ["none"] };
+          });
+          let m2 = { sql: "", params: [] };
+          for (let a11 of l2) m2.sql += a11.sql, m2.params.push(...a11.params), a11.typings?.length && (m2.typings || (m2.typings = []), m2.typings.push(...a11.typings));
+          return m2;
+        }
+        mapInlineParam(a10, { escapeString: b10 }) {
+          if (null === a10) return "null";
+          if ("number" == typeof a10 || "boolean" == typeof a10) return a10.toString();
+          if ("string" == typeof a10) return b10(a10);
+          if ("object" == typeof a10) {
+            let c2 = a10.toString();
+            return "[object Object]" === c2 ? b10(JSON.stringify(a10)) : b10(c2);
+          }
+          throw Error("Unexpected param value: " + a10);
+        }
+        getSQL() {
+          return this;
+        }
+        as(a10) {
+          return void 0 === a10 ? this : new av.Aliased(this, a10);
+        }
+        mapWith(a10) {
+          return this.decoder = "function" == typeof a10 ? { mapFromDriverValue: a10 } : a10, this;
+        }
+        inlineParams() {
+          return this.shouldInlineParams = true, this;
+        }
+        if(a10) {
+          return a10 ? this : void 0;
+        }
+      }
+      class aw {
+        constructor(a10) {
+          this.value = a10;
+        }
+        static [f] = "Name";
+        brand;
+        getSQL() {
+          return new av([this]);
+        }
+      }
+      let ax = { mapFromDriverValue: (a10) => a10 }, ay = { mapToDriverValue: (a10) => a10 };
+      ({ ...ax, ...ay });
+      class az {
+        constructor(a10, b10 = ay) {
+          this.value = a10, this.encoder = b10;
+        }
+        static [f] = "Param";
+        brand;
+        getSQL() {
+          return new av([this]);
+        }
+      }
+      function aA(a10, ...b10) {
+        let c2 = [];
+        for (let [d2, e2] of ((b10.length > 0 || a10.length > 0 && "" !== a10[0]) && c2.push(new au(a10[0])), b10.entries())) c2.push(e2, new au(a10[d2 + 1]));
+        return new av(c2);
+      }
+      ((a10) => {
+        a10.empty = function() {
+          return new av([]);
+        }, a10.fromList = function(a11) {
+          return new av(a11);
+        }, a10.raw = function(a11) {
+          return new av([new au(a11)]);
+        }, a10.join = function(a11, b10) {
+          let c2 = [];
+          for (let [d2, e2] of a11.entries()) d2 > 0 && void 0 !== b10 && c2.push(b10), c2.push(e2);
+          return new av(c2);
+        }, a10.identifier = function(a11) {
+          return new aw(a11);
+        }, a10.placeholder = function(a11) {
+          return new aB(a11);
+        }, a10.param = function(a11, b10) {
+          return new az(a11, b10);
+        };
+      })(aA || (aA = {})), ((a10) => {
+        class b10 {
+          constructor(a11, b11) {
+            this.sql = a11, this.fieldAlias = b11;
+          }
+          static [f] = "SQL.Aliased";
+          isSelectionField = false;
+          getSQL() {
+            return this.sql;
+          }
+          clone() {
+            return new b10(this.sql, this.fieldAlias);
+          }
+        }
+        a10.Aliased = b10;
+      })(av || (av = {}));
+      class aB {
+        constructor(a10) {
+          this.name = a10;
+        }
+        static [f] = "Placeholder";
+        getSQL() {
+          return new av([this]);
+        }
+      }
+      let aC = Symbol.for("drizzle:IsDrizzleView");
+      class aD {
+        static [f] = "View";
+        [as];
+        [aC] = true;
+        constructor({ name: a10, schema: b10, selectedFields: c2, query: d2 }) {
+          this[as] = { name: a10, originalName: a10, schema: b10, selectedFields: c2, query: d2, isExisting: !d2, isAlias: false };
+        }
+        getSQL() {
+          return new av([this]);
+        }
+      }
+      i.prototype.getSQL = function() {
+        return new av([this]);
+      }, S.prototype.getSQL = function() {
+        return new av([this]);
+      }, ap.prototype.getSQL = function() {
+        return new av([this]);
+      };
+      class aE extends s {
+        static [f] = "PgDateColumnBaseBuilder";
+        defaultNow() {
+          return this.default(aA`now()`);
+        }
+      }
+      class aF extends aE {
+        static [f] = "PgDateBuilder";
+        constructor(a10) {
+          super(a10, "date", "PgDate");
+        }
+        build(a10) {
+          return new aG(a10, this.config);
+        }
+      }
+      class aG extends t {
+        static [f] = "PgDate";
+        getSQLType() {
+          return "date";
+        }
+        mapFromDriverValue(a10) {
+          return "string" == typeof a10 ? new Date(a10) : a10;
+        }
+        mapToDriverValue(a10) {
+          return a10.toISOString();
+        }
+      }
+      class aH extends aE {
+        static [f] = "PgDateStringBuilder";
+        constructor(a10) {
+          super(a10, "string", "PgDateString");
+        }
+        build(a10) {
+          return new aI(a10, this.config);
+        }
+      }
+      class aI extends t {
+        static [f] = "PgDateString";
+        getSQLType() {
+          return "date";
+        }
+        mapFromDriverValue(a10) {
+          return "string" == typeof a10 ? a10 : a10.toISOString().slice(0, -14);
+        }
+      }
+      function aJ(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return d2?.mode === "date" ? new aF(c2) : new aH(c2);
+      }
+      class aK extends s {
+        static [f] = "PgDoublePrecisionBuilder";
+        constructor(a10) {
+          super(a10, "number", "PgDoublePrecision");
+        }
+        build(a10) {
+          return new aL(a10, this.config);
+        }
+      }
+      class aL extends t {
+        static [f] = "PgDoublePrecision";
+        getSQLType() {
+          return "double precision";
+        }
+        mapFromDriverValue(a10) {
+          return "string" == typeof a10 ? Number.parseFloat(a10) : a10;
+        }
+      }
+      function aM(a10) {
+        return new aK(a10 ?? "");
+      }
+      class aN extends s {
+        static [f] = "PgInetBuilder";
+        constructor(a10) {
+          super(a10, "string", "PgInet");
+        }
+        build(a10) {
+          return new aO(a10, this.config);
+        }
+      }
+      class aO extends t {
+        static [f] = "PgInet";
+        getSQLType() {
+          return "inet";
+        }
+      }
+      function aP(a10) {
+        return new aN(a10 ?? "");
+      }
+      class aQ extends U {
+        static [f] = "PgIntegerBuilder";
+        constructor(a10) {
+          super(a10, "number", "PgInteger");
+        }
+        build(a10) {
+          return new aR(a10, this.config);
+        }
+      }
+      class aR extends t {
+        static [f] = "PgInteger";
+        getSQLType() {
+          return "integer";
+        }
+        mapFromDriverValue(a10) {
+          return "string" == typeof a10 ? Number.parseInt(a10) : a10;
+        }
+      }
+      function aS(a10) {
+        return new aQ(a10 ?? "");
+      }
+      class aT extends s {
+        static [f] = "PgIntervalBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgInterval"), this.config.intervalConfig = b10;
+        }
+        build(a10) {
+          return new aU(a10, this.config);
+        }
+      }
+      class aU extends t {
+        static [f] = "PgInterval";
+        fields = this.config.intervalConfig.fields;
+        precision = this.config.intervalConfig.precision;
+        getSQLType() {
+          let a10 = this.fields ? ` ${this.fields}` : "", b10 = this.precision ? `(${this.precision})` : "";
+          return `interval${a10}${b10}`;
+        }
+      }
+      function aV(a10, b10 = {}) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new aT(c2, d2);
+      }
+      class aW extends s {
+        static [f] = "PgJsonBuilder";
+        constructor(a10) {
+          super(a10, "json", "PgJson");
+        }
+        build(a10) {
+          return new aX(a10, this.config);
+        }
+      }
+      class aX extends t {
+        static [f] = "PgJson";
+        constructor(a10, b10) {
+          super(a10, b10);
         }
         getSQLType() {
           return "json";
         }
-        mapToDriverValue(a2) {
-          return JSON.stringify(a2);
+        mapToDriverValue(a10) {
+          return JSON.stringify(a10);
         }
-        mapFromDriverValue(a2) {
-          if ("string" == typeof a2) try {
-            return JSON.parse(a2);
+        mapFromDriverValue(a10) {
+          if ("string" == typeof a10) try {
+            return JSON.parse(a10);
           } catch {
           }
-          return a2;
+          return a10;
         }
       }
-      function h(a2) {
-        return new f(a2 ?? "");
+      function aY(a10) {
+        return new aW(a10 ?? "");
       }
+      class aZ extends s {
+        static [f] = "PgJsonbBuilder";
+        constructor(a10) {
+          super(a10, "json", "PgJsonb");
+        }
+        build(a10) {
+          return new a$(a10, this.config);
+        }
+      }
+      class a$ extends t {
+        static [f] = "PgJsonb";
+        constructor(a10, b10) {
+          super(a10, b10);
+        }
+        getSQLType() {
+          return "jsonb";
+        }
+        mapToDriverValue(a10) {
+          return JSON.stringify(a10);
+        }
+        mapFromDriverValue(a10) {
+          if ("string" == typeof a10) try {
+            return JSON.parse(a10);
+          } catch {
+          }
+          return a10;
+        }
+      }
+      function a_(a10) {
+        return new aZ(a10 ?? "");
+      }
+      class a0 extends s {
+        static [f] = "PgLineBuilder";
+        constructor(a10) {
+          super(a10, "array", "PgLine");
+        }
+        build(a10) {
+          return new a1(a10, this.config);
+        }
+      }
+      class a1 extends t {
+        static [f] = "PgLine";
+        getSQLType() {
+          return "line";
+        }
+        mapFromDriverValue(a10) {
+          let [b10, c2, d2] = a10.slice(1, -1).split(",");
+          return [Number.parseFloat(b10), Number.parseFloat(c2), Number.parseFloat(d2)];
+        }
+        mapToDriverValue(a10) {
+          return `{${a10[0]},${a10[1]},${a10[2]}}`;
+        }
+      }
+      class a2 extends s {
+        static [f] = "PgLineABCBuilder";
+        constructor(a10) {
+          super(a10, "json", "PgLineABC");
+        }
+        build(a10) {
+          return new a3(a10, this.config);
+        }
+      }
+      class a3 extends t {
+        static [f] = "PgLineABC";
+        getSQLType() {
+          return "line";
+        }
+        mapFromDriverValue(a10) {
+          let [b10, c2, d2] = a10.slice(1, -1).split(",");
+          return { a: Number.parseFloat(b10), b: Number.parseFloat(c2), c: Number.parseFloat(d2) };
+        }
+        mapToDriverValue(a10) {
+          return `{${a10.a},${a10.b},${a10.c}}`;
+        }
+      }
+      function a4(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return d2?.mode && "tuple" !== d2.mode ? new a2(c2) : new a0(c2);
+      }
+      class a5 extends s {
+        static [f] = "PgMacaddrBuilder";
+        constructor(a10) {
+          super(a10, "string", "PgMacaddr");
+        }
+        build(a10) {
+          return new a6(a10, this.config);
+        }
+      }
+      class a6 extends t {
+        static [f] = "PgMacaddr";
+        getSQLType() {
+          return "macaddr";
+        }
+      }
+      function a7(a10) {
+        return new a5(a10 ?? "");
+      }
+      class a8 extends s {
+        static [f] = "PgMacaddr8Builder";
+        constructor(a10) {
+          super(a10, "string", "PgMacaddr8");
+        }
+        build(a10) {
+          return new a9(a10, this.config);
+        }
+      }
+      class a9 extends t {
+        static [f] = "PgMacaddr8";
+        getSQLType() {
+          return "macaddr8";
+        }
+      }
+      function ba(a10) {
+        return new a8(a10 ?? "");
+      }
+      class bb extends s {
+        static [f] = "PgNumericBuilder";
+        constructor(a10, b10, c2) {
+          super(a10, "string", "PgNumeric"), this.config.precision = b10, this.config.scale = c2;
+        }
+        build(a10) {
+          return new bc(a10, this.config);
+        }
+      }
+      class bc extends t {
+        static [f] = "PgNumeric";
+        precision;
+        scale;
+        constructor(a10, b10) {
+          super(a10, b10), this.precision = b10.precision, this.scale = b10.scale;
+        }
+        mapFromDriverValue(a10) {
+          return "string" == typeof a10 ? a10 : String(a10);
+        }
+        getSQLType() {
+          return void 0 !== this.precision && void 0 !== this.scale ? `numeric(${this.precision}, ${this.scale})` : void 0 === this.precision ? "numeric" : `numeric(${this.precision})`;
+        }
+      }
+      class bd extends s {
+        static [f] = "PgNumericNumberBuilder";
+        constructor(a10, b10, c2) {
+          super(a10, "number", "PgNumericNumber"), this.config.precision = b10, this.config.scale = c2;
+        }
+        build(a10) {
+          return new be(a10, this.config);
+        }
+      }
+      class be extends t {
+        static [f] = "PgNumericNumber";
+        precision;
+        scale;
+        constructor(a10, b10) {
+          super(a10, b10), this.precision = b10.precision, this.scale = b10.scale;
+        }
+        mapFromDriverValue(a10) {
+          return "number" == typeof a10 ? a10 : Number(a10);
+        }
+        mapToDriverValue = String;
+        getSQLType() {
+          return void 0 !== this.precision && void 0 !== this.scale ? `numeric(${this.precision}, ${this.scale})` : void 0 === this.precision ? "numeric" : `numeric(${this.precision})`;
+        }
+      }
+      class bf extends s {
+        static [f] = "PgNumericBigIntBuilder";
+        constructor(a10, b10, c2) {
+          super(a10, "bigint", "PgNumericBigInt"), this.config.precision = b10, this.config.scale = c2;
+        }
+        build(a10) {
+          return new bg(a10, this.config);
+        }
+      }
+      class bg extends t {
+        static [f] = "PgNumericBigInt";
+        precision;
+        scale;
+        constructor(a10, b10) {
+          super(a10, b10), this.precision = b10.precision, this.scale = b10.scale;
+        }
+        mapFromDriverValue = BigInt;
+        mapToDriverValue = String;
+        getSQLType() {
+          return void 0 !== this.precision && void 0 !== this.scale ? `numeric(${this.precision}, ${this.scale})` : void 0 === this.precision ? "numeric" : `numeric(${this.precision})`;
+        }
+      }
+      function bh(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10), e2 = d2?.mode;
+        return "number" === e2 ? new bd(c2, d2?.precision, d2?.scale) : "bigint" === e2 ? new bf(c2, d2?.precision, d2?.scale) : new bb(c2, d2?.precision, d2?.scale);
+      }
+      class bi extends s {
+        static [f] = "PgPointTupleBuilder";
+        constructor(a10) {
+          super(a10, "array", "PgPointTuple");
+        }
+        build(a10) {
+          return new bj(a10, this.config);
+        }
+      }
+      class bj extends t {
+        static [f] = "PgPointTuple";
+        getSQLType() {
+          return "point";
+        }
+        mapFromDriverValue(a10) {
+          if ("string" == typeof a10) {
+            let [b10, c2] = a10.slice(1, -1).split(",");
+            return [Number.parseFloat(b10), Number.parseFloat(c2)];
+          }
+          return [a10.x, a10.y];
+        }
+        mapToDriverValue(a10) {
+          return `(${a10[0]},${a10[1]})`;
+        }
+      }
+      class bk extends s {
+        static [f] = "PgPointObjectBuilder";
+        constructor(a10) {
+          super(a10, "json", "PgPointObject");
+        }
+        build(a10) {
+          return new bl(a10, this.config);
+        }
+      }
+      class bl extends t {
+        static [f] = "PgPointObject";
+        getSQLType() {
+          return "point";
+        }
+        mapFromDriverValue(a10) {
+          if ("string" == typeof a10) {
+            let [b10, c2] = a10.slice(1, -1).split(",");
+            return { x: Number.parseFloat(b10), y: Number.parseFloat(c2) };
+          }
+          return a10;
+        }
+        mapToDriverValue(a10) {
+          return `(${a10.x},${a10.y})`;
+        }
+      }
+      function bm(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return d2?.mode && "tuple" !== d2.mode ? new bk(c2) : new bi(c2);
+      }
+      function bn(a10, b10) {
+        let c2 = new DataView(new ArrayBuffer(8));
+        for (let d2 = 0; d2 < 8; d2++) c2.setUint8(d2, a10[b10 + d2]);
+        return c2.getFloat64(0, true);
+      }
+      function bo(a10) {
+        let b10 = function(a11) {
+          let b11 = [];
+          for (let c3 = 0; c3 < a11.length; c3 += 2) b11.push(Number.parseInt(a11.slice(c3, c3 + 2), 16));
+          return new Uint8Array(b11);
+        }(a10), c2 = 0, d2 = b10[0];
+        c2 += 1;
+        let e2 = new DataView(b10.buffer), f2 = e2.getUint32(c2, 1 === d2);
+        if (c2 += 4, 536870912 & f2 && (e2.getUint32(c2, 1 === d2), c2 += 4), (65535 & f2) == 1) {
+          let a11 = bn(b10, c2), d3 = bn(b10, c2 += 8);
+          return c2 += 8, [a11, d3];
+        }
+        throw Error("Unsupported geometry type");
+      }
+      class bp extends s {
+        static [f] = "PgGeometryBuilder";
+        constructor(a10) {
+          super(a10, "array", "PgGeometry");
+        }
+        build(a10) {
+          return new bq(a10, this.config);
+        }
+      }
+      class bq extends t {
+        static [f] = "PgGeometry";
+        getSQLType() {
+          return "geometry(point)";
+        }
+        mapFromDriverValue(a10) {
+          return bo(a10);
+        }
+        mapToDriverValue(a10) {
+          return `point(${a10[0]} ${a10[1]})`;
+        }
+      }
+      class br extends s {
+        static [f] = "PgGeometryObjectBuilder";
+        constructor(a10) {
+          super(a10, "json", "PgGeometryObject");
+        }
+        build(a10) {
+          return new bs(a10, this.config);
+        }
+      }
+      class bs extends t {
+        static [f] = "PgGeometryObject";
+        getSQLType() {
+          return "geometry(point)";
+        }
+        mapFromDriverValue(a10) {
+          let b10 = bo(a10);
+          return { x: b10[0], y: b10[1] };
+        }
+        mapToDriverValue(a10) {
+          return `point(${a10.x} ${a10.y})`;
+        }
+      }
+      function bt(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return d2?.mode && "tuple" !== d2.mode ? new br(c2) : new bp(c2);
+      }
+      class bu extends s {
+        static [f] = "PgRealBuilder";
+        constructor(a10, b10) {
+          super(a10, "number", "PgReal"), this.config.length = b10;
+        }
+        build(a10) {
+          return new bv(a10, this.config);
+        }
+      }
+      class bv extends t {
+        static [f] = "PgReal";
+        constructor(a10, b10) {
+          super(a10, b10);
+        }
+        getSQLType() {
+          return "real";
+        }
+        mapFromDriverValue = (a10) => "string" == typeof a10 ? Number.parseFloat(a10) : a10;
+      }
+      function bw(a10) {
+        return new bu(a10 ?? "");
+      }
+      class bx extends s {
+        static [f] = "PgSerialBuilder";
+        constructor(a10) {
+          super(a10, "number", "PgSerial"), this.config.hasDefault = true, this.config.notNull = true;
+        }
+        build(a10) {
+          return new by(a10, this.config);
+        }
+      }
+      class by extends t {
+        static [f] = "PgSerial";
+        getSQLType() {
+          return "serial";
+        }
+      }
+      function bz(a10) {
+        return new bx(a10 ?? "");
+      }
+      class bA extends U {
+        static [f] = "PgSmallIntBuilder";
+        constructor(a10) {
+          super(a10, "number", "PgSmallInt");
+        }
+        build(a10) {
+          return new bB(a10, this.config);
+        }
+      }
+      class bB extends t {
+        static [f] = "PgSmallInt";
+        getSQLType() {
+          return "smallint";
+        }
+        mapFromDriverValue = (a10) => "string" == typeof a10 ? Number(a10) : a10;
+      }
+      function bC(a10) {
+        return new bA(a10 ?? "");
+      }
+      class bD extends s {
+        static [f] = "PgSmallSerialBuilder";
+        constructor(a10) {
+          super(a10, "number", "PgSmallSerial"), this.config.hasDefault = true, this.config.notNull = true;
+        }
+        build(a10) {
+          return new bE(a10, this.config);
+        }
+      }
+      class bE extends t {
+        static [f] = "PgSmallSerial";
+        getSQLType() {
+          return "smallserial";
+        }
+      }
+      function bF(a10) {
+        return new bD(a10 ?? "");
+      }
+      class bG extends s {
+        static [f] = "PgTextBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgText"), this.config.enumValues = b10.enum;
+        }
+        build(a10) {
+          return new bH(a10, this.config);
+        }
+      }
+      class bH extends t {
+        static [f] = "PgText";
+        enumValues = this.config.enumValues;
+        getSQLType() {
+          return "text";
+        }
+      }
+      function bI(a10, b10 = {}) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new bG(c2, d2);
+      }
+      class bJ extends aE {
+        constructor(a10, b10, c2) {
+          super(a10, "string", "PgTime"), this.withTimezone = b10, this.precision = c2, this.config.withTimezone = b10, this.config.precision = c2;
+        }
+        static [f] = "PgTimeBuilder";
+        build(a10) {
+          return new bK(a10, this.config);
+        }
+      }
+      class bK extends t {
+        static [f] = "PgTime";
+        withTimezone;
+        precision;
+        constructor(a10, b10) {
+          super(a10, b10), this.withTimezone = b10.withTimezone, this.precision = b10.precision;
+        }
+        getSQLType() {
+          let a10 = void 0 === this.precision ? "" : `(${this.precision})`;
+          return `time${a10}${this.withTimezone ? " with time zone" : ""}`;
+        }
+      }
+      function bL(a10, b10 = {}) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new bJ(c2, d2.withTimezone ?? false, d2.precision);
+      }
+      class bM extends aE {
+        static [f] = "PgTimestampBuilder";
+        constructor(a10, b10, c2) {
+          super(a10, "date", "PgTimestamp"), this.config.withTimezone = b10, this.config.precision = c2;
+        }
+        build(a10) {
+          return new bN(a10, this.config);
+        }
+      }
+      class bN extends t {
+        static [f] = "PgTimestamp";
+        withTimezone;
+        precision;
+        constructor(a10, b10) {
+          super(a10, b10), this.withTimezone = b10.withTimezone, this.precision = b10.precision;
+        }
+        getSQLType() {
+          let a10 = void 0 === this.precision ? "" : ` (${this.precision})`;
+          return `timestamp${a10}${this.withTimezone ? " with time zone" : ""}`;
+        }
+        mapFromDriverValue(a10) {
+          return "string" == typeof a10 ? new Date(this.withTimezone ? a10 : a10 + "+0000") : a10;
+        }
+        mapToDriverValue = (a10) => a10.toISOString();
+      }
+      class bO extends aE {
+        static [f] = "PgTimestampStringBuilder";
+        constructor(a10, b10, c2) {
+          super(a10, "string", "PgTimestampString"), this.config.withTimezone = b10, this.config.precision = c2;
+        }
+        build(a10) {
+          return new bP(a10, this.config);
+        }
+      }
+      class bP extends t {
+        static [f] = "PgTimestampString";
+        withTimezone;
+        precision;
+        constructor(a10, b10) {
+          super(a10, b10), this.withTimezone = b10.withTimezone, this.precision = b10.precision;
+        }
+        getSQLType() {
+          let a10 = void 0 === this.precision ? "" : `(${this.precision})`;
+          return `timestamp${a10}${this.withTimezone ? " with time zone" : ""}`;
+        }
+        mapFromDriverValue(a10) {
+          if ("string" == typeof a10) return a10;
+          let b10 = a10.toISOString().slice(0, -1).replace("T", " ");
+          if (this.withTimezone) {
+            let c2 = a10.getTimezoneOffset();
+            return `${b10}${c2 <= 0 ? "+" : "-"}${Math.floor(Math.abs(c2) / 60).toString().padStart(2, "0")}`;
+          }
+          return b10;
+        }
+      }
+      function bQ(a10, b10 = {}) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return d2?.mode === "string" ? new bO(c2, d2.withTimezone ?? false, d2.precision) : new bM(c2, d2?.withTimezone ?? false, d2?.precision);
+      }
+      class bR extends s {
+        static [f] = "PgUUIDBuilder";
+        constructor(a10) {
+          super(a10, "string", "PgUUID");
+        }
+        defaultRandom() {
+          return this.default(aA`gen_random_uuid()`);
+        }
+        build(a10) {
+          return new bS(a10, this.config);
+        }
+      }
+      class bS extends t {
+        static [f] = "PgUUID";
+        getSQLType() {
+          return "uuid";
+        }
+      }
+      function bT(a10) {
+        return new bR(a10 ?? "");
+      }
+      class bU extends s {
+        static [f] = "PgVarcharBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgVarchar"), this.config.length = b10.length, this.config.enumValues = b10.enum;
+        }
+        build(a10) {
+          return new bV(a10, this.config);
+        }
+      }
+      class bV extends t {
+        static [f] = "PgVarchar";
+        length = this.config.length;
+        enumValues = this.config.enumValues;
+        getSQLType() {
+          return void 0 === this.length ? "varchar" : `varchar(${this.length})`;
+        }
+      }
+      function bW(a10, b10 = {}) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new bU(c2, d2);
+      }
+      class bX extends s {
+        static [f] = "PgBinaryVectorBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgBinaryVector"), this.config.dimensions = b10.dimensions;
+        }
+        build(a10) {
+          return new bY(a10, this.config);
+        }
+      }
+      class bY extends t {
+        static [f] = "PgBinaryVector";
+        dimensions = this.config.dimensions;
+        getSQLType() {
+          return `bit(${this.dimensions})`;
+        }
+      }
+      function bZ(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new bX(c2, d2);
+      }
+      class b$ extends s {
+        static [f] = "PgHalfVectorBuilder";
+        constructor(a10, b10) {
+          super(a10, "array", "PgHalfVector"), this.config.dimensions = b10.dimensions;
+        }
+        build(a10) {
+          return new b_(a10, this.config);
+        }
+      }
+      class b_ extends t {
+        static [f] = "PgHalfVector";
+        dimensions = this.config.dimensions;
+        getSQLType() {
+          return `halfvec(${this.dimensions})`;
+        }
+        mapToDriverValue(a10) {
+          return JSON.stringify(a10);
+        }
+        mapFromDriverValue(a10) {
+          return a10.slice(1, -1).split(",").map((a11) => Number.parseFloat(a11));
+        }
+      }
+      function b0(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new b$(c2, d2);
+      }
+      class b1 extends s {
+        static [f] = "PgSparseVectorBuilder";
+        constructor(a10, b10) {
+          super(a10, "string", "PgSparseVector"), this.config.dimensions = b10.dimensions;
+        }
+        build(a10) {
+          return new b2(a10, this.config);
+        }
+      }
+      class b2 extends t {
+        static [f] = "PgSparseVector";
+        dimensions = this.config.dimensions;
+        getSQLType() {
+          return `sparsevec(${this.dimensions})`;
+        }
+      }
+      function b3(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new b1(c2, d2);
+      }
+      class b4 extends s {
+        static [f] = "PgVectorBuilder";
+        constructor(a10, b10) {
+          super(a10, "array", "PgVector"), this.config.dimensions = b10.dimensions;
+        }
+        build(a10) {
+          return new b5(a10, this.config);
+        }
+      }
+      class b5 extends t {
+        static [f] = "PgVector";
+        dimensions = this.config.dimensions;
+        getSQLType() {
+          return `vector(${this.dimensions})`;
+        }
+        mapToDriverValue(a10) {
+          return JSON.stringify(a10);
+        }
+        mapFromDriverValue(a10) {
+          return a10.slice(1, -1).split(",").map((a11) => Number.parseFloat(a11));
+        }
+      }
+      function b6(a10, b10) {
+        let { name: c2, config: d2 } = T(a10, b10);
+        return new b4(c2, d2);
+      }
+      let b7 = Symbol.for("drizzle:PgInlineForeignKeys"), b8 = Symbol.for("drizzle:EnableRLS");
+      class b9 extends S {
+        static [f] = "PgTable";
+        static Symbol = Object.assign({}, S.Symbol, { InlineForeignKeys: b7, EnableRLS: b8 });
+        [b7] = [];
+        [b8] = false;
+        [S.Symbol.ExtraConfigBuilder] = void 0;
+        [S.Symbol.ExtraConfigColumns] = {};
+      }
+      let ca = (a10, b10, c2) => function(a11, b11, c3, d2, e2 = a11) {
+        let f2 = new b9(a11, d2, e2), g2 = "function" == typeof b11 ? b11({ bigint: Z, bigserial: ac, boolean: af, char: ai, cidr: al, customType: ao, date: aJ, doublePrecision: aM, inet: aP, integer: aS, interval: aV, json: aY, jsonb: a_, line: a4, macaddr: a7, macaddr8: ba, numeric: bh, point: bm, geometry: bt, real: bw, serial: bz, smallint: bC, smallserial: bF, text: bI, time: bL, timestamp: bQ, uuid: bT, varchar: bW, bit: bZ, halfvec: b0, sparsevec: b3, vector: b6 }) : b11, h2 = Object.fromEntries(Object.entries(g2).map(([a12, b12]) => {
+          b12.setName(a12);
+          let c4 = b12.build(f2);
+          return f2[b7].push(...b12.buildForeignKeys(c4, f2)), [a12, c4];
+        })), i2 = Object.fromEntries(Object.entries(g2).map(([a12, b12]) => (b12.setName(a12), [a12, b12.buildExtraConfigColumn(f2)]))), j2 = Object.assign(f2, h2);
+        return j2[S.Symbol.Columns] = h2, j2[S.Symbol.ExtraConfigColumns] = i2, c3 && (j2[b9.Symbol.ExtraConfigBuilder] = c3), Object.assign(j2, { enableRLS: () => (j2[b9.Symbol.EnableRLS] = true, j2) });
+      }(a10, b10, c2, void 0);
+      class cb {
+        constructor(a10, b10, c2) {
+          this.sourceTable = a10, this.referencedTable = b10, this.relationName = c2, this.referencedTableName = b10[S.Symbol.Name];
+        }
+        static [f] = "Relation";
+        referencedTableName;
+        fieldName;
+      }
+      class cc {
+        constructor(a10, b10) {
+          this.table = a10, this.config = b10;
+        }
+        static [f] = "Relations";
+      }
+      class cd extends cb {
+        constructor(a10, b10, c2, d2) {
+          super(a10, b10, c2?.relationName), this.config = c2, this.isNullable = d2;
+        }
+        static [f] = "One";
+        withFieldName(a10) {
+          let b10 = new cd(this.sourceTable, this.referencedTable, this.config, this.isNullable);
+          return b10.fieldName = a10, b10;
+        }
+      }
+      class ce extends cb {
+        constructor(a10, b10, c2) {
+          super(a10, b10, c2?.relationName), this.config = c2;
+        }
+        static [f] = "Many";
+        withFieldName(a10) {
+          let b10 = new ce(this.sourceTable, this.referencedTable, this.config);
+          return b10.fieldName = a10, b10;
+        }
+      }
+      function cf(a10, b10) {
+        return new cc(a10, (a11) => Object.fromEntries(Object.entries(b10(a11)).map(([a12, b11]) => [a12, b11.withFieldName(a12)])));
+      }
+      let cg = ca("clinics", { id: bT("id").primaryKey().defaultRandom(), name: bI("name").notNull(), slug: bI("slug").unique().notNull(), phone: bW("phone", { length: 20 }).notNull(), email: bI("email").notNull(), website: bI("website"), address: a_("address").default("{}"), settings: a_("settings").default("{}"), subscriptionPlan: bI("subscription_plan").default("starter"), subscriptionStatus: bI("subscription_status").default("active"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow(), deletedAt: bQ("deleted_at", { withTimezone: true }) }), ch = ca("users", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), email: bI("email").notNull(), name: bI("name").notNull(), role: E("role").notNull().default("receptionist"), phone: bW("phone", { length: 20 }), avatarUrl: bI("avatar_url"), isActive: af("is_active").default(true).notNull(), isMaster: af("is_master").default(false).notNull(), lastLoginAt: bQ("last_login_at", { withTimezone: true }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow(), deletedAt: bQ("deleted_at", { withTimezone: true }) }, (a10) => ({ clinicEmailUniq: { name: "users_clinic_email_uniq", columns: [a10.clinicId, a10.email], type: "unique" } })), ci = ca("user_credentials", { userId: bT("user_id").primaryKey().references(() => ch.id, { onDelete: "cascade" }), passwordHash: bI("password_hash").notNull(), createdAt: bQ("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow().notNull() }), cj = ca("dentists", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), phone: bW("phone", { length: 20 }), email: bI("email"), cro: bI("cro"), specialty: bI("specialty"), croNumber: bI("cro_number"), avatarUrl: bI("avatar_url"), isActive: af("is_active").default(true), workingHours: a_("working_hours").default("{}"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow(), deletedAt: bQ("deleted_at", { withTimezone: true }) }), ck = ca("procedures", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), description: bI("description"), durationMinutes: aS("duration_minutes").default(30), price: bh("price", { precision: 10, scale: 2 }), category: bI("category"), isActive: af("is_active").default(true), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow(), deletedAt: bQ("deleted_at", { withTimezone: true }) }), cl = ca("patients", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), phone: bW("phone", { length: 20 }).notNull(), email: bI("email"), cpf: bW("cpf", { length: 14 }), birthDate: aJ("birth_date"), gender: bI("gender"), address: a_("address").default("{}"), notes: bI("notes"), status: bI("status").default("active"), tags: bI("tags").array().default([]), riskScore: bh("risk_score", { precision: 3, scale: 2 }).default("0.00"), lastVisitAt: bQ("last_visit_at", { withTimezone: true }), optOutMarketing: af("opt_out_marketing").default(false), optOutReminders: af("opt_out_reminders").default(false), optOutAt: bQ("opt_out_at", { withTimezone: true }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow(), deletedAt: bQ("deleted_at", { withTimezone: true }) }, (a10) => ({ clinicPhoneUniq: { name: "patients_clinic_phone_uniq", columns: [a10.clinicId, a10.phone], type: "unique" } }));
+      ca("patient_observations", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), content: bI("content").notNull(), createdBy: bT("created_by").references(() => ch.id, { onDelete: "set null" }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("patient_preferences", { id: bT("id").primaryKey().defaultRandom(), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), key: bI("key").notNull(), value: bI("value").notNull(), category: bI("category").notNull(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ patientKeyUniq: { name: "patient_preferences_patient_key_uniq", columns: [a10.patientId, a10.key], type: "unique" } })), ca("patient_risk_scores", { id: bT("id").primaryKey().defaultRandom(), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), score: bh("score", { precision: 3, scale: 2 }).notNull(), factors: a_("factors").default("{}"), calculatedAt: bQ("calculated_at", { withTimezone: true }).defaultNow() }), ca("patient_feedback", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), appointmentId: bT("appointment_id"), feedbackType: bI("feedback_type").default("post_consultation"), rating: aS("rating"), npsScore: aS("nps_score"), wouldRecommend: af("would_recommend"), comments: bI("comments"), improvements: bI("improvements").array().default([]), collectedAt: bQ("collected_at", { withTimezone: true }).defaultNow(), channel: bI("channel").default("whatsapp"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("procedure_guidelines", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), procedureId: bT("procedure_id").references(() => ck.id, { onDelete: "set null" }), procedureName: bI("procedure_name").notNull(), title: bI("title").notNull(), instructions: bI("instructions").notNull(), emergencyContact: af("emergency_contact").default(false), recoveryTimeDays: aS("recovery_time_days"), restrictions: bI("restrictions").array().default([]), warningSigns: bI("warning_signs").array().default([]), isActive: af("is_active").default(true), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ clinicProcedureUniq: { name: "guidelines_clinic_procedure_uniq", columns: [a10.clinicId, a10.procedureName], type: "unique" } })), cf(cg, ({ many: a10 }) => ({ users: a10(ch), patients: a10(cl), dentists: a10(cj), procedures: a10(ck) })), cf(ch, ({ one: a10 }) => ({ clinic: a10(cg, { fields: [ch.clinicId], references: [cg.id] }), credentials: a10(ci, { fields: [ch.id], references: [ci.userId] }) }));
+      let cm = ca("appointments", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), dentistId: bT("dentist_id").references(() => cj.id, { onDelete: "set null" }), procedureId: bT("procedure_id").references(() => ck.id, { onDelete: "set null" }), scheduledAt: bQ("scheduled_at", { withTimezone: true }).notNull(), durationMinutes: aS("duration_minutes").default(30), status: J("status").notNull().default("scheduled"), notes: bI("notes"), totalValue: bh("total_value", { precision: 10, scale: 2 }).default("0"), cancelledAt: bQ("cancelled_at", { withTimezone: true }), cancellationReason: bI("cancellation_reason"), rescheduledAt: bQ("rescheduled_at", { withTimezone: true }), rescheduleReason: bI("reschedule_reason"), confirmationSentAt: bQ("confirmation_sent_at", { withTimezone: true }), reminderSentAt: bQ("reminder_sent_at", { withTimezone: true }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow(), deletedAt: bQ("deleted_at", { withTimezone: true }) });
+      ca("schedule_blocks", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), dentistId: bT("dentist_id").references(() => cj.id, { onDelete: "cascade" }), dayOfWeek: aS("day_of_week"), startTime: bL("start_time").notNull(), endTime: bL("end_time").notNull(), isAvailable: af("is_available").default(true), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("appointment_reminders", { id: bT("id").primaryKey().defaultRandom(), appointmentId: bT("appointment_id").notNull().references(() => cm.id, { onDelete: "cascade" }), reminderType: bI("reminder_type").notNull(), channel: bI("channel").default("whatsapp"), status: bI("status").default("pending"), messageId: bI("message_id"), errorMessage: bI("error_message"), sentAt: bQ("sent_at", { withTimezone: true }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("waitlist", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), dentistId: bT("dentist_id").references(() => cj.id, { onDelete: "set null" }), preferredDate: bQ("preferred_date", { withTimezone: true }), preferredTimeStart: bL("preferred_time_start"), preferredTimeEnd: bL("preferred_time_end"), priority: aS("priority").default(0), notes: bI("notes"), status: bI("status").default("waiting"), procedureId: bT("procedure_id").references(() => ck.id, { onDelete: "set null" }), notifiedAt: bQ("notified_at", { withTimezone: true }), scheduledAppointmentId: bT("scheduled_appointment_id").references(() => cm.id, { onDelete: "set null" }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("appointment_reminder_configs", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), procedureTypeId: bT("procedure_type_id").notNull(), hoursBefore: aS("hours_before").notNull(), messageTemplate: bI("message_template").notNull(), enabled: af("enabled").default(true), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("procedure_types", { id: bT("id").primaryKey().defaultRandom(), name: bI("name").notNull(), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() });
+      let cn = ca("conversations", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").references(() => cl.id, { onDelete: "set null" }), channel: F("channel").notNull(), externalId: bI("external_id").notNull(), status: G("status").notNull().default("active"), assignedTo: bT("assigned_to").references(() => ch.id, { onDelete: "set null" }), lastMessageAt: bQ("last_message_at", { withTimezone: true }).defaultNow(), messageCount: aS("message_count").default(0), metadata: a_("metadata").default("{}"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() });
+      ca("messages", { id: bT("id").primaryKey().defaultRandom(), conversationId: bT("conversation_id").notNull().references(() => cn.id, { onDelete: "cascade" }), direction: H("direction").notNull(), content: bI("content").notNull(), messageType: I("message_type").notNull().default("text"), mediaUrl: bI("media_url"), metadata: a_("metadata").default("{}"), intent: bI("intent"), entities: a_("entities").default("{}"), confidence: bh("confidence", { precision: 3, scale: 2 }), embedding: b6("embedding", { dimensions: 1536 }), isAi: af("is_ai").default(false), deliveredAt: bQ("delivered_at", { withTimezone: true }), readAt: bQ("read_at", { withTimezone: true }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("conversation_states", { id: bT("id").primaryKey().defaultRandom(), conversationId: bT("conversation_id").notNull().references(() => cn.id, { onDelete: "cascade" }), state: a_("state").default("{}").notNull(), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("conversation_sessions", { id: bT("id").primaryKey().defaultRandom(), conversationId: bT("conversation_id").notNull().references(() => cn.id, { onDelete: "cascade" }), entries: a_("entries").default("[]").notNull(), extractedInfo: a_("extracted_info").default("{}").notNull(), createdAt: bQ("created_at", { withTimezone: true }).defaultNow().notNull(), lastActivityAt: bQ("last_activity_at", { withTimezone: true }).defaultNow().notNull() }, (a10) => ({ uniqueConversation: { name: "unique_conversation_session", columns: [a10.conversationId], type: "unique" } })), ca("conversation_memories", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), conversationId: bT("conversation_id").references(() => cn.id, { onDelete: "cascade" }), patientId: bT("patient_id").references(() => cl.id, { onDelete: "set null" }), content: bI("content").notNull(), contentType: bI("content_type").default("message"), embedding: b6("embedding", { dimensions: 1536 }), metadata: a_("metadata").default("{}"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() });
+      let co = ca("leads", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").references(() => cl.id, { onDelete: "set null" }), name: bI("name").notNull(), phone: bW("phone", { length: 20 }).notNull(), email: bI("email"), source: bI("source").default("other"), campaignId: bT("campaign_id"), score: aS("score").default(0), temperature: bI("temperature").default("cold"), status: bI("status").default("new"), interest: bI("interest"), hasBudget: af("has_budget"), hasTimeline: af("has_timeline"), assignedTo: bT("assigned_to").references(() => ch.id, { onDelete: "set null" }), lastContactAt: bQ("last_contact_at", { withTimezone: true }), nextFollowupAt: bQ("next_followup_at", { withTimezone: true }), contactCount: aS("contact_count").default(0), convertedAt: bQ("converted_at", { withTimezone: true }), convertedAppointmentId: bT("converted_appointment_id"), lostReason: bI("lost_reason"), lostAt: bQ("lost_at", { withTimezone: true }), notes: bI("notes"), stageId: bT("stage_id"), sourceType: bI("source_type"), dealValue: bh("deal_value", { precision: 12, scale: 2 }).default("0"), tags: bI("tags").array().default([]), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() });
+      ca("lead_activities", { id: bT("id").primaryKey().defaultRandom(), leadId: bT("lead_id").notNull().references(() => co.id, { onDelete: "cascade" }), activityType: bI("activity_type").notNull(), description: bI("description"), performedBy: bT("performed_by").references(() => ch.id, { onDelete: "set null" }), performedAt: bQ("performed_at", { withTimezone: true }).defaultNow(), metadata: a_("metadata").default("{}"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("pipeline_stages", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), position: aS("position").default(0), color: bW("color", { length: 7 }).default("#6b7280"), isDefault: af("is_default").default(false), isSystem: af("is_system").default(false), systemKey: bI("system_key"), winProbability: aS("win_probability").default(0), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ clinicStageNameUniq: { name: "pipelinestages_clinic_name_uniq", columns: [a10.clinicId, a10.name], type: "unique" } }));
+      let cp = ca("campaigns", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), description: bI("description"), campaignType: bI("campaign_type").notNull(), targetSegment: bI("target_segment"), messageTemplate: bI("message_template").notNull(), channel: bI("channel").default("whatsapp"), status: bI("status").default("draft"), scheduledAt: bQ("scheduled_at", { withTimezone: true }), startedAt: bQ("started_at", { withTimezone: true }), completedAt: bQ("completed_at", { withTimezone: true }), totalRecipients: aS("total_recipients").default(0), sentCount: aS("sent_count").default(0), responseCount: aS("response_count").default(0), conversionCount: aS("conversion_count").default(0), optOutCount: aS("opt_out_count").default(0), createdBy: bT("created_by").references(() => ch.id), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() });
+      ca("campaign_recipients", { id: bT("id").primaryKey().defaultRandom(), campaignId: bT("campaign_id").notNull().references(() => cp.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), status: bI("status").default("pending"), sentAt: bQ("sent_at", { withTimezone: true }), deliveredAt: bQ("delivered_at", { withTimezone: true }), respondedAt: bQ("responded_at", { withTimezone: true }), responseContent: bI("response_content"), convertedAt: bQ("converted_at", { withTimezone: true }), conversionAppointmentId: bT("conversion_appointment_id"), errorMessage: bI("error_message"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }, (a10) => ({ campaignPatientUniq: { name: "campaign_recipients_campaign_patient_uniq", columns: [a10.campaignId, a10.patientId], type: "unique" } })), ca("follow_ups", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), appointmentId: bT("appointment_id").references(() => cm.id, { onDelete: "set null" }), type: bI("type").notNull(), scheduledAt: bQ("scheduled_at", { withTimezone: true }).notNull(), sentAt: bQ("sent_at", { withTimezone: true }), status: bI("status").default("pending"), content: bI("content"), response: bI("response"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("follow_up_configs", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), configType: bI("config_type").notNull(), procedureId: bT("procedure_id").references(() => ck.id, { onDelete: "cascade" }), procedureName: bI("procedure_name"), delayHours: aS("delay_hours"), delayDays: aS("delay_days"), delayMonths: aS("delay_months"), messageTemplate: bI("message_template").notNull(), isActive: af("is_active").default(true), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("tasks", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), leadId: bT("lead_id").references(() => co.id, { onDelete: "set null" }), title: bI("title").notNull(), description: bI("description"), dueDate: bQ("due_date", { withTimezone: true }), status: bI("status").default("pending"), priority: bI("priority").default("medium"), assignedTo: bT("assigned_to").references(() => ch.id, { onDelete: "set null" }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("clinic_tags", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), color: bW("color", { length: 7 }).default("#6b7280"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }, (a10) => ({ clinicTagNameUniq: { name: "clinictags_clinic_name_uniq", columns: [a10.clinicId, a10.name], type: "unique" } })), ca("campaign_segments", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), description: bI("description"), criteria: a_("criteria").notNull(), patientCount: aS("patient_count").default(0), createdBy: bT("created_by"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow(), deletedAt: bQ("deleted_at", { withTimezone: true }) });
+      let cq = ca("budgets", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), appointmentId: bT("appointment_id").references(() => cm.id, { onDelete: "set null" }), title: bI("title"), description: bI("description"), totalValue: bh("total_value", { precision: 10, scale: 2 }).notNull(), discountPercent: bh("discount_percent", { precision: 5, scale: 2 }).default("0"), discountValue: bh("discount_value", { precision: 10, scale: 2 }).default("0"), finalValue: bh("final_value", { precision: 10, scale: 2 }).notNull(), status: bI("status").default("pending"), validUntil: bQ("valid_until", { withTimezone: true }), sentAt: bQ("sent_at", { withTimezone: true }), respondedAt: bQ("responded_at", { withTimezone: true }), convertedAt: bQ("converted_at", { withTimezone: true }), conversionAppointmentId: bT("conversion_appointment_id"), notes: bI("notes"), followUpSequence: aS("follow_up_sequence").default(0), nextFollowUpAt: bQ("next_follow_up_at", { withTimezone: true }), createdBy: bT("created_by").references(() => ch.id), treatmentPlanId: bT("treatment_plan_id"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() });
+      ca("budget_items", { id: bT("id").primaryKey().defaultRandom(), budgetId: bT("budget_id").notNull().references(() => cq.id, { onDelete: "cascade" }), procedureId: bT("procedure_id").references(() => ck.id, { onDelete: "set null" }), procedureName: bI("procedure_name").notNull(), quantity: aS("quantity").default(1), unitPrice: bh("unit_price", { precision: 10, scale: 2 }).notNull(), discountPercent: bh("discount_percent", { precision: 5, scale: 2 }).default("0"), totalPrice: bh("total_price", { precision: 10, scale: 2 }).notNull(), notes: bI("notes"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("budget_installments", { id: bT("id").primaryKey().defaultRandom(), budgetId: bT("budget_id").notNull().references(() => cq.id, { onDelete: "cascade" }), amount: bh("amount", { precision: 12, scale: 2 }).notNull(), dueDate: aJ("due_date").notNull(), status: bI("status").default("pending"), paidAt: bQ("paid_at", { withTimezone: true }), paymentId: bT("payment_id"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("payments", { id: bT("id").primaryKey().defaultRandom(), patientId: bT("patient_id").references(() => cl.id, { onDelete: "set null" }), clinicId: bT("clinic_id").references(() => cg.id, { onDelete: "cascade" }), budgetId: bT("budget_id").references(() => cq.id, { onDelete: "set null" }), amount: bh("amount", { precision: 12, scale: 2 }).notNull(), paymentMethod: bI("payment_method").notNull(), paidAt: bQ("paid_at", { withTimezone: true }).defaultNow(), notes: bI("notes"), createdBy: bT("created_by").references(() => ch.id, { onDelete: "set null" }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() });
+      let cr = ca("treatment_plans", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), title: bI("title").notNull(), description: bI("description"), totalSessions: aS("total_sessions").default(1), completedSessions: aS("completed_sessions").default(0), status: bI("status").default("in_progress"), startedAt: bQ("started_at", { withTimezone: true }), expectedCompletionAt: bQ("expected_completion_at", { withTimezone: true }), completedAt: bQ("completed_at", { withTimezone: true }), lastSessionAt: bQ("last_session_at", { withTimezone: true }), nextSessionDueAt: bQ("next_session_due_at", { withTimezone: true }), notes: bI("notes"), createdBy: bT("created_by").references(() => ch.id), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() });
+      ca("treatment_plan_items", { id: bT("id").primaryKey().defaultRandom(), treatmentPlanId: bT("treatment_plan_id").notNull().references(() => cr.id, { onDelete: "cascade" }), procedureId: bT("procedure_id").references(() => ck.id, { onDelete: "set null" }), procedureName: bI("procedure_name").notNull(), sessionNumber: aS("session_number").notNull(), appointmentId: bT("appointment_id").references(() => cm.id, { onDelete: "set null" }), status: bI("status").default("pending"), scheduledAt: bQ("scheduled_at", { withTimezone: true }), completedAt: bQ("completed_at", { withTimezone: true }), notes: bI("notes"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }, (a10) => ({ planSessionUniq: { name: "treatment_plan_items_plan_session_uniq", columns: [a10.treatmentPlanId, a10.sessionNumber], type: "unique" } })), ca("pending_actions", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), conversationId: bT("conversation_id").references(() => cn.id, { onDelete: "set null" }), patientId: bT("patient_id").references(() => cl.id, { onDelete: "set null" }), appointmentId: bT("appointment_id").references(() => cm.id, { onDelete: "set null" }), actionType: bI("action_type").notNull(), riskScore: aS("risk_score").default(0).notNull(), riskLevel: bI("risk_level").default("LOW").notNull(), status: bI("status").default("pending").notNull(), snapshotBefore: a_("snapshot_before").default("{}"), snapshotAfter: a_("snapshot_after").default("{}"), undoPayload: a_("undo_payload").default("{}"), confirmationCount: aS("confirmation_count").default(0), maxConfirmations: aS("max_confirmations").default(1), confirmedAt: bQ("confirmed_at", { withTimezone: true }), undoDeadline: bQ("undo_deadline", { withTimezone: true }).notNull(), undoneAt: bQ("undone_at", { withTimezone: true }), reasoning: bI("reasoning"), agentIntent: bI("agent_intent"), confidence: bh("confidence", { precision: 3, scale: 2 }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("decision_logs", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), conversationId: bT("conversation_id").references(() => cn.id, { onDelete: "set null" }), patientId: bT("patient_id").references(() => cl.id, { onDelete: "set null" }), intentClassified: bI("intent_classified").notNull(), confidenceScore: bh("confidence_score", { precision: 3, scale: 2 }).notNull(), actionTaken: bI("action_taken").notNull(), riskLevel: bI("risk_level").default("LOW"), reasoning: bI("reasoning").notNull(), escalationTriggered: af("escalation_triggered").default(false), humanOverride: af("human_override").default(false), messageSummary: bI("message_summary"), entitiesExtracted: a_("entities_extracted").default("{}"), ragSources: a_("rag_sources").default("[]"), responseTimeMs: aS("response_time_ms"), tokensUsed: aS("tokens_used"), llmModel: bI("llm_model"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("smart_trigger_log", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), patientId: bT("patient_id").notNull().references(() => cl.id, { onDelete: "cascade" }), appointmentId: bT("appointment_id").references(() => cm.id, { onDelete: "set null" }), triggerType: bI("trigger_type").notNull(), priority: aS("priority").default(5), messageSent: bI("message_sent"), channel: bI("channel").default("whatsapp"), status: bI("status").default("sent"), patientResponded: af("patient_responded").default(false), responseAt: bQ("response_at", { withTimezone: true }), patientResponse: bI("patient_response"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("agent_queue", { id: bT("id").primaryKey().defaultRandom(), fromAgent: bI("from_agent").notNull(), toAgent: bI("to_agent").notNull(), payload: a_("payload").notNull(), status: bI("status").default("pending"), retryCount: aS("retry_count").default(0), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), processAfter: bQ("process_after", { withTimezone: true }).defaultNow(), completedAt: bQ("completed_at", { withTimezone: true }), error: bI("error") }), ca("agent_dlq", { id: bT("id").primaryKey().defaultRandom(), originalQueueId: bT("original_queue_id"), fromAgent: bI("from_agent"), toAgent: bI("to_agent"), payload: a_("payload"), error: bI("error"), retryCount: aS("retry_count"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), manualActionRequired: af("manual_action_required").default(true) }), ca("agent_logs", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull(), conversationId: bT("conversation_id"), intent: bI("intent"), confidence: bh("confidence", { precision: 3, scale: 2 }), responseTimeMs: aS("response_time_ms"), actionTaken: bI("action_taken"), escalation: af("escalation").default(false), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("knowledge_base", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), category: bI("category").notNull(), question: bI("question").notNull(), answer: bI("answer").notNull(), keywords: bI("keywords").array().default([]), embedding: b6("embedding", { dimensions: 1536 }), isActive: af("is_active").default(true), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("whatsapp_instances", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), phoneNumberId: bW("phone_number_id", { length: 100 }).notNull(), businessAccountId: bI("business_account_id"), displayName: bI("display_name"), qualityRating: bI("quality_rating"), status: bI("status").default("pending"), lastConnectedAt: bQ("last_connected_at", { withTimezone: true }), evolutionInstanceName: bI("evolution_instance_name"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("message_templates", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), category: bI("category").notNull(), language: bI("language").default("pt_BR"), header: bI("header"), body: bI("body").notNull(), footer: bI("footer"), buttons: a_("buttons").default("[]"), variables: a_("variables").default("[]"), metaTemplateId: bI("meta_template_id"), status: bI("status").default("pending"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }), ca("consents", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), contactId: bT("contact_id").notNull(), contactType: bW("contact_type", { length: 10 }).notNull(), purpose: bW("purpose", { length: 50 }).notNull(), granted: af("granted").default(true).notNull(), grantedAt: bQ("granted_at", { withTimezone: true }).defaultNow(), revokedAt: bQ("revoked_at", { withTimezone: true }), channel: bW("channel", { length: 20 }).default("web"), notes: bI("notes"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ contactPurposeUniq: { name: "consents_contact_purpose_uniq", columns: [a10.contactId, a10.contactType, a10.purpose], type: "unique" } }));
+      let cs = ca("custom_field_definitions", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), fieldType: bW("field_type", { length: 20 }).notNull(), options: a_("options").default("[]"), required: af("required").default(false), sortOrder: aS("sort_order").default(0), isActive: af("is_active").default(true), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ clinicDefNameUniq: { name: "customfields_clinic_name_uniq", columns: [a10.clinicId, a10.name], type: "unique" } }));
+      function ct(...a10) {
+        return a10[0].columns ? new cu(a10[0].columns, a10[0].name) : new cu(a10);
+      }
+      ca("custom_field_values", { id: bT("id").primaryKey().defaultRandom(), definitionId: bT("definition_id").notNull().references(() => cs.id, { onDelete: "cascade" }), contactId: bT("contact_id").notNull(), contactType: bW("contact_type", { length: 10 }).notNull(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), valueText: bI("value_text"), valueNumber: aS("value_number"), valueDate: bQ("value_date", { withTimezone: true }), valueBoolean: af("value_boolean"), valueJson: a_("value_json"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow() }, (a10) => ({ defContactUniq: { name: "customfields_def_contact_uniq", columns: [a10.definitionId, a10.contactId, a10.contactType], type: "unique" } })), ca("audit_logs", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").references(() => cg.id, { onDelete: "set null" }), userId: bT("user_id").references(() => ch.id, { onDelete: "set null" }), action: bI("action").notNull(), entityType: bI("entity_type").notNull(), entityId: bT("entity_id"), oldValues: a_("old_values"), newValues: a_("new_values"), ipAddress: bI("ip_address"), userAgent: bI("user_agent"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow() }), ca("action_logs", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").references(() => cg.id, { onDelete: "set null" }), principalType: bI("principal_type"), actor: bI("actor").notNull(), onBehalfOf: bT("on_behalf_of"), actionName: bI("action_name").notNull(), module: bI("module").notNull(), inputRedacted: a_("input_redacted").default("{}"), result: bI("result").notNull(), errorCode: bI("error_code"), createdAt: bQ("created_at", { withTimezone: true }).defaultNow().notNull() });
+      class cu {
+        static [f] = "PgPrimaryKeyBuilder";
+        columns;
+        name;
+        constructor(a10, b10) {
+          this.columns = a10, this.name = b10;
+        }
+        build(a10) {
+          return new cv(a10, this.columns, this.name);
+        }
+      }
+      class cv {
+        constructor(a10, b10, c2) {
+          this.table = a10, this.columns = b10, this.name = c2;
+        }
+        static [f] = "PgPrimaryKey";
+        columns;
+        name;
+        getName() {
+          return this.name ?? `${this.table[b9.Symbol.Name]}_${this.columns.map((a10) => a10.name).join("_")}_pk`;
+        }
+      }
+      let cw = ca("roles", { id: bT("id").primaryKey().defaultRandom(), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), name: bI("name").notNull(), description: bI("description"), isSystem: af("is_system").default(false).notNull(), createdAt: bQ("created_at", { withTimezone: true }).defaultNow().notNull(), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow().notNull() });
+      function cx(a10) {
+      }
+      ca("role_permissions", { roleId: bT("role_id").notNull().references(() => cw.id, { onDelete: "cascade" }), permissionKey: bI("permission_key").notNull() }, (a10) => ({ pk: ct({ columns: [a10.roleId, a10.permissionKey] }) })), ca("user_clinic_access", { userId: bT("user_id").notNull().references(() => ch.id, { onDelete: "cascade" }), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), roleId: bT("role_id").notNull().references(() => cw.id, { onDelete: "restrict" }), createdAt: bQ("created_at", { withTimezone: true }).defaultNow().notNull() }, (a10) => ({ pk: ct({ columns: [a10.userId, a10.clinicId] }) })), ca("user_permission_overrides", { userId: bT("user_id").notNull().references(() => ch.id, { onDelete: "cascade" }), clinicId: bT("clinic_id").notNull().references(() => cg.id, { onDelete: "cascade" }), permissionKey: bI("permission_key").notNull(), granted: af("granted").notNull() }, (a10) => ({ pk: ct({ columns: [a10.userId, a10.clinicId, a10.permissionKey] }) })), ca("permissions", { key: bI("key").primaryKey(), module: bI("module").notNull(), label: bI("label").notNull() }), ca("instance_modules", { moduleId: bI("module_id").primaryKey(), enabled: af("enabled").default(false).notNull(), contractedAt: bQ("contracted_at", { withTimezone: true }), updatedAt: bQ("updated_at", { withTimezone: true }).defaultNow().notNull() });
     } }, (a) => {
-      var b = a(a.s = 2187);
+      var b = a(a.s = 2);
       (_ENTRIES = "undefined" == typeof _ENTRIES ? {} : _ENTRIES).middleware_instrumentation = b;
     }]);
   }
@@ -5661,7 +2492,100 @@ var init_node_async_hooks = __esm({
 var require_middleware = __commonJS({
   ".next/server/src/middleware.js"() {
     "use strict";
-    (self.webpackChunk_N_E = self.webpackChunk_N_E || []).push([[550], { 1213: (a) => {
+    (self.webpackChunk_N_E = self.webpackChunk_N_E || []).push([[550], { 153: (a, b, c) => {
+      "use strict";
+      c.r(b), c.d(b, { default: () => f, hkdf: () => f });
+      let d = async (a2, b2, c2, d2, e2) => {
+        let { crypto: { subtle: f2 } } = (() => {
+          if ("undefined" != typeof globalThis) return globalThis;
+          if ("undefined" != typeof self) return self;
+          if ("undefined" != typeof window) return window;
+          throw Error("unable to locate global object");
+        })();
+        return new Uint8Array(await f2.deriveBits({ name: "HKDF", hash: `SHA-${a2.substr(3)}`, salt: c2, info: d2 }, await f2.importKey("raw", b2, "HKDF", false, ["deriveBits"]), e2 << 3));
+      };
+      function e(a2, b2) {
+        if ("string" == typeof a2) return new TextEncoder().encode(a2);
+        if (!(a2 instanceof Uint8Array)) throw TypeError(`"${b2}"" must be an instance of Uint8Array or a string`);
+        return a2;
+      }
+      async function f(a2, b2, c2, f2, g) {
+        return d(function(a3) {
+          switch (a3) {
+            case "sha256":
+            case "sha384":
+            case "sha512":
+            case "sha1":
+              return a3;
+            default:
+              throw TypeError('unsupported "digest" value');
+          }
+        }(a2), function(a3) {
+          let b3 = e(a3, "ikm");
+          if (!b3.byteLength) throw TypeError('"ikm" must be at least one byte in length');
+          return b3;
+        }(b2), e(c2, "salt"), function(a3) {
+          let b3 = e(a3, "info");
+          if (b3.byteLength > 1024) throw TypeError('"info" must not contain more than 1024 bytes');
+          return b3;
+        }(f2), function(a3, b3) {
+          if ("number" != typeof a3 || !Number.isInteger(a3) || a3 < 1) throw TypeError('"keylen" must be a positive integer');
+          if (a3 > 255 * (parseInt(b3.substr(3), 10) >> 3 || 20)) throw TypeError('"keylen" too large');
+          return a3;
+        }(g, a2));
+      }
+    }, 165: (a, b, c) => {
+      "use strict";
+      var d = c(356).Buffer;
+      Object.defineProperty(b, "__esModule", { value: true }), !function(a2, b2) {
+        for (var c2 in b2) Object.defineProperty(a2, c2, { enumerable: true, get: b2[c2] });
+      }(b, { handleFetch: function() {
+        return h;
+      }, interceptFetch: function() {
+        return i;
+      }, reader: function() {
+        return f;
+      } });
+      let e = c(392), f = { url: (a2) => a2.url, header: (a2, b2) => a2.headers.get(b2) };
+      async function g(a2, b2) {
+        let { url: c2, method: e2, headers: f2, body: g2, cache: h2, credentials: i2, integrity: j, mode: k, redirect: l, referrer: m, referrerPolicy: n } = b2;
+        return { testData: a2, api: "fetch", request: { url: c2, method: e2, headers: [...Array.from(f2), ["next-test-stack", function() {
+          let a3 = (Error().stack ?? "").split("\n");
+          for (let b3 = 1; b3 < a3.length; b3++) if (a3[b3].length > 0) {
+            a3 = a3.slice(b3);
+            break;
+          }
+          return (a3 = (a3 = (a3 = a3.filter((a4) => !a4.includes("/next/dist/"))).slice(0, 5)).map((a4) => a4.replace("webpack-internal:///(rsc)/", "").trim())).join("    ");
+        }()]], body: g2 ? d.from(await b2.arrayBuffer()).toString("base64") : null, cache: h2, credentials: i2, integrity: j, mode: k, redirect: l, referrer: m, referrerPolicy: n } };
+      }
+      async function h(a2, b2) {
+        let c2 = (0, e.getTestReqInfo)(b2, f);
+        if (!c2) return a2(b2);
+        let { testData: h2, proxyPort: i2 } = c2, j = await g(h2, b2), k = await a2(`http://localhost:${i2}`, { method: "POST", body: JSON.stringify(j), next: { internal: true } });
+        if (!k.ok) throw Object.defineProperty(Error(`Proxy request failed: ${k.status}`), "__NEXT_ERROR_CODE", { value: "E146", enumerable: false, configurable: true });
+        let l = await k.json(), { api: m } = l;
+        switch (m) {
+          case "continue":
+            return a2(b2);
+          case "abort":
+          case "unhandled":
+            throw Object.defineProperty(Error(`Proxy request aborted [${b2.method} ${b2.url}]`), "__NEXT_ERROR_CODE", { value: "E145", enumerable: false, configurable: true });
+          case "fetch":
+            let { status: n, headers: o, body: p } = l.response;
+            return new Response(p ? d.from(p, "base64") : null, { status: n, headers: new Headers(o) });
+          default:
+            return m;
+        }
+      }
+      function i(a2) {
+        return c.g.fetch = function(b2, c2) {
+          var d2;
+          return (null == c2 || null == (d2 = c2.next) ? void 0 : d2.internal) ? a2(b2, c2) : h(a2, new Request(b2, c2));
+        }, () => {
+          c.g.fetch = a2;
+        };
+      }
+    }, 213: (a) => {
       (() => {
         "use strict";
         var b = { 993: (a2) => {
@@ -5974,115 +2898,7 @@ var require_middleware = __commonJS({
           e.default = h;
         })(), a.exports = e;
       })();
-    }, 1345: (a, b) => {
-      "use strict";
-      Object.defineProperty(b, "__esModule", { value: true });
-    }, 1426: (a, b, c) => {
-      "use strict";
-      var d = c(6522);
-      Object.defineProperty(b, "__esModule", { value: true });
-      var e = { encode: true, decode: true, getToken: true };
-      b.decode = l, b.encode = k, b.getToken = m;
-      var f = c(2743), g = d(c(6153)), h = c(2258), i = c(1674), j = c(1345);
-      async function k(a2) {
-        let { token: b2 = {}, secret: c2, maxAge: d2 = 2592e3, salt: e2 = "" } = a2, g2 = await n(c2, e2);
-        return await new f.EncryptJWT(b2).setProtectedHeader({ alg: "dir", enc: "A256GCM" }).setIssuedAt().setExpirationTime((Date.now() / 1e3 | 0) + d2).setJti((0, h.v4)()).encrypt(g2);
-      }
-      async function l(a2) {
-        let { token: b2, secret: c2, salt: d2 = "" } = a2;
-        if (!b2) return null;
-        let e2 = await n(c2, d2), { payload: g2 } = await (0, f.jwtDecrypt)(b2, e2, { clockTolerance: 15 });
-        return g2;
-      }
-      async function m(a2) {
-        var b2, c2, d2, e2;
-        let { req: f2, secureCookie: g2 = null != (b2 = null == (c2 = process.env.NEXTAUTH_URL) ? void 0 : c2.startsWith("https://")) ? b2 : !!process.env.VERCEL, cookieName: h2 = g2 ? "__Secure-next-auth.session-token" : "next-auth.session-token", raw: j2, decode: k2 = l, logger: m2 = console, secret: n2 = null != (d2 = process.env.NEXTAUTH_SECRET) ? d2 : process.env.AUTH_SECRET } = a2;
-        if (!f2) throw Error("Must pass `req` to JWT getToken()");
-        let o = new i.SessionStore({ name: h2, options: { secure: g2 } }, { cookies: f2.cookies, headers: f2.headers }, m2).value, p = f2.headers instanceof Headers ? f2.headers.get("authorization") : null == (e2 = f2.headers) ? void 0 : e2.authorization;
-        if (o || (null == p ? void 0 : p.split(" ")[0]) !== "Bearer" || (o = decodeURIComponent(p.split(" ")[1])), !o) return null;
-        if (j2) return o;
-        try {
-          return await k2({ token: o, secret: n2 });
-        } catch (a3) {
-          return null;
-        }
-      }
-      async function n(a2, b2) {
-        return await (0, g.default)("sha256", a2, b2, `NextAuth.js Generated Encryption Key${b2 ? ` (${b2})` : ""}`, 32);
-      }
-      Object.keys(j).forEach(function(a2) {
-        !("default" === a2 || "__esModule" === a2 || Object.prototype.hasOwnProperty.call(e, a2)) && (a2 in b && b[a2] === j[a2] || Object.defineProperty(b, a2, { enumerable: true, get: function() {
-          return j[a2];
-        } }));
-      });
-    }, 1674: (a, b) => {
-      "use strict";
-      function c(a2, b2, c2) {
-        d(a2, b2), b2.set(a2, c2);
-      }
-      function d(a2, b2) {
-        if (b2.has(a2)) throw TypeError("Cannot initialize the same private elements twice on an object");
-      }
-      function e(a2, b2) {
-        return a2.get(g(a2, b2));
-      }
-      function f(a2, b2, c2) {
-        return a2.set(g(a2, b2), c2), c2;
-      }
-      function g(a2, b2, c2) {
-        if ("function" == typeof a2 ? a2 === b2 : a2.has(b2)) return arguments.length < 3 ? b2 : c2;
-        throw TypeError("Private element is not present on this object");
-      }
-      Object.defineProperty(b, "__esModule", { value: true }), b.SessionStore = void 0, b.defaultCookies = function(a2) {
-        let b2 = a2 ? "__Secure-" : "";
-        return { sessionToken: { name: `${b2}next-auth.session-token`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } }, callbackUrl: { name: `${b2}next-auth.callback-url`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } }, csrfToken: { name: `${a2 ? "__Host-" : ""}next-auth.csrf-token`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } }, pkceCodeVerifier: { name: `${b2}next-auth.pkce.code_verifier`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2, maxAge: 900 } }, state: { name: `${b2}next-auth.state`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2, maxAge: 900 } }, nonce: { name: `${b2}next-auth.nonce`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } } };
-      };
-      var h = /* @__PURE__ */ new WeakMap(), i = /* @__PURE__ */ new WeakMap(), j = /* @__PURE__ */ new WeakMap(), k = /* @__PURE__ */ new WeakSet();
-      class l {
-        constructor(a2, b2, g2) {
-          !function(a3, b3) {
-            d(a3, b3), b3.add(a3);
-          }(this, k), c(this, h, {}), c(this, i, void 0), c(this, j, void 0), f(j, this, g2), f(i, this, a2);
-          let { cookies: l2 } = b2, { name: m2 } = a2;
-          if ("function" == typeof (null == l2 ? void 0 : l2.getAll)) for (let { name: a3, value: b3 } of l2.getAll()) a3.startsWith(m2) && (e(h, this)[a3] = b3);
-          else if (l2 instanceof Map) for (let a3 of l2.keys()) a3.startsWith(m2) && (e(h, this)[a3] = l2.get(a3));
-          else for (let a3 in l2) a3.startsWith(m2) && (e(h, this)[a3] = l2[a3]);
-        }
-        get value() {
-          return Object.keys(e(h, this)).sort((a2, b2) => {
-            var c2, d2;
-            return parseInt(null != (c2 = a2.split(".").pop()) ? c2 : "0") - parseInt(null != (d2 = b2.split(".").pop()) ? d2 : "0");
-          }).map((a2) => e(h, this)[a2]).join("");
-        }
-        chunk(a2, b2) {
-          let c2 = g(k, this, n).call(this);
-          for (let d2 of g(k, this, m).call(this, { name: e(i, this).name, value: a2, options: { ...e(i, this).options, ...b2 } })) c2[d2.name] = d2;
-          return Object.values(c2);
-        }
-        clean() {
-          return Object.values(g(k, this, n).call(this));
-        }
-      }
-      function m(a2) {
-        let b2 = Math.ceil(a2.value.length / 3933);
-        if (1 === b2) return e(h, this)[a2.name] = a2.value, [a2];
-        let c2 = [];
-        for (let d2 = 0; d2 < b2; d2++) {
-          let b3 = `${a2.name}.${d2}`, f2 = a2.value.substr(3933 * d2, 3933);
-          c2.push({ ...a2, name: b3, value: f2 }), e(h, this)[b3] = f2;
-        }
-        return e(j, this).debug("CHUNKING_SESSION_COOKIE", { message: "Session cookie exceeds allowed 4096 bytes.", emptyCookieSize: 163, valueSize: a2.value.length, chunks: c2.map((a3) => a3.value.length + 163) }), c2;
-      }
-      function n() {
-        let a2 = {};
-        for (let c2 in e(h, this)) {
-          var b2;
-          null == (b2 = e(h, this)) || delete b2[c2], a2[c2] = { name: c2, value: "", options: { ...e(i, this).options, maxAge: 0 } };
-        }
-        return a2;
-      }
-      b.SessionStore = l;
-    }, 2258: (a, b, c) => {
+    }, 258: (a, b, c) => {
       "use strict";
       c.r(b), c.d(b, { NIL: () => D, parse: () => q, stringify: () => m, v1: () => p, v3: () => z, v4: () => A, v5: () => C, validate: () => j, version: () => E });
       var d, e, f, g = new Uint8Array(16);
@@ -6237,7 +3053,1677 @@ var require_middleware = __commonJS({
         if (!j(a2)) throw TypeError("Invalid UUID");
         return parseInt(a2.substr(14, 1), 16);
       };
-    }, 2743: (a, b, c) => {
+    }, 345: (a, b) => {
+      "use strict";
+      Object.defineProperty(b, "__esModule", { value: true });
+    }, 356: (a) => {
+      "use strict";
+      a.exports = (init_node_buffer(), __toCommonJS(node_buffer_exports));
+    }, 392: (a, b, c) => {
+      "use strict";
+      Object.defineProperty(b, "__esModule", { value: true }), !function(a2, b2) {
+        for (var c2 in b2) Object.defineProperty(a2, c2, { enumerable: true, get: b2[c2] });
+      }(b, { getTestReqInfo: function() {
+        return g;
+      }, withRequest: function() {
+        return f;
+      } });
+      let d = new (c(521)).AsyncLocalStorage();
+      function e(a2, b2) {
+        let c2 = b2.header(a2, "next-test-proxy-port");
+        if (!c2) return;
+        let d2 = b2.url(a2);
+        return { url: d2, proxyPort: Number(c2), testData: b2.header(a2, "next-test-data") || "" };
+      }
+      function f(a2, b2, c2) {
+        let f2 = e(a2, b2);
+        return f2 ? d.run(f2, c2) : c2();
+      }
+      function g(a2, b2) {
+        let c2 = d.getStore();
+        return c2 || (a2 && b2 ? e(a2, b2) : void 0);
+      }
+    }, 426: (a, b, c) => {
+      "use strict";
+      var d = c(522);
+      Object.defineProperty(b, "__esModule", { value: true });
+      var e = { encode: true, decode: true, getToken: true };
+      b.decode = l, b.encode = k, b.getToken = m;
+      var f = c(743), g = d(c(153)), h = c(258), i = c(674), j = c(345);
+      async function k(a2) {
+        let { token: b2 = {}, secret: c2, maxAge: d2 = 2592e3, salt: e2 = "" } = a2, g2 = await n(c2, e2);
+        return await new f.EncryptJWT(b2).setProtectedHeader({ alg: "dir", enc: "A256GCM" }).setIssuedAt().setExpirationTime((Date.now() / 1e3 | 0) + d2).setJti((0, h.v4)()).encrypt(g2);
+      }
+      async function l(a2) {
+        let { token: b2, secret: c2, salt: d2 = "" } = a2;
+        if (!b2) return null;
+        let e2 = await n(c2, d2), { payload: g2 } = await (0, f.jwtDecrypt)(b2, e2, { clockTolerance: 15 });
+        return g2;
+      }
+      async function m(a2) {
+        var b2, c2, d2, e2;
+        let { req: f2, secureCookie: g2 = null != (b2 = null == (c2 = process.env.NEXTAUTH_URL) ? void 0 : c2.startsWith("https://")) ? b2 : !!process.env.VERCEL, cookieName: h2 = g2 ? "__Secure-next-auth.session-token" : "next-auth.session-token", raw: j2, decode: k2 = l, logger: m2 = console, secret: n2 = null != (d2 = process.env.NEXTAUTH_SECRET) ? d2 : process.env.AUTH_SECRET } = a2;
+        if (!f2) throw Error("Must pass `req` to JWT getToken()");
+        let o = new i.SessionStore({ name: h2, options: { secure: g2 } }, { cookies: f2.cookies, headers: f2.headers }, m2).value, p = f2.headers instanceof Headers ? f2.headers.get("authorization") : null == (e2 = f2.headers) ? void 0 : e2.authorization;
+        if (o || (null == p ? void 0 : p.split(" ")[0]) !== "Bearer" || (o = decodeURIComponent(p.split(" ")[1])), !o) return null;
+        if (j2) return o;
+        try {
+          return await k2({ token: o, secret: n2 });
+        } catch (a3) {
+          return null;
+        }
+      }
+      async function n(a2, b2) {
+        return await (0, g.default)("sha256", a2, b2, `NextAuth.js Generated Encryption Key${b2 ? ` (${b2})` : ""}`, 32);
+      }
+      Object.keys(j).forEach(function(a2) {
+        !("default" === a2 || "__esModule" === a2 || Object.prototype.hasOwnProperty.call(e, a2)) && (a2 in b && b[a2] === j[a2] || Object.defineProperty(b, a2, { enumerable: true, get: function() {
+          return j[a2];
+        } }));
+      });
+    }, 440: (a, b) => {
+      "use strict";
+      Symbol.for("react.transitional.element"), Symbol.for("react.portal"), Symbol.for("react.fragment"), Symbol.for("react.strict_mode"), Symbol.for("react.profiler"), Symbol.for("react.forward_ref"), Symbol.for("react.suspense"), Symbol.for("react.memo"), Symbol.for("react.lazy"), Symbol.iterator;
+      Object.prototype.hasOwnProperty, Object.assign;
+    }, 443: (a) => {
+      "use strict";
+      var b = Object.defineProperty, c = Object.getOwnPropertyDescriptor, d = Object.getOwnPropertyNames, e = Object.prototype.hasOwnProperty, f = {};
+      function g(a2) {
+        var b2;
+        let c2 = ["path" in a2 && a2.path && `Path=${a2.path}`, "expires" in a2 && (a2.expires || 0 === a2.expires) && `Expires=${("number" == typeof a2.expires ? new Date(a2.expires) : a2.expires).toUTCString()}`, "maxAge" in a2 && "number" == typeof a2.maxAge && `Max-Age=${a2.maxAge}`, "domain" in a2 && a2.domain && `Domain=${a2.domain}`, "secure" in a2 && a2.secure && "Secure", "httpOnly" in a2 && a2.httpOnly && "HttpOnly", "sameSite" in a2 && a2.sameSite && `SameSite=${a2.sameSite}`, "partitioned" in a2 && a2.partitioned && "Partitioned", "priority" in a2 && a2.priority && `Priority=${a2.priority}`].filter(Boolean), d2 = `${a2.name}=${encodeURIComponent(null != (b2 = a2.value) ? b2 : "")}`;
+        return 0 === c2.length ? d2 : `${d2}; ${c2.join("; ")}`;
+      }
+      function h(a2) {
+        let b2 = /* @__PURE__ */ new Map();
+        for (let c2 of a2.split(/; */)) {
+          if (!c2) continue;
+          let a3 = c2.indexOf("=");
+          if (-1 === a3) {
+            b2.set(c2, "true");
+            continue;
+          }
+          let [d2, e2] = [c2.slice(0, a3), c2.slice(a3 + 1)];
+          try {
+            b2.set(d2, decodeURIComponent(null != e2 ? e2 : "true"));
+          } catch {
+          }
+        }
+        return b2;
+      }
+      function i(a2) {
+        if (!a2) return;
+        let [[b2, c2], ...d2] = h(a2), { domain: e2, expires: f2, httponly: g2, maxage: i2, path: l2, samesite: m2, secure: n, partitioned: o, priority: p } = Object.fromEntries(d2.map(([a3, b3]) => [a3.toLowerCase().replace(/-/g, ""), b3]));
+        {
+          var q, r, s = { name: b2, value: decodeURIComponent(c2), domain: e2, ...f2 && { expires: new Date(f2) }, ...g2 && { httpOnly: true }, ..."string" == typeof i2 && { maxAge: Number(i2) }, path: l2, ...m2 && { sameSite: j.includes(q = (q = m2).toLowerCase()) ? q : void 0 }, ...n && { secure: true }, ...p && { priority: k.includes(r = (r = p).toLowerCase()) ? r : void 0 }, ...o && { partitioned: true } };
+          let a3 = {};
+          for (let b3 in s) s[b3] && (a3[b3] = s[b3]);
+          return a3;
+        }
+      }
+      ((a2, c2) => {
+        for (var d2 in c2) b(a2, d2, { get: c2[d2], enumerable: true });
+      })(f, { RequestCookies: () => l, ResponseCookies: () => m, parseCookie: () => h, parseSetCookie: () => i, stringifyCookie: () => g }), a.exports = ((a2, f2, g2, h2) => {
+        if (f2 && "object" == typeof f2 || "function" == typeof f2) for (let i2 of d(f2)) e.call(a2, i2) || i2 === g2 || b(a2, i2, { get: () => f2[i2], enumerable: !(h2 = c(f2, i2)) || h2.enumerable });
+        return a2;
+      })(b({}, "__esModule", { value: true }), f);
+      var j = ["strict", "lax", "none"], k = ["low", "medium", "high"], l = class {
+        constructor(a2) {
+          this._parsed = /* @__PURE__ */ new Map(), this._headers = a2;
+          let b2 = a2.get("cookie");
+          if (b2) for (let [a3, c2] of h(b2)) this._parsed.set(a3, { name: a3, value: c2 });
+        }
+        [Symbol.iterator]() {
+          return this._parsed[Symbol.iterator]();
+        }
+        get size() {
+          return this._parsed.size;
+        }
+        get(...a2) {
+          let b2 = "string" == typeof a2[0] ? a2[0] : a2[0].name;
+          return this._parsed.get(b2);
+        }
+        getAll(...a2) {
+          var b2;
+          let c2 = Array.from(this._parsed);
+          if (!a2.length) return c2.map(([a3, b3]) => b3);
+          let d2 = "string" == typeof a2[0] ? a2[0] : null == (b2 = a2[0]) ? void 0 : b2.name;
+          return c2.filter(([a3]) => a3 === d2).map(([a3, b3]) => b3);
+        }
+        has(a2) {
+          return this._parsed.has(a2);
+        }
+        set(...a2) {
+          let [b2, c2] = 1 === a2.length ? [a2[0].name, a2[0].value] : a2, d2 = this._parsed;
+          return d2.set(b2, { name: b2, value: c2 }), this._headers.set("cookie", Array.from(d2).map(([a3, b3]) => g(b3)).join("; ")), this;
+        }
+        delete(a2) {
+          let b2 = this._parsed, c2 = Array.isArray(a2) ? a2.map((a3) => b2.delete(a3)) : b2.delete(a2);
+          return this._headers.set("cookie", Array.from(b2).map(([a3, b3]) => g(b3)).join("; ")), c2;
+        }
+        clear() {
+          return this.delete(Array.from(this._parsed.keys())), this;
+        }
+        [Symbol.for("edge-runtime.inspect.custom")]() {
+          return `RequestCookies ${JSON.stringify(Object.fromEntries(this._parsed))}`;
+        }
+        toString() {
+          return [...this._parsed.values()].map((a2) => `${a2.name}=${encodeURIComponent(a2.value)}`).join("; ");
+        }
+      }, m = class {
+        constructor(a2) {
+          var b2, c2, d2;
+          this._parsed = /* @__PURE__ */ new Map(), this._headers = a2;
+          let e2 = null != (d2 = null != (c2 = null == (b2 = a2.getSetCookie) ? void 0 : b2.call(a2)) ? c2 : a2.get("set-cookie")) ? d2 : [];
+          for (let a3 of Array.isArray(e2) ? e2 : function(a4) {
+            if (!a4) return [];
+            var b3, c3, d3, e3, f2, g2 = [], h2 = 0;
+            function i2() {
+              for (; h2 < a4.length && /\s/.test(a4.charAt(h2)); ) h2 += 1;
+              return h2 < a4.length;
+            }
+            for (; h2 < a4.length; ) {
+              for (b3 = h2, f2 = false; i2(); ) if ("," === (c3 = a4.charAt(h2))) {
+                for (d3 = h2, h2 += 1, i2(), e3 = h2; h2 < a4.length && "=" !== (c3 = a4.charAt(h2)) && ";" !== c3 && "," !== c3; ) h2 += 1;
+                h2 < a4.length && "=" === a4.charAt(h2) ? (f2 = true, h2 = e3, g2.push(a4.substring(b3, d3)), b3 = h2) : h2 = d3 + 1;
+              } else h2 += 1;
+              (!f2 || h2 >= a4.length) && g2.push(a4.substring(b3, a4.length));
+            }
+            return g2;
+          }(e2)) {
+            let b3 = i(a3);
+            b3 && this._parsed.set(b3.name, b3);
+          }
+        }
+        get(...a2) {
+          let b2 = "string" == typeof a2[0] ? a2[0] : a2[0].name;
+          return this._parsed.get(b2);
+        }
+        getAll(...a2) {
+          var b2;
+          let c2 = Array.from(this._parsed.values());
+          if (!a2.length) return c2;
+          let d2 = "string" == typeof a2[0] ? a2[0] : null == (b2 = a2[0]) ? void 0 : b2.name;
+          return c2.filter((a3) => a3.name === d2);
+        }
+        has(a2) {
+          return this._parsed.has(a2);
+        }
+        set(...a2) {
+          let [b2, c2, d2] = 1 === a2.length ? [a2[0].name, a2[0].value, a2[0]] : a2, e2 = this._parsed;
+          return e2.set(b2, function(a3 = { name: "", value: "" }) {
+            return "number" == typeof a3.expires && (a3.expires = new Date(a3.expires)), a3.maxAge && (a3.expires = new Date(Date.now() + 1e3 * a3.maxAge)), (null === a3.path || void 0 === a3.path) && (a3.path = "/"), a3;
+          }({ name: b2, value: c2, ...d2 })), function(a3, b3) {
+            for (let [, c3] of (b3.delete("set-cookie"), a3)) {
+              let a4 = g(c3);
+              b3.append("set-cookie", a4);
+            }
+          }(e2, this._headers), this;
+        }
+        delete(...a2) {
+          let [b2, c2] = "string" == typeof a2[0] ? [a2[0]] : [a2[0].name, a2[0]];
+          return this.set({ ...c2, name: b2, value: "", expires: /* @__PURE__ */ new Date(0) });
+        }
+        [Symbol.for("edge-runtime.inspect.custom")]() {
+          return `ResponseCookies ${JSON.stringify(Object.fromEntries(this._parsed))}`;
+        }
+        toString() {
+          return [...this._parsed.values()].map(g).join("; ");
+        }
+      };
+    }, 449: (a, b, c) => {
+      var d;
+      (() => {
+        var e = { 226: function(e2, f2) {
+          !function(g2, h) {
+            "use strict";
+            var i = "function", j = "undefined", k = "object", l = "string", m = "major", n = "model", o = "name", p = "type", q = "vendor", r = "version", s = "architecture", t = "console", u = "mobile", v = "tablet", w = "smarttv", x = "wearable", y = "embedded", z = "Amazon", A = "Apple", B = "ASUS", C = "BlackBerry", D = "Browser", E = "Chrome", F = "Firefox", G = "Google", H = "Huawei", I = "Microsoft", J = "Motorola", K = "Opera", L = "Samsung", M = "Sharp", N = "Sony", O = "Xiaomi", P = "Zebra", Q = "Facebook", R = "Chromium OS", S = "Mac OS", T = function(a2, b2) {
+              var c2 = {};
+              for (var d2 in a2) b2[d2] && b2[d2].length % 2 == 0 ? c2[d2] = b2[d2].concat(a2[d2]) : c2[d2] = a2[d2];
+              return c2;
+            }, U = function(a2) {
+              for (var b2 = {}, c2 = 0; c2 < a2.length; c2++) b2[a2[c2].toUpperCase()] = a2[c2];
+              return b2;
+            }, V = function(a2, b2) {
+              return typeof a2 === l && -1 !== W(b2).indexOf(W(a2));
+            }, W = function(a2) {
+              return a2.toLowerCase();
+            }, X = function(a2, b2) {
+              if (typeof a2 === l) return a2 = a2.replace(/^\s\s*/, ""), typeof b2 === j ? a2 : a2.substring(0, 350);
+            }, Y = function(a2, b2) {
+              for (var c2, d2, e3, f3, g3, j2, l2 = 0; l2 < b2.length && !g3; ) {
+                var m2 = b2[l2], n2 = b2[l2 + 1];
+                for (c2 = d2 = 0; c2 < m2.length && !g3 && m2[c2]; ) if (g3 = m2[c2++].exec(a2)) for (e3 = 0; e3 < n2.length; e3++) j2 = g3[++d2], typeof (f3 = n2[e3]) === k && f3.length > 0 ? 2 === f3.length ? typeof f3[1] == i ? this[f3[0]] = f3[1].call(this, j2) : this[f3[0]] = f3[1] : 3 === f3.length ? typeof f3[1] !== i || f3[1].exec && f3[1].test ? this[f3[0]] = j2 ? j2.replace(f3[1], f3[2]) : void 0 : this[f3[0]] = j2 ? f3[1].call(this, j2, f3[2]) : void 0 : 4 === f3.length && (this[f3[0]] = j2 ? f3[3].call(this, j2.replace(f3[1], f3[2])) : h) : this[f3] = j2 || h;
+                l2 += 2;
+              }
+            }, Z = function(a2, b2) {
+              for (var c2 in b2) if (typeof b2[c2] === k && b2[c2].length > 0) {
+                for (var d2 = 0; d2 < b2[c2].length; d2++) if (V(b2[c2][d2], a2)) return "?" === c2 ? h : c2;
+              } else if (V(b2[c2], a2)) return "?" === c2 ? h : c2;
+              return a2;
+            }, $ = { ME: "4.90", "NT 3.11": "NT3.51", "NT 4.0": "NT4.0", 2e3: "NT 5.0", XP: ["NT 5.1", "NT 5.2"], Vista: "NT 6.0", 7: "NT 6.1", 8: "NT 6.2", 8.1: "NT 6.3", 10: ["NT 6.4", "NT 10.0"], RT: "ARM" }, _ = { browser: [[/\b(?:crmo|crios)\/([\w\.]+)/i], [r, [o, "Chrome"]], [/edg(?:e|ios|a)?\/([\w\.]+)/i], [r, [o, "Edge"]], [/(opera mini)\/([-\w\.]+)/i, /(opera [mobiletab]{3,6})\b.+version\/([-\w\.]+)/i, /(opera)(?:.+version\/|[\/ ]+)([\w\.]+)/i], [o, r], [/opios[\/ ]+([\w\.]+)/i], [r, [o, K + " Mini"]], [/\bopr\/([\w\.]+)/i], [r, [o, K]], [/(kindle)\/([\w\.]+)/i, /(lunascape|maxthon|netfront|jasmine|blazer)[\/ ]?([\w\.]*)/i, /(avant |iemobile|slim)(?:browser)?[\/ ]?([\w\.]*)/i, /(ba?idubrowser)[\/ ]?([\w\.]+)/i, /(?:ms|\()(ie) ([\w\.]+)/i, /(flock|rockmelt|midori|epiphany|silk|skyfire|bolt|iron|vivaldi|iridium|phantomjs|bowser|quark|qupzilla|falkon|rekonq|puffin|brave|whale(?!.+naver)|qqbrowserlite|qq|duckduckgo)\/([-\w\.]+)/i, /(heytap|ovi)browser\/([\d\.]+)/i, /(weibo)__([\d\.]+)/i], [o, r], [/(?:\buc? ?browser|(?:juc.+)ucweb)[\/ ]?([\w\.]+)/i], [r, [o, "UC" + D]], [/microm.+\bqbcore\/([\w\.]+)/i, /\bqbcore\/([\w\.]+).+microm/i], [r, [o, "WeChat(Win) Desktop"]], [/micromessenger\/([\w\.]+)/i], [r, [o, "WeChat"]], [/konqueror\/([\w\.]+)/i], [r, [o, "Konqueror"]], [/trident.+rv[: ]([\w\.]{1,9})\b.+like gecko/i], [r, [o, "IE"]], [/ya(?:search)?browser\/([\w\.]+)/i], [r, [o, "Yandex"]], [/(avast|avg)\/([\w\.]+)/i], [[o, /(.+)/, "$1 Secure " + D], r], [/\bfocus\/([\w\.]+)/i], [r, [o, F + " Focus"]], [/\bopt\/([\w\.]+)/i], [r, [o, K + " Touch"]], [/coc_coc\w+\/([\w\.]+)/i], [r, [o, "Coc Coc"]], [/dolfin\/([\w\.]+)/i], [r, [o, "Dolphin"]], [/coast\/([\w\.]+)/i], [r, [o, K + " Coast"]], [/miuibrowser\/([\w\.]+)/i], [r, [o, "MIUI " + D]], [/fxios\/([-\w\.]+)/i], [r, [o, F]], [/\bqihu|(qi?ho?o?|360)browser/i], [[o, "360 " + D]], [/(oculus|samsung|sailfish|huawei)browser\/([\w\.]+)/i], [[o, /(.+)/, "$1 " + D], r], [/(comodo_dragon)\/([\w\.]+)/i], [[o, /_/g, " "], r], [/(electron)\/([\w\.]+) safari/i, /(tesla)(?: qtcarbrowser|\/(20\d\d\.[-\w\.]+))/i, /m?(qqbrowser|baiduboxapp|2345Explorer)[\/ ]?([\w\.]+)/i], [o, r], [/(metasr)[\/ ]?([\w\.]+)/i, /(lbbrowser)/i, /\[(linkedin)app\]/i], [o], [/((?:fban\/fbios|fb_iab\/fb4a)(?!.+fbav)|;fbav\/([\w\.]+);)/i], [[o, Q], r], [/(kakao(?:talk|story))[\/ ]([\w\.]+)/i, /(naver)\(.*?(\d+\.[\w\.]+).*\)/i, /safari (line)\/([\w\.]+)/i, /\b(line)\/([\w\.]+)\/iab/i, /(chromium|instagram)[\/ ]([-\w\.]+)/i], [o, r], [/\bgsa\/([\w\.]+) .*safari\//i], [r, [o, "GSA"]], [/musical_ly(?:.+app_?version\/|_)([\w\.]+)/i], [r, [o, "TikTok"]], [/headlesschrome(?:\/([\w\.]+)| )/i], [r, [o, E + " Headless"]], [/ wv\).+(chrome)\/([\w\.]+)/i], [[o, E + " WebView"], r], [/droid.+ version\/([\w\.]+)\b.+(?:mobile safari|safari)/i], [r, [o, "Android " + D]], [/(chrome|omniweb|arora|[tizenoka]{5} ?browser)\/v?([\w\.]+)/i], [o, r], [/version\/([\w\.\,]+) .*mobile\/\w+ (safari)/i], [r, [o, "Mobile Safari"]], [/version\/([\w(\.|\,)]+) .*(mobile ?safari|safari)/i], [r, o], [/webkit.+?(mobile ?safari|safari)(\/[\w\.]+)/i], [o, [r, Z, { "1.0": "/8", 1.2: "/1", 1.3: "/3", "2.0": "/412", "2.0.2": "/416", "2.0.3": "/417", "2.0.4": "/419", "?": "/" }]], [/(webkit|khtml)\/([\w\.]+)/i], [o, r], [/(navigator|netscape\d?)\/([-\w\.]+)/i], [[o, "Netscape"], r], [/mobile vr; rv:([\w\.]+)\).+firefox/i], [r, [o, F + " Reality"]], [/ekiohf.+(flow)\/([\w\.]+)/i, /(swiftfox)/i, /(icedragon|iceweasel|camino|chimera|fennec|maemo browser|minimo|conkeror|klar)[\/ ]?([\w\.\+]+)/i, /(seamonkey|k-meleon|icecat|iceape|firebird|phoenix|palemoon|basilisk|waterfox)\/([-\w\.]+)$/i, /(firefox)\/([\w\.]+)/i, /(mozilla)\/([\w\.]+) .+rv\:.+gecko\/\d+/i, /(polaris|lynx|dillo|icab|doris|amaya|w3m|netsurf|sleipnir|obigo|mosaic|(?:go|ice|up)[\. ]?browser)[-\/ ]?v?([\w\.]+)/i, /(links) \(([\w\.]+)/i, /panasonic;(viera)/i], [o, r], [/(cobalt)\/([\w\.]+)/i], [o, [r, /master.|lts./, ""]]], cpu: [[/(?:(amd|x(?:(?:86|64)[-_])?|wow|win)64)[;\)]/i], [[s, "amd64"]], [/(ia32(?=;))/i], [[s, W]], [/((?:i[346]|x)86)[;\)]/i], [[s, "ia32"]], [/\b(aarch64|arm(v?8e?l?|_?64))\b/i], [[s, "arm64"]], [/\b(arm(?:v[67])?ht?n?[fl]p?)\b/i], [[s, "armhf"]], [/windows (ce|mobile); ppc;/i], [[s, "arm"]], [/((?:ppc|powerpc)(?:64)?)(?: mac|;|\))/i], [[s, /ower/, "", W]], [/(sun4\w)[;\)]/i], [[s, "sparc"]], [/((?:avr32|ia64(?=;))|68k(?=\))|\barm(?=v(?:[1-7]|[5-7]1)l?|;|eabi)|(?=atmel )avr|(?:irix|mips|sparc)(?:64)?\b|pa-risc)/i], [[s, W]]], device: [[/\b(sch-i[89]0\d|shw-m380s|sm-[ptx]\w{2,4}|gt-[pn]\d{2,4}|sgh-t8[56]9|nexus 10)/i], [n, [q, L], [p, v]], [/\b((?:s[cgp]h|gt|sm)-\w+|sc[g-]?[\d]+a?|galaxy nexus)/i, /samsung[- ]([-\w]+)/i, /sec-(sgh\w+)/i], [n, [q, L], [p, u]], [/(?:\/|\()(ip(?:hone|od)[\w, ]*)(?:\/|;)/i], [n, [q, A], [p, u]], [/\((ipad);[-\w\),; ]+apple/i, /applecoremedia\/[\w\.]+ \((ipad)/i, /\b(ipad)\d\d?,\d\d?[;\]].+ios/i], [n, [q, A], [p, v]], [/(macintosh);/i], [n, [q, A]], [/\b(sh-?[altvz]?\d\d[a-ekm]?)/i], [n, [q, M], [p, u]], [/\b((?:ag[rs][23]?|bah2?|sht?|btv)-a?[lw]\d{2})\b(?!.+d\/s)/i], [n, [q, H], [p, v]], [/(?:huawei|honor)([-\w ]+)[;\)]/i, /\b(nexus 6p|\w{2,4}e?-[atu]?[ln][\dx][012359c][adn]?)\b(?!.+d\/s)/i], [n, [q, H], [p, u]], [/\b(poco[\w ]+)(?: bui|\))/i, /\b; (\w+) build\/hm\1/i, /\b(hm[-_ ]?note?[_ ]?(?:\d\w)?) bui/i, /\b(redmi[\-_ ]?(?:note|k)?[\w_ ]+)(?: bui|\))/i, /\b(mi[-_ ]?(?:a\d|one|one[_ ]plus|note lte|max|cc)?[_ ]?(?:\d?\w?)[_ ]?(?:plus|se|lite)?)(?: bui|\))/i], [[n, /_/g, " "], [q, O], [p, u]], [/\b(mi[-_ ]?(?:pad)(?:[\w_ ]+))(?: bui|\))/i], [[n, /_/g, " "], [q, O], [p, v]], [/; (\w+) bui.+ oppo/i, /\b(cph[12]\d{3}|p(?:af|c[al]|d\w|e[ar])[mt]\d0|x9007|a101op)\b/i], [n, [q, "OPPO"], [p, u]], [/vivo (\w+)(?: bui|\))/i, /\b(v[12]\d{3}\w?[at])(?: bui|;)/i], [n, [q, "Vivo"], [p, u]], [/\b(rmx[12]\d{3})(?: bui|;|\))/i], [n, [q, "Realme"], [p, u]], [/\b(milestone|droid(?:[2-4x]| (?:bionic|x2|pro|razr))?:?( 4g)?)\b[\w ]+build\//i, /\bmot(?:orola)?[- ](\w*)/i, /((?:moto[\w\(\) ]+|xt\d{3,4}|nexus 6)(?= bui|\)))/i], [n, [q, J], [p, u]], [/\b(mz60\d|xoom[2 ]{0,2}) build\//i], [n, [q, J], [p, v]], [/((?=lg)?[vl]k\-?\d{3}) bui| 3\.[-\w; ]{10}lg?-([06cv9]{3,4})/i], [n, [q, "LG"], [p, v]], [/(lm(?:-?f100[nv]?|-[\w\.]+)(?= bui|\))|nexus [45])/i, /\blg[-e;\/ ]+((?!browser|netcast|android tv)\w+)/i, /\blg-?([\d\w]+) bui/i], [n, [q, "LG"], [p, u]], [/(ideatab[-\w ]+)/i, /lenovo ?(s[56]000[-\w]+|tab(?:[\w ]+)|yt[-\d\w]{6}|tb[-\d\w]{6})/i], [n, [q, "Lenovo"], [p, v]], [/(?:maemo|nokia).*(n900|lumia \d+)/i, /nokia[-_ ]?([-\w\.]*)/i], [[n, /_/g, " "], [q, "Nokia"], [p, u]], [/(pixel c)\b/i], [n, [q, G], [p, v]], [/droid.+; (pixel[\daxl ]{0,6})(?: bui|\))/i], [n, [q, G], [p, u]], [/droid.+ (a?\d[0-2]{2}so|[c-g]\d{4}|so[-gl]\w+|xq-a\w[4-7][12])(?= bui|\).+chrome\/(?![1-6]{0,1}\d\.))/i], [n, [q, N], [p, u]], [/sony tablet [ps]/i, /\b(?:sony)?sgp\w+(?: bui|\))/i], [[n, "Xperia Tablet"], [q, N], [p, v]], [/ (kb2005|in20[12]5|be20[12][59])\b/i, /(?:one)?(?:plus)? (a\d0\d\d)(?: b|\))/i], [n, [q, "OnePlus"], [p, u]], [/(alexa)webm/i, /(kf[a-z]{2}wi|aeo[c-r]{2})( bui|\))/i, /(kf[a-z]+)( bui|\)).+silk\//i], [n, [q, z], [p, v]], [/((?:sd|kf)[0349hijorstuw]+)( bui|\)).+silk\//i], [[n, /(.+)/g, "Fire Phone $1"], [q, z], [p, u]], [/(playbook);[-\w\),; ]+(rim)/i], [n, q, [p, v]], [/\b((?:bb[a-f]|st[hv])100-\d)/i, /\(bb10; (\w+)/i], [n, [q, C], [p, u]], [/(?:\b|asus_)(transfo[prime ]{4,10} \w+|eeepc|slider \w+|nexus 7|padfone|p00[cj])/i], [n, [q, B], [p, v]], [/ (z[bes]6[027][012][km][ls]|zenfone \d\w?)\b/i], [n, [q, B], [p, u]], [/(nexus 9)/i], [n, [q, "HTC"], [p, v]], [/(htc)[-;_ ]{1,2}([\w ]+(?=\)| bui)|\w+)/i, /(zte)[- ]([\w ]+?)(?: bui|\/|\))/i, /(alcatel|geeksphone|nexian|panasonic(?!(?:;|\.))|sony(?!-bra))[-_ ]?([-\w]*)/i], [q, [n, /_/g, " "], [p, u]], [/droid.+; ([ab][1-7]-?[0178a]\d\d?)/i], [n, [q, "Acer"], [p, v]], [/droid.+; (m[1-5] note) bui/i, /\bmz-([-\w]{2,})/i], [n, [q, "Meizu"], [p, u]], [/(blackberry|benq|palm(?=\-)|sonyericsson|acer|asus|dell|meizu|motorola|polytron)[-_ ]?([-\w]*)/i, /(hp) ([\w ]+\w)/i, /(asus)-?(\w+)/i, /(microsoft); (lumia[\w ]+)/i, /(lenovo)[-_ ]?([-\w]+)/i, /(jolla)/i, /(oppo) ?([\w ]+) bui/i], [q, n, [p, u]], [/(kobo)\s(ereader|touch)/i, /(archos) (gamepad2?)/i, /(hp).+(touchpad(?!.+tablet)|tablet)/i, /(kindle)\/([\w\.]+)/i, /(nook)[\w ]+build\/(\w+)/i, /(dell) (strea[kpr\d ]*[\dko])/i, /(le[- ]+pan)[- ]+(\w{1,9}) bui/i, /(trinity)[- ]*(t\d{3}) bui/i, /(gigaset)[- ]+(q\w{1,9}) bui/i, /(vodafone) ([\w ]+)(?:\)| bui)/i], [q, n, [p, v]], [/(surface duo)/i], [n, [q, I], [p, v]], [/droid [\d\.]+; (fp\du?)(?: b|\))/i], [n, [q, "Fairphone"], [p, u]], [/(u304aa)/i], [n, [q, "AT&T"], [p, u]], [/\bsie-(\w*)/i], [n, [q, "Siemens"], [p, u]], [/\b(rct\w+) b/i], [n, [q, "RCA"], [p, v]], [/\b(venue[\d ]{2,7}) b/i], [n, [q, "Dell"], [p, v]], [/\b(q(?:mv|ta)\w+) b/i], [n, [q, "Verizon"], [p, v]], [/\b(?:barnes[& ]+noble |bn[rt])([\w\+ ]*) b/i], [n, [q, "Barnes & Noble"], [p, v]], [/\b(tm\d{3}\w+) b/i], [n, [q, "NuVision"], [p, v]], [/\b(k88) b/i], [n, [q, "ZTE"], [p, v]], [/\b(nx\d{3}j) b/i], [n, [q, "ZTE"], [p, u]], [/\b(gen\d{3}) b.+49h/i], [n, [q, "Swiss"], [p, u]], [/\b(zur\d{3}) b/i], [n, [q, "Swiss"], [p, v]], [/\b((zeki)?tb.*\b) b/i], [n, [q, "Zeki"], [p, v]], [/\b([yr]\d{2}) b/i, /\b(dragon[- ]+touch |dt)(\w{5}) b/i], [[q, "Dragon Touch"], n, [p, v]], [/\b(ns-?\w{0,9}) b/i], [n, [q, "Insignia"], [p, v]], [/\b((nxa|next)-?\w{0,9}) b/i], [n, [q, "NextBook"], [p, v]], [/\b(xtreme\_)?(v(1[045]|2[015]|[3469]0|7[05])) b/i], [[q, "Voice"], n, [p, u]], [/\b(lvtel\-)?(v1[12]) b/i], [[q, "LvTel"], n, [p, u]], [/\b(ph-1) /i], [n, [q, "Essential"], [p, u]], [/\b(v(100md|700na|7011|917g).*\b) b/i], [n, [q, "Envizen"], [p, v]], [/\b(trio[-\w\. ]+) b/i], [n, [q, "MachSpeed"], [p, v]], [/\btu_(1491) b/i], [n, [q, "Rotor"], [p, v]], [/(shield[\w ]+) b/i], [n, [q, "Nvidia"], [p, v]], [/(sprint) (\w+)/i], [q, n, [p, u]], [/(kin\.[onetw]{3})/i], [[n, /\./g, " "], [q, I], [p, u]], [/droid.+; (cc6666?|et5[16]|mc[239][23]x?|vc8[03]x?)\)/i], [n, [q, P], [p, v]], [/droid.+; (ec30|ps20|tc[2-8]\d[kx])\)/i], [n, [q, P], [p, u]], [/smart-tv.+(samsung)/i], [q, [p, w]], [/hbbtv.+maple;(\d+)/i], [[n, /^/, "SmartTV"], [q, L], [p, w]], [/(nux; netcast.+smarttv|lg (netcast\.tv-201\d|android tv))/i], [[q, "LG"], [p, w]], [/(apple) ?tv/i], [q, [n, A + " TV"], [p, w]], [/crkey/i], [[n, E + "cast"], [q, G], [p, w]], [/droid.+aft(\w)( bui|\))/i], [n, [q, z], [p, w]], [/\(dtv[\);].+(aquos)/i, /(aquos-tv[\w ]+)\)/i], [n, [q, M], [p, w]], [/(bravia[\w ]+)( bui|\))/i], [n, [q, N], [p, w]], [/(mitv-\w{5}) bui/i], [n, [q, O], [p, w]], [/Hbbtv.*(technisat) (.*);/i], [q, n, [p, w]], [/\b(roku)[\dx]*[\)\/]((?:dvp-)?[\d\.]*)/i, /hbbtv\/\d+\.\d+\.\d+ +\([\w\+ ]*; *([\w\d][^;]*);([^;]*)/i], [[q, X], [n, X], [p, w]], [/\b(android tv|smart[- ]?tv|opera tv|tv; rv:)\b/i], [[p, w]], [/(ouya)/i, /(nintendo) ([wids3utch]+)/i], [q, n, [p, t]], [/droid.+; (shield) bui/i], [n, [q, "Nvidia"], [p, t]], [/(playstation [345portablevi]+)/i], [n, [q, N], [p, t]], [/\b(xbox(?: one)?(?!; xbox))[\); ]/i], [n, [q, I], [p, t]], [/((pebble))app/i], [q, n, [p, x]], [/(watch)(?: ?os[,\/]|\d,\d\/)[\d\.]+/i], [n, [q, A], [p, x]], [/droid.+; (glass) \d/i], [n, [q, G], [p, x]], [/droid.+; (wt63?0{2,3})\)/i], [n, [q, P], [p, x]], [/(quest( 2| pro)?)/i], [n, [q, Q], [p, x]], [/(tesla)(?: qtcarbrowser|\/[-\w\.]+)/i], [q, [p, y]], [/(aeobc)\b/i], [n, [q, z], [p, y]], [/droid .+?; ([^;]+?)(?: bui|\) applew).+? mobile safari/i], [n, [p, u]], [/droid .+?; ([^;]+?)(?: bui|\) applew).+?(?! mobile) safari/i], [n, [p, v]], [/\b((tablet|tab)[;\/]|focus\/\d(?!.+mobile))/i], [[p, v]], [/(phone|mobile(?:[;\/]| [ \w\/\.]*safari)|pda(?=.+windows ce))/i], [[p, u]], [/(android[-\w\. ]{0,9});.+buil/i], [n, [q, "Generic"]]], engine: [[/windows.+ edge\/([\w\.]+)/i], [r, [o, "EdgeHTML"]], [/webkit\/537\.36.+chrome\/(?!27)([\w\.]+)/i], [r, [o, "Blink"]], [/(presto)\/([\w\.]+)/i, /(webkit|trident|netfront|netsurf|amaya|lynx|w3m|goanna)\/([\w\.]+)/i, /ekioh(flow)\/([\w\.]+)/i, /(khtml|tasman|links)[\/ ]\(?([\w\.]+)/i, /(icab)[\/ ]([23]\.[\d\.]+)/i, /\b(libweb)/i], [o, r], [/rv\:([\w\.]{1,9})\b.+(gecko)/i], [r, o]], os: [[/microsoft (windows) (vista|xp)/i], [o, r], [/(windows) nt 6\.2; (arm)/i, /(windows (?:phone(?: os)?|mobile))[\/ ]?([\d\.\w ]*)/i, /(windows)[\/ ]?([ntce\d\. ]+\w)(?!.+xbox)/i], [o, [r, Z, $]], [/(win(?=3|9|n)|win 9x )([nt\d\.]+)/i], [[o, "Windows"], [r, Z, $]], [/ip[honead]{2,4}\b(?:.*os ([\w]+) like mac|; opera)/i, /ios;fbsv\/([\d\.]+)/i, /cfnetwork\/.+darwin/i], [[r, /_/g, "."], [o, "iOS"]], [/(mac os x) ?([\w\. ]*)/i, /(macintosh|mac_powerpc\b)(?!.+haiku)/i], [[o, S], [r, /_/g, "."]], [/droid ([\w\.]+)\b.+(android[- ]x86|harmonyos)/i], [r, o], [/(android|webos|qnx|bada|rim tablet os|maemo|meego|sailfish)[-\/ ]?([\w\.]*)/i, /(blackberry)\w*\/([\w\.]*)/i, /(tizen|kaios)[\/ ]([\w\.]+)/i, /\((series40);/i], [o, r], [/\(bb(10);/i], [r, [o, C]], [/(?:symbian ?os|symbos|s60(?=;)|series60)[-\/ ]?([\w\.]*)/i], [r, [o, "Symbian"]], [/mozilla\/[\d\.]+ \((?:mobile|tablet|tv|mobile; [\w ]+); rv:.+ gecko\/([\w\.]+)/i], [r, [o, F + " OS"]], [/web0s;.+rt(tv)/i, /\b(?:hp)?wos(?:browser)?\/([\w\.]+)/i], [r, [o, "webOS"]], [/watch(?: ?os[,\/]|\d,\d\/)([\d\.]+)/i], [r, [o, "watchOS"]], [/crkey\/([\d\.]+)/i], [r, [o, E + "cast"]], [/(cros) [\w]+(?:\)| ([\w\.]+)\b)/i], [[o, R], r], [/panasonic;(viera)/i, /(netrange)mmh/i, /(nettv)\/(\d+\.[\w\.]+)/i, /(nintendo|playstation) ([wids345portablevuch]+)/i, /(xbox); +xbox ([^\);]+)/i, /\b(joli|palm)\b ?(?:os)?\/?([\w\.]*)/i, /(mint)[\/\(\) ]?(\w*)/i, /(mageia|vectorlinux)[; ]/i, /([kxln]?ubuntu|debian|suse|opensuse|gentoo|arch(?= linux)|slackware|fedora|mandriva|centos|pclinuxos|red ?hat|zenwalk|linpus|raspbian|plan 9|minix|risc os|contiki|deepin|manjaro|elementary os|sabayon|linspire)(?: gnu\/linux)?(?: enterprise)?(?:[- ]linux)?(?:-gnu)?[-\/ ]?(?!chrom|package)([-\w\.]*)/i, /(hurd|linux) ?([\w\.]*)/i, /(gnu) ?([\w\.]*)/i, /\b([-frentopcghs]{0,5}bsd|dragonfly)[\/ ]?(?!amd|[ix346]{1,2}86)([\w\.]*)/i, /(haiku) (\w+)/i], [o, r], [/(sunos) ?([\w\.\d]*)/i], [[o, "Solaris"], r], [/((?:open)?solaris)[-\/ ]?([\w\.]*)/i, /(aix) ((\d)(?=\.|\)| )[\w\.])*/i, /\b(beos|os\/2|amigaos|morphos|openvms|fuchsia|hp-ux|serenityos)/i, /(unix) ?([\w\.]*)/i], [o, r]] }, aa = function(a2, b2) {
+              if (typeof a2 === k && (b2 = a2, a2 = h), !(this instanceof aa)) return new aa(a2, b2).getResult();
+              var c2 = typeof g2 !== j && g2.navigator ? g2.navigator : h, d2 = a2 || (c2 && c2.userAgent ? c2.userAgent : ""), e3 = c2 && c2.userAgentData ? c2.userAgentData : h, f3 = b2 ? T(_, b2) : _, t2 = c2 && c2.userAgent == d2;
+              return this.getBrowser = function() {
+                var a3, b3 = {};
+                return b3[o] = h, b3[r] = h, Y.call(b3, d2, f3.browser), b3[m] = typeof (a3 = b3[r]) === l ? a3.replace(/[^\d\.]/g, "").split(".")[0] : h, t2 && c2 && c2.brave && typeof c2.brave.isBrave == i && (b3[o] = "Brave"), b3;
+              }, this.getCPU = function() {
+                var a3 = {};
+                return a3[s] = h, Y.call(a3, d2, f3.cpu), a3;
+              }, this.getDevice = function() {
+                var a3 = {};
+                return a3[q] = h, a3[n] = h, a3[p] = h, Y.call(a3, d2, f3.device), t2 && !a3[p] && e3 && e3.mobile && (a3[p] = u), t2 && "Macintosh" == a3[n] && c2 && typeof c2.standalone !== j && c2.maxTouchPoints && c2.maxTouchPoints > 2 && (a3[n] = "iPad", a3[p] = v), a3;
+              }, this.getEngine = function() {
+                var a3 = {};
+                return a3[o] = h, a3[r] = h, Y.call(a3, d2, f3.engine), a3;
+              }, this.getOS = function() {
+                var a3 = {};
+                return a3[o] = h, a3[r] = h, Y.call(a3, d2, f3.os), t2 && !a3[o] && e3 && "Unknown" != e3.platform && (a3[o] = e3.platform.replace(/chrome os/i, R).replace(/macos/i, S)), a3;
+              }, this.getResult = function() {
+                return { ua: this.getUA(), browser: this.getBrowser(), engine: this.getEngine(), os: this.getOS(), device: this.getDevice(), cpu: this.getCPU() };
+              }, this.getUA = function() {
+                return d2;
+              }, this.setUA = function(a3) {
+                return d2 = typeof a3 === l && a3.length > 350 ? X(a3, 350) : a3, this;
+              }, this.setUA(d2), this;
+            };
+            aa.VERSION = "1.0.35", aa.BROWSER = U([o, r, m]), aa.CPU = U([s]), aa.DEVICE = U([n, q, p, t, u, w, v, x, y]), aa.ENGINE = aa.OS = U([o, r]), typeof f2 !== j ? (e2.exports && (f2 = e2.exports = aa), f2.UAParser = aa) : c.amdO ? void 0 === (d = function() {
+              return aa;
+            }.call(b, c, b, a)) || (a.exports = d) : typeof g2 !== j && (g2.UAParser = aa);
+            var ab = typeof g2 !== j && (g2.jQuery || g2.Zepto);
+            if (ab && !ab.ua) {
+              var ac = new aa();
+              ab.ua = ac.getResult(), ab.ua.get = function() {
+                return ac.getUA();
+              }, ab.ua.set = function(a2) {
+                ac.setUA(a2);
+                var b2 = ac.getResult();
+                for (var c2 in b2) ab.ua[c2] = b2[c2];
+              };
+            }
+          }("object" == typeof window ? window : this);
+        } }, f = {};
+        function g(a2) {
+          var b2 = f[a2];
+          if (void 0 !== b2) return b2.exports;
+          var c2 = f[a2] = { exports: {} }, d2 = true;
+          try {
+            e[a2].call(c2.exports, c2, c2.exports, g), d2 = false;
+          } finally {
+            d2 && delete f[a2];
+          }
+          return c2.exports;
+        }
+        g.ab = "//", a.exports = g(226);
+      })();
+    }, 521: (a) => {
+      "use strict";
+      a.exports = (init_node_async_hooks(), __toCommonJS(node_async_hooks_exports));
+    }, 522: (a) => {
+      a.exports = function(a2) {
+        return a2 && a2.__esModule ? a2 : { default: a2 };
+      }, a.exports.__esModule = true, a.exports.default = a.exports;
+    }, 663: (a) => {
+      (() => {
+        "use strict";
+        "undefined" != typeof __nccwpck_require__ && (__nccwpck_require__.ab = "//");
+        var b = {};
+        (() => {
+          b.parse = function(b2, c2) {
+            if ("string" != typeof b2) throw TypeError("argument str must be a string");
+            for (var e2 = {}, f = b2.split(d), g = (c2 || {}).decode || a2, h = 0; h < f.length; h++) {
+              var i = f[h], j = i.indexOf("=");
+              if (!(j < 0)) {
+                var k = i.substr(0, j).trim(), l = i.substr(++j, i.length).trim();
+                '"' == l[0] && (l = l.slice(1, -1)), void 0 == e2[k] && (e2[k] = function(a3, b3) {
+                  try {
+                    return b3(a3);
+                  } catch (b4) {
+                    return a3;
+                  }
+                }(l, g));
+              }
+            }
+            return e2;
+          }, b.serialize = function(a3, b2, d2) {
+            var f = d2 || {}, g = f.encode || c;
+            if ("function" != typeof g) throw TypeError("option encode is invalid");
+            if (!e.test(a3)) throw TypeError("argument name is invalid");
+            var h = g(b2);
+            if (h && !e.test(h)) throw TypeError("argument val is invalid");
+            var i = a3 + "=" + h;
+            if (null != f.maxAge) {
+              var j = f.maxAge - 0;
+              if (isNaN(j) || !isFinite(j)) throw TypeError("option maxAge is invalid");
+              i += "; Max-Age=" + Math.floor(j);
+            }
+            if (f.domain) {
+              if (!e.test(f.domain)) throw TypeError("option domain is invalid");
+              i += "; Domain=" + f.domain;
+            }
+            if (f.path) {
+              if (!e.test(f.path)) throw TypeError("option path is invalid");
+              i += "; Path=" + f.path;
+            }
+            if (f.expires) {
+              if ("function" != typeof f.expires.toUTCString) throw TypeError("option expires is invalid");
+              i += "; Expires=" + f.expires.toUTCString();
+            }
+            if (f.httpOnly && (i += "; HttpOnly"), f.secure && (i += "; Secure"), f.sameSite) switch ("string" == typeof f.sameSite ? f.sameSite.toLowerCase() : f.sameSite) {
+              case true:
+              case "strict":
+                i += "; SameSite=Strict";
+                break;
+              case "lax":
+                i += "; SameSite=Lax";
+                break;
+              case "none":
+                i += "; SameSite=None";
+                break;
+              default:
+                throw TypeError("option sameSite is invalid");
+            }
+            return i;
+          };
+          var a2 = decodeURIComponent, c = encodeURIComponent, d = /; */, e = /^[\u0009\u0020-\u007e\u0080-\u00ff]+$/;
+        })(), a.exports = b;
+      })();
+    }, 667: (a, b, c) => {
+      "use strict";
+      let d;
+      c.r(b), c.d(b, { default: () => bA });
+      var e, f = {};
+      async function g() {
+        return "_ENTRIES" in globalThis && _ENTRIES.middleware_instrumentation && await _ENTRIES.middleware_instrumentation;
+      }
+      c.r(f), c.d(f, { config: () => bw, middleware: () => bv });
+      let h = null;
+      async function i() {
+        if ("phase-production-build" === process.env.NEXT_PHASE) return;
+        h || (h = g());
+        let a10 = await h;
+        if (null == a10 ? void 0 : a10.register) try {
+          await a10.register();
+        } catch (a11) {
+          throw a11.message = `An error occurred while loading instrumentation hook: ${a11.message}`, a11;
+        }
+      }
+      async function j(...a10) {
+        let b2 = await g();
+        try {
+          var c2;
+          await (null == b2 || null == (c2 = b2.onRequestError) ? void 0 : c2.call(b2, ...a10));
+        } catch (a11) {
+          console.error("Error in instrumentation.onRequestError:", a11);
+        }
+      }
+      let k = null;
+      function l() {
+        return k || (k = i()), k;
+      }
+      function m(a10) {
+        return `The edge runtime does not support Node.js '${a10}' module.
+Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime`;
+      }
+      process !== c.g.process && (process.env = c.g.process.env, c.g.process = process);
+      try {
+        Object.defineProperty(globalThis, "__import_unsupported", { value: function(a10) {
+          let b2 = new Proxy(function() {
+          }, { get(b3, c2) {
+            if ("then" === c2) return {};
+            throw Object.defineProperty(Error(m(a10)), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+          }, construct() {
+            throw Object.defineProperty(Error(m(a10)), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+          }, apply(c2, d2, e2) {
+            if ("function" == typeof e2[0]) return e2[0](b2);
+            throw Object.defineProperty(Error(m(a10)), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+          } });
+          return new Proxy({}, { get: () => b2 });
+        }, enumerable: false, configurable: false });
+      } catch {
+      }
+      l();
+      class n extends Error {
+        constructor({ page: a10 }) {
+          super(`The middleware "${a10}" accepts an async API directly with the form:
+  
+  export function middleware(request, event) {
+    return NextResponse.redirect('/new-location')
+  }
+  
+  Read more: https://nextjs.org/docs/messages/middleware-new-signature
+  `);
+        }
+      }
+      class o extends Error {
+        constructor() {
+          super(`The request.page has been deprecated in favour of \`URLPattern\`.
+  Read more: https://nextjs.org/docs/messages/middleware-request-page
+  `);
+        }
+      }
+      class p extends Error {
+        constructor() {
+          super(`The request.ua has been removed in favour of \`userAgent\` function.
+  Read more: https://nextjs.org/docs/messages/middleware-parse-user-agent
+  `);
+        }
+      }
+      let q = "_N_T_", r = { shared: "shared", reactServerComponents: "rsc", serverSideRendering: "ssr", actionBrowser: "action-browser", apiNode: "api-node", apiEdge: "api-edge", middleware: "middleware", instrument: "instrument", edgeAsset: "edge-asset", appPagesBrowser: "app-pages-browser", pagesDirBrowser: "pages-dir-browser", pagesDirEdge: "pages-dir-edge", pagesDirNode: "pages-dir-node" };
+      function s(a10) {
+        var b2, c2, d2, e2, f2, g2 = [], h2 = 0;
+        function i2() {
+          for (; h2 < a10.length && /\s/.test(a10.charAt(h2)); ) h2 += 1;
+          return h2 < a10.length;
+        }
+        for (; h2 < a10.length; ) {
+          for (b2 = h2, f2 = false; i2(); ) if ("," === (c2 = a10.charAt(h2))) {
+            for (d2 = h2, h2 += 1, i2(), e2 = h2; h2 < a10.length && "=" !== (c2 = a10.charAt(h2)) && ";" !== c2 && "," !== c2; ) h2 += 1;
+            h2 < a10.length && "=" === a10.charAt(h2) ? (f2 = true, h2 = e2, g2.push(a10.substring(b2, d2)), b2 = h2) : h2 = d2 + 1;
+          } else h2 += 1;
+          (!f2 || h2 >= a10.length) && g2.push(a10.substring(b2, a10.length));
+        }
+        return g2;
+      }
+      function t(a10) {
+        let b2 = {}, c2 = [];
+        if (a10) for (let [d2, e2] of a10.entries()) "set-cookie" === d2.toLowerCase() ? (c2.push(...s(e2)), b2[d2] = 1 === c2.length ? c2[0] : c2) : b2[d2] = e2;
+        return b2;
+      }
+      function u(a10) {
+        try {
+          return String(new URL(String(a10)));
+        } catch (b2) {
+          throw Object.defineProperty(Error(`URL is malformed "${String(a10)}". Please use only absolute URLs - https://nextjs.org/docs/messages/middleware-relative-urls`, { cause: b2 }), "__NEXT_ERROR_CODE", { value: "E61", enumerable: false, configurable: true });
+        }
+      }
+      ({ ...r, GROUP: { builtinReact: [r.reactServerComponents, r.actionBrowser], serverOnly: [r.reactServerComponents, r.actionBrowser, r.instrument, r.middleware], neutralTarget: [r.apiNode, r.apiEdge], clientOnly: [r.serverSideRendering, r.appPagesBrowser], bundled: [r.reactServerComponents, r.actionBrowser, r.serverSideRendering, r.appPagesBrowser, r.shared, r.instrument, r.middleware], appPages: [r.reactServerComponents, r.serverSideRendering, r.appPagesBrowser, r.actionBrowser] } });
+      let v = Symbol("response"), w = Symbol("passThrough"), x = Symbol("waitUntil");
+      class y {
+        constructor(a10, b2) {
+          this[w] = false, this[x] = b2 ? { kind: "external", function: b2 } : { kind: "internal", promises: [] };
+        }
+        respondWith(a10) {
+          this[v] || (this[v] = Promise.resolve(a10));
+        }
+        passThroughOnException() {
+          this[w] = true;
+        }
+        waitUntil(a10) {
+          if ("external" === this[x].kind) return (0, this[x].function)(a10);
+          this[x].promises.push(a10);
+        }
+      }
+      class z extends y {
+        constructor(a10) {
+          var b2;
+          super(a10.request, null == (b2 = a10.context) ? void 0 : b2.waitUntil), this.sourcePage = a10.page;
+        }
+        get request() {
+          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+        }
+        respondWith() {
+          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+        }
+      }
+      function A(a10) {
+        return a10.replace(/\/$/, "") || "/";
+      }
+      function B(a10) {
+        let b2 = a10.indexOf("#"), c2 = a10.indexOf("?"), d2 = c2 > -1 && (b2 < 0 || c2 < b2);
+        return d2 || b2 > -1 ? { pathname: a10.substring(0, d2 ? c2 : b2), query: d2 ? a10.substring(c2, b2 > -1 ? b2 : void 0) : "", hash: b2 > -1 ? a10.slice(b2) : "" } : { pathname: a10, query: "", hash: "" };
+      }
+      function C(a10, b2) {
+        if (!a10.startsWith("/") || !b2) return a10;
+        let { pathname: c2, query: d2, hash: e2 } = B(a10);
+        return "" + b2 + c2 + d2 + e2;
+      }
+      function D(a10, b2) {
+        if (!a10.startsWith("/") || !b2) return a10;
+        let { pathname: c2, query: d2, hash: e2 } = B(a10);
+        return "" + c2 + b2 + d2 + e2;
+      }
+      function E(a10, b2) {
+        if ("string" != typeof a10) return false;
+        let { pathname: c2 } = B(a10);
+        return c2 === b2 || c2.startsWith(b2 + "/");
+      }
+      let F = /* @__PURE__ */ new WeakMap();
+      function G(a10, b2) {
+        let c2;
+        if (!b2) return { pathname: a10 };
+        let d2 = F.get(b2);
+        d2 || (d2 = b2.map((a11) => a11.toLowerCase()), F.set(b2, d2));
+        let e2 = a10.split("/", 2);
+        if (!e2[1]) return { pathname: a10 };
+        let f2 = e2[1].toLowerCase(), g2 = d2.indexOf(f2);
+        return g2 < 0 ? { pathname: a10 } : (c2 = b2[g2], { pathname: a10 = a10.slice(c2.length + 1) || "/", detectedLocale: c2 });
+      }
+      let H = /(?!^https?:\/\/)(127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}|\[::1\]|localhost)/;
+      function I(a10, b2) {
+        return new URL(String(a10).replace(H, "localhost"), b2 && String(b2).replace(H, "localhost"));
+      }
+      let J = Symbol("NextURLInternal");
+      class K {
+        constructor(a10, b2, c2) {
+          let d2, e2;
+          "object" == typeof b2 && "pathname" in b2 || "string" == typeof b2 ? (d2 = b2, e2 = c2 || {}) : e2 = c2 || b2 || {}, this[J] = { url: I(a10, d2 ?? e2.base), options: e2, basePath: "" }, this.analyze();
+        }
+        analyze() {
+          var a10, b2, c2, d2, e2;
+          let f2 = function(a11, b3) {
+            var c3, d3;
+            let { basePath: e3, i18n: f3, trailingSlash: g3 } = null != (c3 = b3.nextConfig) ? c3 : {}, h3 = { pathname: a11, trailingSlash: "/" !== a11 ? a11.endsWith("/") : g3 };
+            e3 && E(h3.pathname, e3) && (h3.pathname = function(a12, b4) {
+              if (!E(a12, b4)) return a12;
+              let c4 = a12.slice(b4.length);
+              return c4.startsWith("/") ? c4 : "/" + c4;
+            }(h3.pathname, e3), h3.basePath = e3);
+            let i2 = h3.pathname;
+            if (h3.pathname.startsWith("/_next/data/") && h3.pathname.endsWith(".json")) {
+              let a12 = h3.pathname.replace(/^\/_next\/data\//, "").replace(/\.json$/, "").split("/");
+              h3.buildId = a12[0], i2 = "index" !== a12[1] ? "/" + a12.slice(1).join("/") : "/", true === b3.parseData && (h3.pathname = i2);
+            }
+            if (f3) {
+              let a12 = b3.i18nProvider ? b3.i18nProvider.analyze(h3.pathname) : G(h3.pathname, f3.locales);
+              h3.locale = a12.detectedLocale, h3.pathname = null != (d3 = a12.pathname) ? d3 : h3.pathname, !a12.detectedLocale && h3.buildId && (a12 = b3.i18nProvider ? b3.i18nProvider.analyze(i2) : G(i2, f3.locales)).detectedLocale && (h3.locale = a12.detectedLocale);
+            }
+            return h3;
+          }(this[J].url.pathname, { nextConfig: this[J].options.nextConfig, parseData: true, i18nProvider: this[J].options.i18nProvider }), g2 = function(a11, b3) {
+            let c3;
+            if ((null == b3 ? void 0 : b3.host) && !Array.isArray(b3.host)) c3 = b3.host.toString().split(":", 1)[0];
+            else {
+              if (!a11.hostname) return;
+              c3 = a11.hostname;
+            }
+            return c3.toLowerCase();
+          }(this[J].url, this[J].options.headers);
+          this[J].domainLocale = this[J].options.i18nProvider ? this[J].options.i18nProvider.detectDomainLocale(g2) : function(a11, b3, c3) {
+            if (a11) for (let f3 of (c3 && (c3 = c3.toLowerCase()), a11)) {
+              var d3, e3;
+              if (b3 === (null == (d3 = f3.domain) ? void 0 : d3.split(":", 1)[0].toLowerCase()) || c3 === f3.defaultLocale.toLowerCase() || (null == (e3 = f3.locales) ? void 0 : e3.some((a12) => a12.toLowerCase() === c3))) return f3;
+            }
+          }(null == (b2 = this[J].options.nextConfig) || null == (a10 = b2.i18n) ? void 0 : a10.domains, g2);
+          let h2 = (null == (c2 = this[J].domainLocale) ? void 0 : c2.defaultLocale) || (null == (e2 = this[J].options.nextConfig) || null == (d2 = e2.i18n) ? void 0 : d2.defaultLocale);
+          this[J].url.pathname = f2.pathname, this[J].defaultLocale = h2, this[J].basePath = f2.basePath ?? "", this[J].buildId = f2.buildId, this[J].locale = f2.locale ?? h2, this[J].trailingSlash = f2.trailingSlash;
+        }
+        formatPathname() {
+          var a10;
+          let b2;
+          return b2 = function(a11, b3, c2, d2) {
+            if (!b3 || b3 === c2) return a11;
+            let e2 = a11.toLowerCase();
+            return !d2 && (E(e2, "/api") || E(e2, "/" + b3.toLowerCase())) ? a11 : C(a11, "/" + b3);
+          }((a10 = { basePath: this[J].basePath, buildId: this[J].buildId, defaultLocale: this[J].options.forceLocale ? void 0 : this[J].defaultLocale, locale: this[J].locale, pathname: this[J].url.pathname, trailingSlash: this[J].trailingSlash }).pathname, a10.locale, a10.buildId ? void 0 : a10.defaultLocale, a10.ignorePrefix), (a10.buildId || !a10.trailingSlash) && (b2 = A(b2)), a10.buildId && (b2 = D(C(b2, "/_next/data/" + a10.buildId), "/" === a10.pathname ? "index.json" : ".json")), b2 = C(b2, a10.basePath), !a10.buildId && a10.trailingSlash ? b2.endsWith("/") ? b2 : D(b2, "/") : A(b2);
+        }
+        formatSearch() {
+          return this[J].url.search;
+        }
+        get buildId() {
+          return this[J].buildId;
+        }
+        set buildId(a10) {
+          this[J].buildId = a10;
+        }
+        get locale() {
+          return this[J].locale ?? "";
+        }
+        set locale(a10) {
+          var b2, c2;
+          if (!this[J].locale || !(null == (c2 = this[J].options.nextConfig) || null == (b2 = c2.i18n) ? void 0 : b2.locales.includes(a10))) throw Object.defineProperty(TypeError(`The NextURL configuration includes no locale "${a10}"`), "__NEXT_ERROR_CODE", { value: "E597", enumerable: false, configurable: true });
+          this[J].locale = a10;
+        }
+        get defaultLocale() {
+          return this[J].defaultLocale;
+        }
+        get domainLocale() {
+          return this[J].domainLocale;
+        }
+        get searchParams() {
+          return this[J].url.searchParams;
+        }
+        get host() {
+          return this[J].url.host;
+        }
+        set host(a10) {
+          this[J].url.host = a10;
+        }
+        get hostname() {
+          return this[J].url.hostname;
+        }
+        set hostname(a10) {
+          this[J].url.hostname = a10;
+        }
+        get port() {
+          return this[J].url.port;
+        }
+        set port(a10) {
+          this[J].url.port = a10;
+        }
+        get protocol() {
+          return this[J].url.protocol;
+        }
+        set protocol(a10) {
+          this[J].url.protocol = a10;
+        }
+        get href() {
+          let a10 = this.formatPathname(), b2 = this.formatSearch();
+          return `${this.protocol}//${this.host}${a10}${b2}${this.hash}`;
+        }
+        set href(a10) {
+          this[J].url = I(a10), this.analyze();
+        }
+        get origin() {
+          return this[J].url.origin;
+        }
+        get pathname() {
+          return this[J].url.pathname;
+        }
+        set pathname(a10) {
+          this[J].url.pathname = a10;
+        }
+        get hash() {
+          return this[J].url.hash;
+        }
+        set hash(a10) {
+          this[J].url.hash = a10;
+        }
+        get search() {
+          return this[J].url.search;
+        }
+        set search(a10) {
+          this[J].url.search = a10;
+        }
+        get password() {
+          return this[J].url.password;
+        }
+        set password(a10) {
+          this[J].url.password = a10;
+        }
+        get username() {
+          return this[J].url.username;
+        }
+        set username(a10) {
+          this[J].url.username = a10;
+        }
+        get basePath() {
+          return this[J].basePath;
+        }
+        set basePath(a10) {
+          this[J].basePath = a10.startsWith("/") ? a10 : `/${a10}`;
+        }
+        toString() {
+          return this.href;
+        }
+        toJSON() {
+          return this.href;
+        }
+        [Symbol.for("edge-runtime.inspect.custom")]() {
+          return { href: this.href, origin: this.origin, protocol: this.protocol, username: this.username, password: this.password, host: this.host, hostname: this.hostname, port: this.port, pathname: this.pathname, search: this.search, searchParams: this.searchParams, hash: this.hash };
+        }
+        clone() {
+          return new K(String(this), this[J].options);
+        }
+      }
+      var L = c(443);
+      let M = Symbol("internal request");
+      class N extends Request {
+        constructor(a10, b2 = {}) {
+          let c2 = "string" != typeof a10 && "url" in a10 ? a10.url : String(a10);
+          u(c2), a10 instanceof Request ? super(a10, b2) : super(c2, b2);
+          let d2 = new K(c2, { headers: t(this.headers), nextConfig: b2.nextConfig });
+          this[M] = { cookies: new L.RequestCookies(this.headers), nextUrl: d2, url: d2.toString() };
+        }
+        [Symbol.for("edge-runtime.inspect.custom")]() {
+          return { cookies: this.cookies, nextUrl: this.nextUrl, url: this.url, bodyUsed: this.bodyUsed, cache: this.cache, credentials: this.credentials, destination: this.destination, headers: Object.fromEntries(this.headers), integrity: this.integrity, keepalive: this.keepalive, method: this.method, mode: this.mode, redirect: this.redirect, referrer: this.referrer, referrerPolicy: this.referrerPolicy, signal: this.signal };
+        }
+        get cookies() {
+          return this[M].cookies;
+        }
+        get nextUrl() {
+          return this[M].nextUrl;
+        }
+        get page() {
+          throw new o();
+        }
+        get ua() {
+          throw new p();
+        }
+        get url() {
+          return this[M].url;
+        }
+      }
+      class O {
+        static get(a10, b2, c2) {
+          let d2 = Reflect.get(a10, b2, c2);
+          return "function" == typeof d2 ? d2.bind(a10) : d2;
+        }
+        static set(a10, b2, c2, d2) {
+          return Reflect.set(a10, b2, c2, d2);
+        }
+        static has(a10, b2) {
+          return Reflect.has(a10, b2);
+        }
+        static deleteProperty(a10, b2) {
+          return Reflect.deleteProperty(a10, b2);
+        }
+      }
+      let P = Symbol("internal response"), Q = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
+      function R(a10, b2) {
+        var c2;
+        if (null == a10 || null == (c2 = a10.request) ? void 0 : c2.headers) {
+          if (!(a10.request.headers instanceof Headers)) throw Object.defineProperty(Error("request.headers must be an instance of Headers"), "__NEXT_ERROR_CODE", { value: "E119", enumerable: false, configurable: true });
+          let c3 = [];
+          for (let [d2, e2] of a10.request.headers) b2.set("x-middleware-request-" + d2, e2), c3.push(d2);
+          b2.set("x-middleware-override-headers", c3.join(","));
+        }
+      }
+      class S extends Response {
+        constructor(a10, b2 = {}) {
+          super(a10, b2);
+          let c2 = this.headers, d2 = new Proxy(new L.ResponseCookies(c2), { get(a11, d3, e2) {
+            switch (d3) {
+              case "delete":
+              case "set":
+                return (...e3) => {
+                  let f2 = Reflect.apply(a11[d3], a11, e3), g2 = new Headers(c2);
+                  return f2 instanceof L.ResponseCookies && c2.set("x-middleware-set-cookie", f2.getAll().map((a12) => (0, L.stringifyCookie)(a12)).join(",")), R(b2, g2), f2;
+                };
+              default:
+                return O.get(a11, d3, e2);
+            }
+          } });
+          this[P] = { cookies: d2, url: b2.url ? new K(b2.url, { headers: t(c2), nextConfig: b2.nextConfig }) : void 0 };
+        }
+        [Symbol.for("edge-runtime.inspect.custom")]() {
+          return { cookies: this.cookies, url: this.url, body: this.body, bodyUsed: this.bodyUsed, headers: Object.fromEntries(this.headers), ok: this.ok, redirected: this.redirected, status: this.status, statusText: this.statusText, type: this.type };
+        }
+        get cookies() {
+          return this[P].cookies;
+        }
+        static json(a10, b2) {
+          let c2 = Response.json(a10, b2);
+          return new S(c2.body, c2);
+        }
+        static redirect(a10, b2) {
+          let c2 = "number" == typeof b2 ? b2 : (null == b2 ? void 0 : b2.status) ?? 307;
+          if (!Q.has(c2)) throw Object.defineProperty(RangeError('Failed to execute "redirect" on "response": Invalid status code'), "__NEXT_ERROR_CODE", { value: "E529", enumerable: false, configurable: true });
+          let d2 = "object" == typeof b2 ? b2 : {}, e2 = new Headers(null == d2 ? void 0 : d2.headers);
+          return e2.set("Location", u(a10)), new S(null, { ...d2, headers: e2, status: c2 });
+        }
+        static rewrite(a10, b2) {
+          let c2 = new Headers(null == b2 ? void 0 : b2.headers);
+          return c2.set("x-middleware-rewrite", u(a10)), R(b2, c2), new S(null, { ...b2, headers: c2 });
+        }
+        static next(a10) {
+          let b2 = new Headers(null == a10 ? void 0 : a10.headers);
+          return b2.set("x-middleware-next", "1"), R(a10, b2), new S(null, { ...a10, headers: b2 });
+        }
+      }
+      function T(a10, b2) {
+        let c2 = "string" == typeof b2 ? new URL(b2) : b2, d2 = new URL(a10, b2), e2 = d2.origin === c2.origin;
+        return { url: e2 ? d2.toString().slice(c2.origin.length) : d2.toString(), isRelative: e2 };
+      }
+      let U = "next-router-prefetch", V = ["rsc", "next-router-state-tree", U, "next-hmr-refresh", "next-router-segment-prefetch"], W = "_rsc";
+      class X extends Error {
+        constructor() {
+          super("Headers cannot be modified. Read more: https://nextjs.org/docs/app/api-reference/functions/headers");
+        }
+        static callable() {
+          throw new X();
+        }
+      }
+      class Y extends Headers {
+        constructor(a10) {
+          super(), this.headers = new Proxy(a10, { get(b2, c2, d2) {
+            if ("symbol" == typeof c2) return O.get(b2, c2, d2);
+            let e2 = c2.toLowerCase(), f2 = Object.keys(a10).find((a11) => a11.toLowerCase() === e2);
+            if (void 0 !== f2) return O.get(b2, f2, d2);
+          }, set(b2, c2, d2, e2) {
+            if ("symbol" == typeof c2) return O.set(b2, c2, d2, e2);
+            let f2 = c2.toLowerCase(), g2 = Object.keys(a10).find((a11) => a11.toLowerCase() === f2);
+            return O.set(b2, g2 ?? c2, d2, e2);
+          }, has(b2, c2) {
+            if ("symbol" == typeof c2) return O.has(b2, c2);
+            let d2 = c2.toLowerCase(), e2 = Object.keys(a10).find((a11) => a11.toLowerCase() === d2);
+            return void 0 !== e2 && O.has(b2, e2);
+          }, deleteProperty(b2, c2) {
+            if ("symbol" == typeof c2) return O.deleteProperty(b2, c2);
+            let d2 = c2.toLowerCase(), e2 = Object.keys(a10).find((a11) => a11.toLowerCase() === d2);
+            return void 0 === e2 || O.deleteProperty(b2, e2);
+          } });
+        }
+        static seal(a10) {
+          return new Proxy(a10, { get(a11, b2, c2) {
+            switch (b2) {
+              case "append":
+              case "delete":
+              case "set":
+                return X.callable;
+              default:
+                return O.get(a11, b2, c2);
+            }
+          } });
+        }
+        merge(a10) {
+          return Array.isArray(a10) ? a10.join(", ") : a10;
+        }
+        static from(a10) {
+          return a10 instanceof Headers ? a10 : new Y(a10);
+        }
+        append(a10, b2) {
+          let c2 = this.headers[a10];
+          "string" == typeof c2 ? this.headers[a10] = [c2, b2] : Array.isArray(c2) ? c2.push(b2) : this.headers[a10] = b2;
+        }
+        delete(a10) {
+          delete this.headers[a10];
+        }
+        get(a10) {
+          let b2 = this.headers[a10];
+          return void 0 !== b2 ? this.merge(b2) : null;
+        }
+        has(a10) {
+          return void 0 !== this.headers[a10];
+        }
+        set(a10, b2) {
+          this.headers[a10] = b2;
+        }
+        forEach(a10, b2) {
+          for (let [c2, d2] of this.entries()) a10.call(b2, d2, c2, this);
+        }
+        *entries() {
+          for (let a10 of Object.keys(this.headers)) {
+            let b2 = a10.toLowerCase(), c2 = this.get(b2);
+            yield [b2, c2];
+          }
+        }
+        *keys() {
+          for (let a10 of Object.keys(this.headers)) {
+            let b2 = a10.toLowerCase();
+            yield b2;
+          }
+        }
+        *values() {
+          for (let a10 of Object.keys(this.headers)) {
+            let b2 = this.get(a10);
+            yield b2;
+          }
+        }
+        [Symbol.iterator]() {
+          return this.entries();
+        }
+      }
+      let Z = Object.defineProperty(Error("Invariant: AsyncLocalStorage accessed in runtime where it is not available"), "__NEXT_ERROR_CODE", { value: "E504", enumerable: false, configurable: true });
+      class $ {
+        disable() {
+          throw Z;
+        }
+        getStore() {
+        }
+        run() {
+          throw Z;
+        }
+        exit() {
+          throw Z;
+        }
+        enterWith() {
+          throw Z;
+        }
+        static bind(a10) {
+          return a10;
+        }
+      }
+      let _ = "undefined" != typeof globalThis && globalThis.AsyncLocalStorage;
+      function aa() {
+        return _ ? new _() : new $();
+      }
+      let ab = aa();
+      class ac extends Error {
+        constructor() {
+          super("Cookies can only be modified in a Server Action or Route Handler. Read more: https://nextjs.org/docs/app/api-reference/functions/cookies#options");
+        }
+        static callable() {
+          throw new ac();
+        }
+      }
+      class ad {
+        static seal(a10) {
+          return new Proxy(a10, { get(a11, b2, c2) {
+            switch (b2) {
+              case "clear":
+              case "delete":
+              case "set":
+                return ac.callable;
+              default:
+                return O.get(a11, b2, c2);
+            }
+          } });
+        }
+      }
+      let ae = Symbol.for("next.mutated.cookies");
+      class af {
+        static wrap(a10, b2) {
+          let c2 = new L.ResponseCookies(new Headers());
+          for (let b3 of a10.getAll()) c2.set(b3);
+          let d2 = [], e2 = /* @__PURE__ */ new Set(), f2 = () => {
+            let a11 = ab.getStore();
+            if (a11 && (a11.pathWasRevalidated = true), d2 = c2.getAll().filter((a12) => e2.has(a12.name)), b2) {
+              let a12 = [];
+              for (let b3 of d2) {
+                let c3 = new L.ResponseCookies(new Headers());
+                c3.set(b3), a12.push(c3.toString());
+              }
+              b2(a12);
+            }
+          }, g2 = new Proxy(c2, { get(a11, b3, c3) {
+            switch (b3) {
+              case ae:
+                return d2;
+              case "delete":
+                return function(...b4) {
+                  e2.add("string" == typeof b4[0] ? b4[0] : b4[0].name);
+                  try {
+                    return a11.delete(...b4), g2;
+                  } finally {
+                    f2();
+                  }
+                };
+              case "set":
+                return function(...b4) {
+                  e2.add("string" == typeof b4[0] ? b4[0] : b4[0].name);
+                  try {
+                    return a11.set(...b4), g2;
+                  } finally {
+                    f2();
+                  }
+                };
+              default:
+                return O.get(a11, b3, c3);
+            }
+          } });
+          return g2;
+        }
+      }
+      function ag(a10, b2) {
+        if ("action" !== a10.phase) throw new ac();
+      }
+      var ah = function(a10) {
+        return a10.handleRequest = "BaseServer.handleRequest", a10.run = "BaseServer.run", a10.pipe = "BaseServer.pipe", a10.getStaticHTML = "BaseServer.getStaticHTML", a10.render = "BaseServer.render", a10.renderToResponseWithComponents = "BaseServer.renderToResponseWithComponents", a10.renderToResponse = "BaseServer.renderToResponse", a10.renderToHTML = "BaseServer.renderToHTML", a10.renderError = "BaseServer.renderError", a10.renderErrorToResponse = "BaseServer.renderErrorToResponse", a10.renderErrorToHTML = "BaseServer.renderErrorToHTML", a10.render404 = "BaseServer.render404", a10;
+      }(ah || {}), ai = function(a10) {
+        return a10.loadDefaultErrorComponents = "LoadComponents.loadDefaultErrorComponents", a10.loadComponents = "LoadComponents.loadComponents", a10;
+      }(ai || {}), aj = function(a10) {
+        return a10.getRequestHandler = "NextServer.getRequestHandler", a10.getServer = "NextServer.getServer", a10.getServerRequestHandler = "NextServer.getServerRequestHandler", a10.createServer = "createServer.createServer", a10;
+      }(aj || {}), ak = function(a10) {
+        return a10.compression = "NextNodeServer.compression", a10.getBuildId = "NextNodeServer.getBuildId", a10.createComponentTree = "NextNodeServer.createComponentTree", a10.clientComponentLoading = "NextNodeServer.clientComponentLoading", a10.getLayoutOrPageModule = "NextNodeServer.getLayoutOrPageModule", a10.generateStaticRoutes = "NextNodeServer.generateStaticRoutes", a10.generateFsStaticRoutes = "NextNodeServer.generateFsStaticRoutes", a10.generatePublicRoutes = "NextNodeServer.generatePublicRoutes", a10.generateImageRoutes = "NextNodeServer.generateImageRoutes.route", a10.sendRenderResult = "NextNodeServer.sendRenderResult", a10.proxyRequest = "NextNodeServer.proxyRequest", a10.runApi = "NextNodeServer.runApi", a10.render = "NextNodeServer.render", a10.renderHTML = "NextNodeServer.renderHTML", a10.imageOptimizer = "NextNodeServer.imageOptimizer", a10.getPagePath = "NextNodeServer.getPagePath", a10.getRoutesManifest = "NextNodeServer.getRoutesManifest", a10.findPageComponents = "NextNodeServer.findPageComponents", a10.getFontManifest = "NextNodeServer.getFontManifest", a10.getServerComponentManifest = "NextNodeServer.getServerComponentManifest", a10.getRequestHandler = "NextNodeServer.getRequestHandler", a10.renderToHTML = "NextNodeServer.renderToHTML", a10.renderError = "NextNodeServer.renderError", a10.renderErrorToHTML = "NextNodeServer.renderErrorToHTML", a10.render404 = "NextNodeServer.render404", a10.startResponse = "NextNodeServer.startResponse", a10.route = "route", a10.onProxyReq = "onProxyReq", a10.apiResolver = "apiResolver", a10.internalFetch = "internalFetch", a10;
+      }(ak || {}), al = function(a10) {
+        return a10.startServer = "startServer.startServer", a10;
+      }(al || {}), am = function(a10) {
+        return a10.getServerSideProps = "Render.getServerSideProps", a10.getStaticProps = "Render.getStaticProps", a10.renderToString = "Render.renderToString", a10.renderDocument = "Render.renderDocument", a10.createBodyResult = "Render.createBodyResult", a10;
+      }(am || {}), an = function(a10) {
+        return a10.renderToString = "AppRender.renderToString", a10.renderToReadableStream = "AppRender.renderToReadableStream", a10.getBodyResult = "AppRender.getBodyResult", a10.fetch = "AppRender.fetch", a10;
+      }(an || {}), ao = function(a10) {
+        return a10.executeRoute = "Router.executeRoute", a10;
+      }(ao || {}), ap = function(a10) {
+        return a10.runHandler = "Node.runHandler", a10;
+      }(ap || {}), aq = function(a10) {
+        return a10.runHandler = "AppRouteRouteHandlers.runHandler", a10;
+      }(aq || {}), ar = function(a10) {
+        return a10.generateMetadata = "ResolveMetadata.generateMetadata", a10.generateViewport = "ResolveMetadata.generateViewport", a10;
+      }(ar || {}), as = function(a10) {
+        return a10.execute = "Middleware.execute", a10;
+      }(as || {});
+      let at = /* @__PURE__ */ new Set(["Middleware.execute", "BaseServer.handleRequest", "Render.getServerSideProps", "Render.getStaticProps", "AppRender.fetch", "AppRender.getBodyResult", "Render.renderDocument", "Node.runHandler", "AppRouteRouteHandlers.runHandler", "ResolveMetadata.generateMetadata", "ResolveMetadata.generateViewport", "NextNodeServer.createComponentTree", "NextNodeServer.findPageComponents", "NextNodeServer.getLayoutOrPageModule", "NextNodeServer.startResponse", "NextNodeServer.clientComponentLoading"]), au = /* @__PURE__ */ new Set(["NextNodeServer.findPageComponents", "NextNodeServer.createComponentTree", "NextNodeServer.clientComponentLoading"]);
+      function av(a10) {
+        return null !== a10 && "object" == typeof a10 && "then" in a10 && "function" == typeof a10.then;
+      }
+      let aw = process.env.NEXT_OTEL_PERFORMANCE_PREFIX, { context: ax, propagation: ay, trace: az, SpanStatusCode: aA, SpanKind: aB, ROOT_CONTEXT: aC } = d = c(817);
+      class aD extends Error {
+        constructor(a10, b2) {
+          super(), this.bubble = a10, this.result = b2;
+        }
+      }
+      let aE = (a10, b2) => {
+        (function(a11) {
+          return "object" == typeof a11 && null !== a11 && a11 instanceof aD;
+        })(b2) && b2.bubble ? a10.setAttribute("next.bubble", true) : (b2 && (a10.recordException(b2), a10.setAttribute("error.type", b2.name)), a10.setStatus({ code: aA.ERROR, message: null == b2 ? void 0 : b2.message })), a10.end();
+      }, aF = /* @__PURE__ */ new Map(), aG = d.createContextKey("next.rootSpanId"), aH = 0, aI = { set(a10, b2, c2) {
+        a10.push({ key: b2, value: c2 });
+      } };
+      class aJ {
+        getTracerInstance() {
+          return az.getTracer("next.js", "0.0.1");
+        }
+        getContext() {
+          return ax;
+        }
+        getTracePropagationData() {
+          let a10 = ax.active(), b2 = [];
+          return ay.inject(a10, b2, aI), b2;
+        }
+        getActiveScopeSpan() {
+          return az.getSpan(null == ax ? void 0 : ax.active());
+        }
+        withPropagatedContext(a10, b2, c2) {
+          let d2 = ax.active();
+          if (az.getSpanContext(d2)) return b2();
+          let e2 = ay.extract(d2, a10, c2);
+          return ax.with(e2, b2);
+        }
+        trace(...a10) {
+          var b2;
+          let [c2, d2, e2] = a10, { fn: f2, options: g2 } = "function" == typeof d2 ? { fn: d2, options: {} } : { fn: e2, options: { ...d2 } }, h2 = g2.spanName ?? c2;
+          if (!at.has(c2) && "1" !== process.env.NEXT_OTEL_VERBOSE || g2.hideSpan) return f2();
+          let i2 = this.getSpanContext((null == g2 ? void 0 : g2.parentSpan) ?? this.getActiveScopeSpan()), j2 = false;
+          i2 ? (null == (b2 = az.getSpanContext(i2)) ? void 0 : b2.isRemote) && (j2 = true) : (i2 = (null == ax ? void 0 : ax.active()) ?? aC, j2 = true);
+          let k2 = aH++;
+          return g2.attributes = { "next.span_name": h2, "next.span_type": c2, ...g2.attributes }, ax.with(i2.setValue(aG, k2), () => this.getTracerInstance().startActiveSpan(h2, g2, (a11) => {
+            let b3;
+            aw && c2 && au.has(c2) && (b3 = "performance" in globalThis && "measure" in performance ? globalThis.performance.now() : void 0);
+            let d3 = false, e3 = () => {
+              !d3 && (d3 = true, aF.delete(k2), b3 && performance.measure(`${aw}:next-${(c2.split(".").pop() || "").replace(/[A-Z]/g, (a12) => "-" + a12.toLowerCase())}`, { start: b3, end: performance.now() }));
+            };
+            if (j2 && aF.set(k2, new Map(Object.entries(g2.attributes ?? {}))), f2.length > 1) try {
+              return f2(a11, (b4) => aE(a11, b4));
+            } catch (b4) {
+              throw aE(a11, b4), b4;
+            } finally {
+              e3();
+            }
+            try {
+              let b4 = f2(a11);
+              if (av(b4)) return b4.then((b5) => (a11.end(), b5)).catch((b5) => {
+                throw aE(a11, b5), b5;
+              }).finally(e3);
+              return a11.end(), e3(), b4;
+            } catch (b4) {
+              throw aE(a11, b4), e3(), b4;
+            }
+          }));
+        }
+        wrap(...a10) {
+          let b2 = this, [c2, d2, e2] = 3 === a10.length ? a10 : [a10[0], {}, a10[1]];
+          return at.has(c2) || "1" === process.env.NEXT_OTEL_VERBOSE ? function() {
+            let a11 = d2;
+            "function" == typeof a11 && "function" == typeof e2 && (a11 = a11.apply(this, arguments));
+            let f2 = arguments.length - 1, g2 = arguments[f2];
+            if ("function" != typeof g2) return b2.trace(c2, a11, () => e2.apply(this, arguments));
+            {
+              let d3 = b2.getContext().bind(ax.active(), g2);
+              return b2.trace(c2, a11, (a12, b3) => (arguments[f2] = function(a13) {
+                return null == b3 || b3(a13), d3.apply(this, arguments);
+              }, e2.apply(this, arguments)));
+            }
+          } : e2;
+        }
+        startSpan(...a10) {
+          let [b2, c2] = a10, d2 = this.getSpanContext((null == c2 ? void 0 : c2.parentSpan) ?? this.getActiveScopeSpan());
+          return this.getTracerInstance().startSpan(b2, c2, d2);
+        }
+        getSpanContext(a10) {
+          return a10 ? az.setSpan(ax.active(), a10) : void 0;
+        }
+        getRootSpanAttributes() {
+          let a10 = ax.active().getValue(aG);
+          return aF.get(a10);
+        }
+        setRootSpanAttribute(a10, b2) {
+          let c2 = ax.active().getValue(aG), d2 = aF.get(c2);
+          d2 && d2.set(a10, b2);
+        }
+      }
+      let aK = (() => {
+        let a10 = new aJ();
+        return () => a10;
+      })(), aL = "__prerender_bypass";
+      Symbol("__next_preview_data"), Symbol(aL);
+      class aM {
+        constructor(a10, b2, c2, d2) {
+          var e2;
+          let f2 = a10 && function(a11, b3) {
+            let c3 = Y.from(a11.headers);
+            return { isOnDemandRevalidate: c3.get("x-prerender-revalidate") === b3.previewModeId, revalidateOnlyGenerated: c3.has("x-prerender-revalidate-if-generated") };
+          }(b2, a10).isOnDemandRevalidate, g2 = null == (e2 = c2.get(aL)) ? void 0 : e2.value;
+          this._isEnabled = !!(!f2 && g2 && a10 && g2 === a10.previewModeId), this._previewModeId = null == a10 ? void 0 : a10.previewModeId, this._mutableCookies = d2;
+        }
+        get isEnabled() {
+          return this._isEnabled;
+        }
+        enable() {
+          if (!this._previewModeId) throw Object.defineProperty(Error("Invariant: previewProps missing previewModeId this should never happen"), "__NEXT_ERROR_CODE", { value: "E93", enumerable: false, configurable: true });
+          this._mutableCookies.set({ name: aL, value: this._previewModeId, httpOnly: true, sameSite: "none", secure: true, path: "/" }), this._isEnabled = true;
+        }
+        disable() {
+          this._mutableCookies.set({ name: aL, value: "", httpOnly: true, sameSite: "none", secure: true, path: "/", expires: /* @__PURE__ */ new Date(0) }), this._isEnabled = false;
+        }
+      }
+      function aN(a10, b2) {
+        if ("x-middleware-set-cookie" in a10.headers && "string" == typeof a10.headers["x-middleware-set-cookie"]) {
+          let c2 = a10.headers["x-middleware-set-cookie"], d2 = new Headers();
+          for (let a11 of s(c2)) d2.append("set-cookie", a11);
+          for (let a11 of new L.ResponseCookies(d2).getAll()) b2.set(a11);
+        }
+      }
+      let aO = aa();
+      var aP = c(213), aQ = c.n(aP);
+      class aR extends Error {
+        constructor(a10, b2) {
+          super("Invariant: " + (a10.endsWith(".") ? a10 : a10 + ".") + " This is a bug in Next.js.", b2), this.name = "InvariantError";
+        }
+      }
+      class aS {
+        constructor(a10, b2, c2) {
+          this.prev = null, this.next = null, this.key = a10, this.data = b2, this.size = c2;
+        }
+      }
+      class aT {
+        constructor() {
+          this.prev = null, this.next = null;
+        }
+      }
+      class aU {
+        constructor(a10, b2, c2) {
+          this.cache = /* @__PURE__ */ new Map(), this.totalSize = 0, this.maxSize = a10, this.calculateSize = b2, this.onEvict = c2, this.head = new aT(), this.tail = new aT(), this.head.next = this.tail, this.tail.prev = this.head;
+        }
+        addToHead(a10) {
+          a10.prev = this.head, a10.next = this.head.next, this.head.next.prev = a10, this.head.next = a10;
+        }
+        removeNode(a10) {
+          a10.prev.next = a10.next, a10.next.prev = a10.prev;
+        }
+        moveToHead(a10) {
+          this.removeNode(a10), this.addToHead(a10);
+        }
+        removeTail() {
+          let a10 = this.tail.prev;
+          return this.removeNode(a10), a10;
+        }
+        set(a10, b2) {
+          let c2 = (null == this.calculateSize ? void 0 : this.calculateSize.call(this, b2)) ?? 1;
+          if (c2 <= 0) throw Object.defineProperty(Error(`LRUCache: calculateSize returned ${c2}, but size must be > 0. Items with size 0 would never be evicted, causing unbounded cache growth.`), "__NEXT_ERROR_CODE", { value: "E789", enumerable: false, configurable: true });
+          if (c2 > this.maxSize) return console.warn("Single item size exceeds maxSize"), false;
+          let d2 = this.cache.get(a10);
+          if (d2) d2.data = b2, this.totalSize = this.totalSize - d2.size + c2, d2.size = c2, this.moveToHead(d2);
+          else {
+            let d3 = new aS(a10, b2, c2);
+            this.cache.set(a10, d3), this.addToHead(d3), this.totalSize += c2;
+          }
+          for (; this.totalSize > this.maxSize && this.cache.size > 0; ) {
+            let a11 = this.removeTail();
+            this.cache.delete(a11.key), this.totalSize -= a11.size, null == this.onEvict || this.onEvict.call(this, a11.key, a11.data);
+          }
+          return true;
+        }
+        has(a10) {
+          return this.cache.has(a10);
+        }
+        get(a10) {
+          let b2 = this.cache.get(a10);
+          if (b2) return this.moveToHead(b2), b2.data;
+        }
+        *[Symbol.iterator]() {
+          let a10 = this.head.next;
+          for (; a10 && a10 !== this.tail; ) {
+            let b2 = a10;
+            yield [b2.key, b2.data], a10 = a10.next;
+          }
+        }
+        remove(a10) {
+          let b2 = this.cache.get(a10);
+          b2 && (this.removeNode(b2), this.cache.delete(a10), this.totalSize -= b2.size);
+        }
+        get size() {
+          return this.cache.size;
+        }
+        get currentSize() {
+          return this.totalSize;
+        }
+      }
+      c(356).Buffer, new aU(52428800, (a10) => a10.size), process.env.NEXT_PRIVATE_DEBUG_CACHE && console.debug.bind(console, "DefaultCacheHandler:"), process.env.NEXT_PRIVATE_DEBUG_CACHE && ((a10, ...b2) => {
+        console.log(`use-cache: ${a10}`, ...b2);
+      }), Symbol.for("@next/cache-handlers");
+      let aV = Symbol.for("@next/cache-handlers-map"), aW = Symbol.for("@next/cache-handlers-set"), aX = globalThis;
+      function aY() {
+        if (aX[aV]) return aX[aV].entries();
+      }
+      async function aZ(a10, b2) {
+        if (!a10) return b2();
+        let c2 = a$(a10);
+        try {
+          return await b2();
+        } finally {
+          let b3 = function(a11, b4) {
+            let c3 = new Set(a11.pendingRevalidatedTags), d2 = new Set(a11.pendingRevalidateWrites);
+            return { pendingRevalidatedTags: b4.pendingRevalidatedTags.filter((a12) => !c3.has(a12)), pendingRevalidates: Object.fromEntries(Object.entries(b4.pendingRevalidates).filter(([b5]) => !(b5 in a11.pendingRevalidates))), pendingRevalidateWrites: b4.pendingRevalidateWrites.filter((a12) => !d2.has(a12)) };
+          }(c2, a$(a10));
+          await a0(a10, b3);
+        }
+      }
+      function a$(a10) {
+        return { pendingRevalidatedTags: a10.pendingRevalidatedTags ? [...a10.pendingRevalidatedTags] : [], pendingRevalidates: { ...a10.pendingRevalidates }, pendingRevalidateWrites: a10.pendingRevalidateWrites ? [...a10.pendingRevalidateWrites] : [] };
+      }
+      async function a_(a10, b2) {
+        if (0 === a10.length) return;
+        let c2 = [];
+        b2 && c2.push(b2.revalidateTag(a10));
+        let d2 = function() {
+          if (aX[aW]) return aX[aW].values();
+        }();
+        if (d2) for (let b3 of d2) c2.push(b3.expireTags(...a10));
+        await Promise.all(c2);
+      }
+      async function a0(a10, b2) {
+        let c2 = (null == b2 ? void 0 : b2.pendingRevalidatedTags) ?? a10.pendingRevalidatedTags ?? [], d2 = (null == b2 ? void 0 : b2.pendingRevalidates) ?? a10.pendingRevalidates ?? {}, e2 = (null == b2 ? void 0 : b2.pendingRevalidateWrites) ?? a10.pendingRevalidateWrites ?? [];
+        return Promise.all([a_(c2, a10.incrementalCache), ...Object.values(d2), ...e2]);
+      }
+      let a1 = Object.defineProperty(Error("Invariant: AsyncLocalStorage accessed in runtime where it is not available"), "__NEXT_ERROR_CODE", { value: "E504", enumerable: false, configurable: true });
+      class a2 {
+        disable() {
+          throw a1;
+        }
+        getStore() {
+        }
+        run() {
+          throw a1;
+        }
+        exit() {
+          throw a1;
+        }
+        enterWith() {
+          throw a1;
+        }
+        static bind(a10) {
+          return a10;
+        }
+      }
+      let a3 = "undefined" != typeof globalThis && globalThis.AsyncLocalStorage, a4 = a3 ? new a3() : new a2();
+      class a5 {
+        constructor({ waitUntil: a10, onClose: b2, onTaskError: c2 }) {
+          this.workUnitStores = /* @__PURE__ */ new Set(), this.waitUntil = a10, this.onClose = b2, this.onTaskError = c2, this.callbackQueue = new (aQ())(), this.callbackQueue.pause();
+        }
+        after(a10) {
+          if (av(a10)) this.waitUntil || a6(), this.waitUntil(a10.catch((a11) => this.reportTaskError("promise", a11)));
+          else if ("function" == typeof a10) this.addCallback(a10);
+          else throw Object.defineProperty(Error("`after()`: Argument must be a promise or a function"), "__NEXT_ERROR_CODE", { value: "E50", enumerable: false, configurable: true });
+        }
+        addCallback(a10) {
+          var b2;
+          this.waitUntil || a6();
+          let c2 = aO.getStore();
+          c2 && this.workUnitStores.add(c2);
+          let d2 = a4.getStore(), e2 = d2 ? d2.rootTaskSpawnPhase : null == c2 ? void 0 : c2.phase;
+          this.runCallbacksOnClosePromise || (this.runCallbacksOnClosePromise = this.runCallbacksOnClose(), this.waitUntil(this.runCallbacksOnClosePromise));
+          let f2 = (b2 = async () => {
+            try {
+              await a4.run({ rootTaskSpawnPhase: e2 }, () => a10());
+            } catch (a11) {
+              this.reportTaskError("function", a11);
+            }
+          }, a3 ? a3.bind(b2) : a2.bind(b2));
+          this.callbackQueue.add(f2);
+        }
+        async runCallbacksOnClose() {
+          return await new Promise((a10) => this.onClose(a10)), this.runCallbacks();
+        }
+        async runCallbacks() {
+          if (0 === this.callbackQueue.size) return;
+          for (let a11 of this.workUnitStores) a11.phase = "after";
+          let a10 = ab.getStore();
+          if (!a10) throw Object.defineProperty(new aR("Missing workStore in AfterContext.runCallbacks"), "__NEXT_ERROR_CODE", { value: "E547", enumerable: false, configurable: true });
+          return aZ(a10, () => (this.callbackQueue.start(), this.callbackQueue.onIdle()));
+        }
+        reportTaskError(a10, b2) {
+          if (console.error("promise" === a10 ? "A promise passed to `after()` rejected:" : "An error occurred in a function passed to `after()`:", b2), this.onTaskError) try {
+            null == this.onTaskError || this.onTaskError.call(this, b2);
+          } catch (a11) {
+            console.error(Object.defineProperty(new aR("`onTaskError` threw while handling an error thrown from an `after` task", { cause: a11 }), "__NEXT_ERROR_CODE", { value: "E569", enumerable: false, configurable: true }));
+          }
+        }
+      }
+      function a6() {
+        throw Object.defineProperty(Error("`after()` will not work correctly, because `waitUntil` is not available in the current environment."), "__NEXT_ERROR_CODE", { value: "E91", enumerable: false, configurable: true });
+      }
+      function a7(a10) {
+        let b2, c2 = { then: (d2, e2) => (b2 || (b2 = a10()), b2.then((a11) => {
+          c2.value = a11;
+        }).catch(() => {
+        }), b2.then(d2, e2)) };
+        return c2;
+      }
+      class a8 {
+        onClose(a10) {
+          if (this.isClosed) throw Object.defineProperty(Error("Cannot subscribe to a closed CloseController"), "__NEXT_ERROR_CODE", { value: "E365", enumerable: false, configurable: true });
+          this.target.addEventListener("close", a10), this.listeners++;
+        }
+        dispatchClose() {
+          if (this.isClosed) throw Object.defineProperty(Error("Cannot close a CloseController multiple times"), "__NEXT_ERROR_CODE", { value: "E229", enumerable: false, configurable: true });
+          this.listeners > 0 && this.target.dispatchEvent(new Event("close")), this.isClosed = true;
+        }
+        constructor() {
+          this.target = new EventTarget(), this.listeners = 0, this.isClosed = false;
+        }
+      }
+      function a9() {
+        return { previewModeId: process.env.__NEXT_PREVIEW_MODE_ID || "", previewModeSigningKey: process.env.__NEXT_PREVIEW_MODE_SIGNING_KEY || "", previewModeEncryptionKey: process.env.__NEXT_PREVIEW_MODE_ENCRYPTION_KEY || "" };
+      }
+      let ba = Symbol.for("@next/request-context");
+      async function bb(a10, b2, c2) {
+        let d2 = [], e2 = c2 && c2.size > 0;
+        for (let b3 of ((a11) => {
+          let b4 = ["/layout"];
+          if (a11.startsWith("/")) {
+            let c3 = a11.split("/");
+            for (let a12 = 1; a12 < c3.length + 1; a12++) {
+              let d3 = c3.slice(0, a12).join("/");
+              d3 && (d3.endsWith("/page") || d3.endsWith("/route") || (d3 = `${d3}${!d3.endsWith("/") ? "/" : ""}layout`), b4.push(d3));
+            }
+          }
+          return b4;
+        })(a10)) b3 = `${q}${b3}`, d2.push(b3);
+        if (b2.pathname && !e2) {
+          let a11 = `${q}${b2.pathname}`;
+          d2.push(a11);
+        }
+        return { tags: d2, expirationsByCacheKind: function(a11) {
+          let b3 = /* @__PURE__ */ new Map(), c3 = aY();
+          if (c3) for (let [d3, e3] of c3) "getExpiration" in e3 && b3.set(d3, a7(async () => e3.getExpiration(...a11)));
+          return b3;
+        }(d2) };
+      }
+      class bc extends N {
+        constructor(a10) {
+          super(a10.input, a10.init), this.sourcePage = a10.page;
+        }
+        get request() {
+          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+        }
+        respondWith() {
+          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+        }
+        waitUntil() {
+          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
+        }
+      }
+      let bd = { keys: (a10) => Array.from(a10.keys()), get: (a10, b2) => a10.get(b2) ?? void 0 }, be = (a10, b2) => aK().withPropagatedContext(a10.headers, b2, bd), bf = false;
+      async function bg(a10) {
+        var b2;
+        let d2, e2;
+        if (!bf && (bf = true, "true" === process.env.NEXT_PRIVATE_TEST_PROXY)) {
+          let { interceptTestApis: a11, wrapRequestHandler: b3 } = c(720);
+          a11(), be = b3(be);
+        }
+        await l();
+        let f2 = void 0 !== globalThis.__BUILD_MANIFEST;
+        a10.request.url = a10.request.url.replace(/\.rsc($|\?)/, "$1");
+        let g2 = a10.bypassNextUrl ? new URL(a10.request.url) : new K(a10.request.url, { headers: a10.request.headers, nextConfig: a10.request.nextConfig });
+        for (let a11 of [...g2.searchParams.keys()]) {
+          let b3 = g2.searchParams.getAll(a11), c2 = function(a12) {
+            for (let b4 of ["nxtP", "nxtI"]) if (a12 !== b4 && a12.startsWith(b4)) return a12.substring(b4.length);
+            return null;
+          }(a11);
+          if (c2) {
+            for (let a12 of (g2.searchParams.delete(c2), b3)) g2.searchParams.append(c2, a12);
+            g2.searchParams.delete(a11);
+          }
+        }
+        let h2 = process.env.__NEXT_BUILD_ID || "";
+        "buildId" in g2 && (h2 = g2.buildId || "", g2.buildId = "");
+        let i2 = function(a11) {
+          let b3 = new Headers();
+          for (let [c2, d3] of Object.entries(a11)) for (let a12 of Array.isArray(d3) ? d3 : [d3]) void 0 !== a12 && ("number" == typeof a12 && (a12 = a12.toString()), b3.append(c2, a12));
+          return b3;
+        }(a10.request.headers), j2 = i2.has("x-nextjs-data"), k2 = "1" === i2.get("rsc");
+        j2 && "/index" === g2.pathname && (g2.pathname = "/");
+        let m2 = /* @__PURE__ */ new Map();
+        if (!f2) for (let a11 of V) {
+          let b3 = i2.get(a11);
+          null !== b3 && (m2.set(a11, b3), i2.delete(a11));
+        }
+        let n2 = g2.searchParams.get(W), o2 = new bc({ page: a10.page, input: function(a11) {
+          let b3 = "string" == typeof a11, c2 = b3 ? new URL(a11) : a11;
+          return c2.searchParams.delete(W), b3 ? c2.toString() : c2;
+        }(g2).toString(), init: { body: a10.request.body, headers: i2, method: a10.request.method, nextConfig: a10.request.nextConfig, signal: a10.request.signal } });
+        j2 && Object.defineProperty(o2, "__isData", { enumerable: false, value: true }), !globalThis.__incrementalCacheShared && a10.IncrementalCache && (globalThis.__incrementalCache = new a10.IncrementalCache({ CurCacheHandler: a10.incrementalCacheHandler, minimalMode: true, fetchCacheKeyPrefix: "", dev: false, requestHeaders: a10.request.headers, getPrerenderManifest: () => ({ version: -1, routes: {}, dynamicRoutes: {}, notFoundRoutes: [], preview: a9() }) }));
+        let p2 = a10.request.waitUntil ?? (null == (b2 = function() {
+          let a11 = globalThis[ba];
+          return null == a11 ? void 0 : a11.get();
+        }()) ? void 0 : b2.waitUntil), q2 = new z({ request: o2, page: a10.page, context: p2 ? { waitUntil: p2 } : void 0 });
+        if ((d2 = await be(o2, () => {
+          if ("/middleware" === a10.page || "/src/middleware" === a10.page) {
+            let b3 = q2.waitUntil.bind(q2), c2 = new a8();
+            return aK().trace(as.execute, { spanName: `middleware ${o2.method} ${o2.nextUrl.pathname}`, attributes: { "http.target": o2.nextUrl.pathname, "http.method": o2.method } }, async () => {
+              try {
+                var d3, f3, g3, i3, j3, k3;
+                let l2 = a9(), m3 = await bb("/", o2.nextUrl, null), n3 = (j3 = o2.nextUrl, k3 = (a11) => {
+                  e2 = a11;
+                }, function(a11, b4, c3, d4, e3, f4, g4, h3, i4, j4, k4, l3) {
+                  function m4(a12) {
+                    c3 && c3.setHeader("Set-Cookie", a12);
+                  }
+                  let n4 = {};
+                  return { type: "request", phase: a11, implicitTags: f4, url: { pathname: d4.pathname, search: d4.search ?? "" }, rootParams: e3, get headers() {
+                    return n4.headers || (n4.headers = function(a12) {
+                      let b5 = Y.from(a12);
+                      for (let a13 of V) b5.delete(a13);
+                      return Y.seal(b5);
+                    }(b4.headers)), n4.headers;
+                  }, get cookies() {
+                    if (!n4.cookies) {
+                      let a12 = new L.RequestCookies(Y.from(b4.headers));
+                      aN(b4, a12), n4.cookies = ad.seal(a12);
+                    }
+                    return n4.cookies;
+                  }, set cookies(value) {
+                    n4.cookies = value;
+                  }, get mutableCookies() {
+                    if (!n4.mutableCookies) {
+                      let a12 = function(a13, b5) {
+                        let c4 = new L.RequestCookies(Y.from(a13));
+                        return af.wrap(c4, b5);
+                      }(b4.headers, g4 || (c3 ? m4 : void 0));
+                      aN(b4, a12), n4.mutableCookies = a12;
+                    }
+                    return n4.mutableCookies;
+                  }, get userspaceMutableCookies() {
+                    return n4.userspaceMutableCookies || (n4.userspaceMutableCookies = function(a12) {
+                      let b5 = new Proxy(a12.mutableCookies, { get(c4, d5, e4) {
+                        switch (d5) {
+                          case "delete":
+                            return function(...d6) {
+                              return ag(a12, "cookies().delete"), c4.delete(...d6), b5;
+                            };
+                          case "set":
+                            return function(...d6) {
+                              return ag(a12, "cookies().set"), c4.set(...d6), b5;
+                            };
+                          default:
+                            return O.get(c4, d5, e4);
+                        }
+                      } });
+                      return b5;
+                    }(this)), n4.userspaceMutableCookies;
+                  }, get draftMode() {
+                    return n4.draftMode || (n4.draftMode = new aM(i4, b4, this.cookies, this.mutableCookies)), n4.draftMode;
+                  }, renderResumeDataCache: h3 ?? null, isHmrRefresh: j4, serverComponentsHmrCache: k4 || globalThis.__serverComponentsHmrCache, devFallbackParams: null };
+                }("action", o2, void 0, j3, {}, m3, k3, void 0, l2, false, void 0, null)), p3 = function({ page: a11, renderOpts: b4, isPrefetchRequest: c3, buildId: d4, previouslyRevalidatedTags: e3 }) {
+                  var f4;
+                  let g4 = !b4.shouldWaitOnAllReady && !b4.supportsDynamicResponse && !b4.isDraftMode && !b4.isPossibleServerAction, h3 = b4.dev ?? false, i4 = h3 || g4 && (!!process.env.NEXT_DEBUG_BUILD || "1" === process.env.NEXT_SSG_FETCH_METRICS), j4 = { isStaticGeneration: g4, page: a11, route: (f4 = a11.split("/").reduce((a12, b5, c4, d5) => b5 ? "(" === b5[0] && b5.endsWith(")") || "@" === b5[0] || ("page" === b5 || "route" === b5) && c4 === d5.length - 1 ? a12 : a12 + "/" + b5 : a12, "")).startsWith("/") ? f4 : "/" + f4, incrementalCache: b4.incrementalCache || globalThis.__incrementalCache, cacheLifeProfiles: b4.cacheLifeProfiles, isRevalidate: b4.isRevalidate, isBuildTimePrerendering: b4.nextExport, hasReadableErrorStacks: b4.hasReadableErrorStacks, fetchCache: b4.fetchCache, isOnDemandRevalidate: b4.isOnDemandRevalidate, isDraftMode: b4.isDraftMode, isPrefetchRequest: c3, buildId: d4, reactLoadableManifest: (null == b4 ? void 0 : b4.reactLoadableManifest) || {}, assetPrefix: (null == b4 ? void 0 : b4.assetPrefix) || "", afterContext: function(a12) {
+                    let { waitUntil: b5, onClose: c4, onAfterTaskError: d5 } = a12;
+                    return new a5({ waitUntil: b5, onClose: c4, onTaskError: d5 });
+                  }(b4), cacheComponentsEnabled: b4.experimental.cacheComponents, dev: h3, previouslyRevalidatedTags: e3, refreshTagsByCacheKind: function() {
+                    let a12 = /* @__PURE__ */ new Map(), b5 = aY();
+                    if (b5) for (let [c4, d5] of b5) "refreshTags" in d5 && a12.set(c4, a7(async () => d5.refreshTags()));
+                    return a12;
+                  }(), runInCleanSnapshot: a3 ? a3.snapshot() : function(a12, ...b5) {
+                    return a12(...b5);
+                  }, shouldTrackFetchMetrics: i4 };
+                  return b4.store = j4, j4;
+                }({ page: "/", renderOpts: { cacheLifeProfiles: null == (f3 = a10.request.nextConfig) || null == (d3 = f3.experimental) ? void 0 : d3.cacheLife, experimental: { isRoutePPREnabled: false, cacheComponents: false, authInterrupts: !!(null == (i3 = a10.request.nextConfig) || null == (g3 = i3.experimental) ? void 0 : g3.authInterrupts) }, supportsDynamicResponse: true, waitUntil: b3, onClose: c2.onClose.bind(c2), onAfterTaskError: void 0 }, isPrefetchRequest: "1" === o2.headers.get(U), buildId: h2 ?? "", previouslyRevalidatedTags: [] });
+                return await ab.run(p3, () => aO.run(n3, a10.handler, o2, q2));
+              } finally {
+                setTimeout(() => {
+                  c2.dispatchClose();
+                }, 0);
+              }
+            });
+          }
+          return a10.handler(o2, q2);
+        })) && !(d2 instanceof Response)) throw Object.defineProperty(TypeError("Expected an instance of Response to be returned"), "__NEXT_ERROR_CODE", { value: "E567", enumerable: false, configurable: true });
+        d2 && e2 && d2.headers.set("set-cookie", e2);
+        let r2 = null == d2 ? void 0 : d2.headers.get("x-middleware-rewrite");
+        if (d2 && r2 && (k2 || !f2)) {
+          let b3 = new K(r2, { forceLocale: true, headers: a10.request.headers, nextConfig: a10.request.nextConfig });
+          f2 || b3.host !== o2.nextUrl.host || (b3.buildId = h2 || b3.buildId, d2.headers.set("x-middleware-rewrite", String(b3)));
+          let { url: c2, isRelative: e3 } = T(b3.toString(), g2.toString());
+          !f2 && j2 && d2.headers.set("x-nextjs-rewrite", c2), k2 && e3 && (g2.pathname !== b3.pathname && d2.headers.set("x-nextjs-rewritten-path", b3.pathname), g2.search !== b3.search && d2.headers.set("x-nextjs-rewritten-query", b3.search.slice(1)));
+        }
+        if (d2 && r2 && k2 && n2) {
+          let a11 = new URL(r2);
+          a11.searchParams.has(W) || (a11.searchParams.set(W, n2), d2.headers.set("x-middleware-rewrite", a11.toString()));
+        }
+        let s2 = null == d2 ? void 0 : d2.headers.get("Location");
+        if (d2 && s2 && !f2) {
+          let b3 = new K(s2, { forceLocale: false, headers: a10.request.headers, nextConfig: a10.request.nextConfig });
+          d2 = new Response(d2.body, d2), b3.host === g2.host && (b3.buildId = h2 || b3.buildId, d2.headers.set("Location", b3.toString())), j2 && (d2.headers.delete("Location"), d2.headers.set("x-nextjs-redirect", T(b3.toString(), g2.toString()).url));
+        }
+        let t2 = d2 || S.next(), u2 = t2.headers.get("x-middleware-override-headers"), v2 = [];
+        if (u2) {
+          for (let [a11, b3] of m2) t2.headers.set(`x-middleware-request-${a11}`, b3), v2.push(a11);
+          v2.length > 0 && t2.headers.set("x-middleware-override-headers", u2 + "," + v2.join(","));
+        }
+        return { response: t2, waitUntil: ("internal" === q2[x].kind ? Promise.all(q2[x].promises).then(() => {
+        }) : void 0) ?? Promise.resolve(), fetchMetrics: o2.fetchMetrics };
+      }
+      var bh = c(426);
+      c(449), "undefined" == typeof URLPattern || URLPattern;
+      var bi = c(814);
+      if (/* @__PURE__ */ new WeakMap(), bi.unstable_postpone, false === function(a10) {
+        return a10.includes("needs to bail out of prerendering at this point because it used") && a10.includes("Learn more: https://nextjs.org/docs/messages/ppr-caught-error");
+      }("Route %%% needs to bail out of prerendering at this point because it used ^^^. React throws this special object to indicate where. It should not be caught by your own try/catch. Learn more: https://nextjs.org/docs/messages/ppr-caught-error")) throw Object.defineProperty(Error("Invariant: isDynamicPostpone misidentified a postpone reason. This is a bug in Next.js"), "__NEXT_ERROR_CODE", { value: "E296", enumerable: false, configurable: true });
+      RegExp(`\\n\\s+at Suspense \\(<anonymous>\\)(?:(?!\\n\\s+at (?:body|div|main|section|article|aside|header|footer|nav|form|p|span|h1|h2|h3|h4|h5|h6) \\(<anonymous>\\))[\\s\\S])*?\\n\\s+at __next_root_layout_boundary__ \\([^\\n]*\\)`), RegExp(`\\n\\s+at __next_metadata_boundary__[\\n\\s]`), RegExp(`\\n\\s+at __next_viewport_boundary__[\\n\\s]`), RegExp(`\\n\\s+at __next_outlet_boundary__[\\n\\s]`), aa();
+      let { env: bj, stdout: bk } = (null == (e = globalThis) ? void 0 : e.process) ?? {}, bl = bj && !bj.NO_COLOR && (bj.FORCE_COLOR || (null == bk ? void 0 : bk.isTTY) && !bj.CI && "dumb" !== bj.TERM), bm = (a10, b2, c2, d2) => {
+        let e2 = a10.substring(0, d2) + c2, f2 = a10.substring(d2 + b2.length), g2 = f2.indexOf(b2);
+        return ~g2 ? e2 + bm(f2, b2, c2, g2) : e2 + f2;
+      }, bn = (a10, b2, c2 = a10) => bl ? (d2) => {
+        let e2 = "" + d2, f2 = e2.indexOf(b2, a10.length);
+        return ~f2 ? a10 + bm(e2, b2, c2, f2) + b2 : a10 + e2 + b2;
+      } : String, bo = bn("\x1B[1m", "\x1B[22m", "\x1B[22m\x1B[1m");
+      bn("\x1B[2m", "\x1B[22m", "\x1B[22m\x1B[2m"), bn("\x1B[3m", "\x1B[23m"), bn("\x1B[4m", "\x1B[24m"), bn("\x1B[7m", "\x1B[27m"), bn("\x1B[8m", "\x1B[28m"), bn("\x1B[9m", "\x1B[29m"), bn("\x1B[30m", "\x1B[39m");
+      let bp = bn("\x1B[31m", "\x1B[39m"), bq = bn("\x1B[32m", "\x1B[39m"), br = bn("\x1B[33m", "\x1B[39m");
+      bn("\x1B[34m", "\x1B[39m");
+      let bs = bn("\x1B[35m", "\x1B[39m");
+      bn("\x1B[38;2;173;127;168m", "\x1B[39m"), bn("\x1B[36m", "\x1B[39m");
+      let bt = bn("\x1B[37m", "\x1B[39m");
+      bn("\x1B[90m", "\x1B[39m"), bn("\x1B[40m", "\x1B[49m"), bn("\x1B[41m", "\x1B[49m"), bn("\x1B[42m", "\x1B[49m"), bn("\x1B[43m", "\x1B[49m"), bn("\x1B[44m", "\x1B[49m"), bn("\x1B[45m", "\x1B[49m"), bn("\x1B[46m", "\x1B[49m"), bn("\x1B[47m", "\x1B[49m"), bt(bo("\u25CB")), bp(bo("\u2A2F")), br(bo("\u26A0")), bt(bo(" ")), bq(bo("\u2713")), bs(bo("\xBB")), new aU(1e4, (a10) => a10.length), /* @__PURE__ */ new WeakMap();
+      let bu = process.env.AUTH_SECRET;
+      async function bv(a10) {
+        let b2 = a10.nextUrl.pathname, c2 = await (0, bh.getToken)({ req: a10, secret: bu }), d2 = "/" === b2 || ["/login", "/signup", "/api/auth", "/api/health", "/api/webhook", "/api/whatsapp", "/api/instagram", "/api/messages", "/api/agent", "/api/cron"].some((a11) => b2.startsWith(a11));
+        if (!c2 && !d2) {
+          let c3 = a10.nextUrl.clone();
+          return c3.pathname = "/login", c3.searchParams.set("redirectTo", b2), S.redirect(c3);
+        }
+        if (c2 && "/login" === b2) {
+          let b3 = a10.nextUrl.clone();
+          return b3.pathname = "/dashboard", S.redirect(b3);
+        }
+        return S.next({ request: a10 });
+      }
+      let bw = { matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"] };
+      Object.values({ NOT_FOUND: 404, FORBIDDEN: 403, UNAUTHORIZED: 401 });
+      let bx = { ...f }, by = bx.middleware || bx.default, bz = "/src/middleware";
+      if ("function" != typeof by) throw Object.defineProperty(Error(`The Middleware "${bz}" must export a \`middleware\` or a \`default\` function`), "__NEXT_ERROR_CODE", { value: "E120", enumerable: false, configurable: true });
+      function bA(a10) {
+        return bg({ ...a10, page: bz, handler: async (...a11) => {
+          try {
+            return await by(...a11);
+          } catch (e2) {
+            let b2 = a11[0], c2 = new URL(b2.url), d2 = c2.pathname + c2.search;
+            throw await j(e2, { path: d2, method: b2.method, headers: Object.fromEntries(b2.headers.entries()) }, { routerKind: "Pages Router", routePath: "/middleware", routeType: "middleware", revalidateReason: void 0 }), e2;
+          }
+        } });
+      }
+    }, 674: (a, b) => {
+      "use strict";
+      function c(a2, b2, c2) {
+        d(a2, b2), b2.set(a2, c2);
+      }
+      function d(a2, b2) {
+        if (b2.has(a2)) throw TypeError("Cannot initialize the same private elements twice on an object");
+      }
+      function e(a2, b2) {
+        return a2.get(g(a2, b2));
+      }
+      function f(a2, b2, c2) {
+        return a2.set(g(a2, b2), c2), c2;
+      }
+      function g(a2, b2, c2) {
+        if ("function" == typeof a2 ? a2 === b2 : a2.has(b2)) return arguments.length < 3 ? b2 : c2;
+        throw TypeError("Private element is not present on this object");
+      }
+      Object.defineProperty(b, "__esModule", { value: true }), b.SessionStore = void 0, b.defaultCookies = function(a2) {
+        let b2 = a2 ? "__Secure-" : "";
+        return { sessionToken: { name: `${b2}next-auth.session-token`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } }, callbackUrl: { name: `${b2}next-auth.callback-url`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } }, csrfToken: { name: `${a2 ? "__Host-" : ""}next-auth.csrf-token`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } }, pkceCodeVerifier: { name: `${b2}next-auth.pkce.code_verifier`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2, maxAge: 900 } }, state: { name: `${b2}next-auth.state`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2, maxAge: 900 } }, nonce: { name: `${b2}next-auth.nonce`, options: { httpOnly: true, sameSite: "lax", path: "/", secure: a2 } } };
+      };
+      var h = /* @__PURE__ */ new WeakMap(), i = /* @__PURE__ */ new WeakMap(), j = /* @__PURE__ */ new WeakMap(), k = /* @__PURE__ */ new WeakSet();
+      class l {
+        constructor(a2, b2, g2) {
+          !function(a3, b3) {
+            d(a3, b3), b3.add(a3);
+          }(this, k), c(this, h, {}), c(this, i, void 0), c(this, j, void 0), f(j, this, g2), f(i, this, a2);
+          let { cookies: l2 } = b2, { name: m2 } = a2;
+          if ("function" == typeof (null == l2 ? void 0 : l2.getAll)) for (let { name: a3, value: b3 } of l2.getAll()) a3.startsWith(m2) && (e(h, this)[a3] = b3);
+          else if (l2 instanceof Map) for (let a3 of l2.keys()) a3.startsWith(m2) && (e(h, this)[a3] = l2.get(a3));
+          else for (let a3 in l2) a3.startsWith(m2) && (e(h, this)[a3] = l2[a3]);
+        }
+        get value() {
+          return Object.keys(e(h, this)).sort((a2, b2) => {
+            var c2, d2;
+            return parseInt(null != (c2 = a2.split(".").pop()) ? c2 : "0") - parseInt(null != (d2 = b2.split(".").pop()) ? d2 : "0");
+          }).map((a2) => e(h, this)[a2]).join("");
+        }
+        chunk(a2, b2) {
+          let c2 = g(k, this, n).call(this);
+          for (let d2 of g(k, this, m).call(this, { name: e(i, this).name, value: a2, options: { ...e(i, this).options, ...b2 } })) c2[d2.name] = d2;
+          return Object.values(c2);
+        }
+        clean() {
+          return Object.values(g(k, this, n).call(this));
+        }
+      }
+      function m(a2) {
+        let b2 = Math.ceil(a2.value.length / 3933);
+        if (1 === b2) return e(h, this)[a2.name] = a2.value, [a2];
+        let c2 = [];
+        for (let d2 = 0; d2 < b2; d2++) {
+          let b3 = `${a2.name}.${d2}`, f2 = a2.value.substr(3933 * d2, 3933);
+          c2.push({ ...a2, name: b3, value: f2 }), e(h, this)[b3] = f2;
+        }
+        return e(j, this).debug("CHUNKING_SESSION_COOKIE", { message: "Session cookie exceeds allowed 4096 bytes.", emptyCookieSize: 163, valueSize: a2.value.length, chunks: c2.map((a3) => a3.value.length + 163) }), c2;
+      }
+      function n() {
+        let a2 = {};
+        for (let c2 in e(h, this)) {
+          var b2;
+          null == (b2 = e(h, this)) || delete b2[c2], a2[c2] = { name: c2, value: "", options: { ...e(i, this).options, maxAge: 0 } };
+        }
+        return a2;
+      }
+      b.SessionStore = l;
+    }, 720: (a, b, c) => {
+      "use strict";
+      Object.defineProperty(b, "__esModule", { value: true }), !function(a2, b2) {
+        for (var c2 in b2) Object.defineProperty(a2, c2, { enumerable: true, get: b2[c2] });
+      }(b, { interceptTestApis: function() {
+        return f;
+      }, wrapRequestHandler: function() {
+        return g;
+      } });
+      let d = c(392), e = c(165);
+      function f() {
+        return (0, e.interceptFetch)(c.g.fetch);
+      }
+      function g(a2) {
+        return (b2, c2) => (0, d.withRequest)(b2, e.reader, () => a2(b2, c2));
+      }
+    }, 743: (a, b, c) => {
       "use strict";
       c.r(b), c.d(b, { CompactEncrypt: () => bc, CompactSign: () => bf, EmbeddedJWK: () => bo, EncryptJWT: () => bk, FlattenedEncrypt: () => aY, FlattenedSign: () => be, GeneralEncrypt: () => a$, GeneralSign: () => bh, SignJWT: () => bj, UnsecuredJWT: () => bx, base64url: () => e, calculateJwkThumbprint: () => bm, calculateJwkThumbprintUri: () => bn, compactDecrypt: () => aQ, compactVerify: () => a3, createLocalJWKSet: () => bt, createRemoteJWKSet: () => bw, cryptoRuntime: () => bH, decodeJwt: () => bB, decodeProtectedHeader: () => bA, errors: () => d, exportJWK: () => aV, exportPKCS8: () => aU, exportSPKI: () => aT, flattenedDecrypt: () => aP, flattenedVerify: () => a2, generalDecrypt: () => aR, generalVerify: () => a4, generateKeyPair: () => bF, generateSecret: () => bG, importJWK: () => aF, importPKCS8: () => aE, importSPKI: () => aC, importX509: () => aD, jwtDecrypt: () => bb, jwtVerify: () => ba });
       var d = {};
@@ -8157,7 +6643,10 @@ ${c2}
         return bC(a10, b2);
       }
       let bH = "WebCryptoAPI";
-    }, 3817: (a, b, c) => {
+    }, 814: (a, b, c) => {
+      "use strict";
+      a.exports = c(440);
+    }, 817: (a, b, c) => {
       (() => {
         "use strict";
         var b2 = { 491: (a2, b3, c2) => {
@@ -8959,1666 +7448,8 @@ ${c2}
           } }), f.default = { context: s.context, diag: t.diag, metrics: u.metrics, propagation: v.propagation, trace: w.trace };
         })(), a.exports = f;
       })();
-    }, 4449: (a, b, c) => {
-      var d;
-      (() => {
-        var e = { 226: function(e2, f2) {
-          !function(g2, h) {
-            "use strict";
-            var i = "function", j = "undefined", k = "object", l = "string", m = "major", n = "model", o = "name", p = "type", q = "vendor", r = "version", s = "architecture", t = "console", u = "mobile", v = "tablet", w = "smarttv", x = "wearable", y = "embedded", z = "Amazon", A = "Apple", B = "ASUS", C = "BlackBerry", D = "Browser", E = "Chrome", F = "Firefox", G = "Google", H = "Huawei", I = "Microsoft", J = "Motorola", K = "Opera", L = "Samsung", M = "Sharp", N = "Sony", O = "Xiaomi", P = "Zebra", Q = "Facebook", R = "Chromium OS", S = "Mac OS", T = function(a2, b2) {
-              var c2 = {};
-              for (var d2 in a2) b2[d2] && b2[d2].length % 2 == 0 ? c2[d2] = b2[d2].concat(a2[d2]) : c2[d2] = a2[d2];
-              return c2;
-            }, U = function(a2) {
-              for (var b2 = {}, c2 = 0; c2 < a2.length; c2++) b2[a2[c2].toUpperCase()] = a2[c2];
-              return b2;
-            }, V = function(a2, b2) {
-              return typeof a2 === l && -1 !== W(b2).indexOf(W(a2));
-            }, W = function(a2) {
-              return a2.toLowerCase();
-            }, X = function(a2, b2) {
-              if (typeof a2 === l) return a2 = a2.replace(/^\s\s*/, ""), typeof b2 === j ? a2 : a2.substring(0, 350);
-            }, Y = function(a2, b2) {
-              for (var c2, d2, e3, f3, g3, j2, l2 = 0; l2 < b2.length && !g3; ) {
-                var m2 = b2[l2], n2 = b2[l2 + 1];
-                for (c2 = d2 = 0; c2 < m2.length && !g3 && m2[c2]; ) if (g3 = m2[c2++].exec(a2)) for (e3 = 0; e3 < n2.length; e3++) j2 = g3[++d2], typeof (f3 = n2[e3]) === k && f3.length > 0 ? 2 === f3.length ? typeof f3[1] == i ? this[f3[0]] = f3[1].call(this, j2) : this[f3[0]] = f3[1] : 3 === f3.length ? typeof f3[1] !== i || f3[1].exec && f3[1].test ? this[f3[0]] = j2 ? j2.replace(f3[1], f3[2]) : void 0 : this[f3[0]] = j2 ? f3[1].call(this, j2, f3[2]) : void 0 : 4 === f3.length && (this[f3[0]] = j2 ? f3[3].call(this, j2.replace(f3[1], f3[2])) : h) : this[f3] = j2 || h;
-                l2 += 2;
-              }
-            }, Z = function(a2, b2) {
-              for (var c2 in b2) if (typeof b2[c2] === k && b2[c2].length > 0) {
-                for (var d2 = 0; d2 < b2[c2].length; d2++) if (V(b2[c2][d2], a2)) return "?" === c2 ? h : c2;
-              } else if (V(b2[c2], a2)) return "?" === c2 ? h : c2;
-              return a2;
-            }, $ = { ME: "4.90", "NT 3.11": "NT3.51", "NT 4.0": "NT4.0", 2e3: "NT 5.0", XP: ["NT 5.1", "NT 5.2"], Vista: "NT 6.0", 7: "NT 6.1", 8: "NT 6.2", 8.1: "NT 6.3", 10: ["NT 6.4", "NT 10.0"], RT: "ARM" }, _ = { browser: [[/\b(?:crmo|crios)\/([\w\.]+)/i], [r, [o, "Chrome"]], [/edg(?:e|ios|a)?\/([\w\.]+)/i], [r, [o, "Edge"]], [/(opera mini)\/([-\w\.]+)/i, /(opera [mobiletab]{3,6})\b.+version\/([-\w\.]+)/i, /(opera)(?:.+version\/|[\/ ]+)([\w\.]+)/i], [o, r], [/opios[\/ ]+([\w\.]+)/i], [r, [o, K + " Mini"]], [/\bopr\/([\w\.]+)/i], [r, [o, K]], [/(kindle)\/([\w\.]+)/i, /(lunascape|maxthon|netfront|jasmine|blazer)[\/ ]?([\w\.]*)/i, /(avant |iemobile|slim)(?:browser)?[\/ ]?([\w\.]*)/i, /(ba?idubrowser)[\/ ]?([\w\.]+)/i, /(?:ms|\()(ie) ([\w\.]+)/i, /(flock|rockmelt|midori|epiphany|silk|skyfire|bolt|iron|vivaldi|iridium|phantomjs|bowser|quark|qupzilla|falkon|rekonq|puffin|brave|whale(?!.+naver)|qqbrowserlite|qq|duckduckgo)\/([-\w\.]+)/i, /(heytap|ovi)browser\/([\d\.]+)/i, /(weibo)__([\d\.]+)/i], [o, r], [/(?:\buc? ?browser|(?:juc.+)ucweb)[\/ ]?([\w\.]+)/i], [r, [o, "UC" + D]], [/microm.+\bqbcore\/([\w\.]+)/i, /\bqbcore\/([\w\.]+).+microm/i], [r, [o, "WeChat(Win) Desktop"]], [/micromessenger\/([\w\.]+)/i], [r, [o, "WeChat"]], [/konqueror\/([\w\.]+)/i], [r, [o, "Konqueror"]], [/trident.+rv[: ]([\w\.]{1,9})\b.+like gecko/i], [r, [o, "IE"]], [/ya(?:search)?browser\/([\w\.]+)/i], [r, [o, "Yandex"]], [/(avast|avg)\/([\w\.]+)/i], [[o, /(.+)/, "$1 Secure " + D], r], [/\bfocus\/([\w\.]+)/i], [r, [o, F + " Focus"]], [/\bopt\/([\w\.]+)/i], [r, [o, K + " Touch"]], [/coc_coc\w+\/([\w\.]+)/i], [r, [o, "Coc Coc"]], [/dolfin\/([\w\.]+)/i], [r, [o, "Dolphin"]], [/coast\/([\w\.]+)/i], [r, [o, K + " Coast"]], [/miuibrowser\/([\w\.]+)/i], [r, [o, "MIUI " + D]], [/fxios\/([-\w\.]+)/i], [r, [o, F]], [/\bqihu|(qi?ho?o?|360)browser/i], [[o, "360 " + D]], [/(oculus|samsung|sailfish|huawei)browser\/([\w\.]+)/i], [[o, /(.+)/, "$1 " + D], r], [/(comodo_dragon)\/([\w\.]+)/i], [[o, /_/g, " "], r], [/(electron)\/([\w\.]+) safari/i, /(tesla)(?: qtcarbrowser|\/(20\d\d\.[-\w\.]+))/i, /m?(qqbrowser|baiduboxapp|2345Explorer)[\/ ]?([\w\.]+)/i], [o, r], [/(metasr)[\/ ]?([\w\.]+)/i, /(lbbrowser)/i, /\[(linkedin)app\]/i], [o], [/((?:fban\/fbios|fb_iab\/fb4a)(?!.+fbav)|;fbav\/([\w\.]+);)/i], [[o, Q], r], [/(kakao(?:talk|story))[\/ ]([\w\.]+)/i, /(naver)\(.*?(\d+\.[\w\.]+).*\)/i, /safari (line)\/([\w\.]+)/i, /\b(line)\/([\w\.]+)\/iab/i, /(chromium|instagram)[\/ ]([-\w\.]+)/i], [o, r], [/\bgsa\/([\w\.]+) .*safari\//i], [r, [o, "GSA"]], [/musical_ly(?:.+app_?version\/|_)([\w\.]+)/i], [r, [o, "TikTok"]], [/headlesschrome(?:\/([\w\.]+)| )/i], [r, [o, E + " Headless"]], [/ wv\).+(chrome)\/([\w\.]+)/i], [[o, E + " WebView"], r], [/droid.+ version\/([\w\.]+)\b.+(?:mobile safari|safari)/i], [r, [o, "Android " + D]], [/(chrome|omniweb|arora|[tizenoka]{5} ?browser)\/v?([\w\.]+)/i], [o, r], [/version\/([\w\.\,]+) .*mobile\/\w+ (safari)/i], [r, [o, "Mobile Safari"]], [/version\/([\w(\.|\,)]+) .*(mobile ?safari|safari)/i], [r, o], [/webkit.+?(mobile ?safari|safari)(\/[\w\.]+)/i], [o, [r, Z, { "1.0": "/8", 1.2: "/1", 1.3: "/3", "2.0": "/412", "2.0.2": "/416", "2.0.3": "/417", "2.0.4": "/419", "?": "/" }]], [/(webkit|khtml)\/([\w\.]+)/i], [o, r], [/(navigator|netscape\d?)\/([-\w\.]+)/i], [[o, "Netscape"], r], [/mobile vr; rv:([\w\.]+)\).+firefox/i], [r, [o, F + " Reality"]], [/ekiohf.+(flow)\/([\w\.]+)/i, /(swiftfox)/i, /(icedragon|iceweasel|camino|chimera|fennec|maemo browser|minimo|conkeror|klar)[\/ ]?([\w\.\+]+)/i, /(seamonkey|k-meleon|icecat|iceape|firebird|phoenix|palemoon|basilisk|waterfox)\/([-\w\.]+)$/i, /(firefox)\/([\w\.]+)/i, /(mozilla)\/([\w\.]+) .+rv\:.+gecko\/\d+/i, /(polaris|lynx|dillo|icab|doris|amaya|w3m|netsurf|sleipnir|obigo|mosaic|(?:go|ice|up)[\. ]?browser)[-\/ ]?v?([\w\.]+)/i, /(links) \(([\w\.]+)/i, /panasonic;(viera)/i], [o, r], [/(cobalt)\/([\w\.]+)/i], [o, [r, /master.|lts./, ""]]], cpu: [[/(?:(amd|x(?:(?:86|64)[-_])?|wow|win)64)[;\)]/i], [[s, "amd64"]], [/(ia32(?=;))/i], [[s, W]], [/((?:i[346]|x)86)[;\)]/i], [[s, "ia32"]], [/\b(aarch64|arm(v?8e?l?|_?64))\b/i], [[s, "arm64"]], [/\b(arm(?:v[67])?ht?n?[fl]p?)\b/i], [[s, "armhf"]], [/windows (ce|mobile); ppc;/i], [[s, "arm"]], [/((?:ppc|powerpc)(?:64)?)(?: mac|;|\))/i], [[s, /ower/, "", W]], [/(sun4\w)[;\)]/i], [[s, "sparc"]], [/((?:avr32|ia64(?=;))|68k(?=\))|\barm(?=v(?:[1-7]|[5-7]1)l?|;|eabi)|(?=atmel )avr|(?:irix|mips|sparc)(?:64)?\b|pa-risc)/i], [[s, W]]], device: [[/\b(sch-i[89]0\d|shw-m380s|sm-[ptx]\w{2,4}|gt-[pn]\d{2,4}|sgh-t8[56]9|nexus 10)/i], [n, [q, L], [p, v]], [/\b((?:s[cgp]h|gt|sm)-\w+|sc[g-]?[\d]+a?|galaxy nexus)/i, /samsung[- ]([-\w]+)/i, /sec-(sgh\w+)/i], [n, [q, L], [p, u]], [/(?:\/|\()(ip(?:hone|od)[\w, ]*)(?:\/|;)/i], [n, [q, A], [p, u]], [/\((ipad);[-\w\),; ]+apple/i, /applecoremedia\/[\w\.]+ \((ipad)/i, /\b(ipad)\d\d?,\d\d?[;\]].+ios/i], [n, [q, A], [p, v]], [/(macintosh);/i], [n, [q, A]], [/\b(sh-?[altvz]?\d\d[a-ekm]?)/i], [n, [q, M], [p, u]], [/\b((?:ag[rs][23]?|bah2?|sht?|btv)-a?[lw]\d{2})\b(?!.+d\/s)/i], [n, [q, H], [p, v]], [/(?:huawei|honor)([-\w ]+)[;\)]/i, /\b(nexus 6p|\w{2,4}e?-[atu]?[ln][\dx][012359c][adn]?)\b(?!.+d\/s)/i], [n, [q, H], [p, u]], [/\b(poco[\w ]+)(?: bui|\))/i, /\b; (\w+) build\/hm\1/i, /\b(hm[-_ ]?note?[_ ]?(?:\d\w)?) bui/i, /\b(redmi[\-_ ]?(?:note|k)?[\w_ ]+)(?: bui|\))/i, /\b(mi[-_ ]?(?:a\d|one|one[_ ]plus|note lte|max|cc)?[_ ]?(?:\d?\w?)[_ ]?(?:plus|se|lite)?)(?: bui|\))/i], [[n, /_/g, " "], [q, O], [p, u]], [/\b(mi[-_ ]?(?:pad)(?:[\w_ ]+))(?: bui|\))/i], [[n, /_/g, " "], [q, O], [p, v]], [/; (\w+) bui.+ oppo/i, /\b(cph[12]\d{3}|p(?:af|c[al]|d\w|e[ar])[mt]\d0|x9007|a101op)\b/i], [n, [q, "OPPO"], [p, u]], [/vivo (\w+)(?: bui|\))/i, /\b(v[12]\d{3}\w?[at])(?: bui|;)/i], [n, [q, "Vivo"], [p, u]], [/\b(rmx[12]\d{3})(?: bui|;|\))/i], [n, [q, "Realme"], [p, u]], [/\b(milestone|droid(?:[2-4x]| (?:bionic|x2|pro|razr))?:?( 4g)?)\b[\w ]+build\//i, /\bmot(?:orola)?[- ](\w*)/i, /((?:moto[\w\(\) ]+|xt\d{3,4}|nexus 6)(?= bui|\)))/i], [n, [q, J], [p, u]], [/\b(mz60\d|xoom[2 ]{0,2}) build\//i], [n, [q, J], [p, v]], [/((?=lg)?[vl]k\-?\d{3}) bui| 3\.[-\w; ]{10}lg?-([06cv9]{3,4})/i], [n, [q, "LG"], [p, v]], [/(lm(?:-?f100[nv]?|-[\w\.]+)(?= bui|\))|nexus [45])/i, /\blg[-e;\/ ]+((?!browser|netcast|android tv)\w+)/i, /\blg-?([\d\w]+) bui/i], [n, [q, "LG"], [p, u]], [/(ideatab[-\w ]+)/i, /lenovo ?(s[56]000[-\w]+|tab(?:[\w ]+)|yt[-\d\w]{6}|tb[-\d\w]{6})/i], [n, [q, "Lenovo"], [p, v]], [/(?:maemo|nokia).*(n900|lumia \d+)/i, /nokia[-_ ]?([-\w\.]*)/i], [[n, /_/g, " "], [q, "Nokia"], [p, u]], [/(pixel c)\b/i], [n, [q, G], [p, v]], [/droid.+; (pixel[\daxl ]{0,6})(?: bui|\))/i], [n, [q, G], [p, u]], [/droid.+ (a?\d[0-2]{2}so|[c-g]\d{4}|so[-gl]\w+|xq-a\w[4-7][12])(?= bui|\).+chrome\/(?![1-6]{0,1}\d\.))/i], [n, [q, N], [p, u]], [/sony tablet [ps]/i, /\b(?:sony)?sgp\w+(?: bui|\))/i], [[n, "Xperia Tablet"], [q, N], [p, v]], [/ (kb2005|in20[12]5|be20[12][59])\b/i, /(?:one)?(?:plus)? (a\d0\d\d)(?: b|\))/i], [n, [q, "OnePlus"], [p, u]], [/(alexa)webm/i, /(kf[a-z]{2}wi|aeo[c-r]{2})( bui|\))/i, /(kf[a-z]+)( bui|\)).+silk\//i], [n, [q, z], [p, v]], [/((?:sd|kf)[0349hijorstuw]+)( bui|\)).+silk\//i], [[n, /(.+)/g, "Fire Phone $1"], [q, z], [p, u]], [/(playbook);[-\w\),; ]+(rim)/i], [n, q, [p, v]], [/\b((?:bb[a-f]|st[hv])100-\d)/i, /\(bb10; (\w+)/i], [n, [q, C], [p, u]], [/(?:\b|asus_)(transfo[prime ]{4,10} \w+|eeepc|slider \w+|nexus 7|padfone|p00[cj])/i], [n, [q, B], [p, v]], [/ (z[bes]6[027][012][km][ls]|zenfone \d\w?)\b/i], [n, [q, B], [p, u]], [/(nexus 9)/i], [n, [q, "HTC"], [p, v]], [/(htc)[-;_ ]{1,2}([\w ]+(?=\)| bui)|\w+)/i, /(zte)[- ]([\w ]+?)(?: bui|\/|\))/i, /(alcatel|geeksphone|nexian|panasonic(?!(?:;|\.))|sony(?!-bra))[-_ ]?([-\w]*)/i], [q, [n, /_/g, " "], [p, u]], [/droid.+; ([ab][1-7]-?[0178a]\d\d?)/i], [n, [q, "Acer"], [p, v]], [/droid.+; (m[1-5] note) bui/i, /\bmz-([-\w]{2,})/i], [n, [q, "Meizu"], [p, u]], [/(blackberry|benq|palm(?=\-)|sonyericsson|acer|asus|dell|meizu|motorola|polytron)[-_ ]?([-\w]*)/i, /(hp) ([\w ]+\w)/i, /(asus)-?(\w+)/i, /(microsoft); (lumia[\w ]+)/i, /(lenovo)[-_ ]?([-\w]+)/i, /(jolla)/i, /(oppo) ?([\w ]+) bui/i], [q, n, [p, u]], [/(kobo)\s(ereader|touch)/i, /(archos) (gamepad2?)/i, /(hp).+(touchpad(?!.+tablet)|tablet)/i, /(kindle)\/([\w\.]+)/i, /(nook)[\w ]+build\/(\w+)/i, /(dell) (strea[kpr\d ]*[\dko])/i, /(le[- ]+pan)[- ]+(\w{1,9}) bui/i, /(trinity)[- ]*(t\d{3}) bui/i, /(gigaset)[- ]+(q\w{1,9}) bui/i, /(vodafone) ([\w ]+)(?:\)| bui)/i], [q, n, [p, v]], [/(surface duo)/i], [n, [q, I], [p, v]], [/droid [\d\.]+; (fp\du?)(?: b|\))/i], [n, [q, "Fairphone"], [p, u]], [/(u304aa)/i], [n, [q, "AT&T"], [p, u]], [/\bsie-(\w*)/i], [n, [q, "Siemens"], [p, u]], [/\b(rct\w+) b/i], [n, [q, "RCA"], [p, v]], [/\b(venue[\d ]{2,7}) b/i], [n, [q, "Dell"], [p, v]], [/\b(q(?:mv|ta)\w+) b/i], [n, [q, "Verizon"], [p, v]], [/\b(?:barnes[& ]+noble |bn[rt])([\w\+ ]*) b/i], [n, [q, "Barnes & Noble"], [p, v]], [/\b(tm\d{3}\w+) b/i], [n, [q, "NuVision"], [p, v]], [/\b(k88) b/i], [n, [q, "ZTE"], [p, v]], [/\b(nx\d{3}j) b/i], [n, [q, "ZTE"], [p, u]], [/\b(gen\d{3}) b.+49h/i], [n, [q, "Swiss"], [p, u]], [/\b(zur\d{3}) b/i], [n, [q, "Swiss"], [p, v]], [/\b((zeki)?tb.*\b) b/i], [n, [q, "Zeki"], [p, v]], [/\b([yr]\d{2}) b/i, /\b(dragon[- ]+touch |dt)(\w{5}) b/i], [[q, "Dragon Touch"], n, [p, v]], [/\b(ns-?\w{0,9}) b/i], [n, [q, "Insignia"], [p, v]], [/\b((nxa|next)-?\w{0,9}) b/i], [n, [q, "NextBook"], [p, v]], [/\b(xtreme\_)?(v(1[045]|2[015]|[3469]0|7[05])) b/i], [[q, "Voice"], n, [p, u]], [/\b(lvtel\-)?(v1[12]) b/i], [[q, "LvTel"], n, [p, u]], [/\b(ph-1) /i], [n, [q, "Essential"], [p, u]], [/\b(v(100md|700na|7011|917g).*\b) b/i], [n, [q, "Envizen"], [p, v]], [/\b(trio[-\w\. ]+) b/i], [n, [q, "MachSpeed"], [p, v]], [/\btu_(1491) b/i], [n, [q, "Rotor"], [p, v]], [/(shield[\w ]+) b/i], [n, [q, "Nvidia"], [p, v]], [/(sprint) (\w+)/i], [q, n, [p, u]], [/(kin\.[onetw]{3})/i], [[n, /\./g, " "], [q, I], [p, u]], [/droid.+; (cc6666?|et5[16]|mc[239][23]x?|vc8[03]x?)\)/i], [n, [q, P], [p, v]], [/droid.+; (ec30|ps20|tc[2-8]\d[kx])\)/i], [n, [q, P], [p, u]], [/smart-tv.+(samsung)/i], [q, [p, w]], [/hbbtv.+maple;(\d+)/i], [[n, /^/, "SmartTV"], [q, L], [p, w]], [/(nux; netcast.+smarttv|lg (netcast\.tv-201\d|android tv))/i], [[q, "LG"], [p, w]], [/(apple) ?tv/i], [q, [n, A + " TV"], [p, w]], [/crkey/i], [[n, E + "cast"], [q, G], [p, w]], [/droid.+aft(\w)( bui|\))/i], [n, [q, z], [p, w]], [/\(dtv[\);].+(aquos)/i, /(aquos-tv[\w ]+)\)/i], [n, [q, M], [p, w]], [/(bravia[\w ]+)( bui|\))/i], [n, [q, N], [p, w]], [/(mitv-\w{5}) bui/i], [n, [q, O], [p, w]], [/Hbbtv.*(technisat) (.*);/i], [q, n, [p, w]], [/\b(roku)[\dx]*[\)\/]((?:dvp-)?[\d\.]*)/i, /hbbtv\/\d+\.\d+\.\d+ +\([\w\+ ]*; *([\w\d][^;]*);([^;]*)/i], [[q, X], [n, X], [p, w]], [/\b(android tv|smart[- ]?tv|opera tv|tv; rv:)\b/i], [[p, w]], [/(ouya)/i, /(nintendo) ([wids3utch]+)/i], [q, n, [p, t]], [/droid.+; (shield) bui/i], [n, [q, "Nvidia"], [p, t]], [/(playstation [345portablevi]+)/i], [n, [q, N], [p, t]], [/\b(xbox(?: one)?(?!; xbox))[\); ]/i], [n, [q, I], [p, t]], [/((pebble))app/i], [q, n, [p, x]], [/(watch)(?: ?os[,\/]|\d,\d\/)[\d\.]+/i], [n, [q, A], [p, x]], [/droid.+; (glass) \d/i], [n, [q, G], [p, x]], [/droid.+; (wt63?0{2,3})\)/i], [n, [q, P], [p, x]], [/(quest( 2| pro)?)/i], [n, [q, Q], [p, x]], [/(tesla)(?: qtcarbrowser|\/[-\w\.]+)/i], [q, [p, y]], [/(aeobc)\b/i], [n, [q, z], [p, y]], [/droid .+?; ([^;]+?)(?: bui|\) applew).+? mobile safari/i], [n, [p, u]], [/droid .+?; ([^;]+?)(?: bui|\) applew).+?(?! mobile) safari/i], [n, [p, v]], [/\b((tablet|tab)[;\/]|focus\/\d(?!.+mobile))/i], [[p, v]], [/(phone|mobile(?:[;\/]| [ \w\/\.]*safari)|pda(?=.+windows ce))/i], [[p, u]], [/(android[-\w\. ]{0,9});.+buil/i], [n, [q, "Generic"]]], engine: [[/windows.+ edge\/([\w\.]+)/i], [r, [o, "EdgeHTML"]], [/webkit\/537\.36.+chrome\/(?!27)([\w\.]+)/i], [r, [o, "Blink"]], [/(presto)\/([\w\.]+)/i, /(webkit|trident|netfront|netsurf|amaya|lynx|w3m|goanna)\/([\w\.]+)/i, /ekioh(flow)\/([\w\.]+)/i, /(khtml|tasman|links)[\/ ]\(?([\w\.]+)/i, /(icab)[\/ ]([23]\.[\d\.]+)/i, /\b(libweb)/i], [o, r], [/rv\:([\w\.]{1,9})\b.+(gecko)/i], [r, o]], os: [[/microsoft (windows) (vista|xp)/i], [o, r], [/(windows) nt 6\.2; (arm)/i, /(windows (?:phone(?: os)?|mobile))[\/ ]?([\d\.\w ]*)/i, /(windows)[\/ ]?([ntce\d\. ]+\w)(?!.+xbox)/i], [o, [r, Z, $]], [/(win(?=3|9|n)|win 9x )([nt\d\.]+)/i], [[o, "Windows"], [r, Z, $]], [/ip[honead]{2,4}\b(?:.*os ([\w]+) like mac|; opera)/i, /ios;fbsv\/([\d\.]+)/i, /cfnetwork\/.+darwin/i], [[r, /_/g, "."], [o, "iOS"]], [/(mac os x) ?([\w\. ]*)/i, /(macintosh|mac_powerpc\b)(?!.+haiku)/i], [[o, S], [r, /_/g, "."]], [/droid ([\w\.]+)\b.+(android[- ]x86|harmonyos)/i], [r, o], [/(android|webos|qnx|bada|rim tablet os|maemo|meego|sailfish)[-\/ ]?([\w\.]*)/i, /(blackberry)\w*\/([\w\.]*)/i, /(tizen|kaios)[\/ ]([\w\.]+)/i, /\((series40);/i], [o, r], [/\(bb(10);/i], [r, [o, C]], [/(?:symbian ?os|symbos|s60(?=;)|series60)[-\/ ]?([\w\.]*)/i], [r, [o, "Symbian"]], [/mozilla\/[\d\.]+ \((?:mobile|tablet|tv|mobile; [\w ]+); rv:.+ gecko\/([\w\.]+)/i], [r, [o, F + " OS"]], [/web0s;.+rt(tv)/i, /\b(?:hp)?wos(?:browser)?\/([\w\.]+)/i], [r, [o, "webOS"]], [/watch(?: ?os[,\/]|\d,\d\/)([\d\.]+)/i], [r, [o, "watchOS"]], [/crkey\/([\d\.]+)/i], [r, [o, E + "cast"]], [/(cros) [\w]+(?:\)| ([\w\.]+)\b)/i], [[o, R], r], [/panasonic;(viera)/i, /(netrange)mmh/i, /(nettv)\/(\d+\.[\w\.]+)/i, /(nintendo|playstation) ([wids345portablevuch]+)/i, /(xbox); +xbox ([^\);]+)/i, /\b(joli|palm)\b ?(?:os)?\/?([\w\.]*)/i, /(mint)[\/\(\) ]?(\w*)/i, /(mageia|vectorlinux)[; ]/i, /([kxln]?ubuntu|debian|suse|opensuse|gentoo|arch(?= linux)|slackware|fedora|mandriva|centos|pclinuxos|red ?hat|zenwalk|linpus|raspbian|plan 9|minix|risc os|contiki|deepin|manjaro|elementary os|sabayon|linspire)(?: gnu\/linux)?(?: enterprise)?(?:[- ]linux)?(?:-gnu)?[-\/ ]?(?!chrom|package)([-\w\.]*)/i, /(hurd|linux) ?([\w\.]*)/i, /(gnu) ?([\w\.]*)/i, /\b([-frentopcghs]{0,5}bsd|dragonfly)[\/ ]?(?!amd|[ix346]{1,2}86)([\w\.]*)/i, /(haiku) (\w+)/i], [o, r], [/(sunos) ?([\w\.\d]*)/i], [[o, "Solaris"], r], [/((?:open)?solaris)[-\/ ]?([\w\.]*)/i, /(aix) ((\d)(?=\.|\)| )[\w\.])*/i, /\b(beos|os\/2|amigaos|morphos|openvms|fuchsia|hp-ux|serenityos)/i, /(unix) ?([\w\.]*)/i], [o, r]] }, aa = function(a2, b2) {
-              if (typeof a2 === k && (b2 = a2, a2 = h), !(this instanceof aa)) return new aa(a2, b2).getResult();
-              var c2 = typeof g2 !== j && g2.navigator ? g2.navigator : h, d2 = a2 || (c2 && c2.userAgent ? c2.userAgent : ""), e3 = c2 && c2.userAgentData ? c2.userAgentData : h, f3 = b2 ? T(_, b2) : _, t2 = c2 && c2.userAgent == d2;
-              return this.getBrowser = function() {
-                var a3, b3 = {};
-                return b3[o] = h, b3[r] = h, Y.call(b3, d2, f3.browser), b3[m] = typeof (a3 = b3[r]) === l ? a3.replace(/[^\d\.]/g, "").split(".")[0] : h, t2 && c2 && c2.brave && typeof c2.brave.isBrave == i && (b3[o] = "Brave"), b3;
-              }, this.getCPU = function() {
-                var a3 = {};
-                return a3[s] = h, Y.call(a3, d2, f3.cpu), a3;
-              }, this.getDevice = function() {
-                var a3 = {};
-                return a3[q] = h, a3[n] = h, a3[p] = h, Y.call(a3, d2, f3.device), t2 && !a3[p] && e3 && e3.mobile && (a3[p] = u), t2 && "Macintosh" == a3[n] && c2 && typeof c2.standalone !== j && c2.maxTouchPoints && c2.maxTouchPoints > 2 && (a3[n] = "iPad", a3[p] = v), a3;
-              }, this.getEngine = function() {
-                var a3 = {};
-                return a3[o] = h, a3[r] = h, Y.call(a3, d2, f3.engine), a3;
-              }, this.getOS = function() {
-                var a3 = {};
-                return a3[o] = h, a3[r] = h, Y.call(a3, d2, f3.os), t2 && !a3[o] && e3 && "Unknown" != e3.platform && (a3[o] = e3.platform.replace(/chrome os/i, R).replace(/macos/i, S)), a3;
-              }, this.getResult = function() {
-                return { ua: this.getUA(), browser: this.getBrowser(), engine: this.getEngine(), os: this.getOS(), device: this.getDevice(), cpu: this.getCPU() };
-              }, this.getUA = function() {
-                return d2;
-              }, this.setUA = function(a3) {
-                return d2 = typeof a3 === l && a3.length > 350 ? X(a3, 350) : a3, this;
-              }, this.setUA(d2), this;
-            };
-            aa.VERSION = "1.0.35", aa.BROWSER = U([o, r, m]), aa.CPU = U([s]), aa.DEVICE = U([n, q, p, t, u, w, v, x, y]), aa.ENGINE = aa.OS = U([o, r]), typeof f2 !== j ? (e2.exports && (f2 = e2.exports = aa), f2.UAParser = aa) : c.amdO ? void 0 === (d = function() {
-              return aa;
-            }.call(b, c, b, a)) || (a.exports = d) : typeof g2 !== j && (g2.UAParser = aa);
-            var ab = typeof g2 !== j && (g2.jQuery || g2.Zepto);
-            if (ab && !ab.ua) {
-              var ac = new aa();
-              ab.ua = ac.getResult(), ab.ua.get = function() {
-                return ac.getUA();
-              }, ab.ua.set = function(a2) {
-                ac.setUA(a2);
-                var b2 = ac.getResult();
-                for (var c2 in b2) ab.ua[c2] = b2[c2];
-              };
-            }
-          }("object" == typeof window ? window : this);
-        } }, f = {};
-        function g(a2) {
-          var b2 = f[a2];
-          if (void 0 !== b2) return b2.exports;
-          var c2 = f[a2] = { exports: {} }, d2 = true;
-          try {
-            e[a2].call(c2.exports, c2, c2.exports, g), d2 = false;
-          } finally {
-            d2 && delete f[a2];
-          }
-          return c2.exports;
-        }
-        g.ab = "//", a.exports = g(226);
-      })();
-    }, 5356: (a) => {
-      "use strict";
-      a.exports = (init_node_buffer(), __toCommonJS(node_buffer_exports));
-    }, 5392: (a, b, c) => {
-      "use strict";
-      Object.defineProperty(b, "__esModule", { value: true }), !function(a2, b2) {
-        for (var c2 in b2) Object.defineProperty(a2, c2, { enumerable: true, get: b2[c2] });
-      }(b, { getTestReqInfo: function() {
-        return g;
-      }, withRequest: function() {
-        return f;
-      } });
-      let d = new (c(5521)).AsyncLocalStorage();
-      function e(a2, b2) {
-        let c2 = b2.header(a2, "next-test-proxy-port");
-        if (!c2) return;
-        let d2 = b2.url(a2);
-        return { url: d2, proxyPort: Number(c2), testData: b2.header(a2, "next-test-data") || "" };
-      }
-      function f(a2, b2, c2) {
-        let f2 = e(a2, b2);
-        return f2 ? d.run(f2, c2) : c2();
-      }
-      function g(a2, b2) {
-        let c2 = d.getStore();
-        return c2 || (a2 && b2 ? e(a2, b2) : void 0);
-      }
-    }, 5521: (a) => {
-      "use strict";
-      a.exports = (init_node_async_hooks(), __toCommonJS(node_async_hooks_exports));
-    }, 5663: (a) => {
-      (() => {
-        "use strict";
-        "undefined" != typeof __nccwpck_require__ && (__nccwpck_require__.ab = "//");
-        var b = {};
-        (() => {
-          b.parse = function(b2, c2) {
-            if ("string" != typeof b2) throw TypeError("argument str must be a string");
-            for (var e2 = {}, f = b2.split(d), g = (c2 || {}).decode || a2, h = 0; h < f.length; h++) {
-              var i = f[h], j = i.indexOf("=");
-              if (!(j < 0)) {
-                var k = i.substr(0, j).trim(), l = i.substr(++j, i.length).trim();
-                '"' == l[0] && (l = l.slice(1, -1)), void 0 == e2[k] && (e2[k] = function(a3, b3) {
-                  try {
-                    return b3(a3);
-                  } catch (b4) {
-                    return a3;
-                  }
-                }(l, g));
-              }
-            }
-            return e2;
-          }, b.serialize = function(a3, b2, d2) {
-            var f = d2 || {}, g = f.encode || c;
-            if ("function" != typeof g) throw TypeError("option encode is invalid");
-            if (!e.test(a3)) throw TypeError("argument name is invalid");
-            var h = g(b2);
-            if (h && !e.test(h)) throw TypeError("argument val is invalid");
-            var i = a3 + "=" + h;
-            if (null != f.maxAge) {
-              var j = f.maxAge - 0;
-              if (isNaN(j) || !isFinite(j)) throw TypeError("option maxAge is invalid");
-              i += "; Max-Age=" + Math.floor(j);
-            }
-            if (f.domain) {
-              if (!e.test(f.domain)) throw TypeError("option domain is invalid");
-              i += "; Domain=" + f.domain;
-            }
-            if (f.path) {
-              if (!e.test(f.path)) throw TypeError("option path is invalid");
-              i += "; Path=" + f.path;
-            }
-            if (f.expires) {
-              if ("function" != typeof f.expires.toUTCString) throw TypeError("option expires is invalid");
-              i += "; Expires=" + f.expires.toUTCString();
-            }
-            if (f.httpOnly && (i += "; HttpOnly"), f.secure && (i += "; Secure"), f.sameSite) switch ("string" == typeof f.sameSite ? f.sameSite.toLowerCase() : f.sameSite) {
-              case true:
-              case "strict":
-                i += "; SameSite=Strict";
-                break;
-              case "lax":
-                i += "; SameSite=Lax";
-                break;
-              case "none":
-                i += "; SameSite=None";
-                break;
-              default:
-                throw TypeError("option sameSite is invalid");
-            }
-            return i;
-          };
-          var a2 = decodeURIComponent, c = encodeURIComponent, d = /; */, e = /^[\u0009\u0020-\u007e\u0080-\u00ff]+$/;
-        })(), a.exports = b;
-      })();
-    }, 6153: (a, b, c) => {
-      "use strict";
-      c.r(b), c.d(b, { default: () => f, hkdf: () => f });
-      let d = async (a2, b2, c2, d2, e2) => {
-        let { crypto: { subtle: f2 } } = (() => {
-          if ("undefined" != typeof globalThis) return globalThis;
-          if ("undefined" != typeof self) return self;
-          if ("undefined" != typeof window) return window;
-          throw Error("unable to locate global object");
-        })();
-        return new Uint8Array(await f2.deriveBits({ name: "HKDF", hash: `SHA-${a2.substr(3)}`, salt: c2, info: d2 }, await f2.importKey("raw", b2, "HKDF", false, ["deriveBits"]), e2 << 3));
-      };
-      function e(a2, b2) {
-        if ("string" == typeof a2) return new TextEncoder().encode(a2);
-        if (!(a2 instanceof Uint8Array)) throw TypeError(`"${b2}"" must be an instance of Uint8Array or a string`);
-        return a2;
-      }
-      async function f(a2, b2, c2, f2, g) {
-        return d(function(a3) {
-          switch (a3) {
-            case "sha256":
-            case "sha384":
-            case "sha512":
-            case "sha1":
-              return a3;
-            default:
-              throw TypeError('unsupported "digest" value');
-          }
-        }(a2), function(a3) {
-          let b3 = e(a3, "ikm");
-          if (!b3.byteLength) throw TypeError('"ikm" must be at least one byte in length');
-          return b3;
-        }(b2), e(c2, "salt"), function(a3) {
-          let b3 = e(a3, "info");
-          if (b3.byteLength > 1024) throw TypeError('"info" must not contain more than 1024 bytes');
-          return b3;
-        }(f2), function(a3, b3) {
-          if ("number" != typeof a3 || !Number.isInteger(a3) || a3 < 1) throw TypeError('"keylen" must be a positive integer');
-          if (a3 > 255 * (parseInt(b3.substr(3), 10) >> 3 || 20)) throw TypeError('"keylen" too large');
-          return a3;
-        }(g, a2));
-      }
-    }, 6440: (a, b) => {
-      "use strict";
-      Symbol.for("react.transitional.element"), Symbol.for("react.portal"), Symbol.for("react.fragment"), Symbol.for("react.strict_mode"), Symbol.for("react.profiler"), Symbol.for("react.forward_ref"), Symbol.for("react.suspense"), Symbol.for("react.memo"), Symbol.for("react.lazy"), Symbol.iterator;
-      Object.prototype.hasOwnProperty, Object.assign;
-    }, 6522: (a) => {
-      a.exports = function(a2) {
-        return a2 && a2.__esModule ? a2 : { default: a2 };
-      }, a.exports.__esModule = true, a.exports.default = a.exports;
-    }, 6667: (a, b, c) => {
-      "use strict";
-      let d;
-      c.r(b), c.d(b, { default: () => bA });
-      var e, f = {};
-      async function g() {
-        return "_ENTRIES" in globalThis && _ENTRIES.middleware_instrumentation && await _ENTRIES.middleware_instrumentation;
-      }
-      c.r(f), c.d(f, { config: () => bw, middleware: () => bv });
-      let h = null;
-      async function i() {
-        if ("phase-production-build" === process.env.NEXT_PHASE) return;
-        h || (h = g());
-        let a10 = await h;
-        if (null == a10 ? void 0 : a10.register) try {
-          await a10.register();
-        } catch (a11) {
-          throw a11.message = `An error occurred while loading instrumentation hook: ${a11.message}`, a11;
-        }
-      }
-      async function j(...a10) {
-        let b2 = await g();
-        try {
-          var c2;
-          await (null == b2 || null == (c2 = b2.onRequestError) ? void 0 : c2.call(b2, ...a10));
-        } catch (a11) {
-          console.error("Error in instrumentation.onRequestError:", a11);
-        }
-      }
-      let k = null;
-      function l() {
-        return k || (k = i()), k;
-      }
-      function m(a10) {
-        return `The edge runtime does not support Node.js '${a10}' module.
-Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime`;
-      }
-      process !== c.g.process && (process.env = c.g.process.env, c.g.process = process);
-      try {
-        Object.defineProperty(globalThis, "__import_unsupported", { value: function(a10) {
-          let b2 = new Proxy(function() {
-          }, { get(b3, c2) {
-            if ("then" === c2) return {};
-            throw Object.defineProperty(Error(m(a10)), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-          }, construct() {
-            throw Object.defineProperty(Error(m(a10)), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-          }, apply(c2, d2, e2) {
-            if ("function" == typeof e2[0]) return e2[0](b2);
-            throw Object.defineProperty(Error(m(a10)), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-          } });
-          return new Proxy({}, { get: () => b2 });
-        }, enumerable: false, configurable: false });
-      } catch {
-      }
-      l();
-      class n extends Error {
-        constructor({ page: a10 }) {
-          super(`The middleware "${a10}" accepts an async API directly with the form:
-  
-  export function middleware(request, event) {
-    return NextResponse.redirect('/new-location')
-  }
-  
-  Read more: https://nextjs.org/docs/messages/middleware-new-signature
-  `);
-        }
-      }
-      class o extends Error {
-        constructor() {
-          super(`The request.page has been deprecated in favour of \`URLPattern\`.
-  Read more: https://nextjs.org/docs/messages/middleware-request-page
-  `);
-        }
-      }
-      class p extends Error {
-        constructor() {
-          super(`The request.ua has been removed in favour of \`userAgent\` function.
-  Read more: https://nextjs.org/docs/messages/middleware-parse-user-agent
-  `);
-        }
-      }
-      let q = "_N_T_", r = { shared: "shared", reactServerComponents: "rsc", serverSideRendering: "ssr", actionBrowser: "action-browser", apiNode: "api-node", apiEdge: "api-edge", middleware: "middleware", instrument: "instrument", edgeAsset: "edge-asset", appPagesBrowser: "app-pages-browser", pagesDirBrowser: "pages-dir-browser", pagesDirEdge: "pages-dir-edge", pagesDirNode: "pages-dir-node" };
-      function s(a10) {
-        var b2, c2, d2, e2, f2, g2 = [], h2 = 0;
-        function i2() {
-          for (; h2 < a10.length && /\s/.test(a10.charAt(h2)); ) h2 += 1;
-          return h2 < a10.length;
-        }
-        for (; h2 < a10.length; ) {
-          for (b2 = h2, f2 = false; i2(); ) if ("," === (c2 = a10.charAt(h2))) {
-            for (d2 = h2, h2 += 1, i2(), e2 = h2; h2 < a10.length && "=" !== (c2 = a10.charAt(h2)) && ";" !== c2 && "," !== c2; ) h2 += 1;
-            h2 < a10.length && "=" === a10.charAt(h2) ? (f2 = true, h2 = e2, g2.push(a10.substring(b2, d2)), b2 = h2) : h2 = d2 + 1;
-          } else h2 += 1;
-          (!f2 || h2 >= a10.length) && g2.push(a10.substring(b2, a10.length));
-        }
-        return g2;
-      }
-      function t(a10) {
-        let b2 = {}, c2 = [];
-        if (a10) for (let [d2, e2] of a10.entries()) "set-cookie" === d2.toLowerCase() ? (c2.push(...s(e2)), b2[d2] = 1 === c2.length ? c2[0] : c2) : b2[d2] = e2;
-        return b2;
-      }
-      function u(a10) {
-        try {
-          return String(new URL(String(a10)));
-        } catch (b2) {
-          throw Object.defineProperty(Error(`URL is malformed "${String(a10)}". Please use only absolute URLs - https://nextjs.org/docs/messages/middleware-relative-urls`, { cause: b2 }), "__NEXT_ERROR_CODE", { value: "E61", enumerable: false, configurable: true });
-        }
-      }
-      ({ ...r, GROUP: { builtinReact: [r.reactServerComponents, r.actionBrowser], serverOnly: [r.reactServerComponents, r.actionBrowser, r.instrument, r.middleware], neutralTarget: [r.apiNode, r.apiEdge], clientOnly: [r.serverSideRendering, r.appPagesBrowser], bundled: [r.reactServerComponents, r.actionBrowser, r.serverSideRendering, r.appPagesBrowser, r.shared, r.instrument, r.middleware], appPages: [r.reactServerComponents, r.serverSideRendering, r.appPagesBrowser, r.actionBrowser] } });
-      let v = Symbol("response"), w = Symbol("passThrough"), x = Symbol("waitUntil");
-      class y {
-        constructor(a10, b2) {
-          this[w] = false, this[x] = b2 ? { kind: "external", function: b2 } : { kind: "internal", promises: [] };
-        }
-        respondWith(a10) {
-          this[v] || (this[v] = Promise.resolve(a10));
-        }
-        passThroughOnException() {
-          this[w] = true;
-        }
-        waitUntil(a10) {
-          if ("external" === this[x].kind) return (0, this[x].function)(a10);
-          this[x].promises.push(a10);
-        }
-      }
-      class z extends y {
-        constructor(a10) {
-          var b2;
-          super(a10.request, null == (b2 = a10.context) ? void 0 : b2.waitUntil), this.sourcePage = a10.page;
-        }
-        get request() {
-          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-        }
-        respondWith() {
-          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-        }
-      }
-      function A(a10) {
-        return a10.replace(/\/$/, "") || "/";
-      }
-      function B(a10) {
-        let b2 = a10.indexOf("#"), c2 = a10.indexOf("?"), d2 = c2 > -1 && (b2 < 0 || c2 < b2);
-        return d2 || b2 > -1 ? { pathname: a10.substring(0, d2 ? c2 : b2), query: d2 ? a10.substring(c2, b2 > -1 ? b2 : void 0) : "", hash: b2 > -1 ? a10.slice(b2) : "" } : { pathname: a10, query: "", hash: "" };
-      }
-      function C(a10, b2) {
-        if (!a10.startsWith("/") || !b2) return a10;
-        let { pathname: c2, query: d2, hash: e2 } = B(a10);
-        return "" + b2 + c2 + d2 + e2;
-      }
-      function D(a10, b2) {
-        if (!a10.startsWith("/") || !b2) return a10;
-        let { pathname: c2, query: d2, hash: e2 } = B(a10);
-        return "" + c2 + b2 + d2 + e2;
-      }
-      function E(a10, b2) {
-        if ("string" != typeof a10) return false;
-        let { pathname: c2 } = B(a10);
-        return c2 === b2 || c2.startsWith(b2 + "/");
-      }
-      let F = /* @__PURE__ */ new WeakMap();
-      function G(a10, b2) {
-        let c2;
-        if (!b2) return { pathname: a10 };
-        let d2 = F.get(b2);
-        d2 || (d2 = b2.map((a11) => a11.toLowerCase()), F.set(b2, d2));
-        let e2 = a10.split("/", 2);
-        if (!e2[1]) return { pathname: a10 };
-        let f2 = e2[1].toLowerCase(), g2 = d2.indexOf(f2);
-        return g2 < 0 ? { pathname: a10 } : (c2 = b2[g2], { pathname: a10 = a10.slice(c2.length + 1) || "/", detectedLocale: c2 });
-      }
-      let H = /(?!^https?:\/\/)(127(?:\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)){3}|\[::1\]|localhost)/;
-      function I(a10, b2) {
-        return new URL(String(a10).replace(H, "localhost"), b2 && String(b2).replace(H, "localhost"));
-      }
-      let J = Symbol("NextURLInternal");
-      class K {
-        constructor(a10, b2, c2) {
-          let d2, e2;
-          "object" == typeof b2 && "pathname" in b2 || "string" == typeof b2 ? (d2 = b2, e2 = c2 || {}) : e2 = c2 || b2 || {}, this[J] = { url: I(a10, d2 ?? e2.base), options: e2, basePath: "" }, this.analyze();
-        }
-        analyze() {
-          var a10, b2, c2, d2, e2;
-          let f2 = function(a11, b3) {
-            var c3, d3;
-            let { basePath: e3, i18n: f3, trailingSlash: g3 } = null != (c3 = b3.nextConfig) ? c3 : {}, h3 = { pathname: a11, trailingSlash: "/" !== a11 ? a11.endsWith("/") : g3 };
-            e3 && E(h3.pathname, e3) && (h3.pathname = function(a12, b4) {
-              if (!E(a12, b4)) return a12;
-              let c4 = a12.slice(b4.length);
-              return c4.startsWith("/") ? c4 : "/" + c4;
-            }(h3.pathname, e3), h3.basePath = e3);
-            let i2 = h3.pathname;
-            if (h3.pathname.startsWith("/_next/data/") && h3.pathname.endsWith(".json")) {
-              let a12 = h3.pathname.replace(/^\/_next\/data\//, "").replace(/\.json$/, "").split("/");
-              h3.buildId = a12[0], i2 = "index" !== a12[1] ? "/" + a12.slice(1).join("/") : "/", true === b3.parseData && (h3.pathname = i2);
-            }
-            if (f3) {
-              let a12 = b3.i18nProvider ? b3.i18nProvider.analyze(h3.pathname) : G(h3.pathname, f3.locales);
-              h3.locale = a12.detectedLocale, h3.pathname = null != (d3 = a12.pathname) ? d3 : h3.pathname, !a12.detectedLocale && h3.buildId && (a12 = b3.i18nProvider ? b3.i18nProvider.analyze(i2) : G(i2, f3.locales)).detectedLocale && (h3.locale = a12.detectedLocale);
-            }
-            return h3;
-          }(this[J].url.pathname, { nextConfig: this[J].options.nextConfig, parseData: true, i18nProvider: this[J].options.i18nProvider }), g2 = function(a11, b3) {
-            let c3;
-            if ((null == b3 ? void 0 : b3.host) && !Array.isArray(b3.host)) c3 = b3.host.toString().split(":", 1)[0];
-            else {
-              if (!a11.hostname) return;
-              c3 = a11.hostname;
-            }
-            return c3.toLowerCase();
-          }(this[J].url, this[J].options.headers);
-          this[J].domainLocale = this[J].options.i18nProvider ? this[J].options.i18nProvider.detectDomainLocale(g2) : function(a11, b3, c3) {
-            if (a11) for (let f3 of (c3 && (c3 = c3.toLowerCase()), a11)) {
-              var d3, e3;
-              if (b3 === (null == (d3 = f3.domain) ? void 0 : d3.split(":", 1)[0].toLowerCase()) || c3 === f3.defaultLocale.toLowerCase() || (null == (e3 = f3.locales) ? void 0 : e3.some((a12) => a12.toLowerCase() === c3))) return f3;
-            }
-          }(null == (b2 = this[J].options.nextConfig) || null == (a10 = b2.i18n) ? void 0 : a10.domains, g2);
-          let h2 = (null == (c2 = this[J].domainLocale) ? void 0 : c2.defaultLocale) || (null == (e2 = this[J].options.nextConfig) || null == (d2 = e2.i18n) ? void 0 : d2.defaultLocale);
-          this[J].url.pathname = f2.pathname, this[J].defaultLocale = h2, this[J].basePath = f2.basePath ?? "", this[J].buildId = f2.buildId, this[J].locale = f2.locale ?? h2, this[J].trailingSlash = f2.trailingSlash;
-        }
-        formatPathname() {
-          var a10;
-          let b2;
-          return b2 = function(a11, b3, c2, d2) {
-            if (!b3 || b3 === c2) return a11;
-            let e2 = a11.toLowerCase();
-            return !d2 && (E(e2, "/api") || E(e2, "/" + b3.toLowerCase())) ? a11 : C(a11, "/" + b3);
-          }((a10 = { basePath: this[J].basePath, buildId: this[J].buildId, defaultLocale: this[J].options.forceLocale ? void 0 : this[J].defaultLocale, locale: this[J].locale, pathname: this[J].url.pathname, trailingSlash: this[J].trailingSlash }).pathname, a10.locale, a10.buildId ? void 0 : a10.defaultLocale, a10.ignorePrefix), (a10.buildId || !a10.trailingSlash) && (b2 = A(b2)), a10.buildId && (b2 = D(C(b2, "/_next/data/" + a10.buildId), "/" === a10.pathname ? "index.json" : ".json")), b2 = C(b2, a10.basePath), !a10.buildId && a10.trailingSlash ? b2.endsWith("/") ? b2 : D(b2, "/") : A(b2);
-        }
-        formatSearch() {
-          return this[J].url.search;
-        }
-        get buildId() {
-          return this[J].buildId;
-        }
-        set buildId(a10) {
-          this[J].buildId = a10;
-        }
-        get locale() {
-          return this[J].locale ?? "";
-        }
-        set locale(a10) {
-          var b2, c2;
-          if (!this[J].locale || !(null == (c2 = this[J].options.nextConfig) || null == (b2 = c2.i18n) ? void 0 : b2.locales.includes(a10))) throw Object.defineProperty(TypeError(`The NextURL configuration includes no locale "${a10}"`), "__NEXT_ERROR_CODE", { value: "E597", enumerable: false, configurable: true });
-          this[J].locale = a10;
-        }
-        get defaultLocale() {
-          return this[J].defaultLocale;
-        }
-        get domainLocale() {
-          return this[J].domainLocale;
-        }
-        get searchParams() {
-          return this[J].url.searchParams;
-        }
-        get host() {
-          return this[J].url.host;
-        }
-        set host(a10) {
-          this[J].url.host = a10;
-        }
-        get hostname() {
-          return this[J].url.hostname;
-        }
-        set hostname(a10) {
-          this[J].url.hostname = a10;
-        }
-        get port() {
-          return this[J].url.port;
-        }
-        set port(a10) {
-          this[J].url.port = a10;
-        }
-        get protocol() {
-          return this[J].url.protocol;
-        }
-        set protocol(a10) {
-          this[J].url.protocol = a10;
-        }
-        get href() {
-          let a10 = this.formatPathname(), b2 = this.formatSearch();
-          return `${this.protocol}//${this.host}${a10}${b2}${this.hash}`;
-        }
-        set href(a10) {
-          this[J].url = I(a10), this.analyze();
-        }
-        get origin() {
-          return this[J].url.origin;
-        }
-        get pathname() {
-          return this[J].url.pathname;
-        }
-        set pathname(a10) {
-          this[J].url.pathname = a10;
-        }
-        get hash() {
-          return this[J].url.hash;
-        }
-        set hash(a10) {
-          this[J].url.hash = a10;
-        }
-        get search() {
-          return this[J].url.search;
-        }
-        set search(a10) {
-          this[J].url.search = a10;
-        }
-        get password() {
-          return this[J].url.password;
-        }
-        set password(a10) {
-          this[J].url.password = a10;
-        }
-        get username() {
-          return this[J].url.username;
-        }
-        set username(a10) {
-          this[J].url.username = a10;
-        }
-        get basePath() {
-          return this[J].basePath;
-        }
-        set basePath(a10) {
-          this[J].basePath = a10.startsWith("/") ? a10 : `/${a10}`;
-        }
-        toString() {
-          return this.href;
-        }
-        toJSON() {
-          return this.href;
-        }
-        [Symbol.for("edge-runtime.inspect.custom")]() {
-          return { href: this.href, origin: this.origin, protocol: this.protocol, username: this.username, password: this.password, host: this.host, hostname: this.hostname, port: this.port, pathname: this.pathname, search: this.search, searchParams: this.searchParams, hash: this.hash };
-        }
-        clone() {
-          return new K(String(this), this[J].options);
-        }
-      }
-      var L = c(8443);
-      let M = Symbol("internal request");
-      class N extends Request {
-        constructor(a10, b2 = {}) {
-          let c2 = "string" != typeof a10 && "url" in a10 ? a10.url : String(a10);
-          u(c2), a10 instanceof Request ? super(a10, b2) : super(c2, b2);
-          let d2 = new K(c2, { headers: t(this.headers), nextConfig: b2.nextConfig });
-          this[M] = { cookies: new L.RequestCookies(this.headers), nextUrl: d2, url: d2.toString() };
-        }
-        [Symbol.for("edge-runtime.inspect.custom")]() {
-          return { cookies: this.cookies, nextUrl: this.nextUrl, url: this.url, bodyUsed: this.bodyUsed, cache: this.cache, credentials: this.credentials, destination: this.destination, headers: Object.fromEntries(this.headers), integrity: this.integrity, keepalive: this.keepalive, method: this.method, mode: this.mode, redirect: this.redirect, referrer: this.referrer, referrerPolicy: this.referrerPolicy, signal: this.signal };
-        }
-        get cookies() {
-          return this[M].cookies;
-        }
-        get nextUrl() {
-          return this[M].nextUrl;
-        }
-        get page() {
-          throw new o();
-        }
-        get ua() {
-          throw new p();
-        }
-        get url() {
-          return this[M].url;
-        }
-      }
-      class O {
-        static get(a10, b2, c2) {
-          let d2 = Reflect.get(a10, b2, c2);
-          return "function" == typeof d2 ? d2.bind(a10) : d2;
-        }
-        static set(a10, b2, c2, d2) {
-          return Reflect.set(a10, b2, c2, d2);
-        }
-        static has(a10, b2) {
-          return Reflect.has(a10, b2);
-        }
-        static deleteProperty(a10, b2) {
-          return Reflect.deleteProperty(a10, b2);
-        }
-      }
-      let P = Symbol("internal response"), Q = /* @__PURE__ */ new Set([301, 302, 303, 307, 308]);
-      function R(a10, b2) {
-        var c2;
-        if (null == a10 || null == (c2 = a10.request) ? void 0 : c2.headers) {
-          if (!(a10.request.headers instanceof Headers)) throw Object.defineProperty(Error("request.headers must be an instance of Headers"), "__NEXT_ERROR_CODE", { value: "E119", enumerable: false, configurable: true });
-          let c3 = [];
-          for (let [d2, e2] of a10.request.headers) b2.set("x-middleware-request-" + d2, e2), c3.push(d2);
-          b2.set("x-middleware-override-headers", c3.join(","));
-        }
-      }
-      class S extends Response {
-        constructor(a10, b2 = {}) {
-          super(a10, b2);
-          let c2 = this.headers, d2 = new Proxy(new L.ResponseCookies(c2), { get(a11, d3, e2) {
-            switch (d3) {
-              case "delete":
-              case "set":
-                return (...e3) => {
-                  let f2 = Reflect.apply(a11[d3], a11, e3), g2 = new Headers(c2);
-                  return f2 instanceof L.ResponseCookies && c2.set("x-middleware-set-cookie", f2.getAll().map((a12) => (0, L.stringifyCookie)(a12)).join(",")), R(b2, g2), f2;
-                };
-              default:
-                return O.get(a11, d3, e2);
-            }
-          } });
-          this[P] = { cookies: d2, url: b2.url ? new K(b2.url, { headers: t(c2), nextConfig: b2.nextConfig }) : void 0 };
-        }
-        [Symbol.for("edge-runtime.inspect.custom")]() {
-          return { cookies: this.cookies, url: this.url, body: this.body, bodyUsed: this.bodyUsed, headers: Object.fromEntries(this.headers), ok: this.ok, redirected: this.redirected, status: this.status, statusText: this.statusText, type: this.type };
-        }
-        get cookies() {
-          return this[P].cookies;
-        }
-        static json(a10, b2) {
-          let c2 = Response.json(a10, b2);
-          return new S(c2.body, c2);
-        }
-        static redirect(a10, b2) {
-          let c2 = "number" == typeof b2 ? b2 : (null == b2 ? void 0 : b2.status) ?? 307;
-          if (!Q.has(c2)) throw Object.defineProperty(RangeError('Failed to execute "redirect" on "response": Invalid status code'), "__NEXT_ERROR_CODE", { value: "E529", enumerable: false, configurable: true });
-          let d2 = "object" == typeof b2 ? b2 : {}, e2 = new Headers(null == d2 ? void 0 : d2.headers);
-          return e2.set("Location", u(a10)), new S(null, { ...d2, headers: e2, status: c2 });
-        }
-        static rewrite(a10, b2) {
-          let c2 = new Headers(null == b2 ? void 0 : b2.headers);
-          return c2.set("x-middleware-rewrite", u(a10)), R(b2, c2), new S(null, { ...b2, headers: c2 });
-        }
-        static next(a10) {
-          let b2 = new Headers(null == a10 ? void 0 : a10.headers);
-          return b2.set("x-middleware-next", "1"), R(a10, b2), new S(null, { ...a10, headers: b2 });
-        }
-      }
-      function T(a10, b2) {
-        let c2 = "string" == typeof b2 ? new URL(b2) : b2, d2 = new URL(a10, b2), e2 = d2.origin === c2.origin;
-        return { url: e2 ? d2.toString().slice(c2.origin.length) : d2.toString(), isRelative: e2 };
-      }
-      let U = "next-router-prefetch", V = ["rsc", "next-router-state-tree", U, "next-hmr-refresh", "next-router-segment-prefetch"], W = "_rsc";
-      class X extends Error {
-        constructor() {
-          super("Headers cannot be modified. Read more: https://nextjs.org/docs/app/api-reference/functions/headers");
-        }
-        static callable() {
-          throw new X();
-        }
-      }
-      class Y extends Headers {
-        constructor(a10) {
-          super(), this.headers = new Proxy(a10, { get(b2, c2, d2) {
-            if ("symbol" == typeof c2) return O.get(b2, c2, d2);
-            let e2 = c2.toLowerCase(), f2 = Object.keys(a10).find((a11) => a11.toLowerCase() === e2);
-            if (void 0 !== f2) return O.get(b2, f2, d2);
-          }, set(b2, c2, d2, e2) {
-            if ("symbol" == typeof c2) return O.set(b2, c2, d2, e2);
-            let f2 = c2.toLowerCase(), g2 = Object.keys(a10).find((a11) => a11.toLowerCase() === f2);
-            return O.set(b2, g2 ?? c2, d2, e2);
-          }, has(b2, c2) {
-            if ("symbol" == typeof c2) return O.has(b2, c2);
-            let d2 = c2.toLowerCase(), e2 = Object.keys(a10).find((a11) => a11.toLowerCase() === d2);
-            return void 0 !== e2 && O.has(b2, e2);
-          }, deleteProperty(b2, c2) {
-            if ("symbol" == typeof c2) return O.deleteProperty(b2, c2);
-            let d2 = c2.toLowerCase(), e2 = Object.keys(a10).find((a11) => a11.toLowerCase() === d2);
-            return void 0 === e2 || O.deleteProperty(b2, e2);
-          } });
-        }
-        static seal(a10) {
-          return new Proxy(a10, { get(a11, b2, c2) {
-            switch (b2) {
-              case "append":
-              case "delete":
-              case "set":
-                return X.callable;
-              default:
-                return O.get(a11, b2, c2);
-            }
-          } });
-        }
-        merge(a10) {
-          return Array.isArray(a10) ? a10.join(", ") : a10;
-        }
-        static from(a10) {
-          return a10 instanceof Headers ? a10 : new Y(a10);
-        }
-        append(a10, b2) {
-          let c2 = this.headers[a10];
-          "string" == typeof c2 ? this.headers[a10] = [c2, b2] : Array.isArray(c2) ? c2.push(b2) : this.headers[a10] = b2;
-        }
-        delete(a10) {
-          delete this.headers[a10];
-        }
-        get(a10) {
-          let b2 = this.headers[a10];
-          return void 0 !== b2 ? this.merge(b2) : null;
-        }
-        has(a10) {
-          return void 0 !== this.headers[a10];
-        }
-        set(a10, b2) {
-          this.headers[a10] = b2;
-        }
-        forEach(a10, b2) {
-          for (let [c2, d2] of this.entries()) a10.call(b2, d2, c2, this);
-        }
-        *entries() {
-          for (let a10 of Object.keys(this.headers)) {
-            let b2 = a10.toLowerCase(), c2 = this.get(b2);
-            yield [b2, c2];
-          }
-        }
-        *keys() {
-          for (let a10 of Object.keys(this.headers)) {
-            let b2 = a10.toLowerCase();
-            yield b2;
-          }
-        }
-        *values() {
-          for (let a10 of Object.keys(this.headers)) {
-            let b2 = this.get(a10);
-            yield b2;
-          }
-        }
-        [Symbol.iterator]() {
-          return this.entries();
-        }
-      }
-      let Z = Object.defineProperty(Error("Invariant: AsyncLocalStorage accessed in runtime where it is not available"), "__NEXT_ERROR_CODE", { value: "E504", enumerable: false, configurable: true });
-      class $ {
-        disable() {
-          throw Z;
-        }
-        getStore() {
-        }
-        run() {
-          throw Z;
-        }
-        exit() {
-          throw Z;
-        }
-        enterWith() {
-          throw Z;
-        }
-        static bind(a10) {
-          return a10;
-        }
-      }
-      let _ = "undefined" != typeof globalThis && globalThis.AsyncLocalStorage;
-      function aa() {
-        return _ ? new _() : new $();
-      }
-      let ab = aa();
-      class ac extends Error {
-        constructor() {
-          super("Cookies can only be modified in a Server Action or Route Handler. Read more: https://nextjs.org/docs/app/api-reference/functions/cookies#options");
-        }
-        static callable() {
-          throw new ac();
-        }
-      }
-      class ad {
-        static seal(a10) {
-          return new Proxy(a10, { get(a11, b2, c2) {
-            switch (b2) {
-              case "clear":
-              case "delete":
-              case "set":
-                return ac.callable;
-              default:
-                return O.get(a11, b2, c2);
-            }
-          } });
-        }
-      }
-      let ae = Symbol.for("next.mutated.cookies");
-      class af {
-        static wrap(a10, b2) {
-          let c2 = new L.ResponseCookies(new Headers());
-          for (let b3 of a10.getAll()) c2.set(b3);
-          let d2 = [], e2 = /* @__PURE__ */ new Set(), f2 = () => {
-            let a11 = ab.getStore();
-            if (a11 && (a11.pathWasRevalidated = true), d2 = c2.getAll().filter((a12) => e2.has(a12.name)), b2) {
-              let a12 = [];
-              for (let b3 of d2) {
-                let c3 = new L.ResponseCookies(new Headers());
-                c3.set(b3), a12.push(c3.toString());
-              }
-              b2(a12);
-            }
-          }, g2 = new Proxy(c2, { get(a11, b3, c3) {
-            switch (b3) {
-              case ae:
-                return d2;
-              case "delete":
-                return function(...b4) {
-                  e2.add("string" == typeof b4[0] ? b4[0] : b4[0].name);
-                  try {
-                    return a11.delete(...b4), g2;
-                  } finally {
-                    f2();
-                  }
-                };
-              case "set":
-                return function(...b4) {
-                  e2.add("string" == typeof b4[0] ? b4[0] : b4[0].name);
-                  try {
-                    return a11.set(...b4), g2;
-                  } finally {
-                    f2();
-                  }
-                };
-              default:
-                return O.get(a11, b3, c3);
-            }
-          } });
-          return g2;
-        }
-      }
-      function ag(a10, b2) {
-        if ("action" !== a10.phase) throw new ac();
-      }
-      var ah = function(a10) {
-        return a10.handleRequest = "BaseServer.handleRequest", a10.run = "BaseServer.run", a10.pipe = "BaseServer.pipe", a10.getStaticHTML = "BaseServer.getStaticHTML", a10.render = "BaseServer.render", a10.renderToResponseWithComponents = "BaseServer.renderToResponseWithComponents", a10.renderToResponse = "BaseServer.renderToResponse", a10.renderToHTML = "BaseServer.renderToHTML", a10.renderError = "BaseServer.renderError", a10.renderErrorToResponse = "BaseServer.renderErrorToResponse", a10.renderErrorToHTML = "BaseServer.renderErrorToHTML", a10.render404 = "BaseServer.render404", a10;
-      }(ah || {}), ai = function(a10) {
-        return a10.loadDefaultErrorComponents = "LoadComponents.loadDefaultErrorComponents", a10.loadComponents = "LoadComponents.loadComponents", a10;
-      }(ai || {}), aj = function(a10) {
-        return a10.getRequestHandler = "NextServer.getRequestHandler", a10.getServer = "NextServer.getServer", a10.getServerRequestHandler = "NextServer.getServerRequestHandler", a10.createServer = "createServer.createServer", a10;
-      }(aj || {}), ak = function(a10) {
-        return a10.compression = "NextNodeServer.compression", a10.getBuildId = "NextNodeServer.getBuildId", a10.createComponentTree = "NextNodeServer.createComponentTree", a10.clientComponentLoading = "NextNodeServer.clientComponentLoading", a10.getLayoutOrPageModule = "NextNodeServer.getLayoutOrPageModule", a10.generateStaticRoutes = "NextNodeServer.generateStaticRoutes", a10.generateFsStaticRoutes = "NextNodeServer.generateFsStaticRoutes", a10.generatePublicRoutes = "NextNodeServer.generatePublicRoutes", a10.generateImageRoutes = "NextNodeServer.generateImageRoutes.route", a10.sendRenderResult = "NextNodeServer.sendRenderResult", a10.proxyRequest = "NextNodeServer.proxyRequest", a10.runApi = "NextNodeServer.runApi", a10.render = "NextNodeServer.render", a10.renderHTML = "NextNodeServer.renderHTML", a10.imageOptimizer = "NextNodeServer.imageOptimizer", a10.getPagePath = "NextNodeServer.getPagePath", a10.getRoutesManifest = "NextNodeServer.getRoutesManifest", a10.findPageComponents = "NextNodeServer.findPageComponents", a10.getFontManifest = "NextNodeServer.getFontManifest", a10.getServerComponentManifest = "NextNodeServer.getServerComponentManifest", a10.getRequestHandler = "NextNodeServer.getRequestHandler", a10.renderToHTML = "NextNodeServer.renderToHTML", a10.renderError = "NextNodeServer.renderError", a10.renderErrorToHTML = "NextNodeServer.renderErrorToHTML", a10.render404 = "NextNodeServer.render404", a10.startResponse = "NextNodeServer.startResponse", a10.route = "route", a10.onProxyReq = "onProxyReq", a10.apiResolver = "apiResolver", a10.internalFetch = "internalFetch", a10;
-      }(ak || {}), al = function(a10) {
-        return a10.startServer = "startServer.startServer", a10;
-      }(al || {}), am = function(a10) {
-        return a10.getServerSideProps = "Render.getServerSideProps", a10.getStaticProps = "Render.getStaticProps", a10.renderToString = "Render.renderToString", a10.renderDocument = "Render.renderDocument", a10.createBodyResult = "Render.createBodyResult", a10;
-      }(am || {}), an = function(a10) {
-        return a10.renderToString = "AppRender.renderToString", a10.renderToReadableStream = "AppRender.renderToReadableStream", a10.getBodyResult = "AppRender.getBodyResult", a10.fetch = "AppRender.fetch", a10;
-      }(an || {}), ao = function(a10) {
-        return a10.executeRoute = "Router.executeRoute", a10;
-      }(ao || {}), ap = function(a10) {
-        return a10.runHandler = "Node.runHandler", a10;
-      }(ap || {}), aq = function(a10) {
-        return a10.runHandler = "AppRouteRouteHandlers.runHandler", a10;
-      }(aq || {}), ar = function(a10) {
-        return a10.generateMetadata = "ResolveMetadata.generateMetadata", a10.generateViewport = "ResolveMetadata.generateViewport", a10;
-      }(ar || {}), as = function(a10) {
-        return a10.execute = "Middleware.execute", a10;
-      }(as || {});
-      let at = /* @__PURE__ */ new Set(["Middleware.execute", "BaseServer.handleRequest", "Render.getServerSideProps", "Render.getStaticProps", "AppRender.fetch", "AppRender.getBodyResult", "Render.renderDocument", "Node.runHandler", "AppRouteRouteHandlers.runHandler", "ResolveMetadata.generateMetadata", "ResolveMetadata.generateViewport", "NextNodeServer.createComponentTree", "NextNodeServer.findPageComponents", "NextNodeServer.getLayoutOrPageModule", "NextNodeServer.startResponse", "NextNodeServer.clientComponentLoading"]), au = /* @__PURE__ */ new Set(["NextNodeServer.findPageComponents", "NextNodeServer.createComponentTree", "NextNodeServer.clientComponentLoading"]);
-      function av(a10) {
-        return null !== a10 && "object" == typeof a10 && "then" in a10 && "function" == typeof a10.then;
-      }
-      let aw = process.env.NEXT_OTEL_PERFORMANCE_PREFIX, { context: ax, propagation: ay, trace: az, SpanStatusCode: aA, SpanKind: aB, ROOT_CONTEXT: aC } = d = c(3817);
-      class aD extends Error {
-        constructor(a10, b2) {
-          super(), this.bubble = a10, this.result = b2;
-        }
-      }
-      let aE = (a10, b2) => {
-        (function(a11) {
-          return "object" == typeof a11 && null !== a11 && a11 instanceof aD;
-        })(b2) && b2.bubble ? a10.setAttribute("next.bubble", true) : (b2 && (a10.recordException(b2), a10.setAttribute("error.type", b2.name)), a10.setStatus({ code: aA.ERROR, message: null == b2 ? void 0 : b2.message })), a10.end();
-      }, aF = /* @__PURE__ */ new Map(), aG = d.createContextKey("next.rootSpanId"), aH = 0, aI = { set(a10, b2, c2) {
-        a10.push({ key: b2, value: c2 });
-      } };
-      class aJ {
-        getTracerInstance() {
-          return az.getTracer("next.js", "0.0.1");
-        }
-        getContext() {
-          return ax;
-        }
-        getTracePropagationData() {
-          let a10 = ax.active(), b2 = [];
-          return ay.inject(a10, b2, aI), b2;
-        }
-        getActiveScopeSpan() {
-          return az.getSpan(null == ax ? void 0 : ax.active());
-        }
-        withPropagatedContext(a10, b2, c2) {
-          let d2 = ax.active();
-          if (az.getSpanContext(d2)) return b2();
-          let e2 = ay.extract(d2, a10, c2);
-          return ax.with(e2, b2);
-        }
-        trace(...a10) {
-          var b2;
-          let [c2, d2, e2] = a10, { fn: f2, options: g2 } = "function" == typeof d2 ? { fn: d2, options: {} } : { fn: e2, options: { ...d2 } }, h2 = g2.spanName ?? c2;
-          if (!at.has(c2) && "1" !== process.env.NEXT_OTEL_VERBOSE || g2.hideSpan) return f2();
-          let i2 = this.getSpanContext((null == g2 ? void 0 : g2.parentSpan) ?? this.getActiveScopeSpan()), j2 = false;
-          i2 ? (null == (b2 = az.getSpanContext(i2)) ? void 0 : b2.isRemote) && (j2 = true) : (i2 = (null == ax ? void 0 : ax.active()) ?? aC, j2 = true);
-          let k2 = aH++;
-          return g2.attributes = { "next.span_name": h2, "next.span_type": c2, ...g2.attributes }, ax.with(i2.setValue(aG, k2), () => this.getTracerInstance().startActiveSpan(h2, g2, (a11) => {
-            let b3;
-            aw && c2 && au.has(c2) && (b3 = "performance" in globalThis && "measure" in performance ? globalThis.performance.now() : void 0);
-            let d3 = false, e3 = () => {
-              !d3 && (d3 = true, aF.delete(k2), b3 && performance.measure(`${aw}:next-${(c2.split(".").pop() || "").replace(/[A-Z]/g, (a12) => "-" + a12.toLowerCase())}`, { start: b3, end: performance.now() }));
-            };
-            if (j2 && aF.set(k2, new Map(Object.entries(g2.attributes ?? {}))), f2.length > 1) try {
-              return f2(a11, (b4) => aE(a11, b4));
-            } catch (b4) {
-              throw aE(a11, b4), b4;
-            } finally {
-              e3();
-            }
-            try {
-              let b4 = f2(a11);
-              if (av(b4)) return b4.then((b5) => (a11.end(), b5)).catch((b5) => {
-                throw aE(a11, b5), b5;
-              }).finally(e3);
-              return a11.end(), e3(), b4;
-            } catch (b4) {
-              throw aE(a11, b4), e3(), b4;
-            }
-          }));
-        }
-        wrap(...a10) {
-          let b2 = this, [c2, d2, e2] = 3 === a10.length ? a10 : [a10[0], {}, a10[1]];
-          return at.has(c2) || "1" === process.env.NEXT_OTEL_VERBOSE ? function() {
-            let a11 = d2;
-            "function" == typeof a11 && "function" == typeof e2 && (a11 = a11.apply(this, arguments));
-            let f2 = arguments.length - 1, g2 = arguments[f2];
-            if ("function" != typeof g2) return b2.trace(c2, a11, () => e2.apply(this, arguments));
-            {
-              let d3 = b2.getContext().bind(ax.active(), g2);
-              return b2.trace(c2, a11, (a12, b3) => (arguments[f2] = function(a13) {
-                return null == b3 || b3(a13), d3.apply(this, arguments);
-              }, e2.apply(this, arguments)));
-            }
-          } : e2;
-        }
-        startSpan(...a10) {
-          let [b2, c2] = a10, d2 = this.getSpanContext((null == c2 ? void 0 : c2.parentSpan) ?? this.getActiveScopeSpan());
-          return this.getTracerInstance().startSpan(b2, c2, d2);
-        }
-        getSpanContext(a10) {
-          return a10 ? az.setSpan(ax.active(), a10) : void 0;
-        }
-        getRootSpanAttributes() {
-          let a10 = ax.active().getValue(aG);
-          return aF.get(a10);
-        }
-        setRootSpanAttribute(a10, b2) {
-          let c2 = ax.active().getValue(aG), d2 = aF.get(c2);
-          d2 && d2.set(a10, b2);
-        }
-      }
-      let aK = (() => {
-        let a10 = new aJ();
-        return () => a10;
-      })(), aL = "__prerender_bypass";
-      Symbol("__next_preview_data"), Symbol(aL);
-      class aM {
-        constructor(a10, b2, c2, d2) {
-          var e2;
-          let f2 = a10 && function(a11, b3) {
-            let c3 = Y.from(a11.headers);
-            return { isOnDemandRevalidate: c3.get("x-prerender-revalidate") === b3.previewModeId, revalidateOnlyGenerated: c3.has("x-prerender-revalidate-if-generated") };
-          }(b2, a10).isOnDemandRevalidate, g2 = null == (e2 = c2.get(aL)) ? void 0 : e2.value;
-          this._isEnabled = !!(!f2 && g2 && a10 && g2 === a10.previewModeId), this._previewModeId = null == a10 ? void 0 : a10.previewModeId, this._mutableCookies = d2;
-        }
-        get isEnabled() {
-          return this._isEnabled;
-        }
-        enable() {
-          if (!this._previewModeId) throw Object.defineProperty(Error("Invariant: previewProps missing previewModeId this should never happen"), "__NEXT_ERROR_CODE", { value: "E93", enumerable: false, configurable: true });
-          this._mutableCookies.set({ name: aL, value: this._previewModeId, httpOnly: true, sameSite: "none", secure: true, path: "/" }), this._isEnabled = true;
-        }
-        disable() {
-          this._mutableCookies.set({ name: aL, value: "", httpOnly: true, sameSite: "none", secure: true, path: "/", expires: /* @__PURE__ */ new Date(0) }), this._isEnabled = false;
-        }
-      }
-      function aN(a10, b2) {
-        if ("x-middleware-set-cookie" in a10.headers && "string" == typeof a10.headers["x-middleware-set-cookie"]) {
-          let c2 = a10.headers["x-middleware-set-cookie"], d2 = new Headers();
-          for (let a11 of s(c2)) d2.append("set-cookie", a11);
-          for (let a11 of new L.ResponseCookies(d2).getAll()) b2.set(a11);
-        }
-      }
-      let aO = aa();
-      var aP = c(1213), aQ = c.n(aP);
-      class aR extends Error {
-        constructor(a10, b2) {
-          super("Invariant: " + (a10.endsWith(".") ? a10 : a10 + ".") + " This is a bug in Next.js.", b2), this.name = "InvariantError";
-        }
-      }
-      class aS {
-        constructor(a10, b2, c2) {
-          this.prev = null, this.next = null, this.key = a10, this.data = b2, this.size = c2;
-        }
-      }
-      class aT {
-        constructor() {
-          this.prev = null, this.next = null;
-        }
-      }
-      class aU {
-        constructor(a10, b2, c2) {
-          this.cache = /* @__PURE__ */ new Map(), this.totalSize = 0, this.maxSize = a10, this.calculateSize = b2, this.onEvict = c2, this.head = new aT(), this.tail = new aT(), this.head.next = this.tail, this.tail.prev = this.head;
-        }
-        addToHead(a10) {
-          a10.prev = this.head, a10.next = this.head.next, this.head.next.prev = a10, this.head.next = a10;
-        }
-        removeNode(a10) {
-          a10.prev.next = a10.next, a10.next.prev = a10.prev;
-        }
-        moveToHead(a10) {
-          this.removeNode(a10), this.addToHead(a10);
-        }
-        removeTail() {
-          let a10 = this.tail.prev;
-          return this.removeNode(a10), a10;
-        }
-        set(a10, b2) {
-          let c2 = (null == this.calculateSize ? void 0 : this.calculateSize.call(this, b2)) ?? 1;
-          if (c2 <= 0) throw Object.defineProperty(Error(`LRUCache: calculateSize returned ${c2}, but size must be > 0. Items with size 0 would never be evicted, causing unbounded cache growth.`), "__NEXT_ERROR_CODE", { value: "E789", enumerable: false, configurable: true });
-          if (c2 > this.maxSize) return console.warn("Single item size exceeds maxSize"), false;
-          let d2 = this.cache.get(a10);
-          if (d2) d2.data = b2, this.totalSize = this.totalSize - d2.size + c2, d2.size = c2, this.moveToHead(d2);
-          else {
-            let d3 = new aS(a10, b2, c2);
-            this.cache.set(a10, d3), this.addToHead(d3), this.totalSize += c2;
-          }
-          for (; this.totalSize > this.maxSize && this.cache.size > 0; ) {
-            let a11 = this.removeTail();
-            this.cache.delete(a11.key), this.totalSize -= a11.size, null == this.onEvict || this.onEvict.call(this, a11.key, a11.data);
-          }
-          return true;
-        }
-        has(a10) {
-          return this.cache.has(a10);
-        }
-        get(a10) {
-          let b2 = this.cache.get(a10);
-          if (b2) return this.moveToHead(b2), b2.data;
-        }
-        *[Symbol.iterator]() {
-          let a10 = this.head.next;
-          for (; a10 && a10 !== this.tail; ) {
-            let b2 = a10;
-            yield [b2.key, b2.data], a10 = a10.next;
-          }
-        }
-        remove(a10) {
-          let b2 = this.cache.get(a10);
-          b2 && (this.removeNode(b2), this.cache.delete(a10), this.totalSize -= b2.size);
-        }
-        get size() {
-          return this.cache.size;
-        }
-        get currentSize() {
-          return this.totalSize;
-        }
-      }
-      c(5356).Buffer, new aU(52428800, (a10) => a10.size), process.env.NEXT_PRIVATE_DEBUG_CACHE && console.debug.bind(console, "DefaultCacheHandler:"), process.env.NEXT_PRIVATE_DEBUG_CACHE && ((a10, ...b2) => {
-        console.log(`use-cache: ${a10}`, ...b2);
-      }), Symbol.for("@next/cache-handlers");
-      let aV = Symbol.for("@next/cache-handlers-map"), aW = Symbol.for("@next/cache-handlers-set"), aX = globalThis;
-      function aY() {
-        if (aX[aV]) return aX[aV].entries();
-      }
-      async function aZ(a10, b2) {
-        if (!a10) return b2();
-        let c2 = a$(a10);
-        try {
-          return await b2();
-        } finally {
-          let b3 = function(a11, b4) {
-            let c3 = new Set(a11.pendingRevalidatedTags), d2 = new Set(a11.pendingRevalidateWrites);
-            return { pendingRevalidatedTags: b4.pendingRevalidatedTags.filter((a12) => !c3.has(a12)), pendingRevalidates: Object.fromEntries(Object.entries(b4.pendingRevalidates).filter(([b5]) => !(b5 in a11.pendingRevalidates))), pendingRevalidateWrites: b4.pendingRevalidateWrites.filter((a12) => !d2.has(a12)) };
-          }(c2, a$(a10));
-          await a0(a10, b3);
-        }
-      }
-      function a$(a10) {
-        return { pendingRevalidatedTags: a10.pendingRevalidatedTags ? [...a10.pendingRevalidatedTags] : [], pendingRevalidates: { ...a10.pendingRevalidates }, pendingRevalidateWrites: a10.pendingRevalidateWrites ? [...a10.pendingRevalidateWrites] : [] };
-      }
-      async function a_(a10, b2) {
-        if (0 === a10.length) return;
-        let c2 = [];
-        b2 && c2.push(b2.revalidateTag(a10));
-        let d2 = function() {
-          if (aX[aW]) return aX[aW].values();
-        }();
-        if (d2) for (let b3 of d2) c2.push(b3.expireTags(...a10));
-        await Promise.all(c2);
-      }
-      async function a0(a10, b2) {
-        let c2 = (null == b2 ? void 0 : b2.pendingRevalidatedTags) ?? a10.pendingRevalidatedTags ?? [], d2 = (null == b2 ? void 0 : b2.pendingRevalidates) ?? a10.pendingRevalidates ?? {}, e2 = (null == b2 ? void 0 : b2.pendingRevalidateWrites) ?? a10.pendingRevalidateWrites ?? [];
-        return Promise.all([a_(c2, a10.incrementalCache), ...Object.values(d2), ...e2]);
-      }
-      let a1 = Object.defineProperty(Error("Invariant: AsyncLocalStorage accessed in runtime where it is not available"), "__NEXT_ERROR_CODE", { value: "E504", enumerable: false, configurable: true });
-      class a2 {
-        disable() {
-          throw a1;
-        }
-        getStore() {
-        }
-        run() {
-          throw a1;
-        }
-        exit() {
-          throw a1;
-        }
-        enterWith() {
-          throw a1;
-        }
-        static bind(a10) {
-          return a10;
-        }
-      }
-      let a3 = "undefined" != typeof globalThis && globalThis.AsyncLocalStorage, a4 = a3 ? new a3() : new a2();
-      class a5 {
-        constructor({ waitUntil: a10, onClose: b2, onTaskError: c2 }) {
-          this.workUnitStores = /* @__PURE__ */ new Set(), this.waitUntil = a10, this.onClose = b2, this.onTaskError = c2, this.callbackQueue = new (aQ())(), this.callbackQueue.pause();
-        }
-        after(a10) {
-          if (av(a10)) this.waitUntil || a6(), this.waitUntil(a10.catch((a11) => this.reportTaskError("promise", a11)));
-          else if ("function" == typeof a10) this.addCallback(a10);
-          else throw Object.defineProperty(Error("`after()`: Argument must be a promise or a function"), "__NEXT_ERROR_CODE", { value: "E50", enumerable: false, configurable: true });
-        }
-        addCallback(a10) {
-          var b2;
-          this.waitUntil || a6();
-          let c2 = aO.getStore();
-          c2 && this.workUnitStores.add(c2);
-          let d2 = a4.getStore(), e2 = d2 ? d2.rootTaskSpawnPhase : null == c2 ? void 0 : c2.phase;
-          this.runCallbacksOnClosePromise || (this.runCallbacksOnClosePromise = this.runCallbacksOnClose(), this.waitUntil(this.runCallbacksOnClosePromise));
-          let f2 = (b2 = async () => {
-            try {
-              await a4.run({ rootTaskSpawnPhase: e2 }, () => a10());
-            } catch (a11) {
-              this.reportTaskError("function", a11);
-            }
-          }, a3 ? a3.bind(b2) : a2.bind(b2));
-          this.callbackQueue.add(f2);
-        }
-        async runCallbacksOnClose() {
-          return await new Promise((a10) => this.onClose(a10)), this.runCallbacks();
-        }
-        async runCallbacks() {
-          if (0 === this.callbackQueue.size) return;
-          for (let a11 of this.workUnitStores) a11.phase = "after";
-          let a10 = ab.getStore();
-          if (!a10) throw Object.defineProperty(new aR("Missing workStore in AfterContext.runCallbacks"), "__NEXT_ERROR_CODE", { value: "E547", enumerable: false, configurable: true });
-          return aZ(a10, () => (this.callbackQueue.start(), this.callbackQueue.onIdle()));
-        }
-        reportTaskError(a10, b2) {
-          if (console.error("promise" === a10 ? "A promise passed to `after()` rejected:" : "An error occurred in a function passed to `after()`:", b2), this.onTaskError) try {
-            null == this.onTaskError || this.onTaskError.call(this, b2);
-          } catch (a11) {
-            console.error(Object.defineProperty(new aR("`onTaskError` threw while handling an error thrown from an `after` task", { cause: a11 }), "__NEXT_ERROR_CODE", { value: "E569", enumerable: false, configurable: true }));
-          }
-        }
-      }
-      function a6() {
-        throw Object.defineProperty(Error("`after()` will not work correctly, because `waitUntil` is not available in the current environment."), "__NEXT_ERROR_CODE", { value: "E91", enumerable: false, configurable: true });
-      }
-      function a7(a10) {
-        let b2, c2 = { then: (d2, e2) => (b2 || (b2 = a10()), b2.then((a11) => {
-          c2.value = a11;
-        }).catch(() => {
-        }), b2.then(d2, e2)) };
-        return c2;
-      }
-      class a8 {
-        onClose(a10) {
-          if (this.isClosed) throw Object.defineProperty(Error("Cannot subscribe to a closed CloseController"), "__NEXT_ERROR_CODE", { value: "E365", enumerable: false, configurable: true });
-          this.target.addEventListener("close", a10), this.listeners++;
-        }
-        dispatchClose() {
-          if (this.isClosed) throw Object.defineProperty(Error("Cannot close a CloseController multiple times"), "__NEXT_ERROR_CODE", { value: "E229", enumerable: false, configurable: true });
-          this.listeners > 0 && this.target.dispatchEvent(new Event("close")), this.isClosed = true;
-        }
-        constructor() {
-          this.target = new EventTarget(), this.listeners = 0, this.isClosed = false;
-        }
-      }
-      function a9() {
-        return { previewModeId: process.env.__NEXT_PREVIEW_MODE_ID || "", previewModeSigningKey: process.env.__NEXT_PREVIEW_MODE_SIGNING_KEY || "", previewModeEncryptionKey: process.env.__NEXT_PREVIEW_MODE_ENCRYPTION_KEY || "" };
-      }
-      let ba = Symbol.for("@next/request-context");
-      async function bb(a10, b2, c2) {
-        let d2 = [], e2 = c2 && c2.size > 0;
-        for (let b3 of ((a11) => {
-          let b4 = ["/layout"];
-          if (a11.startsWith("/")) {
-            let c3 = a11.split("/");
-            for (let a12 = 1; a12 < c3.length + 1; a12++) {
-              let d3 = c3.slice(0, a12).join("/");
-              d3 && (d3.endsWith("/page") || d3.endsWith("/route") || (d3 = `${d3}${!d3.endsWith("/") ? "/" : ""}layout`), b4.push(d3));
-            }
-          }
-          return b4;
-        })(a10)) b3 = `${q}${b3}`, d2.push(b3);
-        if (b2.pathname && !e2) {
-          let a11 = `${q}${b2.pathname}`;
-          d2.push(a11);
-        }
-        return { tags: d2, expirationsByCacheKind: function(a11) {
-          let b3 = /* @__PURE__ */ new Map(), c3 = aY();
-          if (c3) for (let [d3, e3] of c3) "getExpiration" in e3 && b3.set(d3, a7(async () => e3.getExpiration(...a11)));
-          return b3;
-        }(d2) };
-      }
-      class bc extends N {
-        constructor(a10) {
-          super(a10.input, a10.init), this.sourcePage = a10.page;
-        }
-        get request() {
-          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-        }
-        respondWith() {
-          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-        }
-        waitUntil() {
-          throw Object.defineProperty(new n({ page: this.sourcePage }), "__NEXT_ERROR_CODE", { value: "E394", enumerable: false, configurable: true });
-        }
-      }
-      let bd = { keys: (a10) => Array.from(a10.keys()), get: (a10, b2) => a10.get(b2) ?? void 0 }, be = (a10, b2) => aK().withPropagatedContext(a10.headers, b2, bd), bf = false;
-      async function bg(a10) {
-        var b2;
-        let d2, e2;
-        if (!bf && (bf = true, "true" === process.env.NEXT_PRIVATE_TEST_PROXY)) {
-          let { interceptTestApis: a11, wrapRequestHandler: b3 } = c(7720);
-          a11(), be = b3(be);
-        }
-        await l();
-        let f2 = void 0 !== globalThis.__BUILD_MANIFEST;
-        a10.request.url = a10.request.url.replace(/\.rsc($|\?)/, "$1");
-        let g2 = a10.bypassNextUrl ? new URL(a10.request.url) : new K(a10.request.url, { headers: a10.request.headers, nextConfig: a10.request.nextConfig });
-        for (let a11 of [...g2.searchParams.keys()]) {
-          let b3 = g2.searchParams.getAll(a11), c2 = function(a12) {
-            for (let b4 of ["nxtP", "nxtI"]) if (a12 !== b4 && a12.startsWith(b4)) return a12.substring(b4.length);
-            return null;
-          }(a11);
-          if (c2) {
-            for (let a12 of (g2.searchParams.delete(c2), b3)) g2.searchParams.append(c2, a12);
-            g2.searchParams.delete(a11);
-          }
-        }
-        let h2 = process.env.__NEXT_BUILD_ID || "";
-        "buildId" in g2 && (h2 = g2.buildId || "", g2.buildId = "");
-        let i2 = function(a11) {
-          let b3 = new Headers();
-          for (let [c2, d3] of Object.entries(a11)) for (let a12 of Array.isArray(d3) ? d3 : [d3]) void 0 !== a12 && ("number" == typeof a12 && (a12 = a12.toString()), b3.append(c2, a12));
-          return b3;
-        }(a10.request.headers), j2 = i2.has("x-nextjs-data"), k2 = "1" === i2.get("rsc");
-        j2 && "/index" === g2.pathname && (g2.pathname = "/");
-        let m2 = /* @__PURE__ */ new Map();
-        if (!f2) for (let a11 of V) {
-          let b3 = i2.get(a11);
-          null !== b3 && (m2.set(a11, b3), i2.delete(a11));
-        }
-        let n2 = g2.searchParams.get(W), o2 = new bc({ page: a10.page, input: function(a11) {
-          let b3 = "string" == typeof a11, c2 = b3 ? new URL(a11) : a11;
-          return c2.searchParams.delete(W), b3 ? c2.toString() : c2;
-        }(g2).toString(), init: { body: a10.request.body, headers: i2, method: a10.request.method, nextConfig: a10.request.nextConfig, signal: a10.request.signal } });
-        j2 && Object.defineProperty(o2, "__isData", { enumerable: false, value: true }), !globalThis.__incrementalCacheShared && a10.IncrementalCache && (globalThis.__incrementalCache = new a10.IncrementalCache({ CurCacheHandler: a10.incrementalCacheHandler, minimalMode: true, fetchCacheKeyPrefix: "", dev: false, requestHeaders: a10.request.headers, getPrerenderManifest: () => ({ version: -1, routes: {}, dynamicRoutes: {}, notFoundRoutes: [], preview: a9() }) }));
-        let p2 = a10.request.waitUntil ?? (null == (b2 = function() {
-          let a11 = globalThis[ba];
-          return null == a11 ? void 0 : a11.get();
-        }()) ? void 0 : b2.waitUntil), q2 = new z({ request: o2, page: a10.page, context: p2 ? { waitUntil: p2 } : void 0 });
-        if ((d2 = await be(o2, () => {
-          if ("/middleware" === a10.page || "/src/middleware" === a10.page) {
-            let b3 = q2.waitUntil.bind(q2), c2 = new a8();
-            return aK().trace(as.execute, { spanName: `middleware ${o2.method} ${o2.nextUrl.pathname}`, attributes: { "http.target": o2.nextUrl.pathname, "http.method": o2.method } }, async () => {
-              try {
-                var d3, f3, g3, i3, j3, k3;
-                let l2 = a9(), m3 = await bb("/", o2.nextUrl, null), n3 = (j3 = o2.nextUrl, k3 = (a11) => {
-                  e2 = a11;
-                }, function(a11, b4, c3, d4, e3, f4, g4, h3, i4, j4, k4, l3) {
-                  function m4(a12) {
-                    c3 && c3.setHeader("Set-Cookie", a12);
-                  }
-                  let n4 = {};
-                  return { type: "request", phase: a11, implicitTags: f4, url: { pathname: d4.pathname, search: d4.search ?? "" }, rootParams: e3, get headers() {
-                    return n4.headers || (n4.headers = function(a12) {
-                      let b5 = Y.from(a12);
-                      for (let a13 of V) b5.delete(a13);
-                      return Y.seal(b5);
-                    }(b4.headers)), n4.headers;
-                  }, get cookies() {
-                    if (!n4.cookies) {
-                      let a12 = new L.RequestCookies(Y.from(b4.headers));
-                      aN(b4, a12), n4.cookies = ad.seal(a12);
-                    }
-                    return n4.cookies;
-                  }, set cookies(value) {
-                    n4.cookies = value;
-                  }, get mutableCookies() {
-                    if (!n4.mutableCookies) {
-                      let a12 = function(a13, b5) {
-                        let c4 = new L.RequestCookies(Y.from(a13));
-                        return af.wrap(c4, b5);
-                      }(b4.headers, g4 || (c3 ? m4 : void 0));
-                      aN(b4, a12), n4.mutableCookies = a12;
-                    }
-                    return n4.mutableCookies;
-                  }, get userspaceMutableCookies() {
-                    return n4.userspaceMutableCookies || (n4.userspaceMutableCookies = function(a12) {
-                      let b5 = new Proxy(a12.mutableCookies, { get(c4, d5, e4) {
-                        switch (d5) {
-                          case "delete":
-                            return function(...d6) {
-                              return ag(a12, "cookies().delete"), c4.delete(...d6), b5;
-                            };
-                          case "set":
-                            return function(...d6) {
-                              return ag(a12, "cookies().set"), c4.set(...d6), b5;
-                            };
-                          default:
-                            return O.get(c4, d5, e4);
-                        }
-                      } });
-                      return b5;
-                    }(this)), n4.userspaceMutableCookies;
-                  }, get draftMode() {
-                    return n4.draftMode || (n4.draftMode = new aM(i4, b4, this.cookies, this.mutableCookies)), n4.draftMode;
-                  }, renderResumeDataCache: h3 ?? null, isHmrRefresh: j4, serverComponentsHmrCache: k4 || globalThis.__serverComponentsHmrCache, devFallbackParams: null };
-                }("action", o2, void 0, j3, {}, m3, k3, void 0, l2, false, void 0, null)), p3 = function({ page: a11, renderOpts: b4, isPrefetchRequest: c3, buildId: d4, previouslyRevalidatedTags: e3 }) {
-                  var f4;
-                  let g4 = !b4.shouldWaitOnAllReady && !b4.supportsDynamicResponse && !b4.isDraftMode && !b4.isPossibleServerAction, h3 = b4.dev ?? false, i4 = h3 || g4 && (!!process.env.NEXT_DEBUG_BUILD || "1" === process.env.NEXT_SSG_FETCH_METRICS), j4 = { isStaticGeneration: g4, page: a11, route: (f4 = a11.split("/").reduce((a12, b5, c4, d5) => b5 ? "(" === b5[0] && b5.endsWith(")") || "@" === b5[0] || ("page" === b5 || "route" === b5) && c4 === d5.length - 1 ? a12 : a12 + "/" + b5 : a12, "")).startsWith("/") ? f4 : "/" + f4, incrementalCache: b4.incrementalCache || globalThis.__incrementalCache, cacheLifeProfiles: b4.cacheLifeProfiles, isRevalidate: b4.isRevalidate, isBuildTimePrerendering: b4.nextExport, hasReadableErrorStacks: b4.hasReadableErrorStacks, fetchCache: b4.fetchCache, isOnDemandRevalidate: b4.isOnDemandRevalidate, isDraftMode: b4.isDraftMode, isPrefetchRequest: c3, buildId: d4, reactLoadableManifest: (null == b4 ? void 0 : b4.reactLoadableManifest) || {}, assetPrefix: (null == b4 ? void 0 : b4.assetPrefix) || "", afterContext: function(a12) {
-                    let { waitUntil: b5, onClose: c4, onAfterTaskError: d5 } = a12;
-                    return new a5({ waitUntil: b5, onClose: c4, onTaskError: d5 });
-                  }(b4), cacheComponentsEnabled: b4.experimental.cacheComponents, dev: h3, previouslyRevalidatedTags: e3, refreshTagsByCacheKind: function() {
-                    let a12 = /* @__PURE__ */ new Map(), b5 = aY();
-                    if (b5) for (let [c4, d5] of b5) "refreshTags" in d5 && a12.set(c4, a7(async () => d5.refreshTags()));
-                    return a12;
-                  }(), runInCleanSnapshot: a3 ? a3.snapshot() : function(a12, ...b5) {
-                    return a12(...b5);
-                  }, shouldTrackFetchMetrics: i4 };
-                  return b4.store = j4, j4;
-                }({ page: "/", renderOpts: { cacheLifeProfiles: null == (f3 = a10.request.nextConfig) || null == (d3 = f3.experimental) ? void 0 : d3.cacheLife, experimental: { isRoutePPREnabled: false, cacheComponents: false, authInterrupts: !!(null == (i3 = a10.request.nextConfig) || null == (g3 = i3.experimental) ? void 0 : g3.authInterrupts) }, supportsDynamicResponse: true, waitUntil: b3, onClose: c2.onClose.bind(c2), onAfterTaskError: void 0 }, isPrefetchRequest: "1" === o2.headers.get(U), buildId: h2 ?? "", previouslyRevalidatedTags: [] });
-                return await ab.run(p3, () => aO.run(n3, a10.handler, o2, q2));
-              } finally {
-                setTimeout(() => {
-                  c2.dispatchClose();
-                }, 0);
-              }
-            });
-          }
-          return a10.handler(o2, q2);
-        })) && !(d2 instanceof Response)) throw Object.defineProperty(TypeError("Expected an instance of Response to be returned"), "__NEXT_ERROR_CODE", { value: "E567", enumerable: false, configurable: true });
-        d2 && e2 && d2.headers.set("set-cookie", e2);
-        let r2 = null == d2 ? void 0 : d2.headers.get("x-middleware-rewrite");
-        if (d2 && r2 && (k2 || !f2)) {
-          let b3 = new K(r2, { forceLocale: true, headers: a10.request.headers, nextConfig: a10.request.nextConfig });
-          f2 || b3.host !== o2.nextUrl.host || (b3.buildId = h2 || b3.buildId, d2.headers.set("x-middleware-rewrite", String(b3)));
-          let { url: c2, isRelative: e3 } = T(b3.toString(), g2.toString());
-          !f2 && j2 && d2.headers.set("x-nextjs-rewrite", c2), k2 && e3 && (g2.pathname !== b3.pathname && d2.headers.set("x-nextjs-rewritten-path", b3.pathname), g2.search !== b3.search && d2.headers.set("x-nextjs-rewritten-query", b3.search.slice(1)));
-        }
-        if (d2 && r2 && k2 && n2) {
-          let a11 = new URL(r2);
-          a11.searchParams.has(W) || (a11.searchParams.set(W, n2), d2.headers.set("x-middleware-rewrite", a11.toString()));
-        }
-        let s2 = null == d2 ? void 0 : d2.headers.get("Location");
-        if (d2 && s2 && !f2) {
-          let b3 = new K(s2, { forceLocale: false, headers: a10.request.headers, nextConfig: a10.request.nextConfig });
-          d2 = new Response(d2.body, d2), b3.host === g2.host && (b3.buildId = h2 || b3.buildId, d2.headers.set("Location", b3.toString())), j2 && (d2.headers.delete("Location"), d2.headers.set("x-nextjs-redirect", T(b3.toString(), g2.toString()).url));
-        }
-        let t2 = d2 || S.next(), u2 = t2.headers.get("x-middleware-override-headers"), v2 = [];
-        if (u2) {
-          for (let [a11, b3] of m2) t2.headers.set(`x-middleware-request-${a11}`, b3), v2.push(a11);
-          v2.length > 0 && t2.headers.set("x-middleware-override-headers", u2 + "," + v2.join(","));
-        }
-        return { response: t2, waitUntil: ("internal" === q2[x].kind ? Promise.all(q2[x].promises).then(() => {
-        }) : void 0) ?? Promise.resolve(), fetchMetrics: o2.fetchMetrics };
-      }
-      var bh = c(1426);
-      c(4449), "undefined" == typeof URLPattern || URLPattern;
-      var bi = c(7814);
-      if (/* @__PURE__ */ new WeakMap(), bi.unstable_postpone, false === function(a10) {
-        return a10.includes("needs to bail out of prerendering at this point because it used") && a10.includes("Learn more: https://nextjs.org/docs/messages/ppr-caught-error");
-      }("Route %%% needs to bail out of prerendering at this point because it used ^^^. React throws this special object to indicate where. It should not be caught by your own try/catch. Learn more: https://nextjs.org/docs/messages/ppr-caught-error")) throw Object.defineProperty(Error("Invariant: isDynamicPostpone misidentified a postpone reason. This is a bug in Next.js"), "__NEXT_ERROR_CODE", { value: "E296", enumerable: false, configurable: true });
-      RegExp(`\\n\\s+at Suspense \\(<anonymous>\\)(?:(?!\\n\\s+at (?:body|div|main|section|article|aside|header|footer|nav|form|p|span|h1|h2|h3|h4|h5|h6) \\(<anonymous>\\))[\\s\\S])*?\\n\\s+at __next_root_layout_boundary__ \\([^\\n]*\\)`), RegExp(`\\n\\s+at __next_metadata_boundary__[\\n\\s]`), RegExp(`\\n\\s+at __next_viewport_boundary__[\\n\\s]`), RegExp(`\\n\\s+at __next_outlet_boundary__[\\n\\s]`), aa();
-      let { env: bj, stdout: bk } = (null == (e = globalThis) ? void 0 : e.process) ?? {}, bl = bj && !bj.NO_COLOR && (bj.FORCE_COLOR || (null == bk ? void 0 : bk.isTTY) && !bj.CI && "dumb" !== bj.TERM), bm = (a10, b2, c2, d2) => {
-        let e2 = a10.substring(0, d2) + c2, f2 = a10.substring(d2 + b2.length), g2 = f2.indexOf(b2);
-        return ~g2 ? e2 + bm(f2, b2, c2, g2) : e2 + f2;
-      }, bn = (a10, b2, c2 = a10) => bl ? (d2) => {
-        let e2 = "" + d2, f2 = e2.indexOf(b2, a10.length);
-        return ~f2 ? a10 + bm(e2, b2, c2, f2) + b2 : a10 + e2 + b2;
-      } : String, bo = bn("\x1B[1m", "\x1B[22m", "\x1B[22m\x1B[1m");
-      bn("\x1B[2m", "\x1B[22m", "\x1B[22m\x1B[2m"), bn("\x1B[3m", "\x1B[23m"), bn("\x1B[4m", "\x1B[24m"), bn("\x1B[7m", "\x1B[27m"), bn("\x1B[8m", "\x1B[28m"), bn("\x1B[9m", "\x1B[29m"), bn("\x1B[30m", "\x1B[39m");
-      let bp = bn("\x1B[31m", "\x1B[39m"), bq = bn("\x1B[32m", "\x1B[39m"), br = bn("\x1B[33m", "\x1B[39m");
-      bn("\x1B[34m", "\x1B[39m");
-      let bs = bn("\x1B[35m", "\x1B[39m");
-      bn("\x1B[38;2;173;127;168m", "\x1B[39m"), bn("\x1B[36m", "\x1B[39m");
-      let bt = bn("\x1B[37m", "\x1B[39m");
-      bn("\x1B[90m", "\x1B[39m"), bn("\x1B[40m", "\x1B[49m"), bn("\x1B[41m", "\x1B[49m"), bn("\x1B[42m", "\x1B[49m"), bn("\x1B[43m", "\x1B[49m"), bn("\x1B[44m", "\x1B[49m"), bn("\x1B[45m", "\x1B[49m"), bn("\x1B[46m", "\x1B[49m"), bn("\x1B[47m", "\x1B[49m"), bt(bo("\u25CB")), bp(bo("\u2A2F")), br(bo("\u26A0")), bt(bo(" ")), bq(bo("\u2713")), bs(bo("\xBB")), new aU(1e4, (a10) => a10.length), /* @__PURE__ */ new WeakMap();
-      let bu = process.env.AUTH_SECRET;
-      async function bv(a10) {
-        let b2 = a10.nextUrl.pathname, c2 = await (0, bh.getToken)({ req: a10, secret: bu }), d2 = "/" === b2 || ["/login", "/signup", "/api/auth", "/api/health", "/api/webhook", "/api/whatsapp", "/api/instagram", "/api/messages", "/api/agent", "/api/cron"].some((a11) => b2.startsWith(a11));
-        if (!c2 && !d2) {
-          let c3 = a10.nextUrl.clone();
-          return c3.pathname = "/login", c3.searchParams.set("redirectTo", b2), S.redirect(c3);
-        }
-        if (c2 && "/login" === b2) {
-          let b3 = a10.nextUrl.clone();
-          return b3.pathname = "/dashboard", S.redirect(b3);
-        }
-        return S.next({ request: a10 });
-      }
-      let bw = { matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"] };
-      Object.values({ NOT_FOUND: 404, FORBIDDEN: 403, UNAUTHORIZED: 401 });
-      let bx = { ...f }, by = bx.middleware || bx.default, bz = "/src/middleware";
-      if ("function" != typeof by) throw Object.defineProperty(Error(`The Middleware "${bz}" must export a \`middleware\` or a \`default\` function`), "__NEXT_ERROR_CODE", { value: "E120", enumerable: false, configurable: true });
-      function bA(a10) {
-        return bg({ ...a10, page: bz, handler: async (...a11) => {
-          try {
-            return await by(...a11);
-          } catch (e2) {
-            let b2 = a11[0], c2 = new URL(b2.url), d2 = c2.pathname + c2.search;
-            throw await j(e2, { path: d2, method: b2.method, headers: Object.fromEntries(b2.headers.entries()) }, { routerKind: "Pages Router", routePath: "/middleware", routeType: "middleware", revalidateReason: void 0 }), e2;
-          }
-        } });
-      }
-    }, 7720: (a, b, c) => {
-      "use strict";
-      Object.defineProperty(b, "__esModule", { value: true }), !function(a2, b2) {
-        for (var c2 in b2) Object.defineProperty(a2, c2, { enumerable: true, get: b2[c2] });
-      }(b, { interceptTestApis: function() {
-        return f;
-      }, wrapRequestHandler: function() {
-        return g;
-      } });
-      let d = c(5392), e = c(9165);
-      function f() {
-        return (0, e.interceptFetch)(c.g.fetch);
-      }
-      function g(a2) {
-        return (b2, c2) => (0, d.withRequest)(b2, e.reader, () => a2(b2, c2));
-      }
-    }, 7814: (a, b, c) => {
-      "use strict";
-      a.exports = c(6440);
-    }, 8443: (a) => {
-      "use strict";
-      var b = Object.defineProperty, c = Object.getOwnPropertyDescriptor, d = Object.getOwnPropertyNames, e = Object.prototype.hasOwnProperty, f = {};
-      function g(a2) {
-        var b2;
-        let c2 = ["path" in a2 && a2.path && `Path=${a2.path}`, "expires" in a2 && (a2.expires || 0 === a2.expires) && `Expires=${("number" == typeof a2.expires ? new Date(a2.expires) : a2.expires).toUTCString()}`, "maxAge" in a2 && "number" == typeof a2.maxAge && `Max-Age=${a2.maxAge}`, "domain" in a2 && a2.domain && `Domain=${a2.domain}`, "secure" in a2 && a2.secure && "Secure", "httpOnly" in a2 && a2.httpOnly && "HttpOnly", "sameSite" in a2 && a2.sameSite && `SameSite=${a2.sameSite}`, "partitioned" in a2 && a2.partitioned && "Partitioned", "priority" in a2 && a2.priority && `Priority=${a2.priority}`].filter(Boolean), d2 = `${a2.name}=${encodeURIComponent(null != (b2 = a2.value) ? b2 : "")}`;
-        return 0 === c2.length ? d2 : `${d2}; ${c2.join("; ")}`;
-      }
-      function h(a2) {
-        let b2 = /* @__PURE__ */ new Map();
-        for (let c2 of a2.split(/; */)) {
-          if (!c2) continue;
-          let a3 = c2.indexOf("=");
-          if (-1 === a3) {
-            b2.set(c2, "true");
-            continue;
-          }
-          let [d2, e2] = [c2.slice(0, a3), c2.slice(a3 + 1)];
-          try {
-            b2.set(d2, decodeURIComponent(null != e2 ? e2 : "true"));
-          } catch {
-          }
-        }
-        return b2;
-      }
-      function i(a2) {
-        if (!a2) return;
-        let [[b2, c2], ...d2] = h(a2), { domain: e2, expires: f2, httponly: g2, maxage: i2, path: l2, samesite: m2, secure: n, partitioned: o, priority: p } = Object.fromEntries(d2.map(([a3, b3]) => [a3.toLowerCase().replace(/-/g, ""), b3]));
-        {
-          var q, r, s = { name: b2, value: decodeURIComponent(c2), domain: e2, ...f2 && { expires: new Date(f2) }, ...g2 && { httpOnly: true }, ..."string" == typeof i2 && { maxAge: Number(i2) }, path: l2, ...m2 && { sameSite: j.includes(q = (q = m2).toLowerCase()) ? q : void 0 }, ...n && { secure: true }, ...p && { priority: k.includes(r = (r = p).toLowerCase()) ? r : void 0 }, ...o && { partitioned: true } };
-          let a3 = {};
-          for (let b3 in s) s[b3] && (a3[b3] = s[b3]);
-          return a3;
-        }
-      }
-      ((a2, c2) => {
-        for (var d2 in c2) b(a2, d2, { get: c2[d2], enumerable: true });
-      })(f, { RequestCookies: () => l, ResponseCookies: () => m, parseCookie: () => h, parseSetCookie: () => i, stringifyCookie: () => g }), a.exports = ((a2, f2, g2, h2) => {
-        if (f2 && "object" == typeof f2 || "function" == typeof f2) for (let i2 of d(f2)) e.call(a2, i2) || i2 === g2 || b(a2, i2, { get: () => f2[i2], enumerable: !(h2 = c(f2, i2)) || h2.enumerable });
-        return a2;
-      })(b({}, "__esModule", { value: true }), f);
-      var j = ["strict", "lax", "none"], k = ["low", "medium", "high"], l = class {
-        constructor(a2) {
-          this._parsed = /* @__PURE__ */ new Map(), this._headers = a2;
-          let b2 = a2.get("cookie");
-          if (b2) for (let [a3, c2] of h(b2)) this._parsed.set(a3, { name: a3, value: c2 });
-        }
-        [Symbol.iterator]() {
-          return this._parsed[Symbol.iterator]();
-        }
-        get size() {
-          return this._parsed.size;
-        }
-        get(...a2) {
-          let b2 = "string" == typeof a2[0] ? a2[0] : a2[0].name;
-          return this._parsed.get(b2);
-        }
-        getAll(...a2) {
-          var b2;
-          let c2 = Array.from(this._parsed);
-          if (!a2.length) return c2.map(([a3, b3]) => b3);
-          let d2 = "string" == typeof a2[0] ? a2[0] : null == (b2 = a2[0]) ? void 0 : b2.name;
-          return c2.filter(([a3]) => a3 === d2).map(([a3, b3]) => b3);
-        }
-        has(a2) {
-          return this._parsed.has(a2);
-        }
-        set(...a2) {
-          let [b2, c2] = 1 === a2.length ? [a2[0].name, a2[0].value] : a2, d2 = this._parsed;
-          return d2.set(b2, { name: b2, value: c2 }), this._headers.set("cookie", Array.from(d2).map(([a3, b3]) => g(b3)).join("; ")), this;
-        }
-        delete(a2) {
-          let b2 = this._parsed, c2 = Array.isArray(a2) ? a2.map((a3) => b2.delete(a3)) : b2.delete(a2);
-          return this._headers.set("cookie", Array.from(b2).map(([a3, b3]) => g(b3)).join("; ")), c2;
-        }
-        clear() {
-          return this.delete(Array.from(this._parsed.keys())), this;
-        }
-        [Symbol.for("edge-runtime.inspect.custom")]() {
-          return `RequestCookies ${JSON.stringify(Object.fromEntries(this._parsed))}`;
-        }
-        toString() {
-          return [...this._parsed.values()].map((a2) => `${a2.name}=${encodeURIComponent(a2.value)}`).join("; ");
-        }
-      }, m = class {
-        constructor(a2) {
-          var b2, c2, d2;
-          this._parsed = /* @__PURE__ */ new Map(), this._headers = a2;
-          let e2 = null != (d2 = null != (c2 = null == (b2 = a2.getSetCookie) ? void 0 : b2.call(a2)) ? c2 : a2.get("set-cookie")) ? d2 : [];
-          for (let a3 of Array.isArray(e2) ? e2 : function(a4) {
-            if (!a4) return [];
-            var b3, c3, d3, e3, f2, g2 = [], h2 = 0;
-            function i2() {
-              for (; h2 < a4.length && /\s/.test(a4.charAt(h2)); ) h2 += 1;
-              return h2 < a4.length;
-            }
-            for (; h2 < a4.length; ) {
-              for (b3 = h2, f2 = false; i2(); ) if ("," === (c3 = a4.charAt(h2))) {
-                for (d3 = h2, h2 += 1, i2(), e3 = h2; h2 < a4.length && "=" !== (c3 = a4.charAt(h2)) && ";" !== c3 && "," !== c3; ) h2 += 1;
-                h2 < a4.length && "=" === a4.charAt(h2) ? (f2 = true, h2 = e3, g2.push(a4.substring(b3, d3)), b3 = h2) : h2 = d3 + 1;
-              } else h2 += 1;
-              (!f2 || h2 >= a4.length) && g2.push(a4.substring(b3, a4.length));
-            }
-            return g2;
-          }(e2)) {
-            let b3 = i(a3);
-            b3 && this._parsed.set(b3.name, b3);
-          }
-        }
-        get(...a2) {
-          let b2 = "string" == typeof a2[0] ? a2[0] : a2[0].name;
-          return this._parsed.get(b2);
-        }
-        getAll(...a2) {
-          var b2;
-          let c2 = Array.from(this._parsed.values());
-          if (!a2.length) return c2;
-          let d2 = "string" == typeof a2[0] ? a2[0] : null == (b2 = a2[0]) ? void 0 : b2.name;
-          return c2.filter((a3) => a3.name === d2);
-        }
-        has(a2) {
-          return this._parsed.has(a2);
-        }
-        set(...a2) {
-          let [b2, c2, d2] = 1 === a2.length ? [a2[0].name, a2[0].value, a2[0]] : a2, e2 = this._parsed;
-          return e2.set(b2, function(a3 = { name: "", value: "" }) {
-            return "number" == typeof a3.expires && (a3.expires = new Date(a3.expires)), a3.maxAge && (a3.expires = new Date(Date.now() + 1e3 * a3.maxAge)), (null === a3.path || void 0 === a3.path) && (a3.path = "/"), a3;
-          }({ name: b2, value: c2, ...d2 })), function(a3, b3) {
-            for (let [, c3] of (b3.delete("set-cookie"), a3)) {
-              let a4 = g(c3);
-              b3.append("set-cookie", a4);
-            }
-          }(e2, this._headers), this;
-        }
-        delete(...a2) {
-          let [b2, c2] = "string" == typeof a2[0] ? [a2[0]] : [a2[0].name, a2[0]];
-          return this.set({ ...c2, name: b2, value: "", expires: /* @__PURE__ */ new Date(0) });
-        }
-        [Symbol.for("edge-runtime.inspect.custom")]() {
-          return `ResponseCookies ${JSON.stringify(Object.fromEntries(this._parsed))}`;
-        }
-        toString() {
-          return [...this._parsed.values()].map(g).join("; ");
-        }
-      };
-    }, 9165: (a, b, c) => {
-      "use strict";
-      var d = c(5356).Buffer;
-      Object.defineProperty(b, "__esModule", { value: true }), !function(a2, b2) {
-        for (var c2 in b2) Object.defineProperty(a2, c2, { enumerable: true, get: b2[c2] });
-      }(b, { handleFetch: function() {
-        return h;
-      }, interceptFetch: function() {
-        return i;
-      }, reader: function() {
-        return f;
-      } });
-      let e = c(5392), f = { url: (a2) => a2.url, header: (a2, b2) => a2.headers.get(b2) };
-      async function g(a2, b2) {
-        let { url: c2, method: e2, headers: f2, body: g2, cache: h2, credentials: i2, integrity: j, mode: k, redirect: l, referrer: m, referrerPolicy: n } = b2;
-        return { testData: a2, api: "fetch", request: { url: c2, method: e2, headers: [...Array.from(f2), ["next-test-stack", function() {
-          let a3 = (Error().stack ?? "").split("\n");
-          for (let b3 = 1; b3 < a3.length; b3++) if (a3[b3].length > 0) {
-            a3 = a3.slice(b3);
-            break;
-          }
-          return (a3 = (a3 = (a3 = a3.filter((a4) => !a4.includes("/next/dist/"))).slice(0, 5)).map((a4) => a4.replace("webpack-internal:///(rsc)/", "").trim())).join("    ");
-        }()]], body: g2 ? d.from(await b2.arrayBuffer()).toString("base64") : null, cache: h2, credentials: i2, integrity: j, mode: k, redirect: l, referrer: m, referrerPolicy: n } };
-      }
-      async function h(a2, b2) {
-        let c2 = (0, e.getTestReqInfo)(b2, f);
-        if (!c2) return a2(b2);
-        let { testData: h2, proxyPort: i2 } = c2, j = await g(h2, b2), k = await a2(`http://localhost:${i2}`, { method: "POST", body: JSON.stringify(j), next: { internal: true } });
-        if (!k.ok) throw Object.defineProperty(Error(`Proxy request failed: ${k.status}`), "__NEXT_ERROR_CODE", { value: "E146", enumerable: false, configurable: true });
-        let l = await k.json(), { api: m } = l;
-        switch (m) {
-          case "continue":
-            return a2(b2);
-          case "abort":
-          case "unhandled":
-            throw Object.defineProperty(Error(`Proxy request aborted [${b2.method} ${b2.url}]`), "__NEXT_ERROR_CODE", { value: "E145", enumerable: false, configurable: true });
-          case "fetch":
-            let { status: n, headers: o, body: p } = l.response;
-            return new Response(p ? d.from(p, "base64") : null, { status: n, headers: new Headers(o) });
-          default:
-            return m;
-        }
-      }
-      function i(a2) {
-        return c.g.fetch = function(b2, c2) {
-          var d2;
-          return (null == c2 || null == (d2 = c2.next) ? void 0 : d2.internal) ? a2(b2, c2) : h(a2, new Request(b2, c2));
-        }, () => {
-          c.g.fetch = a2;
-        };
-      }
     } }, (a) => {
-      var b = a(a.s = 6667);
+      var b = a(a.s = 667);
       (_ENTRIES = "undefined" == typeof _ENTRIES ? {} : _ENTRIES)["middleware_src/middleware"] = b;
     }]);
   }
@@ -10830,14 +7661,14 @@ var NEXT_DIR = path.join(__dirname, ".next");
 var OPEN_NEXT_DIR = path.join(__dirname, ".open-next");
 debug({ NEXT_DIR, OPEN_NEXT_DIR });
 var NextConfig = { "env": { "NEXT_PUBLIC_APP_URL": "http://localhost:3000" }, "eslint": { "ignoreDuringBuilds": false }, "typescript": { "ignoreBuildErrors": false, "tsconfigPath": "tsconfig.json" }, "typedRoutes": false, "distDir": ".next", "cleanDistDir": true, "assetPrefix": "", "cacheMaxMemorySize": 52428800, "configOrigin": "next.config.ts", "useFileSystemPublicRoutes": true, "generateEtags": true, "pageExtensions": ["tsx", "ts", "jsx", "js"], "poweredByHeader": true, "compress": true, "images": { "deviceSizes": [640, 750, 828, 1080, 1200, 1920, 2048, 3840], "imageSizes": [16, 32, 48, 64, 96, 128, 256, 384], "path": "/_next/image", "loader": "default", "loaderFile": "", "domains": [], "disableStaticImages": false, "minimumCacheTTL": 60, "formats": ["image/webp"], "maximumResponseBody": 5e7, "dangerouslyAllowSVG": false, "contentSecurityPolicy": "script-src 'none'; frame-src 'none'; sandbox;", "contentDispositionType": "attachment", "remotePatterns": [], "unoptimized": false }, "devIndicators": { "position": "bottom-left" }, "onDemandEntries": { "maxInactiveAge": 6e4, "pagesBufferLength": 5 }, "amp": { "canonicalBase": "" }, "basePath": "", "sassOptions": {}, "trailingSlash": false, "i18n": null, "productionBrowserSourceMaps": false, "excludeDefaultMomentLocales": true, "serverRuntimeConfig": {}, "publicRuntimeConfig": {}, "reactProductionProfiling": false, "reactStrictMode": null, "reactMaxHeadersLength": 6e3, "httpAgentOptions": { "keepAlive": true }, "logging": {}, "compiler": {}, "expireTime": 31536e3, "staticPageGenerationTimeout": 60, "output": "standalone", "modularizeImports": { "@mui/icons-material": { "transform": "@mui/icons-material/{{member}}" }, "lodash": { "transform": "lodash/{{member}}" } }, "outputFileTracingRoot": "D:\\projetos\\synkroo", "experimental": { "useSkewCookie": false, "cacheLife": { "default": { "stale": 300, "revalidate": 900, "expire": 4294967294 }, "seconds": { "stale": 30, "revalidate": 1, "expire": 60 }, "minutes": { "stale": 300, "revalidate": 60, "expire": 3600 }, "hours": { "stale": 300, "revalidate": 3600, "expire": 86400 }, "days": { "stale": 300, "revalidate": 86400, "expire": 604800 }, "weeks": { "stale": 300, "revalidate": 604800, "expire": 2592e3 }, "max": { "stale": 300, "revalidate": 2592e3, "expire": 4294967294 } }, "cacheHandlers": {}, "cssChunking": true, "multiZoneDraftMode": false, "appNavFailHandling": false, "prerenderEarlyExit": true, "serverMinification": true, "serverSourceMaps": false, "linkNoTouchStart": false, "caseSensitiveRoutes": false, "clientSegmentCache": false, "clientParamParsing": false, "dynamicOnHover": false, "preloadEntriesOnStart": true, "clientRouterFilter": true, "clientRouterFilterRedirects": false, "fetchCacheKeyPrefix": "", "middlewarePrefetch": "flexible", "optimisticClientCache": true, "manualClientBasePath": false, "cpus": 11, "memoryBasedWorkersCount": false, "imgOptConcurrency": null, "imgOptTimeoutInSeconds": 7, "imgOptMaxInputPixels": 268402689, "imgOptSequentialRead": null, "imgOptSkipMetadata": null, "isrFlushToDisk": true, "workerThreads": false, "optimizeCss": false, "nextScriptWorkers": false, "scrollRestoration": false, "externalDir": false, "disableOptimizedLoading": false, "gzipSize": true, "craCompat": false, "esmExternals": true, "fullySpecified": false, "swcTraceProfiling": false, "forceSwcTransforms": false, "largePageDataBytes": 128e3, "typedEnv": false, "parallelServerCompiles": false, "parallelServerBuildTraces": false, "ppr": false, "authInterrupts": false, "webpackMemoryOptimizations": false, "optimizeServerReact": true, "viewTransition": false, "routerBFCache": false, "removeUncaughtErrorAndRejectionListeners": false, "validateRSCRequestHeaders": false, "staleTimes": { "dynamic": 0, "static": 300 }, "serverComponentsHmrCache": true, "staticGenerationMaxConcurrency": 8, "staticGenerationMinPagesPerWorker": 25, "cacheComponents": false, "inlineCss": false, "useCache": false, "globalNotFound": false, "devtoolSegmentExplorer": true, "browserDebugInfoInTerminal": false, "optimizeRouterScrolling": false, "middlewareClientMaxBodySize": 10485760, "serverActions": { "bodySizeLimit": "2mb" }, "optimizePackageImports": ["lucide-react", "date-fns", "lodash-es", "ramda", "antd", "react-bootstrap", "ahooks", "@ant-design/icons", "@headlessui/react", "@headlessui-float/react", "@heroicons/react/20/solid", "@heroicons/react/24/solid", "@heroicons/react/24/outline", "@visx/visx", "@tremor/react", "rxjs", "@mui/material", "@mui/icons-material", "recharts", "react-use", "effect", "@effect/schema", "@effect/platform", "@effect/platform-node", "@effect/platform-browser", "@effect/platform-bun", "@effect/sql", "@effect/sql-mssql", "@effect/sql-mysql2", "@effect/sql-pg", "@effect/sql-sqlite-node", "@effect/sql-sqlite-bun", "@effect/sql-sqlite-wasm", "@effect/sql-sqlite-react-native", "@effect/rpc", "@effect/rpc-http", "@effect/typeclass", "@effect/experimental", "@effect/opentelemetry", "@material-ui/core", "@material-ui/icons", "@tabler/icons-react", "mui-core", "react-icons/ai", "react-icons/bi", "react-icons/bs", "react-icons/cg", "react-icons/ci", "react-icons/di", "react-icons/fa", "react-icons/fa6", "react-icons/fc", "react-icons/fi", "react-icons/gi", "react-icons/go", "react-icons/gr", "react-icons/hi", "react-icons/hi2", "react-icons/im", "react-icons/io", "react-icons/io5", "react-icons/lia", "react-icons/lib", "react-icons/lu", "react-icons/md", "react-icons/pi", "react-icons/ri", "react-icons/rx", "react-icons/si", "react-icons/sl", "react-icons/tb", "react-icons/tfi", "react-icons/ti", "react-icons/vsc", "react-icons/wi"], "trustHostHeader": false, "isExperimentalCompile": false }, "htmlLimitedBots": "[\\w-]+-Google|Google-[\\w-]+|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|SkypeUriPreview|Yeti|googleweblight", "bundlePagesRouterDependencies": false, "configFileName": "next.config.ts", "serverExternalPackages": ["playwright", "playwright-core", "chromium-bidi", "pg", "pg-connection-string", "pgpass"], "turbopack": { "root": "D:\\projetos\\synkroo" } };
-var BuildId = "9h6AjpTXJudiitX9qb-DR";
+var BuildId = "XRnwCEbsUxp6neq3FTOXv";
 var RoutesManifest = { "basePath": "", "rewrites": { "beforeFiles": [], "afterFiles": [], "fallback": [] }, "redirects": [{ "source": "/:path+/", "destination": "/:path+", "internal": true, "statusCode": 308, "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$" }], "routes": { "static": [{ "page": "/", "regex": "^/(?:/)?$", "routeKeys": {}, "namedRegex": "^/(?:/)?$" }, { "page": "/_not-found", "regex": "^/_not\\-found(?:/)?$", "routeKeys": {}, "namedRegex": "^/_not\\-found(?:/)?$" }, { "page": "/dashboard", "regex": "^/dashboard(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard(?:/)?$" }, { "page": "/dashboard/agendamentos", "regex": "^/dashboard/agendamentos(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/agendamentos(?:/)?$" }, { "page": "/dashboard/agendamentos/novo", "regex": "^/dashboard/agendamentos/novo(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/agendamentos/novo(?:/)?$" }, { "page": "/dashboard/analytics", "regex": "^/dashboard/analytics(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/analytics(?:/)?$" }, { "page": "/dashboard/atividades", "regex": "^/dashboard/atividades(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/atividades(?:/)?$" }, { "page": "/dashboard/campanhas", "regex": "^/dashboard/campanhas(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/campanhas(?:/)?$" }, { "page": "/dashboard/campanhas/nova", "regex": "^/dashboard/campanhas/nova(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/campanhas/nova(?:/)?$" }, { "page": "/dashboard/configuracao", "regex": "^/dashboard/configuracao(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/configuracao(?:/)?$" }, { "page": "/dashboard/configuracoes", "regex": "^/dashboard/configuracoes(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/configuracoes(?:/)?$" }, { "page": "/dashboard/configuracoes/acessos", "regex": "^/dashboard/configuracoes/acessos(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/configuracoes/acessos(?:/)?$" }, { "page": "/dashboard/configuracoes/acessos/perfis", "regex": "^/dashboard/configuracoes/acessos/perfis(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/configuracoes/acessos/perfis(?:/)?$" }, { "page": "/dashboard/contatos", "regex": "^/dashboard/contatos(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/contatos(?:/)?$" }, { "page": "/dashboard/conversas", "regex": "^/dashboard/conversas(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/conversas(?:/)?$" }, { "page": "/dashboard/crm", "regex": "^/dashboard/crm(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/crm(?:/)?$" }, { "page": "/dashboard/crm/pipeline", "regex": "^/dashboard/crm/pipeline(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/crm/pipeline(?:/)?$" }, { "page": "/dashboard/dentistas", "regex": "^/dashboard/dentistas(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/dentistas(?:/)?$" }, { "page": "/dashboard/dentistas/novo", "regex": "^/dashboard/dentistas/novo(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/dentistas/novo(?:/)?$" }, { "page": "/dashboard/leads", "regex": "^/dashboard/leads(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/leads(?:/)?$" }, { "page": "/dashboard/leads/novo", "regex": "^/dashboard/leads/novo(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/leads/novo(?:/)?$" }, { "page": "/dashboard/lista-espera", "regex": "^/dashboard/lista\\-espera(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/lista\\-espera(?:/)?$" }, { "page": "/dashboard/pacientes", "regex": "^/dashboard/pacientes(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/pacientes(?:/)?$" }, { "page": "/dashboard/pacientes/inativos", "regex": "^/dashboard/pacientes/inativos(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/pacientes/inativos(?:/)?$" }, { "page": "/dashboard/pacientes/novo", "regex": "^/dashboard/pacientes/novo(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/pacientes/novo(?:/)?$" }, { "page": "/dashboard/pipeline", "regex": "^/dashboard/pipeline(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/pipeline(?:/)?$" }, { "page": "/dashboard/procedimentos", "regex": "^/dashboard/procedimentos(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/procedimentos(?:/)?$" }, { "page": "/dashboard/procedimentos/novo", "regex": "^/dashboard/procedimentos/novo(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/procedimentos/novo(?:/)?$" }, { "page": "/dashboard/tarefas", "regex": "^/dashboard/tarefas(?:/)?$", "routeKeys": {}, "namedRegex": "^/dashboard/tarefas(?:/)?$" }, { "page": "/login", "regex": "^/login(?:/)?$", "routeKeys": {}, "namedRegex": "^/login(?:/)?$" }, { "page": "/signup", "regex": "^/signup(?:/)?$", "routeKeys": {}, "namedRegex": "^/signup(?:/)?$" }], "dynamic": [{ "page": "/api/appointments/[id]", "regex": "^/api/appointments/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/appointments/[id]/cancel", "regex": "^/api/appointments/([^/]+?)/cancel(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)/cancel(?:/)?$" }, { "page": "/api/appointments/[id]/confirm", "regex": "^/api/appointments/([^/]+?)/confirm(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)/confirm(?:/)?$" }, { "page": "/api/appointments/[id]/noshow", "regex": "^/api/appointments/([^/]+?)/noshow(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)/noshow(?:/)?$" }, { "page": "/api/appointments/[id]/reactivate", "regex": "^/api/appointments/([^/]+?)/reactivate(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)/reactivate(?:/)?$" }, { "page": "/api/appointments/[id]/remind", "regex": "^/api/appointments/([^/]+?)/remind(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)/remind(?:/)?$" }, { "page": "/api/appointments/[id]/reminder-template", "regex": "^/api/appointments/([^/]+?)/reminder\\-template(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)/reminder\\-template(?:/)?$" }, { "page": "/api/appointments/[id]/reschedule", "regex": "^/api/appointments/([^/]+?)/reschedule(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/appointments/(?<nxtPid>[^/]+?)/reschedule(?:/)?$" }, { "page": "/api/auth/[...nextauth]", "regex": "^/api/auth/(.+?)(?:/)?$", "routeKeys": { "nxtPnextauth": "nxtPnextauth" }, "namedRegex": "^/api/auth/(?<nxtPnextauth>.+?)(?:/)?$" }, { "page": "/api/budgets/[id]", "regex": "^/api/budgets/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/budgets/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/budgets/[id]/accept", "regex": "^/api/budgets/([^/]+?)/accept(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/budgets/(?<nxtPid>[^/]+?)/accept(?:/)?$" }, { "page": "/api/budgets/[id]/installments", "regex": "^/api/budgets/([^/]+?)/installments(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/budgets/(?<nxtPid>[^/]+?)/installments(?:/)?$" }, { "page": "/api/budgets/[id]/payments", "regex": "^/api/budgets/([^/]+?)/payments(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/budgets/(?<nxtPid>[^/]+?)/payments(?:/)?$" }, { "page": "/api/budgets/[id]/reject", "regex": "^/api/budgets/([^/]+?)/reject(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/budgets/(?<nxtPid>[^/]+?)/reject(?:/)?$" }, { "page": "/api/budgets/[id]/send", "regex": "^/api/budgets/([^/]+?)/send(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/budgets/(?<nxtPid>[^/]+?)/send(?:/)?$" }, { "page": "/api/campaigns/[id]", "regex": "^/api/campaigns/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/campaigns/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/campaigns/[id]/recipients", "regex": "^/api/campaigns/([^/]+?)/recipients(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/campaigns/(?<nxtPid>[^/]+?)/recipients(?:/)?$" }, { "page": "/api/campaigns/[id]/start", "regex": "^/api/campaigns/([^/]+?)/start(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/campaigns/(?<nxtPid>[^/]+?)/start(?:/)?$" }, { "page": "/api/contacts/[id]", "regex": "^/api/contacts/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/contacts/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/contacts/[id]/appointments", "regex": "^/api/contacts/([^/]+?)/appointments(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/contacts/(?<nxtPid>[^/]+?)/appointments(?:/)?$" }, { "page": "/api/contacts/[id]/notes", "regex": "^/api/contacts/([^/]+?)/notes(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/contacts/(?<nxtPid>[^/]+?)/notes(?:/)?$" }, { "page": "/api/contacts/[id]/timeline", "regex": "^/api/contacts/([^/]+?)/timeline(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/contacts/(?<nxtPid>[^/]+?)/timeline(?:/)?$" }, { "page": "/api/conversations/[id]", "regex": "^/api/conversations/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/conversations/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/custom-fields/definitions/[id]", "regex": "^/api/custom\\-fields/definitions/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/custom\\-fields/definitions/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/dentists/[id]", "regex": "^/api/dentists/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/dentists/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/knowledge/[id]", "regex": "^/api/knowledge/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/knowledge/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/leads/notifications/[id]/acknowledge", "regex": "^/api/leads/notifications/([^/]+?)/acknowledge(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/leads/notifications/(?<nxtPid>[^/]+?)/acknowledge(?:/)?$" }, { "page": "/api/leads/[id]", "regex": "^/api/leads/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/leads/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/leads/[id]/convert", "regex": "^/api/leads/([^/]+?)/convert(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/leads/(?<nxtPid>[^/]+?)/convert(?:/)?$" }, { "page": "/api/leads/[id]/stage", "regex": "^/api/leads/([^/]+?)/stage(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/leads/(?<nxtPid>[^/]+?)/stage(?:/)?$" }, { "page": "/api/messages/history/[conversationId]", "regex": "^/api/messages/history/([^/]+?)(?:/)?$", "routeKeys": { "nxtPconversationId": "nxtPconversationId" }, "namedRegex": "^/api/messages/history/(?<nxtPconversationId>[^/]+?)(?:/)?$" }, { "page": "/api/patients/[id]", "regex": "^/api/patients/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/patients/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/patients/[id]/history", "regex": "^/api/patients/([^/]+?)/history(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/patients/(?<nxtPid>[^/]+?)/history(?:/)?$" }, { "page": "/api/patients/[id]/observations", "regex": "^/api/patients/([^/]+?)/observations(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/patients/(?<nxtPid>[^/]+?)/observations(?:/)?$" }, { "page": "/api/patients/[id]/preferences", "regex": "^/api/patients/([^/]+?)/preferences(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/patients/(?<nxtPid>[^/]+?)/preferences(?:/)?$" }, { "page": "/api/pipeline/stages/[id]", "regex": "^/api/pipeline/stages/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/pipeline/stages/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/procedures/[id]", "regex": "^/api/procedures/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/procedures/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/treatment-plans/[id]", "regex": "^/api/treatment\\-plans/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/treatment\\-plans/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/api/treatment-plans/[id]/sessions", "regex": "^/api/treatment\\-plans/([^/]+?)/sessions(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/api/treatment\\-plans/(?<nxtPid>[^/]+?)/sessions(?:/)?$" }, { "page": "/dashboard/agendamentos/[id]", "regex": "^/dashboard/agendamentos/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/dashboard/agendamentos/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/dashboard/campanhas/[id]", "regex": "^/dashboard/campanhas/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/dashboard/campanhas/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/dashboard/dentistas/[id]", "regex": "^/dashboard/dentistas/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/dashboard/dentistas/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/dashboard/leads/[id]", "regex": "^/dashboard/leads/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/dashboard/leads/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/dashboard/pacientes/[id]", "regex": "^/dashboard/pacientes/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/dashboard/pacientes/(?<nxtPid>[^/]+?)(?:/)?$" }, { "page": "/dashboard/pacientes/[id]/editar", "regex": "^/dashboard/pacientes/([^/]+?)/editar(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/dashboard/pacientes/(?<nxtPid>[^/]+?)/editar(?:/)?$" }, { "page": "/dashboard/procedimentos/[id]", "regex": "^/dashboard/procedimentos/([^/]+?)(?:/)?$", "routeKeys": { "nxtPid": "nxtPid" }, "namedRegex": "^/dashboard/procedimentos/(?<nxtPid>[^/]+?)(?:/)?$" }], "data": { "static": [], "dynamic": [] } }, "locales": [] };
 var ConfigHeaders = [];
-var PrerenderManifest = { "version": 4, "routes": { "/_not-found": { "initialStatus": 404, "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/_not-found", "dataRoute": "/_not-found.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/login": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/login", "dataRoute": "/login.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/", "dataRoute": "/index.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/signup": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/signup", "dataRoute": "/signup.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/agendamentos/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/agendamentos/novo", "dataRoute": "/dashboard/agendamentos/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/analytics": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/analytics", "dataRoute": "/dashboard/analytics.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/campanhas/nova": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/campanhas/nova", "dataRoute": "/dashboard/campanhas/nova.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/campanhas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/campanhas", "dataRoute": "/dashboard/campanhas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/configuracao": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/configuracao", "dataRoute": "/dashboard/configuracao.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/configuracoes": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/configuracoes", "dataRoute": "/dashboard/configuracoes.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/atividades": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/atividades", "dataRoute": "/dashboard/atividades.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/contatos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/contatos", "dataRoute": "/dashboard/contatos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/crm": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/crm", "dataRoute": "/dashboard/crm.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/conversas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/conversas", "dataRoute": "/dashboard/conversas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/agendamentos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/agendamentos", "dataRoute": "/dashboard/agendamentos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/crm/pipeline": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/crm/pipeline", "dataRoute": "/dashboard/crm/pipeline.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/dentistas/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/dentistas/novo", "dataRoute": "/dashboard/dentistas/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/dentistas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/dentistas", "dataRoute": "/dashboard/dentistas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/leads/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/leads/novo", "dataRoute": "/dashboard/leads/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/leads": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/leads", "dataRoute": "/dashboard/leads.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/lista-espera": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/lista-espera", "dataRoute": "/dashboard/lista-espera.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pacientes/inativos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pacientes/inativos", "dataRoute": "/dashboard/pacientes/inativos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pacientes/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pacientes/novo", "dataRoute": "/dashboard/pacientes/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pacientes": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pacientes", "dataRoute": "/dashboard/pacientes.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pipeline": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pipeline", "dataRoute": "/dashboard/pipeline.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard", "dataRoute": "/dashboard.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/procedimentos/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/procedimentos/novo", "dataRoute": "/dashboard/procedimentos/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/procedimentos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/procedimentos", "dataRoute": "/dashboard/procedimentos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/tarefas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/tarefas", "dataRoute": "/dashboard/tarefas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] } }, "dynamicRoutes": {}, "notFoundRoutes": [], "preview": { "previewModeId": "b1f1882484269d4581d7c06c1114d7d6", "previewModeSigningKey": "063a8c6cd273e5c44e6945504e964793b66077fcbb21823ca19f4e9a5605508a", "previewModeEncryptionKey": "f0afc0ef2a5814cb157b10e63dfcaeeb80aa69145e29cdf545e946234a8f8e85" } };
-var MiddlewareManifest = { "version": 3, "middleware": { "/": { "files": ["server/edge-instrumentation.js", "server/edge-runtime-webpack.js", "server/src/middleware.js"], "name": "src/middleware", "page": "/", "matchers": [{ "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?(?:\\/((?!_next\\/static|_next\\/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*))(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$", "originalSource": "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)" }], "wasm": [], "assets": [], "env": { "__NEXT_BUILD_ID": "9h6AjpTXJudiitX9qb-DR", "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "5t/OcqTiFwBiDYwBK1Ulwswr6eqiF8G7SLa7IvJi5IY=", "__NEXT_PREVIEW_MODE_ID": "b1f1882484269d4581d7c06c1114d7d6", "__NEXT_PREVIEW_MODE_SIGNING_KEY": "063a8c6cd273e5c44e6945504e964793b66077fcbb21823ca19f4e9a5605508a", "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "f0afc0ef2a5814cb157b10e63dfcaeeb80aa69145e29cdf545e946234a8f8e85" } } }, "functions": {}, "sortedMiddleware": ["/"] };
-var AppPathRoutesManifest = { "/_not-found/page": "/_not-found", "/api/activities/route": "/api/activities", "/api/admin/run-migration/route": "/api/admin/run-migration", "/api/agent/classify/route": "/api/agent/classify", "/api/agent/messages/route": "/api/agent/messages", "/api/agent/schedule-flow/route": "/api/agent/schedule-flow", "/api/agent/decisions/route": "/api/agent/decisions", "/api/agent/pending-actions/route": "/api/agent/pending-actions", "/api/analytics/insights/route": "/api/analytics/insights", "/api/analytics/metrics/route": "/api/analytics/metrics", "/api/analytics/noshow-prediction/route": "/api/analytics/noshow-prediction", "/api/appointments/[id]/cancel/route": "/api/appointments/[id]/cancel", "/api/analytics/roi/route": "/api/analytics/roi", "/api/appointments/[id]/confirm/route": "/api/appointments/[id]/confirm", "/api/appointments/[id]/noshow/route": "/api/appointments/[id]/noshow", "/api/appointments/[id]/reactivate/route": "/api/appointments/[id]/reactivate", "/api/appointments/[id]/remind/route": "/api/appointments/[id]/remind", "/api/appointments/[id]/reminder-template/route": "/api/appointments/[id]/reminder-template", "/api/appointments/[id]/reschedule/route": "/api/appointments/[id]/reschedule", "/api/appointments/[id]/route": "/api/appointments/[id]", "/api/appointments/availability/route": "/api/appointments/availability", "/api/appointments/confirm-response/route": "/api/appointments/confirm-response", "/api/appointments/incomplete-treatments/route": "/api/appointments/incomplete-treatments", "/api/appointments/route": "/api/appointments", "/api/auth/[...nextauth]/route": "/api/auth/[...nextauth]", "/api/auth/login/route": "/api/auth/login", "/api/auth/refresh/route": "/api/auth/refresh", "/api/auth/logout/route": "/api/auth/logout", "/api/auth/signup/route": "/api/auth/signup", "/api/auth/session/route": "/api/auth/session", "/api/budgets/[id]/accept/route": "/api/budgets/[id]/accept", "/api/budgets/[id]/payments/route": "/api/budgets/[id]/payments", "/api/budgets/[id]/installments/route": "/api/budgets/[id]/installments", "/api/budgets/[id]/reject/route": "/api/budgets/[id]/reject", "/api/budgets/[id]/route": "/api/budgets/[id]", "/api/budgets/followup/route": "/api/budgets/followup", "/api/budgets/route": "/api/budgets", "/api/budgets/[id]/send/route": "/api/budgets/[id]/send", "/api/campaigns/[id]/recipients/route": "/api/campaigns/[id]/recipients", "/api/campaigns/[id]/start/route": "/api/campaigns/[id]/start", "/api/campaigns/[id]/route": "/api/campaigns/[id]", "/api/campaigns/process/route": "/api/campaigns/process", "/api/campaigns/route": "/api/campaigns", "/api/campaigns/segments/preview/route": "/api/campaigns/segments/preview", "/api/clinics/settings/route": "/api/clinics/settings", "/api/campaigns/segments/route": "/api/campaigns/segments", "/api/consents/route": "/api/consents", "/api/contacts/[id]/appointments/route": "/api/contacts/[id]/appointments", "/api/contacts/[id]/notes/route": "/api/contacts/[id]/notes", "/api/contacts/[id]/route": "/api/contacts/[id]", "/api/contacts/[id]/timeline/route": "/api/contacts/[id]/timeline", "/api/contacts/route": "/api/contacts", "/api/conversations/route": "/api/conversations", "/api/conversations/[id]/route": "/api/conversations/[id]", "/api/crm/stats/route": "/api/crm/stats", "/api/cron/cleanup/route": "/api/cron/cleanup", "/api/cron/followups/route": "/api/cron/followups", "/api/cron/reminders/route": "/api/cron/reminders", "/api/cron/smart-triggers/route": "/api/cron/smart-triggers", "/api/custom-fields/definitions/[id]/route": "/api/custom-fields/definitions/[id]", "/api/custom-fields/definitions/route": "/api/custom-fields/definitions", "/api/custom-fields/values/route": "/api/custom-fields/values", "/api/dashboard/alerts/route": "/api/dashboard/alerts", "/api/dashboard/stats/route": "/api/dashboard/stats", "/api/dentists/[id]/route": "/api/dentists/[id]", "/api/dentists/route": "/api/dentists", "/api/health/db/route": "/api/health/db", "/api/health/route": "/api/health", "/api/instagram/webhook/route": "/api/instagram/webhook", "/api/knowledge/[id]/route": "/api/knowledge/[id]", "/api/knowledge/categories/route": "/api/knowledge/categories", "/api/knowledge/route": "/api/knowledge", "/api/knowledge/search/route": "/api/knowledge/search", "/api/leads/[id]/convert/route": "/api/leads/[id]/convert", "/api/leads/[id]/route": "/api/leads/[id]", "/api/leads/[id]/stage/route": "/api/leads/[id]/stage", "/api/leads/kanban/route": "/api/leads/kanban", "/api/leads/hot/route": "/api/leads/hot", "/api/leads/notifications/[id]/acknowledge/route": "/api/leads/notifications/[id]/acknowledge", "/api/leads/notifications/route": "/api/leads/notifications", "/api/leads/route": "/api/leads", "/api/leads/stats/route": "/api/leads/stats", "/api/lgpd/anonymize/route": "/api/lgpd/anonymize", "/api/lgpd/export/route": "/api/lgpd/export", "/api/messages/history/[conversationId]/route": "/api/messages/history/[conversationId]", "/api/messages/inbound/route": "/api/messages/inbound", "/api/messages/whatsapp/route": "/api/messages/whatsapp", "/api/messages/send/route": "/api/messages/send", "/api/patients/[id]/history/route": "/api/patients/[id]/history", "/api/patients/[id]/observations/route": "/api/patients/[id]/observations", "/api/patients/[id]/preferences/route": "/api/patients/[id]/preferences", "/api/patients/[id]/route": "/api/patients/[id]", "/api/patients/deduplicate/route": "/api/patients/deduplicate", "/api/patients/inactive/route": "/api/patients/inactive", "/api/patients/route": "/api/patients", "/api/patients/tags/route": "/api/patients/tags", "/api/pipeline/analytics/route": "/api/pipeline/analytics", "/api/pipeline/stages/[id]/route": "/api/pipeline/stages/[id]", "/api/pipeline/stages/route": "/api/pipeline/stages", "/api/pipeline/stages/reorder/route": "/api/pipeline/stages/reorder", "/api/procedures/[id]/route": "/api/procedures/[id]", "/api/procedures/route": "/api/procedures", "/api/reminders/config/route": "/api/reminders/config", "/api/reports/export/route": "/api/reports/export", "/api/reports/financial/route": "/api/reports/financial", "/api/reports/patients/route": "/api/reports/patients", "/api/scheduler/chat/route": "/api/scheduler/chat", "/api/tasks/route": "/api/tasks", "/api/seed/route": "/api/seed", "/api/treatment-plans/[id]/route": "/api/treatment-plans/[id]", "/api/treatment-plans/[id]/sessions/route": "/api/treatment-plans/[id]/sessions", "/api/treatment-plans/route": "/api/treatment-plans", "/api/waitlist/route": "/api/waitlist", "/api/whatsapp/evolution/route": "/api/whatsapp/evolution", "/api/whatsapp/qrcode/route": "/api/whatsapp/qrcode", "/api/whatsapp/send/route": "/api/whatsapp/send", "/api/whatsapp/templates/route": "/api/whatsapp/templates", "/api/whatsapp/webhook/route": "/api/whatsapp/webhook", "/api/widget/messages/route": "/api/widget/messages", "/login/page": "/login", "/signup/page": "/signup", "/page": "/", "/dashboard/agendamentos/[id]/page": "/dashboard/agendamentos/[id]", "/dashboard/agendamentos/novo/page": "/dashboard/agendamentos/novo", "/dashboard/atividades/page": "/dashboard/atividades", "/dashboard/campanhas/[id]/page": "/dashboard/campanhas/[id]", "/dashboard/analytics/page": "/dashboard/analytics", "/dashboard/campanhas/page": "/dashboard/campanhas", "/dashboard/campanhas/nova/page": "/dashboard/campanhas/nova", "/dashboard/agendamentos/page": "/dashboard/agendamentos", "/dashboard/configuracao/page": "/dashboard/configuracao", "/dashboard/contatos/page": "/dashboard/contatos", "/dashboard/configuracoes/page": "/dashboard/configuracoes", "/dashboard/conversas/page": "/dashboard/conversas", "/dashboard/crm/pipeline/page": "/dashboard/crm/pipeline", "/dashboard/crm/page": "/dashboard/crm", "/dashboard/dentistas/[id]/page": "/dashboard/dentistas/[id]", "/dashboard/dentistas/page": "/dashboard/dentistas", "/dashboard/dentistas/novo/page": "/dashboard/dentistas/novo", "/dashboard/leads/[id]/page": "/dashboard/leads/[id]", "/dashboard/leads/novo/page": "/dashboard/leads/novo", "/dashboard/leads/page": "/dashboard/leads", "/dashboard/lista-espera/page": "/dashboard/lista-espera", "/dashboard/pacientes/[id]/editar/page": "/dashboard/pacientes/[id]/editar", "/dashboard/pacientes/[id]/page": "/dashboard/pacientes/[id]", "/dashboard/pacientes/inativos/page": "/dashboard/pacientes/inativos", "/dashboard/pacientes/novo/page": "/dashboard/pacientes/novo", "/dashboard/pacientes/page": "/dashboard/pacientes", "/dashboard/page": "/dashboard", "/dashboard/pipeline/page": "/dashboard/pipeline", "/dashboard/procedimentos/[id]/page": "/dashboard/procedimentos/[id]", "/dashboard/procedimentos/page": "/dashboard/procedimentos", "/dashboard/procedimentos/novo/page": "/dashboard/procedimentos/novo", "/dashboard/tarefas/page": "/dashboard/tarefas", "/dashboard/configuracoes/acessos/page": "/dashboard/configuracoes/acessos", "/dashboard/configuracoes/acessos/perfis/page": "/dashboard/configuracoes/acessos/perfis" };
+var PrerenderManifest = { "version": 4, "routes": { "/_not-found": { "initialStatus": 404, "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/_not-found", "dataRoute": "/_not-found.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/signup": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/signup", "dataRoute": "/signup.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/", "dataRoute": "/index.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/login": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/login", "dataRoute": "/login.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/campanhas/nova": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/campanhas/nova", "dataRoute": "/dashboard/campanhas/nova.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/atividades": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/atividades", "dataRoute": "/dashboard/atividades.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/agendamentos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/agendamentos", "dataRoute": "/dashboard/agendamentos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/configuracao": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/configuracao", "dataRoute": "/dashboard/configuracao.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/analytics": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/analytics", "dataRoute": "/dashboard/analytics.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/conversas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/conversas", "dataRoute": "/dashboard/conversas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/crm": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/crm", "dataRoute": "/dashboard/crm.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/configuracoes": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/configuracoes", "dataRoute": "/dashboard/configuracoes.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/dentistas/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/dentistas/novo", "dataRoute": "/dashboard/dentistas/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/campanhas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/campanhas", "dataRoute": "/dashboard/campanhas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/dentistas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/dentistas", "dataRoute": "/dashboard/dentistas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/leads/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/leads/novo", "dataRoute": "/dashboard/leads/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/leads": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/leads", "dataRoute": "/dashboard/leads.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/lista-espera": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/lista-espera", "dataRoute": "/dashboard/lista-espera.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/contatos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/contatos", "dataRoute": "/dashboard/contatos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/crm/pipeline": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/crm/pipeline", "dataRoute": "/dashboard/crm/pipeline.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard", "dataRoute": "/dashboard.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pipeline": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pipeline", "dataRoute": "/dashboard/pipeline.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pacientes/inativos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pacientes/inativos", "dataRoute": "/dashboard/pacientes/inativos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pacientes": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pacientes", "dataRoute": "/dashboard/pacientes.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/pacientes/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/pacientes/novo", "dataRoute": "/dashboard/pacientes/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/procedimentos": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/procedimentos", "dataRoute": "/dashboard/procedimentos.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/procedimentos/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/procedimentos/novo", "dataRoute": "/dashboard/procedimentos/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/agendamentos/novo": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/agendamentos/novo", "dataRoute": "/dashboard/agendamentos/novo.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] }, "/dashboard/tarefas": { "experimentalBypassFor": [{ "type": "header", "key": "next-action" }, { "type": "header", "key": "content-type", "value": "multipart/form-data;.*" }], "initialRevalidateSeconds": false, "srcRoute": "/dashboard/tarefas", "dataRoute": "/dashboard/tarefas.rsc", "allowHeader": ["host", "x-matched-path", "x-prerender-revalidate", "x-prerender-revalidate-if-generated", "x-next-revalidated-tags", "x-next-revalidate-tag-token"] } }, "dynamicRoutes": {}, "notFoundRoutes": [], "preview": { "previewModeId": "59d709e01ed4923ceb91b5a4e5fc28a2", "previewModeSigningKey": "09d17bbdca600b3380c822a15a4156dade1e92f125b856f2940933c97415d3d8", "previewModeEncryptionKey": "b5014b141d2875134cbc273b108dea1e15abb595118f3ab1fdb2f4556dc0356a" } };
+var MiddlewareManifest = { "version": 3, "middleware": { "/": { "files": ["server/edge-instrumentation.js", "server/edge-runtime-webpack.js", "server/src/middleware.js"], "name": "src/middleware", "page": "/", "matchers": [{ "regexp": "^(?:\\/(_next\\/data\\/[^/]{1,}))?(?:\\/((?!_next\\/static|_next\\/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*))(\\.json|\\.rsc|\\.segments\\/.+\\.segment\\.rsc)?[\\/#\\?]?$", "originalSource": "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)" }], "wasm": [], "assets": [], "env": { "__NEXT_BUILD_ID": "XRnwCEbsUxp6neq3FTOXv", "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "62WHkEGIOqVvV+SNGnt6DFa6wr0SBQLlltpd/QPrAus=", "__NEXT_PREVIEW_MODE_ID": "59d709e01ed4923ceb91b5a4e5fc28a2", "__NEXT_PREVIEW_MODE_SIGNING_KEY": "09d17bbdca600b3380c822a15a4156dade1e92f125b856f2940933c97415d3d8", "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "b5014b141d2875134cbc273b108dea1e15abb595118f3ab1fdb2f4556dc0356a" } } }, "functions": {}, "sortedMiddleware": ["/"] };
+var AppPathRoutesManifest = { "/api/activities/route": "/api/activities", "/api/admin/run-migration/route": "/api/admin/run-migration", "/api/analytics/metrics/route": "/api/analytics/metrics", "/api/analytics/insights/route": "/api/analytics/insights", "/api/analytics/noshow-prediction/route": "/api/analytics/noshow-prediction", "/api/appointments/[id]/cancel/route": "/api/appointments/[id]/cancel", "/api/analytics/roi/route": "/api/analytics/roi", "/api/appointments/[id]/confirm/route": "/api/appointments/[id]/confirm", "/api/appointments/[id]/noshow/route": "/api/appointments/[id]/noshow", "/api/appointments/[id]/reactivate/route": "/api/appointments/[id]/reactivate", "/api/appointments/[id]/remind/route": "/api/appointments/[id]/remind", "/api/appointments/[id]/reminder-template/route": "/api/appointments/[id]/reminder-template", "/api/appointments/[id]/route": "/api/appointments/[id]", "/api/appointments/[id]/reschedule/route": "/api/appointments/[id]/reschedule", "/api/appointments/availability/route": "/api/appointments/availability", "/api/appointments/confirm-response/route": "/api/appointments/confirm-response", "/api/appointments/route": "/api/appointments", "/api/appointments/incomplete-treatments/route": "/api/appointments/incomplete-treatments", "/api/auth/[...nextauth]/route": "/api/auth/[...nextauth]", "/api/auth/login/route": "/api/auth/login", "/api/auth/logout/route": "/api/auth/logout", "/api/auth/refresh/route": "/api/auth/refresh", "/api/auth/signup/route": "/api/auth/signup", "/api/auth/session/route": "/api/auth/session", "/api/budgets/[id]/accept/route": "/api/budgets/[id]/accept", "/api/budgets/[id]/installments/route": "/api/budgets/[id]/installments", "/api/budgets/[id]/payments/route": "/api/budgets/[id]/payments", "/api/budgets/[id]/reject/route": "/api/budgets/[id]/reject", "/api/budgets/[id]/route": "/api/budgets/[id]", "/api/budgets/[id]/send/route": "/api/budgets/[id]/send", "/api/budgets/followup/route": "/api/budgets/followup", "/api/campaigns/[id]/route": "/api/campaigns/[id]", "/api/budgets/route": "/api/budgets", "/api/campaigns/[id]/recipients/route": "/api/campaigns/[id]/recipients", "/api/campaigns/[id]/start/route": "/api/campaigns/[id]/start", "/api/campaigns/route": "/api/campaigns", "/api/campaigns/process/route": "/api/campaigns/process", "/api/campaigns/segments/preview/route": "/api/campaigns/segments/preview", "/api/campaigns/segments/route": "/api/campaigns/segments", "/api/consents/route": "/api/consents", "/api/contacts/[id]/notes/route": "/api/contacts/[id]/notes", "/api/contacts/[id]/appointments/route": "/api/contacts/[id]/appointments", "/api/clinics/settings/route": "/api/clinics/settings", "/api/contacts/[id]/route": "/api/contacts/[id]", "/api/contacts/route": "/api/contacts", "/api/contacts/[id]/timeline/route": "/api/contacts/[id]/timeline", "/api/conversations/[id]/route": "/api/conversations/[id]", "/api/conversations/route": "/api/conversations", "/api/crm/stats/route": "/api/crm/stats", "/api/cron/cleanup/route": "/api/cron/cleanup", "/api/cron/followups/route": "/api/cron/followups", "/api/cron/reminders/route": "/api/cron/reminders", "/api/cron/smart-triggers/route": "/api/cron/smart-triggers", "/api/custom-fields/definitions/[id]/route": "/api/custom-fields/definitions/[id]", "/api/custom-fields/definitions/route": "/api/custom-fields/definitions", "/api/custom-fields/values/route": "/api/custom-fields/values", "/api/dashboard/alerts/route": "/api/dashboard/alerts", "/api/dashboard/stats/route": "/api/dashboard/stats", "/api/dentists/[id]/route": "/api/dentists/[id]", "/api/dentists/route": "/api/dentists", "/api/health/db/route": "/api/health/db", "/api/health/route": "/api/health", "/api/instagram/webhook/route": "/api/instagram/webhook", "/api/knowledge/[id]/route": "/api/knowledge/[id]", "/api/knowledge/categories/route": "/api/knowledge/categories", "/api/knowledge/route": "/api/knowledge", "/api/knowledge/search/route": "/api/knowledge/search", "/api/leads/[id]/route": "/api/leads/[id]", "/api/leads/[id]/convert/route": "/api/leads/[id]/convert", "/api/leads/[id]/stage/route": "/api/leads/[id]/stage", "/api/leads/hot/route": "/api/leads/hot", "/api/leads/kanban/route": "/api/leads/kanban", "/api/leads/notifications/[id]/acknowledge/route": "/api/leads/notifications/[id]/acknowledge", "/api/leads/notifications/route": "/api/leads/notifications", "/api/leads/stats/route": "/api/leads/stats", "/api/leads/route": "/api/leads", "/api/lgpd/anonymize/route": "/api/lgpd/anonymize", "/api/lgpd/export/route": "/api/lgpd/export", "/api/messages/inbound/route": "/api/messages/inbound", "/api/messages/send/route": "/api/messages/send", "/api/messages/history/[conversationId]/route": "/api/messages/history/[conversationId]", "/api/messages/whatsapp/route": "/api/messages/whatsapp", "/api/patients/[id]/history/route": "/api/patients/[id]/history", "/api/patients/[id]/preferences/route": "/api/patients/[id]/preferences", "/api/patients/[id]/observations/route": "/api/patients/[id]/observations", "/api/patients/[id]/route": "/api/patients/[id]", "/api/patients/inactive/route": "/api/patients/inactive", "/api/patients/deduplicate/route": "/api/patients/deduplicate", "/api/patients/tags/route": "/api/patients/tags", "/api/patients/route": "/api/patients", "/api/pipeline/analytics/route": "/api/pipeline/analytics", "/api/pipeline/stages/[id]/route": "/api/pipeline/stages/[id]", "/api/pipeline/stages/route": "/api/pipeline/stages", "/api/pipeline/stages/reorder/route": "/api/pipeline/stages/reorder", "/api/procedures/[id]/route": "/api/procedures/[id]", "/api/procedures/route": "/api/procedures", "/api/reports/export/route": "/api/reports/export", "/api/reminders/config/route": "/api/reminders/config", "/api/reports/financial/route": "/api/reports/financial", "/api/tasks/route": "/api/tasks", "/api/reports/patients/route": "/api/reports/patients", "/api/seed/route": "/api/seed", "/api/treatment-plans/[id]/sessions/route": "/api/treatment-plans/[id]/sessions", "/api/treatment-plans/[id]/route": "/api/treatment-plans/[id]", "/api/waitlist/route": "/api/waitlist", "/api/treatment-plans/route": "/api/treatment-plans", "/api/whatsapp/evolution/route": "/api/whatsapp/evolution", "/api/whatsapp/qrcode/route": "/api/whatsapp/qrcode", "/api/whatsapp/templates/route": "/api/whatsapp/templates", "/api/whatsapp/send/route": "/api/whatsapp/send", "/api/whatsapp/webhook/route": "/api/whatsapp/webhook", "/api/widget/messages/route": "/api/widget/messages", "/_not-found/page": "/_not-found", "/login/page": "/login", "/page": "/", "/signup/page": "/signup", "/dashboard/agendamentos/[id]/page": "/dashboard/agendamentos/[id]", "/dashboard/agendamentos/page": "/dashboard/agendamentos", "/dashboard/agendamentos/novo/page": "/dashboard/agendamentos/novo", "/dashboard/atividades/page": "/dashboard/atividades", "/dashboard/campanhas/[id]/page": "/dashboard/campanhas/[id]", "/dashboard/campanhas/nova/page": "/dashboard/campanhas/nova", "/dashboard/analytics/page": "/dashboard/analytics", "/dashboard/campanhas/page": "/dashboard/campanhas", "/dashboard/configuracao/page": "/dashboard/configuracao", "/dashboard/contatos/page": "/dashboard/contatos", "/dashboard/crm/page": "/dashboard/crm", "/dashboard/configuracoes/page": "/dashboard/configuracoes", "/dashboard/conversas/page": "/dashboard/conversas", "/dashboard/crm/pipeline/page": "/dashboard/crm/pipeline", "/dashboard/dentistas/page": "/dashboard/dentistas", "/dashboard/dentistas/novo/page": "/dashboard/dentistas/novo", "/dashboard/dentistas/[id]/page": "/dashboard/dentistas/[id]", "/dashboard/leads/[id]/page": "/dashboard/leads/[id]", "/dashboard/leads/novo/page": "/dashboard/leads/novo", "/dashboard/lista-espera/page": "/dashboard/lista-espera", "/dashboard/pacientes/[id]/editar/page": "/dashboard/pacientes/[id]/editar", "/dashboard/leads/page": "/dashboard/leads", "/dashboard/pacientes/inativos/page": "/dashboard/pacientes/inativos", "/dashboard/pacientes/novo/page": "/dashboard/pacientes/novo", "/dashboard/pacientes/page": "/dashboard/pacientes", "/dashboard/pacientes/[id]/page": "/dashboard/pacientes/[id]", "/dashboard/page": "/dashboard", "/dashboard/procedimentos/novo/page": "/dashboard/procedimentos/novo", "/dashboard/procedimentos/[id]/page": "/dashboard/procedimentos/[id]", "/dashboard/procedimentos/page": "/dashboard/procedimentos", "/dashboard/pipeline/page": "/dashboard/pipeline", "/dashboard/configuracoes/acessos/perfis/page": "/dashboard/configuracoes/acessos/perfis", "/dashboard/tarefas/page": "/dashboard/tarefas", "/dashboard/configuracoes/acessos/page": "/dashboard/configuracoes/acessos" };
 var FunctionsConfigManifest = { "version": 1, "functions": {} };
-var PagesManifest = { "/_app": "pages/_app.js", "/_error": "pages/_error.js", "/_document": "pages/_document.js", "/404": "pages/404.html" };
+var PagesManifest = { "/_error": "pages/_error.js", "/_document": "pages/_document.js", "/_app": "pages/_app.js", "/404": "pages/404.html" };
 process.env.NEXT_BUILD_ID = BuildId;
 process.env.OPEN_NEXT_BUILD_ID = NextConfig.deploymentId ?? BuildId;
 process.env.NEXT_PREVIEW_MODE_ID = PrerenderManifest?.preview?.previewModeId;

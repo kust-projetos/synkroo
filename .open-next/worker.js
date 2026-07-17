@@ -1,3 +1,7 @@
+// W4.8: pg externalizado → injeta como global para o bundle que referencia `let e = pg`.
+import pg from 'pg';
+globalThis.pg = pg;
+
 //@ts-expect-error: Will be resolved by wrangler build
 import { handleCdnCgiImageRequest, handleImageRequest } from "./cloudflare/images.js";
 //@ts-expect-error: Will be resolved by wrangler build

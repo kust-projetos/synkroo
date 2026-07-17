@@ -607,9 +607,106 @@ export function useGrantConsent() {
       if (!res.ok) throw new Error('Failed to grant consent')
       return res.json()
     },
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.consents(variables.contact_id, variables.contact_type) })
+  })
+}
+
+/**
+ * Duplicate suggestions query & mutations
+ */
+export const duplicateKeys = {
+  all: ['duplicates'] as const,
+  list: (params?: string) => ['duplicates', 'list', params] as const,
+}
+
+export function useDuplicateSuggestions(params?: { status?: string; ownerType?: string }) {
+  const paramStr = JSON.stringify(params ?? {})
+  return useQuery({
+    queryKey: duplicateKeys.list(paramStr),
+    queryFn: async () => {
+      const qs = new URLSearchParams()
+      if (params?.status) qs.set('status', params.status)
+      if (params?.ownerType) qs.set('owner_type', params.ownerType)
+      const res = await fetch(`/api/contacts/duplicates?${qs}`)
+      if (!res.ok) throw new Error('Failed to fetch duplicates')
+      return res.json()
     },
+  })
+}
+
+export interface DuplicateTabSuggestion {
+  id: string;
+  ownerType: string;
+  duplicateScore: number;
+  confidence: string;
+  status: string;
+  winnerSuggestedId: string | null;
+  leftId?: string;
+  rightId?: string;
+  leftSnapshot: { id: string; name?: string; document?: string | null };
+  rightSnapshot: { id: string; name?: string; document?: string | null };
+  signals: Record<string, unknown>;
+  detectedAt: Date | string;
+}
+
+/**
+ * Derive the duplicate suggestion that involves a specific contact from the
+ * clinic-wide duplicate list, using the real contact id and owner type.
+ * Returns the single selected suggestion (never a literal null) plus query state.
+ */
+export function useContactDuplicateSuggestion(
+  contactId: string,
+  contactType: 'patient' | 'lead',
+) {
+  const { data, isLoading, error } = useDuplicateSuggestions({ ownerType: contactType });
+
+  const rows: DuplicateTabSuggestion[] = Array.isArray(data)
+    ? (data as DuplicateTabSuggestion[])
+    : (((data as any)?.data as DuplicateTabSuggestion[]) ?? []);
+
+  const selected = rows.find(
+    (s) => s.leftId === contactId || s.rightId === contactId,
+  );
+
+  return { selected, isLoading, error };
+}
+
+export function useApproveSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/contacts/duplicates/${id}/approve`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to approve')
+      return res.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: duplicateKeys.all }),
+  })
+}
+
+export function useDismissSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
+      const res = await fetch(`/api/contacts/duplicates/${id}/dismiss`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dismiss_reason: reason }),
+      })
+      if (!res.ok) throw new Error('Failed to dismiss')
+      return res.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: duplicateKeys.all }),
+  })
+}
+
+export function useMergeSuggestion() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/contacts/duplicates/${id}/merge`, { method: 'POST' })
+      if (!res.ok) throw new Error('Failed to merge')
+      return res.json()
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: duplicateKeys.all }),
   })
 }
 

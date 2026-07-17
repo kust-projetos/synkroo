@@ -1,40 +1,37 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError, ValidationError } from '@/lib/errors'
-
 /**
  * GET /api/appointments/availability
- * Check available time slots for a given date and dentist.
  *
- * Legacy scheduler service removed.
- * TODO(W5.3): reconnect to new scheduler/agent.
+ * Returns available time slots for a dentist on a given date.
+ * Replaces legacy stub (TODO W5.3) with operacional action adapter.
+ * No direct DB access in this file.
  */
-export async function GET(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
 
-    const { searchParams } = new URL(request.url)
-    const dateStr = searchParams.get('date')
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
+import { consultarDisponibilidade } from '@/modules/operacional/actions/consultar-disponibilidade';
 
-    if (!dateStr) {
-      return handleApiError(new ValidationError('date is required'))
-    }
+interface RouteParams { params: Promise<Record<string, string>>; }
 
-    const date = new Date(dateStr + 'T00:00:00')
-    const dayOfWeek = date.getDay()
+async function handleGET(request: NextRequest): Promise<NextResponse> {
+  const sp = new URL(request.url).searchParams;
+  const dentistId = sp.get('dentistId');
+  const date = sp.get('date');
+  const slotMinutes = sp.get('slotMinutes');
 
-    return NextResponse.json({
-      available: false,
-      date: dateStr,
-      dayOfWeek,
-      slots: [],
-      reason: 'legacy_scheduler_removed',
-      todo: 'TODO(W5.3): reconnect availability to new scheduling backend',
-    })
-  } catch (error) {
-    return handleApiError(error)
+  if (!dentistId || !date) {
+    return NextResponse.json(
+      { error: 'dentistId and date query parameters are required' },
+      { status: 400 },
+    );
   }
+
+  const input: Record<string, unknown> = { dentistId, date };
+  if (slotMinutes) input.slotMinutes = Number(slotMinutes);
+
+  return runActionRoute(consultarDisponibilidade, input);
 }
+
+const wrapped = withModuleRoute('operacional', moduleManifest)(handleGET);
+export { wrapped as GET };

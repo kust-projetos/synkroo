@@ -1,27 +1,14 @@
-import { NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
-import { getLeadStats } from '@/services/leads/leads.service'
+import { NextRequest } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
+import { obterEstatisticasLeads } from '@/modules/comercial/actions/obter-estatisticas-leads';
 
 /**
- * GET /api/leads/stats
- * Get lead statistics for dashboard
+ * GET /api/leads/stats — Lead statistics for dashboard.
  */
-export async function GET() {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+const handleGet = async (_request: NextRequest) => {
+  return runComercialAction(obterEstatisticasLeads, {});
+};
 
-    const clinicId = authResult.profile!.clinic_id
-    const stats = await getLeadStats(clinicId)
-
-    return NextResponse.json(stats)
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);

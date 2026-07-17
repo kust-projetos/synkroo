@@ -5,8 +5,15 @@ import { handleApiError } from '@/lib/errors'
 import { getDb } from '@/lib/db/client'
 import { conversations, appointments, patients } from '@/lib/db/schema'
 import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete-treatment.service'
-import { getHotLeads } from '@/services/leads/leads.service'
+import { listLeadsByClinic } from '@/modules/comercial/repositories/leads-repository'
 import { findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
+
+// Minimal inferred shape for the hot-lead filter callback (TS7006).
+interface HotLeadRow {
+  temperature?: string | null;
+  score?: number | null;
+  status?: string | null;
+}
 
 /** Alert item shape — preserved from original contract. */
 interface Alert {
@@ -67,8 +74,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 2. Hot leads
-    const hotLeads = await getHotLeads(clinicId, 5)
+    // 2. Hot leads via comercial repository
+    const allLeads = await listLeadsByClinic(clinicId);
+    const hotLeads = allLeads
+      .filter((l: HotLeadRow) => l.temperature === 'hot' && (l.score || 0) >= 70 && l.status !== 'converted' && l.status !== 'lost')
+      .slice(0, 5);
     for (const lead of hotLeads) {
       alerts.push({
         id: `hl-${lead.id}`,
@@ -77,7 +87,7 @@ export async function GET(request: NextRequest) {
         title: `Lead quente: ${lead.name}`,
         description: `Score ${lead.score}/100 — ${lead.interest || 'Interesse geral'}`,
         action_url: `/dashboard/leads/${lead.id}`,
-        created_at: lead.updated_at,
+        created_at: lead.updatedAt ? new Date(lead.updatedAt).toISOString() : new Date().toISOString(),
       })
     }
 

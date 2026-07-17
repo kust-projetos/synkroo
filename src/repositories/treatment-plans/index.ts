@@ -6,7 +6,7 @@
 import { eq, and, desc } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { treatmentPlans, treatmentPlanItems } from "@/lib/db/schema/business";
-import { patients } from "@/lib/db/schema/core";
+import { patients } from "@/modules/operacional/schema";
 
 /**
  * Delete a treatment plan and its items.

@@ -1,65 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
-import {
-  getUnacknowledgedNotifications,
-  checkAndNotifyHotLeads,
-} from '@/services/leads/lead-notification.service'
+import { NextRequest } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
+import { listarNotificacoes } from '@/modules/comercial/actions/listar-notificacoes';
+import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
 
 /**
- * GET /api/leads/notifications
- * List unacknowledged hot lead alerts
+ * GET /api/leads/notifications — List hot lead notifications.
  */
-export async function GET() {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-
-    const clinicId = authResult.profile!.clinic_id
-    const notifications = await getUnacknowledgedNotifications(clinicId)
-
-    return NextResponse.json({
-      notifications,
-      count: notifications.length,
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+const handleGet = async () => {
+  return runComercialAction(listarNotificacoes, {});
+};
 
 /**
- * POST /api/leads/notifications
- * Manually trigger hot lead check for the clinic
+ * POST /api/leads/notifications — Manually trigger hot lead check.
  */
-export async function POST() {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+const handlePost = async () => {
+  return runComercialAction(processarNotificacoesLeadsQuentes, {});
+};
 
-    const clinicId = authResult.profile!.clinic_id
-
-    await checkAndNotifyHotLeads(clinicId)
-
-    // Fetch updated list after check
-    const notifications = await getUnacknowledgedNotifications(clinicId)
-
-    return NextResponse.json({
-      success: true,
-      message: 'Hot lead check completed',
-      notifications,
-      count: notifications.length,
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
+export const POST = withModuleRoute('comercial', moduleManifest)(handlePost);

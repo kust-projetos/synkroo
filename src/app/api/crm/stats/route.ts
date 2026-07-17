@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { eq, and, not, inArray } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
-import { getLeadStats } from '@/services/leads/leads.service'
+import { listLeadsByClinic } from '@/modules/comercial/repositories/leads-repository'
 import { getCampaigns } from '@/services/followup/campaign.service'
 import { getDb } from '@/lib/db/client'
 import { leads } from '@/lib/db/schema'
@@ -35,8 +35,26 @@ export async function GET(request: Request) {
     const clinicId = authResult.profile!.clinic_id
     const db = getDb()
 
-    // Get lead stats
-    const leadStats = await getLeadStats(clinicId)
+    // Get lead stats via comercial repository
+    const allLeads = await listLeadsByClinic(clinicId);
+    const total = allLeads.length;
+    const byStatus: Record<string, number> = {};
+    const byTemperature: Record<string, number> = {};
+    let hotCount = 0;
+    let totalScore = 0;
+    for (const l of allLeads) {
+      byStatus[l.status || 'unknown'] = (byStatus[l.status || 'unknown'] || 0) + 1;
+      byTemperature[l.temperature || 'cold'] = (byTemperature[l.temperature || 'cold'] || 0) + 1;
+      if (l.temperature === 'hot') hotCount++;
+      totalScore += l.score || 0;
+    }
+    const leadStats = {
+      total,
+      byStatus,
+      byTemperature,
+      hotLeads: hotCount,
+      avgScore: total > 0 ? Math.round(totalScore / total) : 0,
+    };
 
     // Get campaign stats
     let campaignStats = {
@@ -84,8 +102,10 @@ export async function GET(request: Request) {
       ? Math.round(((campaignConversions * AVG_PATIENT_VALUE) / (campaignStats.totalSent * 0.5)))
       : 0
 
-    const conversionRate = leadStats.conversionRate || 0
-    const activeLeads = leadStats.total - (leadStats.byStatus.converted || 0) - (leadStats.byStatus.lost || 0)
+    const convertedCount = leadStats.byStatus['converted'] || 0;
+    const lostCount = leadStats.byStatus['lost'] || 0;
+    const conversionRate = leadStats.total > 0 ? Math.round((convertedCount / leadStats.total) * 100) : 0
+    const activeLeads = leadStats.total - convertedCount - lostCount
 
     return NextResponse.json({
       pipelineValue,

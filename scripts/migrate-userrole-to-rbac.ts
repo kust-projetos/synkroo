@@ -5,7 +5,7 @@
 
 import { getDb, closeDb } from '@/lib/db/client';
 import { users, clinics } from '@/lib/db/schema/core';
-import { roles, userClinicAccess } from '@/lib/db/schema/rbac';
+import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
 import { seedRbacForClinic } from '@/core/rbac/seed';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { eq, and } from 'drizzle-orm';

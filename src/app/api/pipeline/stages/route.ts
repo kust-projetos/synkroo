@@ -1,40 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getPipelineStages, createPipelineStage } from '@/services/pipeline/stages.service'
+import { NextRequest } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
+import { listarPipeline } from '@/modules/comercial/actions/listar-pipeline';
+import { criarEtapaPipeline } from '@/modules/comercial/actions/criar-etapa-pipeline';
 
-export async function GET(req: NextRequest) {
-  try {
-    const auth = await validateApiAuth()
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
-    const clinicId = auth.profile!.clinic_id
+const handleGet = async (_request: NextRequest) => {
+  return runComercialAction(listarPipeline, {});
+};
 
-    const data = await getPipelineStages(clinicId)
-    return NextResponse.json({ data })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-}
+const handlePost = async (request: NextRequest) => {
+  const body = await request.json();
+  const { name, color, sort_order } = body;
+  return runComercialAction(criarEtapaPipeline, {
+    name,
+    color: color || '#6b7280',
+    position: sort_order ?? 0,
+  });
+};
 
-export async function POST(req: NextRequest) {
-  try {
-    const auth = await validateApiAuth()
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
-    const clinicId = auth.profile!.clinic_id
-
-    const body = await req.json()
-    const { name, color, sort_order } = body
-    if (!name || !color) return NextResponse.json({ error: 'name and color are required' }, { status: 400 })
-
-    try {
-      const data = await createPipelineStage({ clinicId, name, color, sortOrder: sort_order })
-      return NextResponse.json({ data }, { status: 201 })
-    } catch (error: any) {
-      if (error.message?.includes('already exists')) {
-        return NextResponse.json({ error: error.message }, { status: 409 })
-      }
-      throw error
-    }
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-}
+export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
+export const POST = withModuleRoute('comercial', moduleManifest)(handlePost);

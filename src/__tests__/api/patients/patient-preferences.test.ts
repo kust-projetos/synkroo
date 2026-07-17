@@ -51,6 +51,38 @@ jest.mock('@/lib/rate-limit', () => ({
   rateLimitPresets: { api: { windowMs: 60000, maxRequests: 60 } },
 }));
 
+// Mock auth session for getUserProfile (used by action routes)
+jest.mock('@/lib/auth/session', () => ({
+  validateApiAuth: jest.fn().mockResolvedValue({ success: true, profile: mockProfile }),
+  hasRequiredRole: jest.fn().mockReturnValue(true),
+  getUserProfile: jest.fn().mockResolvedValue(mockProfile),
+}));
+
+// Mock manifest so buildUserContext can resolve enabledModules without hitting DB
+jest.mock('@/core/modules/manifest', () => {
+  const actual = jest.requireActual('@/core/modules/manifest')
+  return {
+    ...actual,
+    drizzleManifestRepo: {
+      getEnabledModuleIds: jest.fn().mockResolvedValue(['operacional']),
+    },
+    moduleManifest: {
+      isEnabled: jest.fn().mockResolvedValue(true),
+      enabledModules: jest.fn().mockResolvedValue(new Set(['core', 'operacional'])),
+    },
+  }
+});
+
+// Mock RBAC so buildUserContext → resolveAccess doesn't fail
+jest.mock('@/core/rbac/repository', () => ({
+  drizzleRbacRepo: {
+    isMaster: jest.fn().mockResolvedValue(false),
+    getAccess: jest.fn().mockResolvedValue({ isSystem: true, roleName: 'Owner', roleId: 'r1' }),
+    getRolePermissions: jest.fn().mockResolvedValue([]),
+    getOverrides: jest.fn().mockResolvedValue([]),
+  },
+}));
+
 // ── Imports after mocks ────────────────────────
 
 import { NextRequest } from 'next/server';

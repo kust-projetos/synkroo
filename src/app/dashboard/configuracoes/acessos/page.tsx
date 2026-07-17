@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { buildUserContext } from '@/core/actions/context';
 import { getGroupedCatalog } from '@/core/rbac/grouped-catalog';
 import { UserAccessForm } from '@/modules/core/ui/UserAccessForm';
+import { ClinicUsersTable } from '@/modules/core/ui/ClinicUsersTable';
+import { listClinicRolesAction, listClinicUsersAction } from '@/modules/core/ui/actions';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,9 +12,12 @@ export default async function AcessosPage() {
   if (!ctx.can('core:manage_users')) redirect('/dashboard');
 
   const groups = getGroupedCatalog();
+  const [usersResult, rolesResult] = await Promise.all([
+    listClinicUsersAction(ctx.clinicId),
+    listClinicRolesAction(ctx.clinicId),
+  ]);
 
-  // TODO(W3.5): carregar lista real de usuários e perfis via repositórios Core
-  // (depende de API routes / repositories que virão no Eixo 2 com o módulo Core)
+  if (!usersResult.ok || !rolesResult.ok) redirect('/dashboard');
 
   return (
     <main className="max-w-2xl mx-auto p-6 space-y-6">
@@ -22,18 +27,20 @@ export default async function AcessosPage() {
       </p>
 
       <section>
+        <h2 className="text-lg font-semibold mb-3">Usuários da clínica</h2>
+        <ClinicUsersTable clinicId={ctx.clinicId} users={usersResult.data} />
+      </section>
+
+      <section>
         <h2 className="text-lg font-semibold mb-3">Conceder acesso a um usuário</h2>
-        <UserAccessForm clinicId={ctx.clinicId} />
+        <UserAccessForm clinicId={ctx.clinicId} users={usersResult.data} roles={rolesResult.data} />
       </section>
 
       <section>
         <h2 className="text-lg font-semibold mb-3">Perfis disponíveis</h2>
-        <p className="text-gray-500 text-sm">
-          Para criar ou editar perfis, acesse{' '}
-          <a href="/dashboard/configuracoes/acessos/perfis" className="text-blue-600 underline">
-            Perfis de acesso
-          </a>.
-        </p>
+        <ul className="text-sm text-gray-600 list-disc pl-5">
+          {rolesResult.data.map((role) => <li key={role.id}>{role.name}</li>)}
+        </ul>
       </section>
 
       <section>

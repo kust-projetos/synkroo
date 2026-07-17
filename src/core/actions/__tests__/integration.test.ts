@@ -3,9 +3,6 @@
 // Integration: usa DB real — desativa o mock do jest.setup.ts
 jest.unmock('@/lib/db/client');
 
-// Override o DATABASE_URL fake do jest.setup.ts com o real
-process.env.DATABASE_URL = 'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
-
 /**
  * Integration test: Action Layer contra DB real (Gate A — 1.3).
  *

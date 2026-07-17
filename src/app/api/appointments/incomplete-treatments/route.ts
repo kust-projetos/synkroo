@@ -1,37 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import {
-  detectIncompleteTreatments,
-  getIncompleteTreatmentAlerts,
-} from '@/services/appointments/incomplete-treatment.service'
-import { handleApiError } from '@/lib/errors'
-
 /**
- * GET /api/appointments/incomplete-treatments
- * Detect incomplete multi-session treatments
+ * GET /api/appointments/incomplete-treatments — list incomplete treatments
+ *
+ * Migrated from operacional → followup module.
+ * Uses followup.listarTratamentosIncompletos.
  */
-export async function GET(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runActionRoute } from '@/modules/followup/ui/route-adapter';
+import { listarTratamentosIncompletos } from '@/modules/followup/actions';
 
-    const clinicId = authResult.profile!.clinic_id
-    const searchParams = new URL(request.url).searchParams
-    const summary = searchParams.get('summary') === 'true'
-
-    if (summary) {
-      const alerts = await getIncompleteTreatmentAlerts(clinicId)
-      return NextResponse.json(alerts)
-    }
-
-    const treatments = await detectIncompleteTreatments(clinicId)
-    return NextResponse.json({ treatments })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handleGET(request: NextRequest): Promise<NextResponse> {
+  const sp = new URL(request.url).searchParams;
+  return runActionRoute(listarTratamentosIncompletos, {
+    alertsOnly: sp.get('alerts_only') === 'true' || undefined,
+  });
 }
+
+const wrapped = withModuleRoute('followup', moduleManifest)(handleGET);
+export { wrapped as GET };

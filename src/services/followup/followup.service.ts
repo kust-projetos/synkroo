@@ -6,13 +6,10 @@
 
 import { eq, and, gte, lte, isNull, isNotNull, inArray, ilike, asc, desc } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
-import {
-  procedureGuidelines,
-  patientFeedback,
-} from '@/lib/db/schema/core'
 import { followUpConfigs } from '@/lib/db/schema/crm'
 import { appointments } from '@/lib/db/schema/appointments'
-import { clinics, patients, procedures, dentists } from '@/lib/db/schema/core'
+import { procedureGuidelines, patientFeedback, patients, procedures, dentists } from '@/modules/operacional/schema'
+import { clinics } from '@/lib/db/schema/core'
 import { dbLogger, whatsappLogger } from '@/lib/logger'
 import { createFeedback } from '@/repositories/followup'
 
@@ -269,7 +266,10 @@ export async function sendFollowUpMessage(
       }),
     })
 
-    const data = await response.json()
+    const data = (await response.json()) as {
+      error?: { message?: string }
+      messages?: Array<{ id?: string }>
+    }
 
     if (!response.ok) {
       whatsappLogger.error('WhatsApp API error', null, { data })

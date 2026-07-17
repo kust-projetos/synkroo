@@ -1,138 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
-import {
-  addObservation,
-  getObservations,
-  deleteObservation,
-} from '@/services/patients/patient-preferences.service'
-import * as patientRepo from '@/repositories/patients'
-
-type RouteParams = {
-  params: Promise<{ id: string }>
-}
-
 /**
- * GET /api/patients/[id]/observations
+ * GET /api/patients/[id]/observations — deprecated (410 Gone)
+ * POST /api/patients/[id]/observations — deprecated (410 Gone)
+ *
+ * Patient observations port deferred to future wave.
  */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-    const clinicId = authResult.profile!.clinic_id
 
-    const { id } = await params
-    const searchParams = new URL(request.url).searchParams
-    const visibility = searchParams.get('visibility') as 'public' | 'team_only' | null
-    const limit = parseInt(searchParams.get('limit') || '50', 10)
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
 
-    // Verify patient belongs to user's clinic
-    const patient = await patientRepo.findByIdScoped(id, clinicId)
-    if (!patient) {
-      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
-    }
+const OPERACIONAL_MODULE = 'operacional';
 
-    const observations = await getObservations(id, {
-      visibility: visibility || undefined,
-      limit,
-    })
+const DEPRECATED = NextResponse.json(
+  { error: 'deprecated', message: 'Patient observations are not available in this API version.' },
+  { status: 410 },
+);
 
-    return NextResponse.json({ observations })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
-
-/**
- * POST /api/patients/[id]/observations
- */
-export async function POST(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-    const clinicId = authResult.profile!.clinic_id
-
-    const { id } = await params
-    const body = await request.json()
-    const { content, visibility } = body
-
-    if (!content) {
-      return NextResponse.json({ error: 'Content is required' }, { status: 400 })
-    }
-
-    // Verify patient belongs to user's clinic
-    const patient = await patientRepo.findByIdScoped(id, clinicId)
-    if (!patient) {
-      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
-    }
-
-    const observation = await addObservation({
-      patientId: id,
-      clinicId,
-      authorId: authResult.profile!.id,
-      authorName: authResult.profile!.name || 'Unknown',
-      content,
-      visibility,
-    })
-
-    if (!observation) {
-      return NextResponse.json({ error: 'Failed to add observation' }, { status: 500 })
-    }
-
-    return NextResponse.json({ observation })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
-
-/**
- * DELETE /api/patients/[id]/observations?observation_id=xxx
- */
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
-    }
-    const clinicId = authResult.profile!.clinic_id
-
-    const { id } = await params
-
-    // Verify the patient belongs to the user's clinic
-    const patient = await patientRepo.findByIdScoped(id, clinicId)
-    if (!patient) {
-      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
-    }
-
-    const observationId = new URL(request.url).searchParams.get('observation_id')
-    if (!observationId) {
-      return NextResponse.json({ error: 'observation_id is required' }, { status: 400 })
-    }
-
-    const success = await deleteObservation(
-      observationId,
-      authResult.profile!.id
-    )
-
-    if (!success) {
-      return NextResponse.json({ error: 'Failed to delete observation' }, { status: 500 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+async function handle(): Promise<NextResponse> { return DEPRECATED; }
+const wrapped = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handle);
+export { wrapped as GET, wrapped as POST };
