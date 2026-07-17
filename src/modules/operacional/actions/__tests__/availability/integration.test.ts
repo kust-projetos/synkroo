@@ -30,7 +30,7 @@ const CLINIC_ID = '00000000-0000-0000-0000-0000000000f1';
 const DENTIST_ID = '00000000-0000-0000-0000-0000000001f1';
 const PATIENT_ID = '00000000-0000-0000-0000-0000000002f1';
 
-const TEST_DATE = '2026-08-04'; // Monday (dayOfWeek = 1)
+const TEST_DATE = '2026-08-04'; // Tuesday (dayOfWeek = 2)
 const BLOCK_START = '08:00:00';
 const BLOCK_END = '18:00:00';
 
@@ -111,10 +111,10 @@ beforeAll(async () => {
     [PATIENT_ID, CLINIC_ID],
   );
 
-  // Seed schedule block: Monday 08:00–18:00
+  // Seed schedule block: Tuesday 08:00–18:00
   await pool.query(
     `INSERT INTO schedule_blocks (id, clinic_id, dentist_id, day_of_week, start_time, end_time, is_available)
-     VALUES ('00000000-0000-0000-0000-000000000bf1', $1, $2, 1, $3::time, $4::time, true)
+     VALUES ('00000000-0000-0000-0000-000000000bf1', $1, $2, 2, $3::time, $4::time, true)
      ON CONFLICT (id) DO NOTHING`,
     [CLINIC_ID, DENTIST_ID, BLOCK_START, BLOCK_END],
   );
