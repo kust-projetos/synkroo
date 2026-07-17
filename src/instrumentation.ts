@@ -1,30 +1,29 @@
 /**
- * W4.5: Bootstrap do runtime — inicializado uma vez no boot do Worker/Node.
- * Chama bootstrapActions() (W3.4) via dynamic import para evitar que o build
- * do Workers resolva `next-auth/crypto` estaticamente (edge: crypto é global).
+ * W4.8: Runtime bootstrap — injetado uma vez no boot do Worker (Workers) ou Node.js.
  *
- * Idempotente: bootstrapActions já tem flag `done` interno.
- * Edge-compatible: sem APIs Node (Buffer/fs). Apenas console + import dinâmico.
+ * Responsabilidades:
+ *   1. Hyperdrive (Workers): injeta connection string do binding HYPERDRIVE em
+ *      globalThis.pg (injetado pelo script post-build em .open-next/worker.js).
+ *   2. DATABASE_URL: lido normalmente via process.env (Node.js local / fallback).
+ *
+ * Edge-compatible: apenas globals (EdgeRuntime, process.env) + dynamic import.
  */
-export async function register() {
-  // Bootstrap lazy: dynamic import para evitar que edge runtime tente carregar pg.
-  // Se falhar (ex: edge sem pg), logamos warning e seguimos.
-  try {
-    const { bootstrapActions } = await import('@/core/actions/bootstrap');
-    await bootstrapActions();
-  } catch (err) {
-    console.warn(
-      '[synkroo:boot] bootstrapActions skipped:',
-      err instanceof Error ? err.message : String(err),
-    );
-  }
+import { getCloudflareContext } from '@opennextjs/cloudflare/cloudflare-context';
 
-  // Detecção de runtime (apenas logging — não gating)
-  if (typeof EdgeRuntime !== 'undefined') {
-    console.warn('[synkroo:boot] Workers runtime (EdgeRuntime)');
-  } else if (process.env.NEXT_RUNTIME === 'nodejs') {
-    console.warn('[synkroo:boot] Node.js runtime (NEXT_RUNTIME)');
-  } else {
-    console.warn('[synkroo:boot] Unknown runtime');
+/** Injeta connection string do Hyperdrive no cliente DB antes de qualquer запрос. */
+async function injectHyperdrive() {
+  try {
+    // env.HYPERDRIVE só existe no runtime Workers (wrangler/wrangler dev)
+    const ctx = getCloudflareContext() as unknown as { env?: Record<string, { connectionString?: string }> };
+    if (ctx?.env?.HYPERDRIVE?.connectionString) {
+      const { setDbConnectionString } = await import('@/lib/db/client');
+      setDbConnectionString(ctx.env.HYPERDRIVE.connectionString);
+    }
+  } catch {
+    // Ignora: getCloudflareContext não existe em Node.js, throw é esperado
   }
+}
+
+export async function register() {
+  await injectHyperdrive();
 }

@@ -1,66 +1,33 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
-import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError, ValidationError } from '@/lib/errors'
-import * as procedureRepo from '@/repositories/procedures'
-
 /**
- * GET /api/procedures
- * List procedures for a clinic
+ * GET  /api/procedures — list procedures
+ * POST /api/procedures — create procedure
+ *
+ * Migrated to operacional module action system.
+ * No direct DB access in this file.
  */
-export async function GET(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
 
-    const procedures_ = await procedureRepo.findByClinic(clinicId, { activeOnly: true })
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
+import { criarProcedimento } from '@/modules/operacional/actions/criar-procedimento';
+import { listarProcedimentos } from '@/modules/operacional/actions/listar-procedimentos';
 
-    const mapped = procedures_.map((p) => ({
-      id: p.id,
-      name: p.name,
-      description: p.description,
-      duration_minutes: p.durationMinutes,
-      price: p.price,
-      category: p.category,
-      is_active: p.isActive,
-      created_at: p.createdAt,
-    }))
+const OPERACIONAL_MODULE = 'operacional';
 
-    return NextResponse.json({ procedures: mapped })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handleGET(request: NextRequest): Promise<NextResponse> {
+  const sp = new URL(request.url).searchParams;
+  return runActionRoute(listarProcedimentos, {
+    activeOnly: sp.get('activeOnly') === 'true',
+  });
 }
 
-/**
- * POST /api/procedures
- * Create a new procedure
- */
-export async function POST(request: NextRequest) {
-  try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
-    }
-    const clinicId = authResult.profile!.clinic_id
-
-    const body = await request.json()
-    const { name, description, duration_minutes, price, category } = body
-
-    const procedure = await procedureRepo.create({
-      clinicId,
-      name,
-      description: description || null,
-      durationMinutes: duration_minutes || 30,
-      price: price ? String(price) : undefined,
-      category: category || null,
-    })
-
-    return NextResponse.json({ procedure }, { status: 201 })
-  } catch (error) {
-    return handleApiError(error)
-  }
+async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  const body = await request.json();
+  return runActionRoute(criarProcedimento, body, { okStatus: 201 });
 }
+
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);
+const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePOST);
+
+export { wrappedGET as GET, wrappedPOST as POST };

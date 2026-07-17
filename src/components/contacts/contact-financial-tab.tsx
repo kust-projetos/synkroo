@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useFinancialSummary, type PlanFinancialSummary } from '@/hooks/useFinancialSummary'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -169,7 +170,15 @@ export function ContactFinancialTab({ contactId }: ContactFinancialTabProps) {
 
   return (
     <div className="space-y-4 p-4">
-      <h3 className="text-sm font-medium text-muted-foreground">Financeiro</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium text-muted-foreground">Financeiro</h3>
+        <Link
+          href="/dashboard/financeiro"
+          className="text-xs text-primary hover:underline"
+        >
+          Ir para Financeiro →
+        </Link>
+      </div>
       {/* Treatment Plans */}
       <div className="space-y-3">
         {data.plans.map((summary) => (

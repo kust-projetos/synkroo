@@ -1,0 +1,34 @@
+{
+  "name": "synkroo-ia-agent",
+  "main": "index.ts",
+  "compatibility_date": "2026-06-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "AGENT", "class_name": "AgentOrchestrator" }
+    ]
+  },
+  "services": [
+    {
+      "binding": "APP",
+      "service": "synkroo-ia-bridge",
+      "entrypoint": "AppService"
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["AgentOrchestrator"]
+    }
+  ],
+  "vars": {
+    "IA_LLM_BASE_URL": "https://opencode.ai/zen/v1",
+    "IA_LLM_MODEL": "deepseek-v4-flash-free"
+  },
+  "dev": {
+    "port": 8788
+  },
+  "observability": {
+    "enabled": true
+  }
+}

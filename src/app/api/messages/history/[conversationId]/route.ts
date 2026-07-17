@@ -1,50 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { handleApiError } from '@/lib/errors'
-import * as conversationRepo from '@/repositories/conversations'
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runAtendimentoAction } from '@/modules/atendimento/ui/route-adapter';
+import { historicoMensagens } from '@/modules/atendimento/actions/historico-mensagens';
 
-interface RouteParams {
-  params: Promise<{ conversationId: string }>
+interface RouteParams { params: Promise<{ conversationId: string }>; }
+
+async function handleGET(_request: NextRequest, { params }: RouteParams): Promise<NextResponse> {
+  const { conversationId } = await params;
+  const sp = new URL(_request.url).searchParams;
+  return runAtendimentoAction(historicoMensagens, {
+    conversationId,
+    page: sp.get('page') ?? undefined,
+    limit: sp.get('limit') ?? undefined,
+  });
 }
 
-/**
- * GET /api/messages/history/[conversationId]
- * Get message history for a conversation
- */
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const { conversationId } = await params
-    const { searchParams } = new URL(request.url)
-    const limit = parseInt(searchParams.get('limit') || '50')
-    const offset = parseInt(searchParams.get('offset') || '0')
-
-    const rows = await conversationRepo.findMessagesByConversation(conversationId, { limit, offset })
-    const total = await conversationRepo.countMessagesByConversation(conversationId)
-
-    return NextResponse.json({
-      messages: rows.map(m => ({
-        id: m.id,
-        conversation_id: m.conversationId,
-        direction: m.direction,
-        content: m.content,
-        message_type: m.messageType,
-        media_url: m.mediaUrl,
-        metadata: m.metadata,
-        intent: m.intent,
-        entities: m.entities,
-        confidence: m.confidence,
-        is_ai: m.isAi,
-        delivered_at: m.deliveredAt,
-        read_at: m.readAt,
-        created_at: m.createdAt,
-      })),
-      pagination: {
-        total,
-        limit,
-        offset,
-        hasMore: total > offset + limit,
-      },
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
-}
+const wrapped = withModuleRoute('atendimento', moduleManifest)(handleGET);
+export { wrapped as GET };

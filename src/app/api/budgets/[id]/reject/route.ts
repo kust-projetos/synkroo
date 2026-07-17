@@ -1,35 +1,40 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq } from 'drizzle-orm'
-import { getDb } from '@/lib/db/client'
-import { budgets } from '@/lib/db/schema'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getBudgetById, rejectBudget } from '@/services/budgets/budget.service'
-import { handleApiError } from '@/lib/errors'
+/**
+ * Budget Reject API — legacy adapter.
+ * Uses Drizzle-backed Financeiro repository.
+ */
 
-type RouteParams = { params: Promise<{ id: string }> }
+import { NextRequest, NextResponse } from 'next/server';
+import { validateApiAuth } from '@/lib/auth/session';
+import { getBudget } from '@/modules/financeiro/services/budget-service';
+import { rejectBudget } from '@/modules/financeiro/services/budget-service';
+import { updateBudget as repoUpdateBudget, type BudgetRow } from '@/modules/financeiro/repositories/financeiro-repository';
+import { handleApiError } from '@/lib/errors';
+
+type RouteParams = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await validateApiAuth()
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
-    const clinicId = auth.profile!.clinic_id
+    const auth = await validateApiAuth();
+    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status });
+    const clinicId = auth.profile!.clinic_id;
+    const { id } = await params;
 
-    const { id } = await params
-    const budget = await getBudgetById(id)
-    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 })
-    if (budget.clinic_id !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    if (!['pending', 'sent'].includes(budget.status)) return NextResponse.json({ error: 'Budget cannot be rejected in current status' }, { status: 400 })
-
-    const updated = await rejectBudget(id)
-    if (!updated) return NextResponse.json({ error: 'Failed to reject budget' }, { status: 500 })
-
-    // Optional rejection reason
-    const body = await request.json().catch(() => ({}))
-    if (body.reason) {
-      const db = getDb()
-      await db.update(budgets).set({ notes: `Rejeitado: ${body.reason}`, updatedAt: new Date() }).where(eq(budgets.id, id))
+    const budget = await getBudget(id);
+    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
+    if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (budget.status && !['pending', 'sent'].includes(budget.status)) {
+      return NextResponse.json({ error: 'Budget cannot be rejected in current status' }, { status: 400 });
     }
 
-    return NextResponse.json({ budget: updated, message: 'Budget rejected' })
-  } catch (error) { return handleApiError(error) }
+    const body = await request.json().catch(() => ({}));
+    if (body.reason) {
+      const patch: Partial<BudgetRow> = { notes: `Rejeitado: ${body.reason}` };
+      await repoUpdateBudget(id, patch);
+    }
+
+    const updated = await rejectBudget(id, clinicId);
+    return NextResponse.json({ budget: updated, message: 'Budget rejected' });
+  } catch (error) {
+    return handleApiError(error);
+  }
 }

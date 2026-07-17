@@ -1,5 +1,6 @@
 import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
-import { clinics, patients, users } from './core';
+import { clinics, users } from './core';
+import { patients } from '../../../modules/operacional/schema';
 import { vector } from 'drizzle-orm/pg-core';
 
 // ══════════════════════════════════════════════

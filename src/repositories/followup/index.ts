@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "@/lib/db/client";
-import { patientFeedback } from "@/lib/db/schema/core";
+import { patientFeedback } from "@/modules/operacional/schema";
 
 export async function createFeedback(params: {
 	clinicId: string;

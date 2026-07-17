@@ -14,6 +14,7 @@ process.env.WHATSAPP_APP_SECRET = 'test-app-secret'
 process.env.WHATSAPP_ACCESS_TOKEN = 'test-access-token'
 process.env.INSTAGRAM_VERIFY_TOKEN = 'synkroo_instagram_token'
 process.env.INSTAGRAM_ACCESS_TOKEN = 'test-instagram-token'
+process.env.ENCRYPTION_KEY = 'test-encryption-key-for-unit-tests-min16chars'
 process.env.DATABASE_URL = 'postgres://test:test@localhost:5432/test'
 
 // Mock fetch globally

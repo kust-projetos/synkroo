@@ -4,6 +4,12 @@ import { registerActions, getAction } from './registry';
 
 let done = false;
 
+// Exported so tests can reset state between test files
+export function resetBootstrapForTests(): void {
+  // biome-ignore lint/style/noParameterAssign: test-only reset
+  done = false;
+}
+
 /**
  * Bootstrap central — registra todas as Actions e Permissões de Acesso.
  * Idempotente (flag `done` interno). Dynamic imports evitam carregar
@@ -12,13 +18,36 @@ let done = false;
 export async function bootstrapActions(): Promise<void> {
   if (done) return;
 
-  const [{ registerAccessPermissions }, { coreActions, coreAccessPermissions }] = await Promise.all([
+  const [
+    { registerAccessPermissions },
+    { coreActions, coreAccessPermissions },
+    { operacionalActions, operacionalAccessPermissions },
+    { atendimentoActions, atendimentoAccessPermissions },
+    { followupActions, followupAccessPermissions },
+    { iaActions, iaAccessPermissions },
+    { comercialActions, comercialAccessPermissions },
+  ] = await Promise.all([
     import('@/core/rbac/catalog'),
     import('@/modules/core'),
+    import('@/modules/operacional'),
+    import('@/modules/atendimento'),
+    import('@/modules/followup'),
+    import('@/modules/ia'),
+    import('@/modules/comercial'),
   ]);
 
   // Só registra os ainda ausentes (idempotente em dev/HMR)
   registerActions(coreActions.filter((a) => !getAction(a.name)));
+  registerActions(operacionalActions.filter((a) => !getAction(a.name)));
+  registerActions(atendimentoActions.filter((a) => !getAction(a.name)));
+  registerActions(followupActions.filter((a) => !getAction(a.name)));
+  registerActions(iaActions);
+  registerActions(comercialActions.filter((a) => !getAction(a.name)));
   registerAccessPermissions(coreAccessPermissions);
+  registerAccessPermissions(operacionalAccessPermissions);
+  registerAccessPermissions(atendimentoAccessPermissions);
+  registerAccessPermissions(followupAccessPermissions);
+  registerAccessPermissions(iaAccessPermissions);
+  registerAccessPermissions(comercialAccessPermissions);
   done = true;
 }

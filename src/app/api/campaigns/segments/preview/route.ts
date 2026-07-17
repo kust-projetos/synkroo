@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
 import { getDb } from '@/lib/db/client'
-import { patients } from '@/lib/db/schema/core'
+import { patients } from '@/modules/operacional/schema'
 import { eq, and, isNull, isNotNull, ne } from 'drizzle-orm'
 import { previewSegmentSize, getSegmentPatients } from '@/services/followup/segmentation.service'
 

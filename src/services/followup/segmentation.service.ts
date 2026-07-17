@@ -10,9 +10,9 @@
 import { eq, and, gte, lte, isNull, ne, inArray, arrayOverlaps, desc, sum } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { campaignSegments } from '@/lib/db/schema/crm'
-import { patients, clinics } from '@/lib/db/schema/core'
+import { clinics } from '@/lib/db/schema/core'
+import { patients, procedures } from '@/modules/operacional/schema'
 import { appointments } from '@/lib/db/schema/appointments'
-import { procedures } from '@/lib/db/schema/core'
 import { dbLogger } from '@/lib/logger'
 
 export interface SegmentCriteria {

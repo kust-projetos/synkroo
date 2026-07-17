@@ -20,6 +20,10 @@ jest.mock('@/lib/logger', () => ({
   whatsappLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }))
 
+jest.mock('@/core/modules/manifest', () => ({
+  moduleManifest: { isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() },
+}))
+
 // Mock getDb for Drizzle — proper chain simulation
 jest.mock('@/lib/db/client', () => {
   const mockConversations = [
@@ -70,6 +74,19 @@ jest.mock('@/services/appointments/confirmation-handler.service', () => ({
   processWaitlistConfirmation: jest.fn().mockResolvedValue({ processed: false, responseMessage: null }),
 }))
 
+jest.mock('@/modules/atendimento/repositories/conversations-repository', () => ({
+  getClinicByPhoneNumber: jest.fn().mockResolvedValue('clinic-123'),
+  getClinicByInstance: jest.fn().mockResolvedValue('clinic-123'),
+  findOrCreateConversation: jest.fn().mockResolvedValue({ id: 'conv-123', clinicId: 'clinic-123' }),
+  appendInboundMessageDeduped: jest.fn().mockResolvedValue({ deduped: false, id: 'msg-123' }),
+  updateConversationTimestamp: jest.fn().mockResolvedValue(undefined),
+  appendOutboundMessage: jest.fn().mockResolvedValue({ id: 'msg-out-123' }),
+  findAppointmentById: jest.fn().mockResolvedValue([{ id: 'appt-1' }]),
+  updateAppointmentStatus: jest.fn().mockResolvedValue(undefined),
+  getClinicByInstagramAccountId: jest.fn().mockResolvedValue(null),
+  messageExistsById: jest.fn().mockResolvedValue(false),
+}))
+
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn(() => ({ allowed: true, remaining: 99, resetTime: Date.now() + 60000 })),
   getClientIdentifier: jest.fn(() => 'test-client'),
@@ -84,6 +101,26 @@ jest.mock('@/lib/rate-limit', () => ({
     'X-RateLimit-Remaining': '99',
     'X-RateLimit-Reset': String(Math.floor(Date.now() / 1000) + 60),
   })),
+}))
+
+// Mock IA channel modules to avoid loading @opennextjs/cloudflare (ESM, Jest breaks).
+jest.mock('@/core/ia-channel/agent-invoker', () => ({
+  invokeAgentWithEnv: jest.fn(),
+  invokeAgent: jest.fn().mockResolvedValue({ reply: '', turnsUsed: 0 }),
+}))
+jest.mock('@/core/ia-channel/webhook-router', () => ({
+  routeInboundToAgent: jest.fn().mockResolvedValue({ from: '5511999999999', action: 'agent_replied' }),
+}))
+jest.mock('@/core/ia-channel/interlocutor', () => ({
+  resolveInterlocutor: jest.fn().mockResolvedValue({ personaType: 'recepcao', context: '', peerId: '5511' }),
+  resolveFuncionario: jest.fn(),
+}))
+jest.mock('@/repositories/patients', () => ({ findPatientByPhone: jest.fn().mockResolvedValue(null) }))
+jest.mock('@/repositories/leads', () => ({ findLeadByPhone: jest.fn().mockResolvedValue(null) }))
+jest.mock('@/core/actions/run', () => ({ runAction: jest.fn().mockResolvedValue({ ok: true, data: { messageId: 'msg-123' } }) }))
+jest.mock('@/core/actions/context', () => ({ buildSystemContext: jest.fn().mockResolvedValue({ source: 'system', clinicId: 'c1', can: () => true, hasModule: () => true, audit: { actor: 'agente (sistema)' } }) }))
+jest.mock('@/modules/atendimento/actions/enviar-mensagem', () => ({
+  enviarMensagem: { name: 'atendimento.enviarMensagem', module: 'atendimento', requires: 'atendimento:manage_messages', label: 'Enviar mensagem', input: { parse: () => ({}) } },
 }))
 
 global.fetch = jest.fn().mockResolvedValue({
