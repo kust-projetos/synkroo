@@ -100,11 +100,16 @@ export function validateTestDatabaseUrl(url) {
  * @returns {{ cwd: string, stdio: string, env: Record<string,string|undefined> }}
  */
 export function commandOptions(testUrl) {
+  // Clone only the inherited env vars, then inject DATABASE_URL.
+  // TEST_DATABASE_URL is intentionally excluded — the runner's own env var
+  // must never be forwarded to child processes (it is a runner-internal
+  // interface; children receive DATABASE_URL instead).
+  const { TEST_DATABASE_URL: _ignored, ...inheritedEnv } = process.env;
   return {
     cwd: PROJECT_ROOT,
     stdio: 'inherit',
     env: {
-      ...process.env,
+      ...inheritedEnv,
       DATABASE_URL: testUrl,
     },
   };
