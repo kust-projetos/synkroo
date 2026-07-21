@@ -47,10 +47,8 @@ function minutesToTime(m: number): string {
  */
 export async function consultarDisponibilidade(q: SlotQuery): Promise<string[]> {
   const slotMinutes = q.slotMinutes ?? 30;
-  // Use getUTCDay() so the day-of-week is independent of the server's
-  // local timezone. `new Date('YYYY-MM-DD')` parses as local midnight, which
-  // shifts the day by ±1 in non-UTC zones. Explicit UTC noon is deterministic.
-  const dayOfWeek = new Date(q.date + 'T12:00:00Z').getUTCDay();
+  // Use UTC so day-of-week matches the UTC-based slot generation.
+  const dayOfWeek = new Date(q.date + 'T00:00:00Z').getUTCDay();
 
   const blocks = await repo.getScheduleBlocksForDay(
     q.clinicId,
