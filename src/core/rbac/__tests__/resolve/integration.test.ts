@@ -115,7 +115,7 @@ describeOrSkip('resolveAccess — inactive users blocked (DB real)', () => {
 
     expect(result.role).toBe('Recepcionista');
     expect(result.can('core:manage_users')).toBe(false);
-    expect(result.can('comercial:view')).toBe(true);
+    expect(result.can('crm:view')).toBe(true);
   });
 
   it('Owner obtém bypass dentro da instância mas não master-only perms', async () => {
