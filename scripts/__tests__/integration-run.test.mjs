@@ -144,6 +144,95 @@ describe('validateTestDatabaseUrl', () => {
     const testUrl = `postgres://u:p@${host}:55432/synkroo_test`;
     assert.equal(validateTestDatabaseUrl(testUrl), testUrl);
   });
+
+  it('rejects http:// protocol even when hostname/pathname are loopback/synkroo_test', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    assert.throws(
+      () => validateTestDatabaseUrl('http://localhost:5432/synkroo_test'),
+      /protocol|postgres|postgresql/i,
+    );
+  });
+
+  it('rejects file:// protocol regardless of path', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    assert.throws(
+      () => validateTestDatabaseUrl('file:///tmp/db'),
+      /protocol|postgres|postgresql/i,
+    );
+  });
+
+  it('rejects arbitrary non-postgres schemes (mysql://, redis://, ftp://)', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    assert.throws(
+      () => validateTestDatabaseUrl('mysql://localhost:3306/synkroo_test'),
+      /protocol|postgres|postgresql/i,
+    );
+    assert.throws(
+      () => validateTestDatabaseUrl('redis://localhost:6379'),
+      /protocol|postgres|postgresql/i,
+    );
+    assert.throws(
+      () => validateTestDatabaseUrl('ftp://localhost/synkroo_test'),
+      /protocol|postgres|postgresql/i,
+    );
+  });
+
+  it('accepts postgresql:// with 127.0.0.1 /synkroo_test', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    const url = 'postgresql://synkroo:change-me@127.0.0.1:55432/synkroo_test';
+    assert.equal(validateTestDatabaseUrl(url), url);
+  });
+
+  it('accepts postgres:// with localhost /synkroo_test (loopback contract)', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    const url = 'postgres://synkroo:change-me@localhost:55432/synkroo_test';
+    assert.equal(validateTestDatabaseUrl(url), url);
+  });
+});
+
+// ── isMainModule ─────────────────────────────────────────────────────────────
+
+describe('isMainModule', () => {
+  it('is exported as a pure function', async () => {
+    const mod = await loadRunnerExports();
+    assert.equal(typeof mod.isMainModule, 'function', 'isMainModule is exported');
+  });
+
+  it('returns true when metaUrl matches the resolved argv1 (script invoked directly)', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    // The test file is running as its own main; process.argv[1] is this file path.
+    // We can't reliably assert true across all invocations, so we test the
+    // positive case by feeding matching inputs explicitly.
+    const fakeMeta = pathToFileURL(resolve(process.argv[1])).href;
+    assert.equal(isMainModule(fakeMeta, process.argv[1]), true);
+  });
+
+  it('returns false when metaUrl differs from argv1 path (fake module url)', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    const fakeMeta = 'file:///totally/fake/script.mjs';
+    assert.equal(isMainModule(fakeMeta, process.argv[1]), false);
+  });
+
+  it('returns false when argv1 is undefined or empty', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    assert.equal(isMainModule('file:///x.mjs', undefined), false);
+    assert.equal(isMainModule('file:///x.mjs', ''), false);
+  });
+
+  it('handles Windows-style backslash argv1 paths (forward/backslash agnostic)', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    // Simulate a Windows path: file:///C:/project/script.mjs vs argv 'C:\\project\\script.mjs'
+    const metaUrl = 'file:///C:/project/script.mjs';
+    const argv1 = 'C:\\project\\script.mjs';
+    assert.equal(isMainModule(metaUrl, argv1), true);
+  });
+
+  it('returns false when argv1 resolves to a different file even if basename matches', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    const metaUrl = pathToFileURL(resolve('/tmp/foo.mjs')).href;
+    const argv1 = resolve('/tmp/bar.mjs');
+    assert.equal(isMainModule(metaUrl, argv1), false);
+  });
 });
 
 // ── commandOptions ────────────────────────────────────────────────────────────

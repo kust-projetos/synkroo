@@ -60,13 +60,16 @@ export function validateTestDatabaseUrl(url) {
     throw new Error(`Invalid TEST_DATABASE_URL: ${trimmed}`);
   }
 
-  if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+  const hostname = parsed.hostname;
+  // Protocol allow-list — reject http://, file://, mysql://, etc.
+  // URL.protocol retains the trailing ':' (e.g., 'postgres:').
+  const protocol = parsed.protocol;
+  if (protocol !== 'postgres:' && protocol !== 'postgresql:') {
     throw new Error(
-      `TEST_DATABASE_URL must use postgres: or postgresql: protocol, got: ${parsed.protocol}`,
+      `TEST_DATABASE_URL protocol must be 'postgres:' or 'postgresql:', got: ${protocol}`,
     );
   }
 
-  const hostname = parsed.hostname;
   const hostOk =
     hostname === 'localhost' ||
     hostname === '127.0.0.1' ||
@@ -97,12 +100,11 @@ export function validateTestDatabaseUrl(url) {
  * @returns {{ cwd: string, stdio: string, env: Record<string,string|undefined> }}
  */
 export function commandOptions(testUrl) {
-  const { TEST_DATABASE_URL: _ignored, ...inheritedEnv } = process.env;
   return {
     cwd: PROJECT_ROOT,
     stdio: 'inherit',
     env: {
-      ...inheritedEnv,
+      ...process.env,
       DATABASE_URL: testUrl,
     },
   };
@@ -151,10 +153,27 @@ export function run(execute = execFileSync, testUrl = process.env.TEST_DATABASE_
 
 // ── Entrypoint ───────────────────────────────────────────────────────────────
 
-/** @param {string} metaUrl @param {string|null|undefined} argv1 @returns {boolean} */
+/**
+ * Platform-independent main-module check.
+ *
+ * Resolves argv1 to an absolute path and compares its file:// URL against
+ * metaUrl. Works on Windows where forward/backslash differences would
+ * break naive `fileURLToPath(metaUrl) === resolve(argv1)` comparisons.
+ *
+ * Pure function — exported for unit testing.
+ *
+ * @param {string} metaUrl  `import.meta.url` of the module being inspected
+ * @param {string|undefined} argv1  `process.argv[1]` from the host process
+ * @returns {boolean} true if the module is the entrypoint
+ */
 export function isMainModule(metaUrl, argv1) {
-  if (!argv1) return false;
-  return pathToFileURL(resolve(argv1)).href === metaUrl;
+  if (!metaUrl || typeof metaUrl !== 'string') return false;
+  if (!argv1 || typeof argv1 !== 'string') return false;
+  try {
+    return pathToFileURL(resolve(argv1)).href === metaUrl;
+  } catch {
+    return false;
+  }
 }
 
 // Only run as main script — inert on import
