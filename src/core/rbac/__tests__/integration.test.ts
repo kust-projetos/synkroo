@@ -105,8 +105,8 @@ describeOrSkip('resolveAccess — inactive users blocked', () => {
     // Recepcionista tem módulo operacional completo (do preset)
     expect(result.can('operacional:manage_appointments')).toBe(true);
     expect(result.can('operacional:view')).toBe(true);
-    // Recepcionista tem comercial:view (extraKeys)
-    expect(result.can('comercial:view')).toBe(true);
+    // Recepcionista tem crm:view (extraKeys do preset)
+    expect(result.can('crm:view')).toBe(true);
     // Recepcionista NÃO tem core:manage_users (não incluso no preset)
     expect(result.can('core:manage_users')).toBe(false);
   });
