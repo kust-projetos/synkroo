@@ -18,39 +18,40 @@ async function handleGET(request: NextRequest) {
 }
 
 async function handlePOST(request: NextRequest) {
-  const body = await request.text();
+  // 1. Extract raw bytes — must happen before any text decoding so that the
+  //    HMAC is computed over the exact request body bytes (Security Task 5).
+  const rawBody = Buffer.from(await request.arrayBuffer());
 
-  // 1. Validate APP_SECRET before rate limiter
+  // 2. Validate APP_SECRET before rate limiter
   const appSecret = process.env.INSTAGRAM_APP_SECRET;
   if (!appSecret) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
   }
 
-  // 2. Signature must be present
+  // 3. Signature must be present
   const signature = request.headers.get('x-hub-signature-256');
   if (!signature) {
     return NextResponse.json({ error: 'Missing signature' }, { status: 403 });
   }
 
-  // 3. Rate limit
+  // 4. Rate limit
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'ig-webhook' });
   if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
 
-  // 4. HMAC validation with equal-length guard + timingSafeEqual
-  if (!signature.startsWith('sha256=')) {
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
-  }
-  const expectedHex = createHmac('sha256', appSecret).update(body).digest('hex');
-  const expected = 'sha256=' + expectedHex;
-  if (
-    signature.length !== expected.length ||
-    !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))
-  ) {
+  // 5. Strict format check: exactly "sha256=" + 64 hex digits, no whitespace
+  if (!/^sha256=[0-9a-fA-F]{64}$/.test(signature)) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
   }
 
-  const payload = JSON.parse(body);
+  // 6. HMAC verification over raw bytes (not decoded text)
+  const expected = `sha256=${createHmac('sha256', appSecret).update(rawBody).digest('hex')}`;
+  if (!timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) {
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
+  }
+
+  // 7. Parse JSON only after HMAC is verified
+  const payload = JSON.parse(rawBody.toString('utf8'));
   if (payload.object !== 'instagram') return NextResponse.json({ status: 'ignored' });
 
   const entries = payload.entry || [];
