@@ -3,7 +3,12 @@
  */
 
 import { NextRequest } from 'next/server'
+import { createHmac } from 'crypto'
 import { POST, GET } from '@/app/api/instagram/webhook/route'
+
+const APP_SECRET = 'test-app-secret-at-least-32-chars!!'
+const signBody = (body: string | Buffer) =>
+  `sha256=${createHmac('sha256', APP_SECRET).update(body).digest('hex')}`
 
 jest.mock('@/core/modules/manifest', () => ({
   moduleManifest: { isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() },
@@ -77,17 +82,25 @@ describe('Instagram Webhook API', () => {
   })
 
   describe('POST - Message Reception', () => {
+    beforeEach(() => {
+      process.env.INSTAGRAM_APP_SECRET = APP_SECRET
+    })
+
     it('should ignore non-Instagram payloads', async () => {
       const payload = {
         object: 'other_platform',
         entry: [],
       }
+      const body = JSON.stringify(payload)
 
       const url = new URL('http://localhost/api/instagram/webhook')
       const request = new NextRequest(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': signBody(body),
+        },
+        body,
       })
 
       const response = await POST(request)
