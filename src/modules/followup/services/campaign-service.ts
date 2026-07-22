@@ -10,8 +10,8 @@ export type { Campaign, CampaignRecipient } from '@/services/followup/campaign.s
 export type { Segment };
 export type { SegmentCriteria } from '@/services/followup/segmentation.service';
 
-export async function executarCampanhas(): Promise<{ processed: number; sent?: number; failed?: number }> {
-  await campaignLegacy.processScheduledCampaigns();
+export async function executarCampanhas(clinicId: string): Promise<{ processed: number; sent?: number; failed?: number }> {
+  await campaignLegacy.processScheduledCampaigns(clinicId);
   return { processed: 1 };
 }
 
