@@ -2,6 +2,9 @@
  * POST /api/cron/followups
  * Cron job endpoint to process follow-ups, inactivity detection, and campaigns.
  *
+ * Runs each active task per non-deleted clinic using the action layer with a
+ * narrowly allowlisted cron context (buildCronContext).
+ *
  * Recommended schedule:
  * - Every 5 minutes for post-consultation follow-ups
  * - Daily at 8am for return reminders
@@ -9,13 +12,11 @@
  * - Every 30 minutes for scheduled campaigns
  *
  * Security: CRON_SECRET Bearer token + module gate (skips if followup disabled).
- * Service layer called directly (not action layer — cron has no user session).
  */
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { executarAll, runInactivityForCron, runCampaignsForCron } from '@/modules/followup/services/followup-service';
 import { runAction } from '@/core/actions/run';
-import { buildSystemContext } from '@/core/actions/context';
+import { buildCronContext } from '@/core/actions/context';
 import { getDb } from '@/lib/db/client';
 import { eq, isNull } from 'drizzle-orm';
 import { clinics } from '@/lib/db/schema/core';
@@ -24,6 +25,11 @@ import { assertModuleForJob } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { executarFollowup } from '@/modules/followup/actions/executar-followup';
+import { detectarInativos } from '@/modules/followup/actions/detectar-inativos';
+import { executarCampanhas } from '@/modules/followup/actions/executar-campanhas';
+
+type CronResult = { task: string; clinicId: string; ok: boolean; data?: unknown; error?: string };
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // Rate limit cron endpoints
@@ -34,7 +40,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
     );
   }
 
@@ -52,7 +58,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // Module gate — skip if followup module is not contracted
   try {
     await assertModuleForJob('followup', moduleManifest);
-  } catch {
+  } catch (_e) {
     return NextResponse.json(
       { success: true, skipped: 'followup module disabled', timestamp: new Date().toISOString() },
       { status: 200 },
@@ -63,43 +69,67 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const { searchParams } = new URL(request.url);
   const tasks = searchParams.get('tasks')?.split(',') || ['all'];
 
-  const results: Record<string, unknown> = {};
+  const results: Record<string, CronResult[]> = {};
 
-  // Process follow-ups (post-consultation, return reminders)
-  if (tasks.includes('all') || tasks.includes('followups')) {
-    logger.info('[cron/followups] Processing follow-ups...');
-    await executarAll();
-    results.followUps = 'processed';
+  // Select only active (non-deleted) clinics
+  const db = getDb();
+  const activeClinics = await db
+    .select({ id: clinics.id })
+    .from(clinics)
+    .where(isNull(clinics.deletedAt));
+
+  // Build the task → action mapping with required permission
+  const TASK_MAP: Array<{
+    key: string;
+    action: typeof executarFollowup | typeof detectarInativos | typeof executarCampanhas;
+    requires: string;
+  }> = [
+    { key: 'followups', action: executarFollowup, requires: 'followup:manage_followups' },
+    { key: 'inactivity', action: detectarInativos, requires: 'followup:manage_followups' },
+    { key: 'campaigns', action: executarCampanhas, requires: 'followup:manage_campaigns' },
+  ];
+
+  for (const taskSpec of TASK_MAP) {
+    if (!tasks.includes('all') && !tasks.includes(taskSpec.key)) continue;
+
+    const taskResults: CronResult[] = [];
+
+    for (const clinic of activeClinics) {
+      const ctx = await buildCronContext(clinic.id);
+      if (!ctx.can(taskSpec.requires)) {
+        logger.info(`[cron/followups] Clinic ${clinic.id} lacks ${taskSpec.requires}, skipping ${taskSpec.key}`);
+        continue;
+      }
+
+      try {
+        const result = await runAction(taskSpec.action, {}, ctx);
+        if (result.ok) {
+          taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: true, data: result.data });
+        } else {
+          taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: false, error: result.error.message });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: false, error: message });
+      }
+    }
+
+    results[taskSpec.key] = taskResults;
   }
 
-  // Run inactivity detection
-  if (tasks.includes('all') || tasks.includes('inactivity')) {
-    logger.info('[cron/followups] Running inactivity detection...');
-    await runInactivityForCron();
-    results.inactivity = 'completed';
-  }
-
-  // Process scheduled campaigns
-  if (tasks.includes('all') || tasks.includes('campaigns')) {
-    logger.info('[cron/followups] Processing scheduled campaigns...');
-    await runCampaignsForCron();
-    results.campaigns = 'processed';
-  }
-
-  // Check and notify hot leads across all clinics
+  // Check and notify hot leads across all clinics (existing preserved branch)
   if (tasks.includes('all') || tasks.includes('hot-leads')) {
     logger.info('[cron/followups] Checking hot leads across clinics...');
-    // Process hot leads via comercial module (replaces legacy checkAllClinicsHotLeads)
     try {
-      const allClinics = await getDb().select({ id: clinics.id }).from(clinics).where(isNull(clinics.deletedAt));
-      for (const c of allClinics) {
-        const ctx = await buildSystemContext(c.id);
+      for (const c of activeClinics) {
+        const ctx = await buildCronContext(c.id);
         await runAction(processarNotificacoesLeadsQuentes, {}, ctx);
       }
+      results.hotLeads = [{ task: 'hot-leads', clinicId: 'all', ok: true }];
     } catch (err) {
       logger.error('[cron/followups] Hot leads processing error:', err);
+      results.hotLeads = [{ task: 'hot-leads', clinicId: 'all', ok: false, error: String(err) }];
     }
-    results.hotLeads = 'checked';
   }
 
   return NextResponse.json({
