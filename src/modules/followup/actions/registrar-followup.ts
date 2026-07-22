@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { recordPatientFeedback } from '@/services/followup/followup.service';
+import * as service from '../services/followup-service';
 
 export const registrarFollowup = defineAction({
   name: 'followup.registrarFollowup',
@@ -17,7 +17,7 @@ export const registrarFollowup = defineAction({
     comments: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    await recordPatientFeedback({
+    return service.registrarFeedback({
       clinicId: ctx.clinicId,
       patientId: input.patientId,
       appointmentId: input.appointmentId,
@@ -25,7 +25,7 @@ export const registrarFollowup = defineAction({
       rating: input.rating,
       npsScore: input.npsScore,
       comments: input.comments,
+      channel: 'manual',
     });
-    return { success: true };
   },
 });
