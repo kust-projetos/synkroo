@@ -9,7 +9,7 @@
 
 import * as legacy from '@/services/followup/followup.service';
 import { runInactivityDetection as runInactivity } from './inactive-service';
-import { executarCampanhas as runCampaigns } from './campaign-service';
+import { executarCampanhas } from './campaign-service';
 
 export async function executarAll(clinicId: string): Promise<{ processed: number; sent?: number; failed?: number }> {
   await legacy.processAllFollowUps(clinicId);
@@ -47,5 +47,5 @@ export async function runInactivityForCron(clinicId: string): Promise<void> {
 }
 
 export async function runCampaignsForCron(clinicId: string): Promise<void> {
-  await runCampaigns(clinicId);
+  await executarCampanhas(clinicId);
 }
