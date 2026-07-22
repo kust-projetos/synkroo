@@ -11,18 +11,18 @@ import * as legacy from '@/services/followup/followup.service';
 import { runInactivityDetection as runInactivity } from './inactive-service';
 import { executarCampanhas as runCampaigns } from './campaign-service';
 
-export async function executarAll(): Promise<{ processed: number; sent?: number; failed?: number }> {
-  await legacy.processAllFollowUps();
+export async function executarAll(clinicId: string): Promise<{ processed: number; sent?: number; failed?: number }> {
+  await legacy.processAllFollowUps(clinicId);
   return { processed: 1 };
 }
 
-export async function executarPostConsulta(): Promise<{ processed: number; sent: number; failed: number }> {
-  const result = await legacy.processPostConsultationFollowUps();
+export async function executarPostConsulta(clinicId: string): Promise<{ processed: number; sent: number; failed: number }> {
+  const result = await legacy.processPostConsultationFollowUps(clinicId);
   return result;
 }
 
-export async function executarLembretesRetorno(): Promise<{ processed: number; sent: number; failed: number }> {
-  const result = await legacy.processReturnReminders();
+export async function executarLembretesRetorno(clinicId: string): Promise<{ processed: number; sent: number; failed: number }> {
+  const result = await legacy.processReturnReminders(clinicId);
   return result;
 }
 
@@ -42,10 +42,10 @@ export async function listarRetornoPendentes(clinicId: string) {
 // Exposed so cron/followups route can call all three cron tasks without
 // importing @/services/followup directly.
 
-export async function runInactivityForCron(): Promise<void> {
-  await runInactivity();
+export async function runInactivityForCron(clinicId: string): Promise<void> {
+  await runInactivity(clinicId);
 }
 
-export async function runCampaignsForCron(): Promise<void> {
-  await runCampaigns();
+export async function runCampaignsForCron(clinicId: string): Promise<void> {
+  await runCampaigns(clinicId);
 }
