@@ -178,7 +178,7 @@ export async function updateInactivePatientTags(
       const [row] = await db
         .select({ tags: patients.tags })
         .from(patients)
-        .where(eq(patients.id, patient.patientId))
+        .where(and(eq(patients.id, patient.patientId), eq(patients.clinicId, clinicId)))
 
       const currentTags: string[] = (row?.tags as string[]) || []
 
@@ -191,7 +191,7 @@ export async function updateInactivePatientTags(
       await db
         .update(patients)
         .set({ tags: newTags as any })
-        .where(eq(patients.id, patient.patientId))
+        .where(and(eq(patients.id, patient.patientId), eq(patients.clinicId, clinicId)))
 
       updated++
     } catch (err) {
@@ -280,20 +280,13 @@ export async function getPatientsForReactivation(
 }
 
 /**
- * Run daily inactivity detection job — Drizzle.
+ * Run daily inactivity detection job for a single clinic — Drizzle.
  */
-export async function runInactivityDetection(): Promise<void> {
-  dbLogger.info('Running inactivity detection...')
+export async function runInactivityDetection(clinicId: string): Promise<void> {
+  dbLogger.info('Running inactivity detection...', { clinicId })
 
-  const db = getDb()
-  const clinicRows = await db
-    .select({ id: clinics.id })
-    .from(clinics)
-
-  for (const c of clinicRows) {
-    const result = await updateInactivePatientTags(c.id)
-    dbLogger.info(`Clinic ${c.id} updated`, { updated: result.updated, errors: result.errors })
-  }
+  const result = await updateInactivePatientTags(clinicId)
+  dbLogger.info(`Clinic ${clinicId} updated`, { updated: result.updated, errors: result.errors })
 
   dbLogger.info('Inactivity detection complete')
 }
