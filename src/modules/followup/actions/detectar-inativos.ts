@@ -9,7 +9,7 @@ export const detectarInativos = defineAction({
   requires: 'followup:manage_followups',
   label: 'Detectar pacientes inativos',
   input: z.object({}),
-  handler: async (_input, _ctx: ActionContext) => {
-    return service.runInactivityDetection();
+  handler: async (_input, ctx: ActionContext) => {
+    return service.runInactivityDetection(ctx.clinicId);
   },
 });
