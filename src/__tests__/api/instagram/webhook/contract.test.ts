@@ -44,6 +44,10 @@ function signBody(body: string, secret: string): string {
   return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
 }
 
+function signBuffer(body: Buffer, secret: string): string {
+  return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
   clearEnv();
@@ -150,6 +154,68 @@ describe('POST /api/instagram/webhook', () => {
     const res = await POST(req as any);
     expect(res.status).toBe(200);
   });
+
+  // ── Security Task 5: strict signature format ─────────────────────────────
+
+  it.each([
+    `sha256=${'G'.repeat(64)}`,      // non-hex char
+    `sha256=${'a'.repeat(63)}`,      // truncated (63 chars)
+    `sha256=${'a'.repeat(65)}`,      // over-long (65 chars)
+    `sha256=${'a'.repeat(64)} `,     // trailing whitespace
+    ` sha256=${'a'.repeat(64)}`,     // leading whitespace
+  ])('rejects malformed signature %s', async (signature) => {
+    const body = JSON.stringify({ object: 'instagram', entry: [] });
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST',
+      headers: { 'x-hub-signature-256': signature },
+      body,
+    });
+    expect((await POST(req as any)).status).toBe(403);
+  });
+
+  it('rejects when signed bytes differ from submitted bytes', async () => {
+    // Sign compact JSON, submit pretty-printed JSON (same semantic content, different bytes)
+    const compact = JSON.stringify({ object: 'instagram', entry: [] });
+    const pretty = JSON.stringify({ object: 'instagram', entry: [] }, null, 2);
+    const signature = signBody(compact, VALID_APP_SECRET);
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST',
+      headers: { 'x-hub-signature-256': signature },
+      body: pretty,
+    });
+    expect((await POST(req as any)).status).toBe(403);
+  });
+
+  it('verifies a signature calculated over raw binary bytes before JSON parsing', async () => {
+    // Raw binary body signed exactly as Buffer; the HMAC must be computed over
+    // the raw byte sequence so that a valid raw-body signature is accepted even
+    // when the same bytes are not valid UTF-8 JSON.
+    const bytes = Buffer.from([0xff, 0xfe, 0x00, 0x61]);
+    const signature = signBuffer(bytes, VALID_APP_SECRET);
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST',
+      headers: { 'x-hub-signature-256': signature },
+      body: bytes,
+    });
+    // After the raw-byte fix: HMAC passes, then JSON.parse fails → SyntaxError.
+    // Before the fix (text-based): HMAC mismatches → 403.
+    await expect(POST(req as any)).rejects.toThrow(SyntaxError);
+  });
+
+  it('rejects raw binary body signed with wrong bytes', async () => {
+    // Sign one binary payload, submit a different binary payload — HMAC must fail.
+    const signedBytes = Buffer.from([0xff, 0xfe, 0x00, 0x61]);
+    const submittedBytes = Buffer.from([0xff, 0xfe, 0x00, 0x62]); // last byte differs
+    const signature = signBuffer(signedBytes, VALID_APP_SECRET);
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST',
+      headers: { 'x-hub-signature-256': signature },
+      body: submittedBytes,
+    });
+    expect((await POST(req as any)).status).toBe(403);
+  });
+
+  // ── existing test ─────────────────────────────────────────────────────────
 
   it('checks secret before rate limiter (secret missing → 500, rate limiter not called)', async () => {
     const { checkRateLimit } = require('@/lib/rate-limit');
