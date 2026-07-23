@@ -12,9 +12,9 @@ export const enviarLembreteCobranca = defineAction({
     clinicId: z.string().uuid(),
     chargeId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
     const result = await sendReminder({
-      clinicId: input.clinicId,
+      clinicId: ctx.clinicId,
       chargeId: input.chargeId,
     });
     return result;

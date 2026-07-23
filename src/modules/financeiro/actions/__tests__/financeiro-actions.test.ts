@@ -16,6 +16,9 @@ import { listarCobrancasAtrasadas } from '../listar-cobrancas-atrasadas';
 import { renderRatio } from '../../services/dashboard-service';
 import { saveGateway, maskApiKey, saveRoutingRule } from '../../services/gateway-config-service';
 import { calculateBudgetTotals } from '../../services/budget-service';
+import { enviarLembreteCobranca } from '../enviar-lembrete-cobranca';
+import { runAction } from '@/core/actions/run';
+import * as CollectionService from '../../services/collection-service';
 
 // Mock DB modules to avoid real DB calls in unit tests
 jest.mock('@/lib/db/client', () => {
@@ -48,6 +51,10 @@ jest.mock('../../repositories/financeiro-repository', () => ({
     createdAt: new Date(),
     updatedAt: new Date(),
   }),
+}));
+
+jest.mock('../../services/collection-service', () => ({
+  sendReminder: jest.fn(),
 }));
 
 const CLINIC_ID = '00000000-0000-0000-0000-000000000001';
@@ -256,5 +263,51 @@ describe('saveRoutingRule (service)', () => {
         patientId: '00000000-0000-0000-0000-000000000040',
       }),
     ).rejects.toThrow('gateway_routing_rule_scope_conflict');
+  });
+});
+
+// ══════════════════════════════════════════════
+// enviarLembreteCobranca — tenant isolation
+// ══════════════════════════════════════════════
+
+describe('enviarLembreteCobranca — tenant isolation', () => {
+  const CLINIC_A = '00000000-0000-0000-0000-0000000000aa';
+  const CLINIC_B = '00000000-0000-0000-0000-0000000000bb';
+  const CHARGE_B = '00000000-0000-0000-0000-0000000000bb';
+  const USER_ID = '00000000-0000-0000-0000-0000000000c1';
+
+  const mockSendReminder = CollectionService.sendReminder as jest.Mock;
+
+  beforeEach(() => {
+    mockSendReminder.mockReset();
+    mockSendReminder.mockResolvedValue({ sent: false, error: 'missing_patient_phone' });
+  });
+
+  it('handler uses ctx.clinicId not input.clinicId for tenant scope', async () => {
+    const ctx = {
+      source: 'user' as const,
+      clinicId: CLINIC_A,
+      user: { id: USER_ID, email: 'a@test.com', name: 'User A' },
+      can: () => true,
+      hasModule: () => true,
+      audit: { actor: USER_ID },
+    };
+
+    const result = await runAction(enviarLembreteCobranca,
+      { clinicId: CLINIC_B, chargeId: CHARGE_B },
+      ctx,
+    );
+
+    // Prove service received ctx.clinicId (A), not input.clinicId (B)
+    expect(mockSendReminder).toHaveBeenCalledWith({
+      clinicId: CLINIC_A,
+      chargeId: CHARGE_B,
+    });
+
+    // Result should be missing_patient_phone (no charge found for clinic A with charge B)
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.data).toEqual({ sent: false, error: 'missing_patient_phone' });
+    }
   });
 });
