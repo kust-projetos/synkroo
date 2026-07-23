@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { validateApiAuth } from '@/lib/auth/session';
 import { runAction } from '@/core/actions/run';
 import { buildUserContext } from '@/core/actions/context';
@@ -37,6 +37,20 @@ export async function runCrmAction<O>(
       { status: unauth ? 401 : 500 },
     );
   }
+}
+
+/**
+ * CRM read-only response for write methods (POST/PUT/PATCH/DELETE).
+ * Used while CRM is in MVP read-only mode.
+ */
+export async function crmReadOnlyResponse(
+  _request: NextRequest,
+  ..._rest: unknown[]
+): Promise<NextResponse> {
+  return NextResponse.json(
+    { error: 'CRM module is currently read-only. Use Operacional or Comercial modules to manage contacts.' },
+    { status: 405 },
+  );
 }
 
 export async function validateRequest() {

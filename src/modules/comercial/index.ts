@@ -63,5 +63,7 @@ export const comercialActions = [
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { comercialManifest } from './manifest';
+export { registrarNotaLead } from './actions/registrar-nota-lead';
+export { atualizarTagsLead } from './actions/atualizar-tags-lead';
 export { mesclarLeads } from './actions/mesclar-leads';
 export { comercialAccessPermissions } from './permissions';
