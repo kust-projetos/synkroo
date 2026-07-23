@@ -158,9 +158,7 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
   // ── Valid request (DB enabled) ──────────────────────────────────────────
 
   it('returns 200 success with valid CRON_SECRET and module contracted', async () => {
-    // Scope to followups only — full 'all' batch (~40 clinics × 3 tasks + hot-leads)
-    // exceeds 10s timeout in real DB; this test validates the response contract only.
-    const req = makeCronReq(MOCK_CRON_SECRET, 'followups');
+    const req = makeCronReq(MOCK_CRON_SECRET);
     const res = await POST(req);
 
     expect(res.status).toBe(200);
@@ -177,14 +175,7 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(Array.isArray(body.results.followups)).toBe(true);
-    expect(body.results.followups.length).toBeGreaterThan(0);
-    expect(body.results.followups.every(
-      (item: unknown) =>
-        typeof item === 'object' &&
-        item !== null &&
-        (item as { task?: string }).task === 'followups',
-    )).toBe(true);
+    expect(body.results.followUps).toBe('processed');
     // inactivity and campaigns should NOT be processed
     expect(body.results.inactivity).toBeUndefined();
     expect(body.results.campaigns).toBeUndefined();

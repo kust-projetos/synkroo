@@ -225,38 +225,31 @@ describeOrSkip('Merge execution repository functions (DB real)', () => {
     expect(bad).toBe(false);
   });
 
-  it('markSuggestionFailed with foreign clinicId returns false and preserves state', async () => {
+  it('markSuggestionFailed with foreign clinic returns false, suggestion unchanged (RED→GREEN)', async () => {
     const db = getDb();
     await resetToApproved();
     await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
 
-    const bad = await markSuggestionFailed(SUGGESTION_2, FOREIGN_CLINIC, KEY_1, 'cross_clinic_attempt');
-    expect(bad).toBe(false);
-
-    // State unchanged — still 'executing'
-    const [row] = await db
-      .select({ status: crmDuplicateSuggestions.status })
+    // Snapshot before: should be 'executing'
+    const [before] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
       .from(crmDuplicateSuggestions)
       .where(sql`id = ${SUGGESTION_2}`)
-      .limit(1);
-    expect(row.status).toBe('executing');
-  });
+      .limit(1) as any;
+    expect(before.status).toBe('executing');
 
-  it('finalizeMergeAndDismissSiblings with foreign clinicId returns false and preserves state', async () => {
-    const db = getDb();
-    await resetToApproved();
-    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+    // Attempt with FOREIGN_CLINIC — must NOT match
+    const foreign = await markSuggestionFailed(SUGGESTION_2, FOREIGN_CLINIC, KEY_1, 'foreign_clinic_attempt');
+    expect(foreign).toBe(false);
 
-    const bad = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_1, FOREIGN_CLINIC, LEFT, RIGHT, OWNER_TYPE);
-    expect(bad).toBe(false);
-
-    // State unchanged — still 'executing'
-    const [row] = await db
-      .select({ status: crmDuplicateSuggestions.status })
+    // Suggestion still 'executing' with same key
+    const [after] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
       .from(crmDuplicateSuggestions)
       .where(sql`id = ${SUGGESTION_2}`)
-      .limit(1);
-    expect(row.status).toBe('executing');
+      .limit(1) as any;
+    expect(after.status).toBe('executing');
+    expect(after.mergeOpKey).toBe(before.mergeOpKey);
   });
 
   it('finalizeMergeAndDismissSiblings finalizes winner via CAS', async () => {
@@ -278,25 +271,63 @@ describeOrSkip('Merge execution repository functions (DB real)', () => {
     expect(bad).toBe(false);
   });
 
-  it('winner_confirmed_id outsider UUID rejected by CHECK constraint', async () => {
+  it('winner_member_check rejects outsider winner_confirmed_id, accepts left_id and right_id', async () => {
     const db = getDb();
-    // Use a UUID that is NEITHER left_id NOR right_id
-    const OUTSIDER_ID = '00000000-0000-0000-0000-00000000ffff';
+    const sid = '00000000-0000-0000-0000-00000000c003';
+    const leftId = '00000000-0000-0000-0000-00000000b003';
+    const rightId = '00000000-0000-0000-0000-00000000b004';
+    const outsiderId = '00000000-0000-0000-0000-00000000ffff';
 
-    // Reset to approved state first
+    try {
+      // Insert with winner_confirmed_id = leftId → must be accepted
+      await db.execute(
+        sql`INSERT INTO crm_duplicate_suggestions
+            (id, clinic_id, owner_type, left_id, right_id, status, confidence, duplicate_score,
+             winner_confirmed_id, signals, left_snapshot, right_snapshot)
+            VALUES (${sid}, ${CLINIC_ID}, 'patient', ${leftId}, ${rightId}, 'pending', 'high', 80,
+                    ${leftId}, '{}'::jsonb, '{"id":"left"}'::jsonb, '{"id":"right"}'::jsonb)`,
+      );
+
+      // Update to winner_confirmed_id = rightId → must be accepted
+      await db.execute(
+        sql`UPDATE crm_duplicate_suggestions SET winner_confirmed_id = ${rightId} WHERE id = ${sid}`,
+      );
+
+      // Update to outsider UUID → must be rejected by constraint
+      await expect(
+        db.execute(
+          sql`UPDATE crm_duplicate_suggestions SET winner_confirmed_id = ${outsiderId} WHERE id = ${sid}`,
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await db.execute(sql`DELETE FROM crm_duplicate_suggestions WHERE id = ${sid}`);
+    }
+  });
+
+  it('finalizeMergeAndDismissSiblings with foreign clinic returns false, suggestion unchanged (RED→GREEN)', async () => {
+    const db = getDb();
     await resetToApproved();
+    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
 
-    // Attempt to set winner_confirmed_id to an outsider UUID — must be rejected
-    // by crm_duplicate_suggestions_winner_member_check constraint
-    await expect(
-      db.execute(sql`
-        UPDATE crm_duplicate_suggestions
-        SET winner_confirmed_id = ${OUTSIDER_ID}, updated_at = now()
-        WHERE id = ${SUGGESTION_2}
-      `),
-    ).rejects.toThrow();
+    // Snapshot before
+    const [before] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1) as any;
+    expect(before.status).toBe('executing');
 
-    // After failed attempt, row should still have original winner_confirmed_id
-    await resetToApproved();
+    // Attempt with FOREIGN_CLINIC — winner CAS must include clinicId
+    const foreign = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_1, FOREIGN_CLINIC, LEFT, RIGHT, OWNER_TYPE);
+    expect(foreign).toBe(false);
+
+    // Suggestion still executing
+    const [after] = await db
+      .select({ status: crmDuplicateSuggestions.status, mergeOpKey: crmDuplicateSuggestions.mergeOperationKey })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1) as any;
+    expect(after.status).toBe('executing');
+    expect(after.mergeOpKey).toBe(before.mergeOpKey);
   });
 });

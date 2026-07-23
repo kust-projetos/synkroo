@@ -53,12 +53,6 @@ describe('CRM duplicate review permissions', () => {
   });
 
   it('does not expose owner merge actions from the CRM registry', () => {
-    // Task 4: crmActions agora contém 12 ações públicas humanas
-    // (ver action-taxonomy.test.ts para o contrato completo). O invariante
-    // "owner merges não aparecem em crmActions" continua valendo.
-    const names = (crmActions as Array<{ name: string }>).map((a) => a.name);
-    expect(names).not.toContain('operacional.mesclarPacientes');
-    expect(names).not.toContain('comercial.mesclarLeads');
-    expect(names).not.toContain('crm.reprocessarSugestoesDuplicidade');
+    expect(crmActions).toEqual([]);
   });
 });

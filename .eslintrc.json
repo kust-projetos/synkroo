@@ -59,31 +59,6 @@
       }
     },
     {
-      "files": ["src/modules/crm/services/patient-merge-dispatcher.ts", "src/modules/crm/services/lead-merge-dispatcher.ts", "src/modules/crm/services/contact-notes-service.ts", "src/modules/crm/services/contact-tags-service.ts"],
-      "rules": {
-        "boundaries/dependencies": "off"
-      }
-    },
-    {
-      "files": ["src/app/dashboard/financeiro/page.test.tsx", "src/app/dashboard/contatos/page.test.tsx", "src/app/dashboard/contatos/contacts-client.tsx"],
-      "rules": {
-        "boundaries/dependencies": "off",
-        "react/display-name": "off"
-      }
-    },
-    {
-      "files": ["src/lib/ui/__tests__/build-menu.test.ts"],
-      "rules": {
-        "boundaries/dependencies": "off"
-      }
-    },
-    {
-      "files": ["src/modules/comercial/index.ts", "src/modules/operacional/index.ts"],
-      "rules": {
-        "boundaries/dependencies": "off"
-      }
-    },
-    {
       "files": ["src/components/**/*.tsx", "src/app/**/page.tsx", "src/app/**/*.client.tsx"],
       "rules": {
         "no-restricted-imports": ["error", {

@@ -8,14 +8,12 @@ const mockFindEvent = jest.fn();
 const mockCreateEvent = jest.fn();
 const mockCreatePayment = jest.fn();
 const mockListGateways = jest.fn().mockResolvedValue([]);
-const mockFindPaymentChargeByExternalId = jest.fn();
 
 jest.mock('../../repositories/financeiro-repository', () => ({
   findGatewayEvent: (...args: any[]) => mockFindEvent(...args),
   createGatewayEvent: (...args: any[]) => mockCreateEvent(...args),
   createPayment: (...args: any[]) => mockCreatePayment(...args),
   listGateways: (...args: any[]) => mockListGateways(...args),
-  findPaymentChargeByExternalId: (...args: any[]) => mockFindPaymentChargeByExternalId(...args),
 }));
 
 import { storeReset } from '../../repositories/financeiro-store';
@@ -28,15 +26,11 @@ beforeEach(() => {
   mockCreateEvent.mockReset();
   mockCreatePayment.mockReset();
   mockListGateways.mockReset();
-  mockFindPaymentChargeByExternalId.mockReset();
 
-  // Default: gateway exists, charge exists, event not yet processed
+  // Default: gateway exists and event not yet processed
   mockListGateways.mockResolvedValue([
     { id: 'gateway-1', clinicId: 'c1', provider: 'asaas', isDefault: true, isEnabled: true },
   ]);
-  mockFindPaymentChargeByExternalId.mockResolvedValue({
-    id: 'charge-1', clinicId: 'c1', externalChargeId: 'pay_1', amount: '100', status: 'pending',
-  });
   mockFindEvent.mockResolvedValue(undefined);
   mockCreateEvent.mockResolvedValue({ id: 'evt-1' });
   mockCreatePayment.mockResolvedValue({ id: 'pay-1' });
@@ -58,7 +52,7 @@ describe('Asaas webhook idempotency', () => {
       body: payload,
     });
 
-    expect(first).toMatchObject({ settled: true, chargeFound: true });
+    expect(first).toMatchObject({ settled: true });
     expect(mockCreateEvent).toHaveBeenCalledTimes(1);
     expect(mockCreateEvent).toHaveBeenCalledWith(
       expect.objectContaining({ provider: 'asaas', externalEventId: 'evt_1' }),
@@ -73,7 +67,7 @@ describe('Asaas webhook idempotency', () => {
       body: payload,
     });
 
-    expect(second).toMatchObject({ duplicate: true, settled: false, chargeFound: true });
+    expect(second).toMatchObject({ duplicate: true, settled: false });
     // No additional event created or payment settled
     expect(mockCreateEvent).toHaveBeenCalledTimes(1);
     expect(mockCreatePayment).toHaveBeenCalledTimes(1);
@@ -101,7 +95,7 @@ describe('Asaas webhook idempotency', () => {
     );
   });
 
-  test('non-payment events do not settle but chargeFound=true (gateway exists)', async () => {
+  test('non-payment events do not settle', async () => {
     const payload = {
       id: 'evt_3',
       event: 'PAYMENT_OVERDUE',
@@ -114,27 +108,7 @@ describe('Asaas webhook idempotency', () => {
       body: payload,
     });
 
-    expect(result).toMatchObject({ settled: false, chargeFound: true });
-    expect(mockCreatePayment).not.toHaveBeenCalled();
-  });
-
-  test('returns chargeFound=false when gateway exists but external charge not found locally', async () => {
-    mockFindPaymentChargeByExternalId.mockResolvedValue(undefined);
-    const payload = {
-      id: 'evt_4',
-      event: 'PAYMENT_RECEIVED',
-      payment: { id: 'unknown-charge', value: 500, status: 'RECEIVED' },
-    };
-
-    const result = await processAsaasWebhook({
-      clinicId: CLINIC_ID,
-      headers: new Headers({ 'x-asaas-token': 'test' }),
-      body: payload,
-    });
-
-    expect(result).toMatchObject({ settled: false, chargeFound: false });
-    expect(mockFindPaymentChargeByExternalId).toHaveBeenCalledWith(CLINIC_ID, 'unknown-charge');
-    expect(mockCreateEvent).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ settled: false });
     expect(mockCreatePayment).not.toHaveBeenCalled();
   });
 });

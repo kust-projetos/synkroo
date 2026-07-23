@@ -39,7 +39,6 @@ const NPM_PREFIX = process.platform === 'win32' ? ['/d', '/s', '/c', 'npm.cmd'] 
  *
  * Rules:
  *  - Must be a defined, non-empty string
- *  - Protocol must be postgres:// or postgresql://
  *  - Hostname must be a loopback address (localhost, 127.0.0.1, ::1)
  *  - Pathname (database name) must be exactly /synkroo_test
  *
@@ -61,10 +60,9 @@ export function validateTestDatabaseUrl(url) {
     throw new Error(`Invalid TEST_DATABASE_URL: ${trimmed}`);
   }
 
-  // Reject non-postgres protocols (e.g. http://, file://)
   if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
     throw new Error(
-      `TEST_DATABASE_URL must use postgres:// or postgresql:// protocol, got: ${parsed.protocol}`,
+      `TEST_DATABASE_URL must use postgres: or postgresql: protocol, got: ${parsed.protocol}`,
     );
   }
 
@@ -150,22 +148,13 @@ export function run(execute = execFileSync, testUrl = process.env.TEST_DATABASE_
   execute(NPM_BIN, [...NPM_PREFIX, 'exec', '--', 'jest', '--config', 'jest.integration.config.js', ...jestArgs], opts);
 }
 
-// ── isMainModule ─────────────────────────────────────────────────────────────
+// ── Entrypoint ───────────────────────────────────────────────────────────────
 
-/**
- * Platform-independent check whether this module is being run as the main script.
- * Resolves argv1 via pathToFileURL so that Windows backslash paths are handled.
- *
- * @param {string}  metaUrl  import.meta.url of the caller
- * @param {string?} argv1    process.argv[1] (may be undefined/null)
- * @returns {boolean}
- */
+/** @param {string} metaUrl @param {string|null|undefined} argv1 @returns {boolean} */
 export function isMainModule(metaUrl, argv1) {
   if (!argv1) return false;
   return pathToFileURL(resolve(argv1)).href === metaUrl;
 }
-
-// ── Entrypoint ───────────────────────────────────────────────────────────────
 
 // Only run as main script — inert on import
 if (isMainModule(import.meta.url, process.argv[1])) {

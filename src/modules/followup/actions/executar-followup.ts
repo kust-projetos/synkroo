@@ -11,13 +11,13 @@ export const executarFollowup = defineAction({
   input: z.object({
     type: z.enum(['all', 'post_consultation', 'return_reminder']).optional().default('all'),
   }),
-  handler: async (input, ctx: ActionContext) => {
+  handler: async (input, _ctx: ActionContext) => {
     if (input.type === 'post_consultation') {
-      return service.executarPostConsulta(ctx.clinicId);
+      return service.executarPostConsulta();
     }
     if (input.type === 'return_reminder') {
-      return service.executarLembretesRetorno(ctx.clinicId);
+      return service.executarLembretesRetorno();
     }
-    return service.executarAll(ctx.clinicId);
+    return service.executarAll();
   },
 });

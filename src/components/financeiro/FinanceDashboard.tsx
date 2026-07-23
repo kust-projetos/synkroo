@@ -5,23 +5,31 @@ import { BudgetTab } from './BudgetTab';
 import { PaymentTab } from './PaymentTab';
 import { CollectionTab } from './CollectionTab';
 import { GatewayConfigTab } from './GatewayConfigTab';
+import { renderRatio } from '@/modules/financeiro/services/dashboard-service';
 
 export interface DashboardMetrics {
-  overdueCount: number;
-  totalOverdue: number;
-  overdueStages: { light: number; firm: number; internal: number };
+  budgetConversion: number | null;
+  collectionRecovery: number | null;
+}
+
+export interface DashboardCharge {
+  id: string;
+  status: string;
+  dueDate?: string;
+  amount?: string;
 }
 
 export interface FinanceDashboardProps {
   metrics: DashboardMetrics;
+  charges: DashboardCharge[];
   canManageBudget?: boolean;
 }
 
 type TabId = 'budgets' | 'payments' | 'collections' | 'config';
 
-export function FinanceDashboard({ metrics, canManageBudget = false }: FinanceDashboardProps) {
+export function FinanceDashboard({ metrics, charges, canManageBudget = false }: FinanceDashboardProps) {
   const [activeTab, setActiveTab] = useState<TabId>('budgets');
-  const [selectedBudgetId, setSelectedBudgetId] = useState<string | null>(null);
+  const openCharges = charges.filter(c => c.status === 'pending' || c.status === 'overdue');
 
   const tabs: Array<{ id: TabId; label: string }> = [
     { id: 'budgets', label: 'Orçamentos' },
@@ -30,32 +38,17 @@ export function FinanceDashboard({ metrics, canManageBudget = false }: FinanceDa
     { id: 'config', label: 'Config' },
   ];
 
-  const handleSelectBudget = (id: string | null) => {
-    setSelectedBudgetId(id);
-    if (id) setActiveTab('payments');
-  };
-
   return (
     <div className="space-y-6 p-6">
-      {/* Dashboard metrics — overdue summary from /api/financeiro/dashboard */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Dashboard metrics */}
+      <div className="grid grid-cols-2 gap-4">
         <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Cobranças Vencidas</p>
-          <p className="text-2xl font-bold">{metrics.overdueCount}</p>
+          <p className="text-sm text-muted-foreground">Conversão de Orçamentos</p>
+          <p className="text-2xl font-bold">{renderRatio(metrics.budgetConversion)}</p>
         </div>
         <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Total em Atraso</p>
-          <p className="text-2xl font-bold">
-            R$ {metrics.totalOverdue.toFixed(2).replace('.', ',')}
-          </p>
-        </div>
-        <div className="rounded-lg border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Estágios</p>
-          <p className="text-xs mt-1">
-            <span className="inline-block w-16">Leve:</span> {metrics.overdueStages.light}
-            <span className="inline-block w-16 ml-3">Firme:</span> {metrics.overdueStages.firm}
-            <span className="inline-block w-16 ml-3">Interna:</span> {metrics.overdueStages.internal}
-          </p>
+          <p className="text-sm text-muted-foreground">Recuperação de Cobranças</p>
+          <p className="text-2xl font-bold">{renderRatio(metrics.collectionRecovery)}</p>
         </div>
       </div>
 
@@ -80,17 +73,13 @@ export function FinanceDashboard({ metrics, canManageBudget = false }: FinanceDa
 
       {/* Tab content */}
       <div className="mt-4">
-        {activeTab === 'budgets' && (
-          <BudgetTab
-            selectedBudgetId={selectedBudgetId}
-            onSelectBudget={handleSelectBudget}
-          />
-        )}
-        {activeTab === 'payments' && (
-          <PaymentTab selectedBudgetId={selectedBudgetId} />
-        )}
+        {activeTab === 'budgets' && <BudgetTab />}
+        {activeTab === 'payments' && <PaymentTab />}
         {activeTab === 'collections' && (
-          <CollectionTab canManageBudget={canManageBudget} />
+          <CollectionTab
+            charges={charges}
+            canManageBudget={canManageBudget}
+          />
         )}
         {activeTab === 'config' && <GatewayConfigTab />}
       </div>

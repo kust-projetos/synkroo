@@ -241,24 +241,27 @@ describe('PATCH /api/budgets/[id]/installments', () => {
     expect(body.installment.id).toBe(INSTALLMENT_ID);
   });
 
-  it('ignores forged clinicId in PATCH body and uses auth clinicId', async () => {
+  it('ignores forged clinicId in PATCH body, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockGetBudgetForClinic.mockResolvedValue(undefined);
+    // Route does not read clinicId from body
     const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
       method: 'PATCH',
-      body: JSON.stringify({ clinicId: CLINIC_B, amount: 150 }),
+      body: JSON.stringify({ amount: 150, clinicId: CLINIC_B }),
     });
     const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
     const res = await PATCH(req as any, foreignParams as any);
     expect(res.status).toBe(404);
+    // Budget lookup used auth clinicId (CLINIC_A), not CLINIC_B
     expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
   });
 
-  it('ignores forged clinicId in PATCH query string and uses auth clinicId', async () => {
+  it('ignores forged clinicId in PATCH header, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockGetBudgetForClinic.mockResolvedValue(undefined);
-    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID + '&clinicId=' + CLINIC_B, {
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
       method: 'PATCH',
+      headers: { 'x-clinic-id': CLINIC_B },
       body: JSON.stringify({ amount: 150 }),
     });
     const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
@@ -267,12 +270,11 @@ describe('PATCH /api/budgets/[id]/installments', () => {
     expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
   });
 
-  it('ignores forged x-clinic-id header in PATCH and uses auth clinicId', async () => {
+  it('ignores forged clinicId in PATCH query, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockGetBudgetForClinic.mockResolvedValue(undefined);
-    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID + '&clinicId=' + CLINIC_B, {
       method: 'PATCH',
-      headers: { 'x-clinic-id': CLINIC_B },
       body: JSON.stringify({ amount: 150 }),
     });
     const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
@@ -319,22 +321,10 @@ describe('DELETE /api/budgets/[id]/installments', () => {
     expect(body.success).toBe(true);
   });
 
-  it('ignores forged clinicId in DELETE body and uses auth clinicId', async () => {
+  it('ignores forged clinicId in DELETE query, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockGetBudgetForClinic.mockResolvedValue(undefined);
-    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
-      method: 'DELETE',
-      body: JSON.stringify({ clinicId: CLINIC_B }),
-    });
-    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
-    const res = await DELETE(req as any, foreignParams as any);
-    expect(res.status).toBe(404);
-    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
-  });
-
-  it('ignores forged clinicId in DELETE query string and uses auth clinicId', async () => {
-    auth(CLINIC_A);
-    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    // DELETE reads installment_id from query, not clinicId
     const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID + '&clinicId=' + CLINIC_B, { method: 'DELETE' });
     const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
     const res = await DELETE(req as any, foreignParams as any);
@@ -342,7 +332,7 @@ describe('DELETE /api/budgets/[id]/installments', () => {
     expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
   });
 
-  it('ignores forged x-clinic-id header in DELETE and uses auth clinicId', async () => {
+  it('ignores forged clinicId in DELETE header, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockGetBudgetForClinic.mockResolvedValue(undefined);
     const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {

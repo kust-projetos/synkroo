@@ -17,9 +17,6 @@ import {
 } from '../services/duplicate-scoring-service';
 import { ActionError } from '@/core/actions/types';
 import type { ActionContext } from '@/core/actions/types';
-import { getOwnerMergeDispatcher } from './owner-merge-registry';
-export { registerOwnerMerge } from './owner-merge-registry';
-export type { OwnerMergeDispatcher } from './owner-merge-registry';
 import { isPatientMerged } from '@/modules/operacional/services';
 import { isLeadMerged } from '@/modules/comercial/services';
 
@@ -35,7 +32,20 @@ export function isLeaseActive(executedAt: Date, nowMs: number = Date.now()): boo
   return nowMs - executedAt.getTime() < MERGE_LEASE_MS;
 }
 
-// ── Owner merge dispatcher (registry lives in ./owner-merge-registry) ────────
+// ── Owner merge dispatcher ───────────────────────────────────────────────────
+
+export interface OwnerMergeDispatcher {
+  (winnerId: string, loserId: string, clinicId: string): Promise<boolean>;
+}
+
+const ownerMergeRegistry = new Map<string, OwnerMergeDispatcher>();
+
+export function registerOwnerMerge(
+  ownerType: 'patient' | 'lead',
+  dispatcher: OwnerMergeDispatcher,
+): void {
+  ownerMergeRegistry.set(ownerType, dispatcher);
+}
 
 // ── Document conflict check ─────────────────────────────────────────────────
 
@@ -94,7 +104,7 @@ export async function executeMerge(
     }
 
     // Unapplied recovery: allow safe re-claim on fresh suggestion
-    // First release the stale lease by marking failed (CAS on id + key + executing)
+    // First release the stale lease by marking failed (CAS on id + clinicId + key + executing)
     const failed = await markSuggestionFailed(
       id,
       ctx.clinicId,
@@ -186,7 +196,7 @@ export async function executeMerge(
   const loserId = winnerId === suggestion.leftId ? suggestion.rightId : suggestion.leftId;
 
   // ── Dispatch owner merge ─────────────────────────────────────────────────
-  const dispatcher = getOwnerMergeDispatcher(ownerType);
+  const dispatcher = ownerMergeRegistry.get(ownerType);
   let ownerSuccess = false;
   if (dispatcher) {
     try {

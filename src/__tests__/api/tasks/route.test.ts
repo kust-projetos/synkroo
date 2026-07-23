@@ -19,13 +19,13 @@ const mockInsert = jest.fn(() => ({ values: jest.fn(() => ({ returning: mockInse
 
 // Update chain: update → set → where → returning
 const mockUpdReturning = jest.fn();
-const mockUpdWhere = jest.fn(() => ({ returning: mockUpdReturning }));
+const mockUpdWhere = jest.fn((..._args: any[]) => ({ returning: mockUpdReturning }));
 const mockUpdSet = jest.fn(() => ({ where: mockUpdWhere }));
 const mockUpdate = jest.fn(() => ({ set: mockUpdSet }));
 
 // Delete chain: delete → where → returning
 const mockDelReturning = jest.fn();
-const mockDelWhere = jest.fn(() => ({ returning: mockDelReturning }));
+const mockDelWhere = jest.fn((..._args: any[]) => ({ returning: mockDelReturning }));
 const mockDelete = jest.fn(() => ({ where: mockDelWhere }));
 
 jest.mock('@/lib/db/client', () => ({
@@ -39,6 +39,21 @@ jest.mock('@/lib/db/client', () => ({
 
 import { GET, POST, PUT, DELETE } from '@/app/api/tasks/route';
 import { validateApiAuth } from '@/lib/auth/session';
+
+/** Recursively collects all string/value fragments from a Drizzle SQL expression. */
+function collectSqlStrings(sqlExpr: any, acc: string[] = []): string[] {
+  if (!sqlExpr) return acc;
+  // Leaf values: string chunks or value property
+  if (typeof sqlExpr === 'string') { acc.push(sqlExpr); return acc; }
+  if (sqlExpr.value !== undefined && typeof sqlExpr.value === 'string') { acc.push(sqlExpr.value); return acc; }
+  // Recurse into queryChunks if present
+  if (sqlExpr.queryChunks && Array.isArray(sqlExpr.queryChunks)) {
+    for (const chunk of sqlExpr.queryChunks) {
+      collectSqlStrings(chunk, acc);
+    }
+  }
+  return acc;
+}
 
 const CLINIC_A = 'clinic-a-1111-1111-1111';
 const CLINIC_B = 'clinic-b-2222-2222-2222';
@@ -60,7 +75,6 @@ function authFail() {
 }
 
 beforeEach(() => {
-  // Reset auth + query-chain mocks so each test reads its own calls[0]
   (validateApiAuth as jest.Mock).mockReset();
   mockInsertReturning.mockReset();
   mockUpdReturning.mockReset();
@@ -233,33 +247,33 @@ describe('PUT /api/tasks', () => {
     expect(res.status).toBe(404);
   });
 
-  it('ignores forged clinicId in PUT body and uses auth clinicId', async () => {
+  it('ignores forged clinicId in body, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockUpdReturning.mockResolvedValue([]);
     const req = new Request('http://localhost/api/tasks', {
       method: 'PUT',
-      body: JSON.stringify({ clinicId: CLINIC_B, id: TASK_ID, title: 'Hacked via body' }),
+      body: JSON.stringify({ id: TASK_ID_FOREIGN, title: 'Hacked', clinicId: CLINIC_B }),
     });
     const res = await PUT(req as any);
     expect(res.status).toBe(404);
-    // WHERE predicate must contain auth clinicId (CLINIC_A), not forged (CLINIC_B)
-    const whereStr = require('util').inspect((mockUpdWhere as jest.Mock).mock.calls[0][0], { depth: 8 });
-    expect(whereStr).toContain(CLINIC_A);
-    expect(whereStr).not.toContain(CLINIC_B);
+    const whereArg = mockUpdWhere.mock.calls[0][0];
+    expect(collectSqlStrings(whereArg)).toContain(CLINIC_A);
+    expect(collectSqlStrings(whereArg)).not.toContain(CLINIC_B);
   });
 
-  it('ignores forged clinicId in PUT query string and uses auth clinicId', async () => {
+  it('ignores forged clinicId in x-clinic-id header, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockUpdReturning.mockResolvedValue([]);
-    const req = new Request('http://localhost/api/tasks?clinicId=' + CLINIC_B, {
+    const req = new Request('http://localhost/api/tasks', {
       method: 'PUT',
-      body: JSON.stringify({ id: TASK_ID, title: 'Hacked via query' }),
+      headers: { 'x-clinic-id': CLINIC_B },
+      body: JSON.stringify({ id: TASK_ID_FOREIGN, title: 'Hacked' }),
     });
     const res = await PUT(req as any);
     expect(res.status).toBe(404);
-    const whereStr = require('util').inspect((mockUpdWhere as jest.Mock).mock.calls[0][0], { depth: 8 });
-    expect(whereStr).toContain(CLINIC_A);
-    expect(whereStr).not.toContain(CLINIC_B);
+    const whereArg = mockUpdWhere.mock.calls[0][0];
+    expect(collectSqlStrings(whereArg)).toContain(CLINIC_A);
+    expect(collectSqlStrings(whereArg)).not.toContain(CLINIC_B);
   });
 });
 
@@ -300,17 +314,28 @@ describe('DELETE /api/tasks', () => {
     expect(res.status).toBe(404);
   });
 
-  it('ignores forged x-clinic-id header in DELETE and uses auth clinicId', async () => {
+  it('ignores forged clinicId in query, uses auth clinicId for scope', async () => {
     auth(CLINIC_A);
     mockDelReturning.mockResolvedValue([]);
-    const req = new Request('http://localhost/api/tasks?id=' + TASK_ID, {
+    const req = new Request('http://localhost/api/tasks?id=' + TASK_ID_FOREIGN + '&clinicId=' + CLINIC_B, { method: 'DELETE' });
+    const res = await DELETE(req as any);
+    expect(res.status).toBe(404);
+    const whereArg = mockDelWhere.mock.calls[0][0];
+    expect(collectSqlStrings(whereArg)).toContain(CLINIC_A);
+    expect(collectSqlStrings(whereArg)).not.toContain(CLINIC_B);
+  });
+
+  it('ignores forged clinicId in x-clinic-id header for DELETE', async () => {
+    auth(CLINIC_A);
+    mockDelReturning.mockResolvedValue([]);
+    const req = new Request('http://localhost/api/tasks?id=' + TASK_ID_FOREIGN, {
       method: 'DELETE',
       headers: { 'x-clinic-id': CLINIC_B },
     });
     const res = await DELETE(req as any);
     expect(res.status).toBe(404);
-    const whereStr = require('util').inspect((mockDelWhere as jest.Mock).mock.calls[0][0], { depth: 8 });
-    expect(whereStr).toContain(CLINIC_A);
-    expect(whereStr).not.toContain(CLINIC_B);
+    const whereArg = mockDelWhere.mock.calls[0][0];
+    expect(collectSqlStrings(whereArg)).toContain(CLINIC_A);
+    expect(collectSqlStrings(whereArg)).not.toContain(CLINIC_B);
   });
 });

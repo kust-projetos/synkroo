@@ -1,27 +1,29 @@
-/**
- * /api/contacts/duplicates/[id]/dismiss — Task 5: gated + action-driven.
- */
-import { NextRequest } from 'next/server';
-import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
-import { runCrmAction } from '@/modules/crm/ui/route-adapter';
+import { NextRequest, NextResponse } from 'next/server';
+import { validateRequest } from '@/modules/crm/ui/route-adapter';
+import { runAction } from '@/core/actions/run';
+import { buildUserContext } from '@/core/actions/context';
 import { dispensarSugestaoDuplicidade } from '@/modules/crm/actions';
 
-async function handlePOST(
+export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
-  let dismissReason: string | undefined;
-  try {
-    const body = await request.json();
-    if (body && typeof body === 'object' && 'dismiss_reason' in body) {
-      dismissReason = String((body as Record<string, unknown>).dismiss_reason);
-    }
-  } catch {
-    // sem body é aceitável
-  }
-  return runCrmAction(dispensarSugestaoDuplicidade, { id, dismissReason });
-}
+  const auth = await validateRequest();
+  if (!auth.ok) return auth.response;
 
-export const POST = withModuleRoute('crm', moduleManifest)(handlePOST);
+  const { id } = await params;
+  const body = await request.json().catch(() => ({}));
+  const ctx = await buildUserContext();
+  const result = await runAction(
+    dispensarSugestaoDuplicidade,
+    { id, dismissReason: body.dismiss_reason },
+    ctx,
+  );
+  if (result.ok) {
+    return NextResponse.json(result.data);
+  }
+  return NextResponse.json(
+    { error: result.error.message },
+    { status: result.error.code === 'conflict' ? 409 : 500 },
+  );
+}

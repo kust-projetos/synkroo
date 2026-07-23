@@ -25,15 +25,9 @@ describe('campaign-service', () => {
   describe('executarCampanhas', () => {
     it('calls processScheduledCampaigns and returns processed=1', async () => {
       mockProcessCampaigns.mockResolvedValueOnce(undefined);
-      const result = await executarCampanhas('clinic-a');
-      expect(mockProcessCampaigns).toHaveBeenCalledWith('clinic-a');
+      const result = await executarCampanhas();
+      expect(mockProcessCampaigns).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ processed: 1 });
-    });
-
-    it('forwards clinicId to scheduled campaign processing', async () => {
-      mockProcessCampaigns.mockResolvedValueOnce(undefined);
-      await executarCampanhas('clinic-a');
-      expect(mockProcessCampaigns).toHaveBeenCalledWith('clinic-a');
     });
   });
 
