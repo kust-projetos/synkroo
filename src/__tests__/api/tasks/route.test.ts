@@ -60,11 +60,13 @@ function authFail() {
 }
 
 beforeEach(() => {
-  // Only clear mocks that need resetting (auth), not the query chain
+  // Reset auth + query-chain mocks so each test reads its own calls[0]
   (validateApiAuth as jest.Mock).mockReset();
   mockInsertReturning.mockReset();
   mockUpdReturning.mockReset();
   mockDelReturning.mockReset();
+  mockUpdWhere.mockClear();
+  mockDelWhere.mockClear();
 });
 
 // ── GET ────────────────────────────────────────
