@@ -97,6 +97,7 @@ export async function executeMerge(
     // First release the stale lease by marking failed (CAS on id + key + executing)
     const failed = await markSuggestionFailed(
       id,
+      ctx.clinicId,
       suggestion.mergeOperationKey ?? '',
       'lease_expired_recovery',
     );
@@ -215,7 +216,7 @@ export async function executeMerge(
     }
   } else {
     // ── Mark failed with CAS ───────────────────────────────────────────────
-    const failed = await markSuggestionFailed(id, mergeOperationKey, 'owner_merge_failed');
+    const failed = await markSuggestionFailed(id, ctx.clinicId, mergeOperationKey, 'owner_merge_failed');
     if (!failed) {
       // Failure CAS lost — reread to determine outcome
       const updated = await findSuggestionById(ctx.clinicId, id);

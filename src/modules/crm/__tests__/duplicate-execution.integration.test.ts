@@ -218,11 +218,45 @@ describeOrSkip('Merge execution repository functions (DB real)', () => {
   it('markSuggestionFailed marks an executing suggestion via CAS', async () => {
     await resetToApproved();
     await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
-    const ok = await markSuggestionFailed(SUGGESTION_2, KEY_1, 'owner_merge_failed');
+    const ok = await markSuggestionFailed(SUGGESTION_2, CLINIC_ID, KEY_1, 'owner_merge_failed');
     expect(ok).toBe(true);
 
-    const bad = await markSuggestionFailed(SUGGESTION_2, KEY_2, 'owner_merge_failed');
+    const bad = await markSuggestionFailed(SUGGESTION_2, CLINIC_ID, KEY_2, 'owner_merge_failed');
     expect(bad).toBe(false);
+  });
+
+  it('markSuggestionFailed with foreign clinicId returns false and preserves state', async () => {
+    const db = getDb();
+    await resetToApproved();
+    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+
+    const bad = await markSuggestionFailed(SUGGESTION_2, FOREIGN_CLINIC, KEY_1, 'cross_clinic_attempt');
+    expect(bad).toBe(false);
+
+    // State unchanged — still 'executing'
+    const [row] = await db
+      .select({ status: crmDuplicateSuggestions.status })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1);
+    expect(row.status).toBe('executing');
+  });
+
+  it('finalizeMergeAndDismissSiblings with foreign clinicId returns false and preserves state', async () => {
+    const db = getDb();
+    await resetToApproved();
+    await claimSuggestion(SUGGESTION_2, CLINIC_ID, KEY_1, undefined);
+
+    const bad = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_1, FOREIGN_CLINIC, LEFT, RIGHT, OWNER_TYPE);
+    expect(bad).toBe(false);
+
+    // State unchanged — still 'executing'
+    const [row] = await db
+      .select({ status: crmDuplicateSuggestions.status })
+      .from(crmDuplicateSuggestions)
+      .where(sql`id = ${SUGGESTION_2}`)
+      .limit(1);
+    expect(row.status).toBe('executing');
   });
 
   it('finalizeMergeAndDismissSiblings finalizes winner via CAS', async () => {
