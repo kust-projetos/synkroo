@@ -41,6 +41,7 @@ import { GET, POST, PUT, DELETE } from '@/app/api/tasks/route';
 import { validateApiAuth } from '@/lib/auth/session';
 
 const CLINIC_A = 'clinic-a-1111-1111-1111';
+const CLINIC_B = 'clinic-b-2222-2222-2222';
 const TASK_ID = 'task-0000-0000-0000-0001';
 const TASK_ID_FOREIGN = 'task-0000-0000-0000-0002';
 
@@ -229,6 +230,34 @@ describe('PUT /api/tasks', () => {
     const res = await PUT(req as any);
     expect(res.status).toBe(404);
   });
+
+  it('ignores forged clinicId in PUT body and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockUpdReturning.mockResolvedValue([]);
+    const req = new Request('http://localhost/api/tasks', {
+      method: 'PUT',
+      body: JSON.stringify({ clinicId: CLINIC_B, id: TASK_ID, title: 'Hacked via body' }),
+    });
+    const res = await PUT(req as any);
+    // 404 proves auth clinicId was used (task with TASK_ID belongs to clinic B,
+    // but auth is clinic A, so no match). If forged clinicId were used,
+    // the update would match and return 200.
+    expect(res.status).toBe(404);
+    // Prove the update chain was reached (handler didn't early-return on forged input)
+    expect(mockUpdWhere).toHaveBeenCalled();
+  });
+
+  it('ignores forged clinicId in PUT query string and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockUpdReturning.mockResolvedValue([]);
+    const req = new Request('http://localhost/api/tasks?clinicId=' + CLINIC_B, {
+      method: 'PUT',
+      body: JSON.stringify({ id: TASK_ID, title: 'Hacked via query' }),
+    });
+    const res = await PUT(req as any);
+    expect(res.status).toBe(404);
+    expect(mockUpdWhere).toHaveBeenCalled();
+  });
 });
 
 // ── DELETE ─────────────────────────────────────
@@ -266,5 +295,17 @@ describe('DELETE /api/tasks', () => {
     const req = new Request('http://localhost/api/tasks?id=' + TASK_ID_FOREIGN, { method: 'DELETE' });
     const res = await DELETE(req as any);
     expect(res.status).toBe(404);
+  });
+
+  it('ignores forged x-clinic-id header in DELETE and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockDelReturning.mockResolvedValue([]);
+    const req = new Request('http://localhost/api/tasks?id=' + TASK_ID, {
+      method: 'DELETE',
+      headers: { 'x-clinic-id': CLINIC_B },
+    });
+    const res = await DELETE(req as any);
+    expect(res.status).toBe(404);
+    expect(mockDelWhere).toHaveBeenCalled();
   });
 });

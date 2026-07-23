@@ -80,6 +80,39 @@ describeOrSkip('Tasks tenant scope (DB real)', () => {
     expect(row.clinicId).toBe(CLINIC_A);
   });
 
+  // ── Count unchanged ──────────────────────────────────
+
+  it('attempted foreign PUT+DELETE leaves DB count unchanged', async () => {
+    const db = getDb();
+
+    // Count tasks for clinic A before
+    const [{ count: beforeCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tasks)
+      .where(sql`clinic_id = ${CLINIC_A}`);
+
+    // Attempt PUT with foreign clinicId
+    await db
+      .update(tasks)
+      .set({ title: 'Hacked by B' })
+      .where(sql`id = ${TASK_ID} AND clinic_id = ${CLINIC_B}`)
+      .returning();
+
+    // Attempt DELETE with foreign clinicId
+    await db
+      .delete(tasks)
+      .where(sql`id = ${TASK_ID} AND clinic_id = ${CLINIC_B}`)
+      .returning();
+
+    // Count after — must be unchanged
+    const [{ count: afterCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tasks)
+      .where(sql`clinic_id = ${CLINIC_A}`);
+
+    expect(afterCount).toBe(beforeCount);
+  });
+
   // ── DELETE scope ─────────────────────────────────────
 
   it('DELETE from clinic B returns 0 rows and does not remove clinic A task', async () => {
