@@ -16,6 +16,7 @@ import {
   getBudget as repoGetBudget,
 } from '../repositories/financeiro-repository';
 import { replaceInstallments, listInstallments } from '../services/installment-service';
+import { replaceInstallmentsAtomic } from '../repositories/installment-replacement-repository';
 import { budgets, budgetInstallments } from '@/lib/db/schema';
 import { getDb } from '@/lib/db/client';
 
@@ -128,8 +129,8 @@ describe('installment replacement rollback', () => {
     await pool.query('DELETE FROM budgets WHERE id = $1', [BUDGET_ID]);
   });
 
-  test('failed insert preserves original installments (rollback)', async () => {
-    // Seed original installments
+  test('failed insert preserves original installments (rollback — deterministic NOT NULL)', async () => {
+    // Seed original installments via service layer
     const original = await replaceInstallments(BUDGET_ID, [
       { amount: 100, dueDate: '2026-08-15' },
       { amount: 200, dueDate: '2026-09-15' },
@@ -138,20 +139,29 @@ describe('installment replacement rollback', () => {
 
     const originalIds = original.map(o => o.id);
     const originalAmounts = original.map(o => o.amount);
+    const originalDueDates = original.map(o => o.dueDate);
 
-    // Attempt replacement with an invalid date that Postgres will reject
-    // This must fail inside the transaction, rolling back the delete
-    await expect(
-      replaceInstallments(BUDGET_ID, [
-        { amount: 300, dueDate: 'not-a-date' },
-      ]),
-    ).rejects.toThrow();
+    // Attempt replacement via atomic repo directly with amount:null.
+    // NULL is a valid SQL parameter (not client-caught), but the column
+    // has a NOT NULL constraint, so Postgres rejects it SERVER-SIDE
+    // inside db.transaction() — proving the delete is rolled back.
+
+    let caught: Error | null = null;
+    try {
+      await replaceInstallmentsAtomic(BUDGET_ID, [
+        { budgetId: BUDGET_ID, amount: null as unknown as string, dueDate: '2026-10-01', status: 'pending' },
+      ]);
+    } catch (err: unknown) {
+      caught = err instanceof Error ? err : new Error(String(err));
+    }
+    expect(caught).toBeInstanceOf(Error);
 
     // Verify original installments are preserved
     const remaining = await listInstallments(BUDGET_ID);
     expect(remaining).toHaveLength(2);
     expect(remaining.map(r => r.id).sort()).toEqual([...originalIds].sort());
     expect(remaining.map(r => r.amount).sort()).toEqual([...originalAmounts].sort());
+    expect(remaining.map(r => r.dueDate).sort()).toEqual([...originalDueDates].sort());
   });
 
   test('normal replacement succeeds and returns new installments', async () => {
