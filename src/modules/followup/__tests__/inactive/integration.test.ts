@@ -184,4 +184,36 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
     // Cleanup
     await db.delete(patients).where(eq(patients.id, foreignPatientId));
   });
+
+  it('reativarPaciente ignores forged clinicId in input (schema strips it, ctx.clinicId wins)', async () => {
+    const db = getDb();
+
+    // Create a patient belonging to OTHER_CLINIC
+    const forgedPatientId = `f0000000-0000-4000-8000-${ts.padStart(12, '0')}`;
+    await db.insert(patients).values({
+      id: forgedPatientId, clinicId: OTHER_CLINIC_ID, name: 'Paciente Forged Input',
+      phone: '11999999905', lastVisitAt: LONG_AGO,
+    }).onConflictDoNothing();
+
+    // Call reativarPaciente with a forged clinicId in the input that matches
+    // the foreign patient's ACTUAL clinic (OTHER_CLINIC_ID).
+    // If the action used input.clinicId, it would find the patient and succeed.
+    // But the action uses ctx.clinicId (CLINIC_ID), so it returns not_found.
+    const result = await runAction(reativarPaciente, {
+      patientId: forgedPatientId,
+      clinicId: OTHER_CLINIC_ID, // forged — Zod strips unknown keys
+    }, ctx);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.code).toBe('not_found');
+    }
+
+    // Verify the foreign patient was NOT modified
+    const [row] = await db.select({ status: patients.status }).from(patients).where(eq(patients.id, forgedPatientId));
+    expect(row).toBeDefined();
+
+    // Cleanup
+    await db.delete(patients).where(eq(patients.id, forgedPatientId));
+  });
 });
