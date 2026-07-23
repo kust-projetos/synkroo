@@ -20,7 +20,7 @@ export function ContactsClient() {
         <h1 className="text-2xl font-bold mb-4">Contatos</h1>
       </div>
       <div className="flex-1 grid grid-rows-[auto_1fr] gap-4 px-6 pb-6 min-h-0">
-        <DuplicateQueuePanel />
+        <DuplicateQueuePanel suggestions={[]} />
         <div className="min-h-0">
           <ContactSplitView />
         </div>
