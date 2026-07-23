@@ -105,6 +105,23 @@ describe('validateTestDatabaseUrl', () => {
     const testUrl = `postgres://u:p@${host}:55432/synkroo_test`;
     assert.equal(validateTestDatabaseUrl(testUrl), testUrl);
   });
+
+  it('rejects http:// protocol even with valid loopback and /synkroo_test', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    assert.throws(() => validateTestDatabaseUrl('http://localhost:5432/synkroo_test'), /protocol|postgres/i);
+    assert.throws(() => validateTestDatabaseUrl('http://127.0.0.1:5432/synkroo_test'), /protocol|postgres/i);
+  });
+
+  it('rejects file:// protocol', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    assert.throws(() => validateTestDatabaseUrl('file:///tmp/synkroo_test'), /protocol|postgres/i);
+  });
+
+  it('accepts postgresql:// protocol on loopback /synkroo_test', async () => {
+    const { validateTestDatabaseUrl } = await loadRunnerExports();
+    assert.doesNotThrow(() => validateTestDatabaseUrl('postgresql://127.0.0.1:5432/synkroo_test'));
+    assert.doesNotThrow(() => validateTestDatabaseUrl('postgres://localhost:5432/synkroo_test'));
+  });
 });
 
 // ── commandOptions ────────────────────────────────────────────────────────────
@@ -249,6 +266,33 @@ describe('npm binary per platform', () => {
     const version = r.toString().trim();
     assert.ok(version.length > 0, 'npm --version should return a version string');
     assert.ok(!isNaN(Number(version.split('.')[0])), 'version should start with a number');
+  });
+});
+
+// ── isMainModule ──────────────────────────────────────────────────────────────
+
+describe('isMainModule', () => {
+  it('returns true when metaUrl matches resolved argv1', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    // Use real absolute paths: runnerPath is the absolute OS path,
+    // runnerHref is the file:// URL — they must match via pathToFileURL(resolve()).
+    assert.equal(isMainModule(runnerHref, runnerPath), true);
+  });
+
+  it('returns false when argv1 references a different script', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    assert.equal(isMainModule('file:///fake.mjs', process.argv[1]), false);
+  });
+
+  it('returns false when argv1 is undefined or null', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    assert.equal(isMainModule('file:///project/scripts/integration-run.mjs', undefined), false);
+    assert.equal(isMainModule('file:///project/scripts/integration-run.mjs', null), false);
+  });
+
+  it('handles Windows backslash paths', async () => {
+    const { isMainModule } = await loadRunnerExports();
+    assert.equal(isMainModule('file:///C:/project/scripts/integration-run.mjs', 'C:\\project\\scripts\\integration-run.mjs'), true);
   });
 });
 
