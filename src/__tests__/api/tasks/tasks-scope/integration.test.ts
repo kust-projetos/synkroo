@@ -85,55 +85,75 @@ describeOrSkip('Tasks tenant scope (DB real)', () => {
     expect(row.clinicId).toBe(CLINIC_A);
   });
 
-  // ── Route boundary ────────────────────────────────────
+  // ── Route boundary (forged clinicId under valid session) ──
 
-  it('route boundary: foreign session returns 404 and leaves count unchanged', async () => {
-    // Mock auth to return clinic B session (foreign to clinic A's task)
+  it('route boundary: forged body/query/header clinicId is ignored under valid session', async () => {
+    // Mock auth to return CLINIC_A session (trusted, own clinic)
     (validateApiAuth as jest.Mock).mockResolvedValue({
       success: true,
-      profile: { id: 'user-b', clinic_id: CLINIC_B, role: 'staff' },
+      profile: { id: 'user-a', clinic_id: CLINIC_A, role: 'owner' },
     });
 
     const db = getDb();
+    const FOREIGN_TASK_ID = '00000000-0000-0000-0000-00000000c002';
 
-    // Count before
-    const [{ count: beforeCount }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(tasks)
-      .where(sql`clinic_id = ${CLINIC_A}`);
+    // Create a task belonging to clinic B (foreign to clinic A session)
+    await db.execute(
+      sql`INSERT INTO tasks (id, clinic_id, title, status, priority)
+          VALUES (${FOREIGN_TASK_ID}, ${CLINIC_B}, 'Clinic B Task', 'pending', 'medium')
+          ON CONFLICT (id) DO NOTHING`,
+    );
 
-    // PUT — clinic B session tries to update clinic A's task
-    const putReq = new NextRequest('http://localhost/api/tasks', {
-      method: 'PUT',
-      body: JSON.stringify({ id: TASK_ID, title: 'Hacked via route PUT' }),
-    });
-    const putRes = await PUT(putReq as any);
-    expect(putRes.status).toBe(404);
-    const putBody = await putRes.json();
-    expect(putBody.error).toBe('Task not found');
+    try {
+      // Count tasks for clinic B before
+      const [{ count: beforeCount }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(sql`clinic_id = ${CLINIC_B}`);
 
-    // DELETE — clinic B session tries to delete clinic A's task
-    const delReq = new NextRequest('http://localhost/api/tasks?id=' + TASK_ID, { method: 'DELETE' });
-    const delRes = await DELETE(delReq as any);
-    expect(delRes.status).toBe(404);
-    const delBody = await delRes.json();
-    expect(delBody.error).toBe('Task not found');
+      // 1. PUT with forged clinicId in body JSON
+      const putBodyReq = new NextRequest('http://localhost/api/tasks', {
+        method: 'PUT',
+        body: JSON.stringify({ clinicId: CLINIC_B, id: FOREIGN_TASK_ID, title: 'Hacked via body' }),
+      });
+      const putBodyRes = await PUT(putBodyReq as any);
+      expect(putBodyRes.status).toBe(404);
+      expect((await putBodyRes.json()).error).toBe('Task not found');
 
-    // Count after — unchanged
-    const [{ count: afterCount }] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(tasks)
-      .where(sql`clinic_id = ${CLINIC_A}`);
+      // 2. PUT with forged clinicId in query string
+      const putQueryReq = new NextRequest('http://localhost/api/tasks?clinicId=' + CLINIC_B, {
+        method: 'PUT',
+        body: JSON.stringify({ id: FOREIGN_TASK_ID, title: 'Hacked via query' }),
+      });
+      const putQueryRes = await PUT(putQueryReq as any);
+      expect(putQueryRes.status).toBe(404);
 
-    expect(afterCount).toBe(beforeCount);
+      // 3. DELETE with forged x-clinic-id header
+      const delReq = new NextRequest('http://localhost/api/tasks?id=' + FOREIGN_TASK_ID, {
+        method: 'DELETE',
+        headers: { 'x-clinic-id': CLINIC_B },
+      });
+      const delRes = await DELETE(delReq as any);
+      expect(delRes.status).toBe(404);
+      expect((await delRes.json()).error).toBe('Task not found');
 
-    // Verify the task title was not modified
-    const [row] = await db
-      .select({ title: tasks.title })
-      .from(tasks)
-      .where(sql`id = ${TASK_ID}`)
-      .limit(1);
-    expect(row.title).toBe('Clinic A Task');
+      // Count after — unchanged (no task was added or removed for clinic B)
+      const [{ count: afterCount }] = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(tasks)
+        .where(sql`clinic_id = ${CLINIC_B}`);
+      expect(afterCount).toBe(beforeCount);
+
+      // Verify task B title was not modified
+      const [row] = await db
+        .select({ title: tasks.title })
+        .from(tasks)
+        .where(sql`id = ${FOREIGN_TASK_ID}`)
+        .limit(1);
+      expect(row.title).toBe('Clinic B Task');
+    } finally {
+      await db.execute(sql`DELETE FROM tasks WHERE id = ${FOREIGN_TASK_ID}`);
+    }
   });
 
   // ── Count unchanged ──────────────────────────────────
