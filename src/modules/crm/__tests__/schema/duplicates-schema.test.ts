@@ -119,6 +119,7 @@ describe('CRM duplicate suggestions schema', () => {
         'crm_duplicate_suggestions_score_check',
         'crm_duplicate_suggestions_status_check',
         'crm_duplicate_suggestions_winner_check',
+        'crm_duplicate_suggestions_winner_member_check',
       ],
       indexes: [
         'crm_duplicate_suggestions_left_lookup_idx',

@@ -78,6 +78,10 @@ export const crmDuplicateSuggestions = pgTable(
       'crm_duplicate_suggestions_winner_check',
       sql`${table.status} NOT IN ('executing', 'merged') OR ${table.winnerConfirmedId} IS NOT NULL`,
     ),
+    check(
+      'crm_duplicate_suggestions_winner_member_check',
+      sql`${table.winnerConfirmedId} IS NULL OR ${table.winnerConfirmedId} IN (${table.leftId}, ${table.rightId})`,
+    ),
     uniqueIndex('crm_duplicate_suggestions_pair_canonical_uniq').on(
       table.clinicId,
       table.ownerType,

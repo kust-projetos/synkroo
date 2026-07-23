@@ -46,6 +46,7 @@ export async function claimSuggestion(
  */
 export async function markSuggestionFailed(
   id: string,
+  clinicId: string,
   mergeOperationKey: string,
   failureReason: string,
 ): Promise<boolean> {
@@ -59,6 +60,7 @@ export async function markSuggestionFailed(
     } as any)
     .where(and(
       eq(crmDuplicateSuggestions.id, id),
+      eq(crmDuplicateSuggestions.clinicId, clinicId),
       eq(crmDuplicateSuggestions.mergeOperationKey, mergeOperationKey),
       eq(crmDuplicateSuggestions.status, 'executing'),
     ));
@@ -92,6 +94,7 @@ export async function finalizeMergeAndDismissSiblings(
       .where(and(
         eq(crmDuplicateSuggestions.id, id),
         eq(crmDuplicateSuggestions.mergeOperationKey, mergeOperationKey),
+        eq(crmDuplicateSuggestions.clinicId, clinicId),
         eq(crmDuplicateSuggestions.status, 'executing'),
       ));
 
