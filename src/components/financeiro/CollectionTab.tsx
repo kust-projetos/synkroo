@@ -1,39 +1,36 @@
 'use client';
 
 import { useState } from 'react';
-import { useCollections } from '@/lib/hooks/use-queries';
-
-interface Charge { id: string; status: string; dueDate?: string; amount?: string; }
+import type { DashboardCharge } from './FinanceDashboard';
 
 export interface CollectionTabProps {
-  canManageBudget?: boolean;
+  charges: DashboardCharge[];
+  canManageBudget: boolean;
 }
 
 /**
- * Collections tab — carrega cobranças via useCollections hook (Task 7).
- * Exibe loading/error/empty/data states. Cancel charge button dispara
- * POST /api/financeiro/charges/[id]/cancel.
+ * Collections tab — shows overdue charges queue and manual reminder actions.
+ * Cancel charge button calls /api/financeiro/charges/[id]/cancel via fetch.
  */
-export function CollectionTab({ canManageBudget = false }: CollectionTabProps) {
-  const { data, isLoading, error } = useCollections();
+export function CollectionTab({ charges, canManageBudget }: CollectionTabProps) {
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
-  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const charges: Charge[] = (data as any)?.charges ?? [];
   const openCharges = charges.filter(c => c.status === 'pending' || c.status === 'overdue');
 
   async function handleCancel(chargeId: string) {
     setCancellingIds(prev => new Set(prev).add(chargeId));
-    setCancelError(null);
+    setError(null);
     try {
       const res = await fetch(`/api/financeiro/charges/${chargeId}/cancel`, { method: 'POST' });
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: 'Erro ao cancelar' }));
-        setCancelError(body.error || 'Erro ao cancelar cobrança');
+        setError(body.error || 'Erro ao cancelar cobrança');
       }
+      // Success — reload page or let parent refresh data
       window.location.reload();
     } catch {
-      setCancelError('Erro de conexão ao cancelar cobrança');
+      setError('Erro de conexão ao cancelar cobrança');
     } finally {
       setCancellingIds(prev => {
         const next = new Set(prev);
@@ -43,36 +40,15 @@ export function CollectionTab({ canManageBudget = false }: CollectionTabProps) {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">Carregando cobranças...</p>
-        <div className="space-y-2">
-          {[1, 2].map((i) => (
-            <div key={i} className="h-16 animate-pulse rounded bg-muted" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-        <p className="text-sm text-destructive">Erro ao carregar cobranças.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         Cobranças atrasadas e pendentes.
       </p>
 
-      {cancelError && (
+      {error && (
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {cancelError}
+          {error}
         </div>
       )}
 

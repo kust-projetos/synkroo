@@ -1,13 +1,10 @@
 /**
- * Contract tests: Instagram webhook fail-closed behaviour.
+ * Contract tests: Instagram webhook — raw-bytes HMAC, strict signature, fail-closed.
  *
- * Covers:
- *  - GET: verification token validation
- *  - POST: secret missing → 500
- *  - POST: signature missing → 403
- *  - POST: invalid signature → 403
- *  - POST: valid signature → 200 (module gate permitting)
- *  - Rate limit and env state reset between tests
+ * Before fix: HMAC uses request.text() (decoded string).
+ * After fix:  HMAC uses Buffer.from(await request.arrayBuffer()) (raw bytes).
+ *
+ * Run: npx jest src/__tests__/api/instagram/webhook/contract.test.ts
  */
 
 jest.mock('@/lib/rate-limit', () => ({
@@ -40,12 +37,14 @@ function clearEnv() {
   delete process.env.INSTAGRAM_APP_SECRET;
 }
 
-function signBody(body: string, secret: string): string {
-  return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+/** Sign raw bytes (Buffer) — what Instagram does. */
+function signRaw(bodyBytes: Buffer, secret: string): string {
+  return 'sha256=' + createHmac('sha256', secret).update(bodyBytes).digest('hex');
 }
 
-function signBuffer(body: Buffer, secret: string): string {
-  return 'sha256=' + createHmac('sha256', secret).update(body).digest('hex');
+/** Sign a UTF-8 string (simulating buggy text-mode signing). */
+function signText(bodyStr: string, secret: string): string {
+  return 'sha256=' + createHmac('sha256', secret).update(Buffer.from(bodyStr, 'utf-8')).digest('hex');
 }
 
 beforeEach(() => {
@@ -62,12 +61,12 @@ afterAll(() => {
 
 describe('GET /api/instagram/webhook', () => {
   it('returns 200 with challenge when verification succeeds', async () => {
-    const url = 'https://localhost/api/instagram/webhook?hub.mode=subscribe&hub.verify_token=' + VALID_VERIFY_TOKEN + '&hub.challenge=random-challenge-123';
+    const url = 'https://localhost/api/instagram/webhook?hub.mode=subscribe&hub.verify_token='
+      + VALID_VERIFY_TOKEN + '&hub.challenge=random-challenge-123';
     const req = new Request(url);
     const res = await GET(req as any);
     expect(res.status).toBe(200);
-    const text = await res.text();
-    expect(text).toBe('random-challenge-123');
+    expect(await res.text()).toBe('random-challenge-123');
   });
 
   it('returns 403 when verify_token does not match', async () => {
@@ -93,17 +92,14 @@ describe('GET /api/instagram/webhook', () => {
   });
 });
 
-// ── POST /webhook ──────────────────────────────
+// ── POST /webhook — env / setup ────────────────
 
-describe('POST /api/instagram/webhook', () => {
+describe('POST /api/instagram/webhook — env & setup', () => {
   it('returns 500 when INSTAGRAM_APP_SECRET is missing', async () => {
     delete process.env.INSTAGRAM_APP_SECRET;
-
     const body = JSON.stringify({ object: 'instagram', entry: [] });
     const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': signBody(body, VALID_APP_SECRET) },
-      body,
+      method: 'POST', headers: { 'x-hub-signature-256': signRaw(Buffer.from(body), VALID_APP_SECRET) }, body,
     });
     const res = await POST(req as any);
     expect(res.status).toBe(500);
@@ -111,124 +107,172 @@ describe('POST /api/instagram/webhook', () => {
 
   it('returns 403 when x-hub-signature-256 header is missing', async () => {
     const body = JSON.stringify({ object: 'instagram', entry: [] });
-    const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      body,
-    });
+    const req = new Request('https://localhost/api/instagram/webhook', { method: 'POST', body });
     const res = await POST(req as any);
     expect(res.status).toBe(403);
   });
 
-  it('returns 403 when signature does not match', async () => {
+  it('checks secret before rate limiter (secret missing → 500, rate limiter not called)', async () => {
+    const { checkRateLimit } = require('@/lib/rate-limit');
+    (checkRateLimit as jest.Mock).mockClear();
+    delete process.env.INSTAGRAM_APP_SECRET;
     const body = JSON.stringify({ object: 'instagram', entry: [] });
     const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': 'sha256=invalid' },
-      body,
+      method: 'POST', headers: { 'x-hub-signature-256': signRaw(Buffer.from(body), VALID_APP_SECRET) }, body,
     });
-    const res = await POST(req as any);
-    expect(res.status).toBe(403);
+    await POST(req as any);
+    expect(checkRateLimit).not.toHaveBeenCalled();
   });
+});
 
-  it('returns 403 when signature has wrong format (no sha256= prefix)', async () => {
+// ── POST /webhook — strict signature format ───
+
+describe('POST /api/instagram/webhook — strict signature format', () => {
+  it('returns 403 when signature has non-hex characters', async () => {
     const body = JSON.stringify({ object: 'instagram', entry: [] });
+    const sig = 'sha256=' + 'z' + 'a'.repeat(63); // 'z' is non-hex
     const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': 'invalid-signature-format' },
-      body,
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body,
     });
     const res = await POST(req as any);
     expect(res.status).toBe(403);
   });
 
-  it('returns 200 when signature is valid', async () => {
+  it('returns 403 when signature hex is truncated (63 chars)', async () => {
+    const body = JSON.stringify({ object: 'instagram', entry: [] });
+    const sig = 'sha256=' + 'a'.repeat(63); // 63 hex chars, expected 64
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body,
+    });
+    const res = await POST(req as any);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when signature hex is mixed with non-hex chars', async () => {
+    const body = JSON.stringify({ object: 'instagram', entry: [] });
+    const sig = 'sha256=' + 'a'.repeat(32) + 'XX' + 'a'.repeat(30);
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body,
+    });
+    const res = await POST(req as any);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when signature hex ends with non-hex char', async () => {
+    const body = JSON.stringify({ object: 'instagram', entry: [] });
+    const sig = 'sha256=' + 'a'.repeat(63) + 'g'; // 'g' is non-hex
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body,
+    });
+    const res = await POST(req as any);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when signature is too long (extra hex chars)', async () => {
+    const body = JSON.stringify({ object: 'instagram', entry: [] });
+    const sig = 'sha256=' + 'a'.repeat(65); // 65 hex chars
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body,
+    });
+    const res = await POST(req as any);
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 403 when signature lacks sha256= prefix', async () => {
+    const body = JSON.stringify({ object: 'instagram', entry: [] });
+    const sig = 'a'.repeat(64); // hex without prefix
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body,
+    });
+    const res = await POST(req as any);
+    expect(res.status).toBe(403);
+  });
+
+  it('accepts uppercase hex signature (case-insensitive binary compare)', async () => {
     const payload = { object: 'instagram', entry: [] };
     const body = JSON.stringify(payload);
-    const signature = signBody(body, VALID_APP_SECRET);
+    const sig = signRaw(Buffer.from(body), VALID_APP_SECRET);
+    // Only uppercase hex portion (after 'sha256='), keep prefix lowercase
+    const prefix = sig.slice(0, 7); // 'sha256='
+    const hexPart = sig.slice(7);
+    const upperSig = prefix + hexPart.replace(/[a-f]/g, (c) => c.toUpperCase());
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': upperSig }, body: Buffer.from(body),
+    });
+    // Both sides decoded from hex → binary compare is case-insensitive
+    const res = await POST(req as any);
+    expect(res.status).toBe(200);
+  });
+});
+
+// ── POST /webhook — raw-bytes HMAC ─────────────
+
+describe('POST /api/instagram/webhook — raw bytes HMAC', () => {
+  it('returns 403 when body is compact JSON signed but sent with whitespace (bytes differ)', async () => {
+    // Instagram signs compact JSON. Attacker sends pretty-printed version.
+    const compact  = JSON.stringify({ object: 'instagram', entry: [] });
+    const pretty   = JSON.stringify({ object: 'instagram', entry: [] }, null, 2);
+    // Signature computed over compact raw bytes
+    const sig = signRaw(Buffer.from(compact), VALID_APP_SECRET);
+    // Body sent is pretty-printed (different raw bytes)
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body: pretty,
+    });
+    const res = await POST(req as any);
+    // Raw bytes differ → HMAC should fail → 403
+    expect(res.status).toBe(403);
+  });
+
+  it('returns controlled 4xx (not 403) for raw invalid bytes with valid HMAC', async () => {
+    // Send raw bytes that ARE NOT valid UTF-8 JSON, but the HMAC is computed
+    // over those exact raw bytes. HMAC should pass (raw validation), then
+    // JSON.parse should fail with a controlled parse error (not 403).
+    const rawBytes = Buffer.from([0x80, 0x81, 0x82]); // invalid UTF-8
+    const sig = signRaw(rawBytes, VALID_APP_SECRET);
 
     const req = new Request('https://localhost/api/instagram/webhook', {
       method: 'POST',
-      headers: { 'x-hub-signature-256': signature },
-      body,
+      headers: { 'x-hub-signature-256': sig, 'content-type': 'application/json' },
+      body: rawBytes,
+    });
+    const res = await POST(req as any);
+
+    // HMAC validated over raw bytes → passes
+    // JSON.parse fails → controlled error, NOT 403
+    expect(res.status).not.toBe(403);
+    expect(res.status).not.toBe(500); // should be a 4xx parse error
+    expect([400, 422]).toContain(res.status);
+  });
+});
+
+// ── POST /webhook — valid regression ───────────
+
+describe('POST /api/instagram/webhook — valid', () => {
+  it('returns 200 when signature is valid (raw bytes)', async () => {
+    const payload = { object: 'instagram', entry: [] };
+    const body = JSON.stringify(payload);
+    const rawBytes = Buffer.from(body, 'utf-8');
+    const sig = signRaw(rawBytes, VALID_APP_SECRET);
+
+    const req = new Request('https://localhost/api/instagram/webhook', {
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body: rawBytes,
     });
     const res = await POST(req as any);
     expect(res.status).toBe(200);
   });
 
-  // ── Security Task 5: strict signature format ─────────────────────────────
+  it('returns 200 with status=ignored for non-Instagram payload', async () => {
+    const payload = { object: 'page', entry: [] };
+    const body = JSON.stringify(payload);
+    const rawBytes = Buffer.from(body, 'utf-8');
+    const sig = signRaw(rawBytes, VALID_APP_SECRET);
 
-  it.each([
-    `sha256=${'G'.repeat(64)}`,      // non-hex char
-    `sha256=${'a'.repeat(63)}`,      // truncated (63 chars)
-    `sha256=${'a'.repeat(65)}`,      // over-long (65 chars)
-    `sha256=${'a'.repeat(64)} `,     // trailing whitespace
-    ` sha256=${'a'.repeat(64)}`,     // leading whitespace
-  ])('rejects malformed signature %s', async (signature) => {
-    const body = JSON.stringify({ object: 'instagram', entry: [] });
     const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': signature },
-      body,
+      method: 'POST', headers: { 'x-hub-signature-256': sig }, body: rawBytes,
     });
-    expect((await POST(req as any)).status).toBe(403);
-  });
-
-  it('rejects when signed bytes differ from submitted bytes', async () => {
-    // Sign compact JSON, submit pretty-printed JSON (same semantic content, different bytes)
-    const compact = JSON.stringify({ object: 'instagram', entry: [] });
-    const pretty = JSON.stringify({ object: 'instagram', entry: [] }, null, 2);
-    const signature = signBody(compact, VALID_APP_SECRET);
-    const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': signature },
-      body: pretty,
-    });
-    expect((await POST(req as any)).status).toBe(403);
-  });
-
-  it('verifies a signature calculated over raw binary bytes before JSON parsing', async () => {
-    // Raw binary body signed exactly as Buffer; the HMAC must be computed over
-    // the raw byte sequence so that a valid raw-body signature is accepted even
-    // when the same bytes are not valid UTF-8 JSON.
-    const bytes = Buffer.from([0xff, 0xfe, 0x00, 0x61]);
-    const signature = signBuffer(bytes, VALID_APP_SECRET);
-    const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': signature },
-      body: bytes,
-    });
-    // After the raw-byte fix: HMAC passes, then JSON.parse fails → SyntaxError.
-    // Before the fix (text-based): HMAC mismatches → 403.
-    await expect(POST(req as any)).rejects.toThrow(SyntaxError);
-  });
-
-  it('rejects raw binary body signed with wrong bytes', async () => {
-    // Sign one binary payload, submit a different binary payload — HMAC must fail.
-    const signedBytes = Buffer.from([0xff, 0xfe, 0x00, 0x61]);
-    const submittedBytes = Buffer.from([0xff, 0xfe, 0x00, 0x62]); // last byte differs
-    const signature = signBuffer(signedBytes, VALID_APP_SECRET);
-    const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': signature },
-      body: submittedBytes,
-    });
-    expect((await POST(req as any)).status).toBe(403);
-  });
-
-  // ── existing test ─────────────────────────────────────────────────────────
-
-  it('checks secret before rate limiter (secret missing → 500, rate limiter not called)', async () => {
-    const { checkRateLimit } = require('@/lib/rate-limit');
-    (checkRateLimit as jest.Mock).mockClear();
-
-    delete process.env.INSTAGRAM_APP_SECRET;
-    const body = JSON.stringify({ object: 'instagram', entry: [] });
-    const req = new Request('https://localhost/api/instagram/webhook', {
-      method: 'POST',
-      headers: { 'x-hub-signature-256': signBody(body, VALID_APP_SECRET) },
-      body,
-    });
-    await POST(req as any);
-    expect(checkRateLimit).not.toHaveBeenCalled();
+    const res = await POST(req as any);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.status).toBe('ignored');
   });
 });

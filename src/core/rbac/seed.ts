@@ -9,16 +9,6 @@ import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from './agent-access';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type DbOrTx = ReturnType<typeof getDb> | any;
 
-/**
- * Deriva permission keys de um preset a partir do RUNTIME CATALOG.
- *   - Expande `preset.modules` via `getPermissionCatalog()` (action registry),
- *     filtrando `master:*`.
- *   - Adiciona `preset.extraKeys` verbatim do JSON policy.
- *
- * O backfill (scripts/backfill-rbac-permissions.mjs) usa o mesmo padrão,
- * mas contra a tabela DB `permissions` (seed policy → permissions → query).
- * Ambos expandem módulos do catálogo — seed usa runtime, backfill usa DB.
- */
 export function buildPresetPermissions(preset: PresetDef): string[] {
   const catalog = getPermissionCatalog();
   const keys = new Set<string>();

@@ -208,17 +208,6 @@ export async function getPaymentCharge(id: string): Promise<PaymentChargeRow | u
   return row;
 }
 
-export async function findPaymentChargeByExternalId(clinicId: string, externalChargeId: string): Promise<PaymentChargeRow | undefined> {
-  const db = getDb();
-  const [row] = await db.select().from(paymentCharges)
-    .where(and(
-      eq(paymentCharges.clinicId, clinicId),
-      eq(paymentCharges.externalChargeId, externalChargeId),
-    ))
-    .limit(1);
-  return row;
-}
-
 export async function updatePaymentCharge(id: string, patch: Partial<PaymentChargeRow>): Promise<PaymentChargeRow | undefined> {
   const db = getDb();
   const [row] = await db.update(paymentCharges).set({ ...patch, updatedAt: new Date() }).where(eq(paymentCharges.id, id)).returning();

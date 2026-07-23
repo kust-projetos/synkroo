@@ -35,15 +35,9 @@ describe('inactive-service', () => {
   describe('runInactivityDetection', () => {
     it('calls legacy runInactivityDetection and returns processed=1', async () => {
       mockRunDetection.mockResolvedValueOnce(undefined);
-      const result = await runInactivityDetection('clinic-a');
-      expect(mockRunDetection).toHaveBeenCalledWith('clinic-a');
+      const result = await runInactivityDetection();
+      expect(mockRunDetection).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ processed: 1 });
-    });
-
-    it('forwards clinicId to inactivity detection', async () => {
-      mockRunDetection.mockResolvedValueOnce(undefined);
-      await runInactivityDetection('clinic-a');
-      expect(mockRunDetection).toHaveBeenCalledWith('clinic-a');
     });
   });
 

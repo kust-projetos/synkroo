@@ -9,22 +9,20 @@
 
 import * as legacy from '@/services/followup/followup.service';
 import { runInactivityDetection as runInactivity } from './inactive-service';
-import { executarCampanhas } from './campaign-service';
-import { createFeedback, findPatientForClinic, findAppointmentForClinicPatient } from '@/repositories/followup';
-import { ActionError } from '@/core/actions/types';
+import { executarCampanhas as runCampaigns } from './campaign-service';
 
-export async function executarAll(clinicId: string): Promise<{ processed: number; sent?: number; failed?: number }> {
-  await legacy.processAllFollowUps(clinicId);
+export async function executarAll(): Promise<{ processed: number; sent?: number; failed?: number }> {
+  await legacy.processAllFollowUps();
   return { processed: 1 };
 }
 
-export async function executarPostConsulta(clinicId: string): Promise<{ processed: number; sent: number; failed: number }> {
-  const result = await legacy.processPostConsultationFollowUps(clinicId);
+export async function executarPostConsulta(): Promise<{ processed: number; sent: number; failed: number }> {
+  const result = await legacy.processPostConsultationFollowUps();
   return result;
 }
 
-export async function executarLembretesRetorno(clinicId: string): Promise<{ processed: number; sent: number; failed: number }> {
-  const result = await legacy.processReturnReminders(clinicId);
+export async function executarLembretesRetorno(): Promise<{ processed: number; sent: number; failed: number }> {
+  const result = await legacy.processReturnReminders();
   return result;
 }
 
@@ -40,53 +38,14 @@ export async function listarRetornoPendentes(clinicId: string) {
   return { items: clinicRows, total: clinicRows.length };
 }
 
-// ─── Feedback ─────────────────────────────────────────────────────────────────────
-
-/**
- * Register patient feedback with tenant ownership validation.
- * Rejects feedback for patients or appointments that don't belong to the clinic.
- */
-export async function registrarFeedback(params: {
-	clinicId: string;
-	patientId: string;
-	appointmentId?: string;
-	feedbackType: string;
-	rating?: number;
-	npsScore?: number;
-	wouldRecommend?: boolean;
-	comments?: string;
-	channel?: string;
-}): Promise<{ success: boolean }> {
-	// Validate patient belongs to this clinic
-	const patient = await findPatientForClinic(params.clinicId, params.patientId);
-	if (!patient) {
-		throw new ActionError('not_found', 'Paciente não encontrado nesta clínica.');
-	}
-
-	// Validate appointment belongs to this clinic + patient (if provided)
-	if (params.appointmentId) {
-		const appointment = await findAppointmentForClinicPatient(
-			params.clinicId,
-			params.patientId,
-			params.appointmentId,
-			);
-		if (!appointment) {
-			throw new ActionError('not_found', 'Agendamento não encontrado nesta clínica.');
-		}
-	}
-
-	await createFeedback(params);
-	return { success: true };
-}
-
 // ─── Cron-executable wrappers ───────────────────────────────────────────────────
 // Exposed so cron/followups route can call all three cron tasks without
 // importing @/services/followup directly.
 
-export async function runInactivityForCron(clinicId: string): Promise<void> {
-  await runInactivity(clinicId);
+export async function runInactivityForCron(): Promise<void> {
+  await runInactivity();
 }
 
-export async function runCampaignsForCron(clinicId: string): Promise<void> {
-  await executarCampanhas(clinicId);
+export async function runCampaignsForCron(): Promise<void> {
+  await runCampaigns();
 }

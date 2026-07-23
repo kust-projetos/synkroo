@@ -1,75 +1,66 @@
 /**
- * Tests: Financeiro dashboard components (Task 7 — contract correction).
+ * Tests: Financeiro dashboard components.
  *
- * Cobertura:
- * - Overdue metrics render correctly (count, total, stages)
- * - Each tab renders its content
- * - Budget tab with budget selection → payments tab navigation
- *
+ * Covers:
+ * - Null ratios render as dash
+ * - Cancel charge button visible for open charge + permission
+ * 
  * @jest-environment jsdom
  */
 
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { FinanceDashboard } from '../FinanceDashboard';
 
-const mockUseBudgets = jest.fn();
-const mockUsePayments = jest.fn();
-const mockUseCollections = jest.fn();
-const mockUseGateways = jest.fn();
-
-jest.mock('@/lib/hooks/use-queries', () => ({
-  useBudgets: (...args: unknown[]) => mockUseBudgets(...args),
-  usePayments: (...args: unknown[]) => mockUsePayments(...args),
-  useCollections: (...args: unknown[]) => mockUseCollections(...args),
-  useGateways: (...args: unknown[]) => mockUseGateways(...args),
-  useUpdateBudgetStatus: () => ({ mutate: jest.fn(), isPending: false }),
-}));
-
-const METRICS = {
-  overdueCount: 7,
-  totalOverdue: 3850.00,
-  overdueStages: { light: 3, firm: 2, internal: 2 },
-};
-
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockUseBudgets.mockReturnValue({ data: [], isLoading: false });
-  mockUsePayments.mockReturnValue({ data: [], isLoading: false });
-  mockUseCollections.mockReturnValue({ data: { charges: [] }, isLoading: false });
-  mockUseGateways.mockReturnValue({ data: [], isLoading: false });
-});
-
-describe('FinanceDashboard — overdue metrics', () => {
-  test('renders overdue count', () => {
-    render(<FinanceDashboard metrics={METRICS} />);
-    expect(screen.getByText('7')).toBeInTheDocument();
+describe('FinanceDashboard', () => {
+  test('renders null ratios as dash', () => {
+    render(
+      <FinanceDashboard
+        metrics={{ budgetConversion: null, collectionRecovery: null }}
+        charges={[]}
+      />,
+    );
+    const dashes = screen.getAllByText('—');
+    expect(dashes.length).toBeGreaterThanOrEqual(2);
   });
 
-  test('renders total overdue as R$ formatted', () => {
-    render(<FinanceDashboard metrics={METRICS} />);
-    expect(screen.getByText(/3850[.,]00/)).toBeInTheDocument();
-  });
+  function renderWithTab(tabName: string, props: Partial<Parameters<typeof FinanceDashboard>[0]> = {}) {
+    const result = render(
+      <FinanceDashboard
+        metrics={{ budgetConversion: null, collectionRecovery: null }}
+        charges={[]}
+        {...props}
+      />,
+    );
+    // Navigate to the specified tab via fireEvent
+    const tabButton = screen.getByRole('button', { name: tabName });
+    fireEvent.click(tabButton);
+    return result;
+  }
 
-  test('renders overdue stages light/firm/internal', () => {
-    render(<FinanceDashboard metrics={METRICS} />);
-    expect(screen.getByText(/Leve:/)).toBeInTheDocument();
-    expect(screen.getByText(/Firme:/)).toBeInTheDocument();
-    expect(screen.getByText(/Interna:/)).toBeInTheDocument();
-  });
-});
-
-describe('FinanceDashboard — tabs', () => {
-  test('shows budget tab content by default', () => {
-    mockUseBudgets.mockReturnValue({ data: [], isLoading: false });
-    render(<FinanceDashboard metrics={METRICS} />);
-    expect(screen.getByRole('button', { name: /Orçamentos/i })).toBeInTheDocument();
-  });
-
-  test('switches to collections tab', async () => {
-    const { container } = render(<FinanceDashboard metrics={METRICS} />);
-    fireEvent.click(screen.getByRole('button', { name: /Cobranças/i }));
-    await waitFor(() => {
-      expect(mockUseCollections).toHaveBeenCalled();
+  test('shows cancel charge only for open charge with permission', () => {
+    renderWithTab('Cobranças', {
+      metrics: { budgetConversion: 0.75, collectionRecovery: 0.5 },
+      charges: [{ id: 'ch1', status: 'pending' }],
+      canManageBudget: true,
     });
+    expect(screen.getByRole('button', { name: /cancelar cobrança/i })).toBeInTheDocument();
+  });
+
+  test('hides cancel charge when user lacks permission', () => {
+    renderWithTab('Cobranças', {
+      metrics: { budgetConversion: 0.75, collectionRecovery: 0.5 },
+      charges: [{ id: 'ch1', status: 'pending' }],
+      canManageBudget: false,
+    });
+    expect(screen.queryByRole('button', { name: /cancelar cobrança/i })).not.toBeInTheDocument();
+  });
+
+  test('hides cancel charge when charge is already settled', () => {
+    renderWithTab('Cobranças', {
+      metrics: { budgetConversion: 0.75, collectionRecovery: 0.5 },
+      charges: [{ id: 'ch2', status: 'paid' }],
+      canManageBudget: true,
+    });
+    expect(screen.queryByRole('button', { name: /cancelar cobrança/i })).not.toBeInTheDocument();
   });
 });

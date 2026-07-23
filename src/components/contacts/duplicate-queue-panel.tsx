@@ -3,7 +3,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { useDuplicateSuggestions } from '@/lib/hooks/use-queries';
 
 export interface SuggestionSummary {
   id: string;
@@ -17,21 +16,12 @@ export interface SuggestionSummary {
 }
 
 interface DuplicateQueuePanelProps {
+  suggestions: SuggestionSummary[];
   onSelect?: (id: string) => void;
+  isLoading?: boolean;
 }
 
-/**
- * Task 6: usa useDuplicateSuggestions (não array literal) para puxar a
- * fila real de sugestões pendentes. Mantém compatibilidade de props
- * opcional `onSelect` para o consumidor selecione uma sugestão.
- */
-export function DuplicateQueuePanel({ onSelect }: DuplicateQueuePanelProps = {}) {
-  const { data, isLoading } = useDuplicateSuggestions({ status: 'pending' });
-
-  const rows: SuggestionSummary[] = Array.isArray(data)
-    ? (data as SuggestionSummary[])
-    : (((data as any)?.data as SuggestionSummary[]) ?? []);
-
+export function DuplicateQueuePanel({ suggestions, onSelect, isLoading }: DuplicateQueuePanelProps) {
   if (isLoading) {
     return (
       <Card>
@@ -47,7 +37,7 @@ export function DuplicateQueuePanel({ onSelect }: DuplicateQueuePanelProps = {})
     );
   }
 
-  if (!rows.length) {
+  if (!suggestions.length) {
     return (
       <Card>
         <CardHeader><CardTitle>Possíveis duplicidades</CardTitle></CardHeader>
@@ -63,7 +53,7 @@ export function DuplicateQueuePanel({ onSelect }: DuplicateQueuePanelProps = {})
       <CardHeader><CardTitle>Possíveis duplicidades</CardTitle></CardHeader>
       <CardContent>
         <ul className="divide-y" role="list" aria-label="Lista de duplicidades">
-          {rows.map((s) => (
+          {suggestions.map((s) => (
             <li
               key={s.id}
               className="flex items-center justify-between gap-4 py-3 cursor-pointer hover:bg-muted/50 px-2 rounded"

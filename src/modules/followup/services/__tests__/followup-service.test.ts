@@ -26,10 +26,10 @@ describe('followup-service', () => {
   });
 
   describe('executarAll', () => {
-    it('calls processAllFollowUps with clinicId and returns processed=1', async () => {
+    it('calls processAllFollowUps and returns processed=1', async () => {
       mockProcessAll.mockResolvedValueOnce(undefined);
-      const result = await executarAll('clinic-a');
-      expect(mockProcessAll).toHaveBeenCalledWith('clinic-a');
+      const result = await executarAll();
+      expect(mockProcessAll).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ processed: 1 });
     });
   });
@@ -37,30 +37,18 @@ describe('followup-service', () => {
   describe('executarPostConsulta', () => {
     it('calls processPostConsultationFollowUps and returns its result', async () => {
       mockProcessPost.mockResolvedValueOnce({ processed: 3, sent: 2, failed: 0 });
-      const result = await executarPostConsulta('clinic-a');
-      expect(mockProcessPost).toHaveBeenCalledWith('clinic-a');
+      const result = await executarPostConsulta();
+      expect(mockProcessPost).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ processed: 3, sent: 2, failed: 0 });
-    });
-
-    it('forwards ctx clinicId to post-consultation processing', async () => {
-      mockProcessPost.mockResolvedValueOnce({ processed: 1, sent: 1, failed: 0 });
-      await executarPostConsulta('clinic-a');
-      expect(mockProcessPost).toHaveBeenCalledWith('clinic-a');
     });
   });
 
   describe('executarLembretesRetorno', () => {
     it('calls processReturnReminders and returns its result', async () => {
       mockProcessReturn.mockResolvedValueOnce({ processed: 1, sent: 1, failed: 0 });
-      const result = await executarLembretesRetorno('clinic-a');
-      expect(mockProcessReturn).toHaveBeenCalledWith('clinic-a');
+      const result = await executarLembretesRetorno();
+      expect(mockProcessReturn).toHaveBeenCalledTimes(1);
       expect(result).toEqual({ processed: 1, sent: 1, failed: 0 });
-    });
-
-    it('forwards ctx clinicId to return reminders', async () => {
-      mockProcessReturn.mockResolvedValueOnce({ processed: 0, sent: 0, failed: 0 });
-      await executarLembretesRetorno('clinic-a');
-      expect(mockProcessReturn).toHaveBeenCalledWith('clinic-a');
     });
   });
 
