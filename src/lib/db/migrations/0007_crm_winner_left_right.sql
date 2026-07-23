@@ -1,0 +1,1 @@
+ALTER TABLE "crm_duplicate_suggestions" ADD CONSTRAINT "crm_duplicate_suggestions_winner_member_check" CHECK ("crm_duplicate_suggestions"."winner_confirmed_id" IS NULL OR "crm_duplicate_suggestions"."winner_confirmed_id" IN ("crm_duplicate_suggestions"."left_id", "crm_duplicate_suggestions"."right_id"));

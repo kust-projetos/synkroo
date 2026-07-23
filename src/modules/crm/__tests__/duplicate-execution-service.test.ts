@@ -254,6 +254,7 @@ describe('CRM duplicate execution', () => {
     expect(mockIsPatientMerged).toHaveBeenCalled();
     expect(mockMarkSuggestionFailed).toHaveBeenCalledWith(
       suggestionId,
+      clinicId,
       'key-stale',
       'lease_expired_recovery',
     );
@@ -290,6 +291,7 @@ describe('CRM duplicate execution', () => {
 
     expect(mockMarkSuggestionFailed).toHaveBeenCalledWith(
       suggestionId,
+      clinicId,
       'key-stale',
       'lease_expired_recovery',
     );
@@ -321,6 +323,7 @@ describe('CRM duplicate execution', () => {
     expect(result).toMatchObject({ status: 'merged' });
     expect(mockMarkSuggestionFailed).toHaveBeenCalledWith(
       suggestionId,
+      clinicId,
       'key-stale',
       'lease_expired_recovery',
     );
@@ -606,6 +609,7 @@ describe('CRM duplicate execution', () => {
 
     expect(mockMarkSuggestionFailed).toHaveBeenCalledWith(
       suggestionId,
+      clinicId,
       expect.stringMatching(/^merge-/),
       'owner_merge_failed',
     );
