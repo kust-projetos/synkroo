@@ -2,10 +2,9 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
-import {
-  findById,
-  insertPatientObservation,
-} from '../repositories/patients-repository';
+import { getDb } from '@/lib/db/client';
+import { patientObservations } from '@/modules/operacional/schema';
+import { findById } from '../repositories/patients-repository';
 
 /**
  * Owner-bridge CRM → operacional: registra uma observação no prontuário do
@@ -27,12 +26,16 @@ export const registrarObservacaoPaciente = defineAction({
     if (!patient) {
       throw new ActionError('not_found', 'Paciente não encontrado.');
     }
-    const result = await insertPatientObservation({
-      clinicId: ctx.clinicId,
-      patientId: input.patientId,
-      content: input.content,
-      createdBy: ctx.user?.id ?? null,
-    });
+    const db = getDb();
+    const [result] = await db
+      .insert(patientObservations)
+      .values({
+        clinicId: ctx.clinicId,
+        patientId: input.patientId,
+        content: input.content,
+        createdBy: ctx.user?.id ?? null,
+      } as any)
+      .returning();
     return result;
   },
 });
