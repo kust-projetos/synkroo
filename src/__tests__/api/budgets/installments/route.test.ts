@@ -240,6 +240,46 @@ describe('PATCH /api/budgets/[id]/installments', () => {
     const body = await res.json();
     expect(body.installment.id).toBe(INSTALLMENT_ID);
   });
+
+  it('ignores forged clinicId in PATCH body and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
+      method: 'PATCH',
+      body: JSON.stringify({ clinicId: CLINIC_B, amount: 150 }),
+    });
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
+    const res = await PATCH(req as any, foreignParams as any);
+    expect(res.status).toBe(404);
+    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
+  });
+
+  it('ignores forged clinicId in PATCH query string and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID + '&clinicId=' + CLINIC_B, {
+      method: 'PATCH',
+      body: JSON.stringify({ amount: 150 }),
+    });
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
+    const res = await PATCH(req as any, foreignParams as any);
+    expect(res.status).toBe(404);
+    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
+  });
+
+  it('ignores forged x-clinic-id header in PATCH and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
+      method: 'PATCH',
+      headers: { 'x-clinic-id': CLINIC_B },
+      body: JSON.stringify({ amount: 150 }),
+    });
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
+    const res = await PATCH(req as any, foreignParams as any);
+    expect(res.status).toBe(404);
+    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
+  });
 });
 
 // ── DELETE ─────────────────────────────────────
@@ -277,5 +317,41 @@ describe('DELETE /api/budgets/[id]/installments', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+  });
+
+  it('ignores forged clinicId in DELETE body and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
+      method: 'DELETE',
+      body: JSON.stringify({ clinicId: CLINIC_B }),
+    });
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
+    const res = await DELETE(req as any, foreignParams as any);
+    expect(res.status).toBe(404);
+    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
+  });
+
+  it('ignores forged clinicId in DELETE query string and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID + '&clinicId=' + CLINIC_B, { method: 'DELETE' });
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
+    const res = await DELETE(req as any, foreignParams as any);
+    expect(res.status).toBe(404);
+    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
+  });
+
+  it('ignores forged x-clinic-id header in DELETE and uses auth clinicId', async () => {
+    auth(CLINIC_A);
+    mockGetBudgetForClinic.mockResolvedValue(undefined);
+    const req = new Request('http://localhost/api/budgets/' + FOREIGN_BUDGET_ID + '/installments?installment_id=' + INSTALLMENT_ID, {
+      method: 'DELETE',
+      headers: { 'x-clinic-id': CLINIC_B },
+    });
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET_ID }) };
+    const res = await DELETE(req as any, foreignParams as any);
+    expect(res.status).toBe(404);
+    expect(mockGetBudgetForClinic).toHaveBeenCalledWith(FOREIGN_BUDGET_ID, CLINIC_A);
   });
 });

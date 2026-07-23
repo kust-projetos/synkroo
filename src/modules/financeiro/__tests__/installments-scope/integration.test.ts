@@ -14,6 +14,11 @@ import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { budgets, budgetInstallments } from '@/lib/db/schema';
 import { replaceInstallmentsAtomic } from '@/modules/financeiro/repositories/installment-replacement-repository';
+import { NextRequest } from 'next/server';
+
+jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }));
+import { PATCH, DELETE } from '@/app/api/budgets/[id]/installments/route';
+import { validateApiAuth } from '@/lib/auth/session';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -126,6 +131,88 @@ describeOrSkip('Installments tenant scope (DB real)', () => {
 
     expect(row).toBeDefined();
     expect(row.id).toBe(INSTALLMENT_A);
+  });
+
+  // ── Route boundary (forged clinicId under valid session) ──
+
+  it('route boundary: forged body/query/header clinicId is ignored under valid session', async () => {
+    // Mock auth to return CLINIC_A session (trusted, own clinic)
+    (validateApiAuth as jest.Mock).mockResolvedValue({
+      success: true,
+      profile: { id: 'user-a', clinic_id: CLINIC_A, role: 'owner' },
+    });
+
+    const db = getDb();
+    const FOREIGN_BUDGET = BUDGET_B;
+    const FOREIGN_INSTALLMENT = INSTALLMENT_B;
+
+    // Count installments for budget B before
+    const [{ count: beforeCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(budgetInstallments)
+      .where(sql`budget_id = ${FOREIGN_BUDGET}`);
+
+    // Capture installment B state before
+    const [before] = await db
+      .select({ amount: budgetInstallments.amount, status: budgetInstallments.status })
+      .from(budgetInstallments)
+      .where(sql`id = ${FOREIGN_INSTALLMENT}`);
+
+    // 1. PATCH with forged clinicId in body
+    const patchBodyReq = new NextRequest(
+      'http://localhost/api/budgets/' + FOREIGN_BUDGET + '/installments?installment_id=' + FOREIGN_INSTALLMENT,
+      { method: 'PATCH', body: JSON.stringify({ clinicId: CLINIC_B, amount: 999 }) },
+    );
+    const foreignParams = { params: Promise.resolve({ id: FOREIGN_BUDGET }) };
+    const patchBodyRes = await PATCH(patchBodyReq as any, foreignParams as any);
+    expect(patchBodyRes.status).toBe(404);
+
+    // 2. PATCH with forged clinicId in query string
+    const patchQueryReq = new NextRequest(
+      'http://localhost/api/budgets/' + FOREIGN_BUDGET + '/installments?installment_id=' + FOREIGN_INSTALLMENT + '&clinicId=' + CLINIC_B,
+      { method: 'PATCH', body: JSON.stringify({ amount: 999 }) },
+    );
+    const patchQueryRes = await PATCH(patchQueryReq as any, foreignParams as any);
+    expect(patchQueryRes.status).toBe(404);
+
+    // 3. PATCH with forged x-clinic-id header
+    const patchHeaderReq = new NextRequest(
+      'http://localhost/api/budgets/' + FOREIGN_BUDGET + '/installments?installment_id=' + FOREIGN_INSTALLMENT,
+      { method: 'PATCH', headers: { 'x-clinic-id': CLINIC_B }, body: JSON.stringify({ amount: 999 }) },
+    );
+    const patchHeaderRes = await PATCH(patchHeaderReq as any, foreignParams as any);
+    expect(patchHeaderRes.status).toBe(404);
+
+    // 4. DELETE with forged clinicId in query string
+    const delQueryReq = new NextRequest(
+      'http://localhost/api/budgets/' + FOREIGN_BUDGET + '/installments?installment_id=' + FOREIGN_INSTALLMENT + '&clinicId=' + CLINIC_B,
+      { method: 'DELETE' },
+    );
+    const delQueryRes = await DELETE(delQueryReq as any, foreignParams as any);
+    expect(delQueryRes.status).toBe(404);
+
+    // 5. DELETE with forged x-clinic-id header
+    const delHeaderReq = new NextRequest(
+      'http://localhost/api/budgets/' + FOREIGN_BUDGET + '/installments?installment_id=' + FOREIGN_INSTALLMENT,
+      { method: 'DELETE', headers: { 'x-clinic-id': CLINIC_B } },
+    );
+    const delHeaderRes = await DELETE(delHeaderReq as any, foreignParams as any);
+    expect(delHeaderRes.status).toBe(404);
+
+    // Count after — unchanged
+    const [{ count: afterCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(budgetInstallments)
+      .where(sql`budget_id = ${FOREIGN_BUDGET}`);
+    expect(afterCount).toBe(beforeCount);
+
+    // Verify installment B was NOT modified
+    const [after] = await db
+      .select({ amount: budgetInstallments.amount, status: budgetInstallments.status })
+      .from(budgetInstallments)
+      .where(sql`id = ${FOREIGN_INSTALLMENT}`);
+    expect(after.amount).toBe(before.amount);
+    expect(after.status).toBe(before.status);
   });
 
   // ── Atomic replacement (cover installment-replacement-repository) ──
