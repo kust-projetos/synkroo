@@ -14,6 +14,11 @@ import { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { tasks } from '@/lib/db/schema';
+import { NextRequest } from 'next/server';
+
+jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }));
+import { PUT, DELETE } from '@/app/api/tasks/route';
+import { validateApiAuth } from '@/lib/auth/session';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -78,6 +83,57 @@ describeOrSkip('Tasks tenant scope (DB real)', () => {
 
     expect(row.title).toBe('Clinic A Task');
     expect(row.clinicId).toBe(CLINIC_A);
+  });
+
+  // ── Route boundary ────────────────────────────────────
+
+  it('route boundary: foreign session returns 404 and leaves count unchanged', async () => {
+    // Mock auth to return clinic B session (foreign to clinic A's task)
+    (validateApiAuth as jest.Mock).mockResolvedValue({
+      success: true,
+      profile: { id: 'user-b', clinic_id: CLINIC_B, role: 'staff' },
+    });
+
+    const db = getDb();
+
+    // Count before
+    const [{ count: beforeCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tasks)
+      .where(sql`clinic_id = ${CLINIC_A}`);
+
+    // PUT — clinic B session tries to update clinic A's task
+    const putReq = new NextRequest('http://localhost/api/tasks', {
+      method: 'PUT',
+      body: JSON.stringify({ id: TASK_ID, title: 'Hacked via route PUT' }),
+    });
+    const putRes = await PUT(putReq as any);
+    expect(putRes.status).toBe(404);
+    const putBody = await putRes.json();
+    expect(putBody.error).toBe('Task not found');
+
+    // DELETE — clinic B session tries to delete clinic A's task
+    const delReq = new NextRequest('http://localhost/api/tasks?id=' + TASK_ID, { method: 'DELETE' });
+    const delRes = await DELETE(delReq as any);
+    expect(delRes.status).toBe(404);
+    const delBody = await delRes.json();
+    expect(delBody.error).toBe('Task not found');
+
+    // Count after — unchanged
+    const [{ count: afterCount }] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(tasks)
+      .where(sql`clinic_id = ${CLINIC_A}`);
+
+    expect(afterCount).toBe(beforeCount);
+
+    // Verify the task title was not modified
+    const [row] = await db
+      .select({ title: tasks.title })
+      .from(tasks)
+      .where(sql`id = ${TASK_ID}`)
+      .limit(1);
+    expect(row.title).toBe('Clinic A Task');
   });
 
   // ── Count unchanged ──────────────────────────────────

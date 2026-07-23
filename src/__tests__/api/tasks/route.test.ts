@@ -239,12 +239,11 @@ describe('PUT /api/tasks', () => {
       body: JSON.stringify({ clinicId: CLINIC_B, id: TASK_ID, title: 'Hacked via body' }),
     });
     const res = await PUT(req as any);
-    // 404 proves auth clinicId was used (task with TASK_ID belongs to clinic B,
-    // but auth is clinic A, so no match). If forged clinicId were used,
-    // the update would match and return 200.
     expect(res.status).toBe(404);
-    // Prove the update chain was reached (handler didn't early-return on forged input)
-    expect(mockUpdWhere).toHaveBeenCalled();
+    // WHERE predicate must contain auth clinicId (CLINIC_A), not forged (CLINIC_B)
+    const whereStr = require('util').inspect((mockUpdWhere as jest.Mock).mock.calls[0][0], { depth: 8 });
+    expect(whereStr).toContain(CLINIC_A);
+    expect(whereStr).not.toContain(CLINIC_B);
   });
 
   it('ignores forged clinicId in PUT query string and uses auth clinicId', async () => {
@@ -256,7 +255,9 @@ describe('PUT /api/tasks', () => {
     });
     const res = await PUT(req as any);
     expect(res.status).toBe(404);
-    expect(mockUpdWhere).toHaveBeenCalled();
+    const whereStr = require('util').inspect((mockUpdWhere as jest.Mock).mock.calls[0][0], { depth: 8 });
+    expect(whereStr).toContain(CLINIC_A);
+    expect(whereStr).not.toContain(CLINIC_B);
   });
 });
 
@@ -306,6 +307,8 @@ describe('DELETE /api/tasks', () => {
     });
     const res = await DELETE(req as any);
     expect(res.status).toBe(404);
-    expect(mockDelWhere).toHaveBeenCalled();
+    const whereStr = require('util').inspect((mockDelWhere as jest.Mock).mock.calls[0][0], { depth: 8 });
+    expect(whereStr).toContain(CLINIC_A);
+    expect(whereStr).not.toContain(CLINIC_B);
   });
 });
