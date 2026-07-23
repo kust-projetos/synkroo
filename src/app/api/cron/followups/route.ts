@@ -14,9 +14,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { executarAll, runInactivityForCron, runCampaignsForCron } from '@/modules/followup/services/followup-service';
+import { getDb } from '@/lib/db/client';
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
-import { getDb } from '@/lib/db/client';
 import { eq, isNull } from 'drizzle-orm';
 import { clinics } from '@/lib/db/schema/core';
 import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
@@ -68,7 +68,11 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // Process follow-ups (post-consultation, return reminders)
   if (tasks.includes('all') || tasks.includes('followups')) {
     logger.info('[cron/followups] Processing follow-ups...');
-    await executarAll();
+    // Iterate over all clinics since followups are per-clinic
+    const allClinics = await getDb().select({ id: clinics.id }).from(clinics).where(isNull(clinics.deletedAt));
+    for (const c of allClinics) {
+      await executarAll(c.id);
+    }
     results.followUps = 'processed';
   }
 
