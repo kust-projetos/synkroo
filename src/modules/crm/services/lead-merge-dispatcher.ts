@@ -13,7 +13,7 @@
  * Carregado via import side-effect de `@/modules/comercial/index.ts`
  * (atrás de `import '@/modules/crm/services/lead-merge-dispatcher';`).
  */
-import { mergeLeads } from '@/modules/comercial/repositories/leads-repository';
+import { mergeLeads } from '@/modules/comercial/repositories';
 import { registerOwnerMerge } from '@/modules/crm';
 
 export type LeadMergeDispatcher = typeof mergeLeads;

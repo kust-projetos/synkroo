@@ -39,6 +39,8 @@ import { processarConfirmacaoResposta } from './processar-confirmacao-resposta';
 import { listarTratamentosIncompletos } from './listar-tratamentos-incompletos';
 import { mesclarPacientes } from './mesclar-pacientes';
 
+export * from './registrar-observacao-paciente';
+export * from './atualizar-tags-paciente';
 export * from './agendar-consulta';
 export * from './confirmar-consulta';
 export * from './remarcar-consulta';
