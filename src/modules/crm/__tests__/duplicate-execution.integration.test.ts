@@ -277,4 +277,26 @@ describeOrSkip('Merge execution repository functions (DB real)', () => {
     const bad = await finalizeMergeAndDismissSiblings(SUGGESTION_2, KEY_2, CLINIC_ID, LEFT, RIGHT, OWNER_TYPE);
     expect(bad).toBe(false);
   });
+
+  it('winner_confirmed_id outsider UUID rejected by CHECK constraint', async () => {
+    const db = getDb();
+    // Use a UUID that is NEITHER left_id NOR right_id
+    const OUTSIDER_ID = '00000000-0000-0000-0000-00000000ffff';
+
+    // Reset to approved state first
+    await resetToApproved();
+
+    // Attempt to set winner_confirmed_id to an outsider UUID — must be rejected
+    // by crm_duplicate_suggestions_winner_member_check constraint
+    await expect(
+      db.execute(sql`
+        UPDATE crm_duplicate_suggestions
+        SET winner_confirmed_id = ${OUTSIDER_ID}, updated_at = now()
+        WHERE id = ${SUGGESTION_2}
+      `),
+    ).rejects.toThrow();
+
+    // After failed attempt, row should still have original winner_confirmed_id
+    await resetToApproved();
+  });
 });
