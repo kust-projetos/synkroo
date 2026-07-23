@@ -76,6 +76,8 @@ describe('Instagram Webhook API', () => {
     })
   })
 
+  const APP_SECRET = process.env.INSTAGRAM_APP_SECRET ?? 'test-instagram-secret';
+
   describe('POST - Message Reception', () => {
     beforeEach(() => {
       process.env.INSTAGRAM_APP_SECRET = APP_SECRET

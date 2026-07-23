@@ -45,6 +45,8 @@ export function FinanceiroDashboardClient() {
     overdueCount: dashboardData.overdueCount ?? 0,
     totalOverdue: dashboardData.totalOverdue ?? 0,
     overdueStages: dashboardData.overdueStages ?? { light: 0, firm: 0, internal: 0 },
+    budgetConversion: null,
+    collectionRecovery: null,
   };
 
   return (
@@ -54,7 +56,7 @@ export function FinanceiroDashboardClient() {
         description="Gestão de orçamentos, pagamentos e cobranças"
       />
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <FinanceDashboard metrics={metrics} canManageBudget={false} />
+        <FinanceDashboard metrics={metrics} charges={[]} canManageBudget={false} />
       </div>
     </div>
   );
