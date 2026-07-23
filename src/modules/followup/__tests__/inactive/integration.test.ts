@@ -195,6 +195,12 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
       phone: '11999999905', lastVisitAt: LONG_AGO,
     }).onConflictDoNothing();
 
+    // Capture state before the forged attempt
+    const [before] = await db.select({
+      status: patients.status,
+      riskScore: patients.riskScore,
+    }).from(patients).where(eq(patients.id, forgedPatientId));
+
     // Call reativarPaciente with a forged clinicId in the input that matches
     // the foreign patient's ACTUAL clinic (OTHER_CLINIC_ID).
     // If the action used input.clinicId, it would find the patient and succeed.
@@ -209,9 +215,14 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
       expect(result.error.code).toBe('not_found');
     }
 
-    // Verify the foreign patient was NOT modified
-    const [row] = await db.select({ status: patients.status }).from(patients).where(eq(patients.id, forgedPatientId));
-    expect(row).toBeDefined();
+    // Verify the foreign patient row is EXACTLY unchanged
+    const [after] = await db.select({
+      status: patients.status,
+      riskScore: patients.riskScore,
+    }).from(patients).where(eq(patients.id, forgedPatientId));
+
+    expect(after.status).toBe(before.status);
+    expect(after.riskScore).toBe(before.riskScore);
 
     // Cleanup
     await db.delete(patients).where(eq(patients.id, forgedPatientId));
