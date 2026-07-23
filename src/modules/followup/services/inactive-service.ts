@@ -17,8 +17,8 @@ export type { InactivitySegment } from '@/services/followup/inactive-patient.ser
 
 export const INACTIVITY_SEGMENTS = legacy.INACTIVITY_SEGMENTS;
 
-export async function runInactivityDetection(): Promise<{ processed: number }> {
-  await legacy.runInactivityDetection();
+export async function runInactivityDetection(clinicId: string): Promise<{ processed: number }> {
+  await legacy.runInactivityDetection(clinicId);
   return { processed: 1 };
 }
 
