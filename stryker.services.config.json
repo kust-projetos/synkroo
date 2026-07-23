@@ -4,32 +4,8 @@
   "plugins": ["@stryker-mutator/jest-runner"],
   "testRunner": "jest",
   "coverageAnalysis": "perTest",
-  "concurrency": 1,
-  "ignorePatterns": [
-    ".worktrees",
-    ".open-next",
-    ".next",
-    "_openNextBuild",
-    "coverage",
-    "playwright-report",
-    "test-results",
-    ".claude",
-    ".superpowers",
-    "_bmad",
-    ".playwright-mcp",
-    ".playwright-cli",
-    ".planning",
-    ".gitnexus",
-    ".pi",
-    ".tmp",
-    "tmp",
-    ".wrangler"
-  ],
+  "concurrency": 2,
   "mutate": [
-    "src/core/agent-bridge/tool-policy.ts",
-    "src/modules/crm/services/contact-list-service.ts",
-    "src/modules/crm/services/contact-timeline-service.ts",
-    "src/modules/crm/services/contact-tags-service.ts",
     "src/modules/crm/services/duplicate-execution-service.ts",
     "src/modules/financeiro/services/installment-service.ts"
   ],
@@ -38,9 +14,6 @@
     "projectType": "custom",
     "config": {
       "testMatch": [
-        "**/core/agent-bridge/__tests__/tool-policy.test.ts",
-        "**/modules/crm/__tests__/contact-actions.test.ts",
-        "**/modules/crm/__tests__/contact-read-model.test.ts",
         "**/modules/crm/__tests__/duplicate-execution-service.test.ts",
         "**/modules/financeiro/services/__tests__/installment-service.test.ts"
       ]

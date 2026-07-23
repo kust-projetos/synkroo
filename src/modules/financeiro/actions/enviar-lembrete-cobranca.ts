@@ -9,7 +9,6 @@ export const enviarLembreteCobranca = defineAction({
   requires: 'financeiro:manage_collections',
   label: 'Enviar lembrete de cobrança',
   input: z.object({
-    clinicId: z.string().uuid(),
     chargeId: z.string().uuid(),
   }),
   handler: async (input, ctx: ActionContext) => {
