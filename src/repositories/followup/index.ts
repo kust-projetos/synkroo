@@ -5,7 +5,7 @@
 
 import { eq, and } from 'drizzle-orm';
 import { getDb } from "@/lib/db/client";
-import { patientFeedback } from "@/modules/operacional/schema";
+import { patientFeedback, patients, appointments } from "@/modules/operacional/schema";
 
 export async function createFeedback(params: {
 	clinicId: string;
