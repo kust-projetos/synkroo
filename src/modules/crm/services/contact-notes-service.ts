@@ -13,8 +13,8 @@ import {
   type ContactType,
   type NoteEntry,
 } from '../repositories/contact-read-repository';
-import { registrarObservacaoPaciente } from '@/modules/operacional/actions/registrar-observacao-paciente';
-import { registrarNotaLead } from '@/modules/comercial/actions/registrar-nota-lead';
+import { registrarObservacaoPaciente } from '@/modules/operacional/actions';
+import { registrarNotaLead } from '@/modules/comercial/actions';
 
 export async function listContactNotesService(
   ctx: Pick<ActionContext, 'clinicId'>,
