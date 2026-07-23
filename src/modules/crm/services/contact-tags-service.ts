@@ -7,8 +7,8 @@
  */
 import type { ActionContext } from '@/core/actions/types';
 import type { ContactType } from '../repositories/contact-read-repository';
-import { atualizarTagsPaciente } from '@/modules/operacional/actions/atualizar-tags-paciente';
-import { atualizarTagsLead } from '@/modules/comercial/actions/atualizar-tags-lead';
+import { atualizarTagsPaciente } from '@/modules/operacional/actions';
+import { atualizarTagsLead } from '@/modules/comercial/actions';
 
 export async function updateContactTagsService(
   ctx: Pick<ActionContext, 'clinicId'>,

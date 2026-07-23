@@ -13,7 +13,7 @@
  * Carregado via import side-effect de `@/modules/operacional/index.ts`
  * (atrás de `import '@/modules/crm/services/patient-merge-dispatcher';`).
  */
-import { mergePatients } from '@/modules/operacional/repositories/patients-repository';
+import { mergePatients } from '@/modules/operacional/repositories';
 import { registerOwnerMerge } from '@/modules/crm';
 
 export type PatientMergeDispatcher = typeof mergePatients;
