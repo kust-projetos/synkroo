@@ -25,8 +25,8 @@ const mockInsertActivity = jest.fn();
 // DB mock para operações diretas (update/insert).
 // mockDbUpdate: retornado por .set(), tests configuram .where nele.
 // mockDbInsert: retornado por .insert(), tests configuram .values e .returning nele.
-const mockDbUpdate = jest.fn();
-const mockDbInsert = jest.fn();
+const mockDbUpdate = Object.assign(jest.fn(), { where: jest.fn() });
+const mockDbInsert = Object.assign(jest.fn(), { values: jest.fn() });
 
 const mockDb = {
   update: jest.fn(() => ({ set: jest.fn(() => mockDbUpdate) })),
@@ -165,7 +165,7 @@ describe('owner-bridge — tag normalization', () => {
     // Testa a função normalizeTags inline no action
     mockFindById.mockResolvedValue({ id: PATIENT_A });
     mockDbUpdate.mockReturnThis();
-    mockDbUpdate.where = jest.fn().mockReturnValue({
+    mockDbUpdate.where.mockReturnValue({
       returning: jest.fn().mockResolvedValue([{ id: PATIENT_A }]),
     });
 
@@ -179,7 +179,7 @@ describe('owner-bridge — tag normalization', () => {
   it('lead: trim, drop empty, dedup case-insensitive (primeira vence)', async () => {
     mockFindLeadByIdForClinic.mockResolvedValue({ id: LEAD_A });
     mockDbUpdate.mockReturnThis();
-    mockDbUpdate.where = jest.fn().mockReturnValue({
+    mockDbUpdate.where.mockReturnValue({
       returning: jest.fn().mockResolvedValue([{ id: LEAD_A }]),
     });
 
@@ -193,7 +193,7 @@ describe('owner-bridge — tag normalization', () => {
   it('atualizarTagsPaciente persiste/retorna tags normalizadas', async () => {
     mockFindById.mockResolvedValue({ id: PATIENT_A });
     mockDbUpdate.mockReturnThis();
-    mockDbUpdate.where = jest.fn().mockReturnValue({
+    mockDbUpdate.where.mockReturnValue({
       returning: jest.fn().mockResolvedValue([{ id: PATIENT_A }]),
     });
 
@@ -207,7 +207,7 @@ describe('owner-bridge — tag normalization', () => {
   it('atualizarTagsLead persiste/retorna tags normalizadas', async () => {
     mockFindLeadByIdForClinic.mockResolvedValue({ id: LEAD_A });
     mockDbUpdate.mockReturnThis();
-    mockDbUpdate.where = jest.fn().mockReturnValue({
+    mockDbUpdate.where.mockReturnValue({
       returning: jest.fn().mockResolvedValue([{ id: LEAD_A }]),
     });
 
@@ -273,7 +273,7 @@ describe('owner-bridge — tenant isolation (cross-clinic → not_found)', () =>
   it('registrarObservacaoPaciente: ctx.clinicId é a do CONTEXTO (não do input)', async () => {
     mockFindById.mockResolvedValue({ id: PATIENT_A });
     mockDbInsert.mockReturnThis();
-    mockDbInsert.values = jest.fn().mockReturnValue({
+    mockDbInsert.values.mockReturnValue({
       returning: jest.fn().mockResolvedValue([{ id: 'obs-new' }]),
     });
 
@@ -290,7 +290,7 @@ describe('owner-bridge — tenant isolation (cross-clinic → not_found)', () =>
   it('atualizarTagsLead: ctx.clinicId é a do CONTEXTO (não do input)', async () => {
     mockFindLeadByIdForClinic.mockResolvedValue({ id: LEAD_A });
     mockDbUpdate.mockReturnThis();
-    mockDbUpdate.where = jest.fn().mockReturnValue({
+    mockDbUpdate.where.mockReturnValue({
       returning: jest.fn().mockResolvedValue([{ id: LEAD_A }]),
     });
 
