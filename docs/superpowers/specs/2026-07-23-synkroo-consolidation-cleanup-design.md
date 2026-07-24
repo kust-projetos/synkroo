@@ -121,7 +121,7 @@ Consolidation shall occur on a temporary branch created from a verified referenc
 | `start-agents.bat` | Remove | References obsolete `worker1` peer workflow |
 | `_bmad/` | Remove | Unreferenced legacy tool configuration |
 | `.superpowers/brainstorm/` | Archive decisions, remove generated HTML | Old visual session output without active references |
-| `.planning/` | Consolidate before removal | Historical documents still referenced by current specs |
+| `archive/planning-v0.3` | Preserve immutable history | Current specs cite archive instead of active legacy tree |
 | Root `worker-configuration.d.ts` | Reproduce, then likely untrack | Generated and excluded from root TypeScript build |
 | Worker-specific `worker-configuration.d.ts` files | Keep | Included by worker-specific TypeScript projects |
 | `AGENTS.md` and `CLAUDE.md` | Keep | Intentional compatibility files despite duplicate content |
@@ -133,7 +133,7 @@ Cleanup includes targeted corrections where stale text can mislead operations:
 
 - Replace Supabase CLI instructions in `src/app/api/admin/run-migration/route.ts` with current Drizzle policy.
 - Rename or rewrite obsolete Supabase auth test mocks/documentation when no Supabase dependency remains.
-- Update references from `.planning/` to the canonical roadmap or archived Git reference.
+- Update legacy-planning references to the canonical roadmap or archived Git reference.
 - Replace deprecated `next lint` with the supported ESLint CLI while preserving boundary rules.
 
 These corrections are independent commits and must not be bundled with branch deletion.
