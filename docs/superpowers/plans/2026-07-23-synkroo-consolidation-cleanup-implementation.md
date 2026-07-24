@@ -274,13 +274,7 @@ Expected: ignored-tracked output is empty. Rollback: revert commit; quarantine r
 **Files:** Create `docs/archive/legacy-planning-v0.3-summary.md`; update refs; remove legacy planning tree.
 - [ ] Write factual summary: April–May 2026 phases, obsolete Supabase assumptions, current Drizzle/NextAuth roadmap, source commit `db080da9`.
 - [ ] Replace active legacy-planning citations with summary or immutable `archive/planning-v0.3` citation.
-- [ ] Tag, remove, commit:
-```bash
-git tag archive/planning-v0.3 db080da9
-git rm -r legacy-planning-tree
-git add docs
-git commit -m "docs: archive superseded planning system"
-```
+- [ ] Tag immutable history, remove legacy planning tree, and commit documentation.
 Rollback: revert commit or restore from `archive/planning-v0.3`.
 ### Task 11: Root Wrangler Types Decision
 **Files:** Evaluate/remove root `worker-configuration.d.ts`; retain both worker-specific files.
