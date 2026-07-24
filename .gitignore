@@ -89,6 +89,13 @@ graphify-out/
 
 # Temp directories
 tmp/
+.tmp*/
+
+# Generated development artifacts
+.playwright-cli/
+.superpowers/
+_openNextBuild/
+preview.pid
 
 # GitNexus
 .gitnexus/

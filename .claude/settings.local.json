@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(pkill -f \"next\")",
-      "Bash(rtk npm *)"
-    ]
-  }
-}
