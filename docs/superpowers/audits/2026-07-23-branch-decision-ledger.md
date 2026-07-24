@@ -6133,3 +6133,4 @@
 - `fix/instagram-webhook-raw-bytes`: restored at `7618366e` from verified quarantine bundle after an unauthorized disappearance; no worktree recreated.
 - `feat/seed-local-scale` and spike branches: quarantine candidates; retained without merge or deletion.
 - No refs were deleted by this task.
+- Root `worker-configuration.d.ts`: KEEP. Regenerated Wrangler output replaces legacy env declarations with `AGENT` and `IA_BRIDGE`; semantic divergence requires a dedicated migration, not cleanup.
