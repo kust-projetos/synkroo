@@ -10,9 +10,9 @@ import { join } from 'node:path';
  * src/core/actions/index.ts. This test guards the override so a future
  * refactor that silently removes it is caught.
  */
-describe('.eslintrc.json — collection-service boundaries override', () => {
+describe('eslint.rules.json — collection-service boundaries override', () => {
   const cfg = JSON.parse(
-    readFileSync(join(process.cwd(), '.eslintrc.json'), 'utf8'),
+    readFileSync(join(process.cwd(), 'eslint.rules.json'), 'utf8'),
   ) as {
     overrides?: Array<{ files?: string[]; rules?: Record<string, unknown> }>;
   };
