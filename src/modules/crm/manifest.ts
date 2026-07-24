@@ -12,5 +12,5 @@ export const crmManifest = {
       icon: 'UsersIcon',
     },
   ],
-  jobs: [] as string[],
+  jobs: ['crm-duplicates'],
 };
