@@ -293,4 +293,4 @@ export const operacionalAccessPermissions: PermissionEntry[] = [
 | `2026-06-21-eixo2-core-modulo-design.md` | Padrão canônico do módulo (template, gates, seam de schema) |
 | `2026-06-21-eixo2-core-modulo-refinements.md` | Refino gates/menu vs sequenciamento (dívida dos estáticos que E-02 fecha p/ agenda/pacientes) |
 | `docs/planning/epics.md` (Epic E-02) | RFs, critérios de aceitação, KPIs |
-| `.planning/research/PITFALLS.md` | Pitfalls 3 (LGPD), 4 (WhatsApp), 7 (migração) — consultar ao escrever o plano |
+| `archive/planning-v0.3` | Histórico de LGPD, WhatsApp e migração; roadmap canônico guia plano |
