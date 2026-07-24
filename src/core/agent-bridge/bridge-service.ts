@@ -2,6 +2,7 @@ import type { ActionContext, ActionDefinition, ActionResult } from '@/core/actio
 import { verifyHandle, type SeenStore } from './handle';
 import { buildToolCatalogFromList, normalizeToolName } from './tool-catalog';
 import { assertSystemAllowed } from './security-matrix';
+import { isAgentSafeAction } from './tool-policy';
 import type { ToolCatalog } from './types';
 
 export interface BridgeDeps {
@@ -41,7 +42,7 @@ export async function listToolsLogic(
   const ctx = await rebuildCtx(deps, v.payload);
   const allowed = deps
     .getActions()
-    .filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires));
+    .filter((a) => isAgentSafeAction(a.name) && ctx.hasModule(a.module) && ctx.can(a.requires));
   return { ok: true, catalog: buildToolCatalogFromList(allowed) };
 }
 
@@ -76,17 +77,19 @@ export async function executeActionLogic(
   if (await deps.store.wasSeen(dedupKey)) {
     return { ok: false, error: 'duplicate' };
   }
+  // 3. alias → action.name → allowlist
+  const action = deps
+    .getActions()
+    .find((a) => normalizeToolName(a.name) === input.alias);
+  if (!action || !isAgentSafeAction(action.name)) {
+    return { ok: false, error: 'unknown_tool' };
+  }
+
   const ttl = Math.max(
     Math.ceil((v.payload.exp - Date.now()) / 1000) + 30,
     60,
   );
   await deps.store.markSeen(dedupKey, ttl);
-
-  // 3. alias → action.name
-  const action = deps
-    .getActions()
-    .find((a) => normalizeToolName(a.name) === input.alias);
-  if (!action) return { ok: false, error: 'unknown_tool' };
 
   // 4. matriz (só source='system'); delegated cai no RBAC do runAction
   if (v.payload.source === 'system') {
