@@ -128,7 +128,7 @@ describe('bridge — matriz de falhas', () => {
     expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
   });
 
-  it('ação destrutiva (system) → escalate_human', async () => {
+  it('ação destrutiva fora da allowlist → unknown_tool', async () => {
     const { handle } = await issueHandle(SECRET, {
       ...issueArgs,
       ttlSeconds: 60,
@@ -141,6 +141,6 @@ describe('bridge — matriz de falhas', () => {
       input: {},
       flags: { confirmed: true },
     });
-    expect(r).toMatchObject({ ok: false, error: 'escalate_human' });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
   });
 });
