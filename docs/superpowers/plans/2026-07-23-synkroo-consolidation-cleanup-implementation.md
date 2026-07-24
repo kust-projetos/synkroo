@@ -270,26 +270,18 @@ git diff --cached --check
 git commit -m "chore: remove generated and obsolete artifacts"
 ```
 Expected: ignored-tracked output is empty. Rollback: revert commit; quarantine retains copies.
-### Task 10: Archive `.planning`
-**Files:** Create `docs/archive/legacy-planning-v0.3-summary.md`; update refs; remove `.planning/**`.
+### Task 10: Archive legacy planning
+**Files:** Create `docs/archive/legacy-planning-v0.3-summary.md`; update refs; remove legacy planning tree.
 - [ ] Write factual summary: April–May 2026 phases, obsolete Supabase assumptions, current Drizzle/NextAuth roadmap, source commit `db080da9`.
-- [ ] Find/update references:
-```bash
-git grep -l '\.planning/' -- docs | tee /tmp/planning-references.txt
-```
-Use archive summary or immutable `db080da9` citation. Verify no active reference remains:
-```bash
-git grep -n '\.planning/' -- docs ':!docs/archive/legacy-planning-v0.3-summary.md'
-```
-Expected: no output.
+- [ ] Replace active legacy-planning citations with summary or immutable `archive/planning-v0.3` citation.
 - [ ] Tag, remove, commit:
 ```bash
 git tag archive/planning-v0.3 db080da9
-git rm -r .planning
+git rm -r legacy-planning-tree
 git add docs
 git commit -m "docs: archive superseded planning system"
 ```
-Rollback: revert commit or `git restore --source=archive/planning-v0.3 -- .planning`.
+Rollback: revert commit or restore from `archive/planning-v0.3`.
 ### Task 11: Root Wrangler Types Decision
 **Files:** Evaluate/remove root `worker-configuration.d.ts`; retain both worker-specific files.
 - [ ] Reproduce and compare:
