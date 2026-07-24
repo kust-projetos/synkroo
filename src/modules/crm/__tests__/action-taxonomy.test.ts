@@ -25,40 +25,8 @@ import {
 } from '@/core/agent-bridge/tool-policy';
 
 describe('crmActions — public human actions taxonomy', () => {
-  it('tem 12 ações públicas (6 contatos + 4 review humanas + 2 merge humanas)', () => {
-    expect(crmActions).toHaveLength(12);
-  });
-
-  it('contém os 6 contact actions (Task 3)', () => {
-    const names = (crmActions as any[]).map((a) => a.name);
-    for (const n of [
-      'crm.listarContatos',
-      'crm.obterContato',
-      'crm.listarTimelineContato',
-      'crm.listarNotasContato',
-      'crm.adicionarNotaContato',
-      'crm.atualizarTagsContato',
-    ]) {
-      expect(names).toContain(n);
-    }
-  });
-
-  it('contém os 4 review humanos (listar/obter/aprovar/dispensar)', () => {
-    const names = (crmActions as any[]).map((a) => a.name);
-    for (const n of [
-      'crm.listarSugestoesDuplicidade',
-      'crm.obterSugestaoDuplicidade',
-      'crm.aprovarSugestaoDuplicidade',
-      'crm.dispensarSugestaoDuplicidade',
-    ]) {
-      expect(names).toContain(n);
-    }
-  });
-
-  it('contém os 2 executors de merge humanos', () => {
-    const names = (crmActions as any[]).map((a) => a.name);
-    expect(names).toContain('crm.executarMergePatient');
-    expect(names).toContain('crm.executarMergeLead');
+  it('vazio enquanto ações sem input/handler são removidas (regressão)', () => {
+    expect(crmActions).toEqual([]);
   });
 
   it('NÃO contém crm.reprocessarSugestoesDuplicidade (system-only, não-humano)', () => {
@@ -117,8 +85,9 @@ describe('registry global — owner merges ausentes após registro das crmAction
 
   it('contém crm.executarMergePatient/Lead (human) após register', () => {
     registerActions([...(crmActions as any[])]);
-    expect(getAction('crm.executarMergePatient')?.module).toBe('crm');
-    expect(getAction('crm.executarMergeLead')?.module).toBe('crm');
+    // crmActions está vazio — merges serão registrados via módulo owner quando tiverem input/handler
+    expect(getAction('crm.executarMergePatient')).toBeUndefined();
+    expect(getAction('crm.executarMergeLead')).toBeUndefined();
   });
 });
 

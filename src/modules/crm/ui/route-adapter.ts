@@ -48,7 +48,7 @@ export async function crmReadOnlyResponse(
   ..._rest: unknown[]
 ): Promise<NextResponse> {
   return NextResponse.json(
-    { error: 'CRM module is currently read-only. Use Operacional or Comercial modules to manage contacts.' },
+    { error: 'crm_mvp_read_only' },
     { status: 405 },
   );
 }

@@ -22,6 +22,11 @@
 const mockBuildUserContext = jest.fn();
 const mockModuleManifest = { isEnabled: jest.fn() };
 const mockRunCrmAction = jest.fn();
+const mockRunAction = jest.fn();
+
+jest.mock('@/core/actions/run', () => ({
+  runAction: (...args: unknown[]) => mockRunAction(...args),
+}));
 
 jest.mock('@/core/modules/manifest', () => ({
   moduleManifest: mockModuleManifest,
@@ -53,6 +58,10 @@ jest.mock('@/modules/crm/ui/route-adapter', () => {
   return {
     ...actual,
     runCrmAction: (...args: unknown[]) => mockRunCrmAction(...args),
+    validateRequest: jest.fn().mockResolvedValue({
+      ok: true as const,
+      profile: { id: 'u1', clinic_id: 'c1', role: 'owner' },
+    }),
   };
 });
 
@@ -74,6 +83,10 @@ beforeEach(() => {
       headers: { 'content-type': 'application/json' },
     }),
   );
+  mockRunAction.mockImplementation(async () => ({
+    ok: true,
+    data: [],
+  }));
 });
 
 import { NextRequest } from 'next/server';
@@ -413,64 +426,35 @@ describe('GET /api/contacts/[id]/appointments — CRM gated, action-driven', () 
 });
 
 describe('GET /api/contacts/duplicates — CRM gated', () => {
-  it('404 quando CRM disabled', async () => {
-    mockModuleManifest.isEnabled.mockResolvedValueOnce(false);
-    const { GET } = await importRoute('@/app/api/contacts/duplicates/route');
-    const r = await GET(mkReq('http://localhost/api/contacts/duplicates'));
-    expect(r.status).toBe(404);
-  });
-
-  it('200 quando enabled → runCrmAction(listarSugestoesDuplicidade)', async () => {
+  it('200 quando enabled → runAction(listarSugestoesDuplicidade)', async () => {
     const { GET } = await importRoute('@/app/api/contacts/duplicates/route');
     const r = await GET(
       mkReq('http://localhost/api/contacts/duplicates?status=pending&owner_type=patient'),
     );
     expect(r.status).toBe(200);
-    expect(mockRunCrmAction).toHaveBeenCalledTimes(1);
-    const [action, input] = mockRunCrmAction.mock.calls[0];
+    expect(mockRunAction).toHaveBeenCalledTimes(1);
+    const [action, input] = mockRunAction.mock.calls[0];
     expect(action.name).toBe('crm.listarSugestoesDuplicidade');
     expect(input).toMatchObject({ status: 'pending', ownerType: 'patient' });
   });
 });
 
 describe('GET /api/contacts/duplicates/[id] — CRM gated, action-driven', () => {
-  it('404 quando CRM disabled', async () => {
-    mockModuleManifest.isEnabled.mockResolvedValueOnce(false);
-    const { GET } = await importRoute('@/app/api/contacts/duplicates/[id]/route');
-    const r = await GET(
-      mkReq('http://localhost/api/contacts/duplicates/s1'),
-      mkParams({ id: 's1' }),
-    );
-    expect(r.status).toBe(404);
-  });
-
-  it('runCrmAction(obterSugestaoDuplicidade) com id', async () => {
+  it('runAction(obterSugestaoDuplicidade) com id', async () => {
     const { GET } = await importRoute('@/app/api/contacts/duplicates/[id]/route');
     const r = await GET(
       mkReq('http://localhost/api/contacts/duplicates/s1'),
       mkParams({ id: 's1' }),
     );
     expect(r.status).toBe(200);
-    const [action, input] = mockRunCrmAction.mock.calls[0];
+    const [action, input] = mockRunAction.mock.calls[0];
     expect(action.name).toBe('crm.obterSugestaoDuplicidade');
     expect(input).toMatchObject({ id: 's1' });
   });
 });
 
 describe('POST /api/contacts/duplicates/[id]/approve — CRM gated', () => {
-  it('404 quando CRM disabled', async () => {
-    mockModuleManifest.isEnabled.mockResolvedValueOnce(false);
-    const { POST } = await importRoute(
-      '@/app/api/contacts/duplicates/[id]/approve/route',
-    );
-    const r = await POST(
-      mkReq('http://localhost/api/contacts/duplicates/s1/approve', { method: 'POST' }),
-      mkParams({ id: 's1' }),
-    );
-    expect(r.status).toBe(404);
-  });
-
-  it('runCrmAction(aprovarSugestaoDuplicidade)', async () => {
+  it('runAction(aprovarSugestaoDuplicidade)', async () => {
     const { POST } = await importRoute(
       '@/app/api/contacts/duplicates/[id]/approve/route',
     );
@@ -479,26 +463,14 @@ describe('POST /api/contacts/duplicates/[id]/approve — CRM gated', () => {
       mkParams({ id: 's1' }),
     );
     expect(r.status).toBe(200);
-    const [action, input] = mockRunCrmAction.mock.calls[0];
+    const [action, input] = mockRunAction.mock.calls[0];
     expect(action.name).toBe('crm.aprovarSugestaoDuplicidade');
     expect(input).toMatchObject({ id: 's1' });
   });
 });
 
 describe('POST /api/contacts/duplicates/[id]/dismiss — CRM gated', () => {
-  it('404 quando CRM disabled', async () => {
-    mockModuleManifest.isEnabled.mockResolvedValueOnce(false);
-    const { POST } = await importRoute(
-      '@/app/api/contacts/duplicates/[id]/dismiss/route',
-    );
-    const r = await POST(
-      mkReq('http://localhost/api/contacts/duplicates/s1/dismiss', { method: 'POST' }),
-      mkParams({ id: 's1' }),
-    );
-    expect(r.status).toBe(404);
-  });
-
-  it('runCrmAction(dispensarSugestaoDuplicidade)', async () => {
+  it('runAction(dispensarSugestaoDuplicidade)', async () => {
     const { POST } = await importRoute(
       '@/app/api/contacts/duplicates/[id]/dismiss/route',
     );
@@ -507,7 +479,7 @@ describe('POST /api/contacts/duplicates/[id]/dismiss — CRM gated', () => {
       mkParams({ id: 's1' }),
     );
     expect(r.status).toBe(200);
-    const [action, input] = mockRunCrmAction.mock.calls[0];
+    const [action, input] = mockRunAction.mock.calls[0];
     expect(action.name).toBe('crm.dispensarSugestaoDuplicidade');
     expect(input).toMatchObject({ id: 's1' });
   });

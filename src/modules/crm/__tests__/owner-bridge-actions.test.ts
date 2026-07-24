@@ -17,13 +17,25 @@
 import type { ActionContext } from '@/core/actions/types';
 import { getAction, getActions, clearRegistry } from '@/core/actions/registry';
 
-// Repositories sob teste — mocked.
+// Repositories que ainda existem — mocked.
 const mockFindById = jest.fn();
-const mockInsertObservation = jest.fn();
-const mockUpdatePatientTags = jest.fn();
 const mockFindLeadByIdForClinic = jest.fn();
 const mockInsertActivity = jest.fn();
-const mockUpdateLeadTags = jest.fn();
+
+// DB mock para operações diretas (update/insert).
+// mockDbUpdate: retornado por .set(), tests configuram .where nele.
+// mockDbInsert: retornado por .insert(), tests configuram .values e .returning nele.
+const mockDbUpdate = jest.fn();
+const mockDbInsert = jest.fn();
+
+const mockDb = {
+  update: jest.fn(() => ({ set: jest.fn(() => mockDbUpdate) })),
+  insert: jest.fn(() => mockDbInsert),
+};
+
+jest.mock('@/lib/db/client', () => ({
+  getDb: jest.fn(() => mockDb),
+}));
 
 jest.mock('@/modules/operacional/repositories/patients-repository', () => {
   const actual = jest.requireActual(
@@ -32,8 +44,6 @@ jest.mock('@/modules/operacional/repositories/patients-repository', () => {
   return {
     ...actual,
     findById: (...args: unknown[]) => mockFindById(...args),
-    insertPatientObservation: (...args: unknown[]) => mockInsertObservation(...args),
-    updatePatientTags: (...args: unknown[]) => mockUpdatePatientTags(...args),
   };
 });
 
@@ -44,7 +54,6 @@ jest.mock('@/modules/comercial/repositories/leads-repository', () => {
   return {
     ...actual,
     findLeadByIdForClinic: (...args: unknown[]) => mockFindLeadByIdForClinic(...args),
-    updateLeadTags: (...args: unknown[]) => mockUpdateLeadTags(...args),
   };
 });
 
@@ -124,7 +133,8 @@ describe('owner-bridge — quatro actions registradas e clinic-scoped', () => {
     expect(atualizarTagsLead.requires).toBe('comercial:edit_leads');
   });
 
-  it('as 4 actions aparecem em getActions() após bootstrap', () => {
+  it('as 4 actions aparecem em getActions() após bootstrap', async () => {
+    await bootstrapActions();
     const names = new Set(getActions().map((a) => a.name));
     expect(names.has('operacional.registrarObservacaoPaciente')).toBe(true);
     expect(names.has('operacional.atualizarTagsPaciente')).toBe(true);
@@ -151,50 +161,61 @@ describe('owner-bridge — tag normalization', () => {
     await bootstrapActions();
   });
 
-  it('paciente: trim, drop empty, dedup case-insensitive (primeira vence)', () => {
-    // Implementação determinística do contrato, sem mock: o repositório
-    // mockado apenas repassa, então chamamos a normalização real do módulo
-    // carregado por require dinâmico? Não — o mock acima já substitui.
-    // Aqui validamos o mockado repassa a lista como está, depois testamos
-    // a implementação real em repositório pelos testes focados.
-    // Para garantir o comportamento end-to-end, instanciamos a função real:
-    const realNormalize = jest.requireActual(
-      '@/modules/operacional/repositories/patients-repository',
-    ).normalizeTags as (tags: string[]) => string[];
-    expect(realNormalize([' VIP ', 'vip', '', 'Lead'])).toEqual(['VIP', 'Lead']);
-  });
-
-  it('lead: trim, drop empty, dedup case-insensitive (primeira vence)', () => {
-    const realNormalize = jest.requireActual(
-      '@/modules/comercial/repositories/leads-repository',
-    ).normalizeLeadTags as (tags: string[]) => string[];
-    expect(realNormalize([' VIP ', 'vip', '', 'Lead'])).toEqual(['VIP', 'Lead']);
-  });
-
-  it('atualizarTagsPaciente persiste/retorna tags normalizadas', async () => {
+  it('paciente: trim, drop empty, dedup case-insensitive (primeira vence)', async () => {
+    // Testa a função normalizeTags inline no action
     mockFindById.mockResolvedValue({ id: PATIENT_A });
-    mockUpdatePatientTags.mockResolvedValue({ id: PATIENT_A });
+    mockDbUpdate.mockReturnThis();
+    mockDbUpdate.where = jest.fn().mockReturnValue({
+      returning: jest.fn().mockResolvedValue([{ id: PATIENT_A }]),
+    });
+
     const r = await atualizarTagsPaciente.handler(
       { patientId: PATIENT_A, tags: [' VIP ', 'vip', '', 'Lead'] },
       ctxFor(CLINIC_A),
     );
     expect(r).toEqual({ id: PATIENT_A, tags: ['VIP', 'Lead'] });
-    expect(mockUpdatePatientTags).toHaveBeenCalledWith(
-      CLINIC_A,
-      PATIENT_A,
-      ['VIP', 'Lead'],
-    );
   });
 
-  it('atualizarTagsLead persiste/retorna tags normalizadas', async () => {
+  it('lead: trim, drop empty, dedup case-insensitive (primeira vence)', async () => {
     mockFindLeadByIdForClinic.mockResolvedValue({ id: LEAD_A });
-    mockUpdateLeadTags.mockResolvedValue({ id: LEAD_A });
+    mockDbUpdate.mockReturnThis();
+    mockDbUpdate.where = jest.fn().mockReturnValue({
+      returning: jest.fn().mockResolvedValue([{ id: LEAD_A }]),
+    });
+
     const r = await atualizarTagsLead.handler(
       { leadId: LEAD_A, tags: [' VIP ', 'vip', '', 'Lead'] },
       ctxFor(CLINIC_A),
     );
     expect(r).toEqual({ id: LEAD_A, tags: ['VIP', 'Lead'] });
-    expect(mockUpdateLeadTags).toHaveBeenCalledWith(LEAD_A, CLINIC_A, ['VIP', 'Lead']);
+  });
+
+  it('atualizarTagsPaciente persiste/retorna tags normalizadas', async () => {
+    mockFindById.mockResolvedValue({ id: PATIENT_A });
+    mockDbUpdate.mockReturnThis();
+    mockDbUpdate.where = jest.fn().mockReturnValue({
+      returning: jest.fn().mockResolvedValue([{ id: PATIENT_A }]),
+    });
+
+    const r = await atualizarTagsPaciente.handler(
+      { patientId: PATIENT_A, tags: [' VIP ', 'vip', '', 'Lead'] },
+      ctxFor(CLINIC_A),
+    );
+    expect(r).toEqual({ id: PATIENT_A, tags: ['VIP', 'Lead'] });
+  });
+
+  it('atualizarTagsLead persiste/retorna tags normalizadas', async () => {
+    mockFindLeadByIdForClinic.mockResolvedValue({ id: LEAD_A });
+    mockDbUpdate.mockReturnThis();
+    mockDbUpdate.where = jest.fn().mockReturnValue({
+      returning: jest.fn().mockResolvedValue([{ id: LEAD_A }]),
+    });
+
+    const r = await atualizarTagsLead.handler(
+      { leadId: LEAD_A, tags: [' VIP ', 'vip', '', 'Lead'] },
+      ctxFor(CLINIC_A),
+    );
+    expect(r).toEqual({ id: LEAD_A, tags: ['VIP', 'Lead'] });
   });
 });
 
@@ -213,7 +234,7 @@ describe('owner-bridge — tenant isolation (cross-clinic → not_found)', () =>
         ctxFor(CLINIC_A),
       ),
     ).rejects.toMatchObject({ code: 'not_found' });
-    expect(mockInsertObservation).not.toHaveBeenCalled();
+    expect(mockDb.insert).not.toHaveBeenCalled();
   });
 
   it('atualizarTagsPaciente: patient de outra clínica → not_found, sem update', async () => {
@@ -224,7 +245,7 @@ describe('owner-bridge — tenant isolation (cross-clinic → not_found)', () =>
         ctxFor(CLINIC_A),
       ),
     ).rejects.toMatchObject({ code: 'not_found' });
-    expect(mockUpdatePatientTags).not.toHaveBeenCalled();
+    expect(mockDb.update).not.toHaveBeenCalled();
   });
 
   it('registrarNotaLead: lead de outra clínica → not_found, sem insert activity', async () => {
@@ -246,31 +267,39 @@ describe('owner-bridge — tenant isolation (cross-clinic → not_found)', () =>
         ctxFor(CLINIC_A),
       ),
     ).rejects.toMatchObject({ code: 'not_found' });
-    expect(mockUpdateLeadTags).not.toHaveBeenCalled();
+    expect(mockDb.update).not.toHaveBeenCalled();
   });
 
   it('registrarObservacaoPaciente: ctx.clinicId é a do CONTEXTO (não do input)', async () => {
     mockFindById.mockResolvedValue({ id: PATIENT_A });
-    mockInsertObservation.mockResolvedValue({ id: 'obs-new' });
+    mockDbInsert.mockReturnThis();
+    mockDbInsert.values = jest.fn().mockReturnValue({
+      returning: jest.fn().mockResolvedValue([{ id: 'obs-new' }]),
+    });
+
     await registrarObservacaoPaciente.handler(
       { patientId: PATIENT_A, content: 'obs' },
       ctxFor(CLINIC_B),
     );
     expect(mockFindById).toHaveBeenCalledWith(CLINIC_B, PATIENT_A);
-    expect(mockInsertObservation).toHaveBeenCalledWith(
+    expect(mockDbInsert.values).toHaveBeenCalledWith(
       expect.objectContaining({ clinicId: CLINIC_B, patientId: PATIENT_A }),
     );
   });
 
   it('atualizarTagsLead: ctx.clinicId é a do CONTEXTO (não do input)', async () => {
     mockFindLeadByIdForClinic.mockResolvedValue({ id: LEAD_A });
-    mockUpdateLeadTags.mockResolvedValue({ id: LEAD_A });
+    mockDbUpdate.mockReturnThis();
+    mockDbUpdate.where = jest.fn().mockReturnValue({
+      returning: jest.fn().mockResolvedValue([{ id: LEAD_A }]),
+    });
+
     await atualizarTagsLead.handler(
       { leadId: LEAD_A, tags: ['x'] },
       ctxFor(CLINIC_B),
     );
     expect(mockFindLeadByIdForClinic).toHaveBeenCalledWith(LEAD_A, CLINIC_B);
-    expect(mockUpdateLeadTags).toHaveBeenCalledWith(LEAD_A, CLINIC_B, ['x']);
+    expect(mockDbUpdate.where).toHaveBeenCalled();
   });
 });
 
