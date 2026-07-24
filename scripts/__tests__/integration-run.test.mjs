@@ -155,8 +155,19 @@ describe('commandOptions', () => {
     assert.ok(opts.cwd, 'should have cwd');
     assert.equal(opts.stdio, 'inherit');
     assert.equal(opts.env.DATABASE_URL, TEST_URL);
-    // Should NOT have extraEnv or TEST_DATABASE_URL leaked into child env
     assert.equal(opts.env.TEST_DATABASE_URL, undefined);
+  });
+
+  it('does not pass parent TEST_DATABASE_URL to child processes', async () => {
+    const { commandOptions } = await loadRunnerExports();
+    const original = process.env.TEST_DATABASE_URL;
+    process.env.TEST_DATABASE_URL = 'postgres://parent@localhost:5432/synkroo_test';
+    try {
+      assert.equal(commandOptions(TEST_URL).env.TEST_DATABASE_URL, undefined);
+    } finally {
+      if (original === undefined) delete process.env.TEST_DATABASE_URL;
+      else process.env.TEST_DATABASE_URL = original;
+    }
   });
 });
 

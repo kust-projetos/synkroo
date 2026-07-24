@@ -97,11 +97,12 @@ export function validateTestDatabaseUrl(url) {
  * @returns {{ cwd: string, stdio: string, env: Record<string,string|undefined> }}
  */
 export function commandOptions(testUrl) {
+  const { TEST_DATABASE_URL: _ignored, ...inheritedEnv } = process.env;
   return {
     cwd: PROJECT_ROOT,
     stdio: 'inherit',
     env: {
-      ...process.env,
+      ...inheritedEnv,
       DATABASE_URL: testUrl,
     },
   };
