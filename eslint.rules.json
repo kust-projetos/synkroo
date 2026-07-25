@@ -1,0 +1,75 @@
+{
+  "extends": ["next/core-web-vitals", "plugin:@typescript-eslint/recommended"],
+  "parser": "@typescript-eslint/parser",
+  "plugins": ["@typescript-eslint", "boundaries"],
+  "settings": {
+    "boundaries/elements": [
+      { "type": "core", "pattern": "src/core/**" },
+      { "type": "module", "pattern": "src/modules/*", "capture": ["name"] },
+      { "type": "legacy", "pattern": "src/services/*", "capture": ["name"] },
+      { "type": "app", "pattern": "src/app/*" },
+      { "type": "lib", "pattern": "src/lib/*" }
+    ]
+  },
+  "rules": {
+    "no-console": ["warn", {
+      "allow": ["warn", "error"]
+    }],
+    "prefer-const": "error",
+    "no-var": "error",
+    "react-hooks/exhaustive-deps": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/no-unused-vars": "off",
+    "boundaries/dependencies": ["error", {
+      "default": "allow",
+      "rules": [
+        {
+          "from": { "type": "module" },
+          "disallow": { "to": { "type": "module" } },
+          "message": "Importe apenas o index.ts de outro módulo"
+        },
+        {
+          "from": { "type": "module" },
+          "allow": { "to": { "type": "module", "internalPath": "**/index.ts" } },
+          "message": "Importe apenas o index.ts de outro módulo"
+        }
+      ]
+    }]
+  },
+  "overrides": [
+    {
+      "files": ["**/__tests__/**/*.ts", "**/*.test.ts", "**/__tests__/**/*.tsx", "**/*.test.tsx"],
+      "rules": {
+        "no-console": "off",
+        "@typescript-eslint/no-require-imports": "off",
+        "boundaries/dependencies": "off",
+        "react/display-name": "off"
+      }
+    },
+    {
+      "files": ["src/lib/logger.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      "files": ["src/modules/financeiro/services/collection-service.ts"],
+      "rules": {
+        "boundaries/dependencies": "off"
+      }
+    },
+    {
+      "files": ["src/components/**/*.tsx", "src/app/**/page.tsx", "src/app/**/*.client.tsx"],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "paths": [
+            { "name": "@/lib/db/client", "message": "Componentes não acessam o banco. Use uma Server Action ou route handler." }
+          ],
+          "patterns": [
+            { "group": ["@/lib/db/schema/*", "@/repositories/*"], "message": "Acesso a dados só via Action/service no servidor." }
+          ]
+        }]
+      }
+    }
+  ]
+}

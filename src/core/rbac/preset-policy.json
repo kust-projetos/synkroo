@@ -1,0 +1,98 @@
+{
+  "version": "1.2.0",
+  "description": "Canonical RBAC preset policy for Synkroo CRM — single source of truth for SYSTEM_PRESETS in presets.ts.",
+  "modulePermissions": {
+    "core": [
+      { "key": "core:view", "module": "core", "label": "Acessar configurações" },
+      { "key": "core:manage_users", "module": "core", "label": "Gerenciar usuários e acessos" }
+    ],
+    "operacional": [
+      { "key": "operacional:view", "module": "operacional", "label": "Visualizar operacional" },
+      { "key": "operacional:manage_appointments", "module": "operacional", "label": "Gerenciar consultas" },
+      { "key": "operacional:manage_patients", "module": "operacional", "label": "Gerenciar pacientes" },
+      { "key": "operacional:manage_catalog", "module": "operacional", "label": "Gerenciar catálogo" },
+      { "key": "operacional:manage_waitlist", "module": "operacional", "label": "Gerenciar lista de espera" },
+      { "key": "operacional:manage_reminders", "module": "operacional", "label": "Gerenciar lembretes" }
+    ],
+    "atendimento": [
+      { "key": "atendimento:view", "module": "atendimento", "label": "Visualizar atendimento" },
+      { "key": "atendimento:manage_messages", "module": "atendimento", "label": "Gerenciar mensagens" },
+      { "key": "atendimento:manage_conversations", "module": "atendimento", "label": "Gerenciar conversas" },
+      { "key": "atendimento:manage_webhooks", "module": "atendimento", "label": "Gerenciar webhooks" },
+      { "key": "atendimento:manage_templates", "module": "atendimento", "label": "Gerenciar templates" },
+      { "key": "atendimento:escalate", "module": "atendimento", "label": "Escalar para humano" }
+    ],
+    "ia": [
+      { "key": "ia:chat", "module": "ia", "label": "Conversar com o Agente IA" },
+      { "key": "ia:manage", "module": "ia", "label": "Gerenciar o Agente IA" }
+    ],
+    "crm": [
+      { "key": "crm:view", "module": "crm", "label": "Visualizar CRM" },
+      { "key": "crm:manage_notes", "module": "crm", "label": "Gerenciar notas de contatos" },
+      { "key": "crm:manage_tags", "module": "crm", "label": "Gerenciar tags de contatos" },
+      { "key": "crm:review_duplicates", "module": "crm", "label": "Revisar possíveis duplicidades" },
+      { "key": "crm:merge_patients", "module": "crm", "label": "Mesclar pacientes duplicados" },
+      { "key": "crm:merge_leads", "module": "crm", "label": "Mesclar leads duplicados" }
+    ],
+    "comercial": [],
+    "followup": [
+      { "key": "followup:view", "module": "followup", "label": "Visualizar follow-up" },
+      { "key": "followup:manage_followups", "module": "followup", "label": "Gerenciar follow-ups" },
+      { "key": "followup:manage_campaigns", "module": "followup", "label": "Gerenciar campanhas" },
+      { "key": "followup:manage_segments", "module": "followup", "label": "Gerenciar segmentos" }
+    ],
+    "financeiro": [
+      { "key": "financeiro:view", "module": "financeiro", "label": "Visualizar Financeiro" },
+      { "key": "financeiro:create_budget", "module": "financeiro", "label": "Criar orçamento" },
+      { "key": "financeiro:manage_budget", "module": "financeiro", "label": "Gerenciar orçamento" },
+      { "key": "financeiro:record_payment", "module": "financeiro", "label": "Registrar pagamento" },
+      { "key": "financeiro:manage_collections", "module": "financeiro", "label": "Gerenciar cobranças" },
+      { "key": "financeiro:manage_gateways", "module": "financeiro", "label": "Gerenciar gateways" }
+    ],
+    "analytics": []
+  },
+  "presets": [
+    {
+      "name": "Administrador",
+      "description": "Acesso amplo de gestão da clínica.",
+      "modules": ["core", "operacional", "atendimento", "comercial", "crm", "financeiro", "analytics", "followup", "ia"]
+    },
+    {
+      "name": "Recepcionista",
+      "description": "Atendimento e agenda. Apenas visualização de contatos (CRM).",
+      "modules": ["operacional", "atendimento"],
+      "extraKeys": ["crm:view"]
+    },
+    {
+      "name": "Comercial",
+      "description": "Vendas e relacionamento. Gerencia notas e tags de contatos, sem mesclagem.",
+      "modules": ["comercial", "followup"],
+      "extraKeys": ["crm:view", "crm:manage_notes", "crm:manage_tags"]
+    },
+    {
+      "name": "Dentista",
+      "description": "Agenda e prontuário próprios. Visualização de contatos e IA.",
+      "modules": ["operacional", "atendimento"],
+      "extraKeys": ["followup:view", "crm:view", "ia:chat"]
+    }
+  ],
+  "owner": {
+    "description": "Owner role receives ALL non-master permissions from the action registry and permission catalog.",
+    "excludePrefixes": ["master:"],
+    "includeModules": ["core", "operacional", "atendimento", "comercial", "crm", "financeiro", "analytics", "followup", "ia"]
+  },
+  "reservedRole": "Owner",
+  "agentRoleName": "Agente",
+  "agentPermissions": [
+    "operacional:view",
+    "operacional:manage_appointments",
+    "operacional:manage_patients",
+    "operacional:manage_waitlist",
+    "operacional:manage_reminders",
+    "atendimento:view",
+    "atendimento:manage_messages",
+    "atendimento:manage_conversations",
+    "ia:chat",
+    "crm:view"
+  ]
+}

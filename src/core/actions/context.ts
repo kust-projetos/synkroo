@@ -9,6 +9,13 @@ import { getUserProfile } from '@/lib/auth/session';
 // (contratados ∪ always-on) direto do manifesto — independe do registry de Actions.
 interface ManifestLike { enabledModules(): Promise<Set<string>>; }
 
+// Fixed follow-up permission allowlist for cron jobs.
+// Cron must ONLY have these two permissions — no agent-role, no caller-supplied.
+const CRON_FOLLOWUP_ALLOWLIST = new Set([
+  'followup:manage_followups',
+  'followup:manage_campaigns',
+]);
+
 interface UserDeps { loadProfile?: () => Promise<any>; rbac?: RbacRepo; manifest?: ManifestLike; }
 
 export async function buildUserContext(activeClinicId?: string, deps: UserDeps = {}): Promise<ActionContext> {
@@ -61,5 +68,26 @@ export async function buildSystemContext(clinicId: string, deps: SystemDeps = {}
     can: (key) => perms.has(key),
     hasModule: (id) => mods.has(id),
     audit: { actor: 'agente (sistema)' },
+  };
+}
+
+interface CronDeps { manifest?: ManifestLike; }
+
+/**
+ * Trusted cron context — uses a fixed Follow-up allowlist.
+ * Does NOT load agent-role permissions or accept caller-supplied permission sets.
+ *
+ * @param clinicId - real clinic id (NOT user-supplied or fictitious)
+ * @param deps    - injectable manifest dependency only
+ */
+export async function buildCronContext(clinicId: string, deps: CronDeps = {}): Promise<ActionContext> {
+  const manifest = deps.manifest ?? makeManifest(drizzleManifestRepo);
+  const mods = await manifest.enabledModules();
+  return {
+    source: 'system',
+    clinicId,
+    can: (key) => CRON_FOLLOWUP_ALLOWLIST.has(key),
+    hasModule: (id) => mods.has(id),
+    audit: { actor: 'cron' },
   };
 }

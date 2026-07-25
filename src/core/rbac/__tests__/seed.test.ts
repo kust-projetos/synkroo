@@ -6,15 +6,31 @@ import type { DbOrTx } from '../seed';
 
 beforeEach(() => clearRegistry());
 
-it('expands a preset module list into concrete permission keys from the catalog', () => {
+it('buildPresetPermissions expands preset modules from runtime catalog (ghost actions incluídos)', () => {
+  // Registra actions FANTASMAS no catalog — com catalog-driven,
+  // ESTES APARECEM se o módulo corresponder ao preset.
   registerActions([
-    defineAction({ name: 'op.c', module: 'operacional', requires: 'operacional:create', label: 'Criar', input: z.object({}), handler: async () => null }),
-    defineAction({ name: 'fin.c', module: 'financeiro', requires: 'financeiro:create', label: 'Criar', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'op.ghost', module: 'operacional', requires: 'operacional:ghost', label: 'Ghost', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'fin.ghost', module: 'financeiro', requires: 'financeiro:ghost', label: 'Ghost', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'op.real', module: 'operacional', requires: 'operacional:view', label: 'View', input: z.object({}), handler: async () => null }),
   ]);
-  const keys = buildPresetPermissions({ name: 'Recepcionista', description: '', modules: ['operacional'], extraKeys: ['comercial:view'] });
-  expect(keys).toContain('operacional:create');
+
+  const keys = buildPresetPermissions({
+    name: 'Recepcionista',
+    description: '',
+    modules: ['operacional'],
+    extraKeys: ['comercial:view'],
+  });
+
+  // operacional:* do catalog (incluindo ghost) são expandidos
+  expect(keys).toContain('operacional:view');
+  expect(keys).toContain('operacional:ghost');  // catalog-driven: ghost INCLUÍDO
+  // extraKeys adicionada verbatim
   expect(keys).toContain('comercial:view');
-  expect(keys).not.toContain('financeiro:create');
+  // chaves de módulos não inclusos NÃO devem aparecer
+  expect(keys).not.toContain('financeiro:view');
+  expect(keys).not.toContain('financeiro:ghost');
+  expect(keys).not.toContain('master:admin');
 });
 
 it('agent role has conservative default permissions (real keys only)', () => {

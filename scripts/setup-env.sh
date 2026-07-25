@@ -13,11 +13,13 @@ if [ ! -f ".env.local" ]; then
     exit 1
 fi
 
-# CRON_SECRET (já gerado)
-CRON_SECRET="qd01fVLhE3JGA5sJ9CIB6x3ekqkFhp7lrxRDA5ADqpM="
+# CRON_SECRET (gerado apenas quando ausente)
+CRON_SECRET="$(
+  node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))"
+)"
 
 # Verificar se CRON_SECRET já existe
-if grep -q "CRON_SECRET" .env.local; then
+if grep -q "^CRON_SECRET=" .env.local; then
     echo "⚠️  CRON_SECRET já existe no arquivo."
 else
     echo "" >> .env.local
@@ -58,7 +60,7 @@ AUTH_SECRET=seu-auth-secret-com-32-chars
 JWT_SECRET=seu-jwt-secret
 
 # Cron Jobs
-CRON_SECRET=qd01fVLhE3JGA5sJ9CIB6x3ekqkFhp7lrxRDA5ADqpM=
+CRON_SECRET=<gerado-pelo-script>
 
 # MiniMax LLM
 MINIMAX_API_KEY=sua-chave-minimax

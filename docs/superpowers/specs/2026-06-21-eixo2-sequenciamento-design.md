@@ -115,7 +115,7 @@ Ordem sugerida inicial (a confirmar quando chegar a vez):
 
 - Ciclo obrigatório: **`spec → plano → implementação`** (implementação por outro agente). Documentos derivados são **auto-suficientes para o agente implementador** e referenciam o roadmap-mestre + os docs-fonte (não duplicam).
 - Todo módulo segue o **template §6** e expõe operações **só** via **Action Layer §5** (sem tools paralelas para o agente).
-- **`.planning/research/PITFALLS.md`** consultado ao escrever cada plano de implementação.
+- Histórico em **`archive/planning-v0.3`**; planos usam roadmap canônico.
 - Habilitar um módulo (manifesto) expõe suas Actions ao agente automaticamente; cada Action carrega `module` (entitlement) + `requires` (RBAC).
 - Operacional e Comercial funcionam **sem** o módulo CRM (princípio §9.1).
 

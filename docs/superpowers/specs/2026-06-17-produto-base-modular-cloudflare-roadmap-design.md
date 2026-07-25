@@ -30,8 +30,8 @@ A visão de produto, mercado e domínio já está documentada. Este mestre é a 
 | `docs/planning/technical-research.md` | **Arquitetura de agentes 4+1**, MCP servers, RAG, multi-tenancy, custos | W5, módulo IA |
 | `docs/planning/domain-research.md` | Regulamentação BR (LGPD, CFO/CRO), processos clínicos, diálogos agente-paciente | Compliance nos specs |
 | `docs/planning/market-research.md` | Mercado, competição, pricing, GTM | Posicionamento |
-| `.planning/research/PITFALLS.md` | Armadilhas críticas, technical debt, gotchas de integração | Planos de implementação |
-| `.planning/research/ARCHITECTURE.md` | Padrões, schema design, build order | W2/W3, specs |
+| `archive/planning-v0.3` | Histórico de armadilhas e decisões legadas; não guia implementação atual | Resumo arquivado |
+| `archive/planning-v0.3` | Histórico de padrões e build order; direção atual está no roadmap canônico | Resumo arquivado |
 
 > ⚠️ Os documentos-fonte foram escritos sobre a stack antiga (**Claude Agent SDK + Supabase**). A **visão de produto permanece válida**, mas a **stack mudou**: o **Cloudflare Agents SDK substitui o Claude Agent SDK** (recursos nativos melhores para este sistema) e o **Supabase deu lugar ao Postgres**. O moat técnico migra de "Claude SDK + MCPs" para **primitivas nativas Cloudflare** (Agents SDK, Durable Objects, Workflows, Vectorize, edge) + ecossistema completo + Action Layer. O **modelo LLM é desacoplado/configurável** (definido na implementação/testes), não mais fixado em Claude.
 
