@@ -1,0 +1,12 @@
+/repo/docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:62
+/repo/docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:67
+/repo/docs/GUIA-CONFIGURACAO.md:curl-auth-header:176
+/repo/docs/GUIA-CONFIGURACAO.md:curl-auth-header:184
+/repo/docs/superpowers/plans/2026-06-19-fechamento-fundacao-rbac.md:generic-api-key:139
+/repo/src/components/pi-finance/__tests__/pi-finance-app.test.tsx:generic-api-key:12
+/repo/src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:81
+/repo/src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:86
+/repo/src/lib/pi-finance/seed.ts:generic-api-key:7
+/repo/src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:170
+/repo/src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:17
+/repo/src/repositories/auth/__tests__/integration.test.ts:generic-api-key:44
