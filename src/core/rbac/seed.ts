@@ -12,9 +12,12 @@ export type DbOrTx = ReturnType<typeof getDb> | any;
 export function buildPresetPermissions(preset: PresetDef): string[] {
   const catalog = getPermissionCatalog();
   const keys = new Set<string>();
-  // permissões 'master:*' NUNCA entram em presets/perfis (só o principal master, por bypass).
-  for (const p of catalog) if (preset.modules.includes(p.module) && !p.key.startsWith('master:')) keys.add(p.key);
-  for (const k of preset.extraKeys ?? []) if (!k.startsWith('master:')) keys.add(k);
+  for (const p of catalog) {
+    if (preset.modules.includes(p.module) && !p.key.startsWith('master:')) keys.add(p.key);
+  }
+  for (const k of preset.extraKeys ?? []) {
+    if (!k.startsWith('master:')) keys.add(k);
+  }
   return [...keys];
 }
 

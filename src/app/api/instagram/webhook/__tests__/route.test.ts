@@ -3,6 +3,7 @@
  */
 
 import { NextRequest } from 'next/server'
+import { createHmac } from 'crypto'
 import { POST, GET } from '@/app/api/instagram/webhook/route'
 
 jest.mock('@/core/modules/manifest', () => ({
@@ -75,7 +76,13 @@ describe('Instagram Webhook API', () => {
     })
   })
 
+  const APP_SECRET = process.env.INSTAGRAM_APP_SECRET ?? 'test-instagram-secret';
+
   describe('POST - Message Reception', () => {
+    beforeEach(() => {
+      process.env.INSTAGRAM_APP_SECRET = APP_SECRET
+    })
+
     it('should ignore non-Instagram payloads', async () => {
       const { createHmac } = require('crypto');
       const payload = { object: 'other_platform', entry: [] };

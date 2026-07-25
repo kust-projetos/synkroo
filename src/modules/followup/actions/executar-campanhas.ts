@@ -9,7 +9,7 @@ export const executarCampanhas = defineAction({
   requires: 'followup:manage_campaigns',
   label: 'Executar campanhas agendadas',
   input: z.object({}),
-  handler: async (_input, _ctx: ActionContext) => {
-    return service.executarCampanhas();
+  handler: async (_input, ctx: ActionContext) => {
+    return service.executarCampanhas(ctx.clinicId);
   },
 });

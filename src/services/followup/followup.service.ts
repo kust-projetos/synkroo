@@ -119,11 +119,12 @@ export async function getFollowUpConfig(
 
   let cfg = rows[0]
 
-  // Fall back to default config for this type
+  // Fall back to default config for this type (must also match clinic)
   if (!cfg) {
     const defaultRows = await db.select()
       .from(followUpConfigs)
       .where(and(
+        eq(followUpConfigs.clinicId, clinicId),
         eq(followUpConfigs.configType, configType),
         isNull(followUpConfigs.procedureName),
         eq(followUpConfigs.isActive, true),
@@ -309,17 +310,18 @@ export async function recordPatientFeedback(params: {
 
 // -- Processing -------------------------------------------------------------
 
-export async function processPostConsultationFollowUps(): Promise<{
+export async function processPostConsultationFollowUps(clinicId: string): Promise<{
   processed: number; sent: number; failed: number
 }> {
-  dbLogger.info('Processing post-consultation follow-ups...')
+  dbLogger.info('Processing post-consultation follow-ups...', { clinicId })
 
   const appointmentList = await getAppointmentsNeedingFollowUp(2)
+  const filtered = appointmentList.filter((a) => a.clinicId === clinicId)
 
   let sent = 0
   let failed = 0
 
-  for (const appointment of appointmentList) {
+  for (const appointment of filtered) {
     const config = await getFollowUpConfig(
       appointment.clinicId,
       'post_consultation',
@@ -356,7 +358,7 @@ export async function processPostConsultationFollowUps(): Promise<{
     }
   }
 
-  return { processed: appointmentList.length, sent, failed }
+  return { processed: filtered.length, sent, failed }
 }
 
 /**
@@ -434,10 +436,10 @@ export async function getPatientsNeedingReturnReminder(
   }))
 }
 
-export async function processReturnReminders(): Promise<{
+export async function processReturnReminders(clinicId: string): Promise<{
   processed: number; sent: number; failed: number
 }> {
-  dbLogger.info('Processing return reminders...')
+  dbLogger.info('Processing return reminders...', { clinicId })
 
   const timeframes = [6, 12]
   let totalProcessed = 0
@@ -446,8 +448,9 @@ export async function processReturnReminders(): Promise<{
 
   for (const months of timeframes) {
     const patientList = await getPatientsNeedingReturnReminder(months)
+    const filtered = patientList.filter((p) => p.clinics?.id === clinicId)
 
-    for (const patient of patientList) {
+    for (const patient of filtered) {
       const lastAppointment = (patient as any).appointments
         ?.filter((a: any) => a.status === 'completed')
         .sort((a: any, b: any) =>
@@ -455,10 +458,10 @@ export async function processReturnReminders(): Promise<{
         )[0]
 
       const procedureName = lastAppointment?.procedures?.name
-      const clinicId = patient.clinics?.id
+      const patientClinicId = patient.clinics?.id
 
       const config = await getFollowUpConfig(
-        clinicId,
+        patientClinicId,
         'return_reminder',
         procedureName,
       )
@@ -491,13 +494,13 @@ export async function processReturnReminders(): Promise<{
   return { processed: totalProcessed, sent: totalSent, failed: totalFailed }
 }
 
-export async function processAllFollowUps(): Promise<void> {
-  dbLogger.info('Starting follow-up processing...')
+export async function processAllFollowUps(clinicId: string): Promise<void> {
+  dbLogger.info('Starting follow-up processing...', { clinicId })
 
-  const postResult = await processPostConsultationFollowUps()
+  const postResult = await processPostConsultationFollowUps(clinicId)
   dbLogger.info('Post-consultation complete', { sent: postResult.sent, failed: postResult.failed })
 
-  const reminderResult = await processReturnReminders()
+  const reminderResult = await processReturnReminders(clinicId)
   dbLogger.info('Return reminders complete', { sent: reminderResult.sent, failed: reminderResult.failed })
 
   dbLogger.info('Follow-up processing complete')

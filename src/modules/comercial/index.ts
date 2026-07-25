@@ -31,6 +31,8 @@ import { obterAnalyticsPipeline } from './actions/obter-analytics-pipeline';
 import { listarNotificacoes } from './actions/listar-notificacoes';
 import { reconhecerNotificacao } from './actions/reconhecer-notificacao';
 import { processarNotificacoesLeadsQuentes } from './actions/processar-notificacoes-leads-quentes';
+import { registrarNotaLead } from './actions/registrar-nota-lead';
+import { atualizarTagsLead } from './actions/atualizar-tags-lead';
 
 export const comercialActions = [
   arquivarLead,
@@ -59,9 +61,13 @@ export const comercialActions = [
   listarNotificacoes,
   reconhecerNotificacao,
   processarNotificacoesLeadsQuentes,
+  registrarNotaLead,
+  atualizarTagsLead,
 ];
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { comercialManifest } from './manifest';
+export { registrarNotaLead } from './actions/registrar-nota-lead';
+export { atualizarTagsLead } from './actions/atualizar-tags-lead';
 export { mesclarLeads } from './actions/mesclar-leads';
 export { comercialAccessPermissions } from './permissions';

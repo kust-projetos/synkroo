@@ -203,4 +203,4 @@ Três conceitos distintos, hoje confundidos:
 | `2026-06-21-eixo2-sequenciamento-design.md` | Sequenciamento do Eixo 2 (Core = Onda 0) |
 | `2026-06-19-revisao-fechamento-eixo1.md` | Pendências deferidas que o Core absorve |
 | `2026-06-19-fechamento-fundacao-rbac.md` | Padrão de anti-lockout / seed RBAC |
-| `.planning/research/PITFALLS.md` | Consultar ao escrever o plano de implementação |
+| `archive/planning-v0.3` | Histórico; consultar roadmap canônico ao escrever plano |

@@ -89,6 +89,9 @@ describe('listToolsLogic', () => {
       expect(r.catalog.tools.every((t) => t.alias.includes('operacional'))).toBe(
         true,
       );
+      expect(r.catalog.tools.map((tool) => tool.alias)).not.toContain(
+        normalizeToolName(cancelar.name),
+      );
     }
   });
 
@@ -142,9 +145,14 @@ describe('executeActionLogic', () => {
     expect(r).toEqual({ ok: true, data: { done: true } });
   });
 
-  it('blocks proibido action (system) — escalate_human', async () => {
+  it('rejects unsafe action before marking or running', async () => {
     const handle = await handleFor();
-    const r = await executeActionLogic(deps(), {
+    const markSeen = jest.fn();
+    const runAction = jest.fn();
+    const r = await executeActionLogic(deps({
+      store: { wasSeen: async () => false, markSeen },
+      runAction,
+    }), {
       handle,
       conversationId: 'conv-1',
       idempotencyKey: 'ik-proibido',
@@ -152,7 +160,9 @@ describe('executeActionLogic', () => {
       input: {},
       flags: { confirmed: true },
     });
-    expect(r).toMatchObject({ ok: false, error: 'escalate_human' });
+    expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
+    expect(markSeen).not.toHaveBeenCalled();
+    expect(runAction).not.toHaveBeenCalled();
   });
 
   it('rejects forged handle', async () => {

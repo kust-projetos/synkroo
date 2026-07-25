@@ -84,4 +84,45 @@ describe('buildMenu', () => {
     const result = await buildMenu(manifests, manifest, can)
     expect(result.map((i) => i.label)).toEqual(['Usuários e acessos'])
   })
+
+  it('inclui itens do CRM quando módulo enabled + permissão crm:view concedida', async () => {
+    const manifests = [
+      {
+        id: 'crm',
+        menu: [{ moduleId: 'crm', permission: 'crm:view', label: 'Contatos', path: '/dashboard/contatos', icon: 'UsersIcon' }],
+      },
+    ]
+    const manifest = makeManifest(['crm'])
+    const can = (p: string) => p === 'crm:view'
+    const result = await buildMenu(manifests, manifest, can)
+    expect(result).toHaveLength(1)
+    expect(result[0].label).toBe('Contatos')
+  })
+
+  it('inclui itens do Financeiro quando módulo enabled + permissão financeiro:view concedida', async () => {
+    const manifests = [
+      {
+        id: 'financeiro',
+        menu: [{ moduleId: 'financeiro', permission: 'financeiro:view', label: 'Financeiro', path: '/dashboard/financeiro', icon: 'CurrencyDollarIcon' }],
+      },
+    ]
+    const manifest = makeManifest(['financeiro'])
+    const can = (p: string) => p === 'financeiro:view'
+    const result = await buildMenu(manifests, manifest, can)
+    expect(result).toHaveLength(1)
+    expect(result[0].label).toBe('Financeiro')
+  })
+
+  it('exclui CRM item quando módulo desabilitado', async () => {
+    const manifests = [
+      {
+        id: 'crm',
+        menu: [{ moduleId: 'crm', permission: 'crm:view', label: 'Contatos', path: '/dashboard/contatos' }],
+      },
+    ]
+    const manifest = makeManifest([])  // crm disabled
+    const can = () => true
+    const result = await buildMenu(manifests, manifest, can)
+    expect(result).toHaveLength(0)
+  })
 })

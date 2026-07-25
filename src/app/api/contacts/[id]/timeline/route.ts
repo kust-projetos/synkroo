@@ -1,39 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getContactTimeline } from '@/services/contacts/timeline.service'
-import type { TimelineSourceType } from '@/services/contacts/timeline.service'
+/**
+ * /api/contacts/[id]/timeline — Task 5: gated + action-driven.
+ * type ausente/inválido → 400. Caso contrário → crm.listarTimelineContato.
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runCrmAction } from '@/modules/crm/ui/route-adapter';
+import { listarTimelineContato } from '@/modules/crm/actions';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+async function handleGET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await validateApiAuth()
-  if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+  const { searchParams } = new URL(_request.url);
+  const typeRaw = searchParams.get('type');
+  if (typeRaw !== 'patient' && typeRaw !== 'lead') {
+    return NextResponse.json(
+      { error: 'type query parameter required (patient|lead)' },
+      { status: 400 },
+    );
   }
-
-  const clinicId = auth.profile!.clinic_id
-  const { id } = await params
-  const { searchParams } = new URL(request.url)
-
-  const type = searchParams.get('type') as 'patient' | 'lead'
-  const cursor = searchParams.get('cursor') || undefined
-  const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 20
-  const source = searchParams.get('source') as TimelineSourceType | null
-
-  if (!type) {
-    return NextResponse.json({ error: 'type query parameter required' }, { status: 400 })
-  }
-
-  try {
-    const timeline = await getContactTimeline(clinicId, id, type, {
-      cursor,
-      limit,
-      typeFilter: source || undefined,
-    })
-
-    return NextResponse.json(timeline)
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch timeline' }, { status: 500 })
-  }
+  const { id } = await params;
+  return runCrmAction(listarTimelineContato, { type: typeRaw, id });
 }
+
+export const GET = withModuleRoute('crm', moduleManifest)(handleGET);
