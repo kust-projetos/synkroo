@@ -300,3 +300,11 @@ export async function listPendingSuggestionsAllClinics() {
     .where(eq(crmDuplicateSuggestions.status, 'pending' as any))
     .orderBy(crmDuplicateSuggestions.detectedAt);
 }
+
+export async function listClinicIdsWithPendingSuggestions(): Promise<string[]> {
+  const rows = await getDb()
+    .selectDistinct({ clinicId: crmDuplicateSuggestions.clinicId })
+    .from(crmDuplicateSuggestions)
+    .where(eq(crmDuplicateSuggestions.status, 'pending' as any));
+  return rows.map((r) => r.clinicId);
+}

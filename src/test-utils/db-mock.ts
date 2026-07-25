@@ -31,7 +31,9 @@ function createDrizzleMock() {
 
   const updateChain: MockFn = jest.fn(() => ({
     set: jest.fn().mockReturnValue({
-      where: jest.fn(() => Promise.resolve([])),
+      where: jest.fn().mockReturnValue({
+        returning: jest.fn(() => Promise.resolve([{ id: 'test-id' }])),
+      }),
       returning: jest.fn(() => Promise.resolve([{ id: 'test-id' }])),
     }),
     where: jest.fn().mockReturnValue({

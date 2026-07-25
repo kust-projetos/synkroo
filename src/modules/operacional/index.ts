@@ -38,6 +38,8 @@ import { gatilhoLembrete } from './actions/gatilho-lembrete';
 import { obterModeloLembrete } from './actions/obter-modelo-lembrete';
 import { processarConfirmacaoResposta } from './actions/processar-confirmacao-resposta';
 import { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
+import { registrarObservacaoPaciente } from './actions/registrar-observacao-paciente';
+import { atualizarTagsPaciente } from './actions/atualizar-tags-paciente';
 
 export const operacionalActions = [
   agendarConsulta,
@@ -71,6 +73,8 @@ export const operacionalActions = [
   obterModeloLembrete,
   processarConfirmacaoResposta,
   listarTratamentosIncompletos,
+  registrarObservacaoPaciente,
+  atualizarTagsPaciente,
 ];
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
@@ -83,5 +87,7 @@ export { gatilhoLembrete } from './actions/gatilho-lembrete';
 export { obterModeloLembrete } from './actions/obter-modelo-lembrete';
 export { processarConfirmacaoResposta } from './actions/processar-confirmacao-resposta';
 export { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
+export { registrarObservacaoPaciente } from './actions/registrar-observacao-paciente';
+export { atualizarTagsPaciente } from './actions/atualizar-tags-paciente';
 export { mesclarPacientes } from './actions/mesclar-pacientes';
 export { operacionalAccessPermissions } from './permissions';

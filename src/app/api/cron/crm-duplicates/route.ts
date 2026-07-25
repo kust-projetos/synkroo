@@ -1,20 +1,21 @@
 /**
- * POST /api/cron/crm-duplicates — reprocess duplicate suggestions (cron)
+ * POST /api/cron/crm-duplicates — reprocess duplicate suggestions per clinic (cron)
  * GET  /api/cron/crm-duplicates — health check
  *
- * Security: CRON_SECRET Bearer token verification.
- * Calls the crm.reprocessarSugestoesDuplicidade system action.
+ * Security: CRON_SECRET Bearer token verification via timingSafeEqual.
+ * Per-clinic: buildSystemContext + runAction(reprocessarSugestoesDuplicidade).
+ * Continues after individual clinic failure.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
-import {
-  listPendingSuggestionsAllClinics,
-  findDuplicateSource,
-  transitionSuggestionStatus,
-} from '@/modules/crm/repositories/duplicate-suggestions-repository';
-import { scoreDuplicatePair, classifyDuplicateScore } from '@/modules/crm/services/duplicate-scoring-service';
+import { listClinicIdsWithPendingSuggestions } from '@/modules/crm/repositories/duplicate-suggestions-repository';
+import { reprocessarSugestoesDuplicidade } from '@/modules/crm/actions';
+import { buildSystemContext } from '@/core/actions/context';
+import { runAction } from '@/core/actions/run';
+import { assertModuleForJob, ModuleDisabledError } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
@@ -35,50 +36,42 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let evaluated = 0;
-  let dismissed = 0;
-  const clinics = new Set<string>();
-
-  const allSuggestions = await listPendingSuggestionsAllClinics();
-  for (const s of allSuggestions) {
-    clinics.add(s.clinicId);
-    evaluated += 1;
-    const left = await findDuplicateSource({
-      clinicId: s.clinicId,
-      ownerType: s.ownerType as 'patient' | 'lead',
-      ownerId: s.leftId,
-    });
-    const right = await findDuplicateSource({
-      clinicId: s.clinicId,
-      ownerType: s.ownerType as 'patient' | 'lead',
-      ownerId: s.rightId,
-    });
-
-    if (!left || !right) {
-      await transitionSuggestionStatus(s.id, ['pending'], 'dismissed', {
-        dismissReason: 'stale_after_merge',
-      });
-      dismissed += 1;
-      continue;
+  try {
+    await assertModuleForJob('crm', moduleManifest);
+  } catch (err) {
+    if (err instanceof ModuleDisabledError) {
+      return NextResponse.json({ skipped: true }, { status: 200 });
     }
+    throw err;
+  }
 
-    const score = scoreDuplicatePair(left, right);
-    const confidence = classifyDuplicateScore(score.score);
-    if (!confidence) {
-      await transitionSuggestionStatus(s.id, ['pending'], 'dismissed', {
-        dismissReason: 'stale_after_merge',
+  const clinicIds = await listClinicIdsWithPendingSuggestions();
+
+  if (clinicIds.length === 0) {
+    return NextResponse.json({ processed: 0, results: [] }, { status: 200 });
+  }
+
+  const results: Array<{ clinicId: string; ok: boolean; data?: unknown; error?: string }> = [];
+
+  for (const clinicId of clinicIds) {
+    try {
+      const ctx = await buildSystemContext(clinicId);
+      const result = await runAction(reprocessarSugestoesDuplicidade, { clinicId }, ctx);
+      results.push({
+        clinicId,
+        ok: result.ok,
+        ...(result.ok ? { data: result.data } : { error: result.error?.message ?? 'unknown' }),
       });
-      dismissed += 1;
+    } catch (err) {
+      results.push({
+        clinicId,
+        ok: false,
+        error: err instanceof Error ? err.message : 'unknown',
+      });
     }
   }
 
-  return NextResponse.json({
-    success: true,
-    evaluated,
-    dismissed,
-    clinicsAffected: clinics.size,
-    timestamp: new Date().toISOString(),
-  });
+  return NextResponse.json({ processed: clinicIds.length, results }, { status: 200 });
 }
 
 async function handleGET(): Promise<NextResponse> {

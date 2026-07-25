@@ -232,4 +232,4 @@ Permissões (`permissions.ts`): `atendimento:view`, `atendimento:manage_messages
 | `2026-06-21-eixo2-sequenciamento-design.md` | Sequenciamento (§4 Onda 1: E-01 após E-02) |
 | `2026-06-22-eixo2-operacional-modulo-design.md` | Padrão de consolidação ao template + lições da revisão (gates totais, sem bypass, adapters, lint isolado) |
 | `docs/planning/epics.md` (Epic E-01) | RFs, critérios, KPIs do Atendimento Multicanal |
-| `.planning/research/PITFALLS.md` | Pitfalls 3 (LGPD), 4 (WhatsApp/Evolution) — consultar ao escrever o plano |
+| `archive/planning-v0.3` | Histórico de LGPD e WhatsApp/Evolution; roadmap canônico guia plano |

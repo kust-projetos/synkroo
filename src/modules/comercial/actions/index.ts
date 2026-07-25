@@ -33,6 +33,8 @@ import { reconhecerNotificacao } from './reconhecer-notificacao';
 import { processarNotificacoesLeadsQuentes } from './processar-notificacoes-leads-quentes';
 import { mesclarLeads } from './mesclar-leads';
 
+export * from './registrar-nota-lead';
+export * from './atualizar-tags-lead';
 export * from './arquivar-lead';
 export * from './obter-estatisticas-leads';
 export * from './listar-leads-quentes';

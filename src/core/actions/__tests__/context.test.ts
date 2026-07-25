@@ -1,4 +1,4 @@
-import { buildUserContext, buildDelegatedContext, buildSystemContext } from '../context';
+import { buildUserContext, buildDelegatedContext, buildSystemContext, buildCronContext } from '../context';
 
 const rbac = {
   isMaster: async () => false,
@@ -36,4 +36,30 @@ it('buildSystemContext: no user, agent permission set', async () => {
   expect(ctx.can('operacional:create')).toBe(true);
   expect(ctx.can('financeiro:delete')).toBe(false);
   expect(ctx.audit.actor).toBe('agente (sistema)');
+});
+
+it('buildCronContext: explicit allowlist with no agent-role permissions', async () => {
+  const ctx = await buildCronContext('clinic-a', {
+    manifest: { enabledModules: async () => new Set(['followup']) },
+  });
+  expect(ctx.source).toBe('system');
+  expect(ctx.clinicId).toBe('clinic-a');
+  expect(ctx.can('followup:manage_followups')).toBe(true);
+  expect(ctx.can('followup:manage_campaigns')).toBe(true);
+  expect(ctx.can('financeiro:view')).toBe(false);
+  expect(ctx.can('operacional:create')).toBe(false);
+  expect(ctx.audit.actor).toBe('cron');
+});
+
+it('buildCronContext: uses fixed allowlist, not caller-supplied permissions', async () => {
+  const ctx = await buildCronContext('clinic-b', {
+    manifest: { enabledModules: async () => new Set(['followup']) },
+  });
+  // Fixed allowlist only: followup:manage_followups + followup:manage_campaigns
+  // No agent-role permissions are loaded
+  expect(ctx.can('followup:manage_followups')).toBe(true);
+  expect(ctx.can('followup:manage_campaigns')).toBe(true);
+  expect(ctx.can('financeiro:view')).toBe(false);
+  expect(ctx.can('operacional:create')).toBe(false);
+  expect(ctx.can('agent:delegate')).toBe(false);
 });

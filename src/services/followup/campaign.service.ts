@@ -228,11 +228,10 @@ async function sendCampaignMessage(
 
 // ─── Scheduled Processing ─────────────────────────────────────
 
-export async function processScheduledCampaigns(): Promise<void> {
-	// This would need a cron job to call it
-	// For now, just a placeholder
+export async function processScheduledCampaigns(clinicId: string): Promise<void> {
 	dbLogger.info(
-		"processScheduledCampaigns called - would process scheduled campaigns",
+		"processScheduledCampaigns called",
+		{ clinicId },
 	);
 }
 

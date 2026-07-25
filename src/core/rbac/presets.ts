@@ -5,7 +5,7 @@ export interface PresetDef {
   name: string;
   description: string;
   // critério de inclusão de permissão: por módulos liberados e/ou keys explícitas.
-  modules: string[];          // libera todas as permissões desses módulos
+  modules: string[];          // libera todas as permissões desses módulos (via modulePermissions)
   extraKeys?: string[];       // permissões avulsas adicionais
 }
 

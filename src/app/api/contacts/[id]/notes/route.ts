@@ -1,57 +1,63 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getContactNotes, addContactNote } from '@/services/contacts/contacts.service'
-import { z } from 'zod'
+/**
+ * /api/contacts/[id]/notes — Task 5: gated + action-driven.
+ * GET → crm.listarNotasContato (type obrigatório, 400 se ausente/inválido).
+ * POST → crm.adicionarNotaContato (body: { type, content }).
+ */
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { withModuleRoute } from '@/core/modules/gates';
+import { moduleManifest } from '@/core/modules/manifest';
+import { runCrmAction } from '@/modules/crm/ui/route-adapter';
+import {
+  listarNotasContato,
+  adicionarNotaContato,
+} from '@/modules/crm/actions';
 
 const addNoteSchema = z.object({
   type: z.enum(['patient', 'lead']),
   content: z.string().min(1),
-})
+});
 
-export async function GET(
+async function handleGET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await validateApiAuth()
-  if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+  const { searchParams } = new URL(request.url);
+  const typeRaw = searchParams.get('type');
+  if (typeRaw !== 'patient' && typeRaw !== 'lead') {
+    return NextResponse.json(
+      { error: 'type query parameter required (patient|lead)' },
+      { status: 400 },
+    );
   }
-
-  const { id } = await params
-  const { searchParams } = new URL(request.url)
-  const type = searchParams.get('type') as 'patient' | 'lead'
-
-  if (!type) {
-    return NextResponse.json({ error: 'type query parameter required' }, { status: 400 })
-  }
-
-  const clinicId = auth.profile!.clinic_id
-  const notes = await getContactNotes(clinicId, id, type)
-
-  return NextResponse.json({ data: notes })
+  const { id } = await params;
+  return runCrmAction(listarNotasContato, { type: typeRaw, id });
 }
 
-export async function POST(
+async function handlePOST(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await validateApiAuth()
-  if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
-  }
-
-  const { id } = await params
-  const clinicId = auth.profile!.clinic_id
-
+  let body: unknown;
   try {
-    const body = await request.json()
-    const { type, content } = addNoteSchema.parse(body)
-    const note = await addContactNote(clinicId, id, type, content)
-    return NextResponse.json(note, { status: 201 })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
-    }
-    return NextResponse.json({ error: 'Failed to add note' }, { status: 500 })
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
+  const parsed = addNoteSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: parsed.error.errors },
+      { status: 400 },
+    );
+  }
+  const { id } = await params;
+  return runCrmAction(adicionarNotaContato, {
+    type: parsed.data.type,
+    id,
+    content: parsed.data.content,
+  });
 }
+
+export const GET = withModuleRoute('crm', moduleManifest)(handleGET);
+export const POST = withModuleRoute('crm', moduleManifest)(handlePOST);

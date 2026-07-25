@@ -28,8 +28,8 @@ describe('followup-service', () => {
   describe('executarAll', () => {
     it('calls processAllFollowUps and returns processed=1', async () => {
       mockProcessAll.mockResolvedValueOnce(undefined);
-      const result = await executarAll();
-      expect(mockProcessAll).toHaveBeenCalledTimes(1);
+      const result = await executarAll('clinic-a');
+      expect(mockProcessAll).toHaveBeenCalledWith('clinic-a');
       expect(result).toEqual({ processed: 1 });
     });
   });
@@ -37,8 +37,8 @@ describe('followup-service', () => {
   describe('executarPostConsulta', () => {
     it('calls processPostConsultationFollowUps and returns its result', async () => {
       mockProcessPost.mockResolvedValueOnce({ processed: 3, sent: 2, failed: 0 });
-      const result = await executarPostConsulta();
-      expect(mockProcessPost).toHaveBeenCalledTimes(1);
+      const result = await executarPostConsulta('clinic-a');
+      expect(mockProcessPost).toHaveBeenCalledWith('clinic-a');
       expect(result).toEqual({ processed: 3, sent: 2, failed: 0 });
     });
   });
@@ -46,8 +46,8 @@ describe('followup-service', () => {
   describe('executarLembretesRetorno', () => {
     it('calls processReturnReminders and returns its result', async () => {
       mockProcessReturn.mockResolvedValueOnce({ processed: 1, sent: 1, failed: 0 });
-      const result = await executarLembretesRetorno();
-      expect(mockProcessReturn).toHaveBeenCalledTimes(1);
+      const result = await executarLembretesRetorno('clinic-a');
+      expect(mockProcessReturn).toHaveBeenCalledWith('clinic-a');
       expect(result).toEqual({ processed: 1, sent: 1, failed: 0 });
     });
   });

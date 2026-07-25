@@ -1,39 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { processScheduledCampaigns } from '@/services/followup/campaign.service'
-import { handleApiError } from '@/lib/errors'
+import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * POST /api/campaigns/process
- * Process scheduled campaigns (called by cron job every 5 minutes)
+ * @deprecated Use POST /api/cron/followups?tasks=campaigns instead.
+ * Campaign processing is now handled per-clinic via the followup module action layer.
  */
-export async function POST(request: NextRequest) {
-  try {
-    // Verify CRON_SECRET for cron authentication
-    const authHeader = request.headers.get('authorization')
-    const cronSecret = process.env.CRON_SECRET
-
-    if (!cronSecret) {
-      return NextResponse.json(
-        { error: 'CRON_SECRET not configured' },
-        { status: 500 }
-      )
-    }
-
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
-    }
-
-    // Process scheduled campaigns
-    await processScheduledCampaigns()
-
-    return NextResponse.json({
-      success: true,
-      message: 'Scheduled campaigns processed',
-    })
-  } catch (error) {
-    return handleApiError(error)
-  }
+export async function POST(_request: NextRequest) {
+  return NextResponse.json(
+    { error: 'deprecated', message: 'Use POST /api/cron/followups?tasks=campaigns' },
+    { status: 410 },
+  );
 }
