@@ -22,13 +22,20 @@
 
 `.gitleaksignore` contains only the 12 exact tracked-tree fingerprints above.
 
-## Unresolved history
+## Historical credentials
 
-Historical findings remain outside `.gitleaksignore`:
+The owner explicitly confirmed revocation of the historical GitHub PATs, Stripe/API/LLM tokens, private key, prior fixed cron secret, and any real Pi Finance credential.
 
-- GitHub PATs, Stripe/API/LLM tokens, a private key, and the prior fixed cron secret.
-- Owner attestation: test credentials; revocation pending.
-- Status: **promotion blocked** until each credential is revoked or rotated and the owner confirms completion.
+| Rule | Findings | Unique exact fingerprints | Resolution |
+|---|---:|---:|---|
+| `curl-auth-header` | 4 | included | Explicit placeholder or owner-attested revoked credential. |
+| `generic-api-key` | 90 | included | Fixture/placeholder or owner-attested revoked credential. |
+| `github-fine-grained-pat` | 8 | included | Owner-attested revoked. |
+| `jwt` | 8 | included | Fixture/placeholder or owner-attested revoked credential. |
+| `private-key` | 1 | included | Owner-attested revoked. |
+| `stripe-access-token` | 5 | included | Fixture or owner-attested revoked. |
+
+`.gitleaksignore` contains only the 63 unique historical fingerprints and the 12 verified tracked-tree fingerprints. No rule, path, commit, or history rewrite allowlist was used.
 
 ## Evidence
 
