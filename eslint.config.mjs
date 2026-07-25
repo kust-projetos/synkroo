@@ -11,9 +11,12 @@ const eslintConfig = [
       '.open-next/**',
       'coverage/**',
       'node_modules/**',
+      'next-env.d.ts',
       'playwright-report/**',
       'test-results/**',
     ],
+  },
+  {
     linterOptions: { reportUnusedDisableDirectives: 'off' },
   },
   ...compat.config(legacy),
