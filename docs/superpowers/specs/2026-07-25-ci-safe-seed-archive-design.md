@@ -13,7 +13,7 @@ Corrigir preparação do banco do build em CI, substituir seed local perigoso po
 | Seed | `db:seed:scale` chama CLI pequena em `scripts/`; dry-run padrão, `--apply` obrigatório | Script legado de 1.584 linhas |
 | Seed | Aceita somente PostgreSQL loopback, banco `synkroo` e clínica `clinica-demo` | Execução contra banco remoto/produção |
 | Seed | Presets: `small` = 20 pacientes/40 agendamentos; `large` = 200/400; chave padrão `1337` | Volume ilimitado/aleatório |
-| Seed | Transação, upsert por IDs determinísticos e limpeza limitada à clínica demo | `session_replication_role`, `as any`, limpeza global |
+| Seed | Transação, upsert por IDs determinísticos e remoção somente de IDs determinísticos stale da clínica demo | `session_replication_role`, `as any`, limpeza global |
 | Arquivamento | Remover worktrees `eixo2-task1-allowlist` e `spike-ia-agente-referencia` via Git; preservar branches | Apagar branches/backups |
 
 ## Requisitos
@@ -25,7 +25,7 @@ Corrigir preparação do banco do build em CI, substituir seed local perigoso po
 - REQ-5 (event-driven): Quando `--apply` for usado, CLI deverá modificar apenas dados da clínica `clinica-demo`, em transação.
 - REQ-6 (ubiquitous): Mesma seed deverá produzir resultados determinísticos para mesma chave; presets serão `small` (20 pacientes/40 agendamentos) e `large` (200/400), com chave padrão `1337`.
 - REQ-7 (event-driven): Quando arquivamento ocorrer, Git deverá remover apenas `eixo2-task1-allowlist` (OID `162ba69b…`) e `spike-ia-agente-referencia` (OID `c9b51788…`), mantendo branches, seis backup refs e backups D:/E:.
-- REQ-8 (state-driven): Enquanto `--apply` estiver ativo, seed deverá usar transação e upsert por IDs determinísticos somente para `clinica-demo`.
+- REQ-8 (state-driven): Enquanto `--apply` estiver ativo, seed deverá usar transação e upsert por IDs determinísticos somente para `clinica-demo`; ao trocar preset, deverá remover apenas IDs determinísticos stale pertencentes a essa seed.
 
 ## Limites
 

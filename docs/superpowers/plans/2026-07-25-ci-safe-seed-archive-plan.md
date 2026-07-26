@@ -163,17 +163,25 @@ export function buildFixture(options: SeedOptions) {
 - Modify `scripts/seed-local-scale-data.ts`
 - Modify `scripts/__tests__/seed-local-scale.test.ts`
 
-- [ ] RED — add complete cases: duplicate/unknown CLI args throw; dry-run never calls `persist`; apply calls it once; remote/wrong DB throws before persist; fixture has 20/40 and 200/400; same seed deep-equals; every appointment `patientId` belongs to fixture patients; adapter uses one transaction and clinic slug only.
+- [ ] RED — add complete Jest cases: `--apply --apply`, duplicate `--preset`, missing preset value and unknown args throw; remote/wrong URL throws; same seed deep-equals; small/large are 20/40 and 200/400; dry-run calls `print` but never `persist`; apply calls `persist` once; every appointment `patientId` belongs to fixture patients; adapter calls one transaction, receives only `clinica-demo`, and stale IDs from large→small are the deterministic IDs `demo-patient-21..200`/their appointments only.
 - [ ] Run `npx jest --config jest.seed.config.js`; expected FAIL after adding adapter expectations.
 - [ ] GREEN — expose CLI and adapter:
 
 ```ts
 export type SeedStore = { transaction<T>(fn: (tx: SeedStore) => Promise<T>): Promise<T>; upsertClinic(row: { id: string; slug: 'clinica-demo'; name: string }): Promise<void>; upsertPatients(rows: (PatientFixture & { clinicId: string })[]): Promise<void>; upsertAppointments(rows: (AppointmentFixture & { clinicId: string; status: 'scheduled' })[]): Promise<void> };
+export type SeedStore = { transaction<T>(fn: (tx: SeedStore) => Promise<T>): Promise<T>; upsertClinic(row: { id: string; slug: 'clinica-demo'; name: string }): Promise<void>; deleteAppointments(ids: string[], clinicId: string): Promise<void>; deletePatients(ids: string[], clinicId: string): Promise<void>; upsertPatients(rows: (PatientFixture & { clinicId: string })[]): Promise<void>; upsertAppointments(rows: (AppointmentFixture & { clinicId: string; status: 'scheduled' })[]): Promise<void> };
+export function allSeedIds() { return buildFixture({ preset: 'large', seed: 1337, apply: true }); }
 export async function persistFixture(store: SeedStore, fixture: ReturnType<typeof buildFixture>) {
   return store.transaction(async (tx) => {
-    await tx.upsertClinic({ id: fixture.clinic.id, slug: 'clinica-demo', name: 'Clínica Demo' });
-    await tx.upsertPatients(fixture.patients.map((patient) => ({ ...patient, clinicId: fixture.clinic.id })));
-    await tx.upsertAppointments(fixture.appointments.map((appointment) => ({ ...appointment, clinicId: fixture.clinic.id, status: 'scheduled' })));
+    const clinicId = fixture.clinic.id;
+    const full = allSeedIds();
+    const activePatientIds = new Set(fixture.patients.map((patient) => patient.id));
+    const activeAppointmentIds = new Set(fixture.appointments.map((appointment) => appointment.id));
+    await tx.upsertClinic({ id: clinicId, slug: 'clinica-demo', name: 'Clínica Demo' });
+    await tx.deleteAppointments(full.appointments.filter((row) => !activeAppointmentIds.has(row.id)).map((row) => row.id), clinicId);
+    await tx.deletePatients(full.patients.filter((row) => !activePatientIds.has(row.id)).map((row) => row.id), clinicId);
+    await tx.upsertPatients(fixture.patients.map((patient) => ({ ...patient, clinicId })));
+    await tx.upsertAppointments(fixture.appointments.map((appointment) => ({ ...appointment, clinicId, status: 'scheduled' })));
   });
 }
 export async function runCli(deps: { persist: (url: string, fixture: ReturnType<typeof buildFixture>) => Promise<void>; print: (text: string) => void }, argv: string[], env: NodeJS.ProcessEnv) {
@@ -183,7 +191,7 @@ export async function runCli(deps: { persist: (url: string, fixture: ReturnType<
 }
 ```
 
-`seed-local-scale-data.ts` imports `fileURLToPath` and runs only when `process.argv[1] === fileURLToPath(import.meta.url)`. Its Drizzle adapter maps `upsertClinic`, `upsertPatients`, and `upsertAppointments` to explicit `onConflictDoUpdate` operations using fixture UUIDs; it does not delete stale rows. Therefore repeated same seed is idempotent and unrelated clinic rows are untouched.
+`seed-local-scale-data.ts` imports `fileURLToPath` and runs only when `process.argv[1] === fileURLToPath(import.meta.url)`. Its Drizzle adapter implements every `SeedStore` method with `and(eq(table.clinicId, clinicId), inArray(table.id, ids))` for deletes, then explicit `onConflictDoUpdate` upserts by deterministic IDs. It builds appointments from each fixture `patientId`; no lookup can cross clinics. Therefore repeated seed is idempotent, large→small removes only deterministic demo IDs, and unrelated clinic rows are untouched.
 
 - [ ] Run `npx jest --config jest.seed.config.js`; expected PASS.
 
@@ -198,6 +206,7 @@ export async function runCli(deps: { persist: (url: string, fixture: ReturnType<
 {"$schema":"./node_modules/@stryker-mutator/core/schema/stryker-schema.json","mutate":["scripts/seed-local-scale.ts"],"testRunner":"jest","jest":{"configFile":"jest.seed.config.js"},"coverageAnalysis":"perTest","reporters":["clear-text","progress"]}
 ```
 
+- [ ] Run `npx jest --config jest.seed.config.js --listTests`; expected exactly `scripts/__tests__/seed-local-scale.test.ts`.
 - [ ] Run `npx stryker run stryker.seed.config.json`; expected mutation score ≥70%.
 - [ ] Integration is opt-in: ask user before running `DATABASE_URL=postgresql://synkroo:<password>@localhost:<port>/synkroo npm run db:seed:scale -- --apply`.
 
