@@ -5,6 +5,7 @@ type Patient = { id: string; name: string; phone: string };
 type Appointment = { id: string; patientId: string; scheduledAt: string };
 export type Fixture = { clinic: { slug: 'clinica-demo' }; patients: Patient[]; appointments: Appointment[] };
 export type CliDependencies = { persist: (url: string, fixture: Fixture) => Promise<void>; print: (text: string) => void };
+export type SeedStore = { transaction<T>(callback: (store: SeedStore) => Promise<T>): Promise<T>; resolveClinicId(slug: 'clinica-demo'): Promise<string>; assertOwnership(clinicId: string, ids: string[]): Promise<void>; deleteAppointments(clinicId: string, ids: string[]): Promise<void>; deletePatients(clinicId: string, ids: string[]): Promise<void>; upsertPatients(clinicId: string, rows: Patient[]): Promise<void>; upsertAppointments(clinicId: string, rows: Appointment[]): Promise<void> };
 
 const PRESETS = { small: [20, 40], large: [200, 400] } as const;
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
@@ -43,6 +44,22 @@ export function buildFixture(options: SeedOptions): Fixture {
   const patients = Array.from({ length: patientCount }, (_, index) => ({ id: uuid(`patient-${index + 1}`), name: `Demo Patient ${index + 1}`, phone: `11${seed}${String(index + 1).padStart(5, '0')}` }));
   const appointments = Array.from({ length: appointmentCount }, (_, index) => ({ id: uuid(`appointment-${index + 1}`), patientId: patients[index % patients.length].id, scheduledAt: new Date(Date.UTC(2025, 0, 1, 8 + (index % 8))).toISOString() }));
   return { clinic: { slug: 'clinica-demo' }, patients, appointments };
+}
+
+export async function persistFixture(store: SeedStore, fixture: Fixture): Promise<void> {
+  await store.transaction(async (transaction) => {
+    const clinicId = await transaction.resolveClinicId('clinica-demo');
+    const large = buildFixture({ preset: 'large', seed: 1337, apply: true });
+    const activePatients = new Set(fixture.patients.map(({ id }) => id));
+    const activeAppointments = new Set(fixture.appointments.map(({ id }) => id));
+    const staleAppointments = large.appointments.filter(({ id }) => !activeAppointments.has(id)).map(({ id }) => id);
+    const stalePatients = large.patients.filter(({ id }) => !activePatients.has(id)).map(({ id }) => id);
+    await transaction.assertOwnership(clinicId, [...fixture.patients.map(({ id }) => id), ...fixture.appointments.map(({ id }) => id)]);
+    await transaction.deleteAppointments(clinicId, staleAppointments);
+    await transaction.deletePatients(clinicId, stalePatients);
+    await transaction.upsertPatients(clinicId, fixture.patients);
+    await transaction.upsertAppointments(clinicId, fixture.appointments);
+  });
 }
 
 export async function runCli(deps: CliDependencies, argv: string[], env: Record<string, string | undefined>): Promise<void> {
