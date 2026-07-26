@@ -102,7 +102,7 @@ module.exports = {
 };
 ```
 
-Create tests using Jest globals: `expect(parseOptions([])).toEqual({ preset: 'small', seed: 1337, apply: false })`; remote/wrong URL throws; same seed yields deep-equal fixtures; `small` yields 20/40 and `large` yields 200/400.
+Create Jest tests: default options; duplicate `--preset`/`--seed`/`--apply`, missing values and unknown flags throw; remote/wrong URL throws; same seed deep-equals; unique phones; `small` yields 20/40; `large` yields 200/400.
 
 - [ ] Run `npx jest --config jest.seed.config.js`; expected FAIL: module missing.
 - [ ] GREEN — implement complete pure helpers:
@@ -112,11 +112,13 @@ export type SeedOptions = { preset: 'small' | 'large'; seed: number; apply: bool
 export const PRESETS = { small: { patients: 20, appointments: 40 }, large: { patients: 200, appointments: 400 } } as const;
 export function parseOptions(argv: string[]): SeedOptions {
   let preset: SeedOptions['preset'] = 'small'; let seed = 1337; let apply = false;
+  const seen = new Set<string>();
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
-    if (value === '--apply' && !apply) { apply = true; continue; }
-    if (value === '--preset' && (argv[index + 1] === 'small' || argv[index + 1] === 'large')) { preset = argv[++index] as SeedOptions['preset']; continue; }
-    if (value === '--seed' && /^-?\d+$/.test(argv[index + 1] ?? '')) { seed = Number(argv[++index]); continue; }
+    if (seen.has(value)) throw new Error(`Duplicate scale-seed argument: ${value}`);
+    if (value === '--apply') { seen.add(value); apply = true; continue; }
+    if (value === '--preset' && (argv[index + 1] === 'small' || argv[index + 1] === 'large')) { seen.add(value); preset = argv[++index] as SeedOptions['preset']; continue; }
+    if (value === '--seed' && /^-?\d+$/.test(argv[index + 1] ?? '')) { seen.add(value); seed = Number(argv[++index]); continue; }
     throw new Error(`Invalid scale-seed argument: ${value}`);
   }
   return { preset, seed, apply };
@@ -141,16 +143,15 @@ export function stableUuid(key: string): string {
 }
 export function buildFixture(options: SeedOptions) {
   const { patients: patientCount, appointments: appointmentCount } = PRESETS[options.preset];
-  const random = createMulberry32(options.seed);
   const patients = Array.from({ length: patientCount }, (_, index) => {
     const key = `demo-patient-${index + 1}`;
-    return { key, id: stableUuid(key), name: `Demo Patient ${index + 1}`, phone: `119${String(Math.floor(random() * 10_000_0000)).padStart(8, '0')}` };
+    return { key, id: stableUuid(key), name: `Demo Patient ${index + 1}`, phone: `11${String(Math.abs(options.seed) % 10_000).padStart(4, '0')}${String(index + 1).padStart(5, '0')}` };
   });
   const appointments = Array.from({ length: appointmentCount }, (_, index) => {
     const key = `demo-appointment-${index + 1}`;
     return { key, id: stableUuid(key), patientId: patients[index % patients.length].id, scheduledAt: new Date(Date.UTC(2025, 0, 1, 8 + (index % 8), 0, 0)).toISOString() };
   });
-  return { clinic: { slug: 'clinica-demo', id: stableUuid('clinica-demo') }, patients, appointments };
+  return { clinic: { slug: 'clinica-demo' as const }, patients, appointments };
 }
 ```
 
@@ -168,15 +169,14 @@ export function buildFixture(options: SeedOptions) {
 - [ ] GREEN — expose CLI and adapter:
 
 ```ts
-export type SeedStore = { transaction<T>(fn: (tx: SeedStore) => Promise<T>): Promise<T>; upsertClinic(row: { id: string; slug: 'clinica-demo'; name: string }): Promise<void>; deleteAppointments(ids: string[], clinicId: string): Promise<void>; deletePatients(ids: string[], clinicId: string): Promise<void>; upsertPatients(rows: (PatientFixture & { clinicId: string })[]): Promise<void>; upsertAppointments(rows: (AppointmentFixture & { clinicId: string; status: 'scheduled' })[]): Promise<void> };
+export type SeedStore = { transaction<T>(fn: (tx: SeedStore) => Promise<T>): Promise<T>; resolveClinicId(slug: 'clinica-demo'): Promise<string>; deleteAppointments(ids: string[], clinicId: string): Promise<void>; deletePatients(ids: string[], clinicId: string): Promise<void>; upsertPatients(rows: (PatientFixture & { clinicId: string })[]): Promise<void>; upsertAppointments(rows: (AppointmentFixture & { clinicId: string; status: 'scheduled' })[]): Promise<void> };
 export function allSeedIds() { return buildFixture({ preset: 'large', seed: 1337, apply: true }); }
 export async function persistFixture(store: SeedStore, fixture: ReturnType<typeof buildFixture>) {
   return store.transaction(async (tx) => {
-    const clinicId = fixture.clinic.id;
+    const clinicId = await tx.resolveClinicId('clinica-demo');
     const full = allSeedIds();
     const activePatientIds = new Set(fixture.patients.map((patient) => patient.id));
     const activeAppointmentIds = new Set(fixture.appointments.map((appointment) => appointment.id));
-    await tx.upsertClinic({ id: clinicId, slug: 'clinica-demo', name: 'Clínica Demo' });
     await tx.deleteAppointments(full.appointments.filter((row) => !activeAppointmentIds.has(row.id)).map((row) => row.id), clinicId);
     await tx.deletePatients(full.patients.filter((row) => !activePatientIds.has(row.id)).map((row) => row.id), clinicId);
     await tx.upsertPatients(fixture.patients.map((patient) => ({ ...patient, clinicId })));
@@ -190,7 +190,7 @@ export async function runCli(deps: { persist: (url: string, fixture: ReturnType<
 }
 ```
 
-`seed-local-scale-data.ts` imports `fileURLToPath` and runs only when `process.argv[1] === fileURLToPath(import.meta.url)`. Its Drizzle adapter implements every `SeedStore` method with `and(eq(table.clinicId, clinicId), inArray(table.id, ids))` for deletes, then explicit `onConflictDoUpdate` upserts by deterministic IDs. It builds appointments from each fixture `patientId`; no lookup can cross clinics. Therefore repeated seed is idempotent, large→small removes only deterministic demo IDs, and unrelated clinic rows are untouched.
+`seed-local-scale-data.ts` imports `fileURLToPath` and runs only when `process.argv[1] === fileURLToPath(import.meta.url)`. Its Drizzle adapter upserts/finds clinic by `slug` and returns actual clinic ID; implements deletes with `and(eq(table.clinicId, clinicId), inArray(table.id, ids))`; then explicit deterministic-ID upserts. Generated phones encode index and seed to guarantee uniqueness. It builds appointments from fixture `patientId`; no lookup crosses clinics. Therefore repeated seed is idempotent, large→small removes only deterministic demo IDs, and unrelated clinic rows are untouched.
 
 - [ ] Run `npx jest --config jest.seed.config.js`; expected PASS.
 
