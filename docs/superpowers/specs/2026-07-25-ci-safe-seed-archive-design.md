@@ -10,9 +10,10 @@ Corrigir preparação do banco do build em CI, substituir seed local perigoso po
 |---|---|---|
 | CI | Preparar `synkroo` antes do build: criar, habilitar pgvector, migrar e seedar | Build apontando para banco inexistente |
 | CI | Teste de contrato lê `.github/workflows/ci.yml` | Confiar só em revisão manual |
-| Seed | CLI pequena em `scripts/`, dry-run padrão e `--apply` obrigatório | Script legado de 1.584 linhas |
-| Seed | Aceita apenas host loopback, banco `synkroo` e clínica `clinica-demo` | Execução contra banco remoto/produção |
-| Seed | Transação, dados determinísticos e limpeza limitada à clínica demo | `session_replication_role`, `as any`, limpeza global |
+| Seed | `db:seed:scale` chama CLI pequena em `scripts/`; dry-run padrão, `--apply` obrigatório | Script legado de 1.584 linhas |
+| Seed | Aceita somente PostgreSQL loopback, banco `synkroo` e clínica `clinica-demo` | Execução contra banco remoto/produção |
+| Seed | Presets: `small` = 20 pacientes/40 agendamentos; `large` = 200/400; chave padrão `1337` | Volume ilimitado/aleatório |
+| Seed | Transação, upsert por IDs determinísticos e limpeza limitada à clínica demo | `session_replication_role`, `as any`, limpeza global |
 | Arquivamento | Remover worktrees `eixo2-task1-allowlist` e `spike-ia-agente-referencia` via Git; preservar branches | Apagar branches/backups |
 
 ## Requisitos
@@ -22,13 +23,15 @@ Corrigir preparação do banco do build em CI, substituir seed local perigoso po
 - REQ-3 (state-driven): Enquanto seed não receber `--apply`, CLI deverá apenas reportar plano e não escrever no banco.
 - REQ-4 (unwanted): Se URL do seed não usar loopback ou banco diferente de `synkroo`, CLI deverá falhar antes de qualquer query mutável.
 - REQ-5 (event-driven): Quando `--apply` for usado, CLI deverá modificar apenas dados da clínica `clinica-demo`, em transação.
-- REQ-6 (ubiquitous): Mesma seed deverá produzir resultados determinísticos para mesma chave.
-- REQ-7 (event-driven): Quando arquivamento ocorrer, Git deverá remover apenas os dois worktrees aprovados, mantendo branches, seis backup refs e backups D:/E:.
+- REQ-6 (ubiquitous): Mesma seed deverá produzir resultados determinísticos para mesma chave; presets serão `small` (20 pacientes/40 agendamentos) e `large` (200/400), com chave padrão `1337`.
+- REQ-7 (event-driven): Quando arquivamento ocorrer, Git deverá remover apenas `eixo2-task1-allowlist` (OID `162ba69b…`) e `spike-ia-agente-referencia` (OID `c9b51788…`), mantendo branches, seis backup refs e backups D:/E:.
+- REQ-8 (state-driven): Enquanto `--apply` estiver ativo, seed deverá usar transação e upsert por IDs determinísticos somente para `clinica-demo`.
 
 ## Limites
 
 - Não migrar `feat/seed-local-scale` nem `fix/security-integrity-hardening`.
 - Não executar seed no banco durante esta entrega sem autorização explícita.
+- Arquivamento deverá reduzir contagem de worktrees em exatamente dois a partir da contagem registrada imediatamente antes da operação; nunca assumir total absoluto.
 - Não usar `--force`, `prune`, `gc`, remoção manual ou exclusão de branch.
 
 ## Testes
