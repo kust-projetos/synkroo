@@ -168,7 +168,6 @@ export function buildFixture(options: SeedOptions) {
 - [ ] GREEN — expose CLI and adapter:
 
 ```ts
-export type SeedStore = { transaction<T>(fn: (tx: SeedStore) => Promise<T>): Promise<T>; upsertClinic(row: { id: string; slug: 'clinica-demo'; name: string }): Promise<void>; upsertPatients(rows: (PatientFixture & { clinicId: string })[]): Promise<void>; upsertAppointments(rows: (AppointmentFixture & { clinicId: string; status: 'scheduled' })[]): Promise<void> };
 export type SeedStore = { transaction<T>(fn: (tx: SeedStore) => Promise<T>): Promise<T>; upsertClinic(row: { id: string; slug: 'clinica-demo'; name: string }): Promise<void>; deleteAppointments(ids: string[], clinicId: string): Promise<void>; deletePatients(ids: string[], clinicId: string): Promise<void>; upsertPatients(rows: (PatientFixture & { clinicId: string })[]): Promise<void>; upsertAppointments(rows: (AppointmentFixture & { clinicId: string; status: 'scheduled' })[]): Promise<void> };
 export function allSeedIds() { return buildFixture({ preset: 'large', seed: 1337, apply: true }); }
 export async function persistFixture(store: SeedStore, fixture: ReturnType<typeof buildFixture>) {
