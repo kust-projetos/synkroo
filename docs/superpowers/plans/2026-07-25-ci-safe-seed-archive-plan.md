@@ -65,7 +65,7 @@ test('CI prepares synkroo before Next build', () => {
 ```yaml
       - name: Setup synkroo database for build
         run: |
-          psql -h 127.0.0.1 -p 5432 -U synkroo -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'synkroo'" | grep -q 1 || psql -h 127.0.0.1 -p 5432 -U synkroo -d postgres -c "CREATE DATABASE \"synkroo\""
+          psql -h 127.0.0.1 -p 5432 -U synkroo -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'synkroo'" | grep -q 1 || psql -h 127.0.0.1 -p 5432 -U synkroo -d postgres -c 'CREATE DATABASE "synkroo"'
           psql -h 127.0.0.1 -p 5432 -U synkroo -d synkroo -c "CREATE EXTENSION IF NOT EXISTS vector;"
         env:
           PGPASSWORD: test
@@ -85,44 +85,53 @@ test('CI prepares synkroo before Next build', () => {
 
 **Files:**
 - Create `scripts/seed-local-scale.ts`
-- Create `scripts/__tests__/seed-local-scale.test.ts`
 - Create `scripts/seed-local-scale-data.ts`
+- Create `scripts/__tests__/seed-local-scale.test.ts`
+- Create `jest.seed.config.js`
+- Create `stryker.seed.config.json`
 - Modify `package.json`
 
-- [ ] RED — write Node-test API tests:
+- [ ] RED — create `jest.seed.config.js`:
 
-```ts
-import assert from 'node:assert/strict';
-import test from 'node:test';
-import { buildFixture, parseOptions, validateScaleDatabaseUrl } from '../seed-local-scale';
-
-test('defaults to non-mutating small preset', () => {
-  assert.deepEqual(parseOptions([]), { preset: 'small', seed: 1337, apply: false });
-});
-test('rejects remote or wrong database', () => {
-  assert.throws(() => validateScaleDatabaseUrl('postgres://u:p@db.example/synkroo'), /loopback/);
-  assert.throws(() => validateScaleDatabaseUrl('postgres://u:p@localhost/other'), /synkroo/);
-});
-test('same seed creates same fixture', () => {
-  assert.deepEqual(buildFixture({ preset: 'small', seed: 7, apply: false }), buildFixture({ preset: 'small', seed: 7, apply: false }));
-});
+```js
+module.exports = {
+  preset: 'ts-jest', testEnvironment: 'node', roots: ['<rootDir>/scripts'],
+  testMatch: ['**/__tests__/seed-local-scale.test.ts'],
+  collectCoverageFrom: ['scripts/seed-local-scale.ts'],
+  coverageThreshold: { global: { branches: 80, functions: 80, lines: 80, statements: 80 } },
+};
 ```
 
-- [ ] Run `node --import tsx --test scripts/__tests__/seed-local-scale.test.ts`; expected FAIL: module missing.
-- [ ] GREEN — implement exact pure contract:
+Create tests using Jest globals: `expect(parseOptions([])).toEqual({ preset: 'small', seed: 1337, apply: false })`; remote/wrong URL throws; same seed yields deep-equal fixtures; `small` yields 20/40 and `large` yields 200/400.
+
+- [ ] Run `npx jest --config jest.seed.config.js`; expected FAIL: module missing.
+- [ ] GREEN — implement complete pure helpers:
 
 ```ts
 export type SeedOptions = { preset: 'small' | 'large'; seed: number; apply: boolean };
 export const PRESETS = { small: { patients: 20, appointments: 40 }, large: { patients: 200, appointments: 400 } } as const;
-export function parseOptions(argv: string[]): SeedOptions;
-export function validateScaleDatabaseUrl(url: string): string;
-export function buildFixture(options: SeedOptions): { clinic: { slug: 'clinica-demo' }; patients: readonly { key: string; name: string; phone: string }[]; appointments: readonly { key: string; patientKey: string; scheduledAt: string }[] };
+export function parseOptions(argv: string[]): SeedOptions {
+  let preset: SeedOptions['preset'] = 'small'; let seed = 1337; let apply = false;
+  for (let index = 0; index < argv.length; index += 1) {
+    const value = argv[index];
+    if (value === '--apply' && !apply) { apply = true; continue; }
+    if (value === '--preset' && (argv[index + 1] === 'small' || argv[index + 1] === 'large')) { preset = argv[++index] as SeedOptions['preset']; continue; }
+    if (value === '--seed' && /^-?\d+$/.test(argv[index + 1] ?? '')) { seed = Number(argv[++index]); continue; }
+    throw new Error(`Invalid scale-seed argument: ${value}`);
+  }
+  return { preset, seed, apply };
+}
+export function validateScaleDatabaseUrl(url: string): string {
+  const parsed = new URL(url); const hosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+  if (!['postgres:', 'postgresql:'].includes(parsed.protocol) || !hosts.has(parsed.hostname) || parsed.pathname !== '/synkroo') throw new Error('Scale seed requires loopback PostgreSQL database synkroo');
+  return url;
+}
+export function createMulberry32(seed: number): () => number { let value = seed >>> 0; return () => { value += 0x6d2b79f5; let next = value; next = Math.imul(next ^ (next >>> 15), next | 1); next ^= next + Math.imul(next ^ (next >>> 7), next | 61); return ((next ^ (next >>> 14)) >>> 0) / 4294967296; }; }
 ```
 
-Rules: parser accepts only `--preset small|large`, `--seed <integer>`, `--apply`; rejects duplicate/unknown args. Guard accepts only `postgres:`/`postgresql:`, hostname `localhost`/`127.0.0.1`/`::1`, pathname `/synkroo`. Fixture uses Mulberry32 and stable keys `demo-patient-<n>`/`demo-appointment-<n>`.
+`buildFixture` must call this PRNG once per generated field and produce stable `demo-patient-<n>` and `demo-appointment-<n>` keys.
 
-- [ ] Add `"db:seed:scale": "tsx scripts/seed-local-scale-data.ts"`.
-- [ ] Run `node --import tsx --test scripts/__tests__/seed-local-scale.test.ts`; expected PASS.
+- [ ] Add `"db:seed:scale": "tsx scripts/seed-local-scale-data.ts"`; run `npx jest --config jest.seed.config.js`; expected PASS.
 
 ## Task 4: Demo-only transaction adapter
 
@@ -132,28 +141,35 @@ Rules: parser accepts only `--preset small|large`, `--seed <integer>`, `--apply`
 - Modify `scripts/__tests__/seed-local-scale.test.ts`
 
 - [ ] RED — add tests proving `--apply` is required before adapter invocation, fixture counts are 20/40 and 200/400, and adapter receives only slug `clinica-demo`.
-- [ ] Run `node --import tsx --test scripts/__tests__/seed-local-scale.test.ts`; expected FAIL.
-- [ ] GREEN — CLI behavior:
+- [ ] Run `npx jest --config jest.seed.config.js`; expected FAIL after adding adapter expectations.
+- [ ] GREEN — expose `runCli(deps, argv, env)` and main guard:
 
 ```ts
-const options = parseOptions(process.argv.slice(2));
-const fixture = buildFixture(options);
-console.log(JSON.stringify({ preset: options.preset, patients: fixture.patients.length, appointments: fixture.appointments.length, apply: options.apply }));
-if (!options.apply) process.exitCode = 0;
-else await persistDemoFixture(validateScaleDatabaseUrl(process.env.DATABASE_URL ?? ''), fixture);
+export async function runCli(deps: { persist: (url: string, fixture: ReturnType<typeof buildFixture>) => Promise<void>; print: (text: string) => void }, argv: string[], env: NodeJS.ProcessEnv) {
+  const options = parseOptions(argv); const fixture = buildFixture(options);
+  deps.print(JSON.stringify({ preset: options.preset, patients: fixture.patients.length, appointments: fixture.appointments.length, apply: options.apply }));
+  if (!options.apply) return;
+  await deps.persist(validateScaleDatabaseUrl(env.DATABASE_URL ?? ''), fixture);
+}
+if (require.main === module) void runCli({ persist: persistDemoFixture, print: console.log }, process.argv.slice(2), process.env);
 ```
 
-`persistDemoFixture` opens DB only after guard success; wraps all writes in one transaction; finds/upserts clinic `clinica-demo`; deletes/reinserts only appointments and patients scoped to returned clinic ID; inserts `patients` with `clinicId`, `name`, `phone`; inserts appointments with `clinicId`, `patientId`, `scheduledAt`, `status: 'scheduled'`; uses no `session_replication_role`, `as any`, global delete or network call.
+`persistDemoFixture` validates URL before `getDb`; uses one transaction; upserts clinic `clinica-demo`; uses deterministic UUID v5-equivalent constants derived from fixture keys; upserts patients by those IDs; resolves patient-key→UUID map; upserts appointments with mapped `patientId`, `clinicId`, `scheduledAt`, `status: 'scheduled'`. It never deletes global rows, uses `session_replication_role` or `as any`.
 
-- [ ] Run `node --import tsx --test scripts/__tests__/seed-local-scale.test.ts`; expected PASS.
+- [ ] Run `npx jest --config jest.seed.config.js`; expected PASS.
 
 ## Task 5: Quality gates
 
 - [ ] Run `node --test scripts/__tests__/ci-workflow.test.mjs`.
-- [ ] Run `node --import tsx --test scripts/__tests__/seed-local-scale.test.ts`.
+- [ ] Run `npx jest --config jest.seed.config.js --coverage`.
 - [ ] Run `npm run lint && npm run typecheck`.
-- [ ] Create `stryker.seed.config.json` targeting `scripts/seed-local-scale.ts`; run `npx stryker run stryker.seed.config.json`; expected mutation score ≥70%.
-- [ ] Coverage: run `npx c8 --all --lines 80 --functions 80 --branches 80 node --import tsx --test scripts/__tests__/seed-local-scale.test.ts`.
+- [ ] Create `stryker.seed.config.json`:
+
+```json
+{"$schema":"./node_modules/@stryker-mutator/core/schema/stryker-schema.json","mutate":["scripts/seed-local-scale.ts"],"testRunner":"jest","jest":{"configFile":"jest.seed.config.js"},"coverageAnalysis":"perTest","reporters":["clear-text","progress"]}
+```
+
+- [ ] Run `npx stryker run stryker.seed.config.json`; expected mutation score ≥70%.
 - [ ] Integration is opt-in: ask user before running `DATABASE_URL=postgresql://synkroo:<password>@localhost:<port>/synkroo npm run db:seed:scale -- --apply`.
 
 ## Task 6: Archive approved worktrees
