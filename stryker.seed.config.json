@@ -1,0 +1,8 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "mutate": ["scripts/seed-local-scale.ts"],
+  "testRunner": "jest",
+  "jest": { "configFile": "jest.seed.config.js" },
+  "coverageAnalysis": "perTest",
+  "reporters": ["clear-text", "progress"]
+}
