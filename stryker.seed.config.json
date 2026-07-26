@@ -4,5 +4,6 @@
   "testRunner": "jest",
   "jest": { "configFile": "jest.seed.config.js" },
   "coverageAnalysis": "perTest",
+  "thresholds": { "high": 80, "low": 70, "break": 70 },
   "reporters": ["clear-text", "progress"]
 }
