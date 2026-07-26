@@ -129,7 +129,30 @@ export function validateScaleDatabaseUrl(url: string): string {
 export function createMulberry32(seed: number): () => number { let value = seed >>> 0; return () => { value += 0x6d2b79f5; let next = value; next = Math.imul(next ^ (next >>> 15), next | 1); next ^= next + Math.imul(next ^ (next >>> 7), next | 61); return ((next ^ (next >>> 14)) >>> 0) / 4294967296; }; }
 ```
 
-`buildFixture` must call this PRNG once per generated field and produce stable `demo-patient-<n>` and `demo-appointment-<n>` keys.
+Add complete deterministic fixture helpers:
+
+```ts
+import { createHash } from 'node:crypto';
+export type PatientFixture = { key: string; id: string; name: string; phone: string };
+export type AppointmentFixture = { key: string; id: string; patientId: string; scheduledAt: string };
+export function stableUuid(key: string): string {
+  const hex = createHash('sha256').update(`synkroo-scale:${key}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+export function buildFixture(options: SeedOptions) {
+  const { patients: patientCount, appointments: appointmentCount } = PRESETS[options.preset];
+  const random = createMulberry32(options.seed);
+  const patients = Array.from({ length: patientCount }, (_, index) => {
+    const key = `demo-patient-${index + 1}`;
+    return { key, id: stableUuid(key), name: `Demo Patient ${index + 1}`, phone: `119${String(Math.floor(random() * 10_000_0000)).padStart(8, '0')}` };
+  });
+  const appointments = Array.from({ length: appointmentCount }, (_, index) => {
+    const key = `demo-appointment-${index + 1}`;
+    return { key, id: stableUuid(key), patientId: patients[index % patients.length].id, scheduledAt: new Date(Date.UTC(2025, 0, 1, 8 + (index % 8), 0, 0)).toISOString() };
+  });
+  return { clinic: { slug: 'clinica-demo', id: stableUuid('clinica-demo') }, patients, appointments };
+}
+```
 
 - [ ] Add `"db:seed:scale": "tsx scripts/seed-local-scale-data.ts"`; run `npx jest --config jest.seed.config.js`; expected PASS.
 
@@ -140,21 +163,27 @@ export function createMulberry32(seed: number): () => number { let value = seed 
 - Modify `scripts/seed-local-scale-data.ts`
 - Modify `scripts/__tests__/seed-local-scale.test.ts`
 
-- [ ] RED — add tests proving `--apply` is required before adapter invocation, fixture counts are 20/40 and 200/400, and adapter receives only slug `clinica-demo`.
+- [ ] RED — add complete cases: duplicate/unknown CLI args throw; dry-run never calls `persist`; apply calls it once; remote/wrong DB throws before persist; fixture has 20/40 and 200/400; same seed deep-equals; every appointment `patientId` belongs to fixture patients; adapter uses one transaction and clinic slug only.
 - [ ] Run `npx jest --config jest.seed.config.js`; expected FAIL after adding adapter expectations.
-- [ ] GREEN — expose `runCli(deps, argv, env)` and main guard:
+- [ ] GREEN — expose CLI and adapter:
 
 ```ts
+export type SeedStore = { transaction<T>(fn: (tx: SeedStore) => Promise<T>): Promise<T>; upsertClinic(row: { id: string; slug: 'clinica-demo'; name: string }): Promise<void>; upsertPatients(rows: (PatientFixture & { clinicId: string })[]): Promise<void>; upsertAppointments(rows: (AppointmentFixture & { clinicId: string; status: 'scheduled' })[]): Promise<void> };
+export async function persistFixture(store: SeedStore, fixture: ReturnType<typeof buildFixture>) {
+  return store.transaction(async (tx) => {
+    await tx.upsertClinic({ id: fixture.clinic.id, slug: 'clinica-demo', name: 'Clínica Demo' });
+    await tx.upsertPatients(fixture.patients.map((patient) => ({ ...patient, clinicId: fixture.clinic.id })));
+    await tx.upsertAppointments(fixture.appointments.map((appointment) => ({ ...appointment, clinicId: fixture.clinic.id, status: 'scheduled' })));
+  });
+}
 export async function runCli(deps: { persist: (url: string, fixture: ReturnType<typeof buildFixture>) => Promise<void>; print: (text: string) => void }, argv: string[], env: NodeJS.ProcessEnv) {
   const options = parseOptions(argv); const fixture = buildFixture(options);
   deps.print(JSON.stringify({ preset: options.preset, patients: fixture.patients.length, appointments: fixture.appointments.length, apply: options.apply }));
-  if (!options.apply) return;
-  await deps.persist(validateScaleDatabaseUrl(env.DATABASE_URL ?? ''), fixture);
+  if (options.apply) await deps.persist(validateScaleDatabaseUrl(env.DATABASE_URL ?? ''), fixture);
 }
-if (require.main === module) void runCli({ persist: persistDemoFixture, print: console.log }, process.argv.slice(2), process.env);
 ```
 
-`persistDemoFixture` validates URL before `getDb`; uses one transaction; upserts clinic `clinica-demo`; uses deterministic UUID v5-equivalent constants derived from fixture keys; upserts patients by those IDs; resolves patient-key→UUID map; upserts appointments with mapped `patientId`, `clinicId`, `scheduledAt`, `status: 'scheduled'`. It never deletes global rows, uses `session_replication_role` or `as any`.
+`seed-local-scale-data.ts` imports `fileURLToPath` and runs only when `process.argv[1] === fileURLToPath(import.meta.url)`. Its Drizzle adapter maps `upsertClinic`, `upsertPatients`, and `upsertAppointments` to explicit `onConflictDoUpdate` operations using fixture UUIDs; it does not delete stale rows. Therefore repeated same seed is idempotent and unrelated clinic rows are untouched.
 
 - [ ] Run `npx jest --config jest.seed.config.js`; expected PASS.
 
