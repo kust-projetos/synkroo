@@ -1,4 +1,4 @@
-import { buildFixture, parseOptions, runCli, validateScaleDatabaseUrl } from '../seed-local-scale';
+import { buildFixture, parseOptions, persistFixture, runCli, type SeedStore, validateScaleDatabaseUrl } from '../seed-local-scale';
 
 describe('scale seed', () => {
   it('defaults to dry-run small preset', () => expect(parseOptions([])).toEqual({ preset: 'small', seed: 1337, apply: false }));
@@ -23,6 +23,12 @@ describe('scale seed', () => {
     expect(print).toHaveBeenCalledWith('{"preset":"small","patients":20,"appointments":40,"apply":false}');
   });
   it('rejects apply without URL before persistence', async () => { const persist = jest.fn(); await expect(runCli({ persist, print: jest.fn() }, ['--apply'], {})).rejects.toThrow(/loopback/); expect(persist).not.toHaveBeenCalled(); });
+  it('persists in one transaction using clinic real ID and delete order', async () => {
+    const calls: string[] = [];
+    const store: SeedStore = { transaction: async (callback) => callback(store), resolveClinicId: async (slug) => { calls.push(slug); return 'actual-clinic'; }, assertOwnership: async (id) => { calls.push(`ownership:${id}`); }, deleteAppointments: async (id) => { calls.push(`appointments:${id}`); }, deletePatients: async (id) => { calls.push(`patients:${id}`); }, upsertPatients: async (id) => { calls.push(`upsert-patients:${id}`); }, upsertAppointments: async (id) => { calls.push(`upsert-appointments:${id}`); } };
+    await persistFixture(store, buildFixture({ preset: 'small', seed: 1337, apply: true }));
+    expect(calls).toEqual(['clinica-demo', 'ownership:actual-clinic', 'appointments:actual-clinic', 'patients:actual-clinic', 'upsert-patients:actual-clinic', 'upsert-appointments:actual-clinic']);
+  });
   it('persists only after explicit apply and guarded URL', async () => {
     const persist = jest.fn();
     await runCli({ persist, print: jest.fn() }, ['--apply'], { DATABASE_URL: 'postgres://u:p@127.0.0.1/synkroo' });
