@@ -52,7 +52,27 @@ describe('CRM duplicate review permissions', () => {
     });
   });
 
-  it('does not expose owner merge actions from the CRM registry', () => {
-    expect(crmActions).toEqual([]);
+  it('does not expose owner merge actions in crmActions (only 12 human actions)', () => {
+    const names = crmActions.map((a) => a.name);
+    // 12 human actions — no owner/system-only
+    expect(names.sort()).toEqual([
+      'crm.adicionarNotaContato',
+      'crm.aprovarSugestaoDuplicidade',
+      'crm.atualizarTagsContato',
+      'crm.dispensarSugestaoDuplicidade',
+      'crm.executarMergeLead',
+      'crm.executarMergePatient',
+      'crm.listarContatos',
+      'crm.listarNotasContato',
+      'crm.listarSugestoesDuplicidade',
+      'crm.listarTimelineContato',
+      'crm.obterContato',
+      'crm.obterSugestaoDuplicidade',
+    ]);
+    // Owner merges (operacional.mesclarPacientes, comercial.mesclarLeads) are NOT here
+    expect(names).not.toContain('crm.mesclarLeads');
+    expect(names).not.toContain('crm.mesclarPacientes');
+    // System-only
+    expect(names).not.toContain('crm.reprocessarSugestoesDuplicidade');
   });
 });

@@ -185,6 +185,17 @@ function getModuleDirNames(): string[] {
     .map((e) => e.name);
 }
 
+function getModulesWithActionsDir(): string[] {
+  const modulesDir = path.resolve(__dirname, '../../../modules');
+  return fs.readdirSync(modulesDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('__'))
+    .filter((e) => {
+      const actionsDir = path.join(modulesDir, e.name, 'actions');
+      return fs.existsSync(actionsDir) && fs.statSync(actionsDir).isDirectory();
+    })
+    .map((e) => e.name);
+}
+
 it('every module directory is registered in the permission catalog after bootstrap', async () => {
   await bootstrapActions();
   const { getPermissionCatalog } = await import('@/core/rbac/catalog');
@@ -208,4 +219,57 @@ it('every module directory is registered in the permission catalog after bootstr
       missing.map((m) => `  - ${m}: add dynamic import + registerActions + registerAccessPermissions to bootstrap.ts`).join('\n')
     );
   }
+});
+
+// ─── Guard: no module with actions/ dir should have zero actions registered ───
+
+it('every module with an actions/ directory contributes at least 1 action to the registry', async () => {
+  await bootstrapActions();
+  const names = getActions().map((a) => a.name);
+
+  const actionsModules = getModulesWithActionsDir();
+  // ia has no actions/ directory — its actions come from a different pattern.
+
+  const missing: string[] = [];
+  for (const mod of actionsModules) {
+    const hasActions = names.some((n) => n.startsWith(`${mod}.`));
+    if (!hasActions) {
+      missing.push(mod);
+    }
+  }
+
+  if (missing.length) {
+    throw new Error(
+      `Modules have actions/ directories but ZERO actions registered after bootstrap:\n` +
+      missing.map((m) => `  - ${m}: ensure the module exports its actions array and bootstrap registers it`).join('\n')
+    );
+  }
+});
+
+// ─── CRM actions composition lock ────────────────────────────────────────────
+
+it('registers exactly 12 crm.* actions and excludes system-only reprocessarSugestoesDuplicidade', async () => {
+  await bootstrapActions();
+  const names = getActions().map((a) => a.name);
+
+  const crmActionNames = names.filter((n) => n.startsWith('crm.')).sort();
+
+  expect(crmActionNames).toHaveLength(12);
+  expect(crmActionNames).toEqual([
+    'crm.adicionarNotaContato',
+    'crm.aprovarSugestaoDuplicidade',
+    'crm.atualizarTagsContato',
+    'crm.dispensarSugestaoDuplicidade',
+    'crm.executarMergeLead',
+    'crm.executarMergePatient',
+    'crm.listarContatos',
+    'crm.listarNotasContato',
+    'crm.listarSugestoesDuplicidade',
+    'crm.listarTimelineContato',
+    'crm.obterContato',
+    'crm.obterSugestaoDuplicidade',
+  ]);
+
+  // system-only: NÃO pode estar registrada como ação humana
+  expect(names).not.toContain('crm.reprocessarSugestoesDuplicidade');
 });

@@ -12,6 +12,36 @@ import { executarMergePatient } from './executar-merge-patient';
 import { executarMergeLead } from './executar-merge-lead';
 import { reprocessarSugestoesDuplicidade } from './reprocessar-sugestoes-duplicidade';
 
+// ─── Public actions array (Task 4 — CRM Integration Closure) ────────────────
+// 12 ações públicas humanas:
+//   - 6 contact read/mutate: listarContatos, obterContato,
+//     listarTimelineContato, listarNotasContato, adicionarNotaContato,
+//     atualizarTagsContato.
+//   - 4 human duplicate review: listarSugestoesDuplicidade,
+//     obterSugestaoDuplicidade, aprovarSugestaoDuplicidade,
+//     dispensarSugestaoDuplicidade.
+//   - 2 human merge executors: executarMergePatient, executarMergeLead.
+//
+// NÃO inclui:
+//   - reprocessarSugestoesDuplicidade (system-only, requer cron secret).
+export const crmActions = [
+  // Contatos
+  listarContatos,
+  obterContato,
+  listarTimelineContato,
+  listarNotasContato,
+  adicionarNotaContato,
+  atualizarTagsContato,
+  // Duplicate review (human)
+  listarSugestoesDuplicidade,
+  obterSugestaoDuplicidade,
+  aprovarSugestaoDuplicidade,
+  dispensarSugestaoDuplicidade,
+  // Merge executors (human)
+  executarMergePatient,
+  executarMergeLead,
+];
+
 export const crmContactReadActions = [
   listarContatos,
   obterContato,
