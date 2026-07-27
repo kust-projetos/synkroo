@@ -16,10 +16,33 @@ jest.mock('@/core/actions/context', () => ({
   buildDelegatedContext: jest.fn(),
 }));
 
+// Task 5: routes gated por withModuleRoute — mock manifest como enabled.
+jest.mock('@/core/modules/manifest', () => ({
+  moduleManifest: {
+    isEnabled: jest.fn().mockResolvedValue(true),
+    enabledModules: jest.fn().mockResolvedValue(new Set(['core', 'crm'])),
+  },
+}));
+
 jest.mock('@/modules/crm/repositories/duplicate-suggestions-repository', () => ({
   ...jest.requireActual('@/modules/crm/repositories/duplicate-suggestions-repository'),
   findSuggestionById: jest.fn(),
 }));
+
+// Mock do service de execução para tornar os testes de dispatch determinísticos.
+// Sem este mock, o handler dispara executeMerge que tenta tocar o DB e falha
+// com status dependente da ordem das chamadas — não-determinístico.
+// NOTA: preservar a re-export de registerOwnerMerge (vinda de owner-merge-registry
+// via duplicate-execution-service) — caso contrário, `@/modules/crm.registerOwnerMerge`
+// quebra no describe "owner merge registry exposure".
+const mockExecuteMerge = jest.fn();
+jest.mock('@/modules/crm/services/duplicate-execution-service', () => {
+  const actual = jest.requireActual('@/modules/crm/services/duplicate-execution-service');
+  return {
+    ...actual,
+    executeMerge: (...args: unknown[]) => mockExecuteMerge(...args),
+  };
+});
 
 import { validateApiAuth } from '@/lib/auth/session';
 import { buildUserContext } from '@/core/actions/context';
@@ -47,11 +70,19 @@ async function jsonResponse(handler: any, ...args: any[]) {
 }
 
 describe('CRM duplicate routes', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+  jest.clearAllMocks();
+  // Default: executeMerge devolve sucesso determinístico.
+  mockExecuteMerge.mockResolvedValue({
+    ok: true,
+    suggestion: { id: 's1' },
+  });
+});
 
   describe('GET /api/contacts/duplicates', () => {
     it('returns 401 without auth', async () => {
       (validateApiAuth as jest.Mock).mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } });
+      (buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'));
       const { status } = await jsonResponse(listDuplicates, new NextRequest('http://localhost'));
       expect(status).toBe(401);
     });
@@ -60,6 +91,7 @@ describe('CRM duplicate routes', () => {
   describe('GET /api/contacts/duplicates/[id]', () => {
     it('returns 401 without auth', async () => {
       (validateApiAuth as jest.Mock).mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } });
+      (buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'));
       const { status } = await jsonResponse(getDuplicate, new NextRequest('http://localhost'), { params: Promise.resolve({ id: 's1' }) });
       expect(status).toBe(401);
     });
@@ -68,6 +100,8 @@ describe('CRM duplicate routes', () => {
   describe('POST /api/contacts/duplicates/[id]/approve', () => {
     it('returns 401 without auth', async () => {
       (validateApiAuth as jest.Mock).mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } });
+      // Task 5: routes usam buildUserContext (não mais validateApiAuth).
+      (buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'));
       const { status } = await jsonResponse(approveDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
       expect(status).toBe(401);
     });
@@ -76,6 +110,7 @@ describe('CRM duplicate routes', () => {
   describe('POST /api/contacts/duplicates/[id]/dismiss', () => {
     it('returns 401 without auth', async () => {
       (validateApiAuth as jest.Mock).mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } });
+      (buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'));
       const { status } = await jsonResponse(dismissDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
       expect(status).toBe(401);
     });
@@ -92,19 +127,40 @@ describe('CRM duplicate routes', () => {
     it('dispatches to patient merge for patient suggestions', async () => {
       mockAuth();
       (findSuggestionById as jest.Mock).mockResolvedValue({
-        id: 's1', clinicId: 'c1', ownerType: 'patient', leftId: 'l1', rightId: 'r1',
+        id: '00000000-0000-4000-8000-000000000001', clinicId: 'c1', ownerType: 'patient', leftId: 'l1', rightId: 'r1',
       });
-      const { status } = await jsonResponse(mergeDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
-      expect(status).toBe(500);
+      const { status } = await jsonResponse(
+        mergeDuplicate,
+        new NextRequest('http://localhost', { method: 'POST' }),
+        { params: Promise.resolve({ id: '00000000-0000-4000-8000-000000000001' }) },
+      );
+      expect(status).toBe(200);
+      // Dispatch verificado via executeMerge (mock determinístico): chamado com
+      // (id, 'patient', ctx). UUID válido garante que a action não cai em
+      // invalid_input antes de chegar no service.
+      expect(mockExecuteMerge).toHaveBeenCalledWith(
+        '00000000-0000-4000-8000-000000000001',
+        'patient',
+        expect.objectContaining({ clinicId: 'c1' }),
+      );
     });
 
     it('dispatches to lead merge for lead suggestions', async () => {
       mockAuth();
       (findSuggestionById as jest.Mock).mockResolvedValue({
-        id: 's1', clinicId: 'c1', ownerType: 'lead', leftId: 'l1', rightId: 'r1',
+        id: '00000000-0000-4000-8000-000000000002', clinicId: 'c1', ownerType: 'lead', leftId: 'l1', rightId: 'r1',
       });
-      const { status } = await jsonResponse(mergeDuplicate, new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 's1' }) });
-      expect(status).toBe(500);
+      const { status } = await jsonResponse(
+        mergeDuplicate,
+        new NextRequest('http://localhost', { method: 'POST' }),
+        { params: Promise.resolve({ id: '00000000-0000-4000-8000-000000000002' }) },
+      );
+      expect(status).toBe(200);
+      expect(mockExecuteMerge).toHaveBeenCalledWith(
+        '00000000-0000-4000-8000-000000000002',
+        'lead',
+        expect.objectContaining({ clinicId: 'c1' }),
+      );
     });
   });
 
