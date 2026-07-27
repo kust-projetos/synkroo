@@ -1,18 +1,21 @@
-// Allowlist explícita das actions expostas à IA via agent-bridge.
-// Deny-by-default: qualquer action.name que NÃO esteja em AGENT_SAFE_ACTIONS
-// é filtrada de listToolsLogic e bloqueada em executeActionLogic antes de
-// qualquer idempotency marking ou runAction.
-//
-// Por que literal e não derivado de módulo/permissão/security-matrix:
-// - Segurança: precisa ser auditável, finito e congelado em PR. Inferência
-//   por módulo/permissão vaza actions sensíveis se a permissão for broad.
-// - Defesa em profundidade: assertSystemAllowed (security-matrix.ts) e o
-//   RBAC do runAction continuam como segunda e terceira barreiras para as
-//   poucas ações que passam pela allowlist.
-//
-// Política vigente: somente leitura/agendamento do módulo operacional são
-// permitidos. Operações internas/sensíveis de CRM, Financeiro, Comercial
-// e mesclagens do Operacional ficam invisíveis à IA.
+/**
+ * Política de allowlist da bridge IA.
+ *
+ * Regra: deny-by-default. Apenas nomes explicitamente listados em
+ * `AGENT_SAFE_ACTIONS` podem ser expostos como ferramenta da bridge IA
+ * (`listToolsLogic`) ou executados (`executeActionLogic`).
+ *
+ * Não inferir permissão por módulo, security matrix, RBAC ou manifesto:
+ * a lista é literal e auditável. CRM, Financeiro, mesclas internas e
+ * qualquer ação destrutiva ficam fora por construção, mesmo que sejam
+ * registradas globalmente no action registry.
+ */
+
+/**
+ * Nomes canônicos (literalmente `module.action`) que podem ser invocados
+ * pela bridge IA. Mantido como `ReadonlySet` para reduzir o risco de
+ * mutação acidental por consumidores.
+ */
 export const AGENT_SAFE_ACTIONS: ReadonlySet<string> = new Set<string>([
   'operacional.consultarDisponibilidade',
   'operacional.listarProcedimentos',
@@ -24,6 +27,14 @@ export const AGENT_SAFE_ACTIONS: ReadonlySet<string> = new Set<string>([
   'operacional.atualizarPaciente',
 ]);
 
-export function isAgentSafeAction(name: string): boolean {
-  return AGENT_SAFE_ACTIONS.has(name);
+/**
+ * Verifica se `actionName` é uma ferramenta permitida para a bridge IA.
+ *
+ * - `null`/`undefined`/string vazia/não-string → `false`.
+ * - Nome presente no allowlist → `true`.
+ * - Qualquer outro nome → `false` (deny-by-default).
+ */
+export function isAgentSafeAction(actionName: unknown): actionName is string {
+  if (typeof actionName !== 'string' || actionName === '') return false;
+  return AGENT_SAFE_ACTIONS.has(actionName);
 }

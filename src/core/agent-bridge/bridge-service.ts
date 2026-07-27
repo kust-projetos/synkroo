@@ -42,7 +42,12 @@ export async function listToolsLogic(
   const ctx = await rebuildCtx(deps, v.payload);
   const allowed = deps
     .getActions()
-    .filter((a) => isAgentSafeAction(a.name) && ctx.hasModule(a.module) && ctx.can(a.requires));
+    .filter(
+      (a) =>
+        isAgentSafeAction(a.name) &&
+        ctx.hasModule(a.module) &&
+        ctx.can(a.requires),
+    );
   return { ok: true, catalog: buildToolCatalogFromList(allowed) };
 }
 
@@ -72,26 +77,35 @@ export async function executeActionLogic(
   });
   if (!v.ok) return { ok: false, error: v.error };
 
-  // 2. anti-replay por idempotencyKey
+  // 2. anti-replay por idempotencyKey (checa, mas só marca após passar pelo allowlist)
   const dedupKey = `${input.conversationId}:${input.idempotencyKey}`;
   if (await deps.store.wasSeen(dedupKey)) {
     return { ok: false, error: 'duplicate' };
   }
-  // 3. alias → action.name → allowlist
+
+  // 3. alias → action.name
   const action = deps
     .getActions()
     .find((a) => normalizeToolName(a.name) === input.alias);
-  if (!action || !isAgentSafeAction(action.name)) {
+  if (!action) return { ok: false, error: 'unknown_tool' };
+
+  // 4. allowlist IA (deny-by-default): barreira primária que acontece
+  //    ANTES de consumir a chave de idempotência e ANTES de qualquer
+  //    runAction. CRM/Financeiro/mesclas nunca chegam ao security matrix.
+  if (!isAgentSafeAction(action.name)) {
     return { ok: false, error: 'unknown_tool' };
   }
 
+  // 5. marca idempotência somente após o allowlist autorizar.
   const ttl = Math.max(
     Math.ceil((v.payload.exp - Date.now()) / 1000) + 30,
     60,
   );
   await deps.store.markSeen(dedupKey, ttl);
 
-  // 4. matriz (só source='system'); delegated cai no RBAC do runAction
+  // 6. matriz (só source='system'); delegated cai no RBAC do runAction
+  //    Barreira secundária — restringe flags de confirmação/identidade
+  //    dentro do subconjunto allowlistado.
   if (v.payload.source === 'system') {
     const gate = assertSystemAllowed(action.name, input.flags);
     if (!gate.allowed) {
@@ -99,7 +113,7 @@ export async function executeActionLogic(
     }
   }
 
-  // 5. ctx real + runAction (RBAC + manifesto + input zod dentro do runAction)
+  // 7. ctx real + runAction (RBAC + manifesto + input zod dentro do runAction)
   const ctx = await rebuildCtx(deps, v.payload);
   const result = await deps.runAction(action, input.input, ctx);
   if (!result.ok) {
