@@ -34,6 +34,7 @@ const agendar = {
   input: z.object({ pacienteId: z.string(), data: z.string() }),
 } as unknown as ActionDefinition<any, any>;
 
+// registrado globalmente (actionRegistry), mas fora do allowlist bridge IA
 const cancelar = {
   name: 'operacional.cancelarConsulta',
   module: 'operacional',
@@ -65,6 +66,37 @@ function deps(
   };
 }
 
+/**
+ * Versão observável dos deps: permite contar side effects que DEVEM
+ * acontecer (runAction) ou NÃO devem (markSeen para uma ação bloqueada).
+ */
+function trackedDeps(): BridgeDeps & {
+  runCalls: number;
+  seenMarks: string[];
+  seenChecks: string[];
+} {
+  const seenChecks: string[] = [];
+  const seenMarks: string[] = [];
+  let runCalls = 0;
+  const store = {
+    async wasSeen(j: string) {
+      seenChecks.push(j);
+      return false;
+    },
+    async markSeen(j: string, _t: number) {
+      seenMarks.push(j);
+    },
+  };
+  const d = deps({
+    store,
+    runAction: async () => {
+      runCalls++;
+      return { ok: true as const, data: { done: true } };
+    },
+  });
+  return Object.assign(d, { runCalls, seenMarks, seenChecks });
+}
+
 async function handleFor(
   source: 'system' | 'agent_delegated' = 'system',
 ) {
@@ -89,9 +121,31 @@ describe('listToolsLogic', () => {
       expect(r.catalog.tools.every((t) => t.alias.includes('operacional'))).toBe(
         true,
       );
-      expect(r.catalog.tools.map((tool) => tool.alias)).not.toContain(
-        normalizeToolName(cancelar.name),
-      );
+    }
+  });
+
+  it('omite ações registradas globalmente que não estão no allowlist IA', async () => {
+    const handle = await handleFor();
+    const r = await listToolsLogic(deps(), { handle, conversationId: 'conv-1' });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      const aliases = r.catalog.tools.map((t) => t.alias);
+      // `cancelarConsulta` está em `actions` mas não no allowlist bridge IA.
+      expect(aliases).not.toContain(normalizeToolName(cancelar.name));
+      // Tudo o que sobrou tem de ser uma das 8 ações operacionais do plano.
+      const allowedNames = new Set([
+        'operacional.consultarDisponibilidade',
+        'operacional.listarProcedimentos',
+        'operacional.obterProcedimento',
+        'operacional.agendarConsulta',
+        'operacional.confirmarConsulta',
+        'operacional.entrarWaitlist',
+        'operacional.obterPaciente',
+        'operacional.atualizarPaciente',
+      ]);
+      for (const t of r.catalog.tools) {
+        expect(allowedNames.has(t.name)).toBe(true);
+      }
     }
   });
 
@@ -145,24 +199,23 @@ describe('executeActionLogic', () => {
     expect(r).toEqual({ ok: true, data: { done: true } });
   });
 
-  it('rejects unsafe action before marking or running', async () => {
+  it('blocks ação fora do allowlist (system) — unknown_tool, sem replay nem runAction', async () => {
     const handle = await handleFor();
-    const markSeen = jest.fn();
-    const runAction = jest.fn();
-    const r = await executeActionLogic(deps({
-      store: { wasSeen: async () => false, markSeen },
-      runAction,
-    }), {
+    const d = trackedDeps();
+    const r = await executeActionLogic(d, {
       handle,
       conversationId: 'conv-1',
-      idempotencyKey: 'ik-proibido',
+      idempotencyKey: 'ik-cancel-bloqueado',
       alias: normalizeToolName(cancelar.name),
       input: {},
       flags: { confirmed: true },
     });
     expect(r).toMatchObject({ ok: false, error: 'unknown_tool' });
-    expect(markSeen).not.toHaveBeenCalled();
-    expect(runAction).not.toHaveBeenCalled();
+    // Barreira secundária (matriz) não chega a ser consultada.
+    expect(d.runCalls).toBe(0);
+    // idempotencyKey NÃO pode ser marcada — a IA pode corrigir o alias.
+    const expectedKey = 'conv-1:ik-cancel-bloqueado';
+    expect(d.seenMarks).not.toContain(expectedKey);
   });
 
   it('rejects forged handle', async () => {
