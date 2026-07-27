@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import { defineAction, registerActions, clearRegistry } from '@/core/actions';
 import { buildPresetPermissions, seedRbacForClinic, syncRolePermissions, type RoleFinder } from '../seed';
+import { SYSTEM_PRESETS } from '../presets';
 import { AGENT_ROLE_NAME, DEFAULT_AGENT_PERMISSIONS } from '../agent-access';
 import type { DbOrTx } from '../seed';
 
 beforeEach(() => clearRegistry());
 
-it('buildPresetPermissions expands preset modules from runtime catalog (ghost actions incluídos)', () => {
+it('buildPresetPermissions deriva permissões do SYSTEM_PRESETS a partir do JSON canônico', () => {
   // Registra actions FANTASMAS no catalog — com catalog-driven,
   // ESTES APARECEM se o módulo corresponder ao preset.
   registerActions([
@@ -15,18 +16,18 @@ it('buildPresetPermissions expands preset modules from runtime catalog (ghost ac
     defineAction({ name: 'op.real', module: 'operacional', requires: 'operacional:view', label: 'View', input: z.object({}), handler: async () => null }),
   ]);
 
-  const keys = buildPresetPermissions({
-    name: 'Recepcionista',
-    description: '',
-    modules: ['operacional'],
-    extraKeys: ['comercial:view'],
-  });
+  // ★ Deriva do SYSTEM_PRESETS (fonte: preset-policy.json) — NÃO hardcoded.
+  // Este teste FALHA se presets.ts voltar a divergir do JSON canônico.
+  const recepcionista = SYSTEM_PRESETS.find(p => p.name === 'Recepcionista');
+  if (!recepcionista) throw new Error('Recepcionista preset ausente de SYSTEM_PRESETS');
+
+  const keys = buildPresetPermissions(recepcionista);
 
   // operacional:* do catalog (incluindo ghost) são expandidos
   expect(keys).toContain('operacional:view');
   expect(keys).toContain('operacional:ghost');  // catalog-driven: ghost INCLUÍDO
-  // extraKeys adicionada verbatim
-  expect(keys).toContain('comercial:view');
+  // extraKeys do JSON canônico (Recepcionista: crm:view)
+  expect(keys).toContain('crm:view');
   // chaves de módulos não inclusos NÃO devem aparecer
   expect(keys).not.toContain('financeiro:view');
   expect(keys).not.toContain('financeiro:ghost');
