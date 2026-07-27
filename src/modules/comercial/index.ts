@@ -69,5 +69,9 @@ export const comercialActions = [
 export { comercialManifest } from './manifest';
 export { registrarNotaLead } from './actions/registrar-nota-lead';
 export { atualizarTagsLead } from './actions/atualizar-tags-lead';
-export { mesclarLeads } from './actions/mesclar-leads';
 export { comercialAccessPermissions } from './permissions';
+
+// Import de efeito colateral: registra mergeLeads no ownerMergeRegistry do CRM.
+// NÃO remover — nenhum símbolo exportado, mas sem este import o owner-merge
+// de lead falha silenciosamente em runtime (dispatcher não encontrado).
+import '@/modules/crm/services/lead-merge-dispatcher';

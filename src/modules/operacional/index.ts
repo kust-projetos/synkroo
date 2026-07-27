@@ -89,5 +89,9 @@ export { processarConfirmacaoResposta } from './actions/processar-confirmacao-re
 export { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
 export { registrarObservacaoPaciente } from './actions/registrar-observacao-paciente';
 export { atualizarTagsPaciente } from './actions/atualizar-tags-paciente';
-export { mesclarPacientes } from './actions/mesclar-pacientes';
 export { operacionalAccessPermissions } from './permissions';
+
+// Import de efeito colateral: registra mergePatients no ownerMergeRegistry do CRM.
+// NÃO remover — nenhum símbolo exportado, mas sem este import o owner-merge
+// de patient falha silenciosamente em runtime (dispatcher não encontrado).
+import '@/modules/crm/services/patient-merge-dispatcher';
