@@ -162,10 +162,15 @@ export async function createUserWithClinic(
       passwordHash: hashPassword(params.password),
     });
 
-    // 4. Seed dos perfis de sistema (idempotente) na MESMA tx — atomicidade da FK roles.clinic_id.
+    // 4. Garante catálogo populado (idempotente) antes do seed.
+    // Sem bootstrap, seedRbacForClinic semeia perfis com permissões vazias.
+    const { bootstrapActions } = await import('@/core/actions/bootstrap');
+    await bootstrapActions();
+
+    // 5. Seed dos perfis de sistema (idempotente) na MESMA tx — atomicidade da FK roles.clinic_id.
     await seedRbacForClinic(clinic.id, tx);
 
-    // 5. Concede ao dono o acesso com role Owner (sem isso, resolveAccess → can:()=>false = lockout).
+    // 6. Concede ao dono o acesso com role Owner (sem isso, resolveAccess → can:()=>false = lockout).
     const [ownerRole] = await tx
       .select({ id: roles.id })
       .from(roles)

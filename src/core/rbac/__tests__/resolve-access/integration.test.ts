@@ -12,6 +12,7 @@ jest.unmock('@/lib/db/client');
 import { resolveAccess } from '../../resolve';
 import type { RbacRepo } from '../../repository';
 import { seedRbacForClinic } from '@/core/rbac/seed';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { getDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema';
 import { roles, userClinicAccess, rolePermissions } from '@/modules/core/schema/rbac';
@@ -63,6 +64,7 @@ describeOrSkip('resolve-access — usuário inativo com access row (DB real)', (
     await db.insert(clinics).values({
       id: CLINIC, name: 'Test Clinic RA', slug: 'test-clinic-ra', phone: '', email: 'ra@t.local',
     }).onConflictDoNothing();
+    await bootstrapActions();
     await seedRbacForClinic(CLINIC);
 
     const [ownerRole] = await db.select({ id: roles.id })

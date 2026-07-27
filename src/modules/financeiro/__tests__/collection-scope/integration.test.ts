@@ -23,6 +23,7 @@ import { runAction } from '@/core/actions/run';
 import { buildDelegatedContext } from '@/core/actions/context';
 import { enviarLembreteCobranca } from '@/modules/financeiro/actions/enviar-lembrete-cobranca';
 import { seedRbacForClinic } from '@/core/rbac/seed';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
 import { users } from '@/lib/db/schema/core';
@@ -72,6 +73,7 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
     );
 
     // Seed RBAC for delegated context
+    await bootstrapActions();
     await seedRbacForClinic(CLINIC_A);
     const [ownerRow] = await db
       .select({ id: roles.id })

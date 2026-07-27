@@ -161,7 +161,8 @@ it('seedRbacForClinic reconciles Agente role perms on rerun (after manual remova
   const roleFinder: RoleFinder = async (name) => existingRoles[name] ?? null;
 
   // ── 1ª run: cria roles + grant DEFAULT_AGENT_PERMISSIONS ao Agente
-  await seedRbacForClinic('clinic-1', fakeDb, roleFinder);
+  // requireCatalog: false — teste usa fakeDb e catálogo controlado (clearRegistry no beforeEach)
+  await seedRbacForClinic('clinic-1', fakeDb, roleFinder, { requireCatalog: false });
 
   const agentId = existingRoles[AGENT_ROLE_NAME];
   expect(agentId).toBeDefined();
@@ -172,7 +173,7 @@ it('seedRbacForClinic reconciles Agente role perms on rerun (after manual remova
   expect(grants[agentId]).toEqual(['operacional:view']);
 
   // ── 2ª run (rerun do seed) — reconcilia as perms faltantes do Agente
-  await seedRbacForClinic('clinic-1', fakeDb, roleFinder);
+  await seedRbacForClinic('clinic-1', fakeDb, roleFinder, { requireCatalog: false });
 
   // O role Agente não foi recriado (existingRoles ainda aponta para o mesmo id)
   expect(existingRoles[AGENT_ROLE_NAME]).toBe(agentId);
@@ -181,4 +182,77 @@ it('seedRbacForClinic reconciles Agente role perms on rerun (after manual remova
   expect(grants[agentId]).toContain('operacional:manage_appointments');
   expect(grants[agentId]).toContain('atendimento:manage_messages');
   expect(grants[agentId].sort()).toEqual([...DEFAULT_AGENT_PERMISSIONS].sort());
+});
+
+// ─── Guard: seedRbacForClinic NÃO aceita catálogo vazio sem opt-out ──────────
+
+it('seedRbacForClinic throws quando catálogo vazio e requireCatalog não é false', async () => {
+  // clearRegistry foi chamado no beforeEach — catálogo está vazio.
+  await expect(seedRbacForClinic('clinic-guard')).rejects.toThrow(
+    /Catálogo de permissões vazio/,
+  );
+});
+
+it('seedRbacForClinic NÃO throw quando requireCatalog é explicitamente false', async () => {
+  // Fake-DB completo que suporta select + insert (catálogo vazio após clearRegistry é OK com opt-out).
+  const fakeDb = {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () => Promise.resolve([]),
+        }),
+      }),
+    }),
+    insert: () => ({
+      values: () => ({
+        onConflictDoNothing: async () => {},
+        returning: async () => [{ id: 'r1' }],
+      }),
+    }),
+  } as unknown as DbOrTx;
+
+  // Com requireCatalog: false, mesmo catálogo vazio após clearRegistry não lança erro.
+  await expect(
+    seedRbacForClinic('clinic-guard', fakeDb, { requireCatalog: false }),
+  ).resolves.toBeUndefined();
+});
+
+// ─── Administrador preset recebe permissões quando catálogo está populado ─────
+
+it('buildPresetPermissions para Administrador retorna permissões não-vazias com catálogo populado', () => {
+  // Simula catálogo populado (como após bootstrapActions)
+  registerActions([
+    defineAction({ name: 'op.view', module: 'operacional', requires: 'operacional:view', label: 'View Ops', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'op.appt', module: 'operacional', requires: 'operacional:manage_appointments', label: 'Appts', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'fin.view', module: 'financeiro', requires: 'financeiro:view', label: 'View Fin', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'crm.view', module: 'crm', requires: 'crm:view', label: 'View CRM', input: z.object({}), handler: async () => null }),
+    defineAction({ name: 'core.mu', module: 'core', requires: 'core:manage_users', label: 'Manage Users', input: z.object({}), handler: async () => null }),
+  ]);
+
+  const admin = SYSTEM_PRESETS.find(p => p.name === 'Administrador');
+  if (!admin) throw new Error('Administrador preset ausente');
+
+  const keys = buildPresetPermissions(admin);
+
+  // Administrador tem módulos: core, operacional, comercial, crm, financeiro, followup, ia, atendimento
+  // Com catálogo populado, deve conter permissões de todos esses módulos.
+  expect(keys.length).toBeGreaterThan(0);
+  expect(keys).toContain('core:manage_users');
+  expect(keys).toContain('operacional:view');
+  expect(keys).toContain('financeiro:view');
+  expect(keys).toContain('crm:view');
+});
+
+it('buildPresetPermissions retorna apenas extraKeys com catálogo vazio', () => {
+  // clearRegistry já foi chamado no beforeEach — catálogo vazio.
+  // Não registramos ações adicionais aqui.
+  const recepcionista = SYSTEM_PRESETS.find(p => p.name === 'Recepcionista');
+  if (!recepcionista) throw new Error('Recepcionista preset ausente');
+
+  const keys = buildPresetPermissions(recepcionista);
+
+  // Com catálogo vazio, só extraKeys sobrevivem (crm:view para Recepcionista).
+  // NÃO deve conter operacional:* (que viriam do catálogo).
+  expect(keys).toContain('crm:view');
+  expect(keys).not.toContain('operacional:view');
 });
