@@ -1,5 +1,7 @@
+import type { ActionDefinition } from '@/core/actions/types';
+
 /** CRM — module public surface. */
-export const crmActions = [];
+export const crmActions: ActionDefinition[] = [];
 
 export {
   recalculateDuplicatesForLead,

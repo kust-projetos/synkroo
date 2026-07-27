@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { bootstrapActions, resetBootstrapForTests } from '../bootstrap';
 import { getActions, clearRegistry } from '../registry';
 
@@ -144,4 +146,66 @@ it('all atendimento actions are retrievable via getAction()', async () => {
   expect(getAction('atendimento.classificarIntencao')).toBeDefined();
   expect(getAction('atendimento.extrairEntidades')).toBeDefined();
   expect(getAction('atendimento.enviarMensagemDireta')).toBeDefined();
+});
+
+// ─── CRM & Financeiro module registry guards ──────────────────────────────────
+
+it('registers crm access permissions in the catalog', async () => {
+  await bootstrapActions();
+  const { getPermissionCatalog } = await import('@/core/rbac/catalog');
+  const catalog = getPermissionCatalog();
+  const keys = catalog.map((p) => p.key);
+  expect(keys).toContain('crm:view');
+  expect(keys).toContain('crm:manage_notes');
+  expect(keys).toContain('crm:manage_tags');
+  expect(keys).toContain('crm:review_duplicates');
+  expect(keys).toContain('crm:merge_patients');
+  expect(keys).toContain('crm:merge_leads');
+});
+
+it('registers financeiro access permissions in the catalog', async () => {
+  await bootstrapActions();
+  const { getPermissionCatalog } = await import('@/core/rbac/catalog');
+  const catalog = getPermissionCatalog();
+  const keys = catalog.map((p) => p.key);
+  expect(keys).toContain('financeiro:view');
+  expect(keys).toContain('financeiro:create_budget');
+  expect(keys).toContain('financeiro:manage_budget');
+  expect(keys).toContain('financeiro:record_payment');
+  expect(keys).toContain('financeiro:manage_collections');
+  expect(keys).toContain('financeiro:manage_gateways');
+});
+
+// ─── Guard: every src/modules/ dir must be registered in bootstrap ────────────
+
+function getModuleDirNames(): string[] {
+  const modulesDir = path.resolve(__dirname, '../../../modules');
+  return fs.readdirSync(modulesDir, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('__'))
+    .map((e) => e.name);
+}
+
+it('every module directory is registered in the permission catalog after bootstrap', async () => {
+  await bootstrapActions();
+  const { getPermissionCatalog } = await import('@/core/rbac/catalog');
+  const catalog = getPermissionCatalog();
+  const catalogModules = new Set(catalog.map((p) => p.module));
+
+  const dirModules = getModuleDirNames();
+
+  const missing: string[] = [];
+  for (const mod of dirModules) {
+    // analytics não existe como diretório em src/modules/, mas aparece no preset-policy.json.
+    // Se um dia o diretório for criado, este guard passará a exigi-lo automaticamente.
+    if (!catalogModules.has(mod)) {
+      missing.push(mod);
+    }
+  }
+
+  if (missing.length) {
+    throw new Error(
+      `Modules exist in src/modules/ but are NOT registered in bootstrap:\n` +
+      missing.map((m) => `  - ${m}: add dynamic import + registerActions + registerAccessPermissions to bootstrap.ts`).join('\n')
+    );
+  }
 });
