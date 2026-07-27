@@ -210,6 +210,7 @@ Vocabulário canônico de `epics.md`. Cada módulo segue o template (§6) e a Ac
 | **Escritório / Documentos** (criação de docs, arquivos, contratos, e-mails) | ❌ | greenfield |
 | **Operações Especiais Odonto** (odontograma, proposta visual, orientações) | parcial | expandir |
 | **Gestão do Agente de IA** (config, auditoria de decisões, ações pendentes) | base (`agent/decisions`) | expandir |
+| **Gestão de Perfis e Acessos** (RBAC editável pela interface) | parcial (só criação) | expandir → §9.2 |
 | **Integrações de terceiros** (saúde, financeiro, marketing, operacional) — P3 | ❌ | greenfield (camada) |
 
 > Priorização do Eixo 2 (ordem de detalhamento) a definir antes de iniciar os módulos. Sugestão inicial alinhada à visão WhatsApp-first: **Core → Atendimento (E-01) → Operacional (E-02) → Follow-up (E-03) → Agente IA**.
@@ -217,6 +218,34 @@ Vocabulário canônico de `epics.md`. Cada módulo segue o template (§6) e a Ac
 ### 9.1 Eixo CRM/Contatos ↔ Comercial ↔ Operacional (design aberto)
 
 Bounded contexts distintos: **Leads** (comercial, E-05), **Pacientes** (operacional, E-02), **Contatos/CRM** (E-04) como camada ampla que pode referenciar ambos (e mais). Como o sistema é modular, um cliente pode **não ter** o módulo CRM. Modelo final (entidade unificada vs. referências entre contextos; transição lead→paciente) decidido no spec do módulo **E-04**, com proposta e mockup. Princípio: Operacional e Comercial funcionam **sem** o CRM.
+
+### 9.2 Gestão de Perfis e Acessos pela interface (capacidade transversal)
+
+**Princípio:** perfis e acessos são **dados gerenciáveis em runtime**, não configuração rígida em código. Os presets em `preset-policy.json` são apenas o **default de seed** de uma clínica nova; a fonte de verdade em runtime são as tabelas `roles` / `role_permissions` / `user_clinic_access`, lidas por `resolveAccess`. O owner/administrador deve conseguir ajustar tudo pela interface, sem deploy.
+
+O código já respeita esse princípio no seed: `seedRbacForClinic` preserva roles existentes (`if (existingId) continue`) e `syncRolePermissions` é insert-only — re-seed nunca sobrescreve o que o cliente configurou.
+
+**Estado atual (reconhecimento 2026-07-27):**
+
+| Item | Estado |
+|---|---|
+| Criar perfil com conjunto de permissões | ✅ existe — `/dashboard/configuracoes/acessos/perfis` (`RoleForm`, gate `core:manage_users`) |
+| Editar permissões de perfil existente | ❌ ausente — "Perfis existentes" é lista somente-leitura |
+| Excluir/clonar perfil | ❌ ausente |
+| Conceder/revogar acesso de usuário a clínica (`user_clinic_access`) | ❌ sem UI |
+| Atribuir perfil a usuário | ❌ sem UI |
+| API de roles/permissions | ❌ inexistente (nenhuma rota em `src/app/api`) |
+| Catálogo de permissões exibido na UI | ⚠️ derivado do registry runtime (`getGroupedCatalog` → `getPermissionCatalog`) — **um módulo não registrado no bootstrap fica invisível na tela** |
+
+**Escopo da capacidade:**
+
+1. **CRUD completo de perfis** — editar permissões de perfil existente, clonar preset, excluir perfil não-sistema. Perfis de sistema devem ser clonáveis, e a decisão de permitir ou não editá-los diretamente faz parte da spec.
+2. **Gestão de acessos** — atribuir/remover perfil por usuário e conceder/revogar `user_clinic_access` (staff multi-clínica), respeitando a hierarquia `master` > `owner` > perfis.
+3. **Action Layer + API** — toda operação como Action registrada (consumível por UI e agente), coberta por `core:manage_users`.
+4. **Trilha de auditoria** — mudança de permissão é evento sensível; registrar quem alterou o quê e quando.
+5. **Invariantes de segurança** — nunca permitir escalada: `master:*` fora do alcance, e um perfil não pode conceder permissão que o próprio ator não possui.
+
+**Dependência dura:** o seletor de permissões da UI só mostra o que está no registry runtime. Todo módulo precisa estar registrado em `src/core/actions/bootstrap.ts`, com teste de guard que quebre se algum deixar de ser — caso contrário o módulo some silenciosamente tanto do seed quanto da tela.
 
 ---
 
