@@ -75,14 +75,34 @@ Nada mais deve ser construído em cima de três branches empilhadas não mergead
 
 Recomendo **1 PR**, porque os 10 commits contam uma história só (a regressão do `8447795e` e seu conserto) e separá-los cria PRs que não fazem sentido isolados.
 
-### P2 — Reparar RBAC das instâncias já existentes **[DECISÃO + EXECUÇÃO]**
+### ~~P2 — Reparar RBAC das instâncias já existentes~~ — **DISPENSADO em 2026-07-28**
+
+O dono confirmou que **não há nada em produção nem staging**. Sem instância para reparar, o item deixa de existir. Se algum dia subir um ambiente que já tenha clínicas criadas antes do fix do bug 7, rodar `scripts/migrate-userrole-to-rbac.ts` nele.
+
+<details>
+<summary>Descrição original</summary>
 
 O fix do bug 7 vale só para clínicas **novas**. Qualquer instância já rodando continua com perfis sem permissão — e o bypass do Owner esconde isso de quem testa.
 
 Ação: rodar `scripts/migrate-userrole-to-rbac.ts` (já corrigido no `2c32f856`) em cada ambiente.
 Preciso saber de você: **existem instâncias em produção/staging hoje?** Se não, este item cai para P5.
+</details>
 
-### P3 — Migrations: journal com timestamps forjados no futuro **[DECISÃO]**
+### ~~P3 — Migrations: journal com timestamps forjados no futuro~~ — **RESOLVIDO em 2026-07-28** (`9c662256`)
+
+A resposta do P2 (nada em produção) mudou o cálculo: sem ambientes contaminados para reparar, o conserto passou de caro para trivial — e ficaria caro no dia do primeiro cliente. Corrigido enquanto era de graça.
+
+**O que foi feito:**
+- `_journal.json`: âncoras que parecem datas reais preservadas (0000, 0001, 0003); as demais receberam o valor da âncora anterior + 1ms. Sequência estritamente crescente e inteiramente no passado (maior valor = 2026-07-05, 23 dias de margem até hoje). Datas reais eram irrecuperáveis — o squash `8447795e` adicionou 0001–0007 todos no mesmo commit.
+- Ledger do banco de dev re-carimbado, casando por **hash** (não por posição). 8/8.
+- `synkroo_test` **recriado do zero**, o que também validou o caminho do CI (banco novo) com o journal corrigido: ledger 8/8 casando hash **e** timestamp.
+
+**Achado colateral:** `synkroo_test` pré-existia e tinha 3 linhas com hash órfão — os arquivos 0001, 0002 e 0007 mudaram **depois** de terem sido aplicados ali. O drizzle não detecta isso: ele compara apenas timestamps, nunca conteúdo. Recriar o banco resolveu, mas fica o alerta — **arquivo de migration já aplicado não deve ser editado**, e nada no ferramental impede.
+
+**Verificado:** `db:migrate` exit 0 no dev; integração 24/24 a partir de banco novo; typecheck 0; `npm test` 197/1414.
+
+<details>
+<summary>Descrição original do problema</summary>
 
 `src/lib/db/migrations/meta/_journal.json` tem `when` fora de ordem e no futuro (0002 = 2026-09-25, 0007 = 2026-10-03). O drizzle aplica **apenas** migrations com timestamp maior que o último gravado no banco — ignora a ordem do journal.
 
@@ -95,10 +115,11 @@ Banco criado do zero (CI) aplica tudo em ordem e funciona; só ambientes **incre
 Por que é decisão sua: corrigir o journal **não basta** — ambientes que já gravaram os valores futuros seguem bloqueados, porque o bloqueio vive no banco. Cada ambiente precisa de reparo próprio. Alternativa a considerar: `db:push` em dev, migrations só em produção.
 
 **Até decidir: não confie em `db:migrate` incremental.**
+</details>
 
-*(Já feito, escopo local: carimbei o ledger do banco de dev — `db:migrate` local sai com exit 0. Hashes validados contra as linhas boas antes de escrever.)*
+---
 
-### P4 — Smoke do trio local em Workers **[EXECUÇÃO]**
+### P4 — Smoke do trio local em Workers **[EXECUÇÃO]** ← *próximo item aberto*
 
 Era a recomendação nº 1 no começo da sessão, antes das regressões aparecerem. Continua sendo a maior incógnita da arquitetura do Agente IA: `dev:ia-bridge` + `dev:ia-agent` + Next, conforme §P5 do spike. Nunca foi executado.
 
@@ -115,9 +136,17 @@ Responde a pergunta que nenhum teste responde: **o `DurableObject` cru funciona 
 
 ## 3. O que eu recomendo fazer agora
 
-**P1.** Abrir o PR único e mergear. Dez commits que corrigem oito bugs — incluindo um que atinge todo cliente novo — não deveriam ficar mais tempo fora da `main`.
+**Mergear o PR #6.** É a única coisa que importa agora. Doze commits corrigindo oito bugs — incluindo um que atinge todo cliente novo — não deveriam ficar mais tempo fora da `main`.
 
-Só depois disso vale abrir qualquer frente nova.
+Só depois disso vale abrir o P4.
+
+### Registro de mudanças deste plano
+
+| Data | O que mudou | Por quê |
+|---|---|---|
+| 2026-07-28 | P1 executado — PR #6 aberto | Decisão do dono: 1 PR único |
+| 2026-07-28 | P2 dispensado | Dono confirmou: nada em produção |
+| 2026-07-28 | P3 de "[DECISÃO], caro" para executado | A resposta do P2 removeu o custo — sem ambientes contaminados, o conserto virou trivial. Mudança por informação nova, não por reconsideração |
 
 ---
 
