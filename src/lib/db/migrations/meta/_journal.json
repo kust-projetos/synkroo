@@ -19,7 +19,7 @@
     {
       "idx": 2,
       "version": "7",
-      "when": 1790344800000,
+      "when": 1782223380001,
       "tag": "0002_comercial_phone_normalized",
       "breakpoints": true
     },
@@ -33,28 +33,28 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1790344800001,
+      "when": 1783286246112,
       "tag": "0004_crm_duplicate_suggestions",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
-      "when": 1790344800002,
+      "when": 1783286246113,
       "tag": "0005_operacional_patient_soft_merge",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
-      "when": 1790344800003,
+      "when": 1783286246114,
       "tag": "0006_comercial_lead_soft_merge",
       "breakpoints": true
     },
     {
       "idx": 7,
       "version": "7",
-      "when": 1791024000000,
+      "when": 1783286246115,
       "tag": "0007_crm_winner_left_right",
       "breakpoints": true
     }
