@@ -7,9 +7,27 @@ on:
     branches: [main]
 
 jobs:
+  # ── Gitleaks secret scan (bloqueante) ──────────────────────────
+  # Fase 0: scanner bloqueante sobre tree + history completo.
+  # Falha = pipeline para. Suppressions somente fixtures/docs comprovados.
+  gitleaks:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   ci:
     name: Build & Test
     runs-on: ubuntu-latest
+    needs: gitleaks
 
     services:
       postgres:

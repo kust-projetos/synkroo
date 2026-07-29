@@ -1,0 +1,34 @@
+# Gitleaks config — Synkroo
+# Fase 0: regras especificas para o stack do projeto
+
+title = "Synkroo Gitleaks Config"
+
+[extend]
+useDefault = true
+
+# ── Allowlist global ─────────────────────────────────────────────
+
+[allowlist]
+description = "Allowlist global — fixtures de teste e docs comprovados"
+
+paths = [
+  '''docs/CONFIGURACAO-LEMBRETES\.md''',
+  '''docs/GUIA-CONFIGURACAO\.md''',
+  '''docs/DATABASE_SETUP\.md''',
+  '''docs/supabase-setup\.md''',
+  '''docs/superpowers/plans/''',
+  '''scripts/setup-env\.sh''',
+  '''src/components/pi-finance/__tests__/''',
+  '''src/lib/pi-finance/''',
+  '''src/modules/.*/__tests__/''',
+  '''src/repositories/.*/__tests__/''',
+]
+
+stopwords = [
+  "CI_PLACEHOLDER",
+  "fake-auth-secret-for-ci",
+  "fake-jwt-secret-for-ci",
+  "change-me-local-dev-password",
+  "dev-seed-2026-reset-key",
+  "local-demo-jwt-secret-123456789",
+]

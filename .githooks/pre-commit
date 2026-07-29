@@ -1,0 +1,13 @@
+#!/bin/bash
+# Pre-commit hook — Gitleaks scan (staged changes only)
+# Instalar: cp .githooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+# Fallback manual caso pre-commit framework não esteja disponível.
+
+set -e
+
+echo "🔍 Gitleaks: scanning staged changes..."
+
+# Scan only the current working tree (no git history)
+gitleaks detect --source . --no-git --log-level=warn --verbose
+
+echo "✅ Gitleaks: no secrets found in staged changes"
