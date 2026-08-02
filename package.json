@@ -2,6 +2,10 @@
   "name": "synkroo",
   "version": "0.1.0",
   "private": true,
+  "overrides": {
+    "postcss": "$postcss",
+    "sharp": "^0.35.3"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -72,7 +76,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.7.0",
-    "next": "^15.1.0",
+    "next": "^15.5.22",
     "next-auth": "^4.24.14",
     "next-themes": "^0.4.6",
     "pg": "^8.21.0",
@@ -89,7 +93,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260625.1",
+    "@cloudflare/workers-types": "^5.20260729.1",
     "@eslint/eslintrc": "^3.3.5",
     "@opennextjs/cloudflare": "^1.19.11",
     "@playwright/test": "^1.59.1",
@@ -118,7 +122,7 @@
     "jest-environment-jsdom": "^30.4.1",
     "playwright": "^1.48.0",
     "playwright-extra": "^4.3.6",
-    "postcss": "^8.4.0",
+    "postcss": "^8.5.25",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "supertest": "^7.2.2",
     "tailwindcss": "^3.4.0",

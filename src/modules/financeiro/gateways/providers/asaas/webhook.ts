@@ -8,6 +8,7 @@
 import {
   createGatewayEvent as repoCreateEvent,
   findGatewayEvent as repoFindEvent,
+  findPaymentChargeByExternalId as repoFindPaymentChargeByExternalId,
   createPayment as repoCreatePayment,
   listGateways as repoListGateways,
 } from '../../../repositories/financeiro-repository';
@@ -62,20 +63,26 @@ export function normalizeAsaasWebhookEvent(payload: any): NormalizedGatewayEvent
   };
 }
 
-export async function processAsaasWebhook(input: WebhookInput): Promise<{ settled: boolean; duplicate?: boolean }> {
+export async function processAsaasWebhook(input: WebhookInput): Promise<{ settled: boolean; duplicate?: boolean; chargeFound?: boolean }> {
   const { clinicId, body } = input;
   const payload = body as Record<string, unknown>;
   const normalized = normalizeAsaasWebhookEvent(payload);
 
   const existing = await repoFindEvent(normalized.provider, normalized.externalEventId);
-  if (existing) return { settled: false, duplicate: true };
+  if (existing) return { settled: false, duplicate: true, chargeFound: true };
 
   const gateways = await repoListGateways(clinicId);
   const gateway = gateways.find(g => g.provider === normalized.provider);
 
   if (!gateway) {
-    // No matching gateway — log and return without settling
+    // No matching gateway → não podemos processar
     return { settled: false };
+  }
+
+  // Verifica se a cobrança (externalChargeId) existe localmente
+  const charge = await repoFindPaymentChargeByExternalId(clinicId, normalized.externalChargeId);
+  if (!charge) {
+    return { settled: false, chargeFound: false };
   }
 
   await repoCreateEvent({
@@ -103,8 +110,8 @@ export async function processAsaasWebhook(input: WebhookInput): Promise<{ settle
       notes: `Asaas webhook: ${normalized.externalEventId}`,
       createdBy: null,
     });
-    return { settled: true };
+    return { settled: true, chargeFound: true };
   }
 
-  return { settled: false };
+  return { settled: false, chargeFound: true };
 }

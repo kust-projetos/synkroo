@@ -6,6 +6,7 @@
 
 import { dbLogger, whatsappLogger } from "@/lib/logger";
 import * as campaignRepo from "@/repositories/campaigns";
+import { hasActiveConsent } from '@/services/contacts/consents.service';
 
 type PatientBasic = { id: string; name: string; phone: string };
 
@@ -133,36 +134,32 @@ export async function startCampaign(
 	const recipients = await campaignRepo.findPendingRecipients(campaignId);
 
 	let sent = 0;
-	let failed = 0;
 
 	for (const recipient of recipients) {
-		// Get patient phone from somewhere - for now we skip the patient join
-		// The actual sending would need patient phone lookup
-		// For now, mark as failed if no phone (actual implementation would fetch patient)
-		const result = await sendCampaignMessage(
-			undefined,
-			campaign.messageTemplate,
-		);
-
+		if (recipient.optOutMarketing || recipient.optOutReminders) {
+			await campaignRepo.markRecipientSuppressed(recipient.id, 'opt-out');
+			continue;
+		}
+		const consented = await hasActiveConsent(campaign.clinicId, recipient.patientId, 'patient', 'marketing');
+		if (!consented) {
+			await campaignRepo.markRecipientSuppressed(recipient.id, 'missing-consent');
+			continue;
+		}
+		const result = await sendCampaignMessage(recipient.patientPhone ?? undefined, campaign.messageTemplate);
 		if (result.success) {
 			await campaignRepo.markRecipientSent(recipient.id);
 			sent++;
 		} else {
-			await campaignRepo.markRecipientError(
-				recipient.id,
-				result.error ?? "Unknown error",
-			);
-			failed++;
+			await campaignRepo.markRecipientError(recipient.id, result.error ?? 'Unknown error');
 		}
-
-		// Rate limiting
-		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 
-	// Update campaign stats and status
 	await campaignRepo.updateCampaignCounts(campaignId);
-	await campaignRepo.updateCampaignStatus(campaignId, "completed");
-
+	if (sent === 0) {
+		await campaignRepo.updateCampaignStatus(campaignId, 'failed');
+		return { success: false, error: 'No recipients delivered' };
+	}
+	await campaignRepo.updateCampaignStatus(campaignId, 'completed');
 	return { success: true };
 }
 
@@ -229,10 +226,9 @@ async function sendCampaignMessage(
 // ─── Scheduled Processing ─────────────────────────────────────
 
 export async function processScheduledCampaigns(clinicId: string): Promise<void> {
-	dbLogger.info(
-		"processScheduledCampaigns called",
-		{ clinicId },
-	);
+	const campaigns = await campaignRepo.findScheduledCampaigns(clinicId);
+	for (const campaign of campaigns) await startCampaign(campaign.id);
+	dbLogger.info('scheduled campaigns processed', { clinicId, count: campaigns.length });
 }
 
 // ─── Reactivation Campaigns ───────────────────────────────────

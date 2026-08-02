@@ -6,6 +6,7 @@
 import { eq, and, desc, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { campaigns, campaignRecipients } from '@/lib/db/schema'
+import { patients } from '@/modules/operacional/schema'
 import { dbLogger } from '@/lib/logger'
 
 // ─── Types ────────────────────────────────────────────────────
@@ -49,6 +50,9 @@ export interface CampaignRecipientRow {
   conversionAppointmentId: string | null
   errorMessage: string | null
   createdAt: Date
+  patientPhone: string | null
+  optOutMarketing: boolean
+  optOutReminders: boolean
 }
 
 // ─── Create ───────────────────────────────────────────────────
@@ -126,6 +130,15 @@ export async function findCampaignById(id: string): Promise<CampaignRow | null> 
   return campaign as CampaignRow | null
 }
 
+export async function findScheduledCampaigns(clinicId: string): Promise<CampaignRow[]> {
+  const db = getDb()
+  const rows = await db.select().from(campaigns).where(and(
+    eq(campaigns.clinicId, clinicId),
+    eq(campaigns.status, 'scheduled'),
+  ))
+  return rows as CampaignRow[]
+}
+
 export async function findCampaignsByClinic(clinicId: string): Promise<CampaignRow[]> {
   const db = getDb()
   const rows = await db
@@ -148,8 +161,25 @@ export async function findCampaignRecipients(campaignId: string): Promise<Campai
 export async function findPendingRecipients(campaignId: string): Promise<CampaignRecipientRow[]> {
   const db = getDb()
   const rows = await db
-    .select()
+    .select({
+      id: campaignRecipients.id,
+      campaignId: campaignRecipients.campaignId,
+      patientId: campaignRecipients.patientId,
+      status: campaignRecipients.status,
+      sentAt: campaignRecipients.sentAt,
+      deliveredAt: campaignRecipients.deliveredAt,
+      respondedAt: campaignRecipients.respondedAt,
+      responseContent: campaignRecipients.responseContent,
+      convertedAt: campaignRecipients.convertedAt,
+      conversionAppointmentId: campaignRecipients.conversionAppointmentId,
+      errorMessage: campaignRecipients.errorMessage,
+      createdAt: campaignRecipients.createdAt,
+      patientPhone: patients.phone,
+      optOutMarketing: patients.optOutMarketing,
+      optOutReminders: patients.optOutReminders,
+    })
     .from(campaignRecipients)
+    .innerJoin(patients, eq(patients.id, campaignRecipients.patientId))
     .where(and(
       eq(campaignRecipients.campaignId, campaignId),
       eq(campaignRecipients.status, 'pending')
@@ -257,6 +287,10 @@ export async function updateRecipientStatus(
     .where(eq(campaignRecipients.id, id))
     .returning()
   return recipient as CampaignRecipientRow | null
+}
+
+export async function markRecipientSuppressed(id: string, reason: string): Promise<CampaignRecipientRow | null> {
+  return updateRecipientStatus(id, { status: 'opted_out', errorMessage: reason })
 }
 
 export async function markRecipientSent(id: string): Promise<CampaignRecipientRow | null> {

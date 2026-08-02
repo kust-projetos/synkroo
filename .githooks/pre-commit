@@ -1,0 +1,43 @@
+#!/bin/bash
+# Pre-commit hook — Gitleaks scan (staged changes only)
+#
+# INSTALAÇÃO (escolha UMA):
+#   A) pre-commit framework (recomendado):
+#      winget install pre-commit   # ou: brew install pre-commit
+#      pre-commit install
+#   B) Hook manual (fallback):
+#      cp .githooks/pre-commit .git/hooks/pre-commit
+#      chmod +x .git/hooks/pre-commit
+#
+# O hook do pre-commit framework (.pre-commit-config.yaml) escaneia
+# apenas arquivos staged. Este hook manual faz o mesmo.
+# Ambos são equivalentes em proteção.
+
+set -e
+
+echo "🔍 Gitleaks: scanning staged changes..."
+
+# Coleta arquivos staged (somente added/modified, ignora deleted)
+staged_files=$(git diff --cached --name-only --diff-filter=AM)
+
+if [ -z "$staged_files" ]; then
+  echo "✅ No staged files to scan"
+  exit 0
+fi
+
+# Cria temp dir com symlinks para os arquivos staged
+# (gitleaks precisa que os arquivos existam em disco)
+tmpdir=$(mktemp -d)
+trap 'rm -rf "$tmpdir"' EXIT
+
+echo "$staged_files" | while IFS= read -r file; do
+  if [ -f "$file" ]; then
+    mkdir -p "$tmpdir/$(dirname "$file")"
+    cp "$file" "$tmpdir/$file"
+  fi
+done
+
+# Scan apenas arquivos staged (não o worktree inteiro)
+gitleaks detect --source "$tmpdir" --no-git --log-level=warn --verbose
+
+echo "✅ Gitleaks: no secrets found in staged changes"

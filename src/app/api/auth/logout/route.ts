@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 
-const COOKIE_NAME = 'next-auth.session-token';
+function getCookieName(): string {
+  return process.env.NODE_ENV === 'production'
+    ? '__Secure-next-auth.session-token'
+    : 'next-auth.session-token';
+}
 
 /**
  * POST /api/auth/logout
@@ -13,7 +17,7 @@ export async function POST() {
       message: 'Logged out successfully',
     });
 
-    response.cookies.set(COOKIE_NAME, '', {
+    response.cookies.set(getCookieName(), '', {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',

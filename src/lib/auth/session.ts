@@ -11,6 +11,7 @@ export interface ServerUserProfile {
   phone: string | null;
   avatar_url: string | null;
   is_active: boolean;
+  session_version: number;
   clinic_id: string;
   clinics: {
     id: string;
@@ -32,6 +33,7 @@ function toProfileCamel(row: any): ServerUserProfile {
     phone: row.phone,
     avatar_url: row.avatarUrl,
     is_active: row.isActive,
+    session_version: row.sessionVersion,
     clinic_id: row.clinicId,
     clinics: row.clinics,
   };
@@ -71,7 +73,10 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
 
   try {
     const profile = await findUserProfileById(session.user.id);
-    return profile ? toProfileCamel(profile) : null;
+    if (!profile) return null;
+    const sessionVersion = session.user.sessionVersion;
+    if (sessionVersion !== undefined && sessionVersion !== profile.sessionVersion) return null;
+    return toProfileCamel(profile);
   } catch {
     return null;
   }

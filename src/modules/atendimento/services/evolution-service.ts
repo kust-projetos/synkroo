@@ -159,12 +159,13 @@ export class EvolutionApiService extends EventEmitter {
   }
 
   async getConnectionState(): Promise<{ state: string; statusReason?: number } | null> {
-    const result = await this.request<{ instance: { state: string; statusReason?: number } }>(
-      'GET', `/instance/connectionState/${this.instanceName}`,
+    // Evolution GO v0.7.2: GET /instance/status
+    const result = await this.request<{ data: { Connected: boolean; LoggedIn: boolean; Name: string } }>(
+      'GET', '/instance/status',
     );
     if (result.success && result.data) {
-      this.isConnected = result.data.instance?.state === 'open';
-      return result.data.instance;
+      this.isConnected = result.data.data?.Connected === true;
+      return { state: this.isConnected ? 'open' : 'close', statusReason: this.isConnected ? 200 : 0 };
     }
     return null;
   }
@@ -199,12 +200,13 @@ export class EvolutionApiService extends EventEmitter {
     let formattedNumber = number.replace(/\D/g, '');
     if (!formattedNumber.startsWith('55')) formattedNumber = '55' + formattedNumber;
 
-    const result = await this.request<{ key: { id: string } }>(
-      'POST', `/message/sendText/${this.instanceName}`,
-      { number: formattedNumber, text, options: options || {} },
+    // Evolution GO v0.7.2: POST /send/text (instance resolved by apikey token)
+    const result = await this.request<{ data: { Info: { ID: string } } }>(
+      'POST', '/send/text',
+      { number: formattedNumber, text, delay: options?.delay || 0 },
     );
     if (result.success && result.data) {
-      return { success: true, messageId: result.data.key?.id };
+      return { success: true, messageId: result.data.data?.Info?.ID };
     }
     return { success: false, error: result.error };
   }
@@ -215,15 +217,19 @@ export class EvolutionApiService extends EventEmitter {
     let formattedNumber = input.number.replace(/\D/g, '');
     if (!formattedNumber.startsWith('55')) formattedNumber = '55' + formattedNumber;
 
-    const result = await this.request<{ key: { id: string } }>(
-      'POST', `/message/sendMedia/${this.instanceName}`,
+    // Evolution GO v0.7.2: POST /send/media (instance resolved by apikey token)
+    const result = await this.request<{ data: { Info: { ID: string } } }>(
+      'POST', '/send/media',
       {
         number: formattedNumber,
-        mediaMessage: { mediatype: input.mediatype, media: input.media, caption: input.caption, fileName: input.fileName },
+        mediatype: input.mediatype,
+        media: input.media,
+        caption: input.caption,
+        fileName: input.fileName,
       },
     );
     if (result.success && result.data) {
-      return { success: true, messageId: result.data.key?.id };
+      return { success: true, messageId: result.data.data?.Info?.ID };
     }
     return { success: false, error: result.error };
   }

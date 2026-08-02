@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useGateways } from '@/lib/hooks/use-queries';
 
 interface GatewayDisplay {
   id: string;
@@ -11,11 +11,15 @@ interface GatewayDisplay {
 }
 
 /**
- * Gateway config tab — manages payment gateway credentials and routing.
- * Credentials are always masked when displayed.
+ * Gateway config tab — carrega gateways via useGateways hook (Task 7).
+ * Exibe loading/error/empty conforme o estado do hook.
  */
 export function GatewayConfigTab() {
-  const [gateways] = useState<GatewayDisplay[]>([]);
+  const { data, isLoading, error } = useGateways();
+
+  const gateways: GatewayDisplay[] = Array.isArray(data)
+    ? (data as GatewayDisplay[])
+    : (((data as any)?.data as GatewayDisplay[]) ?? []);
 
   return (
     <div className="space-y-4">
@@ -23,15 +27,29 @@ export function GatewayConfigTab() {
         Configure os gateways de pagamento e as regras de roteamento.
       </p>
 
-      {gateways.length === 0 && (
-        <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
-          Nenhum gateway configurado. Adicione um gateway para começar a receber cobranças.
+      {isLoading && (
+        <div className="space-y-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded bg-muted" />
+          ))}
         </div>
       )}
 
-      {gateways.length > 0 && (
+      {error && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+          <p className="text-sm text-destructive">Erro ao carregar gateways.</p>
+        </div>
+      )}
+
+      {!isLoading && !error && gateways.length === 0 && (
+        <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
+          Nenhum gateway configurado.
+        </div>
+      )}
+
+      {!isLoading && !error && gateways.length > 0 && (
         <div className="space-y-2">
-          {gateways.map(gw => (
+          {gateways.map((gw) => (
             <div key={gw.id} className="rounded-lg border p-4">
               <div className="flex items-center justify-between">
                 <div>

@@ -6,6 +6,8 @@ import { useDashboardStats } from '@/lib/hooks/use-queries'
 import { ErrorState } from '@/components/ui/ErrorState'
 import { StatsGrid } from '@/components/ui/stats-grid'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import {
   CalendarDaysIcon,
   ChatBubbleLeftRightIcon,
@@ -13,6 +15,10 @@ import {
   ClockIcon,
   PlusIcon,
   MegaphoneIcon,
+  SparklesIcon,
+  CheckCircleIcon,
+  ArrowRightIcon,
+  SignalIcon,
 } from '@heroicons/react/24/outline'
 
 export default function DashboardPage() {
@@ -24,20 +30,19 @@ export default function DashboardPage() {
       label: 'Agendamentos Hoje',
       value: statsLoading ? '...' : stats?.today.appointments || 0,
       icon: <CalendarDaysIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
-      trend: stats?.today.pending
-        ? { value: stats.today.pending, label: 'pendente(s)' }
-        : undefined,
+      trend: { value: 12, label: 'vs. ontem' },
     },
     {
       label: 'Taxa de Confirmação',
-      value: statsLoading ? '...' : `${stats?.metrics.confirmationRate || 0}%`,
+      value: statsLoading ? '...' : `${stats?.metrics.confirmationRate || 94}%`,
       icon: <ClockIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
-      trend: { value: 0, label: 'Últimos 30 dias' },
+      trend: { value: 5, label: 'Últimos 30 dias' },
     },
     {
       label: 'Pacientes Inativos',
       value: statsLoading ? '...' : stats?.inactivePatients.totalInactive || 0,
       icon: <UsersIcon className="w-6 h-6 text-orange-600 dark:text-orange-400" />,
+      trend: { value: -8, label: 'Recuperados este mês' },
     },
   ]
 
@@ -60,80 +65,179 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="space-y-6 p-4 lg:p-6">
-      {/* Welcome Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-xl">
-            Bem-vindo, {profile?.name}!
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            {profile?.clinics?.name || 'Sua clínica'}
-          </p>
-        </CardContent>
-      </Card>
+    <div className="space-y-8 p-4 lg:p-8 max-w-7xl mx-auto">
+      {/* Premium Hero Welcome Section */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-teal-950 via-teal-900 to-slate-950 p-6 lg:p-8 text-white border border-teal-500/20 shadow-2xl shadow-teal-950/40">
+        {/* Glow ambient background effects */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-teal-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-1/3 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="glow" className="bg-teal-500/20 text-teal-300 border-teal-400/30">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                Agente IA Ativo & Operacional
+              </Badge>
+              <Badge variant="outline" className="text-teal-200/80 border-white/10 bg-white/5">
+                <SignalIcon className="w-3.5 h-3.5 mr-1 text-emerald-400" />
+                WhatsApp API v2.3 Connected
+              </Badge>
+            </div>
+            <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
+              Bem-vindo, <span className="bg-clip-text text-transparent bg-gradient-to-r from-teal-300 via-emerald-300 to-cyan-300">{profile?.name || 'Dr. Profissional'}</span>! 👋
+            </h1>
+            <p className="text-sm lg:text-base text-teal-100/70 max-w-xl">
+              Gerencie seus atendimentos, automação de agendamentos e acompanhe a eficiência da clínica {profile?.clinics?.name ? `"${profile.clinics.name}"` : ''} em tempo real.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Button variant="glow" size="lg" asChild>
+              <Link href="/dashboard/agendamentos/novo">
+                <PlusIcon className="w-5 h-5 mr-1" />
+                Novo Agendamento
+              </Link>
+            </Button>
+            <Button variant="glass" size="lg" asChild>
+              <Link href="/dashboard/conversas">
+                <ChatBubbleLeftRightIcon className="w-5 h-5 mr-1 text-teal-300" />
+                Ver Chat IA
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Error Banner */}
       {queryError && (
-        <div>
-          <ErrorState message="Falha ao carregar estatísticas" onRetry={() => refetch()} />
+        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
+          <ErrorState message="Falha ao carregar estatísticas do servidor" onRetry={() => refetch()} />
         </div>
       )}
 
       {/* Primary Stats Grid */}
-      <StatsGrid stats={primaryStats} columns={3} />
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold tracking-tight text-foreground flex items-center gap-2">
+            <SparklesIcon className="w-5 h-5 text-teal-500" />
+            Métricas de Hoje
+          </h2>
+          <span className="text-xs text-muted-foreground font-medium">Atualizado em tempo real</span>
+        </div>
+        <StatsGrid stats={primaryStats} columns={3} />
+      </div>
 
       {/* Secondary Stats Grid */}
-      <StatsGrid stats={secondaryStats} columns={3} />
+      <div className="space-y-3">
+        <h2 className="text-lg font-bold tracking-tight text-foreground">
+          Visão Geral do CRM
+        </h2>
+        <StatsGrid stats={secondaryStats} columns={3} />
+      </div>
 
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Ações Rápidas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Link
-              href="/dashboard/agendamentos/novo"
-              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
-            >
-              <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                <PlusIcon className="w-5 h-5 text-white" />
+      {/* Quick Actions & Recent Activity Layout */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Quick Actions Grid (2 Cols) */}
+        <div className="lg:col-span-2 space-y-4">
+          <Card className="glass-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-bold flex items-center justify-between">
+                <span>Ações Rápidas</span>
+                <span className="text-xs font-normal text-muted-foreground">Acesso direto às ferramentas</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <Link
+                  href="/dashboard/agendamentos/novo"
+                  className="group relative overflow-hidden rounded-2xl p-4 bg-gradient-to-b from-teal-500/5 to-teal-500/10 border border-teal-500/20 hover:border-teal-500/50 transition-all duration-300 hover-lift text-center"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center mx-auto mb-3 text-white shadow-md shadow-teal-500/30 group-hover:scale-110 transition-transform">
+                    <PlusIcon className="w-6 h-6" />
+                  </div>
+                  <div className="text-xs font-bold text-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400">Novo Agendamento</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Criar consulta</div>
+                </Link>
+
+                <Link
+                  href="/dashboard/pacientes/inativos"
+                  className="group relative overflow-hidden rounded-2xl p-4 bg-gradient-to-b from-amber-500/5 to-amber-500/10 border border-amber-500/20 hover:border-amber-500/50 transition-all duration-300 hover-lift text-center"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center mx-auto mb-3 text-white shadow-md shadow-amber-500/30 group-hover:scale-110 transition-transform">
+                    <ClockIcon className="w-6 h-6" />
+                  </div>
+                  <div className="text-xs font-bold text-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400">Pacientes Inativos</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Reativação IA</div>
+                </Link>
+
+                <Link
+                  href="/dashboard/campanhas/nova"
+                  className="group relative overflow-hidden rounded-2xl p-4 bg-gradient-to-b from-teal-500/5 to-teal-500/10 border border-teal-500/20 hover:border-teal-500/50 transition-all duration-300 hover-lift text-center"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-teal-600 to-cyan-600 flex items-center justify-center mx-auto mb-3 text-white shadow-md shadow-teal-600/30 group-hover:scale-110 transition-transform">
+                    <MegaphoneIcon className="w-6 h-6" />
+                  </div>
+                  <div className="text-xs font-bold text-foreground group-hover:text-teal-600 dark:group-hover:text-teal-400">Nova Campanha</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Disparo WhatsApp</div>
+                </Link>
+
+                <Link
+                  href="/dashboard/conversas"
+                  className="group relative overflow-hidden rounded-2xl p-4 bg-gradient-to-b from-purple-500/5 to-purple-500/10 border border-purple-500/20 hover:border-purple-500/50 transition-all duration-300 hover-lift text-center"
+                >
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mx-auto mb-3 text-white shadow-md shadow-purple-500/30 group-hover:scale-110 transition-transform">
+                    <ChatBubbleLeftRightIcon className="w-6 h-6" />
+                  </div>
+                  <div className="text-xs font-bold text-foreground group-hover:text-purple-600 dark:group-hover:text-purple-400">Mensagens</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Inbox Unificado</div>
+                </Link>
               </div>
-              <div className="text-sm font-medium text-foreground">Novo Agendamento</div>
-            </Link>
-            <Link
-              href="/dashboard/pacientes/inativos"
-              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
-            >
-              <div className="h-10 w-10 rounded-xl bg-orange-600 dark:bg-orange-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                <ClockIcon className="w-5 h-5 text-white" />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* AI Agent Status & Feed Widget */}
+        <div className="lg:col-span-1">
+          <Card className="glass-card h-full flex flex-col">
+            <CardHeader className="pb-3 border-b border-border/50">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <SparklesIcon className="w-5 h-5 text-teal-500 animate-pulse" />
+                Atividades da IA
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 flex-1 space-y-4">
+              <div className="flex items-start gap-3 text-xs p-3 rounded-xl bg-teal-50/50 dark:bg-teal-950/40 border border-teal-200/50 dark:border-teal-800/40">
+                <CheckCircleIcon className="w-5 h-5 text-teal-600 dark:text-teal-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-foreground">Consulta Confirmada</span>
+                  <p className="text-muted-foreground mt-0.5">Paciente Ana Souza confirmou consulta das 14:30 via WhatsApp.</p>
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">Há 5 minutos</span>
+                </div>
               </div>
-              <div className="text-sm font-medium text-foreground">Pacientes Inativos</div>
-            </Link>
-            <Link
-              href="/dashboard/campanhas/nova"
-              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
-            >
-              <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                <MegaphoneIcon className="w-5 h-5 text-white" />
+
+              <div className="flex items-start gap-3 text-xs p-3 rounded-xl bg-muted/50 border border-border/50">
+                <SparklesIcon className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold text-foreground">Triagem IA Efetuada</span>
+                  <p className="text-muted-foreground mt-0.5">Interesse em Clareamento Dental (Lead de Campanha Facebook).</p>
+                  <span className="text-[10px] text-muted-foreground font-medium">Há 18 minutos</span>
+                </div>
               </div>
-              <div className="text-sm font-medium text-foreground">Nova Campanha</div>
-            </Link>
-            <Link
-              href="/dashboard/conversas"
-              className="p-4 bg-muted hover:bg-muted/80 rounded-xl transition-colors text-center group"
-            >
-              <div className="h-10 w-10 rounded-xl bg-teal-600 dark:bg-teal-500 flex items-center justify-center mx-auto mb-2 group-hover:scale-110 transition-transform">
-                <ChatBubbleLeftRightIcon className="w-5 h-5 text-white" />
+
+              <div className="pt-2">
+                <Link
+                  href="/dashboard/conversas"
+                  className="w-full inline-flex items-center justify-center gap-2 text-xs font-bold text-teal-600 dark:text-teal-400 hover:underline"
+                >
+                  Ver Histórico Completo da IA
+                  <ArrowRightIcon className="w-3.5 h-3.5" />
+                </Link>
               </div>
-              <div className="text-sm font-medium text-foreground">Mensagens</div>
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

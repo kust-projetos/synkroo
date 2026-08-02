@@ -31,7 +31,6 @@ import { obterAnalyticsPipeline } from './obter-analytics-pipeline';
 import { listarNotificacoes } from './listar-notificacoes';
 import { reconhecerNotificacao } from './reconhecer-notificacao';
 import { processarNotificacoesLeadsQuentes } from './processar-notificacoes-leads-quentes';
-import { mesclarLeads } from './mesclar-leads';
 
 export * from './registrar-nota-lead';
 export * from './atualizar-tags-lead';

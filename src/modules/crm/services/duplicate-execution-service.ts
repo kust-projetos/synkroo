@@ -44,7 +44,14 @@ export function registerOwnerMerge(
   ownerType: 'patient' | 'lead',
   dispatcher: OwnerMergeDispatcher,
 ): void {
+  // Map.set silently overwrites — safe post-Tier-3 (only one registrant per key).
+  // If a second registrant appears later, consider throwing on duplicate key.
   ownerMergeRegistry.set(ownerType, dispatcher);
+}
+
+/** Leitura de diagnóstico — exposto para guard tests. */
+export function getOwnerMergeDispatcher(ownerType: 'patient' | 'lead'): OwnerMergeDispatcher | undefined {
+  return ownerMergeRegistry.get(ownerType);
 }
 
 // ── Document conflict check ─────────────────────────────────────────────────

@@ -127,15 +127,23 @@ function NavItemLink({ item, isActive, collapsed }: { item: NavItem; isActive: b
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-lg transition-colors relative",
-        collapsed ? "justify-center p-2 mx-auto" : "px-3 py-2",
+        "flex items-center gap-3 rounded-xl transition-all duration-200 relative group font-medium",
+        collapsed ? "justify-center p-2.5 mx-auto" : "px-3 py-2.5",
         isActive
-          ? "bg-teal-600/[0.06] dark:bg-teal-400/10 text-teal-600 dark:text-teal-400"
-          : "text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
+          ? "bg-gradient-to-r from-teal-500/15 via-teal-500/10 to-transparent text-teal-700 dark:text-teal-300 font-semibold shadow-sm"
+          : "text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100/70 dark:hover:bg-zinc-800/40"
       )}
     >
-      <Icon className={cn("flex-shrink-0", collapsed ? "h-5 w-5" : "h-[18px] w-[18px]", isActive && "text-teal-600 dark:text-teal-400")} />
-      {!collapsed && <span className={cn("text-[13px]", isActive && "font-semibold")}>{item.name}</span>}
+      {/* Active Indicator Bar */}
+      {isActive && !collapsed && (
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-gradient-to-b from-teal-500 to-emerald-500 shadow-[0_0_8px_rgba(13,148,136,0.5)]" />
+      )}
+      <Icon className={cn(
+        "flex-shrink-0 transition-transform duration-200 group-hover:scale-110",
+        collapsed ? "h-5 w-5" : "h-4 w-4",
+        isActive ? "text-teal-600 dark:text-teal-400" : "text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
+      )} />
+      {!collapsed && <span className="text-xs tracking-tight">{item.name}</span>}
       {item.badge && item.badge.count > 0 && (
         <BadgePill count={item.badge.count} variant={item.badge.variant} collapsed={collapsed} />
       )}
@@ -146,7 +154,7 @@ function NavItemLink({ item, isActive, collapsed }: { item: NavItem; isActive: b
     return (
       <Tooltip delayDuration={0}>
         <TooltipTrigger asChild>{content}</TooltipTrigger>
-        <TooltipContent side="right" className="flex items-center gap-2">
+        <TooltipContent side="right" className="flex items-center gap-2 font-semibold">
           {item.name}
           {item.badge && item.badge.count > 0 && (
             <BadgePill count={item.badge.count} variant={item.badge.variant} collapsed={false} />
@@ -169,7 +177,7 @@ function SidebarContent({
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const { profile, logout } = useAuth()
-  const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "U"
+  const initials = profile?.name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "SY"
 
   const sections = ["principal", "crm", "gestao"] as const
 
@@ -203,17 +211,27 @@ function SidebarContent({
   return (
     <div className={cn(
       "flex flex-col h-full transition-all duration-200",
-      "bg-white dark:bg-[#0f0f11]",
-      "border-r border-zinc-200 dark:border-zinc-800"
+      "bg-white/80 dark:bg-[#090d16]/90 backdrop-blur-xl",
+      "border-r border-zinc-200/80 dark:border-white/10"
     )}>
       {/* Logo */}
-      <div className={cn("flex items-center gap-3 px-4 pt-5 pb-4", collapsed && "justify-center px-2")}>
-        <div className="h-8 w-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+      <div className={cn("flex items-center gap-3 px-4 pt-5 pb-4 border-b border-zinc-100 dark:border-white/5", collapsed && "justify-center px-2")}>
+        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-teal-500 via-teal-600 to-emerald-700 flex items-center justify-center text-white font-extrabold text-base flex-shrink-0 shadow-md shadow-teal-600/30 ring-2 ring-teal-400/20">
           S
         </div>
-        {!collapsed && <span className="text-[15px] font-bold text-foreground tracking-tight">Synkroo</span>}
         {!collapsed && (
-          <button onClick={onToggle} className="ml-auto h-7 w-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 hover:border-teal-300 dark:hover:border-teal-700 transition-colors">
+          <div className="flex flex-col min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-bold text-foreground tracking-tight">Synkroo</span>
+              <span className="text-[9px] font-extrabold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/80 border border-teal-200/60 dark:border-teal-800/60 px-1.5 py-0.2 rounded-md uppercase tracking-wider">
+                v2.4
+              </span>
+            </div>
+            <span className="text-[10px] text-muted-foreground truncate">{profile?.clinics?.name || "Odonto Pro"}</span>
+          </div>
+        )}
+        {!collapsed && (
+          <button onClick={onToggle} className="ml-auto h-7 w-7 rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors">
             <ChevronDoubleLeftIcon className="h-3.5 w-3.5" />
           </button>
         )}
@@ -221,22 +239,22 @@ function SidebarContent({
 
       {/* Expand button (collapsed only) */}
       {collapsed && (
-        <div className="flex justify-center pb-2">
-          <button onClick={onToggle} className="h-7 w-7 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 flex items-center justify-center text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 hover:border-teal-300 dark:hover:border-teal-700 transition-colors">
+        <div className="flex justify-center pt-3 pb-1">
+          <button onClick={onToggle} className="h-7 w-7 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors">
             <ChevronDoubleRightIcon className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
       {/* Nav Sections */}
-      <nav className="flex-1 overflow-y-auto px-3 py-1">
+      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
         <TooltipProvider>
           {sections.map((section, si) => {
             const sectionItems = allNavItems.filter(i => i.section === section)
             return (
-              <div key={section} className={cn(si > 0 && "mt-2")}>
+              <div key={section} className={cn(si > 0 && "pt-3")}>
                 {!collapsed && (
-                  <div className="px-3 pt-3 pb-1 text-[9px] font-bold text-zinc-400 dark:text-zinc-600 uppercase tracking-[0.08em]">
+                  <div className="px-3 pb-1.5 text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.1em]">
                     {sectionLabels[section]}
                   </div>
                 )}
@@ -258,45 +276,48 @@ function SidebarContent({
       </nav>
 
       {/* Footer */}
-      <div className={cn("px-3 pb-3 pt-2 border-t border-zinc-100 dark:border-zinc-800", collapsed && "px-2")}>
+      <div className={cn("px-3 pb-3 pt-3 border-t border-zinc-100 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20", collapsed && "px-2")}>
         {/* Theme Toggle */}
-        <div className={cn("flex gap-1 bg-zinc-100 dark:bg-zinc-800 rounded-lg p-1 mb-3", collapsed && "mx-auto w-fit")}>
+        <div className={cn("flex gap-1 bg-zinc-200/60 dark:bg-zinc-900/80 backdrop-blur-sm rounded-xl p-1 mb-3 border border-zinc-200/50 dark:border-white/5", collapsed && "mx-auto w-fit")}>
           <button
             onClick={() => setTheme("light")}
             className={cn(
-              "rounded-md p-1.5 transition-colors",
+              "rounded-lg p-1.5 transition-all duration-200",
               collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
-              theme === "light" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-600"
+              theme === "light" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-700 font-semibold" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             )}
           >
             <SunIcon className="h-3.5 w-3.5" />
-            {!collapsed && <span className="text-[11px] font-medium">Claro</span>}
+            {!collapsed && <span className="text-[11px]">Claro</span>}
           </button>
           <button
             onClick={() => setTheme("dark")}
             className={cn(
-              "rounded-md p-1.5 transition-colors",
+              "rounded-lg p-1.5 transition-all duration-200",
               collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
-              theme === "dark" ? "bg-white dark:bg-zinc-700 shadow-sm text-zinc-900 dark:text-white" : "text-zinc-400 hover:text-zinc-600"
+              theme === "dark" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-400 font-semibold" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             )}
           >
             <MoonIcon className="h-3.5 w-3.5" />
-            {!collapsed && <span className="text-[11px] font-medium">Escuro</span>}
+            {!collapsed && <span className="text-[11px]">Escuro</span>}
           </button>
         </div>
 
-        {/* User */}
-        <div className={cn("flex items-center gap-3", collapsed && "justify-center")}>
-          <div className="h-8 w-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-semibold text-xs flex-shrink-0">
-            {initials}
+        {/* User Profile */}
+        <div className={cn("flex items-center gap-2.5 p-1.5 rounded-xl transition-colors hover:bg-zinc-100/80 dark:hover:bg-zinc-800/40", collapsed && "justify-center")}>
+          <div className="relative flex-shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-teal-600 to-emerald-700 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+              {initials}
+            </div>
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-zinc-950" />
           </div>
           {!collapsed && (
             <>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold text-foreground truncate">{profile?.name || "Usuario"}</div>
-                <div className="text-[10px] text-zinc-400 capitalize">{profile?.role || "Admin"}</div>
+                <div className="text-xs font-semibold text-foreground truncate">{profile?.name || "Dr. Profissional"}</div>
+                <div className="text-[10px] text-teal-600 dark:text-teal-400 font-medium capitalize truncate">{profile?.role || "Administrador"}</div>
               </div>
-              <button onClick={() => logout()} className="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors">
+              <button onClick={() => logout()} title="Sair" className="p-1 text-zinc-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30">
                 <LogoutIcon className="h-4 w-4" />
               </button>
             </>

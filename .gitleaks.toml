@@ -1,0 +1,34 @@
+# Gitleaks config — Synkroo
+# Fase 0: regras especificas para o stack do projeto
+
+title = "Synkroo Gitleaks Config"
+
+[extend]
+useDefault = true
+
+# ── Allowlist global ─────────────────────────────────────────────
+
+[allowlist]
+description = "Allowlist — apenas build artifacts e dev artifacts. Secrets reais (env files, fixtures) usam .gitleaksignore com fingerprints específicos."
+
+paths = [
+  # ── Build artifacts (Next.js + OpenNext) ───────────────────
+  # Gerados localmente; nunca commitados. Webpack module IDs e
+  # hashes de build são falsos positivos para generic-api-key.
+  '''\.next/''',
+  '''\.open-next/''',
+
+  # ── Certificados e temp files (dev local apenas) ───────────
+  '''certificates/''',
+  '''tmp/''',
+]
+
+stopwords = [
+  "CI_PLACEHOLDER",
+  "fake-auth-secret-for-ci",
+  "fake-jwt-secret-for-ci",
+  "change-me-local-dev-password",
+  "test-cron-secret-12345678",
+  "dev-seed-2026-reset-key",
+  "local-demo-jwt-secret-123456789",
+]

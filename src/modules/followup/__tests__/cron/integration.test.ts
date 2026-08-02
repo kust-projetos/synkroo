@@ -175,7 +175,8 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
-    expect(body.results.followUps).toBe('processed');
+    expect(Array.isArray(body.results.followups)).toBe(true);
+    expect(body.results.followups[0]).toMatchObject({ task: 'followups', ok: true });
     // inactivity and campaigns should NOT be processed
     expect(body.results.inactivity).toBeUndefined();
     expect(body.results.campaigns).toBeUndefined();

@@ -4,12 +4,19 @@
 // jest.setup.ts mocka @/lib/db/client para todos os outros testes.
 jest.unmock('@/lib/db/client');
 
+const mockGetCloudflareContext = jest.fn();
+jest.mock('@opennextjs/cloudflare/cloudflare-context', () => ({
+  getCloudflareContext: (...args: unknown[]) => mockGetCloudflareContext(...args),
+}));
+
 import { setDbConnectionString, resolveConnectionString, getDb, closeDb } from '../client';
 
 describe('DB client — connection string resolution', () => {
   afterEach(async () => {
     // Reset internal state between tests
     setDbConnectionString(null);
+    mockGetCloudflareContext.mockReset();
+    delete (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE;
     delete (process.env as any).DATABASE_URL;
     await closeDb();
   });
@@ -18,6 +25,25 @@ describe('DB client — connection string resolution', () => {
     setDbConnectionString('postgres://hyperdrive:secret@hyperdrive.internal:5432/synkroo');
     const url = resolveConnectionString();
     expect(url).toBe('postgres://hyperdrive:secret@hyperdrive.internal:5432/synkroo');
+  });
+
+  it('uses the middleware-provided Hyperdrive connection', () => {
+    (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE =
+      'postgres://global:secret@hyperdrive.internal:5432/synkroo';
+
+    expect(resolveConnectionString()).toBe(
+      'postgres://global:secret@hyperdrive.internal:5432/synkroo',
+    );
+  });
+
+  it('uses the request Cloudflare context when bootstrap injection did not run', () => {
+    mockGetCloudflareContext.mockReturnValue({
+      env: { HYPERDRIVE: { connectionString: 'postgres://runtime:secret@hyperdrive.internal:5432/synkroo' } },
+    });
+
+    expect(resolveConnectionString()).toBe(
+      'postgres://runtime:secret@hyperdrive.internal:5432/synkroo',
+    );
   });
 
   it('falls back to DATABASE_URL when hyperdrive is not set (dev/local)', () => {

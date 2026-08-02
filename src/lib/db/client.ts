@@ -8,6 +8,7 @@
 //   Neither  → explicit error
 // ──────────────────────────────────────────────
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { getCloudflareContext } from '@opennextjs/cloudflare/cloudflare-context';
 import { Pool } from 'pg';
 import * as schema from './schema/index';
 
@@ -30,7 +31,28 @@ export function setDbConnectionString(connString: string | null): void {
  *   2. DATABASE_URL env var (dev/local)
  *   3. Throw with guidance if both are absent
  */
+function hydrateHyperdriveConnection(): void {
+  if (_hyperdriveConnString) return;
+
+  const globalConnection = (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE;
+  if (globalConnection) {
+    _hyperdriveConnString = globalConnection;
+    return;
+  }
+
+  try {
+    const context = getCloudflareContext() as unknown as {
+      env?: { HYPERDRIVE?: { connectionString?: string } };
+    };
+    const connectionString = context.env?.HYPERDRIVE?.connectionString;
+    if (connectionString) _hyperdriveConnString = connectionString;
+  } catch {
+    // Cloudflare context is unavailable in Node.js/tests; use DATABASE_URL fallback.
+  }
+}
+
 export function resolveConnectionString(): string {
+  hydrateHyperdriveConnection();
   if (_hyperdriveConnString) return _hyperdriveConnString;
   const envUrl = process.env.DATABASE_URL;
   if (envUrl) return envUrl;

@@ -12,6 +12,7 @@ import {
   updatePaymentCharge as repoUpdateCharge,
   listOverdueCharges as repoListOverdue,
   getDefaultGateway,
+  getBudget,
   getPaymentGateway,
   createPayment as repoCreatePayment,
   type PaymentChargeRow,
@@ -35,26 +36,23 @@ export async function createCharge(input: CreateChargeInput): Promise<{
 }> {
   const { clinicId, budgetId, amount, dueDate } = input;
 
+  const budget = await getBudget(budgetId);
+  if (!budget || budget.clinicId !== clinicId) throw new Error('Budget not found');
+  const expectedAmount = Number(budget.finalValue);
+  if (!Number.isFinite(expectedAmount) || Math.abs(amount - expectedAmount) > 0.01) {
+    throw new Error(`Charge amount ${amount} does not match budget final value ${budget.finalValue}`);
+  }
+
   const gateway = await getDefaultGateway(clinicId);
   if (!gateway) throw new Error('No enabled default gateway found for clinic');
 
   const chargeData = buildChargeInsert({ clinicId, budgetId, gatewayId: gateway.id, amount, dueDate });
 
   const provider = getGatewayProvider(gateway.provider as GatewayProvider);
-  let gatewayResponse: CreateChargeResult;
-
-  if (provider) {
-    gatewayResponse = await provider.createCharge({
-      clinicId, amount, dueDate, customerName: 'Cliente',
-    });
-  } else {
-    gatewayResponse = {
-      externalChargeId: `ext-${Date.now()}`,
-      paymentUrl: `https://pay.example.com/charge/${Date.now()}`,
-      pixQrCode: `00020126580014br.gov.bcb.pix${Date.now()}`,
-      status: 'pending',
-    };
-  }
+  if (!provider) throw new Error(`Gateway provider ${gateway.provider} is not registered`);
+  const gatewayResponse: CreateChargeResult = await provider.createCharge({
+    clinicId, amount, dueDate, customerName: 'Cliente',
+  });
 
   const charge = await repoCreateCharge({
     clinicId: chargeData.clinicId,
