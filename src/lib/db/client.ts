@@ -8,7 +8,6 @@
 //   Neither  → explicit error
 // ──────────────────────────────────────────────
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { getCloudflareContext } from '@opennextjs/cloudflare/cloudflare-context';
 import { Pool } from 'pg';
 import * as schema from './schema/index';
 
@@ -40,15 +39,8 @@ function hydrateHyperdriveConnection(): void {
     return;
   }
 
-  try {
-    const context = getCloudflareContext() as unknown as {
-      env?: { HYPERDRIVE?: { connectionString?: string } };
-    };
-    const connectionString = context.env?.HYPERDRIVE?.connectionString;
-    if (connectionString) _hyperdriveConnString = connectionString;
-  } catch {
-    // Cloudflare context is unavailable in Node.js/tests; use DATABASE_URL fallback.
-  }
+  // Cloudflare context is read by instrumentation.ts and injected here. Keeping
+  // this client free of the OpenNext ESM-only helper preserves Node/Jest support.
 }
 
 export function resolveConnectionString(): string {
