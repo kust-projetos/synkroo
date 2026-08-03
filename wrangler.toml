@@ -1,54 +1,46 @@
-# Synkroo — Cloudflare Workers config
-# Consolidação W4.1 (spike) + Hyperdrive (W4.2) + Vectorize/KV (W4.4)
 name = "synkroo"
 main = ".open-next/worker.js"
-compatibility_date = "2025-06-18"
+compatibility_date = "2026-06-23"
 compatibility_flags = ["nodejs_compat"]
 
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
 
-# ── Bindings ──────────────────────────────────────────
-
-# Hyperdrive: pooler para Postgres.
-# Provisionar: npx wrangler hyperdrive create synkroo-db --connection-string="postgres://..."
-# Depois colar o ID gerado no campo id abaixo.
-[[hyperdrive]]
-binding = "HYPERDRIVE"
-id = "be5a789a003e4f08a94a82dffbb091be"
-localConnectionString = "postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo"
-
-# Vectorize: index de embeddings para RAG (consumido no W5).
-# Provisionar: npx wrangler vectorize create synkroo-embeddings --dimensions=768 --metric=cosine
-# Dimensão: 768 (default conservador para embeddings multilíngue; confirmar em W5).
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "synkroo-embeddings"
-
-# KV: cache de sessão e incremental cache (substitui incrementalCache dummy).
-# Provisionar: npx wrangler kv namespace create SYNKROO_CACHE
-# O ID de preview é gerado automaticamente no dashboard.
-[[kv_namespaces]]
-binding = "SYNKROO_CACHE"
-id = "8f2a4d355686427585f665688d1cc082"
-
-# ── Service & DO bindings (IA) ─────────────────────────
-
-# Service binding to ia-bridge (AppService entrypoint for handle/action RPC).
 [[services]]
 binding = "IA_BRIDGE"
 service = "synkroo-ia-bridge"
 entrypoint = "AppService"
 
-# DO cross-worker binding to ia-agent (AgentOrchestrator class).
-# NÃO usar 'agents' — binding cru: env.AGENT.idFromName(name).get().runTurn(input).
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "synkroo"
+
 [[durable_objects.bindings]]
 name = "AGENT"
 class_name = "AgentOrchestrator"
 script_name = "synkroo-ia-agent"
 
-# ── Environment vars ──────────────────────────────────
+[[durable_objects.bindings]]
+name = "NEXT_CACHE_DO_QUEUE"
+class_name = "DOQueueHandler"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["DOQueueHandler"]
+
+[[kv_namespaces]]
+binding = "SYNKROO_CACHE"
+id = "8f2a4d355686427585f665688d1cc082"
+
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "be5a789a003e4f08a94a82dffbb091be"
+localConnectionString = "postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "synkroo-embeddings"
 
 [vars]
 NODE_ENV = "production"

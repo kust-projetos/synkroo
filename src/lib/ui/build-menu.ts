@@ -45,5 +45,14 @@ export async function buildMenu(
   can: CanFn,
 ): Promise<MenuItem[]> {
   const all = manifests.flatMap((m) => m.menu)
-  return filterMenuByAccess(all, manifest, can)
+  const filtered = await filterMenuByAccess(all, manifest, can)
+  // Dedup por path: itens com mesmo path e permissões diferentes (OR semântico)
+  // mantêm apenas a primeira ocorrência.
+  const seen = new Set<string>()
+  return filtered.filter((item) => {
+    const key = (item as any).path ?? item.label
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }

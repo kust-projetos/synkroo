@@ -30,7 +30,21 @@ export function setDbConnectionString(connString: string | null): void {
  *   2. DATABASE_URL env var (dev/local)
  *   3. Throw with guidance if both are absent
  */
+function hydrateHyperdriveConnection(): void {
+  if (_hyperdriveConnString) return;
+
+  const globalConnection = (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE;
+  if (globalConnection) {
+    _hyperdriveConnString = globalConnection;
+    return;
+  }
+
+  // Cloudflare context is read by instrumentation.ts and injected here. Keeping
+  // this client free of the OpenNext ESM-only helper preserves Node/Jest support.
+}
+
 export function resolveConnectionString(): string {
+  hydrateHyperdriveConnection();
   if (_hyperdriveConnString) return _hyperdriveConnString;
   const envUrl = process.env.DATABASE_URL;
   if (envUrl) return envUrl;

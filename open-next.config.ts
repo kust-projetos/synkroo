@@ -1,8 +1,9 @@
 // Synkroo — OpenNext Cloudflare config
-// Consolidação do spike W4.1: incrementalCache dummy + queue direct (MVP)
+// ISR revalidation uses the official Durable Object queue adapter.
 import { defineCloudflareConfig } from "@opennextjs/cloudflare";
+import doQueue from "@opennextjs/cloudflare/overrides/queue/do-queue";
 
 export default defineCloudflareConfig({
   incrementalCache: "dummy",   // TODO(W4.4): substituir por KV provider real
-  queue: "direct",             // TODO(W4.4): substituir por Cloudflare Queues
+  queue: doQueue,
 });

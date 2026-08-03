@@ -21,6 +21,28 @@ export function normalizeCpf(v: string): string {
   return v.replace(/\D/g, '');
 }
 
+/**
+ * Tag normalization used by CRM owner-bridge (atualizarTagsPaciente).
+ * Regras:
+ *  - trim em cada item
+ *  - descarta string vazia após trim
+ *  - dedup case-insensitive preservando a primeira ocorrência
+ * Ex.: [' VIP ','vip','','Lead'] → ['VIP','Lead']
+ */
+export function normalizeTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of tags ?? []) {
+    const trimmed = (raw ?? '').trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
 // ─── Query helpers ───────────────────────────────────────────────────────────
 
 export async function findById(clinicId: string, id: string) {
@@ -129,6 +151,52 @@ export async function updatePatient(
     .update(patients)
     .set({ ...patch, updatedAt: new Date() } as any)
     .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)))
+    .returning({ id: patients.id });
+  return row ?? null;
+}
+
+// ─── Owner-bridge helpers (Task 2 — CRM Integration Closure) ────────────────
+
+/**
+ * Insere uma observação clínica do paciente com predicate ownerId+clinicId.
+ * Caller deve ter verificado findById(clinicId, patientId) antes para obter
+ * erro semântico de not_found; aqui o predicate na tabela garante isolamento
+ * mesmo se um id estrangeiro escorregar.
+ */
+export async function insertPatientObservation(input: {
+  clinicId: string;
+  patientId: string;
+  content: string;
+  createdBy: string | null;
+}) {
+  const db = getDb();
+  const [row] = await db
+    .insert(patientObservations)
+    .values({
+      clinicId: input.clinicId,
+      patientId: input.patientId,
+      content: input.content,
+      createdBy: input.createdBy,
+    })
+    .returning({ id: patientObservations.id });
+  return { id: row.id };
+}
+
+/**
+ * Atualiza SOMENTE o array de tags do paciente, com predicate owner+clinic.
+ * Retorna null se a linha não pertence à clínica (cross-tenant → not_found).
+ */
+export async function updatePatientTags(
+  clinicId: string,
+  patientId: string,
+  tags: string[],
+) {
+  const db = getDb();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [row] = await db
+    .update(patients)
+    .set({ tags, updatedAt: new Date() } as any)
+    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
     .returning({ id: patients.id });
   return row ?? null;
 }

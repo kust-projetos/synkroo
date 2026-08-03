@@ -15,16 +15,29 @@ import { resolve } from 'node:path';
 const workerPath = resolve(process.argv[2] ?? '.open-next/worker.js');
 
 const content = readFileSync(workerPath, 'utf-8');
-const injection = `// W4.8: pg externalizado → injeta como global para o bundle que referencia \`let e = pg\`.
+const pgInjection = `// W4.8: pg externalizado → injeta como global para o bundle que referencia \`let e = pg\`.
 import pg from 'pg';
 globalThis.pg = pg;
 
 `;
+const runtimeMarker = '    async fetch(request, env, ctx) {\n';
+const runtimeInjection = `        // W4.9: expose Hyperdrive before Next middleware and route handlers run.
+        if (env.HYPERDRIVE?.connectionString) {
+            globalThis.__SYNKROO_HYPERDRIVE = env.HYPERDRIVE.connectionString;
+        }
+`;
 
-if (content.includes('globalThis.pg = pg')) {
-  console.log('[inject-pg-global] already injected, skipping.');
-  process.exit(0);
+let nextContent = content;
+if (!nextContent.includes('globalThis.pg = pg')) {
+  nextContent = pgInjection + nextContent;
 }
 
-writeFileSync(workerPath, injection + content, 'utf-8');
-console.log('[inject-pg-global] pg injected into', workerPath);
+if (!nextContent.includes('globalThis.__SYNKROO_HYPERDRIVE')) {
+  if (!nextContent.includes(runtimeMarker)) {
+    throw new Error(`[inject-pg-global] fetch marker not found in ${workerPath}`);
+  }
+  nextContent = nextContent.replace(runtimeMarker, runtimeMarker + runtimeInjection);
+}
+
+writeFileSync(workerPath, nextContent, 'utf-8');
+console.log('[inject-pg-global] pg and Hyperdrive runtime globals ensured in', workerPath);

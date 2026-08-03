@@ -25,12 +25,12 @@ import {
 } from '@/core/agent-bridge/tool-policy';
 
 describe('crmActions — public human actions taxonomy', () => {
-  it('vazio enquanto ações sem input/handler são removidas (regressão)', () => {
-    expect(crmActions).toEqual([]);
+  it('contém exatamente 12 ações humanas (6 contatos + 4 review + 2 merge)', () => {
+    expect(crmActions).toHaveLength(12);
   });
 
   it('NÃO contém crm.reprocessarSugestoesDuplicidade (system-only, não-humano)', () => {
-    const names = (crmActions as any[]).map((a) => a.name);
+    const names = crmActions.map((a) => a.name);
     expect(names).not.toContain('crm.reprocessarSugestoesDuplicidade');
   });
 
@@ -48,7 +48,7 @@ describe('crmActions — public human actions taxonomy', () => {
       'crm:merge_patients',
       'crm:merge_leads',
     ]);
-    for (const a of crmActions as any[]) {
+    for (const a of crmActions) {
       expect(a.module).toBe('crm');
       expect(validPerms.has(a.requires)).toBe(true);
     }
@@ -84,10 +84,9 @@ describe('registry global — owner merges ausentes após registro das crmAction
   });
 
   it('contém crm.executarMergePatient/Lead (human) após register', () => {
-    registerActions([...(crmActions as any[])]);
-    // crmActions está vazio — merges serão registrados via módulo owner quando tiverem input/handler
-    expect(getAction('crm.executarMergePatient')).toBeUndefined();
-    expect(getAction('crm.executarMergeLead')).toBeUndefined();
+    registerActions([...crmActions]);
+    expect(getAction('crm.executarMergePatient')).toBeDefined();
+    expect(getAction('crm.executarMergeLead')).toBeDefined();
   });
 });
 

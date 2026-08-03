@@ -6,6 +6,20 @@ import { appointments } from './appointments';
 import { leads, campaigns } from './crm';
 
 // ══════════════════════════════════════════════
+// APPOINTMENT STATUS LOG
+// ══════════════════════════════════════════════
+export const appointmentStatusLog = pgTable('appointment_status_log', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').notNull().references(() => clinics.id, { onDelete: 'cascade' }),
+  appointmentId: uuid('appointment_id').notNull().references(() => appointments.id, { onDelete: 'cascade' }),
+  fromStatus: text('from_status'),
+  toStatus: text('to_status').notNull(),
+  changedBy: text('changed_by').notNull(),
+  reason: text('reason'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ══════════════════════════════════════════════
 // BUDGETS
 // ══════════════════════════════════════════════
 export const budgets = pgTable('budgets', {

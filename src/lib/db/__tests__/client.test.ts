@@ -10,6 +10,7 @@ describe('DB client — connection string resolution', () => {
   afterEach(async () => {
     // Reset internal state between tests
     setDbConnectionString(null);
+    delete (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE;
     delete (process.env as any).DATABASE_URL;
     await closeDb();
   });
@@ -18,6 +19,15 @@ describe('DB client — connection string resolution', () => {
     setDbConnectionString('postgres://hyperdrive:secret@hyperdrive.internal:5432/synkroo');
     const url = resolveConnectionString();
     expect(url).toBe('postgres://hyperdrive:secret@hyperdrive.internal:5432/synkroo');
+  });
+
+  it('uses the middleware-provided Hyperdrive connection', () => {
+    (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE =
+      'postgres://global:secret@hyperdrive.internal:5432/synkroo';
+
+    expect(resolveConnectionString()).toBe(
+      'postgres://global:secret@hyperdrive.internal:5432/synkroo',
+    );
   });
 
   it('falls back to DATABASE_URL when hyperdrive is not set (dev/local)', () => {

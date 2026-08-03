@@ -1,4 +1,4 @@
-import { boolean, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { userRole } from './enums';
 
@@ -34,6 +34,7 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'),
   isActive: boolean('is_active').default(true).notNull(),
   isMaster: boolean('is_master').default(false).notNull(),
+  sessionVersion: integer('session_version').default(0).notNull(),
   lastLoginAt: timestamp('last_login_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),

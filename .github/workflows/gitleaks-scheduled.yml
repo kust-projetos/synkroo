@@ -1,0 +1,26 @@
+name: Gitleaks Full History Scan (Scheduled)
+
+# Fase 0: revalidação semanal do histórico completo.
+# Complementa o job gitleaks do ci.yml (que escaneia push/PR).
+# Se um commit antigo com segredo for descoberto após merge,
+# este scan o flagará — o ci.yml só vê novos commits.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # toda segunda-feira 06:00 UTC
+  workflow_dispatch:      # execução manual
+
+jobs:
+  gitleaks-full:
+    name: Full History Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks (full history)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz | tar xz -C /usr/local/bin gitleaks
+          gitleaks detect --source . --log-opts="--all" --verbose --redact

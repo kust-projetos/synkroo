@@ -1,0 +1,10 @@
+# Pre-commit hooks — Synkroo
+# Instalar: `pre-commit install` (requer https://pre-commit.com)
+# Ou via winget: `winget install pre-commit`
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.0
+    hooks:
+      - id: gitleaks
+        args: ['--verbose']

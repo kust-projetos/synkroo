@@ -1,0 +1,108 @@
+import {
+  processScheduledCampaigns,
+  startCampaign,
+} from '@/services/followup/campaign.service'
+
+jest.mock('@/repositories/campaigns', () => ({
+  findCampaignById: jest.fn(),
+  findScheduledCampaigns: jest.fn(),
+  findPendingRecipients: jest.fn(),
+  markRecipientSuppressed: jest.fn(),
+  markRecipientSent: jest.fn(),
+  markRecipientError: jest.fn(),
+  updateCampaignCounts: jest.fn(),
+  updateCampaignStatus: jest.fn(),
+}))
+jest.mock('@/services/contacts/consents.service', () => ({
+  hasActiveConsent: jest.fn(),
+}))
+jest.mock('@/lib/logger', () => ({
+  dbLogger: { info: jest.fn(), debug: jest.fn(), error: jest.fn(), warn: jest.fn() },
+  whatsappLogger: { warn: jest.fn(), error: jest.fn() },
+}))
+
+import { hasActiveConsent } from '@/services/contacts/consents.service'
+import * as campaignRepo from '@/repositories/campaigns'
+
+const repo = campaignRepo as jest.Mocked<typeof campaignRepo>
+
+const campaign = {
+  id: 'campaign-1',
+  clinicId: 'clinic-1',
+  name: 'Retention',
+  description: null,
+  campaignType: 'retention',
+  targetSegment: null,
+  messageTemplate: 'Olá',
+  channel: 'whatsapp',
+  status: 'scheduled',
+  scheduledAt: new Date('2026-07-29T10:00:00Z'),
+  startedAt: null,
+  completedAt: null,
+  totalRecipients: 1,
+  sentCount: 0,
+  responseCount: 0,
+  conversionCount: 0,
+  optOutCount: 0,
+  createdBy: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}
+
+beforeEach(() => {
+  jest.clearAllMocks()
+  repo.findCampaignById.mockResolvedValue(campaign)
+  repo.findPendingRecipients.mockResolvedValue([])
+  repo.updateCampaignCounts.mockResolvedValue(undefined)
+  repo.updateCampaignStatus.mockResolvedValue(campaign)
+})
+
+describe('campaign execution', () => {
+  it('marks campaign failed when no recipient is delivered', async () => {
+    const result = await startCampaign(campaign.id)
+
+    expect(result).toEqual({ success: false, error: 'No recipients delivered' })
+    expect(repo.updateCampaignStatus).toHaveBeenLastCalledWith(campaign.id, 'failed')
+  })
+
+  it('processes due campaigns for one clinic', async () => {
+    repo.findScheduledCampaigns.mockResolvedValue([campaign])
+
+    await processScheduledCampaigns(campaign.clinicId)
+
+    expect(repo.findScheduledCampaigns).toHaveBeenCalledWith(campaign.clinicId)
+    expect(repo.findCampaignById).toHaveBeenCalledWith(campaign.id)
+  })
+
+  it('completes campaign after consented recipient is sent', async () => {
+    repo.findPendingRecipients.mockResolvedValue([{
+      id: 'recipient-1',
+      campaignId: campaign.id,
+      patientId: 'patient-1',
+      status: 'pending',
+      sentAt: null,
+      deliveredAt: null,
+      respondedAt: null,
+      responseContent: null,
+      convertedAt: null,
+      conversionAppointmentId: null,
+      errorMessage: null,
+      createdAt: new Date(),
+      patientPhone: '5511999999999',
+      optOutMarketing: false,
+      optOutReminders: false,
+    }])
+    ;(hasActiveConsent as jest.Mock).mockResolvedValue(true)
+    process.env.WHATSAPP_API_URL = 'https://whatsapp.test/send'
+    process.env.WHATSAPP_TOKEN = 'token'
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({}),
+    }) as jest.Mock
+
+    const result = await startCampaign(campaign.id)
+
+    expect(result).toEqual({ success: true })
+    expect(repo.updateCampaignStatus).toHaveBeenLastCalledWith(campaign.id, 'completed')
+  })
+})

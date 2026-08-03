@@ -8,6 +8,7 @@ jest.unmock('@/lib/db/client');
 import { resolveAccess } from '../../resolve';
 import type { RbacRepo } from '../../repository';
 import { seedRbacForClinic } from '@/core/rbac/seed';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { getDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema';
 import { roles, userClinicAccess, rolePermissions } from '@/modules/core/schema/rbac';
@@ -61,6 +62,7 @@ beforeAll(async () => {
   await db.insert(clinics).values({
     id: CLINIC, name: 'Test Clinic', slug: 'test-clinic', phone: '', email: 't@t.local',
   }).onConflictDoNothing();
+  await bootstrapActions();
   await seedRbacForClinic(CLINIC);
 
   // Busca IDs dos roles após seed

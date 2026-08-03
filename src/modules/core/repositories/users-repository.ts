@@ -1,7 +1,7 @@
 import { getDb } from '@/lib/db/client';
 import { users } from '@/lib/db/schema/core';
 import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 export interface ClinicUserOption {
   id: string;
@@ -29,6 +29,10 @@ export async function listClinicUsers(clinicId: string): Promise<ClinicUserOptio
 
 export async function deactivateUser(userId: string, clinicId: string) {
   await getDb().update(users)
-    .set({ isActive: false, updatedAt: new Date() })
+    .set({
+      isActive: false,
+      sessionVersion: sql`${users.sessionVersion} + 1`,
+      updatedAt: new Date(),
+    })
     .where(and(eq(users.id, userId), eq(users.clinicId, clinicId)));
 }

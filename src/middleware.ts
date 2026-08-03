@@ -1,5 +1,6 @@
 import { getToken } from 'next-auth/jwt';
 import { NextResponse, type NextRequest } from 'next/server';
+import { exceedsBodyLimit, shouldRejectCsrf } from '@/lib/security/request-guards';
 
 /**
  * Middleware for authentication — validates Auth.js JWT.
@@ -11,6 +12,13 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   ser feita dentro da função middleware, não no module scope.
  */
 export async function middleware(request: NextRequest) {
+  if (exceedsBodyLimit(request)) {
+    return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+  }
+  if (shouldRejectCsrf(request)) {
+    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+  }
+
   const pathname = request.nextUrl.pathname;
   const AUTH_SECRET = process.env.AUTH_SECRET;
 

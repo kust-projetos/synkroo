@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, gte, lte, inArray, desc, asc, isNull, sql } from 'drizzle-orm'
-import { validateApiAuth } from '@/lib/auth/session'
+import { hasRequiredRole, validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { getDb } from '@/lib/db/client'
 import { appointments, patients, leads, conversations, dentists, procedures } from '@/lib/db/schema'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
+import { redactPII } from '@/lib/reports/redact-pii'
 
 const COLORS = {
   primary: [41, 98, 255] as [number, number, number],
@@ -22,6 +23,12 @@ export async function GET(request: NextRequest) {
     const authResult = await validateApiAuth()
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
+    const canExport = typeof hasRequiredRole === 'function'
+      ? hasRequiredRole(authResult.profile!, ['owner', 'admin'])
+      : ['owner', 'admin'].includes(authResult.profile!.role)
+    if (!canExport) {
+      return NextResponse.json({ error: 'Insufficient report permission' }, { status: 403 })
+    }
     const sp = new URL(request.url).searchParams
     const type = sp.get('type') || 'appointments'
     const format = sp.get('format') || 'csv'
@@ -101,6 +108,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid report type. Use: appointments, patients, leads, financial, conversations' }, { status: 400 })
     }
 
+    data = redactPII(data)
     const dateSuffix = new Date().toISOString().split('T')[0]
     if (format === 'pdf') {
       const pdfBuffer = generatePDF(data, headers, type, title, { startDate, endDate, generatedBy: authResult.profile!.name || authResult.profile!.email })

@@ -3,10 +3,16 @@
 // Executar APÓS aplicar a migration de schema (0004_rbac.sql) em cada ambiente.
 // Uso: npx tsx scripts/migrate-userrole-to-rbac.ts
 
+// Carrega .env.local ANTES de qualquer import que use process.env
+import { config } from 'dotenv';
+import { resolve } from 'path';
+config({ path: resolve(__dirname, '..', '.env.local') });
+
 import { getDb, closeDb } from '@/lib/db/client';
 import { users, clinics } from '@/lib/db/schema/core';
 import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
 import { seedRbacForClinic } from '@/core/rbac/seed';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { eq, and } from 'drizzle-orm';
 
@@ -19,6 +25,9 @@ const ROLE_MAP: Record<string, string> = {
 
 async function main() {
   const db = getDb();
+  // Popula catálogo de permissões (idempotente) — sem isso, seedRbacForClinic
+  // semeia perfis de sistema com permissões vazias.
+  await bootstrapActions();
   const allClinics = await db.select({ id: clinics.id }).from(clinics);
   for (const c of allClinics) {
     await seedRbacForClinic(c.id);

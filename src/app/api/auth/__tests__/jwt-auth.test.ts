@@ -71,6 +71,7 @@ const mockUserRow = {
   avatarUrl: null,
   isActive: true,
   clinicId: 'clinic-123',
+  sessionVersion: 0,
 };
 
 const mockProfile = {
@@ -144,6 +145,38 @@ describe('Auth JWT Suite', () => {
         role: mockProfile.role,
         clinic_id: 'clinic-123',
       });
+    });
+
+    it('includes current session version in issued token', async () => {
+      const request = new Request('http://localhost/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'test@example.com', password: 'ValidPassword123!' }),
+      });
+
+      await loginEndpoint.POST(request);
+
+      const { encode } = require('next-auth/jwt');
+      expect(encode).toHaveBeenCalledWith(expect.objectContaining({
+        token: expect.objectContaining({ sessionVersion: 0 }),
+      }));
+    });
+
+    it('uses the secure Auth.js cookie name in production', async () => {
+      const originalNodeEnv = process.env.NODE_ENV;
+      Object.assign(process.env, { NODE_ENV: 'production' });
+      try {
+        const request = new Request('http://localhost/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: 'test@example.com', password: 'ValidPassword123!' }),
+        });
+
+        const response = await loginEndpoint.POST(request);
+        expect(response.headers.get('set-cookie')).toContain('__Secure-next-auth.session-token=');
+      } finally {
+        Object.assign(process.env, { NODE_ENV: originalNodeEnv });
+      }
     });
 
     it('2. should return 401 with invalid credentials (no user found)', async () => {

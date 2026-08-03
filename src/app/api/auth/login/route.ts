@@ -13,8 +13,13 @@ import {
   createRateLimitHeaders,
 } from '@/lib/rate-limit';
 
-const COOKIE_NAME = 'next-auth.session-token';
 const MAX_AGE = 30 * 24 * 60 * 60; // 30 days
+
+function getCookieName(): string {
+  return process.env.NODE_ENV === 'production'
+    ? '__Secure-next-auth.session-token'
+    : 'next-auth.session-token';
+}
 
 /**
  * POST /api/auth/login
@@ -85,6 +90,7 @@ export async function POST(request: NextRequest) {
       clinicId: user.clinicId,
       role: user.role,
       isActive: user.isActive,
+      sessionVersion: user.sessionVersion,
     };
 
     const sessionToken = await encode({ token, secret, maxAge: MAX_AGE });
@@ -110,7 +116,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Set session cookie
-    response.cookies.set(COOKIE_NAME, sessionToken, {
+    response.cookies.set(getCookieName(), sessionToken, {
       httpOnly: true,
       sameSite: 'lax',
       secure: process.env.NODE_ENV === 'production',

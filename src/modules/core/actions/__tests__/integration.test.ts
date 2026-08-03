@@ -14,6 +14,7 @@ import { rolePermissions } from '@/modules/core/schema/rbac';
 import { instanceModules } from '@/lib/db/schema/modules';
 import type { ActionContext } from '@/core/actions/types';
 import { seedRbacForClinic } from '@/core/rbac/seed';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { getDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema';
 import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
@@ -39,6 +40,7 @@ beforeAll(async () => {
     phone: '',
     email: `t+${u}@t.local`,
   }).onConflictDoNothing();
+  await bootstrapActions();
   await seedRbacForClinic(CLINIC);
   const ownerRoleRows = await db.select({ id: roles.id }).from(roles)
     .where(and(eq(roles.clinicId, CLINIC), eq(roles.name, RESERVED_ROLE_OWNER))).limit(1);
