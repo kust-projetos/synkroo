@@ -125,4 +125,43 @@ describe('buildMenu', () => {
     const result = await buildMenu(manifests, manifest, can)
     expect(result).toHaveLength(0)
   })
+
+  it('deduplica itens com mesmo path (OR semântico entre permissões)', async () => {
+    // Simula manifesto operacional com itens duplicados por path (Bug 3 fix)
+    const manifests = [
+      {
+        id: 'operacional',
+        menu: [
+          { moduleId: 'operacional', permission: 'operacional:view', label: 'Agendamentos', path: '/dashboard/agendamentos', icon: 'CalendarDaysIcon' },
+          { moduleId: 'operacional', permission: 'operacional:manage_appointments', label: 'Agendamentos', path: '/dashboard/agendamentos', icon: 'CalendarDaysIcon' },
+          { moduleId: 'operacional', permission: 'operacional:view', label: 'Pacientes', path: '/dashboard/pacientes', icon: 'UsersIcon' },
+          { moduleId: 'operacional', permission: 'operacional:manage_patients', label: 'Pacientes', path: '/dashboard/pacientes', icon: 'UsersIcon' },
+        ],
+      },
+    ]
+    const manifest = makeManifest(['operacional'])
+    // Usuário tem AMBAS as permissões — sem dedup, veria 4 itens; com dedup, vê 2.
+    const can = () => true
+    const result = await buildMenu(manifests, manifest, can)
+    expect(result).toHaveLength(2)
+    expect(result.map((i) => i.label)).toEqual(['Agendamentos', 'Pacientes'])
+  })
+
+  it('usuário com só uma permissão vê o item 1× (não 0×)', async () => {
+    const manifests = [
+      {
+        id: 'operacional',
+        menu: [
+          { moduleId: 'operacional', permission: 'operacional:view', label: 'Agendamentos', path: '/dashboard/agendamentos' },
+          { moduleId: 'operacional', permission: 'operacional:manage_appointments', label: 'Agendamentos', path: '/dashboard/agendamentos' },
+        ],
+      },
+    ]
+    const manifest = makeManifest(['operacional'])
+    // Usuário só tem a primeira permissão
+    const can = (p: string) => p === 'operacional:view'
+    const result = await buildMenu(manifests, manifest, can)
+    expect(result).toHaveLength(1)
+    expect(result[0].label).toBe('Agendamentos')
+  })
 })

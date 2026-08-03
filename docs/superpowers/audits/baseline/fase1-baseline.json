@@ -1,0 +1,45 @@
+{
+  "baseline": {
+    "created": "2026-07-29T14:45:00.000Z",
+    "branch": "exec/fase1",
+    "commit": "3a717822",
+    "base": "origin/main"
+  },
+  "gates": {
+    "lint": {
+      "status": "PASS",
+      "command": "npm run lint",
+      "errors": 0,
+      "warnings": 0
+    },
+    "typecheck": {
+      "status": "PASS",
+      "command": "npx tsc --noEmit",
+      "errors": 0
+    },
+    "test": {
+      "status": "PASS",
+      "command": "npm test -- --runInBand",
+      "suites": 197,
+      "tests": 1419,
+      "passed": 1414,
+      "skipped": 5,
+      "failed": 0
+    },
+    "build": {
+      "status": "PASS",
+      "command": "npm run build"
+    }
+  },
+  "coverage": {
+    "lines": { "total": 13340, "covered": 7100, "pct": 53.22 },
+    "statements": { "total": 14608, "covered": 7606, "pct": 52.06 },
+    "functions": { "total": 2515, "covered": 1004, "pct": 39.92 },
+    "branches": { "total": 5338, "covered": 1950, "pct": 36.53 }
+  },
+  "notes": {
+    "testIsolation": "Tests require --runInBand due to Jest module caching with side-effect imports (owner merge dispatchers). Fase 3 will address architecture.",
+    "dbExecutionInTestFiles": "jest.setup.ts mocks @/lib/db/client globally for unit tests. Integration tests use separate config (jest.integration.config.js) with TEST_DATABASE_URL validation via scripts/integration-run.mjs. No test file runs against real/production DB.",
+    "lintBoundaryWarnings": "6 boundary/dependencies violations intentionally suppressed with eslint-disable comments. Caused by intentional side-effect imports (owner merge dispatchers) and deep imports to avoid circular dependencies. Fase 3 will re-architect."
+  }
+}

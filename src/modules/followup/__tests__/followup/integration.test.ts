@@ -16,6 +16,7 @@ import { procedures } from '@/modules/operacional/schema/clinical';
 import { instanceModules } from '@/lib/db/schema/modules';
 import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
 import { seedRbacForClinic } from '@/core/rbac/seed';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { buildDelegatedContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
@@ -44,6 +45,7 @@ describeOrSkip('followup core actions — runAction (DB real)', () => {
     }).onConflictDoNothing();
 
     // 2. RBAC
+    await bootstrapActions();
     await seedRbacForClinic(CLINIC_ID);
 
     const [ownerRow] = await db.select({ id: roles.id })

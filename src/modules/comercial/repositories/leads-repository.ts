@@ -118,6 +118,47 @@ export async function listLeadsByClinic(clinicId: string) {
   ) as any;
 }
 
+// ─── Owner-bridge helpers (Task 2 — CRM Integration Closure) ────────────────
+
+/**
+ * Tag normalization para atualizarTagsLead. Mesmas regras do operacional:
+ *  - trim em cada item
+ *  - descarta vazio após trim
+ *  - dedup case-insensitive preservando primeira ocorrência
+ * Ex.: [' VIP ','vip','','Lead'] → ['VIP','Lead']
+ */
+export function normalizeLeadTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of tags ?? []) {
+    const trimmed = (raw ?? '').trim();
+    if (!trimmed) continue;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(trimmed);
+  }
+  return out;
+}
+
+/**
+ * Atualiza SOMENTE as tags do lead, com predicate ownerId+clinicId.
+ * Retorna null se o lead não pertence à clínica (cross-tenant → not_found).
+ */
+export async function updateLeadTags(
+  leadId: string,
+  clinicId: string,
+  tags: string[],
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(leads)
+    .set({ tags, updatedAt: new Date() })
+    .where(and(eq(leads.id, leadId), eq(leads.clinicId, clinicId)))
+    .returning({ id: leads.id });
+  return row ?? null;
+}
+
 // ─── Kanban / Stage-joined queries ──────────────────────────────────────────────
 
 export async function listAllLeadsWithStage(clinicId: string, stageId?: string) {

@@ -13,7 +13,7 @@ import { FinanceDashboard } from '@/components/financeiro/FinanceDashboard';
 import { PageHeader } from '@/components/ui/page-header';
 
 export function FinanceiroDashboardClient() {
-  const { data, isLoading, error } = useFinanceDashboard();
+  const { data, error } = useFinanceDashboard();
 
   // Erro do dashboard deve renderizar estado de erro, não zero-summary.
   if (error) {
@@ -56,7 +56,7 @@ export function FinanceiroDashboardClient() {
         description="Gestão de orçamentos, pagamentos e cobranças"
       />
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <FinanceDashboard metrics={metrics} charges={[]} canManageBudget={false} />
+        <FinanceDashboard metrics={metrics} canManageBudget={false} />
       </div>
     </div>
   );

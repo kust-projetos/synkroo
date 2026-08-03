@@ -21,10 +21,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const trendDays = parseInt(searchParams.get('trend_days') || '30')
     const forecastDays = parseInt(searchParams.get('forecast_days') || '14')
+    if (!Number.isInteger(trendDays) || trendDays < 1 || trendDays > 365 ||
+      !Number.isInteger(forecastDays) || forecastDays < 1 || forecastDays > 90) {
+      return NextResponse.json({ error: 'Invalid analytics period' }, { status: 400 })
+    }
 
     const insights = await getClinicInsights(clinicId, { trendDays, forecastDays })
 
-    return NextResponse.json(insights)
+    return NextResponse.json({ ...insights, period: { trendDays, forecastDays } })
   } catch (error) {
     return handleApiError(error)
   }

@@ -21,6 +21,8 @@ export interface Consent {
   granted_at: string | null
   revoked_at: string | null
   channel: ConsentChannel | null
+  version: string | null
+  actor: string | null
   notes: string | null
   created_at: string
   updated_at: string
@@ -31,6 +33,8 @@ export interface ConsentGrantInput {
   contact_type: 'patient' | 'lead'
   purpose: ConsentPurpose
   channel?: ConsentChannel
+  version?: string
+  actor?: string
   notes?: string
 }
 
@@ -45,6 +49,8 @@ function toSnake(r: any): Consent {
     granted_at: r.grantedAt?.toISOString?.() ?? null,
     revoked_at: r.revokedAt?.toISOString?.() ?? null,
     channel: r.channel ?? null,
+    version: r.version ?? null,
+    actor: r.actor ?? null,
     notes: r.notes ?? null,
     created_at: r.createdAt?.toISOString?.() ?? '',
     updated_at: r.updatedAt?.toISOString?.() ?? '',
@@ -93,6 +99,8 @@ export async function grantConsent(
         grantedAt: now,
         revokedAt: null as any,
         channel: (input.channel || 'web') as any,
+        version: input.version || '1',
+        actor: input.actor || null,
         notes: input.notes || null,
       })
       .onConflictDoUpdate({
@@ -102,6 +110,8 @@ export async function grantConsent(
           grantedAt: now,
           revokedAt: null as any,
           channel: (input.channel || 'web') as any,
+          version: input.version || '1',
+          actor: input.actor || null,
           notes: input.notes || null,
           updatedAt: now,
         },
@@ -112,6 +122,25 @@ export async function grantConsent(
     dbLogger.error('Error granting consent', error)
     throw error
   }
+}
+
+export async function hasActiveConsent(
+  clinicId: string,
+  contactId: string,
+  contactType: 'patient' | 'lead',
+  purpose: ConsentPurpose,
+): Promise<boolean> {
+  const [row] = await getDb().select({ id: consents.id })
+    .from(consents)
+    .where(and(
+      eq(consents.clinicId, clinicId),
+      eq(consents.contactId, contactId),
+      eq(consents.contactType, contactType),
+      eq(consents.purpose, purpose),
+      eq(consents.granted, true),
+    ))
+    .limit(1)
+  return Boolean(row)
 }
 
 export async function revokeConsent(

@@ -51,6 +51,7 @@ export const authOptions: NextAuthOptions = {
             clinicId: user.clinicId,
             role: user.role,
             isActive: user.isActive,
+            sessionVersion: user.sessionVersion,
           };
         } catch {
           return null;
@@ -72,6 +73,7 @@ export const authOptions: NextAuthOptions = {
         token.clinicId = user.clinicId;
         token.role = user.role;
         token.isActive = user.isActive;
+        token.sessionVersion = user.sessionVersion;
       }
       if (trigger === 'update') {
         try {
@@ -85,6 +87,7 @@ export const authOptions: NextAuthOptions = {
             token.clinicId = freshUser.clinicId ?? undefined;
             token.role = freshUser.role ?? undefined;
             token.isActive = freshUser.isActive ?? undefined;
+            token.sessionVersion = freshUser.sessionVersion ?? undefined;
           }
         } catch {
           // Swallow
@@ -98,6 +101,7 @@ export const authOptions: NextAuthOptions = {
         session.user.clinicId = token.clinicId || '';
         session.user.role = token.role || '';
         session.user.isActive = token.isActive ?? true;
+        session.user.sessionVersion = token.sessionVersion ?? 0;
       }
       return session;
     },

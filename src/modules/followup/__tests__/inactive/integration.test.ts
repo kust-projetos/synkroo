@@ -15,6 +15,7 @@ import { patients } from '@/modules/operacional/schema';
 import { instanceModules } from '@/lib/db/schema/modules';
 import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
 import { seedRbacForClinic } from '@/core/rbac/seed';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { buildDelegatedContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
@@ -47,6 +48,7 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
     ]).onConflictDoNothing();
 
     // 2. Seed RBAC (so we can create user with owner role)
+    await bootstrapActions();
     await seedRbacForClinic(CLINIC_ID);
     await seedRbacForClinic(OTHER_CLINIC_ID);
 

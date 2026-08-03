@@ -48,19 +48,48 @@ async function defaultRoleFinder(db: DbOrTx, clinicId: string, name: string): Pr
   return existing[0]?.id ?? null;
 }
 
+export interface SeedOptions {
+  /**
+   * Quando `true` (default), lança erro se o catálogo de permissões estiver vazio.
+   * Catálogo vazio nunca é intenção real — indica que bootstrapActions() não foi
+   * chamado antes do seed. Passe `false` apenas em testes que controlam o catálogo
+   * manualmente (por ex., via registerActions parciais).
+   */
+  requireCatalog?: boolean;
+}
+
 // Cria os perfis de sistema (incl. Owner) e suas permissões para uma clínica.
 // Aceita um executor opcional (db ou tx) para permitir execução dentro da transação de signup.
 // roleFinder é injetado apenas em testes; em produção usa defaultRoleFinder (Drizzle real).
 export async function seedRbacForClinic(
   clinicId: string,
   executor?: DbOrTx,
-  roleFinder?: RoleFinder,
+  roleFinderOrOptions?: RoleFinder | SeedOptions,
+  maybeOptions?: SeedOptions,
 ): Promise<void> {
+  // Resolve roleFinder vs SeedOptions: se o 3º arg é função, é roleFinder; senão é SeedOptions.
+  let roleFinder: RoleFinder | undefined;
+  let opts: SeedOptions;
+  if (typeof roleFinderOrOptions === 'function') {
+    roleFinder = roleFinderOrOptions;
+    opts = maybeOptions ?? {};
+  } else {
+    roleFinder = undefined;
+    opts = roleFinderOrOptions ?? {};
+  }
+
   const db = executor ?? getDb();
   const findRole = roleFinder ?? ((name: string) => defaultRoleFinder(db, clinicId, name));
 
   // espelho de permissões (idempotente)
   const catalog = getPermissionCatalog();
+  if (opts.requireCatalog !== false && catalog.length === 0) {
+    throw new Error(
+      '[seedRbacForClinic] Catálogo de permissões vazio — bootstrapActions() não foi chamado. ' +
+      'Nenhum perfil de sistema pode ser semeado sem catálogo. ' +
+      'Se este é um teste com catálogo controlado, passe { requireCatalog: false }.',
+    );
+  }
   if (catalog.length) {
     await db.insert(permissions).values(catalog).onConflictDoNothing();
   }

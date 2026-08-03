@@ -176,7 +176,9 @@ describe('runtime owner dispatcher registration', () => {
   it('registers a patient owner merge dispatcher that delegates to mergePatients', async () => {
     const spy = jest.spyOn(patientsRepo, 'mergePatients').mockResolvedValue(true);
     const crm = await import('@/modules/crm');
-    await import('@/modules/operacional/actions/mesclar-pacientes');
+    // Task 4: dispatcher agora vive em @/modules/crm/services/patient-merge-dispatcher
+    // (a action operacional.mesclarPacientes foi removida).
+    await import('@/modules/crm/services/patient-merge-dispatcher');
 
     const patientCall = (crm.registerOwnerMerge as jest.Mock).mock.calls.find(
       ([type]) => type === 'patient',

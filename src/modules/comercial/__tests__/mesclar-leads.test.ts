@@ -122,7 +122,9 @@ describe('runtime owner dispatcher registration', () => {
   it('registers a lead owner merge dispatcher that delegates to mergeLeads', async () => {
     const spy = jest.spyOn(leadsRepo, 'mergeLeads').mockResolvedValue(true);
     const crm = await import('@/modules/crm');
-    await import('@/modules/comercial/actions/mesclar-leads');
+    // Task 4: dispatcher agora vive em @/modules/crm/services/lead-merge-dispatcher
+    // (a action comercial.mesclarLeads foi removida).
+    await import('@/modules/crm/services/lead-merge-dispatcher');
 
     const leadCall = (crm.registerOwnerMerge as jest.Mock).mock.calls.find(
       ([type]) => type === 'lead',

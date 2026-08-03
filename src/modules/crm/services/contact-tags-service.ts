@@ -7,8 +7,10 @@
  */
 import type { ActionContext } from '@/core/actions/types';
 import type { ContactType } from '../repositories/contact-read-repository';
-import { atualizarTagsPaciente } from '@/modules/operacional/actions';
-import { atualizarTagsLead } from '@/modules/comercial/actions';
+// eslint-disable-next-line boundaries/dependencies
+import { atualizarTagsPaciente } from '@/modules/operacional/actions/atualizar-tags-paciente';
+// eslint-disable-next-line boundaries/dependencies
+import { atualizarTagsLead } from '@/modules/comercial/actions/atualizar-tags-lead';
 
 export async function updateContactTagsService(
   ctx: Pick<ActionContext, 'clinicId'>,

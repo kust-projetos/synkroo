@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plano: Corrigir pendências de verificação, Cloudflare e redesign</title>
+<style>
+:root {
+  --bg: #071014;
+  --surface: #0d1b20;
+  --surface-2: #10242a;
+  --line: #21434b;
+  --text: #e6f5f2;
+  --muted: #9bb9b5;
+  --accent: #2dd4bf;
+  --accent-2: #67e8f9;
+  --warn: #fbbf24;
+  --danger: #fb7185;
+  --good: #86efac;
+  --mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: linear-gradient(145deg, var(--bg), #09191d 55%, #071014); color: var(--text); font: 15px/1.65 var(--sans); }
+main { max-width: 1080px; margin: 0 auto; padding: 42px 24px 80px; }
+h1, h2, h3, h4 { line-height: 1.2; letter-spacing: -0.02em; }
+h1 { font-size: clamp(2rem, 5vw, 3.4rem); margin: 0 0 18px; max-width: 850px; }
+h2 { color: var(--accent); font-size: 1.65rem; margin-top: 48px; border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+h3 { color: var(--accent-2); font-size: 1.18rem; margin-top: 28px; }
+h4 { color: var(--text); margin: 22px 0 8px; }
+p { color: var(--muted); max-width: 860px; }
+code { font: .92em var(--mono); color: #b6fff2; background: #092026; border: 1px solid #17414a; padding: 2px 6px; border-radius: 5px; }
+pre { overflow: auto; background: #061014; border: 1px solid var(--line); border-radius: 10px; padding: 16px; color: #d5fffa; font: 12px/1.6 var(--mono); }
+ul { padding-left: 22px; }
+li { margin: 7px 0; color: var(--muted); }
+header { margin-bottom: 34px; }
+.meta { display: inline-block; background: rgba(13, 27, 32, .8); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; min-width: min(100%, 720px); }
+.meta summary { color: var(--accent); cursor: pointer; font-weight: 700; }
+dl { display: grid; grid-template-columns: 150px 1fr; gap: 4px 16px; margin: 12px 0 0; font-size: 12px; }
+dt { color: var(--muted); font-family: var(--mono); }
+dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+figure { margin: 24px 0; min-height: 90px; border: 1px dashed #27616a; border-radius: 12px; background: radial-gradient(circle at 30% 20%, rgba(45,212,191,.12), transparent 45%), var(--surface); display: grid; place-items: center; text-align: center; padding: 18px; }
+figcaption { color: var(--muted); font-size: 13px; }
+.callout { border-left: 4px solid var(--accent); background: rgba(45,212,191,.07); border-radius: 0 10px 10px 0; padding: 14px 18px; margin: 18px 0; }
+.callout.warn { border-color: var(--warn); background: rgba(251,191,36,.08); }
+.callout.danger { border-color: var(--danger); background: rgba(251,113,133,.08); }
+.callout strong { color: var(--text); }
+.phase { border: 1px solid var(--line); background: rgba(13,27,32,.75); border-radius: 14px; padding: 10px 22px 20px; margin: 22px 0; }
+.status { color: var(--warn); font-family: var(--mono); font-weight: 700; }
+.checklist { list-style: none; padding-left: 0; }
+.checklist li { display: flex; gap: 9px; align-items: flex-start; }
+.checklist li::before { content: "[ ]"; color: var(--warn); font: 12px var(--mono); margin-top: 4px; }
+.files { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+.files h2 { grid-column: 1 / -1; }
+.files h3 { margin-top: 12px; }
+.tag { display: inline-block; border-radius: 999px; padding: 1px 7px; font: 11px var(--mono); }
+.existing { color: var(--accent-2); background: #0b3038; }
+.new { color: var(--good); background: #123424; }
+table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 13px; }
+th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); padding: 10px; }
+th { color: var(--accent); background: #0b1e23; }
+td { color: var(--muted); }
+.loop { border: 1px solid #35645f; color: #b9f8e7; background: rgba(45,212,191,.08); border-radius: 9px; padding: 10px 13px; margin-top: 14px; }
+.qa { border: 1px solid #715a20; background: rgba(251,191,36,.06); border-radius: 10px; padding: 10px 15px; margin: 10px 0; }
+.qa summary { color: var(--warn); cursor: pointer; font-weight: 700; }
+@media (max-width: 720px) { main { padding: 28px 15px 60px; } .files { display: block; } dl { grid-template-columns: 1fr; gap: 1px; } dt { margin-top: 8px; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Plano: corrigir pendências de verificação, Cloudflare e redesign</h1>
+  <details class="meta">
+    <summary>Metadados</summary>
+    <dl>
+      <dt>created</dt><dd>2026-07-31T13:32:00-03:00</dd>
+      <dt>modified</dt><dd>2026-07-31T13:32:00-03:00</dd>
+      <dt>commits</dt><dd>9596a11</dd>
+      <dt>agent name</dt><dd>pi</dd>
+      <dt>session id</dt><dd>019fb848-bcf8-7bdf-981f-124829f4bec6</dd>
+      <dt>back refs</dt><dd>docs/superpowers/plans/2026-07-28-synkroo-development-master-plan.md, docs/superpowers/plans/ui-redesign/phase-7-features.md, docs/superpowers/plans/ui-redesign/phase-8-auth-landing.md, docs/superpowers/audits/2026-07-29-seguranca-resiliencia-gap-audit.md</dd>
+      <dt>forward refs</dt><dd>docs/superpowers/audits/2026-07-31-pendencias-closure.md</dd>
+    </dl>
+  </details>
+</header>
+
+<figure>
+  <!-- HERO_IMAGE: pipeline visual with source tree, validation gates, OpenNext build, Cloudflare deployment, and live smoke -->
+  <figcaption>Fluxo de fechamento: preservar alterações, corrigir TypeScript, validar OpenNext, reconciliar o redesign e comprovar o deploy ativo.</figcaption>
+</figure>
+
+<section id="purpose">
+  <h2>Purpose</h2>
+  <p>Fechar as pendências encontradas na verificação do último trabalho de frontend sem perder alterações locais existentes. O resultado será um conjunto pequeno de commits verificáveis, um build Cloudflare reproduzível e um registro claro do que foi concluído, superseded ou ainda depende de decisão de produto.</p>
+  <div class="callout"><strong>Fora do escopo:</strong> este plano não encerra sozinho o Plano Mestre do Synkroo. Fases de produto, banco, IA, financeiro e piloto continuam sendo rastreadas no plano mestre.</div>
+</section>
+
+<section id="problem">
+  <h2>Problem</h2>
+  <p>A entrega visual do frontend já está no commit <code>9596a11</code> e está ativa no Worker, mas a verificação não fecha todos os gates: <code>npm run typecheck</code> acusa duas atribuições inválidas em <code>process.env.NODE_ENV</code>; <code>npm run build:cf</code> não terminou em 20 minutos no Windows; o repositório possui alterações locais fora do commit visual; e os planos de redesign ainda descrevem arquivos que foram removidos ou nunca foram migrados.</p>
+  <figure>
+    <!-- PROBLEM_IMAGE: split screen showing green local build, red typecheck, yellow Cloudflare timeout, and stale plan checkboxes -->
+    <figcaption>Pendências atuais: gate TypeScript vermelho, build CF dependente do ambiente, árvore Git suja e documentação de escopo desatualizada.</figcaption>
+  </figure>
+</section>
+
+<section id="solution">
+  <h2>Solution</h2>
+  <p>Executar quatro fases curtas. Primeiro proteger a árvore de trabalho. Depois corrigir o teste de autenticação com API de Jest que respeita o tipo readonly. Em seguida tornar o build Cloudflare reproduzível em WSL/Linux e validá-lo com dry-run. Por fim reconciliar as fases do redesign com a arquitetura real: implementar o que continua sendo requisito, ou marcar como superseded o que foi removido de propósito.</p>
+  <figure>
+    <!-- SOLUTION_IMAGE: four-stage flow from worktree guard to typecheck to WSL OpenNext to plan reconciliation and production smoke -->
+    <figcaption>Quatro fases, cada uma com teste próprio e sem misturar refactor amplo com correção de release.</figcaption>
+  </figure>
+</section>
+
+<section id="files" class="files">
+  <h2>Relevant Files</h2>
+  <div>
+    <h3>Existing Files</h3>
+    <ul>
+      <li><span class="tag existing">existing</span> <code>src/app/api/auth/__tests__/jwt-auth.test.ts</code> — teste que causa os dois erros do typecheck.</li>
+      <li><span class="tag existing">existing</span> <code>package.json</code> — scripts <code>typecheck</code>, <code>build:cf</code>, <code>deploy:cf</code> e dependências OpenNext.</li>
+      <li><span class="tag existing">existing</span> <code>tsconfig.json</code> — inclui todos os testes TypeScript, portanto o gate direto precisa passar.</li>
+      <li><span class="tag existing">existing</span> <code>wrangler.toml</code> — Worker, Hyperdrive, bindings e assets do app principal.</li>
+      <li><span class="tag existing">existing</span> <code>scripts/inject-pg-global.mjs</code> — pós-processamento obrigatório do Worker OpenNext.</li>
+      <li><span class="tag existing">existing</span> <code>src/app/providers.tsx</code>, <code>src/app/dashboard/layout.tsx</code> — pontos de entrada para regressão visual e autenticação.</li>
+      <li><span class="tag existing">existing</span> <code>src/app/login/page.tsx</code>, <code>src/app/signup/page.tsx</code> — páginas previstas na Fase 8, atualmente não migradas no commit visual.</li>
+      <li><span class="tag existing">existing</span> <code>src/app/dashboard/conversas/page.tsx</code>, <code>src/app/dashboard/analytics/page.tsx</code>, <code>src/app/dashboard/configuracoes/page.tsx</code>, <code>src/lib/ui/toast.tsx</code> — itens previstos na Fase 7 e não alterados no último overhaul.</li>
+      <li><span class="tag existing">existing</span> <code>docs/superpowers/plans/ui-redesign/phase-7-features.md</code>, <code>phase-8-auth-landing.md</code> — fonte de verdade do escopo visual pendente.</li>
+    </ul>
+  </div>
+  <div>
+    <h3>New Files</h3>
+    <ul>
+      <li><span class="tag new">new</span> <code>specs/2026-07-31-corrigir-pendencias-verificacao-deploy.html</code> — este plano F3.</li>
+      <li><span class="tag new">new</span> <code>docs/superpowers/audits/2026-07-31-pendencias-closure.md</code> — evidência final sem secrets ou PII.</li>
+      <li><span class="tag new">new</span> <code>docs/runbook-cloudflare-build.md</code> — procedimento reproduzível para WSL/Linux, dry-run e smoke.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="phases">
+  <h2>Implementation Phases</h2>
+  <p><strong>Ordem obrigatória:</strong> executar cada fase de cima para baixo. Não fazer <code>git clean</code>, <code>git reset</code>, <code>stash</code>, <code>checkout</code> ou commit amplo enquanto a árvore de trabalho não for classificada.</p>
+
+  <div class="phase">
+    <h3><code class="status">[]</code> Phase 0: proteger a árvore de trabalho</h3>
+    <p>Separar o trabalho de correção das alterações locais já existentes. O branch atual contém o commit visual, mas também possui modificações e arquivos não rastreados de segurança, banco, testes e documentação.</p>
+    <h4>0.1. Registrar o estado inicial</h4>
+    <ul class="checklist">
+      <li>Executar <code>git status --short --branch</code>, <code>git log -5 --oneline --decorate</code> e <code>git diff --stat</code>; salvar a saída fora do Git.</li>
+      <li>Executar <code>git diff --name-only 9596a11^..9596a11</code> e confirmar que o escopo visual está no commit <code>9596a11</code>.</li>
+      <li>Não tocar em arquivos não relacionados sem identificar o autor e a finalidade.</li>
+    </ul>
+    <h4>0.2. Isolar a execução</h4>
+    <ul class="checklist">
+      <li>Criar um worktree limpo para este plano a partir de <code>9596a11</code>: <code>git worktree add ../synkroo-pendencias -b fix/pendencias-verificacao 9596a11</code>.</li>
+      <li>Executar todas as correções somente no worktree novo; preservar a árvore original como fonte de alterações pendentes.</li>
+      <li>Se o worktree não puder ser criado, parar e solicitar decisão antes de alterar o branch atual.</li>
+    </ul>
+    <h4>0.3. Testing Strategy</h4>
+    <p>O gate desta fase é de integridade Git, não de aplicação.</p>
+    <ul class="checklist">
+      <li><code>git status --short --branch</code> — worktree de execução começa limpo.</li>
+      <li><code>git rev-parse --short HEAD</code> — confirma que a execução começa em <code>9596a11</code>.</li>
+    </ul>
+    <div class="loop">🔁 Não prosseguir se o worktree estiver contaminado ou se alterações da árvore original forem descartadas.</div>
+  </div>
+
+  <div class="phase">
+    <h3><code class="status">[]</code> Phase 1: corrigir o gate TypeScript</h3>
+    <p>Remover a atribuição direta proibida a <code>process.env.NODE_ENV</code> sem alterar o comportamento testado de cookie seguro.</p>
+    <h4>1.1. Congelar o comportamento esperado</h4>
+    <ul class="checklist">
+      <li>Executar <code>npm run typecheck -- --pretty false</code> e confirmar somente os erros nas linhas 167 e 178 de <code>jwt-auth.test.ts</code>.</li>
+      <li>Executar <code>npm test -- --runInBand src/app/api/auth/__tests__/jwt-auth.test.ts</code> e confirmar que a suíte atual continua verde antes da mudança.</li>
+    </ul>
+    <h4>1.2. Substituir a mutação direta de ambiente</h4>
+    <p>Em <code>src/app/api/auth/__tests__/jwt-auth.test.ts</code>, substituir o bloco de atribuição por uma propriedade temporariamente substituída pelo Jest:</p>
+    <pre>const nodeEnv = jest.replaceProperty(process.env, 'NODE_ENV', 'production');
+try {
+  const response = await loginEndpoint.POST(request);
+  expect(response.headers.get('set-cookie'))
+    .toContain('__Secure-next-auth.session-token=');
+} finally {
+  nodeEnv.restore();
+}</pre>
+    <p>Aplicar o mesmo padrão ao segundo bloco de teste que atribui <code>process.env.NODE_ENV</code>. Não usar <code>as any</code> e não relaxar o <code>tsconfig.json</code>.</p>
+    <h4>1.3. Testing Strategy</h4>
+    <ul class="checklist">
+      <li><code>npm test -- --runInBand src/app/api/auth/__tests__/jwt-auth.test.ts</code> — preserva o contrato de cookie de produção.</li>
+      <li><code>npm run typecheck -- --pretty false</code> — elimina os dois erros sem esconder testes do compilador.</li>
+      <li><code>npm run lint</code> — garante que a correção segue as regras do projeto.</li>
+    </ul>
+    <div class="loop">🔁 Se <code>jest.replaceProperty</code> não puder substituir <code>NODE_ENV</code> no runtime de Jest, usar um helper tipado com <code>Object.defineProperty</code> e cobrir restore em <code>finally</code>; não aceitar workaround que desative o typecheck.</div>
+  </div>
+
+  <div class="phase">
+    <h3><code class="status">[]</code> Phase 2: tornar o build Cloudflare reproduzível</h3>
+    <p>O build Next normal passa, mas o build OpenNext/Cloudflare travou depois da geração Next no Windows. A execução oficial deve ocorrer em WSL/Linux, conforme o warning do OpenNext.</p>
+    <h4>2.1. Documentar o ambiente suportado</h4>
+    <ul class="checklist">
+      <li>Criar <code>docs/runbook-cloudflare-build.md</code> com pré-requisitos: Node/npm, WSL2, Docker quando necessário, autenticação Wrangler e secrets fornecidos por ambiente, nunca por argumento.</li>
+      <li>Documentar o diretório WSL: <code>/mnt/d/projetos/synkroo</code>.</li>
+      <li>Documentar que <code>wrangler</code> deve ser chamado via <code>npx wrangler</code>, pois o binário global não está disponível no shell atual.</li>
+    </ul>
+    <h4>2.2. Criar o gate local de CF</h4>
+    <p>Adicionar ao <code>package.json</code> o script abaixo, sem fazer deploy real:</p>
+    <pre>"verify:cf": "npm run build:cf &amp;&amp; npx wrangler deploy --dry-run --config wrangler.toml"</pre>
+    <p>O dry-run deve validar o bundle produzido, bindings e configuração sem publicar uma nova versão.</p>
+    <h4>2.3. Executar no WSL</h4>
+    <pre>cd /mnt/d/projetos/synkroo
+npm ci
+npx wrangler --version
+npm run lint
+npm run typecheck
+npm run verify:cf</pre>
+    <ul class="checklist">
+      <li>Confirmar que <code>.open-next/worker.js</code> existe após o build.</li>
+      <li>Confirmar que <code>globalThis.pg = pg</code> e <code>globalThis.__SYNKROO_HYPERDRIVE</code> foram injetados pelo script.</li>
+      <li>Registrar o tamanho comprimido do bundle e comparar com o limite pago configurado no projeto.</li>
+      <li>Registrar o warning de direct mode queue; se continuar, abrir decisão explícita sobre Queue/outbox antes de chamar o release production-ready.</li>
+    </ul>
+    <h4>2.4. Testing Strategy</h4>
+    <ul class="checklist">
+      <li><code>npm run build:cf</code> — produz o Worker OpenNext e executa a injeção de runtime.</li>
+      <li><code>npx wrangler deploy --dry-run --config wrangler.toml</code> — valida upload, bindings e bundle sem alterar produção.</li>
+      <li><code>npx wrangler check startup</code> — mede startup e identifica regressões de Worker.</li>
+    </ul>
+    <div class="loop">🔁 Se o OpenNext travar novamente, capturar o último diretório gerado e o log completo no WSL. Não aumentar timeout indefinidamente no Windows e não declarar o gate verde por causa do <code>next build</code> isolado.</div>
+  </div>
+
+  <div class="phase">
+    <h3><code class="status">[]</code> Phase 3: reconciliar as pendências do redesign</h3>
+    <p>O commit <code>9596a11</code> entrega landing, dashboard, tokens, componentes e shell. Os planos das fases 7 e 8 ainda listam trabalho não presente no commit: páginas de conversas/analytics/configurações/toast, login/signup e chat widget. Esta fase separa requisito real de documentação obsoleta.</p>
+    <h4>3.1. Fazer o inventário por arquivo</h4>
+    <ul class="checklist">
+      <li>Comparar cada arquivo listado em <code>phase-7-features.md</code> e <code>phase-8-auth-landing.md</code> com o estado real, usando <code>git diff 9596a11^..9596a11 --name-only</code> e leitura da implementação atual.</li>
+      <li>Para cada item, registrar <code>implemented</code>, <code>partial</code>, <code>superseded</code> ou <code>missing</code>. Não considerar apenas o visual; conferir comportamento, loading, erro e navegação.</li>
+      <li>Atualizar os checkboxes dos planos somente depois de anexar evidência de teste.</li>
+    </ul>
+    <h4>3.2. Fechar Fase 7, se ainda for requisito</h4>
+    <ul class="checklist">
+      <li>Migrar <code>src/app/dashboard/conversas/page.tsx</code>, <code>analytics/page.tsx</code> e <code>configuracoes/page.tsx</code> para os componentes sem alterar hooks ou contratos de dados.</li>
+      <li>Decidir entre manter o provider atual de <code>src/lib/ui/toast.tsx</code> ou adaptá-lo ao toast shadcn; preservar os exports usados pelos consumidores existentes.</li>
+      <li>Adicionar testes de renderização para loading, erro, empty state, tema claro/escuro e ações primárias de cada página.</li>
+    </ul>
+    <h4>3.3. Fechar Fase 8 sem reintroduzir arquitetura removida</h4>
+    <ul class="checklist">
+      <li>Migrar login e signup para o design system se continuarem sendo requisitos de produto; manter autenticação, demo login e redirect intactos.</li>
+      <li>Não criar <code>complete-profile</code> ou <code>chat-widget</code> automaticamente. Se a remoção foi intencional, marcar os itens como <code>superseded</code> e registrar a razão no plano.</li>
+      <li>Se o chat público continuar necessário, criar antes um ADR curto definindo pipeline, tenant binding, rate limit e tema; somente depois implementar o componente.</li>
+    </ul>
+    <h4>3.4. Testing Strategy</h4>
+    <ul class="checklist">
+      <li><code>npm test -- --runInBand</code> — regressão unitária e de componentes.</li>
+      <li><code>npm run dev</code> + Playwright em 390x844 e 1440x900 — verifica reflow, navegação, sidebar, temas e estados de tela.</li>
+      <li><code>git diff --check</code> — bloqueia whitespace e artefatos antes do commit.</li>
+    </ul>
+    <div class="loop">🔁 Não marcar o redesign como 100% concluído por inferência. Cada página precisa de evidência de renderização e cada item removido precisa de justificativa documentada.</div>
+  </div>
+
+  <div class="phase">
+    <h3><code class="status">[]</code> Phase 4: fechamento, deploy e evidência</h3>
+    <p>Consolidar somente os arquivos deste plano, validar a versão local e confirmar que a versão ativa no Cloudflare serve o frontend esperado.</p>
+    <h4>4.1. Rodar a suíte final</h4>
+    <ul class="checklist">
+      <li>Executar <code>npm run lint</code>.</li>
+      <li>Executar <code>npm run typecheck</code>.</li>
+      <li>Executar <code>npm test -- --runInBand</code>.</li>
+      <li>Executar <code>npm run build</code>.</li>
+      <li>Executar <code>npm run verify:cf</code> no WSL.</li>
+    </ul>
+    <h4>4.2. Validar produção após autorização de deploy</h4>
+    <pre>npx wrangler deployments list --name synkroo
+curl -fsS -D /tmp/synkroo-live.headers https://synkroo.walissonead.workers.dev/ -o /tmp/synkroo-live.html
+curl -sS -D /tmp/synkroo-dashboard.headers -o /dev/null https://synkroo.walissonead.workers.dev/dashboard
+curl -sS -o /dev/null -w "%{http_code}\n" https://synkroo.walissonead.workers.dev/api/health</pre>
+    <ul class="checklist">
+      <li>Confirmar uma versão do <code>synkroo</code> em 100% no <code>wrangler deployments list</code>.</li>
+      <li>Confirmar landing HTTP 200 e marcadores da versão visual esperada.</li>
+      <li>Confirmar dashboard não autenticado redireciona para login.</li>
+      <li>Confirmar health conforme o contrato do ambiente, sem executar migrations destrutivas.</li>
+    </ul>
+    <h4>4.3. Registrar o fechamento</h4>
+    <ul class="checklist">
+      <li>Criar <code>docs/superpowers/audits/2026-07-31-pendencias-closure.md</code> com comandos, resultados, versão Cloudflare, gaps restantes e links para os planos atualizados.</li>
+      <li>Não registrar secrets, cookies, e-mails de usuários, connection strings ou PII.</li>
+      <li>Commitar somente os arquivos allowlisted deste plano, com mensagem <code>fix: close verification and Cloudflare release gaps</code>.</li>
+      <li>Não fazer push ou novo deploy sem confirmação explícita do owner para esta execução.</li>
+    </ul>
+    <h4>4.4. Testing Strategy</h4>
+    <ul class="checklist">
+      <li><code>git status --short</code> — somente arquivos allowlisted aparecem na branch de correção.</li>
+      <li><code>git diff --check</code> — nenhum erro de whitespace.</li>
+      <li><code>npx wrangler deployments list --name synkroo</code> — versão correta ativa em 100% quando o deploy for autorizado.</li>
+      <li><code>curl</code> dos endpoints público, dashboard e health — comprova o comportamento externo.</li>
+    </ul>
+    <div class="loop">🔁 Só encerrar a fase com evidência fresca. Relatos de agente, versão antiga ou build Next isolado não substituem o build CF e o smoke do Worker.</div>
+  </div>
+</section>
+
+<section id="validation">
+  <h2>Validation Commands</h2>
+  <p>O plano só pode ser marcado como concluído quando os comandos abaixo tiverem saída fresca e registrada:</p>
+  <ul class="checklist">
+    <li><code>npm run lint</code> — zero erros e zero warnings bloqueantes.</li>
+    <li><code>npm run typecheck</code> — zero erros TypeScript, incluindo testes.</li>
+    <li><code>npm test -- --runInBand</code> — zero suítes ou testes falhos.</li>
+    <li><code>npm run build</code> — build Next de produção concluído.</li>
+    <li><code>npm run verify:cf</code> — OpenNext concluído e Wrangler dry-run aprovado em WSL/Linux.</li>
+    <li><code>git diff --check</code> — zero whitespace errors.</li>
+    <li><code>npx wrangler deployments list --name synkroo</code> — versão autorizada ativa em 100%.</li>
+    <li><code>curl</code> para landing, dashboard e health — status externo registrado.</li>
+  </ul>
+  <div class="loop">🔁 Se algum gate falhar, marcar a tarefa como <code>[f]</code>, registrar a assinatura da falha e corrigir antes de avançar. Não esconder falhas com exclusões de tsconfig, skips, catches vazios ou aumento arbitrário de timeout.</div>
+</section>
+
+<section id="questionables">
+  <h2>Questionables</h2>
+  <div class="qa"><details open><summary>O chat widget deve voltar?</summary><p class="qa-answer">Recomendação: não reintroduzir automaticamente. O código legado foi removido e o plano atual não prova que o widget ainda é requisito. Se o produto exigir chat público, a implementação deve nascer de um ADR com pipeline, autenticação de clínica, rate limit e fallback definidos.</p></details></div>
+  <div class="qa"><details open><summary>Devemos corrigir o build Cloudflare no Windows?</summary><p class="qa-answer">Recomendação: não. O OpenNext explicitamente sinaliza compatibilidade incompleta no Windows. WSL/Linux deve ser o ambiente oficial; o ganho é um gate reproduzível sem criar um wrapper frágil para um ambiente não suportado.</p></details></div>
+  <div class="qa"><details open><summary>O plano inteiro de redesign deve ser marcado como concluído?</summary><p class="qa-answer">Somente após fechar ou superseder cada item das fases 7 e 8. O landing e o shell já estão entregues, mas páginas e componentes previstos no documento não podem ser considerados concluídos sem implementação ou decisão registrada.</p></details></div>
+</section>
+
+<section id="notes">
+  <h2>Notes</h2>
+  <div class="callout warn"><strong>Estado conhecido:</strong> o deploy Cloudflare mais recente consultado foi a versão <code>4da96ccb-9160-4636-96c3-66f3a9c15fe7</code>, com mensagem “deploy latest frontend changes”, ativo em 100%. O plano trata a validação do próximo release, não presume que esse deploy cobre correções futuras.</div>
+  <div class="callout danger"><strong>Higiene Git:</strong> a árvore original contém dezenas de arquivos modificados e não rastreados. Não executar comandos destrutivos para deixá-la limpa. O worktree isolado é obrigatório para preservar o trabalho existente.</div>
+  <table>
+    <thead><tr><th>Resultado esperado</th><th>Critério objetivo</th></tr></thead>
+    <tbody>
+      <tr><td>TypeScript confiável</td><td>O comando direto inclui os testes e termina com exit 0.</td></tr>
+      <tr><td>Build CF reproduzível</td><td>OpenNext termina no WSL, gera worker.js, injeta runtime e Wrangler dry-run passa.</td></tr>
+      <tr><td>Redesign rastreável</td><td>Cada item das fases 7/8 está implementado com evidência ou marcado superseded com razão.</td></tr>
+      <tr><td>Release comprovado</td><td>Versão autorizada ativa em 100%, landing 200, dashboard protegido e health registrado.</td></tr>
+    </tbody>
+  </table>
+  <!-- NOTES_IMAGE: compact release scorecard showing four green gates and explicit unresolved decisions -->
+  <figure><figcaption>Scorecard final: typecheck, tests, build CF e smoke externo. Pendência só fecha com evidência, não com inferência.</figcaption></figure>
+</section>
+
+<section id="amendments">
+  <h2>Amendments</h2>
+  <p>Plano recém-criado. Alterações futuras devem ser adicionadas aqui, sem apagar o histórico.</p>
+</section>
+
+</main>
+</body>
+</html>

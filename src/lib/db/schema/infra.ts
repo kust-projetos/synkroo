@@ -4,6 +4,19 @@ import { patients } from '../../../modules/operacional/schema';
 import { vector } from 'drizzle-orm/pg-core';
 
 // ══════════════════════════════════════════════
+// IDEMPOTENCY KEYS
+// ══════════════════════════════════════════════
+export const idempotencyKeys = pgTable('idempotency_keys', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  key: text('key').notNull().unique(),
+  jobType: text('job_type').notNull(),
+  status: text('status').notNull().default('in_progress'),
+  error: text('error'),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+});
+
+// ══════════════════════════════════════════════
 // KNOWLEDGE BASE (with pgvector embedding)
 // ══════════════════════════════════════════════
 export const knowledgeBase = pgTable('knowledge_base', {
@@ -69,6 +82,8 @@ export const consents = pgTable('consents', {
   grantedAt: timestamp('granted_at', { withTimezone: true }).defaultNow(),
   revokedAt: timestamp('revoked_at', { withTimezone: true }),
   channel: varchar('channel', { length: 20 }).default('web'),
+  version: varchar('version', { length: 50 }).default('1'),
+  actor: text('actor'),
   notes: text('notes'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
