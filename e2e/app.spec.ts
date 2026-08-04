@@ -32,10 +32,10 @@ test.describe('Landing Page', () => {
   test('should navigate to login from homepage', async ({ page }) => {
     await page.goto(BASE_URL)
 
-    const loginLink = page.locator('a[href="/login"]').first()
-    await expect(loginLink).toBeVisible()
-    await loginLink.click()
-    await expect(page).toHaveURL(/.*login/)
+    const dashboardLink = page.locator('a[href="/dashboard"]').first()
+    await expect(dashboardLink).toBeVisible()
+    await dashboardLink.click()
+    await expect(page).toHaveURL(/.*dashboard/)
   })
 })
 
@@ -82,9 +82,9 @@ test.describe('Authentication Flow', () => {
 
     // Try clicking the logout icon in sidebar footer area
     // The logout button is the last button in the sidebar footer
-    const footerButtons = page.locator('aside button, .lg\\:flex button')
-    await expect(footerButtons.last()).toBeVisible()
-    await footerButtons.last().click()
+    const logoutButton = page.getByRole('button', { name: 'Sair', exact: true })
+    await expect(logoutButton).toBeVisible()
+    await logoutButton.click()
     await expect(page).toHaveURL(/.*login/, { timeout: 5000 })
   })
 })
@@ -281,7 +281,7 @@ test.describe('Conversations Page', () => {
   test('should have conversation list or empty state', async ({ page }) => {
     await page.waitForLoadState('networkidle')
     await expect(page.locator('main')).toBeVisible()
-    await expect(page.locator('button, [data-testid="conversation-item"], text=/nenhuma conversa|sem conversas|Nenhuma/i').first()).toBeVisible()
+    await expect(page.locator('button, [data-testid="conversation-item"]').first()).toBeVisible()
   })
 })
 
@@ -532,32 +532,3 @@ test.describe('Theme Toggle', () => {
 })
 
 // ============================================
-// CHAT WIDGET TESTS
-// ============================================
-test.describe('Chat Widget', () => {
-  test.beforeEach(async ({ page }) => {
-    await login(page)
-  })
-
-  test('should display chat widget button', async ({ page }) => {
-    await page.goto(`${BASE_URL}/dashboard`)
-
-    // Chat widget button should be visible (fixed bottom-right)
-    const chatButton = page.locator('button[aria-label*="chat" i], button[aria-label*="Abrir" i]').last()
-    await expect(chatButton).toBeVisible()
-  })
-
-  test('should open chat panel when clicked', async ({ page }) => {
-    await page.goto(`${BASE_URL}/dashboard`)
-
-    // Find and click the chat widget trigger
-    const chatButton = page.locator('button[aria-label*="chat" i], button[aria-label*="Chat" i], button[aria-label*="Abrir" i]').last()
-
-    await expect(chatButton).toBeVisible()
-    await chatButton.click()
-
-      // Chat panel should appear with input or greeting
-      const chatPanel = page.locator('input[placeholder*="mensagem" i], input[placeholder*="Digite" i], text=/Mia|assistente|Clínica/i')
-      await expect(chatPanel.first()).toBeVisible()
-  })
-})

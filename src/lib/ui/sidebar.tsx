@@ -317,7 +317,7 @@ function SidebarContent({
                 <div className="text-xs font-semibold text-foreground truncate">{profile?.name || "Dr. Profissional"}</div>
                 <div className="text-[10px] text-teal-600 dark:text-teal-400 font-medium capitalize truncate">{profile?.role || "Administrador"}</div>
               </div>
-              <button onClick={() => logout()} title="Sair" className="p-1 text-zinc-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30">
+              <button onClick={() => logout()} title="Sair" aria-label="Sair" className="p-1 text-zinc-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30">
                 <LogoutIcon className="h-4 w-4" />
               </button>
             </>
