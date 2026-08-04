@@ -225,8 +225,8 @@ async function sendCampaignMessage(
 
 // ─── Scheduled Processing ─────────────────────────────────────
 
-export async function processScheduledCampaigns(clinicId: string): Promise<void> {
-	const campaigns = await campaignRepo.findScheduledCampaigns(clinicId);
+export async function processScheduledCampaigns(clinicId: string, now = new Date()): Promise<void> {
+	const campaigns = await campaignRepo.findScheduledCampaigns(clinicId, now);
 	for (const campaign of campaigns) await startCampaign(campaign.id);
 	dbLogger.info('scheduled campaigns processed', { clinicId, count: campaigns.length });
 }

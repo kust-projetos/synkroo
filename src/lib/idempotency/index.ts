@@ -43,7 +43,7 @@ export async function tryClaimIdempotencyKey(
   const db = getDb();
   try {
     // INSERT ... ON CONFLICT DO NOTHING — atomic claim
-    await db
+    const rows = await db
       .insert(idempotencyKeys)
       .values({
         key,
@@ -51,8 +51,9 @@ export async function tryClaimIdempotencyKey(
         status: 'in_progress',
         expiresAt: new Date(Date.now() + ttlSeconds * 1000),
       })
-      .onConflictDoNothing();
-    return true;
+      .onConflictDoNothing()
+      .returning({ key: idempotencyKeys.key });
+    return rows.length === 1;
   } catch (err) {
     // If duplicate key error, someone else claimed it
     dbLogger.warn('Idempotency key conflict', { key, jobType });

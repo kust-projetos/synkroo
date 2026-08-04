@@ -11,15 +11,11 @@ export default defineConfig({
   globalSetup: path.join(__dirname, 'e2e/global-setup.ts'),
   globalTeardown: path.join(__dirname, 'e2e/global-teardown.ts'),
   use: {
-    baseURL: 'http://localhost:3003',
+    baseURL: 'http://127.0.0.1:3003',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
   projects: [
-    {
-      name: 'setup',
-      testMatch: /global-setup\.ts/,
-    },
     {
       name: 'authenticated',
       use: {
@@ -27,7 +23,6 @@ export default defineConfig({
         storageState: path.join(__dirname, 'e2e/.auth/admin.json'),
       },
       testIgnore: ['**/auth/**', '**/api/**'],
-      dependencies: ['setup'],
     },
     {
       name: 'unauthenticated',
@@ -41,13 +36,12 @@ export default defineConfig({
         storageState: path.join(__dirname, 'e2e/.auth/admin.json'),
       },
       testMatch: '**/api/**',
-      dependencies: ['setup'],
     },
   ],
   webServer: {
     command: 'npm run dev -- -p 3003',
-    url: 'http://localhost:3003',
-    reuseExistingServer: true,
+    url: 'http://127.0.0.1:3003/api/health',
+    reuseExistingServer: false,
     timeout: 120000,
   },
 })

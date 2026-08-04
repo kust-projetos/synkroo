@@ -7,6 +7,7 @@ import { appointments, patients, leads, conversations, dentists, procedures } fr
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { redactPII } from '@/lib/reports/redact-pii'
+import { escapeCsvCell } from './csv'
 
 const COLORS = {
   primary: [41, 98, 255] as [number, number, number],
@@ -119,20 +120,20 @@ export async function GET(request: NextRequest) {
   } catch (error) { return handleApiError(error) }
 }
 
-// ─── CSV / PDF generators (unchanged) ───
+// ─── CSV / PDF generators ───
 function generateCSV(data: any[], headers: string[], type: string): string {
   const BOM = '\uFEFF'
   const rows: string[][] = [headers]
   for (const item of data) {
     switch (type) {
-      case 'appointments': rows.push([formatDate(item.scheduledAt||item.scheduled_at),item.patients?.name||'',item.patients?.phone||'',translateStatus(item.status),item.dentists?.name||'',item.procedures?.name||'',formatCurrency(item.total_value),(item.notes||'').replace(/"/g,'""')]); break
+      case 'appointments': rows.push([formatDate(item.scheduledAt||item.scheduled_at),item.patients?.name||'',item.patients?.phone||'',translateStatus(item.status),item.dentists?.name||'',item.procedures?.name||'',formatCurrency(item.total_value),item.notes||'']); break
       case 'patients': rows.push([item.name||'',item.phone||'',item.email||'',item.cpf||'',formatDate(item.birthDate||item.birth_date),translateStatus(item.status),(item.tags||[]).join('; '),item.source||'',formatDate(item.lastVisitAt||item.last_visit)]); break
       case 'leads': rows.push([item.name||'',item.phone||'',item.email||'',item.source||'',translateLeadStatus(item.status),translateTemperature(item.temperature),item.score?.toString()||'',formatCurrency(item.budget_value||item.dealValue),item.interest||'',formatDate(item.createdAt||item.created_at)]); break
       case 'financial': rows.push([formatDate(item.scheduledAt||item.scheduled_at),item.patients?.name||'',item.procedures?.name||'',formatCurrency(item.total_value),translatePaymentStatus(item.payment_status)]); break
       case 'conversations': rows.push([item.id?.substring(0,8)||'',item.channel||'',item.patients?.name||'',item.patients?.phone||'',translateConvStatus(item.status),formatDate(item.lastMessageAt||item.last_message_at),formatDate(item.createdAt||item.created_at)]); break
     }
   }
-  return BOM + rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n')
+  return BOM + rows.map(r => r.map(escapeCsvCell).join(',')).join('\n')
 }
 
 function generatePDF(data: any[], headers: string[], type: string, title: string, meta: any): Buffer {

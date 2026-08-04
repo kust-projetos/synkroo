@@ -83,6 +83,9 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
   return (
     <div className="flex flex-col h-full bg-card">
       <div className="p-4 border-b border-border">
+        <Button variant="ghost" size="sm" className="mb-2 md:hidden" onClick={onClearSelection}>
+          Voltar para contatos
+        </Button>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-semibold text-foreground">{contact.name}</h2>

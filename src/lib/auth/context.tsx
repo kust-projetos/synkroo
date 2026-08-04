@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn, signOut, useSession } from 'next-auth/react'
+import { useQueryClient } from '@tanstack/react-query'
 
 export interface UserProfile {
   id: string
@@ -22,193 +24,125 @@ export interface UserProfile {
   } | null
 }
 
+type AuthResult = { error?: string }
+
 interface AuthContextType {
   user: { id: string; email: string } | null
   profile: UserProfile | null
   loading: boolean
   isAuthenticated: boolean
-  login: (email: string, password: string) => Promise<{ error?: string }>
-  signup: (email: string, password: string, name: string, clinicName: string) => Promise<{ error?: string }>
+  login: (email: string, password: string) => Promise<AuthResult>
+  signup: (email: string, password: string, name: string, clinicName: string) => Promise<AuthResult>
   logout: () => Promise<void>
+  switchClinic: (clinicId: string) => Promise<AuthResult>
   refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+async function readProfile(): Promise<UserProfile | null> {
+  const response = await fetch('/api/auth/session')
+  const data = await response.json()
+  return data.authenticated && data.profile ? data.profile : null
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null)
+  const { data: session, status, update } = useSession()
   const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [profileLoading, setProfileLoading] = useState(true)
   const router = useRouter()
+  const queryClient = useQueryClient()
+  const user = session?.user?.id && session.user.email
+    ? { id: session.user.id, email: session.user.email }
+    : null
+  const loading = status === 'loading' || profileLoading
+  const isAuthenticated = status === 'authenticated' && !!user && !!profile
 
-  const isAuthenticated = !!user && !!profile
-
-  // Fetch profile from API
-  const fetchProfile = async () => {
-    try {
-      const response = await fetch('/api/auth/session')
-      const data = await response.json()
-
-      if (data.authenticated && data.profile) {
-        setUser(data.user)
-        setProfile(data.profile)
-      } else {
-        setUser(null)
-        setProfile(null)
-      }
-    } catch (error) {
-      console.error('Error fetching profile:', error)
-      setUser(null)
-      setProfile(null)
-    }
-  }
-
-  // Initial session check
-  useEffect(() => {
-    // eslint-disable-next-line prefer-const
-    let cancelled = false
-
-    const initAuth = async () => {
-      setLoading(true)
-      try {
-        await fetchProfile()
-      } catch (error) {
-        console.error('Auth init error:', error)
-      } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      }
-    }
-
-    initAuth()
-
-    return () => {
-      cancelled = true
-    }
-
-    // Auth state refresh driven by session endpoint + router refresh.
-    // No Supabase onAuthStateChange subscription needed.
-  }, [router])
-
-  // Login function
-  const login = async (email: string, password: string) => {
-    try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return { error: data.error || 'Login failed' }
-      }
-
-      setUser(data.user)
-      setProfile(data.profile)
-      router.refresh()
-
-      return {}
-    } catch (error) {
-      console.error('Login error:', error)
-      return { error: 'An unexpected error occurred' }
-    }
-  }
-
-  // Logout function
-  const logout = async () => {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST' })
-      setUser(null)
-      setProfile(null)
-      router.push('/login')
-      router.refresh()
-    } catch (error) {
-      console.error('Logout error:', error)
-    }
-  }
-
-  // Signup function
-  const signup = async (email: string, password: string, name: string, clinicName: string) => {
-    try {
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, name, clinicName }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        return { error: data.error || 'Signup failed' }
-      }
-
-      setUser(data.user)
-      setProfile(data.profile)
-      router.refresh()
-
-      return {}
-    } catch (error) {
-      console.error('Signup error:', error)
-      return { error: 'An unexpected error occurred' }
-    }
-  }
-
-  // Refresh profile
   const refreshProfile = async () => {
-    await fetchProfile()
+    if (status !== 'authenticated') {
+      setProfile(null)
+      return
+    }
+    try {
+      setProfile(await readProfile())
+    } catch {
+      setProfile(null)
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false
+    setProfileLoading(true)
+    refreshProfile().finally(() => {
+      if (!cancelled) setProfileLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [status, session?.user?.clinicId])
+
+  const login = async (email: string, password: string): Promise<AuthResult> => {
+    const result = await signIn('credentials', { email, password, redirect: false })
+    if (!result || result.error) return { error: 'Credenciais inválidas' }
+    await update()
+    await refreshProfile()
+    router.refresh()
+    return {}
+  }
+
+  const signup = async (email: string, password: string, name: string, clinicName: string): Promise<AuthResult> => {
+    const response = await fetch('/api/auth/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, name, clinicName }),
+    })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      return { error: data.error || 'Falha no cadastro' }
+    }
+    return login(email, password)
+  }
+
+  const logout = async () => {
+    await signOut({ redirect: false })
+    setProfile(null)
+    router.push('/login')
+    router.refresh()
+  }
+
+  const switchClinic = async (clinicId: string): Promise<AuthResult> => {
+    const response = await fetch('/api/auth/switch-clinic', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clinicId }),
+    })
+    if (!response.ok) return { error: 'Clínica indisponível' }
+    await update({ clinicId })
+    queryClient.clear()
+    await refreshProfile()
+    router.refresh()
+    return {}
   }
 
   const value: AuthContextType = {
-    user,
-    profile,
-    loading,
-    isAuthenticated,
-    login,
-    signup,
-    logout,
-    refreshProfile,
+    user, profile, loading, isAuthenticated, login, signup, logout, switchClinic, refreshProfile,
   }
-
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
+  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider')
   return context
 }
 
-// Higher-order component for protected routes
-export function withAuth<P extends object>(
-  Component: React.ComponentType<P>
-) {
+export function withAuth<P extends object>(Component: React.ComponentType<P>) {
   return function ProtectedRoute(props: P) {
     const { isAuthenticated, loading } = useAuth()
     const router = useRouter()
-
     useEffect(() => {
-      if (!loading && !isAuthenticated) {
-        router.push('/login')
-      }
+      if (!loading && !isAuthenticated) router.push('/login')
     }, [loading, isAuthenticated, router])
-
-    if (loading) {
-      return (
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-        </div>
-      )
-    }
-
-    if (!isAuthenticated) {
-      return null
-    }
-
+    if (loading) return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+    if (!isAuthenticated) return null
     return <Component {...props} />
   }
 }

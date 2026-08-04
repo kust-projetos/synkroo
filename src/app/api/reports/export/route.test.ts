@@ -10,6 +10,7 @@ jest.mock('@/lib/auth/session', () => ({
 jest.mock('@/lib/db/client', () => ({ getDb: jest.fn() }))
 
 import { GET } from './route'
+import { toCsvCell } from './csv'
 import { redactPII } from '@/lib/reports/redact-pii'
 
 beforeEach(() => {
@@ -22,6 +23,9 @@ beforeEach(() => {
 })
 
 describe('GET /api/reports/export', () => {
+  it.each(['=SUM(A1:A2)', '+cmd', '-1+2', '@IMPORT', '\tcmd', '\rcmd'])('neutralizes spreadsheet formulas: %s', value => {
+    expect(toCsvCell(value)).toBe(`'${value}`)
+  })
   it('redacts PII recursively before serialization', () => {
     const result = redactPII({
       phone: '5511999999999',

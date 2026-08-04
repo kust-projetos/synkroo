@@ -3,6 +3,7 @@ import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import { getDb } from '@/lib/db/client';
 import { users, userCredentials } from '@/lib/db/schema';
+import { userClinicAccess } from '@/modules/core/schema/rbac';
 import { eq, and } from 'drizzle-orm';
 
 /**
@@ -67,7 +68,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
   callbacks: {
-    async jwt({ token, user, trigger }: { token: JWT; user?: User; trigger?: string }) {
+    async jwt({ token, user, trigger, session }: { token: JWT; user?: User; trigger?: string; session?: Session }) {
       if (user) {
         token.id = user.id;
         token.clinicId = user.clinicId;
@@ -85,6 +86,13 @@ export const authOptions: NextAuthOptions = {
             .limit(1);
           if (freshUser) {
             token.clinicId = freshUser.clinicId ?? undefined;
+            if (session?.user?.clinicId) {
+              const [access] = await db.select({ clinicId: userClinicAccess.clinicId })
+                .from(userClinicAccess)
+                .where(and(eq(userClinicAccess.userId, token.id!), eq(userClinicAccess.clinicId, session.user.clinicId)))
+                .limit(1);
+              if (access) token.clinicId = access.clinicId;
+            }
             token.role = freshUser.role ?? undefined;
             token.isActive = freshUser.isActive ?? undefined;
             token.sessionVersion = freshUser.sessionVersion ?? undefined;

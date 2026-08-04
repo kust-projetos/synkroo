@@ -73,10 +73,12 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
 
   try {
     const profile = await findUserProfileById(session.user.id);
-    if (!profile) return null;
+    if (!profile || !profile.isActive) return null;
     const sessionVersion = session.user.sessionVersion;
     if (sessionVersion !== undefined && sessionVersion !== profile.sessionVersion) return null;
-    return toProfileCamel(profile);
+    const activeProfile = toProfileCamel(profile);
+    if (session.user.clinicId) activeProfile.clinic_id = session.user.clinicId;
+    return activeProfile;
   } catch {
     return null;
   }
@@ -85,22 +87,27 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
 /**
  * Require authentication — throws if not authenticated.
  */
-export async function requireAuth(): Promise<{ id: string; email: string }> {
-  const user = await getCurrentUser();
-  if (!user) {
+export async function requireActiveProfile(): Promise<ServerUserProfile> {
+  const session = await getSession();
+  if (!session?.user?.id) throw new Error('Unauthorized');
+  const profile = await getUserProfile();
+  if (!profile || profile.session_version !== (session.user.sessionVersion ?? 0)) {
     throw new Error('Unauthorized');
   }
-  return user;
+  return profile;
+}
+
+export async function requireAuth(): Promise<{ id: string; email: string }> {
+  const profile = await requireActiveProfile();
+  return { id: profile.id, email: profile.email };
 }
 
 /**
  * Require specific role(s).
  */
 export async function requireRole(roles: string[]): Promise<ServerUserProfile> {
-  const profile = await getUserProfile();
-  if (!profile || !roles.includes(profile.role)) {
-    throw new Error('Forbidden');
-  }
+  const profile = await requireActiveProfile();
+  if (!roles.includes(profile.role)) throw new Error('Forbidden');
   return profile;
 }
 
