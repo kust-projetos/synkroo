@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `7350fdcf`
+**Candidate:** `03ddef15`
 
 ## Evidence matrix
 
@@ -19,7 +19,7 @@
 | docs links | PASS | `node scripts/check-doc-links.mjs` |
 | Cloudflare config contract | PASS | `src/__tests__/cloudflare/*` |
 | integration/PostgreSQL | BLOCKED | no approved local `TEST_DATABASE_URL`; run timed out against unavailable DB |
-| E2E deterministic setup | PARTIAL | focused storage-state pass; full suite setup failed waiting for dashboard |
+| E2E deterministic setup | PARTIAL | focused storage-state pass; full suite setup failed waiting for dashboard; manual login consumers migrated to UI |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
@@ -32,7 +32,7 @@
 | REM-02 | PARTIAL | scoped handlers exist; DB integration not run |
 | REM-03 | PASS | channel installation + hashed secret resolver |
 | REM-04 | PARTIAL | Asaas transaction implemented; replay not proven on PostgreSQL |
-| REM-05 | PASS | active profile + session version guard |
+| REM-05 | PASS | active profile + session version guard; manual login/logout endpoints removed |
 | REM-06 | PASS | Action audit allowlist |
 | REM-07 | PARTIAL | atomic claim/outbox primitives; charge/campaign migration incomplete |
 | REM-08 | PARTIAL | outbox retry/dead-letter primitive; provider integration not staged |
@@ -41,7 +41,7 @@
 | REM-11 | PASS | CSV formula neutralization |
 | REM-12 | PASS | dashboard removes fabricated fallback/activity |
 | REM-13 | PARTIAL | responsive code added; 360px E2E not proven |
-| REM-14 | PARTIAL | focused setup fail-fast; full suite still fails setup |
+| REM-14 | PARTIAL | setup is fail-fast and manual consumers migrated; full suite still fails setup |
 | REM-15 | NO-GO | blocked until integration, E2E, staging and rollback evidence |
 
 ## Automatic No-Go reasons
