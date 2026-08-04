@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `68d1b96a`
+**Candidate:** `d5873825`
 
 ## Evidence matrix
 
@@ -22,7 +22,7 @@
 | OpenNext build + Wrangler dry-run | PASS WITH WARNING | OpenNext build and dry-run pass; duplicate-case warning recorded |
 | remediation schema verifier | PASS | Local disposable PostgreSQL confirms `outbox_jobs` and `consents` columns and unique keys |
 | Wrangler startup check | BLOCKED | Wrangler 4.114/4.118 alpha now fails `Failed to parse body as FormData` on generated worker; injected marker is ASCII-safe |
-| integration/PostgreSQL | FAIL | Disposable Docker PostgreSQL provisioned and migrated; 24 suites ran, 171 passed and 12 failed |
+| integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 24 suites and 183 tests passed |
 | E2E deterministic setup | PASS | canonical NextAuth callback + mandatory SEED_SECRET fixtures; storage-state and focused W4 setup pass |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
@@ -33,7 +33,7 @@
 | Requirement | State | Evidence/remaining gap |
 |---|---|---|
 | REM-01 | PASS | confirmation/inbound inputs reject payload tenant |
-| REM-02 | PARTIAL | scoped handlers exist; DB integration not run |
+| REM-02 | PASS | scoped handlers plus real PostgreSQL integration coverage pass |
 | REM-03 | PASS | channel installation + hashed secret resolver |
 | REM-04 | PARTIAL | Asaas transaction implemented; replay not proven on PostgreSQL |
 | REM-05 | PASS | active profile + session version guard; manual login/logout endpoints removed |
@@ -50,13 +50,12 @@
 
 ## Automatic No-Go reasons
 
-- Integration gate cannot run without approved disposable PostgreSQL.
 - Full E2E setup does not reach dashboard consistently.
 - Staging deployment, smoke and rollback were not authorized or executed.
 - Wrangler startup analyzer remains blocked by tool error.
 - Charge/campaign effects now use stable idempotency keys; transactional outbox wiring and concurrent DB proof remain pending.
 
-Production deploy is prohibited. Required next evidence: fix the 12 failing integration tests, two consecutive full E2E passes, owner-approved staging resources, smoke and rollback rehearsal.
+Production deploy is prohibited. Required next evidence: two consecutive full E2E passes, owner-approved staging resources, smoke and rollback rehearsal.
 
 ## Evidence-based release rubric
 
@@ -65,14 +64,14 @@ keeps the final decision at No-Go regardless of points.
 
 | Dimension | Weight | Score | Evidence basis |
 |---|---:|---:|---|
-| Tenancy, webhook and audit P0 | 25 | 18 | Static security tests and schema verifier pass; inbound/action integration remains red |
+| Tenancy, webhook and audit P0 | 25 | 22 | Static security tests, schema verifier and inbound/action integration pass; Asaas replay proof remains pending |
 | Auth, idempotency and outbox | 20 | 12 | Auth and mutation gates pass; provider/outbox concurrency proof pending |
 | Structural hardening | 15 | 15 | Headers, CSV, consent and dependency gates pass |
 | Product and E2E | 20 | 12 | Focused W4 contracts pass; full suite is not proven twice |
 | Cloudflare and release operations | 20 | 8 | Build/dry-run pass with warning; startup, staging and rollback pending |
-| **Total** | **100** | **65** | **NO-GO** |
+| **Total** | **100** | **69** | **NO-GO** |
 
 **Decision thresholds:** `GO` requires at least 90/100 and every hard gate green; `CONDITIONAL`
 requires 75–89 with a written owner-approved exception; anything below 75 is `NO-GO`. Current
-65/100 is therefore No-Go. The score must be recalculated after each missing evidence item is
+69/100 is therefore No-Go. The score must be recalculated after each missing evidence item is
 executed; no points are awarded for planned or locally simulated staging evidence.
