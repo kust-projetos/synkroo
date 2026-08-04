@@ -1,6 +1,10 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:3003'
+const BASE_URL = 'http://127.0.0.1:3003'
+
+function currentMonthName(): string {
+  return new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date())
+}
 
 // Login through the canonical NextAuth UI flow.
 async function login(page: Page) {
@@ -66,7 +70,7 @@ test.describe('Calendar - Rendering', () => {
 
     const title = page.locator('h2')
     await expect(title).toBeVisible()
-    await expect(title).toContainText(/abril|Abril/i)
+    await expect(title).toContainText(new RegExp(currentMonthName(), 'i'))
   })
 
   test('week view should render 7 day columns', async ({ page }) => {
@@ -169,7 +173,7 @@ test.describe('Calendar - Navigation', () => {
     await page.waitForTimeout(300)
 
     const title = await page.locator('h2').textContent()
-    expect(title).toMatch(/abril|Abril/i)
+    expect(title).toMatch(new RegExp(currentMonthName(), 'i'))
   })
 
   test('prev button should navigate backward', async ({ page }) => {
