@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `344bb83b`
+**Candidate:** `7350fdcf`
 
 ## Evidence matrix
 
@@ -49,6 +49,6 @@
 - Integration gate cannot run without approved disposable PostgreSQL.
 - Full E2E setup does not reach dashboard consistently.
 - Staging deployment, smoke and rollback were not authorized or executed.
-- Charge/campaign external effects still need outbox wiring and concurrent DB proof.
+- Charge/campaign effects now use stable idempotency keys; transactional outbox wiring and concurrent DB proof remain pending.
 
 Production deploy is prohibited. Required next evidence: owner-approved staging resources, disposable DB, two consecutive full E2E passes, outbox integration tests, smoke and rollback rehearsal.
