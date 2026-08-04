@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `6647c775`
+**Candidate:** `767a813f`
 
 ## Evidence matrix
 
@@ -23,8 +23,8 @@
 | remediation schema verifier | PASS | Local disposable PostgreSQL confirms `outbox_jobs` and `consents` columns and unique keys |
 | Wrangler startup check | BLOCKED | Wrangler 4.114/4.118 alpha now fails `Failed to parse body as FormData` on generated worker; injected marker is ASCII-safe |
 | integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 25 suites and 184 tests passed |
-| E2E deterministic setup | PASS | canonical NextAuth callback + mandatory SEED_SECRET fixtures; storage-state and focused W4 setup pass |
-| E2E twice | NOT PROVEN | prerequisite full run failed |
+| E2E deterministic setup | PASS | deterministic seed now provisions `clinica-demo` and credentials; full runner reaches test execution |
+| E2E twice | NOT PROVEN | full run reaches 239 tests but fails legacy dashboard/calendar assertions and times out before completion |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
 
