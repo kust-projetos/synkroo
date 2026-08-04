@@ -126,6 +126,7 @@ function NavItemLink({ item, isActive, collapsed }: { item: NavItem; isActive: b
   const content = (
     <Link
       href={item.href}
+      prefetch={false}
       className={cn(
         "flex items-center gap-3 rounded-xl transition-all duration-200 relative group font-medium",
         collapsed ? "justify-center p-2.5 mx-auto" : "px-3 py-2.5",

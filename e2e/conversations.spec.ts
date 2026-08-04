@@ -1,6 +1,8 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:3003'
+const BASE_URL = 'http://127.0.0.1:3003'
+
+test.use({ storageState: { cookies: [], origins: [] } })
 
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`)

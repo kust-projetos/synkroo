@@ -14,11 +14,8 @@ test.describe('Financeiro smoke', () => {
     await expect(page.getByRole('tab', { name: 'Cobranças' })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Config' })).toBeVisible()
 
-    await expect(page.getByText('Conversão de Orçamentos')).toBeVisible()
-    await expect(page.getByText('Recuperação de Cobranças')).toBeVisible()
-
-    const dashes = page.getByText('—')
-    await expect(dashes.first()).toBeVisible()
-    await expect(dashes).toHaveCount(2)
+    await expect(page.getByText('Cobranças Vencidas', { exact: true })).toBeVisible()
+    await expect(page.getByText('Total em Atraso', { exact: true })).toBeVisible()
+    await expect(page.getByTestId('finance-kpis')).toBeVisible()
   })
 })

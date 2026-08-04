@@ -109,6 +109,14 @@ export function KanbanBoard({ clinicId, operations }: KanbanBoardProps & { opera
     )
   }
 
+  if (stages.length === 0) {
+    return (
+      <div data-testid="pipeline-empty" className="flex min-h-64 items-center justify-center rounded-lg border border-dashed border-border text-sm text-muted-foreground">
+        Nenhuma etapa de pipeline configurada.
+      </div>
+    )
+  }
+
   return (
     <KanbanErrorBoundary>
       <DragDropContext onDragEnd={onDragEnd}>

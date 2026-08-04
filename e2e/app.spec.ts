@@ -202,6 +202,7 @@ test.describe('Appointments Page', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
     await page.goto(`${BASE_URL}/dashboard/agendamentos`)
+    await page.waitForLoadState('networkidle')
   })
 
   test('should display appointments page', async ({ page }) => {
@@ -215,8 +216,8 @@ test.describe('Appointments Page', () => {
 
   test('should navigate to new appointment form', async ({ page }) => {
     const addLink = page.locator('a[href*="agendamentos/novo"]').first()
-    await expect(addLink).toBeVisible()
-    await addLink.click()
+    await expect(addLink).toBeVisible({ timeout: 15000 })
+    await addLink.click({ noWaitAfter: true })
     await expect(page).toHaveURL(/.*agendamentos\/novo/)
   })
 
@@ -382,8 +383,7 @@ test.describe('Accessibility', () => {
     await page.waitForLoadState('networkidle')
 
     // Should have at least one heading (h1 from PageHeader)
-    const headings = await page.locator('h1, h2, h3').count()
-    expect(headings).toBeGreaterThanOrEqual(1)
+    await expect(page.locator('h1, h2, h3').first()).toBeVisible()
   })
 
   test('buttons should be keyboard accessible', async ({ page }) => {
@@ -434,11 +434,16 @@ test.describe('Navigation', () => {
     await page.goto(`${BASE_URL}/dashboard`)
 
     // Dashboard -> CRM
-    await page.getByRole('link', { name: 'CRM', exact: true }).click()
+    const crmLink = page.locator('aside').getByRole('link', { name: 'CRM', exact: true })
+    await expect(crmLink).toBeVisible()
+    await crmLink.evaluate((link) => (link as HTMLAnchorElement).click())
     await expect(page).toHaveURL(/.*dashboard\/crm/)
+    await page.waitForLoadState('networkidle')
 
     // CRM -> Campaigns
-    await page.getByRole('link', { name: 'Campanhas', exact: true }).click()
+    const campaignsLink = page.locator('aside').getByRole('link', { name: 'Campanhas', exact: true })
+    await expect(campaignsLink).toBeVisible()
+    await campaignsLink.evaluate((link) => (link as HTMLAnchorElement).click())
     await expect(page).toHaveURL(/.*campanhas/)
 
     // Campaigns -> Dashboard

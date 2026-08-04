@@ -43,5 +43,9 @@ export default defineConfig({
     url: 'http://127.0.0.1:3003/login',
     reuseExistingServer: false,
     timeout: 120000,
+    env: {
+      ...process.env,
+      NEXTAUTH_URL: 'http://127.0.0.1:3003',
+    },
   },
 })

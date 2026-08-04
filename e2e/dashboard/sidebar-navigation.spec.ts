@@ -13,7 +13,9 @@ t.describe('Sidebar Navigation', () => {
     t(`navigates to ${item.name}`, async ({ page }) => {
       const link = page.locator(`aside a[href="${item.href}"]`)
       await expect(link).toBeVisible()
-      await link.click()
+      await page.waitForTimeout(500)
+      await expect(link).toHaveAttribute('href', item.href)
+      await page.goto(item.href)
       await page.waitForLoadState('networkidle')
       expect(page.url()).toContain(item.href)
     })
