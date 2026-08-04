@@ -9,12 +9,11 @@ export const processarConfirmacaoResposta = defineAction({
   requires: 'operacional:manage_appointments',
   label: 'Processar resposta de confirmação via WhatsApp',
   input: z.object({
-    clinicId: z.string(),
-    patientPhone: z.string(),
-    message: z.string(),
-  }),
+    patientPhone: z.string().min(8),
+    message: z.string().min(1),
+  }).strict(),
   handler: async (input, ctx: ActionContext) => {
-    const result = await processConfirmationResponse(input.clinicId, input.patientPhone, input.message);
+    const result = await processConfirmationResponse(ctx.clinicId, input.patientPhone, input.message);
     return result;
   },
 });

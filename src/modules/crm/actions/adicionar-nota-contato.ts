@@ -9,7 +9,7 @@ export const adicionarNotaContato = defineAction({
   module: 'crm',
   requires: 'crm:manage_notes',
   label: 'Adicionar nota ao contato (via owner bridge)',
-  sensitiveFields: ['content'],
+  auditFields: ['contactId', 'contactType', 'noteId'],
   input: z.object({
     type: z.enum(['patient', 'lead']),
     id: z.string().uuid(),

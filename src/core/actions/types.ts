@@ -35,7 +35,7 @@ export interface ActionDefinition<I extends z.ZodTypeAny = z.ZodTypeAny, O = unk
   label: string;
   description?: string;
   input: I;
-  // campos do input a mascarar no log (LGPD). Default: [].
-  sensitiveFields?: string[];
+  // Campos de metadata seguros para o log. O padrão é nenhum campo.
+  auditFields?: readonly string[];
   handler: (input: z.infer<I>, ctx: ActionContext) => Promise<O>;
 }

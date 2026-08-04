@@ -106,7 +106,9 @@ export const payments = pgTable('payments', {
   // ── end eixo2 ──
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+}, (t) => ({
+  chargePaymentUniq: uniqueIndex('payments_charge_id_uniq').on(t.chargeId).where(sql`${t.chargeId} IS NOT NULL`),
+}));
 
 // ══════════════════════════════════════════════
 // TREATMENT PLANS

@@ -16,7 +16,7 @@ export const registrarObservacaoPaciente = defineAction({
   module: 'operacional',
   requires: 'operacional:manage_patients',
   label: 'Registrar observação do paciente',
-  sensitiveFields: ['content'],
+  auditFields: ['patientId', 'observationId'],
   input: z.object({
     patientId: z.string().uuid(),
     content: z.string().min(1),
@@ -36,6 +36,6 @@ export const registrarObservacaoPaciente = defineAction({
         createdBy: ctx.user?.id ?? null,
       } as any)
       .returning();
-    return result;
+    return result as { id: string };
   },
 });

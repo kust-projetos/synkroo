@@ -9,14 +9,13 @@ export const receberMensagem = defineAction({
   requires: 'atendimento:manage_webhooks',
   label: 'Receber mensagem inbound',
   input: z.object({
-    clinicId: z.string().optional(),
     from: z.string(),
     message: z.string(),
     channel: z.enum(['whatsapp', 'instagram', 'web', 'telegram']).optional().default('whatsapp'),
     metadata: z.record(z.unknown()).optional(),
-  }),
+  }).strict(),
   handler: async (input, ctx: ActionContext) => {
-    const clinicId = input.clinicId ?? ctx.clinicId;
+    const clinicId = ctx.clinicId;
     const conversationId = await repo.getOrCreateConversation(
       clinicId,
       input.channel,
