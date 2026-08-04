@@ -7,6 +7,7 @@
 import { dbLogger, whatsappLogger } from "@/lib/logger";
 import * as campaignRepo from "@/repositories/campaigns";
 import { hasActiveConsent } from '@/services/contacts/consents.service';
+import { withIdempotency } from '@/lib/idempotency';
 
 type PatientBasic = { id: string; name: string; phone: string };
 
@@ -145,12 +146,22 @@ export async function startCampaign(
 			await campaignRepo.markRecipientSuppressed(recipient.id, 'missing-consent');
 			continue;
 		}
-		const result = await sendCampaignMessage(recipient.patientPhone ?? undefined, campaign.messageTemplate);
-		if (result.success) {
-			await campaignRepo.markRecipientSent(recipient.id);
-			sent++;
-		} else {
-			await campaignRepo.markRecipientError(recipient.id, result.error ?? 'Unknown error');
+		try {
+			const key = `campaign:${campaign.id}:${recipient.patientId}:${campaign.channel}`;
+			const delivery = await withIdempotency(key, 'campaign_recipient_send', async () => {
+				const result = await sendCampaignMessage(recipient.patientPhone ?? undefined, campaign.messageTemplate);
+				if (!result.success) throw new Error(result.error ?? 'CAMPAIGN_SEND_FAILED');
+				return result;
+			});
+			if (delivery.status === 'completed' || delivery.status === 'already_processed') {
+				await campaignRepo.markRecipientSent(recipient.id);
+				sent++;
+				continue;
+			}
+			await campaignRepo.markRecipientError(recipient.id, 'CAMPAIGN_SEND_CONFLICT');
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'CAMPAIGN_SEND_FAILED';
+			await campaignRepo.markRecipientError(recipient.id, message);
 		}
 	}
 

@@ -13,6 +13,11 @@ jest.mock('@/repositories/campaigns', () => ({
   updateCampaignCounts: jest.fn(),
   updateCampaignStatus: jest.fn(),
 }))
+jest.mock('@/lib/idempotency', () => ({
+  withIdempotency: async (_key: string, _type: string, handler: () => Promise<unknown>) => ({
+    status: 'completed', result: await handler(),
+  }),
+}))
 jest.mock('@/services/contacts/consents.service', () => ({
   hasActiveConsent: jest.fn(),
 }))
