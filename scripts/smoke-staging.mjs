@@ -1,4 +1,16 @@
 const SENSITIVE_KEY = /token|secret|password|email|phone|cpf|patient|payload|authorization/i;
+function normalizePath(path) {
+  const normalized = path.replaceAll('\\', '/');
+  return normalized.startsWith('/') && /^[A-Za-z]:/.test(normalized.slice(1))
+    ? normalized.slice(1)
+    : normalized;
+}
+
+export function isCliInvocation(moduleUrl, argvPath) {
+  if (!argvPath) return false;
+  return normalizePath(new URL(moduleUrl).pathname) === normalizePath(argvPath);
+}
+
 const DEFAULT_PATHS = {
   liveness: '/api/health',
   session: '/api/auth/session',
@@ -94,7 +106,7 @@ export async function runSmoke(baseUrl, options = {}) {
   return (await Promise.all(checks)).map(redactSmokeOutput);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliInvocation(import.meta.url, process.argv[1])) {
   const baseUrl = process.env.STAGING_BASE_URL;
   if (!baseUrl) throw new Error('STAGING_BASE_URL is required');
   const results = await runSmoke(baseUrl);
