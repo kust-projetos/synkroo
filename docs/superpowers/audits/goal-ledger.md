@@ -15,8 +15,10 @@ Estado durável das execuções `/goal` do plano mestre. Nunca registrar secrets
 
 | Goal ID | Task/REQs | Branch/known-good SHA | Allowed paths | Gates | Commit auth | Status | Approval/evidence |
 |---|---|---|---|---|---|---|---|
+| G-AUDIT-20260804 | REM-01..REM-15 | main / edfd8975 | audit remediation paths | pending | session owner | IN_PROGRESS | fixture RED→GREEN; full gate pending |
 
 ## Ciclos append-only
 
 | Goal ID | Cycle | Timestamp | Change | Metric/result | Failure signature | Decision |
 |---|---:|---|---|---|---|---|
+| G-AUDIT-20260804 | 1 | 2026-08-04T11:00Z | Added two-clinic audit fixture contract | 1 test passed | missing fixture module (expected RED) | KEEP |

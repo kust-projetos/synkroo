@@ -26,7 +26,7 @@ export async function writeActionLog(rec: ActionLogRecord): Promise<void> {
   }
 }
 
-export function allowlistInput(input: unknown, allowed: string[]): Record<string, unknown> {
+export function allowlistInput(input: unknown, allowed: readonly string[]): Record<string, unknown> {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return {};
   const source = input as Record<string, unknown>;
   return Object.fromEntries(allowed.filter((key) => key in source).map((key) => [key, source[key]]));

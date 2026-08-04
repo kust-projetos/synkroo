@@ -49,6 +49,17 @@ export const whatsappInstances = pgTable('whatsapp_instances', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });
 
+export const channelInstallations = pgTable('channel_installations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').notNull().references(() => clinics.id, { onDelete: 'cascade' }),
+  provider: text('provider').notNull(),
+  installationId: text('installation_id').notNull().unique(),
+  secretHash: text('secret_hash').notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
 // ──────────────────────────────────────────────
 // MESSAGE TEMPLATES
 // ──────────────────────────────────────────────

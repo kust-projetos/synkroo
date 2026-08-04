@@ -1,6 +1,6 @@
 import type { ActionContext, ActionDefinition, ActionResult, ActionErrorCode } from './types';
 import { ActionError } from './types';
-import { writeActionLog, redactInput } from './audit-writer';
+import { allowlistInput, writeActionLog } from './audit-writer';
 import { dbLogger } from '@/lib/logger';
 
 function fail(code: ActionErrorCode, message: string) {
@@ -18,7 +18,7 @@ export async function runAction<O>(
       clinicId: ctx?.clinicId ?? null, principalType: ctx?.source ?? null,
       actor: ctx?.audit?.actor ?? 'unknown', onBehalfOf: ctx?.audit?.onBehalfOf,
       actionName: action.name, module: action.module,
-      inputRedacted: redactInput(rawInput, action.sensitiveFields ?? []),
+      inputRedacted: allowlistInput(rawInput, action.auditFields ?? []),
       result: 'error', errorCode: 'unauthenticated',
     });
     return fail('unauthenticated', 'Não autenticado.');
@@ -27,7 +27,7 @@ export async function runAction<O>(
   const base = {
     clinicId: ctx.clinicId, principalType: ctx.source, actor: ctx.audit.actor,
     onBehalfOf: ctx.audit.onBehalfOf, actionName: action.name, module: action.module,
-    inputRedacted: redactInput(rawInput, action.sensitiveFields ?? []),
+    inputRedacted: allowlistInput(rawInput, action.auditFields ?? []),
   };
   const logErr = (code: ActionErrorCode) =>
     writeActionLog({ ...base, result: 'error', errorCode: code });

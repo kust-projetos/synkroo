@@ -9,6 +9,13 @@ const action = defineAction({
   handler: async (i) => ({ echoed: i.value }),
 });
 
+const allowlistedAction = defineAction({
+  name: 'core.allowlisted', module: 'core', requires: 'core:echo', label: 'Allowlisted',
+  input: z.object({ eventId: z.string(), metadata: z.record(z.unknown()) }),
+  auditFields: ['eventId'],
+  handler: async () => ({ ok: true }),
+});
+
 function ctx(over: Partial<ActionContext> = {}): ActionContext {
   return {
     source: 'user', clinicId: 'clinic-1',
@@ -22,7 +29,7 @@ function ctx(over: Partial<ActionContext> = {}): ActionContext {
 const logs: any[] = [];
 jest.mock('../audit-writer', () => ({
   writeActionLog: (r: any) => { logs.push(r); },
-  redactInput: jest.requireActual('../audit-writer').redactInput,
+  allowlistInput: jest.requireActual('../audit-writer').allowlistInput,
 }));
 
 describe('runAction pipeline', () => {
@@ -72,6 +79,11 @@ describe('runAction pipeline', () => {
     });
     const r = await runAction(boom, {}, ctx());
     if (!r.ok) expect(r.error.code).toBe('not_found');
+  });
+
+  it('persists only action allowlisted fields', async () => {
+    await runAction(allowlistedAction, { eventId: 'evt-1', metadata: { phone: '999' } }, ctx());
+    expect(logs[0].inputRedacted).toEqual({ eventId: 'evt-1' });
   });
 
   it('writes an audit log on success and on error', async () => {

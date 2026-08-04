@@ -17,7 +17,7 @@ export const registrarNotaLead = defineAction({
   module: 'comercial',
   requires: 'comercial:edit_leads',
   label: 'Registrar nota do lead',
-  sensitiveFields: ['description'],
+  auditFields: ['leadId', 'activityId'],
   input: z.object({
     leadId: z.string().uuid(),
     description: z.string().min(1),

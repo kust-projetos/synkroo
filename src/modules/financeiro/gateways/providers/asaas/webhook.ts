@@ -6,10 +6,8 @@
  */
 
 import {
-  createGatewayEvent as repoCreateEvent,
   findGatewayEvent as repoFindEvent,
-  findPaymentChargeByExternalId as repoFindPaymentChargeByExternalId,
-  createPayment as repoCreatePayment,
+  processGatewayEventAtomically,
   listGateways as repoListGateways,
 } from '../../../repositories/financeiro-repository';
 import type { NormalizedGatewayEvent, GatewayProvider, WebhookInput } from '../../contracts';
@@ -80,38 +78,17 @@ export async function processAsaasWebhook(input: WebhookInput): Promise<{ settle
   }
 
   // Verifica se a cobrança (externalChargeId) existe localmente
-  const charge = await repoFindPaymentChargeByExternalId(clinicId, normalized.externalChargeId);
-  if (!charge) {
-    return { settled: false, chargeFound: false };
-  }
-
-  await repoCreateEvent({
+  const paymentBody = payload.payment as Record<string, unknown> | undefined;
+  const amount = paymentBody?.value ? String(paymentBody.value) : '0';
+  return processGatewayEventAtomically({
     clinicId,
     gatewayId: gateway.id,
-    chargeId: normalized.externalChargeId,
     provider: normalized.provider,
     externalEventId: normalized.externalEventId,
-    payload: payload as Record<string, unknown>,
-    processedAt: new Date(),
+    externalChargeId: normalized.externalChargeId,
+    payload,
+    settlement: SETTLEMENT_EVENTS.has(payload.event as string),
+    amount,
+    paidAt: normalized.paidAt ?? new Date().toISOString(),
   });
-
-  const paymentBody = payload.payment as Record<string, unknown> | undefined;
-  if (paymentBody && SETTLEMENT_EVENTS.has(payload.event as string)) {
-    const amount = paymentBody.value ? String(paymentBody.value) : '0';
-    await repoCreatePayment({
-      clinicId,
-      budgetId: null,
-      chargeId: normalized.externalChargeId,
-      patientId: null,
-      amount,
-      paymentMethod: 'pix',
-      status: 'settled',
-      paidAt: normalized.paidAt ?? new Date().toISOString(),
-      notes: `Asaas webhook: ${normalized.externalEventId}`,
-      createdBy: null,
-    });
-    return { settled: true, chargeFound: true };
-  }
-
-  return { settled: false, chargeFound: true };
 }

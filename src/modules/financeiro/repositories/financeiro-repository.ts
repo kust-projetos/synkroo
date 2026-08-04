@@ -320,6 +320,57 @@ export async function findGatewayEvent(provider: string, externalEventId: string
   return row;
 }
 
+export async function processGatewayEventAtomically(input: {
+  clinicId: string;
+  gatewayId: string;
+  provider: string;
+  externalEventId: string;
+  externalChargeId: string;
+  payload: Record<string, unknown>;
+  settlement: boolean;
+  amount: string;
+  paidAt: string;
+}): Promise<{ settled: boolean; duplicate?: boolean; chargeFound: boolean }> {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [charge] = await tx.select().from(paymentCharges).where(and(
+      eq(paymentCharges.clinicId, input.clinicId),
+      eq(paymentCharges.externalChargeId, input.externalChargeId),
+    )).limit(1);
+    if (!charge) return { settled: false, chargeFound: false };
+
+    const [event] = await tx.insert(gatewayEvents).values({
+      clinicId: input.clinicId,
+      gatewayId: input.gatewayId,
+      chargeId: charge.id,
+      provider: input.provider,
+      externalEventId: input.externalEventId,
+      payload: input.payload,
+      processedAt: null,
+    }).onConflictDoNothing().returning({ id: gatewayEvents.id });
+    if (!event) return { settled: false, duplicate: true, chargeFound: true };
+
+    if (input.settlement) {
+      await tx.insert(payments).values({
+        clinicId: input.clinicId,
+        budgetId: charge.budgetId,
+        chargeId: charge.id,
+        patientId: null,
+        amount: input.amount,
+        paymentMethod: 'pix',
+        status: 'settled',
+        paidAt: new Date(input.paidAt),
+        notes: `Asaas webhook: ${input.externalEventId}`,
+        createdBy: null,
+      }).onConflictDoNothing();
+      await tx.update(paymentCharges).set({ status: 'paid', paidAt: new Date(input.paidAt), updatedAt: new Date() })
+        .where(and(eq(paymentCharges.id, charge.id), eq(paymentCharges.clinicId, input.clinicId)));
+    }
+    await tx.update(gatewayEvents).set({ processedAt: new Date() }).where(eq(gatewayEvents.id, event.id));
+    return { settled: input.settlement, chargeFound: true };
+  });
+}
+
 // ─── Payment CRUD ───────────────────────────────────────────────────────────────
 
 export async function createPayment(data: {
