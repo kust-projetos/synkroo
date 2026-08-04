@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `85c7e830`
+**Candidate:** `623bf740`
 
 ## Evidence matrix
 
@@ -36,7 +36,7 @@
 | REM-02 | PASS | scoped handlers plus real PostgreSQL integration coverage pass |
 | REM-03 | PASS | channel installation + hashed secret resolver |
 | REM-04 | PARTIAL | Asaas transaction implemented; replay not proven on PostgreSQL |
-| REM-05 | PASS | active profile + session version guard; manual login/logout endpoints removed |
+| REM-05 | PASS | canonical NextAuth session boundary delegates to `requireActiveProfile`; active/inactive/stale/DB-failure tests pass; manual login/logout endpoints removed |
 | REM-06 | PASS | Action audit allowlist |
 | REM-07 | PARTIAL | atomic claim/outbox primitives; charge/campaign migration incomplete |
 | REM-08 | PARTIAL | outbox retry/dead-letter primitive; provider integration not staged |
