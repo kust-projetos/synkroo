@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `fabc6adf`
+**Candidate:** `1542c58f`
 
 ## Evidence matrix
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | lint | PASS | `npm run lint` |
 | typecheck | PASS | `npm run typecheck` |
-| unit | PASS | 223 suites, 1539 passed |
+| unit | PASS | 224 suites, 1521 passed, 5 skipped |
 | security | PASS | `npm run test:security`, 142 passed, 95.06% statements |
 | mutation | PASS | Stryker 91.98%, threshold 70% |
 | build | PASS | `npm run build` |
@@ -18,11 +18,11 @@
 | full-history secrets | PASS | `gitleaks detect --source . --log-opts='--all'`, no leaks |
 | docs links | PASS | `node scripts/check-doc-links.mjs` |
 | Cloudflare config contract | PASS | `src/__tests__/cloudflare/*` |
-| W4 mobile/a11y contracts | PARTIAL | finance and accessibility focused E2E pass; contacts-mobile blocked on seeded contact detail API |
+| W4 mobile/a11y contracts | PASS | focused accessibility, finance and contacts-mobile run: 4/4 passed |
 | OpenNext build + Wrangler dry-run | PASS WITH WARNING | WSL build and dry-run pass; duplicate-case warning recorded |
 | Wrangler startup check | BLOCKED | Wrangler 4.114 alpha fails ByteString conversion on generated non-ASCII worker |
 | integration/PostgreSQL | BLOCKED | no approved local `TEST_DATABASE_URL`; run timed out against unavailable DB |
-| E2E deterministic setup | PARTIAL | canonical NextAuth callback + mandatory SEED_SECRET fixture setup; current run is blocked when local DB health hangs, with no silent fallback |
+| E2E deterministic setup | PASS | canonical NextAuth callback + mandatory SEED_SECRET fixtures; storage-state and focused W4 setup pass |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
@@ -43,8 +43,8 @@
 | REM-10 | PARTIAL | NextAuth update path + cache clear; multi-clinic DB proof pending |
 | REM-11 | PASS | CSV formula neutralization |
 | REM-12 | PASS | dashboard removes fabricated fallback/activity |
-| REM-13 | PARTIAL | responsive code added; 360px E2E not proven |
-| REM-14 | PARTIAL | canonical callback setup is fail-fast; 3 focused W4 E2E pass, contacts mobile and full suite remain red |
+| REM-13 | PASS | responsive code plus 360px contacts/finance/a11y E2E: 4/4 passed |
+| REM-14 | PARTIAL | canonical callback/fixtures pass; full 241-test run remains red/interrupted by dev-server ECONNRESET and legacy journey assertions |
 | REM-15 | NO-GO | blocked until integration, E2E, staging and rollback evidence |
 
 ## Automatic No-Go reasons
