@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `3f7beb1f`
+**Candidate:** `2fd055c6`
 
 ## Evidence matrix
 
@@ -24,7 +24,7 @@
 | Wrangler startup check | BLOCKED | Wrangler 4.114/4.118 alpha now fails `Failed to parse body as FormData` on generated worker; injected marker is ASCII-safe |
 | integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 25 suites and 184 tests passed |
 | E2E deterministic setup | PASS | deterministic seed now provisions `clinica-demo` and credentials; full runner reaches test execution |
-| E2E twice | NOT PROVEN | deterministic setup passes; focused dashboard contracts improve, but the 41-test app suite still hits legacy responsive assertions and Next dev ECONNRESET |
+| E2E twice | NOT PROVEN | storage-state setup passes with extended seed timeout; full 239-test run still has legacy route/calendar assertions and Next dev ECONNRESET |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
 
