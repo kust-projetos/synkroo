@@ -2,33 +2,15 @@ import { test, expect, Page } from '@playwright/test'
 
 const BASE_URL = 'http://localhost:3003'
 
-// Helper to login via API and set auth cookie via Playwright context
+// Login through the canonical NextAuth UI flow.
 async function login(page: Page) {
-  const response = await page.request.post(`${BASE_URL}/api/auth/login`, {
-    headers: { 'Content-Type': 'application/json' },
-    data: { email: 'admin@clinicademo.com', password: 'demo123' },
-  })
-  if (!response.ok()) throw new Error(`Login failed: ${response.status()}`)
-
-  const setCookieHeader = response.headers()['set-cookie']
-  if (!setCookieHeader) throw new Error('No Set-Cookie header from login')
-
-  const cookiePart = setCookieHeader.split(';')[0]
-  const [cookieName, ...cookieValueParts] = cookiePart.split('=')
-  const cookieValue = cookieValueParts.join('=')
-
-  await page.context().addCookies([{
-    name: cookieName,
-    value: cookieValue,
-    domain: 'localhost',
-    path: '/',
-    sameSite: 'Lax',
-    expires: Math.floor(Date.now() / 1000) + 34560000,
-  }])
-
-  await page.goto(`${BASE_URL}/dashboard`)
-  await page.waitForLoadState('networkidle')
-  await page.waitForSelector('aside, main', { timeout: 15000 })
+  await page.goto(`${BASE_URL}/login`)
+  await page.fill('#email', 'admin@clinicademo.com')
+  await page.fill('#password', 'demo123')
+  await Promise.all([
+    page.waitForURL('**/dashboard**'),
+    page.click('button[type="submit"]'),
+  ])
 }
 
 // Helper to navigate to calendar

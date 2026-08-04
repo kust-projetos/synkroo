@@ -3,25 +3,13 @@ import { test, expect, Page } from '@playwright/test'
 const BASE_URL = 'http://localhost:3003'
 
 async function login(page: Page) {
-  try {
-    await page.goto(`${BASE_URL}/login`, { timeout: 15000 })
-  } catch {
-    // Page may already be closed, ignore
-  }
-  let loginResult = false
-  try {
-    loginResult = await page.evaluate(async () => {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@clinicademo.com', password: 'demo123' }),
-      })
-      return response.ok
-    })
-  } catch {
-    loginResult = false
-  }
-  expect(loginResult).toBe(true)
+  await page.goto(`${BASE_URL}/login`)
+  await page.fill('#email', 'admin@clinicademo.com')
+  await page.fill('#password', 'demo123')
+  await Promise.all([
+    page.waitForURL('**/dashboard**'),
+    page.click('button[type="submit"]'),
+  ])
 }
 
 test.describe('Leads Page', () => {

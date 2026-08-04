@@ -106,12 +106,11 @@ curl -s https://synkroo-staging.<subdomain>.workers.dev/api/spike | jq .
 # 3. Auth — sem sessão, deve redirecionar para /login (302)
 curl -I https://synkroo-staging.<subdomain>.workers.dev/dashboard 2>&1 | grep -i location
 
-# 4. Login (obter cookie de sessão)
-curl -v -X POST https://synkroo-staging.<subdomain>.workers.dev/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"owner@clinica.com","password":"..."}' 2>&1 | grep -i set-cookie
+# 4. Login (autoridade única: NextAuth)
+# Use browser/UI `POST /api/auth/callback/credentials` with CSRF token.
+# `/api/auth/login` was removed; never mint a parallel JWT cookie.
 
-# 5. Painel admin com sessão (substituir <cookie> pelo valor do passo 4)
+# 5. Painel admin com sessão (substituir <cookie> pelo cookie NextAuth)
 curl -s https://synkroo-staging.<subdomain>.workers.dev/dashboard/configuracoes/acessos \
   -H "Cookie: <cookie>" | head -20
 # Esperado: HTML com "Usuários e acessos" no body
