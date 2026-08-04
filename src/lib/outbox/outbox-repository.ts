@@ -1,4 +1,4 @@
-import { and, eq, lte, sql } from 'drizzle-orm';
+import { and, eq, lte, or, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { outboxJobs } from '@/lib/db/schema';
 
@@ -17,11 +17,18 @@ export async function enqueueOutbox(db: any, job: OutboxInsert): Promise<OutboxJ
   return row;
 }
 
+const OUTBOX_LEASE_MS = 5 * 60 * 1000;
+
 export async function claimOutboxJob(now = new Date()): Promise<OutboxJob | undefined> {
   const db = getDb();
+  const staleBefore = new Date(now.getTime() - OUTBOX_LEASE_MS);
   return db.transaction(async (tx: any) => {
-    const [job] = await tx.select().from(outboxJobs).where(and(
+    const claimable = or(
       eq(outboxJobs.status, 'pending'),
+      and(eq(outboxJobs.status, 'processing'), lte(outboxJobs.updatedAt, staleBefore)),
+    );
+    const [job] = await tx.select().from(outboxJobs).where(and(
+      claimable,
       lte(outboxJobs.nextAttemptAt, now),
     )).orderBy(outboxJobs.nextAttemptAt).limit(1).for('update', { skipLocked: true });
     if (!job) return undefined;
@@ -29,13 +36,14 @@ export async function claimOutboxJob(now = new Date()): Promise<OutboxJob | unde
       status: 'processing',
       attempts: sql`${outboxJobs.attempts} + 1`,
       updatedAt: now,
-    }).where(and(eq(outboxJobs.id, job.id), eq(outboxJobs.status, 'pending'))).returning();
+    }).where(and(eq(outboxJobs.id, job.id), claimable)).returning();
     return claimed;
   });
 }
 
 export async function markOutboxDelivered(id: string): Promise<void> {
-  await getDb().update(outboxJobs).set({ status: 'delivered', updatedAt: new Date() }).where(eq(outboxJobs.id, id));
+  await getDb().update(outboxJobs).set({ status: 'delivered', updatedAt: new Date() })
+    .where(and(eq(outboxJobs.id, id), eq(outboxJobs.status, 'processing')));
 }
 
 export async function markOutboxRetry(id: string, attempts: number, errorCode: string, now = new Date()): Promise<void> {
@@ -46,5 +54,5 @@ export async function markOutboxRetry(id: string, attempts: number, errorCode: s
     nextAttemptAt: new Date(now.getTime() + delaySeconds * 1000),
     lastErrorCode: errorCode,
     updatedAt: now,
-  }).where(eq(outboxJobs.id, id));
+  }).where(and(eq(outboxJobs.id, id), eq(outboxJobs.status, 'processing')));
 }
