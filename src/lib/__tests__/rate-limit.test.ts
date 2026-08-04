@@ -7,6 +7,7 @@ import {
   getClientIdentifier,
   rateLimitPresets,
   createRateLimitHeaders,
+  testLimiter,
 } from '@/lib/rate-limit'
 
 describe('Rate Limiting Utility', () => {
@@ -85,6 +86,15 @@ describe('Rate Limiting Utility', () => {
 
       expect(result.allowed).toBe(true)
       expect(result.remaining).toBe(4)
+    })
+  })
+
+  describe('test isolation', () => {
+    it('resets limiter only through the test dependency', () => {
+      const key = `test-reset-${testKeyCounter}`
+      checkRateLimit(key, rateLimitPresets.auth)
+      testLimiter.reset()
+      expect(testLimiter.remaining(key, rateLimitPresets.auth)).toBe(rateLimitPresets.auth.maxRequests)
     })
   })
 

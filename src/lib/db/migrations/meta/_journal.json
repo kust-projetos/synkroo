@@ -92,6 +92,34 @@
       "when": 1785704329355,
       "tag": "0012_nervous_speed",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785751200000,
+      "tag": "0013_channel_installation",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785751260000,
+      "tag": "0014_gateway_event_atomicity",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1785751320000,
+      "tag": "0015_outbox_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1785751380000,
+      "tag": "0016_consent_tenant_unique",
+      "breakpoints": true
     }
   ]
 }
