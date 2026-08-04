@@ -1,4 +1,5 @@
 import { chromium, type FullConfig } from '@playwright/test'
+import { loadEnvConfig } from '@next/env'
 import { testCredentials } from './fixtures/test-data'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -7,10 +8,18 @@ const AUTH_FILE = path.join(__dirname, '.auth', 'admin.json')
 const BASE_URL = 'http://127.0.0.1:3003'
 
 export default async function globalSetup(_config: FullConfig) {
+  loadEnvConfig(process.cwd())
+  const seedSecret = process.env.SEED_SECRET
+  if (!seedSecret) throw new Error('E2E setup requires SEED_SECRET to create deterministic fixtures')
   await fs.mkdir(path.dirname(AUTH_FILE), { recursive: true })
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage()
+    const seedResponse = await page.request.get(`${BASE_URL}/api/seed?secret=${encodeURIComponent(seedSecret)}`)
+    if (!seedResponse.ok()) {
+      const body = (await seedResponse.text()).slice(0, 300).replace(/\s+/g, ' ')
+      throw new Error(`E2E fixture seed failed: status=${seedResponse.status()}; body=${body}`)
+    }
     const loginResponse = await page.goto(`${BASE_URL}/login`)
     if (!loginResponse || !loginResponse.ok()) throw new Error(`E2E setup login page failed: ${loginResponse?.status()}`)
     const csrfResponse = await page.request.get(`${BASE_URL}/api/auth/csrf`)
