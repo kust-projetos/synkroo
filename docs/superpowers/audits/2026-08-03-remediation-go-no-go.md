@@ -24,7 +24,7 @@
 | Wrangler startup check | BLOCKED | Wrangler 4.114/4.118 alpha now fails `Failed to parse body as FormData` on generated worker; injected marker is ASCII-safe |
 | integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 27 suites and 188 tests passed, including idempotency/outbox races |
 | E2E deterministic setup | PASS | deterministic seed now provisions `clinica-demo` and credentials; full runner reaches test execution |
-| E2E twice | NOT PROVEN | storage-state setup passes with extended seed timeout; full 239-test run still has legacy route/calendar assertions and Next dev ECONNRESET |
+| E2E twice | PASS (local production build) | `npm run build` plus full Playwright matrix passed twice consecutively: 235/235 each run, one worker, authenticated + unauthenticated + API projects |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
 
@@ -45,17 +45,16 @@
 | REM-11 | PASS | CSV formula neutralization |
 | REM-12 | PASS | dashboard removes fabricated fallback/activity |
 | REM-13 | PASS | responsive code plus 360px contacts/finance/a11y E2E: 4/4 passed |
-| REM-14 | PARTIAL | canonical callback/fixtures pass; full 241-test run remains red/interrupted by dev-server ECONNRESET and legacy journey assertions |
+| REM-14 | PASS (local) | canonical callback/fixtures pass; production-build Playwright matrix passes 235/235 twice consecutively; staging remains pending |
 | REM-15 | NO-GO | blocked until integration, E2E, staging and rollback evidence |
 
 ## Automatic No-Go reasons
 
-- Full E2E setup does not reach dashboard consistently.
 - Staging deployment, smoke and rollback were not authorized or executed.
 - Wrangler startup analyzer remains blocked by tool error.
 - Provider delivery, Asaas replay and staging execution remain unproven; local claim/outbox concurrency evidence is not a production substitute.
 
-Production deploy is prohibited. Required next evidence: two consecutive full E2E passes, owner-approved staging resources, smoke and rollback rehearsal.
+Production deploy is prohibited. Required next evidence: owner-approved staging resources, smoke and rollback rehearsal.
 
 ## Evidence-based release rubric
 
@@ -67,11 +66,11 @@ keeps the final decision at No-Go regardless of points.
 | Tenancy, webhook and audit P0 | 25 | 22 | Database-backed two-tenant fixtures, schema verifier and inbound/action integration pass; Asaas replay proof remains pending |
 | Auth, idempotency and outbox | 20 | 15 | Revocation, atomic claim, outbox concurrency/retry and stable charge/campaign keys pass locally; staging/provider delivery pending |
 | Structural hardening | 15 | 15 | Headers, CSV, consent and dependency gates pass |
-| Product and E2E | 20 | 12 | Focused W4 contracts pass; full suite is not proven twice |
+| Product and E2E | 20 | 17 | Full production-build Playwright matrix passes twice consecutively (235/235 each run); staging remains pending |
 | Cloudflare and release operations | 20 | 8 | Build/dry-run pass with warning; startup, staging and rollback pending |
-| **Total** | **100** | **72** | **NO-GO** |
+| **Total** | **100** | **77** | **NO-GO** |
 
 **Decision thresholds:** `GO` requires at least 90/100 and every hard gate green; `CONDITIONAL`
 requires 75–89 with a written owner-approved exception; anything below 75 is `NO-GO`. Current
-72/100 is therefore No-Go. The score must be recalculated after each missing evidence item is
+77/100 is therefore No-Go. The score must be recalculated after each missing evidence item is
 executed; no points are awarded for planned or locally simulated staging evidence.

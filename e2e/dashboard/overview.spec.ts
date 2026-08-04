@@ -9,7 +9,7 @@ t.describe('Dashboard Overview', () => {
     await expect(page.locator('text=Taxa de Confirmação')).toBeVisible()
   })
   t('renders quick actions', async ({ page }) => {
-    await expect(page.locator('text=Novo Agendamento')).toBeVisible()
-    await expect(page.locator('text=Mensagens')).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Novo Agendamento', exact: true })).toBeVisible()
+    await expect(page.getByText('Mensagens', { exact: true })).toBeVisible()
   })
 })

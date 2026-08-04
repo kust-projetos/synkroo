@@ -23,7 +23,8 @@ export async function middleware(request: NextRequest) {
   if (exceedsBodyLimit(request)) {
     return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
   }
-  if (shouldRejectCsrf(request)) {
+  const isNextAuthRoute = request.nextUrl.pathname.startsWith('/api/auth/');
+  if (!isNextAuthRoute && shouldRejectCsrf(request)) {
     return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
   }
 

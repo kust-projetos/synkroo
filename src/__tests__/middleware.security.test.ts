@@ -31,6 +31,20 @@ describe('middleware security gates', () => {
     expect(response.status).toBe(403);
   });
 
+  it('leaves NextAuth mutations to NextAuth CSRF validation', async () => {
+    const request = new NextRequest('https://app.example.test/api/auth/signout', {
+      method: 'POST',
+      headers: {
+        cookie: 'next-auth.session-token=token',
+        origin: 'https://evil.example',
+      },
+    });
+
+    const response = await middleware(request);
+
+    expect(response.status).toBe(200);
+  });
+
   it('rejects request bodies above the platform limit before authentication', async () => {
     const request = new NextRequest('https://app.example.test/api/action', {
       method: 'POST',

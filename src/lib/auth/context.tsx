@@ -102,10 +102,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = async () => {
-    await signOut({ redirect: false })
     setProfile(null)
-    router.push('/login')
-    router.refresh()
+    await signOut({ callbackUrl: '/login' })
   }
 
   const switchClinic = async (clinicId: string): Promise<AuthResult> => {

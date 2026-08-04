@@ -151,7 +151,7 @@ export default function PatientsPage() {
         description={patientDomainBoundary.description}
         action={
           <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
-            <Link href="/dashboard/pacientes/novo">
+            <Link href="/dashboard/pacientes/novo" prefetch={false}>
               <PlusIcon className="h-4 w-4 mr-2" />
               Novo Paciente
             </Link>

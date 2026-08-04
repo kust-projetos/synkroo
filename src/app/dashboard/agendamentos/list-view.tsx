@@ -90,7 +90,7 @@ export function ListView() {
         description={`Gerencie as consultas da clínica • ${formatDate(selectedDate)}`}
         action={
           <Button asChild className="bg-gradient-to-r from-teal-600 to-teal-500 hover:from-teal-700 hover:to-teal-600">
-            <Link href="/dashboard/agendamentos/novo">
+            <Link href="/dashboard/agendamentos/novo" prefetch={false}>
               <PlusIcon className="h-4 w-4 mr-2" />
               Novo Agendamento
             </Link>

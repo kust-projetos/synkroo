@@ -1,6 +1,8 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:3003'
+const BASE_URL = 'http://127.0.0.1:3003'
+
+test.use({ storageState: { cookies: [], origins: [] } })
 
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`)
@@ -56,7 +58,7 @@ test.describe('Reminder Settings', () => {
   })
 
   test('should display reminder settings page', async ({ page }) => {
-    await expect(page.locator('h1, h2')).toContainText(/lembretes|configuração/i)
+    await expect(page.locator('h1, h2')).toContainText(/configurações/i)
   })
 
   test('should have notification settings', async ({ page }) => {
