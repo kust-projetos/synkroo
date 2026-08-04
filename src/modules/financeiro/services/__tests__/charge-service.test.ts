@@ -6,9 +6,14 @@ const mockGetBudget = jest.fn();
 const mockGetDefaultGateway = jest.fn();
 const mockCreateCharge = jest.fn();
 const mockGetGatewayProvider = jest.fn();
+const mockWithIdempotency = jest.fn();
 
 jest.mock('@/modules/financeiro/gateways/registry', () => ({
   getGatewayProvider: (...args: any[]) => mockGetGatewayProvider(...args),
+}));
+
+jest.mock('@/lib/idempotency', () => ({
+  withIdempotency: (...args: any[]) => mockWithIdempotency(...args),
 }));
 
 jest.mock('@/modules/financeiro/repositories/financeiro-repository', () => ({
@@ -16,6 +21,7 @@ jest.mock('@/modules/financeiro/repositories/financeiro-repository', () => ({
   getDefaultGateway: (...args: any[]) => mockGetDefaultGateway(...args),
   createPaymentCharge: (...args: any[]) => mockCreateCharge(...args),
   buildChargeInsert: (data: any) => data,
+  findPaymentChargeByBudget: (...args: any[]) => jest.fn()(...args),
 }));
 
 import { createCharge } from '../charge-service';
@@ -34,6 +40,9 @@ beforeEach(() => {
       pixQrCode: 'pix123', status: 'pending',
     }),
   });
+  mockWithIdempotency.mockImplementation(async (_key: string, _type: string, handler: () => Promise<unknown>) => ({
+    status: 'completed', result: await handler(),
+  }));
   mockCreateCharge.mockResolvedValue({
     id: 'c1', clinicId: 'c1', budgetId: 'b1', externalChargeId: 'ext_1',
     amount: '100', status: 'pending',

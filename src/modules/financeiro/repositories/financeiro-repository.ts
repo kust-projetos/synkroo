@@ -208,6 +208,15 @@ export async function getPaymentCharge(id: string): Promise<PaymentChargeRow | u
   return row;
 }
 
+export async function findPaymentChargeByBudget(clinicId: string, budgetId: string): Promise<PaymentChargeRow | undefined> {
+  const db = getDb();
+  const [row] = await db.select().from(paymentCharges).where(and(
+    eq(paymentCharges.clinicId, clinicId),
+    eq(paymentCharges.budgetId, budgetId),
+  )).limit(1);
+  return row;
+}
+
 export async function findPaymentChargeByExternalId(clinicId: string, externalChargeId: string): Promise<PaymentChargeRow | undefined> {
   const db = getDb();
   const [row] = await db.select().from(paymentCharges)

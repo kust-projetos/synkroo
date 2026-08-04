@@ -17,7 +17,8 @@ import {
   createPayment as repoCreatePayment,
   type PaymentChargeRow,
 } from '../repositories/financeiro-repository';
-import { buildChargeInsert } from '../repositories/financeiro-repository';
+import { buildChargeInsert, findPaymentChargeByBudget } from '../repositories/financeiro-repository';
+import { withIdempotency } from '@/lib/idempotency';
 import type { CreateChargeResult, GatewayProvider } from '../gateways/contracts';
 
 export interface CreateChargeInput {
@@ -50,23 +51,33 @@ export async function createCharge(input: CreateChargeInput): Promise<{
 
   const provider = getGatewayProvider(gateway.provider as GatewayProvider);
   if (!provider) throw new Error(`Gateway provider ${gateway.provider} is not registered`);
-  const gatewayResponse: CreateChargeResult = await provider.createCharge({
-    clinicId, amount, dueDate, customerName: 'Cliente',
+  const key = `charge:create:${clinicId}:${budgetId}:${amount}:${dueDate}`;
+  const outcome = await withIdempotency(key, 'payment_charge_create', async () => {
+    const gatewayResponse = await provider.createCharge({ clinicId, amount, dueDate, customerName: 'Cliente' });
+    const charge = await repoCreateCharge({
+      clinicId: chargeData.clinicId,
+      budgetId: chargeData.budgetId,
+      gatewayId: chargeData.gatewayId,
+      externalChargeId: gatewayResponse.externalChargeId,
+      paymentUrl: gatewayResponse.paymentUrl,
+      pixQrCode: gatewayResponse.pixQrCode,
+      dueDate: chargeData.dueDate,
+      amount: chargeData.amount,
+      status: gatewayResponse.status,
+    });
+    return { charge, gatewayResponse };
   });
-
-  const charge = await repoCreateCharge({
-    clinicId: chargeData.clinicId,
-    budgetId: chargeData.budgetId,
-    gatewayId: chargeData.gatewayId,
-    externalChargeId: gatewayResponse.externalChargeId,
-    paymentUrl: gatewayResponse.paymentUrl,
-    pixQrCode: gatewayResponse.pixQrCode,
-    dueDate: chargeData.dueDate,
-    amount: chargeData.amount,
-    status: gatewayResponse.status,
-  });
-
-  return { charge, gatewayResponse };
+  if (outcome.status === 'completed' && outcome.result) return outcome.result;
+  const existing = await findPaymentChargeByBudget(clinicId, budgetId);
+  if (existing) {
+    return { charge: existing, gatewayResponse: {
+      externalChargeId: existing.externalChargeId ?? '',
+      paymentUrl: existing.paymentUrl,
+      pixQrCode: existing.pixQrCode,
+      status: existing.status as CreateChargeResult['status'],
+    } };
+  }
+  throw new Error('Charge creation already in progress');
 }
 
 /**
