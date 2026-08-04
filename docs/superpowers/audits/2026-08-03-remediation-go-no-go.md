@@ -10,7 +10,7 @@
 |---|---|---|
 | lint | PASS | `npm run lint` |
 | typecheck | PASS | `npm run typecheck` |
-| unit | PASS | 225 suites, 1523 passed, 5 skipped |
+| unit | PASS | 226 suites, 1535 passed, 5 skipped |
 | security | PASS | `npm run test:security`, 142 passed, 95.06% statements |
 | mutation | PASS | Stryker 91.98%, threshold 70% |
 | build | PASS | `npm run build` |
@@ -22,7 +22,7 @@
 | OpenNext build + Wrangler dry-run | PASS WITH WARNING | OpenNext build and dry-run pass; duplicate-case warning recorded |
 | remediation schema verifier | PASS | Local disposable PostgreSQL confirms `outbox_jobs` and `consents` columns and unique keys |
 | Wrangler startup check | BLOCKED | Wrangler 4.114/4.118 alpha now fails `Failed to parse body as FormData` on generated worker; injected marker is ASCII-safe |
-| integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 25 suites and 184 tests passed |
+| integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 27 suites and 188 tests passed, including idempotency/outbox races |
 | E2E deterministic setup | PASS | deterministic seed now provisions `clinica-demo` and credentials; full runner reaches test execution |
 | E2E twice | NOT PROVEN | storage-state setup passes with extended seed timeout; full 239-test run still has legacy route/calendar assertions and Next dev ECONNRESET |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
