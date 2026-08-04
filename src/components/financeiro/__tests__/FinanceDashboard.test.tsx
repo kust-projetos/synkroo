@@ -62,12 +62,12 @@ describe('FinanceDashboard — tabs', () => {
   test('shows budget tab content by default', () => {
     mockUseBudgets.mockReturnValue({ data: [], isLoading: false });
     render(<FinanceDashboard metrics={METRICS} />);
-    expect(screen.getByRole('button', { name: /Orçamentos/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Orçamentos/i })).toBeInTheDocument();
   });
 
   test('switches to collections tab', async () => {
-    const { container } = render(<FinanceDashboard metrics={METRICS} />);
-    fireEvent.click(screen.getByRole('button', { name: /Cobranças/i }));
+    render(<FinanceDashboard metrics={METRICS} />);
+    fireEvent.click(screen.getByRole('tab', { name: /Cobranças/i }));
     await waitFor(() => {
       expect(mockUseCollections).toHaveBeenCalled();
     });

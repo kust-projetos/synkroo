@@ -24,11 +24,11 @@ export function ContactSplitView() {
     <ContactErrorBoundary>
       <div className="hidden md:flex h-full">
       <Group orientation="horizontal" className="h-full flex">
-        <Panel defaultSize={35} minSize={25} id="list">
+        <Panel defaultSize={35} minSize={25} id="list" data-testid="contact-list">
           {list}
         </Panel>
         <div className="w-px bg-border hover:bg-teal-400/20 transition-colors cursor-col-resize" />
-        <Panel defaultSize={65} minSize={40} id="detail">
+        <Panel defaultSize={65} minSize={40} id="detail" data-testid="contact-detail">
           <ContactErrorBoundary fallback={
             <div className="flex flex-col items-center justify-center h-full p-8 text-center">
               <p className="text-muted-foreground mb-2">Contato não encontrado</p>
@@ -41,7 +41,9 @@ export function ContactSplitView() {
       </Group>
       </div>
       <div className="md:hidden h-full">
-        {selectedId ? detail : list}
+        <div data-testid={selectedId ? 'contact-detail' : 'contact-list'} className="h-full">
+          {selectedId ? detail : list}
+        </div>
       </div>
     </ContactErrorBoundary>
   )

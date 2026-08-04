@@ -9,10 +9,10 @@ test.describe('Financeiro smoke', () => {
     await expect(page.getByText('Financeiro')).toBeVisible()
     await expect(page.getByText('Gestão de orçamentos, pagamentos e cobranças')).toBeVisible()
 
-    await expect(page.getByRole('button', { name: 'Orçamentos' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Parcelas / Pagamentos' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Cobranças' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Config' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Orçamentos' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Parcelas / Pagamentos' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Cobranças' })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Config' })).toBeVisible()
 
     await expect(page.getByText('Conversão de Orçamentos')).toBeVisible()
     await expect(page.getByText('Recuperação de Cobranças')).toBeVisible()

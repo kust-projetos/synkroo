@@ -7,15 +7,21 @@ t.describe('Calendar Views', () => {
     await expect(page.locator('[class*="grid"], [class*="calendar"]')).toBeVisible({ timeout: 10000 })
   })
   t('can switch to Week view', async ({ page }) => {
-    const btn = page.locator('button:has-text("Semana")')
-    if (await btn.isVisible()) { await btn.click(); await page.waitForTimeout(500) }
+    const btn = page.getByRole('button', { name: 'Semana', exact: true })
+    await expect(btn).toBeVisible()
+    await btn.click()
+    await expect(page.locator('[class*="grid"], [class*="calendar"]')).toBeVisible()
   })
   t('can switch to Month view', async ({ page }) => {
-    const btn = page.locator('button:has-text("Mês")')
-    if (await btn.isVisible()) { await btn.click(); await page.waitForTimeout(500) }
+    const btn = page.getByRole('button', { name: 'Mês', exact: true })
+    await expect(btn).toBeVisible()
+    await btn.click()
+    await expect(page.locator('[class*="grid"], [class*="calendar"]')).toBeVisible()
   })
   t('can switch to Professionals view', async ({ page }) => {
-    const btn = page.locator('button:has-text("Profissionais")')
-    if (await btn.isVisible()) { await btn.click(); await page.waitForTimeout(500) }
+    const btn = page.getByRole('button', { name: 'Profissionais', exact: true })
+    await expect(btn).toBeVisible()
+    await btn.click()
+    await expect(page.locator('[class*="grid"], [class*="calendar"]')).toBeVisible()
   })
 })
