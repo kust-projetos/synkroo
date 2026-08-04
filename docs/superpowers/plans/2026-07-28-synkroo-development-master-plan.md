@@ -494,5 +494,7 @@ não aprovada bloqueia PR.
 
 ## 17. Próxima ação única
 
+Auditoria de remediação 2026-08-04: ver `docs/superpowers/audits/2026-08-03-remediation-go-no-go.md`. Estado permanece NO-GO até integração PostgreSQL, E2E completo, staging e rollback comprovados.
+
 Executar **Fase 0**. Não autenticar GitHub, mergear PR #6, iniciar feature, smoke IA ou refactor
 antes de preservar evidência e rotacionar credenciais potencialmente expostas.
