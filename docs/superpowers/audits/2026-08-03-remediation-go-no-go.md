@@ -18,6 +18,8 @@
 | full-history secrets | PASS | `gitleaks detect --source . --log-opts='--all'`, no leaks |
 | docs links | PASS | `node scripts/check-doc-links.mjs` |
 | Cloudflare config contract | PASS | `src/__tests__/cloudflare/*` |
+| OpenNext build + Wrangler dry-run | PASS WITH WARNING | WSL build and dry-run pass; duplicate-case warning recorded |
+| Wrangler startup check | BLOCKED | Wrangler 4.114 alpha fails ByteString conversion on generated non-ASCII worker |
 | integration/PostgreSQL | BLOCKED | no approved local `TEST_DATABASE_URL`; run timed out against unavailable DB |
 | E2E deterministic setup | PARTIAL | focused storage-state pass; full suite setup failed waiting for dashboard (`body=... Entrar ...`); manual login consumers migrated to UI |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
@@ -49,6 +51,7 @@
 - Integration gate cannot run without approved disposable PostgreSQL.
 - Full E2E setup does not reach dashboard consistently.
 - Staging deployment, smoke and rollback were not authorized or executed.
+- Wrangler startup analyzer remains blocked by tool error.
 - Charge/campaign effects now use stable idempotency keys; transactional outbox wiring and concurrent DB proof remain pending.
 
 Production deploy is prohibited. Required next evidence: owner-approved staging resources, disposable DB, two consecutive full E2E passes, outbox integration tests, smoke and rollback rehearsal.
