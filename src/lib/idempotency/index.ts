@@ -9,7 +9,7 @@
 
 import { getDb } from '@/lib/db/client';
 import { idempotencyKeys } from '@/lib/db/schema/infra';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, lte, or } from 'drizzle-orm';
 import { dbLogger } from '@/lib/logger';
 
 /**
@@ -42,18 +42,29 @@ export async function tryClaimIdempotencyKey(
 ): Promise<boolean> {
   const db = getDb();
   try {
-    // INSERT ... ON CONFLICT DO NOTHING — atomic claim
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
+
+    // INSERT ... ON CONFLICT DO NOTHING — atomic first claim.
     const rows = await db
       .insert(idempotencyKeys)
-      .values({
-        key,
-        jobType,
-        status: 'in_progress',
-        expiresAt: new Date(Date.now() + ttlSeconds * 1000),
-      })
+      .values({ key, jobType, status: 'in_progress', expiresAt })
       .onConflictDoNothing()
       .returning({ key: idempotencyKeys.key });
-    return rows.length === 1;
+    if (rows.length === 1) return true;
+
+    // A failed/expired claim may be retried, but only one caller can win the
+    // conditional UPDATE. Completed or live in-progress claims remain closed.
+    const reclaimed = await db
+      .update(idempotencyKeys)
+      .set({ status: 'in_progress', error: null, expiresAt })
+      .where(and(
+        eq(idempotencyKeys.key, key),
+        lte(idempotencyKeys.expiresAt, now),
+        or(eq(idempotencyKeys.status, 'failed'), eq(idempotencyKeys.status, 'in_progress')),
+      ))
+      .returning({ key: idempotencyKeys.key });
+    return reclaimed.length === 1;
   } catch (err) {
     // If duplicate key error, someone else claimed it
     dbLogger.warn('Idempotency key conflict', { key, jobType });

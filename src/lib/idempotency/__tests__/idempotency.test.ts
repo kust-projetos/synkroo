@@ -40,6 +40,19 @@ describe('Idempotency Helper (ADR-BASE-13)', () => {
     await expect(tryClaimIdempotencyKey('same', 'charge')).resolves.toBe(false);
   });
 
+  it('reclaims an expired claim with a conditional update', async () => {
+    mockReturning.mockResolvedValueOnce([]).mockResolvedValueOnce([{ key: 'expired' }]);
+
+    await expect(tryClaimIdempotencyKey('expired', 'charge', 60)).resolves.toBe(true);
+    expect(mockDb.update).toHaveBeenCalled();
+  });
+
+  it('does not reclaim a live claim when the insert conflicts', async () => {
+    mockReturning.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+
+    await expect(tryClaimIdempotencyKey('live', 'charge', 60)).resolves.toBe(false);
+  });
+
   it('exports expected public functions', () => {
     const mod = require('@/lib/idempotency/index');
     expect(typeof mod.isIdempotencyKeyProcessed).toBe('function');
