@@ -434,11 +434,11 @@ test.describe('Navigation', () => {
     await page.goto(`${BASE_URL}/dashboard`)
 
     // Dashboard -> CRM
-    await page.click('a[href="/dashboard/crm"]')
+    await page.getByRole('link', { name: 'CRM', exact: true }).click()
     await expect(page).toHaveURL(/.*dashboard\/crm/)
 
     // CRM -> Campaigns
-    await page.click('a[href="/dashboard/campanhas"]')
+    await page.getByRole('link', { name: 'Campanhas', exact: true }).click()
     await expect(page).toHaveURL(/.*campanhas/)
 
     // Campaigns -> Dashboard
