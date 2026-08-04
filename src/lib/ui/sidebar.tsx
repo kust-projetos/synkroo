@@ -345,7 +345,7 @@ export function Sidebar() {
   }, [collapsed, mounted])
 
   if (!mounted) {
-    return <div className="w-60 border-r border-border bg-card" />
+    return <aside aria-label="Navegação principal" className="hidden lg:flex w-60 border-r border-border bg-card" />
   }
 
   return (

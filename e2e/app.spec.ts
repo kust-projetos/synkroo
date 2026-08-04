@@ -102,7 +102,7 @@ test.describe('Dashboard Layout', () => {
 
     await expect(page.locator('a[href="/dashboard/crm"]')).toBeVisible()
     await expect(page.locator('a[href="/dashboard/campanhas"]')).toBeVisible()
-    await expect(page.locator('a[href="/dashboard/conversas"]')).toBeVisible()
+    await expect(page.locator('aside a[href="/dashboard/conversas"]').first()).toBeVisible()
   })
 
   test('should toggle sidebar on mobile via Sheet', async ({ page }) => {
@@ -202,7 +202,7 @@ test.describe('Appointments Page', () => {
   })
 
   test('should display appointments page', async ({ page }) => {
-    await expect(page.locator('h1, h2')).toContainText(/agendamentos/i)
+    await expect(page.getByRole('heading', { name: 'Agendamentos', exact: true })).toBeVisible()
   })
 
   test('should have new appointment button', async ({ page }) => {
@@ -243,19 +243,16 @@ test.describe('Campaigns Page', () => {
   })
 
   test('should display campaigns page', async ({ page }) => {
-    await expect(page.locator('h1, h2')).toContainText(/campanhas/i)
+    await expect(page.getByRole('heading', { name: 'Campanhas', exact: true })).toBeVisible()
   })
 
   test('should have new campaign button', async ({ page }) => {
-    const addButton = page.locator('a[href*="campanhas/nova"], button:has-text("Nova"), a:has-text("Nova")')
-    await expect(addButton.first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Criar Campanha', exact: true })).toBeVisible()
   })
 
-  test('should navigate to new campaign form', async ({ page }) => {
-    const addLink = page.locator('a[href*="campanhas/nova"]').first()
-    await expect(addLink).toBeVisible()
-    await addLink.click()
-    await expect(page).toHaveURL(/.*campanhas\/nova/)
+  test('should open the campaign wizard', async ({ page }) => {
+    await page.getByRole('button', { name: 'Criar Campanha', exact: true }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
   })
 })
 

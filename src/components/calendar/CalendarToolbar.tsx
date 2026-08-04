@@ -1,5 +1,6 @@
 // CalendarToolbar — navigation, view switcher, title
 
+import Link from 'next/link'
 import { useCalendarStore } from './store/calendar-store'
 import { formatTitle } from './utils/date-utils'
 import { cn } from '@/lib/utils'
@@ -149,9 +150,12 @@ export function CalendarToolbar() {
             <span className="hidden sm:inline">{label}</span>
           </button>
         ))}
-        <button className="px-3 py-1.5 text-sm font-medium rounded-md text-teal-600 dark:text-teal-400 border border-teal-600/30 dark:border-teal-400/30 hover:bg-teal-50 dark:hover:bg-teal-950/20 transition-colors">
+        <Link
+          href="/dashboard/agendamentos/novo"
+          className="px-3 py-1.5 text-sm font-medium rounded-md text-teal-600 dark:text-teal-400 border border-teal-600/30 dark:border-teal-400/30 hover:bg-teal-50 dark:hover:bg-teal-950/20 transition-colors"
+        >
           Novo agendamento
-        </button>
+        </Link>
       </div>
     </div>
   )
