@@ -189,7 +189,9 @@ export const paymentCharges = pgTable('payment_charges', {
   paidAt: timestamp('paid_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+}, (t) => ({
+  clinicBudgetChargeUniq: uniqueIndex('payment_charges_clinic_budget_uniq').on(t.clinicId, t.budgetId),
+}));
 
 // ══════════════════════════════════════════════
 // FINANCEIRO EIXO2 — gateway_routing_rules

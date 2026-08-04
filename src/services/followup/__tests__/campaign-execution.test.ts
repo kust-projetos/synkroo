@@ -13,10 +13,9 @@ jest.mock('@/repositories/campaigns', () => ({
   updateCampaignCounts: jest.fn(),
   updateCampaignStatus: jest.fn(),
 }))
+const mockWithIdempotency = jest.fn()
 jest.mock('@/lib/idempotency', () => ({
-  withIdempotency: async (_key: string, _type: string, handler: () => Promise<unknown>) => ({
-    status: 'completed', result: await handler(),
-  }),
+  withIdempotency: (...args: unknown[]) => mockWithIdempotency(...args),
 }))
 jest.mock('@/services/contacts/consents.service', () => ({
   hasActiveConsent: jest.fn(),
@@ -56,6 +55,9 @@ const campaign = {
 
 beforeEach(() => {
   jest.clearAllMocks()
+  mockWithIdempotency.mockImplementation(async (_key: string, _type: string, handler: () => Promise<unknown>) => ({
+    status: 'completed', result: await handler(),
+  }))
   repo.findCampaignById.mockResolvedValue(campaign)
   repo.findPendingRecipients.mockResolvedValue([])
   repo.updateCampaignCounts.mockResolvedValue(undefined)
@@ -63,6 +65,16 @@ beforeEach(() => {
 })
 
 describe('campaign execution', () => {
+  it('does not execute a campaign while another worker owns its claim', async () => {
+    mockWithIdempotency.mockResolvedValueOnce({ status: 'conflict' })
+
+    await expect(startCampaign(campaign.id)).resolves.toEqual({
+      success: false,
+      error: 'Campaign execution already in progress',
+    })
+    expect(repo.findCampaignById).not.toHaveBeenCalled()
+  })
+
   it('marks campaign failed when no recipient is delivered', async () => {
     const result = await startCampaign(campaign.id)
 

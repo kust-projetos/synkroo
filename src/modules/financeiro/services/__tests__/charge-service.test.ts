@@ -5,6 +5,9 @@
 const mockGetBudget = jest.fn();
 const mockGetDefaultGateway = jest.fn();
 const mockCreateCharge = jest.fn();
+const mockGetCharge = jest.fn();
+const mockGetPaymentGateway = jest.fn();
+const mockUpdateCharge = jest.fn();
 const mockGetGatewayProvider = jest.fn();
 const mockWithIdempotency = jest.fn();
 
@@ -20,11 +23,14 @@ jest.mock('@/modules/financeiro/repositories/financeiro-repository', () => ({
   getBudget: (...args: any[]) => mockGetBudget(...args),
   getDefaultGateway: (...args: any[]) => mockGetDefaultGateway(...args),
   createPaymentCharge: (...args: any[]) => mockCreateCharge(...args),
+  getPaymentCharge: (...args: any[]) => mockGetCharge(...args),
+  getPaymentGateway: (...args: any[]) => mockGetPaymentGateway(...args),
+  updatePaymentCharge: (...args: any[]) => mockUpdateCharge(...args),
   buildChargeInsert: (data: any) => data,
   findPaymentChargeByBudget: (...args: any[]) => jest.fn()(...args),
 }));
 
-import { createCharge } from '../charge-service';
+import { cancelCharge, createCharge } from '../charge-service';
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -46,6 +52,14 @@ beforeEach(() => {
   mockCreateCharge.mockResolvedValue({
     id: 'c1', clinicId: 'c1', budgetId: 'b1', externalChargeId: 'ext_1',
     amount: '100', status: 'pending',
+  });
+  mockGetCharge.mockResolvedValue({
+    id: 'c1', clinicId: 'c1', gatewayId: 'g1', externalChargeId: 'ext_1',
+    status: 'pending',
+  });
+  mockGetPaymentGateway.mockResolvedValue({ provider: 'asaas', isEnabled: true });
+  mockUpdateCharge.mockResolvedValue({
+    id: 'c1', clinicId: 'c1', gatewayId: 'g1', externalChargeId: 'ext_1', status: 'cancelled',
   });
 });
 
@@ -90,6 +104,25 @@ describe('charge-service', () => {
       });
       expect(result.charge).toBeDefined();
       expect(result.gatewayResponse.externalChargeId).toBe('ext_1');
+      expect(mockWithIdempotency).toHaveBeenCalledWith(
+        'charge:create:c1:b1',
+        'payment_charge_create',
+        expect.any(Function),
+      );
+    });
+
+    it('cancels a charge through an idempotent operation key', async () => {
+      const cancelProvider = { cancelCharge: jest.fn().mockResolvedValue({ success: true }) };
+      mockGetGatewayProvider.mockReturnValue(cancelProvider);
+
+      await expect(cancelCharge({ clinicId: 'c1', chargeId: 'c1' })).resolves.toMatchObject({ cancelled: true });
+
+      expect(mockWithIdempotency).toHaveBeenCalledWith(
+        'charge:cancel:c1:c1',
+        'payment_charge_cancel',
+        expect.any(Function),
+      );
+      expect(cancelProvider.cancelCharge).toHaveBeenCalledTimes(1);
     });
 
     it('rejects cross-clinic budget access', async () => {

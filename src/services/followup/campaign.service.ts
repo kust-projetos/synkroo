@@ -123,17 +123,27 @@ export async function addCampaignRecipients(
 export async function startCampaign(
 	campaignId: string,
 ): Promise<{ success: boolean; error?: string }> {
+	const outcome = await withIdempotency(
+		`campaign:run:${campaignId}`,
+		'campaign_execution',
+		() => executeCampaign(campaignId),
+	);
+
+	if (outcome.status === 'completed' && outcome.result) return outcome.result;
+	if (outcome.status === 'already_processed') return { success: true };
+	return { success: false, error: 'Campaign execution already in progress' };
+}
+
+async function executeCampaign(
+	campaignId: string,
+): Promise<{ success: boolean; error?: string }> {
 	const campaign = await campaignRepo.findCampaignById(campaignId);
 	if (!campaign) {
 		return { success: false, error: "Campaign not found" };
 	}
 
-	// Update status to running
 	await campaignRepo.updateCampaignStatus(campaignId, "running");
-
-	// Get pending recipients
 	const recipients = await campaignRepo.findPendingRecipients(campaignId);
-
 	let sent = 0;
 
 	for (const recipient of recipients) {

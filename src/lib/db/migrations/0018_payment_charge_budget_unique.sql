@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "payment_charges_clinic_budget_uniq" ON "payment_charges" USING btree ("clinic_id","budget_id");
