@@ -449,10 +449,9 @@ test.describe('Calendar - Dark Mode', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
     const darkBtn = page.locator('aside button:has-text("Escuro")')
-    if (await darkBtn.isVisible()) {
-      await darkBtn.click()
-      await page.waitForTimeout(300)
-    }
+    await expect(darkBtn).toBeVisible()
+    await darkBtn.click()
+    await page.waitForTimeout(300)
     await goToCalendar(page)
   })
 
@@ -478,15 +477,7 @@ test.describe('Calendar - Dark Mode', () => {
 
   test('click-to-create should work in dark mode', async ({ page }) => {
     await switchView(page, 'Dia')
-    // Ensure dark mode is still active after navigation
-    const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
-    if (!isDark) {
-      const darkBtn = page.locator('aside button:has-text("Escuro")')
-      if (await darkBtn.isVisible()) {
-        await darkBtn.click()
-        await page.waitForTimeout(300)
-      }
-    }
+    await expect.poll(async () => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true)
     await clickSlot(page, 12, 0)
 
     await expect(page.locator('[role="dialog"]')).toBeVisible()
