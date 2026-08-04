@@ -1,4 +1,14 @@
 const SENSITIVE_KEY = /token|secret|password|email|phone|cpf|patient|payload|authorization/i;
+const DEFAULT_PATHS = {
+  liveness: '/api/health',
+  session: '/api/auth/session',
+  switchClinic: '/api/auth/switch-clinic',
+  protectedRoute: '/dashboard',
+  appointments: '/api/appointments',
+  invalidWebhook: '/api/messages/inbound',
+  readiness: '/api/internal/readiness',
+  assets: '/widget.js',
+};
 
 export function redactSmokeOutput(value) {
   if (Array.isArray(value)) return value.map(redactSmokeOutput);
@@ -9,23 +19,79 @@ export function redactSmokeOutput(value) {
   ]));
 }
 
-async function check(baseUrl, name, path, init = {}) {
+function blocked(name) {
+  return { name, status: 'blocked', reason: 'synthetic staging auth is required' };
+}
+
+function isSuccess(status) {
+  return status >= 200 && status < 300;
+}
+
+function isUnauthorized(status) {
+  return status === 401 || status === 403 || (status >= 300 && status < 400);
+}
+
+async function check(baseUrl, name, path, { fetchImpl, expected, ...init } = {}) {
   try {
-    const response = await fetch(new URL(path, baseUrl), { ...init, signal: AbortSignal.timeout(10_000) });
-    return { name, status: response.ok ? 'pass' : 'fail', httpStatus: response.status };
+    const response = await fetchImpl(new URL(path, baseUrl), {
+      ...init,
+      signal: AbortSignal.timeout(10_000),
+    });
+    return {
+      name,
+      status: expected(response.status) ? 'pass' : 'fail',
+      httpStatus: response.status,
+    };
   } catch (error) {
     return { name, status: 'fail', error: error instanceof Error ? error.name : 'request_failed' };
   }
 }
 
-export async function runSmoke(baseUrl) {
-  const checks = await Promise.all([
-    check(baseUrl, 'health', '/api/health'),
-    check(baseUrl, 'invalid-auth', '/api/auth/session'),
-    check(baseUrl, 'protected-readiness', '/api/internal/readiness'),
-    check(baseUrl, 'invalid-webhook', '/api/messages/inbound', { method: 'POST', body: '{}' }),
-  ]);
-  return checks.map(redactSmokeOutput);
+export async function runSmoke(baseUrl, options = {}) {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const paths = { ...DEFAULT_PATHS, ...(options.paths ?? {}) };
+  const authCookie = options.authCookie ?? process.env.STAGING_AUTH_COOKIE;
+  const clinicId = options.clinicId ?? process.env.STAGING_CLINIC_ID;
+  const authHeaders = authCookie ? { cookie: authCookie } : undefined;
+  const hasSyntheticAuth = Boolean(authCookie && clinicId);
+  const checks = [
+    check(baseUrl, 'liveness', paths.liveness, { fetchImpl, expected: isSuccess }),
+    check(baseUrl, 'invalid-auth', paths.appointments, { fetchImpl, expected: isUnauthorized }),
+    hasSyntheticAuth
+      ? check(baseUrl, 'valid-auth', paths.session, { fetchImpl, expected: isSuccess, headers: authHeaders })
+      : blocked('valid-auth'),
+    hasSyntheticAuth
+      ? check(baseUrl, 'session', paths.session, { fetchImpl, expected: isSuccess, headers: authHeaders })
+      : blocked('session'),
+    hasSyntheticAuth
+      ? check(baseUrl, 'switch-clinic', paths.switchClinic, {
+        fetchImpl,
+        expected: isSuccess,
+        method: 'POST',
+        headers: { ...authHeaders, 'content-type': 'application/json' },
+        body: JSON.stringify({ clinicId }),
+      })
+      : blocked('switch-clinic'),
+    check(baseUrl, 'route-protection', paths.protectedRoute, { fetchImpl, expected: isUnauthorized }),
+    hasSyntheticAuth
+      ? check(baseUrl, 'agenda-tenant-scope', paths.appointments, {
+        fetchImpl,
+        expected: isSuccess,
+        headers: authHeaders,
+      })
+      : blocked('agenda-tenant-scope'),
+    check(baseUrl, 'invalid-webhook', paths.invalidWebhook, {
+      fetchImpl,
+      expected: (status) => status === 400 || status === 403,
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{}',
+    }),
+    check(baseUrl, 'protected-readiness', paths.readiness, { fetchImpl, expected: isUnauthorized }),
+    check(baseUrl, 'assets', paths.assets, { fetchImpl, expected: isSuccess }),
+  ];
+
+  return (await Promise.all(checks)).map(redactSmokeOutput);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -33,5 +99,5 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (!baseUrl) throw new Error('STAGING_BASE_URL is required');
   const results = await runSmoke(baseUrl);
   for (const result of results) console.log(JSON.stringify(result));
-  if (results.some((result) => result.status !== 'pass')) process.exitCode = 1;
+  if (results.some(({ status }) => status !== 'pass')) process.exitCode = 1;
 }

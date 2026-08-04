@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `1542c58f`
+**Candidate:** `7b84540e`
 
 ## Evidence matrix
 
@@ -56,3 +56,22 @@
 - Charge/campaign effects now use stable idempotency keys; transactional outbox wiring and concurrent DB proof remain pending.
 
 Production deploy is prohibited. Required next evidence: owner-approved staging resources, disposable DB, two consecutive full E2E passes, outbox integration tests, smoke and rollback rehearsal.
+
+## Evidence-based release rubric
+
+This score is a release aid, not a substitute for hard gates. Any automatic No-Go reason
+keeps the final decision at No-Go regardless of points.
+
+| Dimension | Weight | Score | Evidence basis |
+|---|---:|---:|---|
+| Tenancy, webhook and audit P0 | 25 | 20 | Static security tests and allowlists pass; DB proof/replay remains partial |
+| Auth, idempotency and outbox | 20 | 12 | Auth and mutation gates pass; provider/outbox concurrency proof pending |
+| Structural hardening | 15 | 15 | Headers, CSV, consent and dependency gates pass |
+| Product and E2E | 20 | 12 | Focused W4 contracts pass; full suite is not proven twice |
+| Cloudflare and release operations | 20 | 8 | Build/dry-run pass with warning; startup, staging and rollback pending |
+| **Total** | **100** | **67** | **NO-GO** |
+
+**Decision thresholds:** `GO` requires at least 90/100 and every hard gate green; `CONDITIONAL`
+requires 75–89 with a written owner-approved exception; anything below 75 is `NO-GO`. Current
+67/100 is therefore No-Go. The score must be recalculated after each missing evidence item is
+executed; no points are awarded for planned or locally simulated staging evidence.
