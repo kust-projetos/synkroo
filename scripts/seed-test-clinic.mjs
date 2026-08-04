@@ -1,70 +1,77 @@
 /**
- * Idempotent seed of test clinic for integration tests.
- * Run before jest --config jest.integration.config.js
+ * Idempotent seed of deterministic clinic and credentials for integration/E2E tests.
  */
+import { randomBytes, scryptSync } from 'node:crypto';
 import { Client } from 'pg';
 
 const DB_URL =
   process.env.DATABASE_URL ||
   'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
+const CLINIC_ID = '00000000-0000-0000-0000-000000000001';
+const USER_ID = '00000000-0000-4000-8000-000000000002';
+const DEMO_EMAIL = 'admin@clinicademo.com';
+const DEMO_PASSWORD = 'demo123';
 
-// Parse connection string to extract server address and auth.
-// We connect WITHOUT a database name to create it if absent.
+function hashPassword(password) {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
 function parseDbUrl(url) {
   try {
-    const u = new URL(url);
+    const parsed = new URL(url);
     return {
-      host: u.hostname,
-      port: parseInt(u.port || '5432', 10),
-      user: u.username,
-      password: u.password,
-      database: u.pathname.replace(/^\//, '') || 'postgres',
+      host: parsed.hostname,
+      port: parseInt(parsed.port || '5432', 10),
+      user: parsed.username,
+      password: parsed.password,
+      database: parsed.pathname.replace(/^\//, '') || 'postgres',
     };
   } catch {
-    throw new Error(`Invalid DATABASE_URL: ${url}`);
+    throw new Error('Invalid DATABASE_URL');
   }
 }
 
 const parsed = parseDbUrl(DB_URL);
-const dbName = parsed.database;
-
-// Connect to the default 'postgres' database to create the target DB if needed.
-const adminClient = new Client({
-  host: parsed.host,
-  port: parsed.port,
-  user: parsed.user,
-  password: parsed.password,
-  database: 'postgres',
-});
-
+const adminClient = new Client({ ...parsed, database: 'postgres' });
 await adminClient.connect();
 try {
-  await adminClient.query(`CREATE DATABASE "${dbName}"`);
-  console.log(`seed-test-clinic: created database "${dbName}"`);
-} catch (err) {
-  if (err.code === '42P04') {
-    // Database already exists — OK
-  } else {
-    throw err;
-  }
+  await adminClient.query(`CREATE DATABASE "${parsed.database}"`);
+} catch (error) {
+  if (error.code !== '42P04') throw error;
+} finally {
+  await adminClient.end();
 }
-await adminClient.end();
 
-// Now seed the clinic data.
 const client = new Client({ connectionString: DB_URL });
-
 try {
   await client.connect();
-  const res = await client.query(
+  await client.query('BEGIN');
+  await client.query(
     `INSERT INTO clinics (id, name, slug, phone, email)
-     VALUES ('00000000-0000-0000-0000-000000000001', 'Test Clinic', 'test-clinic', '+5500000000000', 'test@clinic.local')
-     ON CONFLICT (id) DO NOTHING`
+     VALUES ($1, 'Clinica Demo', 'clinica-demo', '+5500000000000', 'contato@clinicademo.com')
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug, deleted_at = NULL`,
+    [CLINIC_ID],
   );
-  console.log(`seed-test-clinic: rowCount=${res.rowCount ?? 0}`);
-} catch (err) {
-  console.error('seed-test-clinic: ERROR', err.message);
+  await client.query(
+    `INSERT INTO users (id, clinic_id, email, name, role, is_active)
+     VALUES ($1, $2, $3, 'Admin Demo', 'owner', true)
+     ON CONFLICT (id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, email = EXCLUDED.email, role = EXCLUDED.role, is_active = true`,
+    [USER_ID, CLINIC_ID, DEMO_EMAIL],
+  );
+  await client.query(
+    `INSERT INTO user_credentials (user_id, password_hash)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = now()`,
+    [USER_ID, hashPassword(DEMO_PASSWORD)],
+  );
+  await client.query('COMMIT');
+  console.log('seed-test-clinic: deterministic clinic and credentials ready');
+} catch (error) {
+  await client.query('ROLLBACK');
+  console.error('seed-test-clinic: ERROR', error instanceof Error ? error.message : 'unknown error');
+  process.exitCode = 1;
+} finally {
   await client.end();
-  process.exit(1);
 }
-
-await client.end();
