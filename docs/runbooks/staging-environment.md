@@ -2,6 +2,20 @@
 
 Staging uses a separate Worker name, PostgreSQL database, Hyperdrive, KV, Vectorize index, Queue and Durable Object namespace. Production IDs and secrets must not be copied.
 
+## Local disposable verification environment
+
+For local gates without Cloudflare mutation:
+
+```bash
+docker compose -f docker-compose.remediation.yml up -d --wait
+export REMEDIATION_DATABASE_URL='postgresql://synkroo_test:local-remediation-only@127.0.0.1:55434/synkroo_remediation'
+DATABASE_URL="$REMEDIATION_DATABASE_URL" npm run db:migrate
+TEST_DATABASE_URL="$REMEDIATION_DATABASE_URL" node scripts/verify-remediation-schema.mjs
+```
+
+This database is isolated from the development container and is not a substitute for a
+reachable Cloudflare staging origin.
+
 ## Provisioning contract
 
 1. Owner provisions resource IDs in Cloudflare.
