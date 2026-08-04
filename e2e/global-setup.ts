@@ -15,7 +15,9 @@ export default async function globalSetup(_config: FullConfig) {
   const browser = await chromium.launch()
   try {
     const page = await browser.newPage()
-    const seedResponse = await page.request.get(`${BASE_URL}/api/seed?secret=${encodeURIComponent(seedSecret)}`)
+    const seedResponse = await page.request.get(`${BASE_URL}/api/seed?secret=${encodeURIComponent(seedSecret)}`, {
+      timeout: 120_000,
+    })
     if (!seedResponse.ok()) {
       const body = (await seedResponse.text()).slice(0, 300).replace(/\s+/g, ' ')
       throw new Error(`E2E fixture seed failed: status=${seedResponse.status()}; body=${body}`)

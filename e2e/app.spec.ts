@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE_URL = 'http://localhost:3003'
+const BASE_URL = 'http://127.0.0.1:3003'
 
 // Canonical NextAuth UI login; failures remain visible to the suite.
 async function login(page: Page) {
