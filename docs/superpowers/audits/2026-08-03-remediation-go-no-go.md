@@ -1,0 +1,54 @@
+# Remediation Go/No-Go
+
+**Decision:** NO-GO
+**Evidence date:** 2026-08-04
+**Candidate:** `344bb83b`
+
+## Evidence matrix
+
+| Gate | Result | Evidence |
+|---|---|---|
+| lint | PASS | `npm run lint` |
+| typecheck | PASS | `npm run typecheck` |
+| unit | PASS | 223 suites, 1539 passed |
+| security | PASS | `npm run test:security`, 142 passed, 95.06% statements |
+| mutation | PASS | Stryker 91.98%, threshold 70% |
+| build | PASS | `npm run build` |
+| dependency production audit | PASS | 0 high/critical; 1 low dev/toolchain advisory (`esbuild`) |
+| full-history secrets | PASS | `gitleaks detect --source . --log-opts='--all'`, no leaks |
+| docs links | PASS | `node scripts/check-doc-links.mjs` |
+| Cloudflare config contract | PASS | `src/__tests__/cloudflare/*` |
+| integration/PostgreSQL | BLOCKED | no approved local `TEST_DATABASE_URL`; run timed out against unavailable DB |
+| E2E deterministic setup | PARTIAL | focused storage-state pass; full suite setup failed waiting for dashboard |
+| E2E twice | NOT PROVEN | prerequisite full run failed |
+| staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
+| Worker rollback | NOT RUN | remote mutation requires owner approval |
+
+## REM traceability
+
+| Requirement | State | Evidence/remaining gap |
+|---|---|---|
+| REM-01 | PASS | confirmation/inbound inputs reject payload tenant |
+| REM-02 | PARTIAL | scoped handlers exist; DB integration not run |
+| REM-03 | PASS | channel installation + hashed secret resolver |
+| REM-04 | PARTIAL | Asaas transaction implemented; replay not proven on PostgreSQL |
+| REM-05 | PASS | active profile + session version guard |
+| REM-06 | PASS | Action audit allowlist |
+| REM-07 | PARTIAL | atomic claim/outbox primitives; charge/campaign migration incomplete |
+| REM-08 | PARTIAL | outbox retry/dead-letter primitive; provider integration not staged |
+| REM-09 | PASS | due campaign query requires `scheduled_at <= now` |
+| REM-10 | PARTIAL | NextAuth update path + cache clear; multi-clinic DB proof pending |
+| REM-11 | PASS | CSV formula neutralization |
+| REM-12 | PASS | dashboard removes fabricated fallback/activity |
+| REM-13 | PARTIAL | responsive code added; 360px E2E not proven |
+| REM-14 | PARTIAL | focused setup fail-fast; full suite still fails setup |
+| REM-15 | NO-GO | blocked until integration, E2E, staging and rollback evidence |
+
+## Automatic No-Go reasons
+
+- Integration gate cannot run without approved disposable PostgreSQL.
+- Full E2E setup does not reach dashboard consistently.
+- Staging deployment, smoke and rollback were not authorized or executed.
+- Charge/campaign external effects still need outbox wiring and concurrent DB proof.
+
+Production deploy is prohibited. Required next evidence: owner-approved staging resources, disposable DB, two consecutive full E2E passes, outbox integration tests, smoke and rollback rehearsal.

@@ -43,9 +43,6 @@ export default function HomePage() {
             <Link href="/dashboard" className="text-sm font-medium text-slate-300 hover:text-white transition">
               Dashboard
             </Link>
-            <Link href="/api/docs" className="text-sm font-medium text-slate-300 hover:text-white transition hidden md:inline-block">
-              API Docs
-            </Link>
             <Link
               href="/dashboard"
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-400 hover:to-emerald-500 text-white font-semibold text-sm rounded-xl transition shadow-lg shadow-teal-500/25 border border-teal-400/30 active:scale-95"
@@ -90,12 +87,6 @@ export default function HomePage() {
               >
                 Acessar Dashboard Pro
                 <ArrowRightIcon className="w-5 h-5" />
-              </Link>
-              <Link
-                href="/api/docs"
-                className="inline-flex items-center justify-center px-8 py-4 bg-white/5 hover:bg-white/10 text-slate-200 font-semibold text-base rounded-2xl transition border border-white/10 backdrop-blur-md"
-              >
-                Ver Documentação API
               </Link>
             </div>
 
@@ -310,7 +301,6 @@ export default function HomePage() {
             © 2026 Synkroo. Plataforma SaaS de automação odontológica com IA conversacional.
           </p>
           <div className="flex items-center gap-6 text-xs text-slate-400">
-            <Link href="/api/docs" className="hover:text-white transition">API Docs</Link>
             <Link href="/dashboard" className="hover:text-white transition">Dashboard</Link>
           </div>
         </div>
