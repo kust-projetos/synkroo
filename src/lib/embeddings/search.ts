@@ -53,11 +53,13 @@ export async function upsertEmbedding(
   const vectorStr = vectorLiteral(embedding);
   if (!vectorStr) return false;
   try {
-    await getDb().update(knowledgeBase).set({
+    const updated = await getDb().update(knowledgeBase).set({
       embedding: sql`${vectorStr}::vector`,
       updatedAt: new Date(),
-    }).where(and(eq(knowledgeBase.id, knowledgeId), eq(knowledgeBase.clinicId, clinicId)));
-    return true;
+    }).where(and(eq(knowledgeBase.id, knowledgeId), eq(knowledgeBase.clinicId, clinicId))).returning({
+      id: knowledgeBase.id,
+    });
+    return updated.length > 0;
   } catch (error) {
     dbLogger.error('Failed to upsert embedding', error, { knowledgeId });
     return false;

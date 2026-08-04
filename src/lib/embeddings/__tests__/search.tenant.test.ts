@@ -1,6 +1,7 @@
 import { upsertEmbedding } from '../search';
 
-const where = jest.fn().mockResolvedValue([]);
+const returning = jest.fn().mockResolvedValue([]);
+const where = jest.fn(() => ({ returning }));
 const update = jest.fn(() => ({
   set: jest.fn(() => ({ where })),
 }));
@@ -13,5 +14,12 @@ describe('embedding ownership', () => {
 
     expect(result).toBe(false);
     expect(where).not.toHaveBeenCalled();
+  });
+
+  it('reports not found when tenant-scoped knowledge does not exist', async () => {
+    const embedding = Array.from({ length: 1536 }, () => 0.1);
+
+    await expect(upsertEmbedding('clinic-a', 'knowledge-b', embedding)).resolves.toBe(false);
+    expect(returning).toHaveBeenCalledTimes(1);
   });
 });

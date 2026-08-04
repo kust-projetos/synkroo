@@ -2,6 +2,9 @@ import { test, expect, Page } from '@playwright/test'
 
 const BASE_URL = 'http://127.0.0.1:3003'
 
+// This file exercises login and logout flows; inherited authenticated state would redirect /login.
+test.use({ storageState: { cookies: [], origins: [] } })
+
 // Canonical NextAuth UI login; failures remain visible to the suite.
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`)

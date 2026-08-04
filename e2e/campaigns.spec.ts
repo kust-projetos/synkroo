@@ -2,6 +2,8 @@ import { test, expect, type Page } from '@playwright/test'
 
 const BASE_URL = 'http://localhost:3003'
 
+test.use({ storageState: { cookies: [], origins: [] } })
+
 async function login(page: Page) {
   await page.goto(`${BASE_URL}/login`)
   await page.fill('#email', 'admin@clinicademo.com')
@@ -19,22 +21,22 @@ test.describe('Campaigns', () => {
 
   test('shows factual page state and create action', async ({ page }) => {
     await expect(page.locator('h1, h2')).toContainText(/campanhas/i)
-    await expect(page.locator('a[href*="campanhas/nova"], button:has-text("Nova"), a:has-text("Nova")').first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Criar Campanha', exact: true })).toBeVisible()
     await expect(page.locator('table, [data-testid*="campaign"], text=/sem|nenhum|vazio/i').first()).toBeVisible()
   })
 
   test('opens campaign wizard', async ({ page }) => {
-    await page.locator('a[href*="campanhas/nova"]').first().click()
-    await expect(page).toHaveURL(/campanhas\/nova/)
-    await expect(page.locator('input, textarea, [role="tablist"]').first()).toBeVisible()
+    await page.getByRole('button', { name: 'Criar Campanha', exact: true }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
   })
 })
 
 test.describe('Campaign wizard', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
-    await page.goto(`${BASE_URL}/dashboard/campanhas/nova`)
-    await page.waitForLoadState('networkidle')
+    await page.goto(`${BASE_URL}/dashboard/campanhas`)
+    await page.getByRole('button', { name: 'Criar Campanha', exact: true }).click()
+    await expect(page.getByRole('dialog')).toBeVisible()
   })
 
   test('exposes campaign fields and audience controls', async ({ page }) => {

@@ -8,15 +8,51 @@ import { getWeekDays, formatDateKey } from '../utils/date-utils'
 import { useCalendarStore } from '../store/calendar-store'
 import type { CalendarEvent, CalendarResource } from '../utils/types'
 
-interface AppointmentRow {
+export interface AppointmentRow {
   id: string
-  scheduled_at: string
-  duration_minutes: number
+  scheduledAt: string
+  durationMinutes: number
   status: string
   notes: string | null
-  patients?: { id: string; name: string; phone: string } | null
-  dentists?: { id: string; name: string; specialty?: string } | null
-  procedures?: { id: string; name: string; duration_minutes: number; category?: string } | null
+  patient?: { id: string; name: string; phone: string } | null
+  dentist?: { id: string; name: string; specialty?: string } | null
+  procedure?: { id: string; name: string; durationMinutes: number; category?: string } | null
+}
+
+export function toCalendarEvent(apt: AppointmentRow): CalendarEvent {
+  const start = new Date(apt.scheduledAt)
+  return {
+    id: apt.id,
+    title: apt.patient?.name || 'Paciente',
+    start,
+    end: new Date(start.getTime() + apt.durationMinutes * 60000),
+    dentistId: apt.dentist?.id || '',
+    dentistName: apt.dentist?.name || 'Sem dentista',
+    dentistSpecialty: apt.dentist?.specialty,
+    procedureName: apt.procedure?.name || '',
+    procedureCategory: apt.procedure?.category,
+    status: apt.status as CalendarEvent['status'],
+    durationMinutes: apt.durationMinutes,
+    notes: apt.notes,
+    origin: undefined,
+    changeSummary: undefined,
+    changeImpact: undefined,
+  }
+}
+
+interface DentistRow {
+  id: string
+  name: string
+  specialty?: string
+}
+
+export function toCalendarResources(dentists: DentistRow[]): CalendarResource[] {
+  return dentists.map((dentist) => ({
+    id: dentist.id,
+    name: dentist.name,
+    color: '',
+    specialty: dentist.specialty,
+  }))
 }
 
 interface UseCalendarEventsResult {
@@ -73,38 +109,12 @@ export function useCalendarEvents(): UseCalendarEventsResult {
 
   const events = useMemo<CalendarEvent[]>(() => {
     const appointments = (data?.appointments || []) as AppointmentRow[]
-    return appointments.map((apt) => {
-      const start = new Date(apt.scheduled_at)
-      const end = new Date(start.getTime() + apt.duration_minutes * 60000)
-
-      return {
-        id: apt.id,
-        title: apt.patients?.name || 'Paciente',
-        start,
-        end,
-        dentistId: apt.dentists?.id || '',
-        dentistName: apt.dentists?.name || 'Sem dentista',
-        dentistSpecialty: apt.dentists?.specialty || undefined,
-        procedureName: apt.procedures?.name || '',
-        procedureCategory: apt.procedures?.category || undefined,
-        status: apt.status as CalendarEvent['status'],
-        durationMinutes: apt.duration_minutes,
-        notes: apt.notes,
-        origin: undefined,
-        changeSummary: undefined,
-        changeImpact: undefined,
-      }
-    })
+    return appointments.map(toCalendarEvent)
   }, [data])
 
   const resources = useMemo<CalendarResource[]>(() => {
-    const dentists = (dentistsData?.dentists || []) as { id: string; name: string; specialty?: string }[]
-    return dentists.map((d) => ({
-      id: d.id,
-      name: d.name,
-      color: '',
-      specialty: d.specialty,
-    }))
+    const dentists = Array.isArray(dentistsData) ? dentistsData : dentistsData?.dentists || []
+    return toCalendarResources(dentists as DentistRow[])
   }, [dentistsData])
 
   return { events, resources, isLoading, error: error as Error | null }
