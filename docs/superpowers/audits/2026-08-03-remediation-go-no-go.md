@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `d5873825`
+**Candidate:** `6647c775`
 
 ## Evidence matrix
 
@@ -22,7 +22,7 @@
 | OpenNext build + Wrangler dry-run | PASS WITH WARNING | OpenNext build and dry-run pass; duplicate-case warning recorded |
 | remediation schema verifier | PASS | Local disposable PostgreSQL confirms `outbox_jobs` and `consents` columns and unique keys |
 | Wrangler startup check | BLOCKED | Wrangler 4.114/4.118 alpha now fails `Failed to parse body as FormData` on generated worker; injected marker is ASCII-safe |
-| integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 24 suites and 183 tests passed |
+| integration/PostgreSQL | PASS | Disposable Docker PostgreSQL provisioned and migrated; 25 suites and 184 tests passed |
 | E2E deterministic setup | PASS | canonical NextAuth callback + mandatory SEED_SECRET fixtures; storage-state and focused W4 setup pass |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
@@ -64,7 +64,7 @@ keeps the final decision at No-Go regardless of points.
 
 | Dimension | Weight | Score | Evidence basis |
 |---|---:|---:|---|
-| Tenancy, webhook and audit P0 | 25 | 22 | Static security tests, schema verifier and inbound/action integration pass; Asaas replay proof remains pending |
+| Tenancy, webhook and audit P0 | 25 | 22 | Database-backed two-tenant fixtures, schema verifier and inbound/action integration pass; Asaas replay proof remains pending |
 | Auth, idempotency and outbox | 20 | 12 | Auth and mutation gates pass; provider/outbox concurrency proof pending |
 | Structural hardening | 15 | 15 | Headers, CSV, consent and dependency gates pass |
 | Product and E2E | 20 | 12 | Focused W4 contracts pass; full suite is not proven twice |
