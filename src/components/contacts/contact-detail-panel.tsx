@@ -54,6 +54,7 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
         <p className="text-muted-foreground mb-2">Não foi possível carregar este contato</p>
+        {onClearSelection && <Button variant="ghost" onClick={onClearSelection}>Voltar para contatos</Button>}
         <Button variant="outline" onClick={() => window.location.reload()}>
           Tentar novamente
         </Button>
@@ -73,7 +74,7 @@ export function ContactDetailPanel({ contactId, contactType, onClearSelection }:
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center">
         <p className="text-muted-foreground mb-4">Contato não encontrado</p>
-        <Button onClick={onClearSelection} variant="outline">Voltar a lista</Button>
+        <Button onClick={onClearSelection} variant="outline">Voltar para contatos</Button>
       </div>
     )
   }

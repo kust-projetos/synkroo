@@ -7,11 +7,15 @@ t.describe('Calendar Date Navigation', () => {
     await expect(page.locator('button:has-text("Hoje")')).toBeVisible()
   })
   t('can navigate to previous period', async ({ page }) => {
-    const btn = page.locator('button:has-text("Anterior")')
-    if (await btn.first().isVisible()) { await btn.first().click(); await page.waitForTimeout(300) }
+    const btn = page.getByRole('button', { name: 'Anterior', exact: true })
+    await expect(btn).toBeVisible()
+    await btn.click()
+    await expect(page.locator('h2')).toBeVisible()
   })
   t('can navigate to next period', async ({ page }) => {
-    const btn = page.locator('button:has-text("Próximo")')
-    if (await btn.first().isVisible()) { await btn.first().click(); await page.waitForTimeout(300) }
+    const btn = page.getByRole('button', { name: 'Proximo', exact: true })
+    await expect(btn).toBeVisible()
+    await btn.click()
+    await expect(page.locator('h2')).toBeVisible()
   })
 })

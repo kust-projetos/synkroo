@@ -33,10 +33,9 @@ test.describe('Landing Page', () => {
     await page.goto(BASE_URL)
 
     const loginLink = page.locator('a[href="/login"]').first()
-    if (await loginLink.count() > 0) {
-      await loginLink.click()
-      await expect(page).toHaveURL(/.*login/)
-    }
+    await expect(loginLink).toBeVisible()
+    await loginLink.click()
+    await expect(page).toHaveURL(/.*login/)
   })
 })
 
@@ -84,13 +83,9 @@ test.describe('Authentication Flow', () => {
     // Try clicking the logout icon in sidebar footer area
     // The logout button is the last button in the sidebar footer
     const footerButtons = page.locator('aside button, .lg\\:flex button')
-    const count = await footerButtons.count()
-
-    if (count > 0) {
-      // Logout is the last icon button in the sidebar (ArrowRightStartOnRectangle icon)
-      await footerButtons.last().click()
-      await expect(page).toHaveURL(/.*login/, { timeout: 5000 })
-    }
+    await expect(footerButtons.last()).toBeVisible()
+    await footerButtons.last().click()
+    await expect(page).toHaveURL(/.*login/, { timeout: 5000 })
   })
 })
 
@@ -100,16 +95,8 @@ test.describe('Authentication Flow', () => {
 test.describe('Dashboard Layout', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
-    // Wait for dashboard to fully load before each test
-    // If loading spinner persists for >20s, fail gracefully
     await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
-    // Check if page is still showing loading spinner (auth bug workaround)
-    const isStillLoading = await page.locator('.animate-spin').isVisible().catch(() => false)
-    if (isStillLoading) {
-      // Page stuck in loading state — skip this test
-      test.skip()
-    }
+    await expect(page.locator('.animate-spin')).toBeHidden({ timeout: 20_000 })
   })
 
   test('should display sidebar on desktop', async ({ page }) => {
@@ -119,10 +106,9 @@ test.describe('Dashboard Layout', () => {
     const sidebar = page.locator('aside')
     await expect(sidebar).toBeVisible({ timeout: 5000 })
 
-    // Navigation items should be visible
-    await expect(page.locator('a[href="/dashboard/pacientes"]')).toBeVisible()
-    await expect(page.locator('a[href="/dashboard/agendamentos"]')).toBeVisible()
+    await expect(page.locator('a[href="/dashboard/crm"]')).toBeVisible()
     await expect(page.locator('a[href="/dashboard/campanhas"]')).toBeVisible()
+    await expect(page.locator('a[href="/dashboard/conversas"]')).toBeVisible()
   })
 
   test('should toggle sidebar on mobile via Sheet', async ({ page }) => {
@@ -140,7 +126,7 @@ test.describe('Dashboard Layout', () => {
     await menuButton.click()
 
     // Sheet should appear with nav items
-    await expect(page.locator('[role="dialog"] a[href="/dashboard/pacientes"]').first()).toBeVisible({ timeout: 3000 })
+    await expect(page.locator('[role="dialog"] a[href="/dashboard/crm"]').first()).toBeVisible({ timeout: 3000 })
   })
 
   test('sidebar should NOT overlap content on desktop', async ({ page }) => {
@@ -151,14 +137,11 @@ test.describe('Dashboard Layout', () => {
     await expect(sidebar).toBeVisible({ timeout: 5000 })
     const sidebarBox = await sidebar.boundingBox()
 
-    // Get main content (has lg:pl-60)
     const mainContent = page.locator('main').first()
     const contentBox = await mainContent.boundingBox()
-
-    // Content should start AFTER sidebar width
-    if (sidebarBox && contentBox) {
-      expect(contentBox.x).toBeGreaterThanOrEqual(sidebarBox.width - 10) // 10px tolerance
-    }
+    expect(sidebarBox).not.toBeNull()
+    expect(contentBox).not.toBeNull()
+    expect(contentBox!.x).toBeGreaterThanOrEqual(sidebarBox!.width - 10)
   })
 
   test('should have collapsible sidebar on desktop', async ({ page }) => {
@@ -167,18 +150,17 @@ test.describe('Dashboard Layout', () => {
     // Wait for sidebar to be present
     const sidebar = page.locator('aside')
     await expect(sidebar).toBeVisible({ timeout: 5000 })
-    const initialWidth = (await sidebar.boundingBox())?.width || 0
+    const initialBox = await sidebar.boundingBox()
+    expect(initialBox).not.toBeNull()
 
-    // Look for collapse button inside sidebar
     const collapseBtn = sidebar.locator('button').first()
-    if (await collapseBtn.isVisible()) {
-      await collapseBtn.click()
-      await page.waitForTimeout(300) // animation
+    await expect(collapseBtn).toBeVisible()
+    await collapseBtn.click()
+    await page.waitForTimeout(300)
 
-      const collapsedWidth = (await sidebar.boundingBox())?.width || 0
-      // Collapsed sidebar should be narrower
-      expect(collapsedWidth).toBeLessThan(initialWidth)
-    }
+    const collapsedBox = await sidebar.boundingBox()
+    expect(collapsedBox).not.toBeNull()
+    expect(collapsedBox!.width).toBeLessThan(initialBox!.width)
   })
 })
 
@@ -198,11 +180,9 @@ test.describe('Patients Page', () => {
 
   test('should have search functionality', async ({ page }) => {
     // Look for search input with flexible selectors
-    const searchInput = page.locator('input[placeholder*="buscar"], input[placeholder*="pesquisar"], input[placeholder*="Buscar"], input[placeholder*="Pesquisar"]')
-    if (await searchInput.count() > 0) {
-      await searchInput.first().fill('teste')
-      // Should filter or show results
-    }
+    const searchInput = page.locator('input[placeholder*="buscar"], input[placeholder*="pesquisar"], input[placeholder*="Buscar"], input[placeholder*="Pesquisar"]').first()
+    await expect(searchInput).toBeVisible()
+    await searchInput.fill('teste')
   })
 
   test('should have add patient button', async ({ page }) => {
@@ -212,10 +192,9 @@ test.describe('Patients Page', () => {
 
   test('should navigate to new patient form', async ({ page }) => {
     const addLink = page.locator('a[href*="pacientes/novo"]').first()
-    if (await addLink.count() > 0) {
-      await addLink.click()
-      await expect(page).toHaveURL(/.*pacientes\/novo/)
-    }
+    await expect(addLink).toBeVisible()
+    await addLink.click()
+    await expect(page).toHaveURL(/.*pacientes\/novo/)
   })
 })
 
@@ -239,10 +218,9 @@ test.describe('Appointments Page', () => {
 
   test('should navigate to new appointment form', async ({ page }) => {
     const addLink = page.locator('a[href*="agendamentos/novo"]').first()
-    if (await addLink.count() > 0) {
-      await addLink.click()
-      await expect(page).toHaveURL(/.*agendamentos\/novo/)
-    }
+    await expect(addLink).toBeVisible()
+    await addLink.click()
+    await expect(page).toHaveURL(/.*agendamentos\/novo/)
   })
 
   test('new appointment form should have required fields', async ({ page }) => {
@@ -281,10 +259,9 @@ test.describe('Campaigns Page', () => {
 
   test('should navigate to new campaign form', async ({ page }) => {
     const addLink = page.locator('a[href*="campanhas/nova"]').first()
-    if (await addLink.count() > 0) {
-      await addLink.click()
-      await expect(page).toHaveURL(/.*campanhas\/nova/)
-    }
+    await expect(addLink).toBeVisible()
+    await addLink.click()
+    await expect(page).toHaveURL(/.*campanhas\/nova/)
   })
 })
 
@@ -302,18 +279,9 @@ test.describe('Conversations Page', () => {
   })
 
   test('should have conversation list or empty state', async ({ page }) => {
-    // Wait for conversations to load (spinner disappears)
     await page.waitForLoadState('networkidle')
-    // Wait for either conversation buttons, filter tabs, or empty state to appear
-    await page.waitForSelector('button, p, h2', { timeout: 15000 }).catch(() => {})
-
-    // Either shows conversations or empty state message
-    const hasConversations = await page.locator('[data-testid="conversation-item"]').count() > 0
-    const hasEmptyState = await page.locator('text=/nenhuma conversa|sem conversas|Nenhuma/i').count() > 0
-    const hasFilterButtons = await page.locator('button:has-text("Todas"), button:has-text("WhatsApp")').count() > 0
-    const hasContent = await page.locator('main').isVisible()
-
-    expect(hasConversations || hasEmptyState || hasFilterButtons || hasContent).toBeTruthy()
+    await expect(page.locator('main')).toBeVisible()
+    await expect(page.locator('button, [data-testid="conversation-item"], text=/nenhuma conversa|sem conversas|Nenhuma/i').first()).toBeVisible()
   })
 })
 
@@ -331,21 +299,13 @@ test.describe('Inactive Patients Page', () => {
   })
 
   test('should show segment filters', async ({ page }) => {
-    // Wait for page data to finish loading
     await page.waitForLoadState('networkidle')
-    // Wait for content to appear (stats cards or table or empty state)
-    await page.waitForSelector('button, [role="tab"], select, table, p', { timeout: 15000 }).catch(() => {})
-
-    // Should have filter cards or buttons with time periods
-    const hasFilters = (await page.locator('button, [role="tab"], select').count()) > 0
-    expect(hasFilters).toBeTruthy()
+    await expect(page.locator('button, [role="tab"], select').first()).toBeVisible()
   })
 
   test('should have campaign button', async ({ page }) => {
-    const campaignBtn = page.locator('a[href*="campanhas/nova"], button:has-text("Campanha"), a:has-text("Campanha")')
-    if (await campaignBtn.count() > 0) {
-      await expect(campaignBtn.first()).toBeVisible()
-    }
+    const campaignBtn = page.locator('a[href*="campanhas/nova"], button:has-text("Campanha"), a:has-text("Campanha")').first()
+    await expect(campaignBtn).toBeVisible()
   })
 })
 
@@ -368,14 +328,8 @@ test.describe('Leads Page', () => {
   })
 
   test('should have status filters or tabs', async ({ page }) => {
-    // Wait for leads data to finish loading (spinner disappears)
     await page.waitForLoadState('networkidle')
-    // Wait for content (stats, table, filters, or empty state)
-    await page.waitForSelector('select, [role="tablist"], button, table, p', { timeout: 15000 }).catch(() => {})
-
-    // Should have filter tabs, buttons, or dropdown
-    const hasFilters = await page.locator('select, [role="tablist"], button').count() > 0
-    expect(hasFilters).toBeTruthy()
+    await expect(page.locator('select, [role="tablist"], button').first()).toBeVisible()
   })
 })
 
@@ -416,8 +370,7 @@ test.describe('Responsive Design', () => {
     const sidebar = page.locator('aside').first()
     await expect(sidebar).toBeVisible()
 
-    // Sidebar should have nav items with text
-    await expect(page.locator('aside a[href="/dashboard/pacientes"]')).toBeVisible()
+    await expect(page.locator('aside a[href="/dashboard/crm"]')).toBeVisible()
   })
 })
 
@@ -486,24 +439,24 @@ test.describe('Navigation', () => {
     await page.setViewportSize({ width: 1280, height: 720 })
     await page.goto(`${BASE_URL}/dashboard`)
 
-    // Dashboard -> Patients
-    await page.click('a[href="/dashboard/pacientes"]')
-    await expect(page).toHaveURL(/.*pacientes/)
+    // Dashboard -> CRM
+    await page.click('a[href="/dashboard/crm"]')
+    await expect(page).toHaveURL(/.*dashboard\/crm/)
 
-    // Patients -> Appointments
-    await page.click('a[href="/dashboard/agendamentos"]')
-    await expect(page).toHaveURL(/.*agendamentos/)
+    // CRM -> Campaigns
+    await page.click('a[href="/dashboard/campanhas"]')
+    await expect(page).toHaveURL(/.*campanhas/)
 
-    // Appointments -> Dashboard
+    // Campaigns -> Dashboard
     await page.click('a[href="/dashboard"]')
     await expect(page).toHaveURL(/.*\/dashboard$/)
   })
 
   test('active nav item should be highlighted with teal', async ({ page }) => {
-    await page.goto(`${BASE_URL}/dashboard/pacientes`)
+    await page.goto(`${BASE_URL}/dashboard/crm`)
 
     // Active link should have teal highlight class
-    const activeLink = page.locator('a[href="/dashboard/pacientes"]')
+    const activeLink = page.locator('a[href="/dashboard/crm"]')
     await expect(activeLink).toHaveClass(/teal/)
   })
 })
@@ -541,13 +494,8 @@ test.describe('Error Handling', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(2000) // Give React time to handle error states
 
-    // Should show error message or empty state, not crash
-    // Check for main content, sidebar, or any visible content that proves the app didn't crash
-    const hasMain = await page.locator('main').isVisible().catch(() => false)
-    const hasSidebar = await page.locator('aside').isVisible().catch(() => false)
-    const hasBody = await page.locator('body').isVisible()
-
-    expect(hasMain || hasSidebar || hasBody).toBeTruthy()
+    await expect(page.locator('main')).toBeVisible()
+    await expect(page.locator('body')).toBeVisible()
   })
 })
 
@@ -567,22 +515,19 @@ test.describe('Theme Toggle', () => {
     const lightBtn = page.locator('aside button:has-text("Claro")')
     const darkBtn = page.locator('aside button:has-text("Escuro")')
 
-    if (await darkBtn.count() > 0) {
-      // Switch to dark mode
-      await darkBtn.click()
-      await page.waitForTimeout(300)
+    await expect(darkBtn).toBeVisible()
+    await darkBtn.click()
+    await page.waitForTimeout(300)
 
-      // HTML element should have 'dark' class
-      const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
-      expect(isDark).toBeTruthy()
+    const isDark = await page.evaluate(() => document.documentElement.classList.contains('dark'))
+    expect(isDark).toBeTruthy()
 
-      // Switch back to light mode
-      await lightBtn.click()
-      await page.waitForTimeout(300)
+    await expect(lightBtn).toBeVisible()
+    await lightBtn.click()
+    await page.waitForTimeout(300)
 
-      const isLight = await page.evaluate(() => !document.documentElement.classList.contains('dark'))
-      expect(isLight).toBeTruthy()
-    }
+    const isLight = await page.evaluate(() => !document.documentElement.classList.contains('dark'))
+    expect(isLight).toBeTruthy()
   })
 })
 
@@ -598,11 +543,8 @@ test.describe('Chat Widget', () => {
     await page.goto(`${BASE_URL}/dashboard`)
 
     // Chat widget button should be visible (fixed bottom-right)
-    const chatButton = page.locator('button[aria-label*="chat" i], button[aria-label*="Chat" i], button[aria-label*="Abrir" i]').last()
-
-    if (await chatButton.count() > 0) {
-      await expect(chatButton).toBeVisible()
-    }
+    const chatButton = page.locator('button[aria-label*="chat" i], button[aria-label*="Abrir" i]').last()
+    await expect(chatButton).toBeVisible()
   })
 
   test('should open chat panel when clicked', async ({ page }) => {
@@ -611,13 +553,11 @@ test.describe('Chat Widget', () => {
     // Find and click the chat widget trigger
     const chatButton = page.locator('button[aria-label*="chat" i], button[aria-label*="Chat" i], button[aria-label*="Abrir" i]').last()
 
-    if (await chatButton.isVisible()) {
-      await chatButton.click()
+    await expect(chatButton).toBeVisible()
+    await chatButton.click()
 
       // Chat panel should appear with input or greeting
       const chatPanel = page.locator('input[placeholder*="mensagem" i], input[placeholder*="Digite" i], text=/Mia|assistente|Clínica/i')
-      const isOpen = (await chatPanel.count()) > 0
-      expect(isOpen).toBeTruthy()
-    }
+      await expect(chatPanel.first()).toBeVisible()
   })
 })
