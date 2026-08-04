@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `ca98b920`
+**Candidate:** `fabc6adf`
 
 ## Evidence matrix
 
@@ -18,10 +18,11 @@
 | full-history secrets | PASS | `gitleaks detect --source . --log-opts='--all'`, no leaks |
 | docs links | PASS | `node scripts/check-doc-links.mjs` |
 | Cloudflare config contract | PASS | `src/__tests__/cloudflare/*` |
+| W4 mobile/a11y contracts | PARTIAL | finance and accessibility focused E2E pass; contacts-mobile blocked on seeded contact detail API |
 | OpenNext build + Wrangler dry-run | PASS WITH WARNING | WSL build and dry-run pass; duplicate-case warning recorded |
 | Wrangler startup check | BLOCKED | Wrangler 4.114 alpha fails ByteString conversion on generated non-ASCII worker |
 | integration/PostgreSQL | BLOCKED | no approved local `TEST_DATABASE_URL`; run timed out against unavailable DB |
-| E2E deterministic setup | PARTIAL | focused storage-state pass; full suite setup failed waiting for dashboard (`body=... Entrar ...`); manual login consumers migrated to UI |
+| E2E deterministic setup | PARTIAL | canonical NextAuth callback setup and storage-state contract pass; full suite reaches 252 tests but remains red/interrupted by legacy selectors and dev-server ECONNRESET |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
@@ -43,7 +44,7 @@
 | REM-11 | PASS | CSV formula neutralization |
 | REM-12 | PASS | dashboard removes fabricated fallback/activity |
 | REM-13 | PARTIAL | responsive code added; 360px E2E not proven |
-| REM-14 | PARTIAL | setup is fail-fast and manual consumers migrated; full suite still fails setup |
+| REM-14 | PARTIAL | canonical callback setup is fail-fast; 3 focused W4 E2E pass, contacts mobile and full suite remain red |
 | REM-15 | NO-GO | blocked until integration, E2E, staging and rollback evidence |
 
 ## Automatic No-Go reasons
