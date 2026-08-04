@@ -76,12 +76,6 @@ test.describe('Authentication Flow', () => {
   test('should logout successfully', async ({ page }) => {
     await login(page)
 
-    // Logout is an icon button (ArrowRightStartOnRectangle) in sidebar footer
-    // On desktop it's in the aside, on mobile it's in the Sheet
-    const logoutButton = page.locator('aside button:has(svg), [data-radix-collection-item] button:has(svg)').last()
-
-    // Try clicking the logout icon in sidebar footer area
-    // The logout button is the last button in the sidebar footer
     const logoutButton = page.getByRole('button', { name: 'Sair', exact: true })
     await expect(logoutButton).toBeVisible()
     await logoutButton.click()

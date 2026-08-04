@@ -8,6 +8,7 @@ import { ListView } from './list-view'
 function AgendamentosContent() {
   return (
     <div className="h-full flex flex-col">
+      <h1 className="sr-only">Agendamentos</h1>
       <CalendarLayout ListComponent={ListView} />
     </div>
   )

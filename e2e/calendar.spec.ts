@@ -62,7 +62,7 @@ test.describe('Calendar - Rendering', () => {
     await expect(page.locator('button:has-text("Dia")')).toBeVisible()
     await expect(page.locator('button:has-text("Semana")')).toBeVisible()
     await expect(page.locator('button:has-text("Mês")')).toBeVisible()
-    await expect(page.locator('button:has-text("Profissionais")')).toBeVisible()
+    await expect(page.locator('button:has-text("Profissionais")').last()).toBeVisible()
 
     const title = page.locator('h2')
     await expect(title).toBeVisible()

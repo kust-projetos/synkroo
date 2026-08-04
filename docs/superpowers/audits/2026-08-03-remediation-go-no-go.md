@@ -22,7 +22,7 @@
 | OpenNext build + Wrangler dry-run | PASS WITH WARNING | WSL build and dry-run pass; duplicate-case warning recorded |
 | Wrangler startup check | BLOCKED | Wrangler 4.114 alpha fails ByteString conversion on generated non-ASCII worker |
 | integration/PostgreSQL | BLOCKED | no approved local `TEST_DATABASE_URL`; run timed out against unavailable DB |
-| E2E deterministic setup | PARTIAL | canonical NextAuth callback setup and storage-state contract pass; full suite reaches 252 tests but remains red/interrupted by legacy selectors and dev-server ECONNRESET |
+| E2E deterministic setup | PARTIAL | canonical NextAuth callback + mandatory SEED_SECRET fixture setup; current run is blocked when local DB health hangs, with no silent fallback |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
