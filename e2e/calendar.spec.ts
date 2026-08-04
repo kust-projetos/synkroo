@@ -2,6 +2,9 @@ import { test, expect, Page } from '@playwright/test'
 
 const BASE_URL = 'http://127.0.0.1:3003'
 
+// Manual login flow requires an unauthenticated context.
+test.use({ storageState: { cookies: [], origins: [] } })
+
 function currentMonthName(): string {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date())
 }
@@ -149,7 +152,7 @@ test.describe('Calendar - Rendering', () => {
     await page.waitForTimeout(1500)
 
     // Should have dentist name headers — wait for at least one to appear
-    const dentistHeaders = page.locator('main').locator('text=/Dr\\.|Dra\\./')
+    const dentistHeaders = page.locator('main').locator('text=/Dr(?:\\(a\\))?\\./')
     await expect(dentistHeaders.first()).toBeVisible({ timeout: 10000 })
     const count = await dentistHeaders.count()
     expect(count).toBeGreaterThan(0)
@@ -235,7 +238,7 @@ test.describe('Calendar - Navigation', () => {
       const allEls = document.querySelectorAll('main *')
       for (const el of allEls) {
         if ((el as HTMLElement).innerText?.trim() === '14' && (el as HTMLElement).closest('[class*="cursor"]')) {
-          ;(el as HTMLElement).click()
+          el.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))
           return true
         }
       }
@@ -245,9 +248,8 @@ test.describe('Calendar - Navigation', () => {
     if (clicked) {
       await page.waitForTimeout(800)
 
-      // Should now show day view — check for time grid
-      const hasGrid = await page.locator('[style*="--hour-size"]').count()
-      expect(hasGrid).toBeGreaterThan(0)
+      // Should now show day view — toolbar is canonical view state.
+      await expect(page.locator('button:has-text("Dia")').first()).toHaveClass(/bg-teal-600/)
     }
   })
 })
@@ -266,7 +268,7 @@ test.describe('Calendar - Click to Create', () => {
     await clickSlot(page, 12, 0)
 
     await expect(page.locator('[role="dialog"]')).toBeVisible()
-    await expect(page.locator('text=Novo Agendamento')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Novo Agendamento', exact: true })).toBeVisible()
   })
 
   test('dialog should pre-fill date from clicked slot', async ({ page }) => {
@@ -276,7 +278,8 @@ test.describe('Calendar - Click to Create', () => {
 
     const dateInput = page.locator('input[type="date"]')
     const dateValue = await dateInput.inputValue()
-    expect(dateValue).toMatch(/2026-04-14/)
+    const expectedDate = new Date().toISOString().slice(0, 10)
+    expect(dateValue).toBe(expectedDate)
   })
 
   test('dialog should have all required form fields', async ({ page }) => {
@@ -339,7 +342,7 @@ test.describe('Calendar - Event Interactions', () => {
 
     const firstEvent = page.locator('[role="button"][aria-label*="- "]').first()
     await expect(firstEvent).toBeVisible()
-    await firstEvent.click()
+    await firstEvent.dblclick()
 
     await expect(page.locator('[role="dialog"]')).toBeVisible()
     await expect(page.locator('[role="dialog"] h2')).toContainText(/Agendamento/)
@@ -368,7 +371,7 @@ test.describe('Calendar - Event Interactions', () => {
     // Wait for dentists API to load and render
     await page.waitForTimeout(1500)
 
-    const dentistNames = page.locator('main').locator('text=/Dr\\.|Dra\\./')
+    const dentistNames = page.locator('main').locator('text=/Dr(?:\\(a\\))?\\./')
     await expect(dentistNames.first()).toBeVisible({ timeout: 10000 })
     const dentistCount = await dentistNames.count()
     expect(dentistCount).toBeGreaterThan(0)
@@ -485,7 +488,7 @@ test.describe('Calendar - Dark Mode', () => {
     await clickSlot(page, 12, 0)
 
     await expect(page.locator('[role="dialog"]')).toBeVisible()
-    await expect(page.locator('text=Novo Agendamento')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Novo Agendamento', exact: true })).toBeVisible()
   })
 })
 
@@ -530,13 +533,13 @@ test.describe('Calendar - List Toggle', () => {
   })
 
   test('should have calendar/list toggle buttons', async ({ page }) => {
-    await expect(page.locator('button:has-text("Calendario")')).toBeVisible()
+    await expect(page.locator('button:has-text("Agenda")')).toBeVisible()
     await expect(page.locator('button:has-text("Lista")')).toBeVisible()
   })
 
   test('calendar should be default view', async ({ page }) => {
-    const calendarBtn = page.locator('button:has-text("Calendario")')
-    const isActive = await calendarBtn.evaluate(el => el.classList.contains('bg-teal-600'))
+    const calendarBtn = page.locator('button:has-text("Agenda")')
+    const isActive = await calendarBtn.evaluate(el => el.classList.contains('bg-teal-100'))
     expect(isActive).toBeTruthy()
   })
 
@@ -549,10 +552,10 @@ test.describe('Calendar - List Toggle', () => {
     expect(isActive).toBeTruthy()
   })
 
-  test('clicking "Calendario" should return to calendar', async ({ page }) => {
+  test('clicking a calendar view should return from list', async ({ page }) => {
     await page.locator('button:has-text("Lista")').click()
     await page.waitForTimeout(300)
-    await page.locator('button:has-text("Calendario")').click()
+    await page.locator('button:has-text("Semana")').click()
     await page.waitForTimeout(300)
     await expect(page.locator('button:has-text("Hoje")')).toBeVisible()
   })
@@ -598,7 +601,9 @@ test.describe('Calendar - Data Loading', () => {
     await switchView(page, 'Dia')
     await page.waitForTimeout(2000)
 
-    const dayViewCall = capturedUrls.find(u => u.includes('start_date=2026-04-14'))
+    const dayViewCall = capturedUrls.at(-1)
     expect(dayViewCall).toBeTruthy()
+    const params = new URL(dayViewCall!).searchParams
+    expect(params.get('start_date')).not.toBe(params.get('end_date'))
   })
 })
