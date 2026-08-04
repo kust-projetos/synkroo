@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `767a813f`
+**Candidate:** `e64eadc1`
 
 ## Evidence matrix
 
@@ -10,7 +10,7 @@
 |---|---|---|
 | lint | PASS | `npm run lint` |
 | typecheck | PASS | `npm run typecheck` |
-| unit | PASS | 224 suites, 1521 passed, 5 skipped |
+| unit | PASS | 225 suites, 1523 passed, 5 skipped |
 | security | PASS | `npm run test:security`, 142 passed, 95.06% statements |
 | mutation | PASS | Stryker 91.98%, threshold 70% |
 | build | PASS | `npm run build` |
