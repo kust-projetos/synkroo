@@ -28,38 +28,35 @@ export default function DashboardPage() {
   const primaryStats = [
     {
       label: 'Agendamentos Hoje',
-      value: statsLoading ? '...' : stats?.today.appointments || 0,
+      value: statsLoading ? '...' : stats?.today.appointments ?? 0,
       icon: <CalendarDaysIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
-      trend: { value: 12, label: 'vs. ontem' },
-    },
+          },
     {
       label: 'Taxa de Confirmação',
-      value: statsLoading ? '...' : `${stats?.metrics.confirmationRate || 94}%`,
+      value: statsLoading ? '...' : `${stats?.metrics.confirmationRate ?? 0}%`,
       icon: <ClockIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
-      trend: { value: 5, label: 'Últimos 30 dias' },
-    },
+          },
     {
       label: 'Pacientes Inativos',
-      value: statsLoading ? '...' : stats?.inactivePatients.totalInactive || 0,
+      value: statsLoading ? '...' : stats?.inactivePatients.totalInactive ?? 0,
       icon: <UsersIcon className="w-6 h-6 text-orange-600 dark:text-orange-400" />,
-      trend: { value: -8, label: 'Recuperados este mês' },
-    },
+          },
   ]
 
   const secondaryStats = [
     {
       label: 'Total de Pacientes',
-      value: statsLoading ? '...' : stats?.metrics.totalPatients || 0,
+      value: statsLoading ? '...' : stats?.metrics.totalPatients ?? 0,
       icon: <UsersIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
     },
     {
       label: 'Campanhas Ativas',
-      value: statsLoading ? '...' : stats?.metrics.activeCampaigns || 0,
+      value: statsLoading ? '...' : stats?.metrics.activeCampaigns ?? 0,
       icon: <MegaphoneIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
     },
     {
       label: 'Conversas Abertas',
-      value: statsLoading ? '...' : stats?.metrics.openConversations || 0,
+      value: statsLoading ? '...' : stats?.metrics.openConversations ?? 0,
       icon: <ChatBubbleLeftRightIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
     },
   ]
@@ -77,11 +74,11 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="glow" className="bg-teal-500/20 text-teal-300 border-teal-400/30">
                 <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                Agente IA Ativo & Operacional
+                Status da IA indisponível
               </Badge>
               <Badge variant="outline" className="text-teal-200/80 border-white/10 bg-white/5">
                 <SignalIcon className="w-3.5 h-3.5 mr-1 text-emerald-400" />
-                WhatsApp API v2.3 Connected
+                WhatsApp: status indisponível
               </Badge>
             </div>
             <h1 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-white">
@@ -207,22 +204,8 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 flex-1 space-y-4">
-              <div className="flex items-start gap-3 text-xs p-3 rounded-xl bg-teal-50/50 dark:bg-teal-950/40 border border-teal-200/50 dark:border-teal-800/40">
-                <CheckCircleIcon className="w-5 h-5 text-teal-600 dark:text-teal-400 flex-shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold text-foreground">Consulta Confirmada</span>
-                  <p className="text-muted-foreground mt-0.5">Paciente Ana Souza confirmou consulta das 14:30 via WhatsApp.</p>
-                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium">Há 5 minutos</span>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 text-xs p-3 rounded-xl bg-muted/50 border border-border/50">
-                <SparklesIcon className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold text-foreground">Triagem IA Efetuada</span>
-                  <p className="text-muted-foreground mt-0.5">Interesse em Clareamento Dental (Lead de Campanha Facebook).</p>
-                  <span className="text-[10px] text-muted-foreground font-medium">Há 18 minutos</span>
-                </div>
+              <div className="rounded-xl border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
+                Nenhuma atividade real disponível.
               </div>
 
               <div className="pt-2">

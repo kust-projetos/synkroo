@@ -17,11 +17,15 @@ export function ContactSplitView() {
     router.replace('/dashboard/contatos', { scroll: false })
   }
 
+  const detail = <ContactDetailPanel contactId={selectedId} contactType={selectedType} onClearSelection={clearSelection} />
+  const list = <ContactListPanel selectedId={selectedId} selectedType={selectedType} />
+
   return (
     <ContactErrorBoundary>
+      <div className="hidden md:flex h-full">
       <Group orientation="horizontal" className="h-full flex">
         <Panel defaultSize={35} minSize={25} id="list">
-          <ContactListPanel selectedId={selectedId} selectedType={selectedType} />
+          {list}
         </Panel>
         <div className="w-px bg-border hover:bg-teal-400/20 transition-colors cursor-col-resize" />
         <Panel defaultSize={65} minSize={40} id="detail">
@@ -31,14 +35,14 @@ export function ContactSplitView() {
               <Button onClick={clearSelection} variant="outline">Voltar a lista</Button>
             </div>
           }>
-            <ContactDetailPanel
-              contactId={selectedId}
-              contactType={selectedType}
-              onClearSelection={clearSelection}
-            />
+            {detail}
           </ContactErrorBoundary>
         </Panel>
       </Group>
+      </div>
+      <div className="md:hidden h-full">
+        {selectedId ? detail : list}
+      </div>
     </ContactErrorBoundary>
   )
 }

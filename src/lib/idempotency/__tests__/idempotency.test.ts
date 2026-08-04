@@ -6,30 +6,38 @@
  */
 
 // Mock before imports
-jest.mock('@/lib/db/client', () => ({
-  getDb: () => ({
-    select: jest.fn().mockReturnThis(),
-    from: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnValue([]),
-    insert: jest.fn().mockReturnThis(),
-    values: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    set: jest.fn().mockReturnThis(),
-    onConflictDoNothing: jest.fn().mockResolvedValue(undefined),
-  }),
-}));
+const mockReturning = jest.fn().mockResolvedValue([]);
+const mockDb = {
+  select: jest.fn().mockReturnThis(),
+  from: jest.fn().mockReturnThis(),
+  where: jest.fn().mockReturnThis(),
+  limit: jest.fn().mockResolvedValue([]),
+  insert: jest.fn().mockReturnThis(),
+  values: jest.fn().mockReturnThis(),
+  update: jest.fn().mockReturnThis(),
+  set: jest.fn().mockReturnThis(),
+  onConflictDoNothing: jest.fn().mockReturnThis(),
+  returning: mockReturning,
+};
+jest.mock('@/lib/db/client', () => ({ getDb: () => mockDb }));
 
 jest.mock('@/lib/logger', () => ({
   dbLogger: { warn: jest.fn(), error: jest.fn() },
 }));
 
-import { isIdempotencyKeyProcessed } from '@/lib/idempotency/index';
+import { isIdempotencyKeyProcessed, tryClaimIdempotencyKey } from '@/lib/idempotency/index';
 
 describe('Idempotency Helper (ADR-BASE-13)', () => {
   it('isIdempotencyKeyProcessed returns false for unknown key', async () => {
     const result = await isIdempotencyKeyProcessed('key-unknown');
     expect(result).toBe(false);
+  });
+
+  it('allows only the insert winner to claim a key', async () => {
+    mockReturning.mockResolvedValueOnce([{ key: 'same' }]).mockResolvedValueOnce([]);
+
+    await expect(tryClaimIdempotencyKey('same', 'charge')).resolves.toBe(true);
+    await expect(tryClaimIdempotencyKey('same', 'charge')).resolves.toBe(false);
   });
 
   it('exports expected public functions', () => {

@@ -104,7 +104,7 @@ export async function grantConsent(
         notes: input.notes || null,
       })
       .onConflictDoUpdate({
-        target: [consents.contactId, consents.contactType, consents.purpose],
+        target: [consents.clinicId, consents.contactId, consents.contactType, consents.purpose],
         set: {
           granted: true,
           grantedAt: now,

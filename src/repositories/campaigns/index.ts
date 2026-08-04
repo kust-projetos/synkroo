@@ -3,7 +3,7 @@
  * Data access layer for campaigns using Drizzle
  */
 
-import { eq, and, desc, sql } from 'drizzle-orm'
+import { eq, and, desc, sql, lte } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { campaigns, campaignRecipients } from '@/lib/db/schema'
 import { patients } from '@/modules/operacional/schema'
@@ -130,11 +130,12 @@ export async function findCampaignById(id: string): Promise<CampaignRow | null> 
   return campaign as CampaignRow | null
 }
 
-export async function findScheduledCampaigns(clinicId: string): Promise<CampaignRow[]> {
+export async function findScheduledCampaigns(clinicId: string, now = new Date()): Promise<CampaignRow[]> {
   const db = getDb()
   const rows = await db.select().from(campaigns).where(and(
     eq(campaigns.clinicId, clinicId),
     eq(campaigns.status, 'scheduled'),
+    lte(campaigns.scheduledAt, now),
   ))
   return rows as CampaignRow[]
 }

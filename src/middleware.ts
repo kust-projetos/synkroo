@@ -11,6 +11,14 @@ import { exceedsBodyLimit, shouldRejectCsrf } from '@/lib/security/request-guard
  *   NÃO em module-init. Portanto, qualquer leitura de env var DEVE
  *   ser feita dentro da função middleware, não no module scope.
  */
+const PUBLIC_EXACT = new Set(['/','/login','/signup','/pi-finance','/api/health']);
+const PUBLIC_PREFIXES = ['/api/auth/', '/api/financeiro/webhooks/'] as const;
+const SIGNED_TRANSPORT = /^\/api\/(messages\/inbound|cron\/|agent\/)/;
+
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_EXACT.has(pathname) || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
 export async function middleware(request: NextRequest) {
   if (exceedsBodyLimit(request)) {
     return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
@@ -36,30 +44,12 @@ export async function middleware(request: NextRequest) {
     secret: AUTH_SECRET,
   });
 
-  // Public paths that don't require authentication
-  const publicPaths: string[] = [
-    '/login',
-    '/signup',
-    '/pi-finance',
-    '/api/auth',
-    '/api/health',
-    '/api/webhook',
-    '/api/whatsapp',
-    '/api/instagram',
-    '/api/messages',
-    '/api/agent',
-    '/api/cron',
-  ];
-  if (process.env.NODE_ENV === 'development') {
-    publicPaths.push('/api/seed');
-  }
-
-  const isPublicPath =
-    pathname === '/' ||
-    publicPaths.some((path) => pathname.startsWith(path));
+  const transportAuth = SIGNED_TRANSPORT.test(pathname) ||
+    (process.env.NODE_ENV === 'development' && pathname === '/api/seed');
+  const routeIsPublic = isPublicPath(pathname) || transportAuth;
 
   // If no session and trying to access protected route
-  if (!token && !isPublicPath) {
+  if (!token && !routeIsPublic) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirectTo', pathname);

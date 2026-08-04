@@ -65,12 +65,13 @@ describe('campaign execution', () => {
     expect(repo.updateCampaignStatus).toHaveBeenLastCalledWith(campaign.id, 'failed')
   })
 
-  it('processes due campaigns for one clinic', async () => {
+  it('processes only campaigns due now for one clinic', async () => {
     repo.findScheduledCampaigns.mockResolvedValue([campaign])
+    const now = new Date('2026-07-30T10:00:00Z')
 
-    await processScheduledCampaigns(campaign.clinicId)
+    await processScheduledCampaigns(campaign.clinicId, now)
 
-    expect(repo.findScheduledCampaigns).toHaveBeenCalledWith(campaign.clinicId)
+    expect(repo.findScheduledCampaigns).toHaveBeenCalledWith(campaign.clinicId, now)
     expect(repo.findCampaignById).toHaveBeenCalledWith(campaign.id)
   })
 

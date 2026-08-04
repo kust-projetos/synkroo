@@ -4,9 +4,19 @@ jest.mock('next-auth/jwt', () => ({
   getToken: jest.fn().mockResolvedValue({ id: 'user-1' }),
 }));
 
-import { middleware } from '@/middleware';
+import { middleware, isPublicPath } from '@/middleware';
 
 describe('middleware security gates', () => {
+  it.each([
+    ['/api/health', true],
+    ['/api/auth/signin', true],
+    ['/api/messages/inbound', false],
+    ['/api/messages/send', false],
+    ['/api/cron/cleanup', false],
+    ['/api/agent/classify', false],
+  ])('classifies %s as public=%s', (path, expected) => {
+    expect(isPublicPath(path)).toBe(expected);
+  });
   it('rejects cross-origin cookie mutations before route handling', async () => {
     const request = new NextRequest('https://app.example.test/api/action', {
       method: 'POST',

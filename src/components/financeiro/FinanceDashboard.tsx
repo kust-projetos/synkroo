@@ -36,9 +36,9 @@ export function FinanceDashboard({ metrics, canManageBudget = false }: FinanceDa
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       {/* Dashboard metrics — overdue summary from /api/financeiro/dashboard */}
-      <div className="grid grid-cols-3 gap-4">
+      <div data-testid="finance-kpis" className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-lg border bg-card p-4">
           <p className="text-sm text-muted-foreground">Cobranças Vencidas</p>
           <p className="text-2xl font-bold">{metrics.overdueCount}</p>
@@ -49,7 +49,7 @@ export function FinanceDashboard({ metrics, canManageBudget = false }: FinanceDa
             R$ {metrics.totalOverdue.toFixed(2).replace('.', ',')}
           </p>
         </div>
-        <div className="rounded-lg border bg-card p-4">
+        <div className="rounded-lg border bg-card p-4 min-w-0">
           <p className="text-sm text-muted-foreground">Estágios</p>
           <p className="text-xs mt-1">
             <span className="inline-block w-16">Leve:</span> {metrics.overdueStages.light}
@@ -61,7 +61,7 @@ export function FinanceDashboard({ metrics, canManageBudget = false }: FinanceDa
 
       {/* Tabs */}
       <div className="border-b">
-        <div className="flex gap-4">
+        <div className="flex gap-4 overflow-x-auto" role="tablist">
           {tabs.map(tab => (
             <button
               key={tab.id}

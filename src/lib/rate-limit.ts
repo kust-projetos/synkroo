@@ -96,6 +96,19 @@ export function getClientIdentifier(request: Request): string {
 /**
  * Rate limit presets
  */
+export function resetRateLimiterForTests(): void {
+  if (process.env.NODE_ENV !== 'test') throw new Error('test_only_rate_limiter_reset');
+  store.clear();
+}
+
+export const testLimiter = {
+  reset: resetRateLimiterForTests,
+  remaining(key: string, config: RateLimitConfig = rateLimitPresets.auth): number {
+    const entry = store.get(config.keyPrefix ? `${config.keyPrefix}:${key}` : key);
+    return entry ? Math.max(0, config.maxRequests - entry.count) : config.maxRequests;
+  },
+};
+
 export const rateLimitPresets = {
   // For webhook endpoints (higher limit)
   webhook: { windowMs: 60000, maxRequests: 100 },

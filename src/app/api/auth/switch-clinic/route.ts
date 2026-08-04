@@ -8,19 +8,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getToken, encode } from 'next-auth/jwt';
+import { getToken } from 'next-auth/jwt';
 import { getDb } from '@/lib/db/client';
 import { userClinicAccess } from '@/modules/core/schema/rbac';
 import { and, eq } from 'drizzle-orm';
 import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';
-
-const MAX_AGE = 30 * 24 * 60 * 60; // 30 days
-
-function getCookieName(): string {
-  return process.env.NODE_ENV === 'production'
-    ? '__Secure-next-auth.session-token'
-    : 'next-auth.session-token';
-}
 
 const switchSchema = z.object({
   clinicId: z.string().uuid(),
@@ -65,31 +57,11 @@ export async function POST(request: NextRequest) {
       return apiFailure('FORBIDDEN', 'No access to this clinic', requestId, 403);
     }
 
-    // Issue new JWT with updated clinicId (atomic context switch)
-    const newToken = await encode({
-      token: {
-        ...token,
-        clinicId, // updated clinic
-      },
-      secret,
-      maxAge: MAX_AGE,
-    });
-
-    const response = NextResponse.json(
+    // Client calls NextAuth session.update({ clinicId }) after this verified response.
+    return NextResponse.json(
       apiSuccess({ clinicId, switchedAt: new Date().toISOString() }).body,
       { status: 200 },
     );
-
-    // Set new session cookie (invalidates previous clinic context)
-    response.cookies.set(getCookieName(), newToken, {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: MAX_AGE,
-    });
-
-    return response;
   } catch (error) {
     console.error('Switch clinic error:', error);
     return apiFailure('INTERNAL_ERROR', 'Failed to switch clinic', requestId, 500);
