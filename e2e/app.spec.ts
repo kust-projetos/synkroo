@@ -2,51 +2,16 @@ import { test, expect, Page } from '@playwright/test'
 
 const BASE_URL = 'http://localhost:3003'
 
-// Helper to login via browser fetch — cookies are stored in browser jar natively
+// Canonical NextAuth UI login; failures remain visible to the suite.
 async function login(page: Page) {
-  // Navigate to login page first (ensures we're on the right origin)
-  try { await page.goto(`${BASE_URL}/login`, { timeout: 15000 }) } catch { /* ignore */ }
-
-  // Call login API from within the browser so Set-Cookie is processed natively
-  let loginResult = { ok: false, status: 0 }
-  try {
-    loginResult = await page.evaluate(async () => {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin@clinicademo.com', password: 'demo123' }),
-      })
-      return { ok: response.ok, status: response.status }
-    })
-  } catch { /* ignore */ }
-
-  if (!loginResult.ok) {
-    // Try again once
-    try { await page.goto(`${BASE_URL}/login`, { timeout: 15000 }) } catch { /* ignore */ }
-    try {
-      loginResult = await page.evaluate(async () => {
-        const response = await fetch('/api/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: 'admin@clinicademo.com', password: 'demo123' }),
-        })
-        return { ok: response.ok, status: response.status }
-      })
-    } catch { /* ignore */ }
-  }
-
-  if (!loginResult.ok) {
-    throw new Error(`Login failed: ${loginResult.status}`)
-  }
-
-  // Navigate to dashboard — middleware sees auth cookie and allows access
-  try {
-    await page.goto(`${BASE_URL}/dashboard`, { timeout: 15000 })
-    // Wait for loading spinner to disappear (auth context finishes loading)
-    await page.waitForSelector('.animate-spin', { state: 'hidden', timeout: 15000 }).catch(() => { /* ignore */ })
-    await page.waitForLoadState('networkidle')
-    await page.waitForSelector('aside, main', { timeout: 15000 })
-  } catch { /* ignore */ }
+  await page.goto(`${BASE_URL}/login`)
+  await page.fill('#email', 'admin@clinicademo.com')
+  await page.fill('#password', 'demo123')
+  await Promise.all([
+    page.waitForURL('**/dashboard**'),
+    page.click('button[type="submit"]'),
+  ])
+  await page.waitForLoadState('networkidle')
 }
 
 // ============================================
