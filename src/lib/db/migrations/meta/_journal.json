@@ -120,6 +120,13 @@
       "when": 1785751380000,
       "tag": "0016_consent_tenant_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1785858829310,
+      "tag": "0018_payment_charge_budget_unique",
+      "breakpoints": true
     }
   ]
 }

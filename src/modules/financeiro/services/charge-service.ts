@@ -51,7 +51,7 @@ export async function createCharge(input: CreateChargeInput): Promise<{
 
   const provider = getGatewayProvider(gateway.provider as GatewayProvider);
   if (!provider) throw new Error(`Gateway provider ${gateway.provider} is not registered`);
-  const key = `charge:create:${clinicId}:${budgetId}:${amount}:${dueDate}`;
+  const key = `charge:create:${clinicId}:${budgetId}`;
   const outcome = await withIdempotency(key, 'payment_charge_create', async () => {
     const gatewayResponse = await provider.createCharge({ clinicId, amount, dueDate, customerName: 'Cliente' });
     const charge = await repoCreateCharge({
@@ -96,16 +96,29 @@ export async function cancelCharge(input: {
     return { cancelled: false, charge };
   }
 
-  const gateway = await getPaymentGateway(charge.gatewayId);
-  if (gateway?.isEnabled) {
-    const provider = getGatewayProvider(gateway.provider as GatewayProvider);
-    if (provider && charge.externalChargeId) {
-      await provider.cancelCharge({ externalChargeId: charge.externalChargeId, clinicId });
-    }
-  }
+  const outcome = await withIdempotency(
+    `charge:cancel:${clinicId}:${chargeId}`,
+    'payment_charge_cancel',
+    async () => {
+      const gateway = await getPaymentGateway(charge.gatewayId);
+      if (gateway?.isEnabled) {
+        const provider = getGatewayProvider(gateway.provider as GatewayProvider);
+        if (provider && charge.externalChargeId) {
+          await provider.cancelCharge({ externalChargeId: charge.externalChargeId, clinicId });
+        }
+      }
 
-  const updated = await repoUpdateCharge(chargeId, { status: 'cancelled' });
-  return { cancelled: true, charge: updated! };
+      const updated = await repoUpdateCharge(chargeId, { status: 'cancelled' });
+      return { cancelled: true, charge: updated! };
+    },
+  );
+
+  if (outcome.status === 'completed' && outcome.result) return outcome.result;
+  if (outcome.status === 'already_processed') {
+    const current = await repoGetCharge(chargeId);
+    return { cancelled: false, charge: current ?? charge };
+  }
+  throw new Error('Charge cancellation already in progress');
 }
 
 export async function getCharge(id: string): Promise<PaymentChargeRow | undefined> {
