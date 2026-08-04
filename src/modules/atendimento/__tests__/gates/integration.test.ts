@@ -167,8 +167,8 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
     expect(text).toBe('ch456');
   });
 
-  // ── messages/inbound missing fields → 400 (contract preserved) ──
-  it('messages/inbound POST missing required fields returns 400', async () => {
+  // ── messages/inbound unknown installation → 403 (fail-closed tenant resolution) ──
+  it('messages/inbound POST with unknown installation returns 403', async () => {
     const { POST } = await import('@/app/api/messages/inbound/route');
     const req = new NextRequest('http://localhost/api/messages/inbound', {
       method: 'POST',
@@ -179,7 +179,7 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
       body: JSON.stringify({ incomplete: true }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
   });
 
   // ── whatsapp/evolution invalid secret → 403 ──

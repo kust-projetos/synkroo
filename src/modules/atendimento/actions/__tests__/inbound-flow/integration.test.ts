@@ -90,7 +90,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID,
       from: '+5511999998888',
       message: 'Olá, gostaria de agendar',
       channel: 'whatsapp',
@@ -129,7 +128,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
 
     // First inbound
     const r1 = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID,
       from: '+5511999997777',
       message: 'Primeira mensagem',
       channel: 'whatsapp',
@@ -139,7 +137,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
 
     // Second inbound — same phone, same clinic
     const r2 = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID,
       from: '+5511999997777',
       message: 'Segunda mensagem',
       channel: 'whatsapp',
@@ -168,7 +165,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
 
     // Clinic A
     const rA = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID,
       from: '+5511999996666',
       message: 'Mensagem clinica A',
       channel: 'whatsapp',
@@ -177,7 +173,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
 
     // Clinic B — same phone, different clinic
     const rB = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID_B,
       from: '+5511999996666',
       message: 'Mensagem clinica B',
       channel: 'whatsapp',
@@ -206,7 +201,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID,
       from: `+5511${randomUUID().slice(0, 8)}`,
       message: 'Mensagem com metadata',
       channel: 'whatsapp',
@@ -230,7 +224,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID,
       from: '+5511999995555',
       message: 'Sem canal explícito',
     }, systemCtx);
@@ -250,7 +243,6 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      clinicId: CLINIC_ID,
       from: 'widget-user-abc',
       message: 'Mensagem do widget',
       channel: 'web',
