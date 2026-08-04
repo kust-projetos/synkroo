@@ -171,8 +171,12 @@ export function hasRequiredRole(
  * Check if user is authenticated.
  */
 export async function isAuthenticated(): Promise<boolean> {
-  const session = await getSession();
-  return !!session?.user?.id;
+  try {
+    await requireActiveProfile();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Re-export as getUser for backward compatibility

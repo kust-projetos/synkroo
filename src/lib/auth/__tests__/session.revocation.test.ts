@@ -1,6 +1,6 @@
 import { getServerSession } from 'next-auth';
 import { findUserProfileById } from '@/repositories/auth';
-import { requireActiveProfile } from '../session';
+import { isAuthenticated, requireActiveProfile } from '../session';
 
 jest.mock('next-auth', () => ({ getServerSession: jest.fn() }));
 jest.mock('@/repositories/auth', () => ({ findUserProfileById: jest.fn() }));
@@ -24,5 +24,14 @@ describe('server session revocation', () => {
     });
 
     await expect(requireActiveProfile()).rejects.toThrow('Unauthorized');
+  });
+
+  it('does not treat a revoked session as authenticated', async () => {
+    profile.mockResolvedValue({
+      id: 'u1', email: 'u@test.local', name: 'User', role: 'owner', phone: null,
+      avatarUrl: null, clinicId: 'c1', clinics: null, isActive: false, sessionVersion: 3,
+    });
+
+    await expect(isAuthenticated()).resolves.toBe(false);
   });
 });
