@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `623bf740`
+**Candidate:** `3f7beb1f`
 
 ## Evidence matrix
 
@@ -38,8 +38,8 @@
 | REM-04 | PARTIAL | Asaas transaction implemented; replay not proven on PostgreSQL |
 | REM-05 | PASS | canonical NextAuth session boundary delegates to `requireActiveProfile`; active/inactive/stale/DB-failure tests pass; manual login/logout endpoints removed |
 | REM-06 | PASS | Action audit allowlist |
-| REM-07 | PARTIAL | atomic claim/outbox primitives; charge/campaign migration incomplete |
-| REM-08 | PARTIAL | outbox retry/dead-letter primitive; provider integration not staged |
+| REM-07 | PASS (local) | atomic claim and outbox concurrency/retry tests pass against local PostgreSQL; staging/provider delivery remains pending |
+| REM-08 | PASS (local) | stable charge create/cancel and campaign execution idempotency keys; unique clinic+budget charge constraint and local tests pass |
 | REM-09 | PASS | due campaign query requires `scheduled_at <= now` |
 | REM-10 | PARTIAL | NextAuth update path + cache clear; multi-clinic DB proof pending |
 | REM-11 | PASS | CSV formula neutralization |
@@ -53,7 +53,7 @@
 - Full E2E setup does not reach dashboard consistently.
 - Staging deployment, smoke and rollback were not authorized or executed.
 - Wrangler startup analyzer remains blocked by tool error.
-- Charge/campaign effects now use stable idempotency keys; transactional outbox wiring and concurrent DB proof remain pending.
+- Provider delivery, Asaas replay and staging execution remain unproven; local claim/outbox concurrency evidence is not a production substitute.
 
 Production deploy is prohibited. Required next evidence: two consecutive full E2E passes, owner-approved staging resources, smoke and rollback rehearsal.
 
@@ -65,13 +65,13 @@ keeps the final decision at No-Go regardless of points.
 | Dimension | Weight | Score | Evidence basis |
 |---|---:|---:|---|
 | Tenancy, webhook and audit P0 | 25 | 22 | Database-backed two-tenant fixtures, schema verifier and inbound/action integration pass; Asaas replay proof remains pending |
-| Auth, idempotency and outbox | 20 | 12 | Auth and mutation gates pass; provider/outbox concurrency proof pending |
+| Auth, idempotency and outbox | 20 | 15 | Revocation, atomic claim, outbox concurrency/retry and stable charge/campaign keys pass locally; staging/provider delivery pending |
 | Structural hardening | 15 | 15 | Headers, CSV, consent and dependency gates pass |
 | Product and E2E | 20 | 12 | Focused W4 contracts pass; full suite is not proven twice |
 | Cloudflare and release operations | 20 | 8 | Build/dry-run pass with warning; startup, staging and rollback pending |
-| **Total** | **100** | **69** | **NO-GO** |
+| **Total** | **100** | **72** | **NO-GO** |
 
 **Decision thresholds:** `GO` requires at least 90/100 and every hard gate green; `CONDITIONAL`
 requires 75–89 with a written owner-approved exception; anything below 75 is `NO-GO`. Current
-69/100 is therefore No-Go. The score must be recalculated after each missing evidence item is
+72/100 is therefore No-Go. The score must be recalculated after each missing evidence item is
 executed; no points are awarded for planned or locally simulated staging evidence.
