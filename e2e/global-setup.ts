@@ -15,10 +15,13 @@ export default async function globalSetup(_config: FullConfig) {
     if (!loginResponse || !loginResponse.ok()) throw new Error(`E2E setup login page failed: ${loginResponse?.status()}`)
     await page.fill('#email', testCredentials.email)
     await page.fill('#password', testCredentials.password)
-    await Promise.all([
-      page.waitForURL('**/dashboard**', { timeout: 20_000 }),
-      page.click('button[type="submit"]'),
-    ])
+    await page.click('button[type="submit"]')
+    try {
+      await page.waitForURL('**/dashboard**', { timeout: 60_000 })
+    } catch (error) {
+      const body = (await page.locator('body').innerText()).slice(0, 500).replace(/\s+/g, ' ')
+      throw new Error(`E2E setup login failed: ${error instanceof Error ? error.message : 'navigation'}; body=${body}`)
+    }
     const session = await page.evaluate(async () => {
       const response = await fetch('/api/auth/session')
       return { status: response.status, body: await response.json() }
