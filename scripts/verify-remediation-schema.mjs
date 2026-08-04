@@ -1,5 +1,17 @@
 import pg from 'pg';
 
+function normalizePath(path) {
+  const normalized = path.replaceAll('\\', '/');
+  return normalized.startsWith('/') && /^[A-Za-z]:/.test(normalized.slice(1))
+    ? normalized.slice(1)
+    : normalized;
+}
+
+export function isCliInvocation(moduleUrl, argvPath) {
+  if (!argvPath) return false;
+  return normalizePath(new URL(moduleUrl).pathname) === normalizePath(argvPath);
+}
+
 export const REQUIRED_SCHEMA = Object.freeze({
   outbox_jobs: Object.freeze({
     columns: Object.freeze(['clinic_id', 'operation', 'business_key']),
@@ -36,7 +48,7 @@ async function readSchemaMetadata(pool) {
       ['public', table],
     );
     const uniqueKeys = await pool.query(`
-      SELECT array_agg(attribute.attname ORDER BY key.ordinality) AS columns
+      SELECT array_to_json(array_agg(attribute.attname ORDER BY key.ordinality)) AS columns
       FROM pg_index AS index_definition
       JOIN pg_class AS table_definition ON table_definition.oid = index_definition.indrelid
       CROSS JOIN LATERAL unnest(index_definition.indkey) WITH ORDINALITY AS key(attnum, ordinality)
@@ -56,7 +68,7 @@ async function readSchemaMetadata(pool) {
   return metadata;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isCliInvocation(import.meta.url, process.argv[1])) {
   const url = process.env.TEST_DATABASE_URL || process.env.STAGING_TEST_DATABASE_URL;
   if (!url) throw new Error('TEST_DATABASE_URL or STAGING_TEST_DATABASE_URL is required');
 
