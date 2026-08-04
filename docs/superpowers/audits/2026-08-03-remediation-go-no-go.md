@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `03ddef15`
+**Candidate:** `ca98b920`
 
 ## Evidence matrix
 
@@ -19,7 +19,7 @@
 | docs links | PASS | `node scripts/check-doc-links.mjs` |
 | Cloudflare config contract | PASS | `src/__tests__/cloudflare/*` |
 | integration/PostgreSQL | BLOCKED | no approved local `TEST_DATABASE_URL`; run timed out against unavailable DB |
-| E2E deterministic setup | PARTIAL | focused storage-state pass; full suite setup failed waiting for dashboard; manual login consumers migrated to UI |
+| E2E deterministic setup | PARTIAL | focused storage-state pass; full suite setup failed waiting for dashboard (`body=... Entrar ...`); manual login consumers migrated to UI |
 | E2E twice | NOT PROVEN | prerequisite full run failed |
 | staging smoke | NOT RUN | no approved staging URL/resource IDs/secrets |
 | Worker rollback | NOT RUN | remote mutation requires owner approval |
