@@ -15,7 +15,7 @@ import { resolve } from 'node:path';
 const workerPath = resolve(process.argv[2] ?? '.open-next/worker.js');
 
 const content = readFileSync(workerPath, 'utf-8');
-const pgInjection = `// W4.8: pg externalizado → injeta como global para o bundle que referencia \`let e = pg\`.
+const pgInjection = `// W4.8: pg externalizado -> injeta como global para o bundle que referencia \`let e = pg\`.
 import pg from 'pg';
 globalThis.pg = pg;
 
