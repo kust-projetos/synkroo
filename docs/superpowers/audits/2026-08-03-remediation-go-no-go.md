@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-04
-**Candidate:** `7b84540e`
+**Candidate:** `1f6607de`
 
 ## Evidence matrix
 
