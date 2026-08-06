@@ -15,7 +15,7 @@ Estado durável das execuções `/goal` do plano mestre. Nunca registrar secrets
 
 | Goal ID | Task/REQs | Branch/known-good SHA | Allowed paths | Gates | Commit auth | Status | Approval/evidence |
 |---|---|---|---|---|---|---|---|
-| G-AUDIT-20260804 | REM-01..REM-15 | main / edfd8975 | audit remediation paths | local/staging/Asaas/Evolution config green; outbound WhatsApp and production approval pending | session owner authorized staging, sandbox and VPS config | BLOCKED | final review record; no outbound recipient approval/production approval |
+| G-AUDIT-20260804 | REM-01..REM-15 | main / f09ad7eb | audit remediation paths | local/staging/Asaas/Evolution config green; outbound WhatsApp and production approval pending | session owner authorized staging, sandbox and VPS config | BLOCKED | final review record; no outbound recipient approval/production approval |
 
 ## Ciclos append-only
 
