@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-05
-**Candidate:** commit `f09ad7eb`
+**Candidate:** committed remediation tree on `main` (`HEAD`)
 
 ## Evidence matrix
 
