@@ -112,3 +112,7 @@ src/
 - Stack real: Drizzle ORM + `pg` + NextAuth + Cloudflare Workers (OpenNext).
 - Fonte de verdade: `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`.
 - Supabase removido; migrations convertidas para Drizzle em `src/lib/db/schema/`.
+
+## VPS
+- Operação: `docs/ops/vps-access.md`.
+- Configuração privada: `../vps-hostinger/.env`; nunca copiar segredos para este repositório.

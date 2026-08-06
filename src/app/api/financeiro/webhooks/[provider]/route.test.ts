@@ -15,8 +15,9 @@
 
 const mockProcessAsaasWebhook = jest.fn();
 const mockListGateways = jest.fn();
+const mockListGatewaysByProvider = jest.fn();
 const mockGetPaymentGateway = jest.fn();
-const mockDecrypt = jest.fn();
+const mockDecryptGatewayCredentials = jest.fn();
 
 jest.mock('@/modules/financeiro/gateways/providers/asaas/webhook', () => ({
   processAsaasWebhook: (...args: unknown[]) => mockProcessAsaasWebhook(...args),
@@ -24,11 +25,12 @@ jest.mock('@/modules/financeiro/gateways/providers/asaas/webhook', () => ({
 
 jest.mock('@/modules/financeiro/repositories/financeiro-repository', () => ({
   listGateways: (...args: unknown[]) => mockListGateways(...args),
+  listGatewaysByProvider: (...args: unknown[]) => mockListGatewaysByProvider(...args),
   getPaymentGateway: (...args: unknown[]) => mockGetPaymentGateway(...args),
 }));
 
 jest.mock('@/modules/financeiro/lib/crypto', () => ({
-  decrypt: (...args: unknown[]) => mockDecrypt(...args),
+  decryptGatewayCredentials: (...args: unknown[]) => mockDecryptGatewayCredentials(...args),
 }));
 
 import { NextRequest } from 'next/server';
@@ -71,11 +73,14 @@ beforeEach(() => {
   mockListGateways.mockResolvedValue([
     { id: 'gw-1', provider: 'asaas', isEnabled: true },
   ]);
+  mockListGatewaysByProvider.mockResolvedValue([
+    { id: 'gw-1', clinicId: 'c1', provider: 'asaas', isEnabled: true, encryptedConfig: { iv: 'iv', data: 'enc', tag: 'tag' } },
+  ]);
   mockGetPaymentGateway.mockResolvedValue({
     id: 'gw-1',
     encryptedConfig: { iv: 'iv', data: 'enc', tag: 'tag' },
   });
-  mockDecrypt.mockReturnValue(validToken);
+  mockDecryptGatewayCredentials.mockReturnValue({ apiKey: validToken });
   mockProcessAsaasWebhook.mockResolvedValue({ settled: true, chargeFound: true });
 });
 
@@ -92,27 +97,27 @@ describe('POST /api/financeiro/webhooks/[provider] — ungated', () => {
     const res = await POST(makeRequest({ token: '' }), context());
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body).toEqual({ error: 'Missing x-asaas-token header' });
+    expect(body).toEqual({ error: 'Missing Asaas webhook token header' });
   });
 
-  it('404 quando nenhum gateway asaas configurado para clínica', async () => {
-    mockListGateways.mockResolvedValue([]);
+  it('401 quando nenhum gateway possui a credencial do provider', async () => {
+    mockListGatewaysByProvider.mockResolvedValue([]);
     const res = await POST(makeRequest(), context());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body).toMatchObject({ error: 'No Asaas gateway configured for clinic' });
+    expect(body).toEqual({ error: 'Invalid webhook token' });
     expect(mockProcessAsaasWebhook).not.toHaveBeenCalled();
   });
 
   it('200 para settlement reconciliation mesmo com gateway desabilitado (isEnabled=false)', async () => {
-    mockListGateways.mockResolvedValue([
-      { id: 'gw-1', provider: 'asaas', isEnabled: false },
+    mockListGatewaysByProvider.mockResolvedValue([
+      { id: 'gw-1', clinicId: 'c1', provider: 'asaas', isEnabled: false, encryptedConfig: { iv: 'iv', data: 'enc', tag: 'tag' } },
     ]);
     mockGetPaymentGateway.mockResolvedValue({
       id: 'gw-1',
       encryptedConfig: { iv: 'iv', data: 'enc', tag: 'tag' },
     });
-    mockDecrypt.mockReturnValue(validToken);
+    mockDecryptGatewayCredentials.mockReturnValue({ apiKey: validToken });
     mockProcessAsaasWebhook.mockResolvedValue({ settled: true, chargeFound: true });
     const res = await POST(makeRequest(), context());
     expect(res.status).toBe(200);
@@ -122,10 +127,27 @@ describe('POST /api/financeiro/webhooks/[provider] — ungated', () => {
   });
 
   it('401 para token inválido (mismatch)', async () => {
-    mockDecrypt.mockReturnValue('different-key');
+    mockDecryptGatewayCredentials.mockReturnValue({ apiKey: 'different-key' });
     const res = await POST(makeRequest({ token: 'wrong-token' }), context());
     expect(res.status).toBe(401);
     expect(mockProcessAsaasWebhook).not.toHaveBeenCalled();
+  });
+
+  it('aceita o header oficial Asaas e o webhook token da instalação', async () => {
+    mockDecryptGatewayCredentials.mockReturnValue({ apiKey: 'api-key', webhookToken: validToken });
+    const request = makeRequest({ token: '' });
+    request.headers.set('asaas-access-token', validToken);
+    const res = await POST(request, context());
+    expect(res.status).toBe(200);
+  });
+
+  it('deriva clinicId da credencial e ignora clinicId de query/header', async () => {
+    const res = await POST(makeRequest({ clinicId: 'attacker-clinic' }), context());
+    expect(res.status).toBe(200);
+    expect(mockListGatewaysByProvider).toHaveBeenCalledWith('asaas');
+    expect(mockProcessAsaasWebhook).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId: 'c1' }),
+    );
   });
 
   it('200 para cobrança conhecida → reconciliation (settled)', async () => {

@@ -30,5 +30,36 @@
   },
   "observability": {
     "enabled": true
+  },
+  "env": {
+    "staging": {
+      "name": "synkroo-ia-agent-staging",
+      "services": [
+        {
+          "binding": "APP",
+          "service": "synkroo-ia-bridge-staging",
+          "entrypoint": "AppService"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          { "name": "AGENT", "class_name": "AgentOrchestrator" }
+        ]
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": ["AgentOrchestrator"]
+        }
+      ],
+      "vars": {
+        "IA_LLM_BASE_URL": "https://opencode.ai/zen/v1",
+        "IA_LLM_MODEL": "deepseek-v4-flash-free",
+        "ENVIRONMENT": "staging"
+      },
+      "observability": {
+        "enabled": true
+      }
+    }
   }
 }

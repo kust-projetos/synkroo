@@ -18,5 +18,28 @@
   ],
   "observability": {
     "enabled": true
+  },
+  "env": {
+    "staging": {
+      "name": "synkroo-ia-bridge-staging",
+      "hyperdrive": [
+        {
+          "binding": "HYPERDRIVE",
+          "id": "e0033a75f4e2449084b00b41e22e49a6"
+        }
+      ],
+      "kv_namespaces": [
+        {
+          "binding": "IA_SEEN",
+          "id": "f2ad31b71d484e0ba3fc6df1814d7d8e"
+        }
+      ],
+      "vars": {
+        "ENVIRONMENT": "staging"
+      },
+      "observability": {
+        "enabled": true
+      }
+    }
   }
 }

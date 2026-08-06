@@ -44,3 +44,44 @@ index_name = "synkroo-embeddings"
 
 [vars]
 NODE_ENV = "production"
+
+[env.staging]
+name = "synkroo-staging"
+
+[env.staging.vars]
+NODE_ENV = "production"
+ENVIRONMENT = "staging"
+
+[[env.staging.services]]
+binding = "IA_BRIDGE"
+service = "synkroo-ia-bridge-staging"
+entrypoint = "AppService"
+
+[[env.staging.services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "synkroo-staging"
+
+[[env.staging.durable_objects.bindings]]
+name = "AGENT"
+class_name = "AgentOrchestrator"
+script_name = "synkroo-ia-agent-staging"
+
+[[env.staging.durable_objects.bindings]]
+name = "NEXT_CACHE_DO_QUEUE"
+class_name = "DOQueueHandler"
+
+[[env.staging.migrations]]
+tag = "v1"
+new_sqlite_classes = ["DOQueueHandler"]
+
+[[env.staging.kv_namespaces]]
+binding = "SYNKROO_CACHE"
+id = "f2ad31b71d484e0ba3fc6df1814d7d8e"
+
+[[env.staging.hyperdrive]]
+binding = "HYPERDRIVE"
+id = "e0033a75f4e2449084b00b41e22e49a6"
+
+[[env.staging.vectorize]]
+binding = "VECTORIZE"
+index_name = "synkroo-staging-embeddings"

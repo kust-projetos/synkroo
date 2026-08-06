@@ -11,9 +11,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { processAsaasWebhook } from '@/modules/financeiro/gateways/providers/asaas/webhook';
-import { listGateways } from '@/modules/financeiro/repositories/financeiro-repository';
-import { decrypt } from '@/modules/financeiro/lib/crypto';
-import { getPaymentGateway } from '@/modules/financeiro/repositories/financeiro-repository';
+import { listGatewaysByProvider } from '@/modules/financeiro/repositories/financeiro-repository';
+import { decryptGatewayCredentials } from '@/modules/financeiro/lib/crypto';
+import type { EncryptedPayload } from '@/modules/financeiro/lib/crypto';
 
 export async function POST(
   request: NextRequest,
@@ -25,49 +25,47 @@ export async function POST(
     return NextResponse.json({ error: 'Unknown provider' }, { status: 404 });
   }
 
-  // Read clinicId from URL param or header
-  const clinicId = request.nextUrl.searchParams.get('clinicId') ||
-    request.headers.get('x-clinic-id') || '';
-
-  if (!clinicId) {
-    return NextResponse.json({ error: 'clinicId query parameter or x-clinic-id header required' }, { status: 400 });
-  }
-
-  // Validate webhook token against stored gateway config
-  const token = request.headers.get('x-asaas-token');
+  // Validate the provider credential before resolving the tenant. Request
+  // parameters and headers are intentionally ignored for tenant selection.
+  const token = request.headers.get('asaas-access-token') ?? request.headers.get('x-asaas-token');
   if (!token) {
-    return NextResponse.json({ error: 'Missing x-asaas-token header' }, { status: 401 });
+    return NextResponse.json({ error: 'Missing Asaas webhook token header' }, { status: 401 });
   }
 
-  // Find the Asaas gateway for this clinic and validate the token.
-  // Webhooks must process even when the gateway is DISABLED,
-  // so that settlement reconciliation works for existing charges.
-  const gateways = await listGateways(clinicId);
-  const asaasGw = gateways.find(g => g.provider === 'asaas');
+  // Find the gateway by provider credential, not by request-supplied clinic.
+  // Webhooks must process even when the gateway is DISABLED, so settlement
+  // reconciliation works for existing charges.
+  const gateways = await listGatewaysByProvider(provider);
+  let matchedGateway: (typeof gateways)[number] | undefined;
 
-  if (!asaasGw) {
-    return NextResponse.json({ error: 'No Asaas gateway configured for clinic' }, { status: 404 });
-  }
+  for (const gateway of gateways) {
+    const encryptedConfig = gateway.encryptedConfig;
+    if (!encryptedConfig) continue;
 
-  // Decrypt stored API key and compare with incoming token
-  const full = await getPaymentGateway(asaasGw.id);
-  let isValidToken = false;
-
-  if (full?.encryptedConfig) {
     try {
-      const enc = full.encryptedConfig as { iv: string; data: string; tag: string };
-      if (enc.iv && enc.data && enc.tag) {
-        const storedKey = decrypt(enc);
-        isValidToken = storedKey === token;
+      const enc = encryptedConfig as Partial<EncryptedPayload>;
+      if (
+        typeof enc.iv === 'string' &&
+        typeof enc.data === 'string' &&
+        typeof enc.tag === 'string' &&
+        (() => {
+          const credentials = decryptGatewayCredentials({ iv: enc.iv, data: enc.data, tag: enc.tag });
+          return credentials.apiKey === token || credentials.webhookToken === token;
+        })()
+      ) {
+        matchedGateway = gateway;
+        break;
       }
     } catch {
-      // If decryption fails, token validation fails
+      // An invalid stored config cannot authenticate a webhook.
     }
   }
 
-  if (!isValidToken) {
+  if (!matchedGateway) {
     return NextResponse.json({ error: 'Invalid webhook token' }, { status: 401 });
   }
+
+  const clinicId = matchedGateway.clinicId;
 
   // Parse request body
   let body: unknown;

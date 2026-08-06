@@ -494,7 +494,7 @@ não aprovada bloqueia PR.
 
 ## 17. Próxima ação única
 
-Auditoria de remediação 2026-08-04: ver `docs/superpowers/audits/2026-08-03-remediation-go-no-go.md`. Estado permanece NO-GO até integração PostgreSQL, E2E completo, staging e rollback comprovados.
+Auditoria de remediação 2026-08-04: ver `docs/superpowers/audits/2026-08-03-remediation-go-no-go.md` e o registro final em `docs/superpowers/audits/2026-08-05-final-review-record.md`. Integração PostgreSQL, E2E completo em duas execuções, staging e rollback estão comprovados. O estado técnico permanece NO-GO somente para release externo enquanto faltar canário WhatsApp com destinatário autorizado e aprovação formal do owner; nenhuma mutação de produção foi executada.
 
-Executar **Fase 0**. Não autenticar GitHub, mergear PR #6, iniciar feature, smoke IA ou refactor
+Próxima ação: registrar autorização do canário/provider e exceção ou aprovação do owner. Não autenticar GitHub, mergear PR #6, iniciar feature, smoke IA ou refactor
 antes de preservar evidência e rotacionar credenciais potencialmente expostas.

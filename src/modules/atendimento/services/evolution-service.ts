@@ -124,13 +124,11 @@ export class EvolutionApiService extends EventEmitter {
 
   async createInstance(): Promise<EvolutionInstance | null> {
     const result = await this.request<EvolutionInstance>('POST', '/instance/create', {
-      instanceName: this.instanceName,
-      qrcode: true,
+      name: this.instanceName,
+      token: this.apiKey,
       webhook: process.env.EVOLUTION_WEBHOOK_URL || undefined,
-      webhook_by_events: true,
       events: [
-        'APPLICATION_STARTUP', 'QRCODE_UPDATED', 'MESSAGES_UPSERT',
-        'MESSAGES_UPDATE', 'SEND_MESSAGE', 'CONNECTION_UPDATE',
+        'Connected', 'Disconnected', 'MessagesUpsert', 'MessagesUpdate',
       ],
     });
     if (result.success && result.data) {
@@ -142,18 +140,16 @@ export class EvolutionApiService extends EventEmitter {
   }
 
   async connect(): Promise<boolean> {
-    const result = await this.request<{ instance: EvolutionInstance['instance'] }>(
-      'GET', `/instance/fetchInstances?instanceName=${this.instanceName}`,
-    );
-    if (result.success && result.data?.instance) {
-      this.instanceId = result.data.instance.instanceId;
-      this.isConnected = result.data.instance.status === 'open';
-      if (this.isConnected) {
-        this.emit('connected');
-        whatsappLogger.info('Evolution instance connected', { status: result.data.instance.status });
-      }
+    const result = await this.getConnectionState();
+    if (result) return result.state === 'open';
+
+    const connectResult = await this.request('POST', '/instance/connect', {});
+    if (connectResult.success) {
+      this.isConnected = true;
+      this.emit('connected');
       return true;
     }
+
     const newInstance = await this.createInstance();
     return newInstance !== null;
   }
@@ -172,7 +168,7 @@ export class EvolutionApiService extends EventEmitter {
 
   async getQRCode(): Promise<EvolutionQRCode | null> {
     const result = await this.request<{ code: string; base64: string }>(
-      'GET', `/instance/qrcode/${this.instanceName}`,
+      'GET', '/instance/qr',
     );
     if (result.success && result.data) {
       this.emit('qrcode', result.data.base64);
@@ -182,7 +178,7 @@ export class EvolutionApiService extends EventEmitter {
   }
 
   async logout(): Promise<boolean> {
-    const result = await this.request('DELETE', `/instance/logout/${this.instanceName}`);
+    const result = await this.request('DELETE', '/instance/logout');
     this.isConnected = false;
     return result.success;
   }

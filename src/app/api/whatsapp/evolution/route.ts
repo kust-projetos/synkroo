@@ -6,14 +6,16 @@ import { moduleManifest } from '@/core/modules/manifest';
 
 /**
  * Verify Evolution API webhook secret via timing-safe comparison.
- * Header: X-Webhook-Secret.
+ * Header: X-Webhook-Secret. Evolution Go has no custom-header support, so
+ * its dedicated EVOLUTION_WEBHOOK_SECRET may also arrive as a query token.
  * Dev fallback: if WEBHOOK_SECRET is not set and NODE_ENV is not 'production',
  * requests are allowed through.
  */
 function verifyEvolutionSecret(request: NextRequest): boolean {
-  const secret = process.env.WEBHOOK_SECRET;
+  const secret = process.env.EVOLUTION_WEBHOOK_SECRET || process.env.WEBHOOK_SECRET;
   if (!secret) return process.env.NODE_ENV !== 'production';
-  const provided = request.headers.get('X-Webhook-Secret') || '';
+  const provided = request.headers.get('X-Webhook-Secret') ||
+    request.nextUrl.searchParams.get('token') || '';
   return provided.length === secret.length &&
     crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(secret));
 }

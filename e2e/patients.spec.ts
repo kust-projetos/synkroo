@@ -14,6 +14,23 @@ async function login(page: Page) {
   ])
 }
 
+async function openPatientOrAssertEmpty(page: Page): Promise<boolean> {
+  const patientLink = page.getByRole('link', { name: 'Ver', exact: true }).first()
+  const emptyState = page.getByText(/Nenhum paciente encontrado|Nenhum paciente cadastrado/).first()
+  await expect(patientLink.or(emptyState)).toBeVisible({ timeout: 15000 })
+  if (await patientLink.count() === 0) {
+    await expect(emptyState).toBeVisible()
+    return false
+  }
+  await expect(patientLink).toBeVisible()
+  await patientLink.click()
+  await page.waitForLoadState('networkidle')
+  const detailTab = page.getByRole('tab', { name: /Informações/i }).first()
+  const missingPatient = page.getByRole('heading', { name: 'Paciente não encontrado' })
+  await expect(detailTab.or(missingPatient)).toBeVisible()
+  return await detailTab.count() > 0
+}
+
 test.describe('Patients Page', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
@@ -26,22 +43,19 @@ test.describe('Patients Page', () => {
   })
 
   test('should have search functionality', async ({ page }) => {
-    const hasSearch = await page.locator('input[type="search"], input[placeholder*="buscar"], input[placeholder*="Buscar"], input[placeholder*="pesquisar"]').count() > 0
-    expect(hasSearch).toBeTruthy()
+    await expect(page.locator('input[placeholder="Buscar por nome, telefone ou email..."]')).toBeVisible()
   })
 
-  test('should display patient list or cards', async ({ page }) => {
-    await page.waitForSelector('table, [data-testid="patient-card"], [class*="card"]', { timeout: 15000 }).catch(() => {})
-    const hasList = await page.locator('table, [data-testid="patient-card"], [class*="card"]').count() > 0
-    expect(hasList).toBeTruthy()
+  test('should display patient list or explicit empty state', async ({ page }) => {
+    const patients = page.locator('table tbody tr, [data-testid="patient-card"], [class*="patient-card"]')
+    const empty = page.getByText(/Nenhum paciente encontrado|Nenhum paciente cadastrado/).first()
+    await expect(patients.first().or(empty)).toBeVisible({ timeout: 15000 })
   })
 
   test('should navigate to patient detail', async ({ page }) => {
-    const patientRow = page.locator('table tbody tr, [data-testid="patient-card"], [class*="card"]').first()
-    if (await patientRow.count() > 0) {
-      await patientRow.click()
-      await page.waitForLoadState('networkidle')
-    }
+    if (!await openPatientOrAssertEmpty(page)) return
+    await expect(page.locator('h1, h2').first()).toBeVisible()
+    await expect(page.getByRole('tab', { name: /Informações/i })).toBeVisible()
   })
 })
 
@@ -53,74 +67,29 @@ test.describe('Patient Detail', () => {
   })
 
   test('should show patient detail page with tabs', async ({ page }) => {
-    const patientRow = page.locator('table tbody tr, [data-testid="patient-card"], [class*="card"]').first()
-    if (await patientRow.count() > 0) {
-      await patientRow.click()
-      await page.waitForLoadState('networkidle')
-      await page.waitForSelector('[role="tablist"], [role="tab"], nav, button', { timeout: 15000 }).catch(() => {})
-      const hasTabs = await page.locator('[role="tablist"], [role="tab"], nav').count() > 0
-      expect(hasTabs).toBeTruthy()
-    }
+    if (!await openPatientOrAssertEmpty(page)) return
+    await expect(page.getByRole('tab', { name: /Informações/i })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /Agendamentos/i })).toBeVisible()
   })
 
-  test('should display treatment plan section', async ({ page }) => {
-    const patientRow = page.locator('table tbody tr, [data-testid="patient-card"], [class*="card"]').first()
-    if (await patientRow.count() > 0) {
-      await patientRow.click()
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(2000)
-      // Patient detail page loads — tabs or plan content visible
-      const hasDetail = await page.locator('h1, h2').count() > 0 || await page.locator('[role="tablist"], [role="tab"]').count() > 0
-      expect(hasDetail).toBeTruthy()
-    }
+  test('should display patient information or appointment empty state', async ({ page }) => {
+    if (!await openPatientOrAssertEmpty(page)) return
+    await expect(page.getByText('Telefone', { exact: true })).toBeVisible()
+    const appointments = page.getByRole('tab', { name: /Agendamentos/i })
+    await appointments.click()
+    await expect(page.getByText(/Nenhum agendamento encontrado|Data\/Hora/).first()).toBeVisible()
   })
 
-  test('should create new treatment plan', async ({ page }) => {
-    const patientRow = page.locator('table tbody tr, [data-testid="patient-card"], [class*="card"]').first()
-    if (await patientRow.count() > 0) {
-      await patientRow.click()
-      await page.waitForLoadState('networkidle')
-
-      const newPlanBtn = page.locator('a[href*="plano"], button:has-text("Novo Plano"), button:has-text("Plano"), a:has-text("Plano")').first()
-      if (await newPlanBtn.count() > 0) {
-        await newPlanBtn.click()
-        await page.waitForLoadState('networkidle')
-        const hasForm = await page.locator('form').count() > 0
-        expect(hasForm).toBeTruthy()
-      }
-    }
+  test('should expose appointment creation from empty patient schedule', async ({ page }) => {
+    if (!await openPatientOrAssertEmpty(page)) return
+    await page.getByRole('tab', { name: /Agendamentos/i }).click()
+    const appointmentLink = page.getByRole('link', { name: /Agendar consulta/i })
+    const appointmentTable = page.getByText('Data/Hora', { exact: true })
+    await expect(appointmentLink.or(appointmentTable)).toBeVisible()
   })
 
-  test('should add procedures to treatment plan', async ({ page }) => {
-    const patientRow = page.locator('table tbody tr, [data-testid="patient-card"], [class*="card"]').first()
-    if (await patientRow.count() > 0) {
-      await patientRow.click()
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(2000)
-
-      const planTab = page.locator('[role="tab"]:has-text("Plano"), [role="tab"]:has-text("Tratamento"), button:has-text("Plano")').first()
-      if (await planTab.count() > 0) {
-        await planTab.click()
-        await page.waitForLoadState('networkidle')
-
-        const addProcedureBtn = page.locator('button:has-text("Adicionar Procedimento"), button:has-text("Procedimento"), a:has-text("Procedimento")').first()
-        if (await addProcedureBtn.count() > 0) {
-          await addProcedureBtn.click()
-          await page.waitForSelector('select, input, form', { timeout: 15000 }).catch(() => {})
-        }
-      }
-    }
-  })
-
-  test('should track session progress', async ({ page }) => {
-    const patientRow = page.locator('table tbody tr, [data-testid="patient-card"], [class*="card"]').first()
-    if (await patientRow.count() > 0) {
-      await patientRow.click()
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(2000)
-      // Session progress or empty state
-      const hasProgress = await page.locator('h1, h2, [role="tab"]').count() > 0
-      expect(hasProgress).toBeTruthy()
-    }
+  test('should expose patient edit action', async ({ page }) => {
+    if (!await openPatientOrAssertEmpty(page)) return
+    await expect(page.getByRole('link', { name: 'Editar' }).first()).toBeVisible()
   })
 })
