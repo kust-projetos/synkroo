@@ -4,6 +4,7 @@
 // jest.setup.ts mocka @/lib/db/client para todos os outros testes.
 jest.unmock('@/lib/db/client');
 
+import { Pool } from 'pg';
 import { setDbConnectionString, resolveConnectionString, getDb, closeDb } from '../client';
 
 describe('DB client — connection string resolution', () => {
@@ -30,6 +31,15 @@ describe('DB client — connection string resolution', () => {
     );
   });
 
+  it('refreshes the Hyperdrive connection when the runtime rotates it', () => {
+    const runtime = globalThis as { __SYNKROO_HYPERDRIVE?: string };
+    runtime.__SYNKROO_HYPERDRIVE = 'postgres://first:secret@hyperdrive.internal:5432/synkroo';
+    expect(resolveConnectionString()).toContain('first:secret');
+
+    runtime.__SYNKROO_HYPERDRIVE = 'postgres://second:secret@hyperdrive.internal:5432/synkroo';
+    expect(resolveConnectionString()).toContain('second:secret');
+  });
+
   it('falls back to DATABASE_URL when hyperdrive is not set (dev/local)', () => {
     process.env.DATABASE_URL = 'postgres://local:dev@localhost:55432/synkroo';
     const url = resolveConnectionString();
@@ -54,5 +64,15 @@ describe('DB client — getDb() interface preserved', () => {
     const db1 = getDb();
     const db2 = getDb();
     expect(db1).toBe(db2);
+  });
+
+  it('registers an idle-pool error listener for suspended Worker isolates', () => {
+    const onSpy = jest.spyOn(Pool.prototype, 'on');
+    process.env.DATABASE_URL = 'postgres://test:test@localhost:5432/test';
+
+    getDb();
+
+    expect(onSpy).toHaveBeenCalledWith('error', expect.any(Function));
+    onSpy.mockRestore();
   });
 });

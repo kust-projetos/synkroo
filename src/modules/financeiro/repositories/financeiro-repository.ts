@@ -272,6 +272,15 @@ export async function listGateways(clinicId: string): Promise<PaymentGatewayRow[
   return db.select().from(paymentGateways).where(eq(paymentGateways.clinicId, clinicId));
 }
 
+/**
+ * List provider installations for webhook credential resolution.
+ * The caller must match the verified credential before selecting clinicId.
+ */
+export async function listGatewaysByProvider(provider: string): Promise<PaymentGatewayRow[]> {
+  const db = getDb();
+  return db.select().from(paymentGateways).where(eq(paymentGateways.provider, provider));
+}
+
 export async function getDefaultGateway(clinicId: string): Promise<PaymentGatewayRow | undefined> {
   const db = getDb();
   const [row] = await db.select().from(paymentGateways)

@@ -1,7 +1,21 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, Page } from '@playwright/test'
 import path from 'path'
 
 const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json') })
+
+async function openContactOrAssertEmpty(page: Page): Promise<boolean> {
+  const contactItem = page.locator('main button.w-full').first()
+  const emptyState = page.getByText('Nenhum contato encontrado')
+  await expect(contactItem.or(emptyState)).toBeVisible({ timeout: 15000 })
+  if (await contactItem.count() === 0) {
+    await expect(emptyState).toBeVisible()
+    return false
+  }
+  await expect(contactItem).toBeVisible()
+  await contactItem.click()
+  await page.waitForLoadState('networkidle')
+  return true
+}
 
 t.describe('CRM Contacts - Notes and Timeline', () => {
   t.beforeEach(async ({ page }) => {
@@ -10,87 +24,57 @@ t.describe('CRM Contacts - Notes and Timeline', () => {
   })
 
   t('renders contact detail panel', async ({ page }) => {
-    const contactItem = page.locator('[class*="Contact"], [class*="Lead"], table tbody tr').first()
-    if (await contactItem.isVisible().catch(() => false)) {
-      await contactItem.click()
-      await page.waitForLoadState('networkidle')
-    }
+    if (!await openContactOrAssertEmpty(page)) return
+    await expect(page.locator('[class*="detail"], [data-testid="contact-detail"], h1, h2').first()).toBeVisible()
   })
 
   t('renders notes tab in contact detail', async ({ page }) => {
-    const contactItem = page.locator('[class*="Contact"], table tbody tr').first()
-    if (await contactItem.isVisible().catch(() => false)) {
-      await contactItem.click()
-      await page.waitForLoadState('networkidle')
-      const notesTab = page.locator('button:has-text("Notas"), a:has-text("Notas"), [role="tab"]:has-text("Notas")').first()
-      if (await notesTab.isVisible().catch(() => false)) {
-        await notesTab.click()
-        await page.waitForLoadState('networkidle')
-      }
-    }
+    if (!await openContactOrAssertEmpty(page)) return
+    const notesTab = page.getByRole('tab', { name: /Notas/i }).or(page.getByRole('button', { name: /Notas/i })).first()
+    await expect(notesTab).toBeVisible()
+    await notesTab.click()
+    await expect(page.getByText(/Nenhuma nota adicionada|Nova nota|Adicionar nota/i).first()).toBeVisible()
   })
 
   t('renders timeline tab in contact detail', async ({ page }) => {
-    const contactItem = page.locator('[class*="Contact"], table tbody tr').first()
-    if (await contactItem.isVisible().catch(() => false)) {
-      await contactItem.click()
-      await page.waitForLoadState('networkidle')
-      const timelineTab = page.locator('button:has-text("Timeline"), a:has-text("Timeline"), [role="tab"]:has-text("Timeline")').first()
-      if (await timelineTab.isVisible().catch(() => false)) {
-        await timelineTab.click()
-        await page.waitForLoadState('networkidle')
-      }
-    }
+    if (!await openContactOrAssertEmpty(page)) return
+    const timelineTab = page.getByRole('tab', { name: /Timeline/i }).or(page.getByRole('button', { name: /Timeline/i })).first()
+    await expect(timelineTab).toBeVisible()
+    await timelineTab.click()
+    await expect(page.getByText(/Nenhuma atividade registrada|Atividades|Timeline/i).first()).toBeVisible()
   })
 
-  t('can add a note to contact', async ({ page }) => {
-    const contactItem = page.locator('[class*="Contact"], table tbody tr').first()
-    if (await contactItem.isVisible().catch(() => false)) {
-      await contactItem.click()
-      await page.waitForLoadState('networkidle')
-      const notesTab = page.locator('button:has-text("Notas"), [role="tab"]:has-text("Notas")').first()
-      if (await notesTab.isVisible().catch(() => false)) {
-        await notesTab.click()
-        await page.waitForLoadState('networkidle')
-      }
-      const noteTextarea = page.locator('textarea[name="note"], [placeholder*="nota"]').first()
-      if (await noteTextarea.isVisible().catch(() => false)) {
-        await noteTextarea.fill(`Nota de teste ${Date.now()}`)
-        const saveBtn = page.locator('button:has-text("Salvar"), button:has-text("Gravar")').first()
-        if (await saveBtn.isVisible().catch(() => false)) {
-          await saveBtn.click()
-          await page.waitForLoadState('networkidle')
-        }
-      }
-    }
+  t('note composer enforces content before submission', async ({ page }) => {
+    if (!await openContactOrAssertEmpty(page)) return
+    const notesTab = page.getByRole('tab', { name: /Notas/i }).or(page.getByRole('button', { name: /Notas/i })).first()
+    await expect(notesTab).toBeVisible()
+    await notesTab.click()
+    const noteTextarea = page.locator('textarea[name="note"], [placeholder*="nota"]').first()
+    await expect(noteTextarea).toBeVisible()
+    const saveBtn = page.getByRole('button', { name: 'Adicionar nota', exact: true })
+    await expect(saveBtn).toBeDisabled()
+    await noteTextarea.fill(`Nota de teste ${Date.now()}`)
+    await expect(saveBtn).toBeEnabled()
   })
 
   t('timeline displays interaction history', async ({ page }) => {
-    const contactItem = page.locator('[class*="Contact"], table tbody tr').first()
-    if (await contactItem.isVisible().catch(() => false)) {
-      await contactItem.click()
-      await page.waitForLoadState('networkidle')
-      const timelineTab = page.locator('button:has-text("Timeline"), [role="tab"]:has-text("Timeline")').first()
-      if (await timelineTab.isVisible().catch(() => false)) {
-        await timelineTab.click()
-        await page.waitForLoadState('networkidle')
-      }
-    }
+    if (!await openContactOrAssertEmpty(page)) return
+    const timelineTab = page.getByRole('tab', { name: /Timeline/i }).or(page.getByRole('button', { name: /Timeline/i })).first()
+    await expect(timelineTab).toBeVisible()
+    await timelineTab.click()
+    await expect(page.getByText(/Nenhuma atividade registrada|atividade|Timeline/i).first()).toBeVisible()
   })
 
   t('can switch between tabs', async ({ page }) => {
-    const contactItem = page.locator('[class*="Contact"], table tbody tr').first()
-    if (await contactItem.isVisible().catch(() => false)) {
-      await contactItem.click()
+    if (!await openContactOrAssertEmpty(page)) return
+    const tabs = page.locator('[role="tab"], button[class*="Tab"]')
+    await expect(tabs.first()).toBeVisible()
+    const tabCount = Math.min(await tabs.count(), 4)
+    expect(tabCount).toBeGreaterThan(0)
+    for (let i = 0; i < tabCount; i++) {
+      await expect(tabs.nth(i)).toBeVisible()
+      await tabs.nth(i).click()
       await page.waitForLoadState('networkidle')
-      const tabs = page.locator('[role="tab"], button[class*="Tab"]')
-      for (let i = 0; i < Math.min(await tabs.count(), 4); i++) {
-        const tab = tabs.nth(i)
-        if (await tab.isVisible().catch(() => false)) {
-          await tab.click()
-          await page.waitForLoadState('networkidle')
-        }
-      }
     }
   })
 })

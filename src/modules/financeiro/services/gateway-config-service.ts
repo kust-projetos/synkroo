@@ -16,7 +16,7 @@ import {
   type GatewayRoutingRuleRow,
 } from '../repositories/financeiro-repository';
 import { assertSingleRoutingScope } from '../repositories/financeiro-repository';
-import { encrypt } from '../lib/crypto';
+import { encryptGatewayCredentials } from '../lib/crypto';
 
 export interface SaveGatewayInput {
   clinicId: string;
@@ -26,6 +26,7 @@ export interface SaveGatewayInput {
   isEnabled: boolean;
   maskedLabel?: string;
   apiKey?: string;
+  webhookToken?: string;
 }
 
 export interface SaveRoutingRuleInput {
@@ -68,7 +69,7 @@ export function toSafeGateway(gateway: PaymentGatewayRow): GatewaySafeResponse {
 }
 
 export async function saveGateway(input: SaveGatewayInput): Promise<GatewaySafeResponse> {
-  const { clinicId, id, provider, isDefault, isEnabled, maskedLabel, apiKey } = input;
+  const { clinicId, id, provider, isDefault, isEnabled, maskedLabel, apiKey, webhookToken } = input;
 
   if (id) {
     const existing = await repoGetGateway(id);
@@ -80,7 +81,7 @@ export async function saveGateway(input: SaveGatewayInput): Promise<GatewaySafeR
 
     if (apiKey) {
       patch.maskedLabel = maskedLabel ?? maskApiKey(apiKey);
-      const encrypted = encrypt(apiKey);
+      const encrypted = encryptGatewayCredentials(apiKey, webhookToken);
       patch.encryptedConfig = { iv: encrypted.iv, data: encrypted.data, tag: encrypted.tag };
     }
 
@@ -91,7 +92,7 @@ export async function saveGateway(input: SaveGatewayInput): Promise<GatewaySafeR
   const safeLabel = maskedLabel ?? (apiKey ? maskApiKey(apiKey) : null);
   let encryptedConfig: Record<string, unknown> | null = null;
   if (apiKey) {
-    const encrypted = encrypt(apiKey);
+    const encrypted = encryptGatewayCredentials(apiKey, webhookToken);
     encryptedConfig = { iv: encrypted.iv, data: encrypted.data, tag: encrypted.tag };
   }
   const record = await repoCreateGateway({

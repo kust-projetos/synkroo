@@ -73,3 +73,29 @@ export function decrypt(payload: EncryptedPayload): string {
   const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
   return decrypted.toString('utf-8');
 }
+
+export interface GatewayCredentials {
+  apiKey: string;
+  webhookToken?: string;
+}
+
+export function encryptGatewayCredentials(apiKey: string, webhookToken?: string): EncryptedPayload {
+  const plaintext = webhookToken ? JSON.stringify({ apiKey, webhookToken }) : apiKey;
+  return encrypt(plaintext);
+}
+
+export function decryptGatewayCredentials(payload: EncryptedPayload): GatewayCredentials {
+  const plaintext = decrypt(payload);
+  try {
+    const parsed = JSON.parse(plaintext) as Partial<GatewayCredentials>;
+    if (typeof parsed.apiKey === 'string') {
+      return {
+        apiKey: parsed.apiKey,
+        webhookToken: typeof parsed.webhookToken === 'string' ? parsed.webhookToken : undefined,
+      };
+    }
+  } catch {
+    // Backward-compatible payload: legacy records encrypt the API key directly.
+  }
+  return { apiKey: plaintext };
+}

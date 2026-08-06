@@ -31,12 +31,9 @@ export function setDbConnectionString(connString: string | null): void {
  *   3. Throw with guidance if both are absent
  */
 function hydrateHyperdriveConnection(): void {
-  if (_hyperdriveConnString) return;
-
   const globalConnection = (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE;
-  if (globalConnection) {
+  if (globalConnection && globalConnection !== _hyperdriveConnString) {
     _hyperdriveConnString = globalConnection;
-    return;
   }
 
   // Cloudflare context is read by instrumentation.ts and injected here. Keeping
@@ -72,7 +69,22 @@ export function getDb() {
   }
   if (_db) return _db;
 
-  _pool = new Pool({ connectionString: connString });
+  _pool = new Pool({
+    connectionString: connString,
+    max: 1,
+    // Force a fresh Hyperdrive socket for each query; reused idle sockets can
+    // be stale after a Workers isolate is suspended.
+    maxUses: 1,
+    // Do not let pg call client.end() from a suspended Workers isolate.
+    // Hyperdrive owns origin pooling; the Worker-side socket must stay open.
+    idleTimeoutMillis: 0,
+    connectionTimeoutMillis: 5_000,
+    allowExitOnIdle: true,
+  });
+  // Workers can suspend isolates between requests; stale idle sockets may emit
+  // asynchronously after the route has returned. Consume pool-level errors so
+  // they do not become uncaught Worker exceptions (1101).
+  _pool.on('error', () => undefined);
   _db = drizzle(_pool, { schema });
   _lastConnString = connString;
   return _db;

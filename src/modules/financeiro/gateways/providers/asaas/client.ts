@@ -18,7 +18,7 @@ import type {
   NormalizedGatewayEvent,
 } from '../../contracts';
 import { registerGatewayProvider } from '../../registry';
-import { decrypt } from '../../../lib/crypto';
+import { decryptGatewayCredentials } from '../../../lib/crypto';
 import { listGateways, getPaymentGateway } from '../../../repositories/financeiro-repository';
 import { normalizeAsaasWebhookEvent } from './webhook';
 
@@ -34,7 +34,7 @@ async function getApiKey(clinicId: string): Promise<string> {
 
   const enc = full.encryptedConfig as { iv: string; data: string; tag: string };
   if (!enc.iv || !enc.data || !enc.tag) throw new Error('Invalid encrypted config');
-  return decrypt(enc);
+  return decryptGatewayCredentials(enc).apiKey;
 }
 
 function reqHeaders(apiKey: string): Record<string, string> {

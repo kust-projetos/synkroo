@@ -14,6 +14,21 @@ async function login(page: Page) {
   ])
 }
 
+async function openConversationOrAssertEmpty(page: Page): Promise<boolean> {
+  const conversation = page.locator('[data-testid="conversation-item"], [class*="conversation"]').first()
+  const emptyState = page.getByText('Selecione uma conversa').first()
+  await expect(conversation.first().or(emptyState)).toBeVisible()
+  if (await conversation.count() === 0) {
+    await expect(emptyState).toBeVisible()
+    return false
+  }
+
+  await expect(conversation).toBeVisible()
+  await conversation.click()
+  await page.waitForLoadState('networkidle')
+  return true
+}
+
 test.describe('Conversations Page', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
@@ -26,16 +41,14 @@ test.describe('Conversations Page', () => {
   })
 
   test('should have conversation list or empty state', async ({ page }) => {
-    await page.waitForSelector('[class*="conversation"], [class*="chat"], button, text=/nenhuma|sem conversas/i', { timeout: 15000 }).catch(() => {})
-    const hasConversations = await page.locator('[class*="conversation"], [class*="chat-item"], [class*="message"]').count() > 0
-    const hasEmptyState = await page.locator('text=/nenhuma|sem conversas|Nenhuma/i').count() > 0
-    const hasButtons = await page.locator('button').count() > 0
-    expect(hasConversations || hasEmptyState || hasButtons).toBeTruthy()
+    const hasConversations = await page.locator('[data-testid="conversation-item"], [class*="conversation-item"]').count() > 0
+    const hasEmptyState = await page.getByText('Selecione uma conversa').count() > 0
+    expect(hasConversations || hasEmptyState).toBe(true)
   })
 
   test('should have filter buttons', async ({ page }) => {
-    const hasFilters = await page.locator('button:has-text("Todas"), button:has-text("WhatsApp"), button:has-text("Ativas")').count() > 0
-    expect(hasFilters).toBeTruthy()
+    await expect(page.getByRole('button', { name: 'Todas', exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'WhatsApp', exact: true })).toBeVisible()
   })
 })
 
@@ -47,54 +60,29 @@ test.describe('Conversation Thread', () => {
   })
 
   test('should open message thread when conversation clicked', async ({ page }) => {
-    const conversation = page.locator('[data-testid="conversation-item"], [class*="conversation"]').first()
-    if (await conversation.count() > 0) {
-      await conversation.click()
-      await page.waitForLoadState('networkidle')
-      await page.waitForSelector('[data-testid="message-thread"], [class*="message"], [class*="chat"]', { timeout: 15000 }).catch(() => {})
-      const hasThread = await page.locator('[data-testid="message-thread"], [class*="message"], [class*="chat"]').count() > 0
-      expect(hasThread).toBeTruthy()
-    }
+    if (!await openConversationOrAssertEmpty(page)) return
+    await expect(page.locator('[data-testid="message-thread"], [class*="message"], [class*="chat"]').first()).toBeVisible()
   })
 
   test('should display message bubbles in thread', async ({ page }) => {
-    const conversation = page.locator('[data-testid="conversation-item"], [class*="conversation"]').first()
-    if (await conversation.count() > 0) {
-      await conversation.click()
-      await page.waitForLoadState('networkidle')
-      await page.waitForSelector('[data-testid="message"], [class*="message"], [class*="bubble"]', { timeout: 15000 }).catch(() => {})
-      const hasMessages = await page.locator('[data-testid="message"], [class*="message"]').count() > 0
-      expect(hasMessages).toBeTruthy()
-    }
+    if (!await openConversationOrAssertEmpty(page)) return
+    await expect(page.locator('[data-testid="message"], [class*="message"], [class*="bubble"]').first()).toBeVisible()
   })
 
   test('should have message input field', async ({ page }) => {
-    const conversation = page.locator('[data-testid="conversation-item"], [class*="conversation"]').first()
-    if (await conversation.count() > 0) {
-      await conversation.click()
-      await page.waitForLoadState('networkidle')
-      const hasInput = await page.locator('input[type="text"], textarea, [data-testid="message-input"]').count() > 0
-      expect(hasInput).toBeTruthy()
-    }
+    if (!await openConversationOrAssertEmpty(page)) return
+    await expect(page.locator('input[type="text"], textarea, [data-testid="message-input"]').first()).toBeVisible()
   })
 
   test('should send message', async ({ page }) => {
-    const conversation = page.locator('[data-testid="conversation-item"], [class*="conversation"]').first()
-    if (await conversation.count() > 0) {
-      await conversation.click()
-      await page.waitForLoadState('networkidle')
-
-      const input = page.locator('input[type="text"], textarea, [data-testid="message-input"]').first()
-      if (await input.count() > 0) {
-        await input.fill('Olá, teste de mensagem')
-        const sendBtn = page.locator('button[type="submit"], button:has-text("Enviar"), [data-testid="send-button"]').first()
-        if (await sendBtn.count() > 0) {
-          await sendBtn.click()
-          await page.waitForTimeout(1000)
-        }
-      }
-    }
-    expect(true).toBeTruthy()
+    if (!await openConversationOrAssertEmpty(page)) return
+    const input = page.locator('input[type="text"], textarea, [data-testid="message-input"]').first()
+    await expect(input).toBeVisible()
+    await input.fill('Olá, teste de mensagem')
+    const sendBtn = page.locator('button[type="submit"], button:has-text("Enviar"), [data-testid="send-button"]').first()
+    await expect(sendBtn).toBeVisible()
+    await sendBtn.click()
+    await expect(page.locator('[data-testid="message"], [class*="message"]').last()).toContainText('Olá, teste de mensagem')
   })
 })
 
@@ -107,15 +95,14 @@ test.describe('Campaign List', () => {
 
   test('should display campaign list or empty state', async ({ page }) => {
     await expect(page.locator('h1, h2')).toContainText(/campanha/i)
-    await page.waitForSelector('table, [data-testid*="campaign"], [class*="campaign"]', { timeout: 15000 }).catch(() => {})
-    const hasList = await page.locator('table').count() > 0
-    const hasEmpty = await page.locator('text=/sem|nenhum|vazio/i').count() > 0
-    expect(hasList || hasEmpty).toBeTruthy()
+    const hasList = await page.locator('table, [data-testid*="campaign"], [class*="campaign"]').count() > 0
+    const hasEmpty = await page.getByText(/sem|nenhum|vazio/i).count() > 0
+    expect(hasList || hasEmpty).toBe(true)
   })
 
   test('should show campaign status or empty state', async ({ page }) => {
-    const hasStatus = await page.locator('text=/ativa|pausada|concluíd/i').count() > 0
-    const hasEmpty = await page.locator('text=/sem|nenhum|vazio/i').count() > 0
-    expect(hasStatus || hasEmpty).toBeTruthy()
+    const hasStatus = await page.getByText(/ativa|pausada|concluíd/i).count() > 0
+    const hasEmpty = await page.getByText(/sem|nenhum|vazio/i).count() > 0
+    expect(hasStatus || hasEmpty).toBe(true)
   })
 })

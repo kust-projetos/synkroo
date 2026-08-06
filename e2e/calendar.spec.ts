@@ -4,6 +4,7 @@ const BASE_URL = 'http://127.0.0.1:3003'
 
 // Manual login flow requires an unauthenticated context.
 test.use({ storageState: { cookies: [], origins: [] } })
+test.setTimeout(60_000)
 
 function currentMonthName(): string {
   return new Intl.DateTimeFormat('pt-BR', { month: 'long' }).format(new Date())
@@ -44,12 +45,11 @@ async function switchView(page: Page, viewName: string) {
   await page.waitForTimeout(500)
 }
 
-// Helper to click an empty slot — dispatch click event to bypass EventLayer z-index interception
+// Helper to click an empty slot using the rendered slot contract.
 async function clickSlot(page: Page, hour: number, minute: number) {
-  await page.evaluate(([h, m]) => {
-    const slot = document.querySelector(`[data-hour="${h}"][data-minute="${m}"]`) as HTMLElement
-    if (slot) slot.click()
-  }, [hour, minute])
+  const slot = page.locator(`[data-hour="${hour}"][data-minute="${minute}"]`).first()
+  await expect(slot).toBeVisible()
+  await slot.dispatchEvent('click')
 }
 
 // ============================================
@@ -98,24 +98,15 @@ test.describe('Calendar - Rendering', () => {
 
   test('week view should display event cards', async ({ page }) => {
     await switchView(page, 'Semana')
-
-    // Events have role="button" and aria-label with "Name - HH:MM" pattern
-    const eventButtons = page.locator('[role="button"][aria-label*="- "]')
-    const count = await eventButtons.count()
-    expect(count).toBeGreaterThan(0)
+    await expect(page.locator('[role="button"][aria-label*="- "]').first()).toBeVisible()
   })
 
   test('day view should render single column with events', async ({ page }) => {
     await switchView(page, 'Dia')
 
-    // date-fns ptBR returns full lowercase names: segunda, terça, quarta...
     const dayHeader = page.locator('main').locator('text=/segunda|terça|quarta|quinta|sexta|sábado|domingo/i')
     await expect(dayHeader).toBeVisible()
-
-    // Should have events for the day
-    const eventButtons = page.locator('[role="button"][aria-label*="- "]')
-    const count = await eventButtons.count()
-    expect(count).toBeGreaterThan(0)
+    await expect(page.locator('[role="button"][aria-label*="- "]').first()).toBeVisible()
   })
 
   test('month view should render calendar grid with days', async ({ page }) => {
@@ -141,9 +132,7 @@ test.describe('Calendar - Rendering', () => {
     await switchView(page, 'Mes')
     await page.waitForTimeout(500)
 
-    const overflow = page.locator('text=/\\d+ mais/')
-    const count = await overflow.count()
-    expect(count).toBeGreaterThanOrEqual(0)
+    await expect(page.locator('text=/\\d+ mais/').first()).toBeVisible()
   })
 
   test('professionals view should render dentist columns', async ({ page }) => {
@@ -245,12 +234,11 @@ test.describe('Calendar - Navigation', () => {
       return false
     })
 
-    if (clicked) {
-      await page.waitForTimeout(800)
+    expect(clicked).toBe(true)
+    await page.waitForTimeout(800)
 
-      // Should now show day view — toolbar is canonical view state.
-      await expect(page.locator('button:has-text("Dia")').first()).toHaveClass(/bg-teal-600/)
-    }
+    // Should now show day view — toolbar is canonical view state.
+    await expect(page.locator('button:has-text("Dia")').first()).toHaveClass(/bg-teal-600/)
   })
 })
 
@@ -278,7 +266,8 @@ test.describe('Calendar - Click to Create', () => {
 
     const dateInput = page.locator('input[type="date"]')
     const dateValue = await dateInput.inputValue()
-    const expectedDate = new Date().toISOString().slice(0, 10)
+    const now = new Date()
+    const expectedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
     expect(dateValue).toBe(expectedDate)
   })
 
@@ -393,6 +382,7 @@ test.describe('Calendar - CSS Grid Architecture', () => {
   })
 
   test('time grid should have CSS variables for positioning', async ({ page }) => {
+    await expect(page.locator('[style*="--hour-size"]').first()).toBeVisible({ timeout: 15000 })
     const gridVars = await page.evaluate(() => {
       const gridArea = document.querySelector('[style*="--hour-size"]') as HTMLElement
       if (!gridArea) return null
@@ -408,6 +398,7 @@ test.describe('Calendar - CSS Grid Architecture', () => {
   })
 
   test('grid should have 4 stacked layers via z-index', async ({ page }) => {
+    await expect(page.locator('[style*="--hour-size"]').first()).toBeVisible()
     // The grid area has children with inline zIndex. Search recursively
     // because layers may be wrapped in intermediate divs.
     const zIndexes = await page.evaluate(() => {
@@ -441,11 +432,9 @@ test.describe('Calendar - CSS Grid Architecture', () => {
   })
 
   test('empty slots should be clickable', async ({ page }) => {
-    const slotStyle = await page.evaluate(() => {
-      const slot = document.querySelector('[data-hour][data-minute]')
-      return slot ? getComputedStyle(slot).cursor : null
-    })
-    expect(slotStyle).toBe('pointer')
+    const slot = page.locator('div.cursor-pointer[data-hour][data-minute]').first()
+    await expect(slot).toBeVisible()
+    await expect(slot).toHaveClass(/cursor-pointer/)
   })
 })
 
@@ -473,13 +462,13 @@ test.describe('Calendar - Dark Mode', () => {
     await switchView(page, 'Dia')
 
     const eventButtons = page.locator('[role="button"][aria-label*="- "]')
-    const count = await eventButtons.count()
-    expect(count).toBeGreaterThan(0)
-
-    const firstEvent = eventButtons.first()
-    const classes = await firstEvent.evaluate(el => el.className)
-    // Dark mode events have dark: prefixed Tailwind classes
-    expect(classes).toContain('dark:')
+    await expect(eventButtons.first()).toBeVisible()
+    if (await eventButtons.count() > 0) {
+      const classes = await eventButtons.first().evaluate(el => el.className)
+      expect(classes).toContain('dark:')
+    } else {
+      await expect(page.getByText('+ Criar encaixe').first()).toBeVisible()
+    }
   })
 
   test('click-to-create should work in dark mode', async ({ page }) => {

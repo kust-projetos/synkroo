@@ -2,7 +2,12 @@
  * Tests: Financeiro crypto helpers (AES-256-GCM).
  */
 
-import { encrypt, decrypt } from '../crypto';
+import {
+  decrypt,
+  decryptGatewayCredentials,
+  encrypt,
+  encryptGatewayCredentials,
+} from '../crypto';
 
 // ENCRYPTION_KEY must be set in jest.setup.ts
 
@@ -33,6 +38,20 @@ describe('encrypt / decrypt', () => {
     // Tamper with the ciphertext
     const tampered = { ...encrypted, data: 'deadbeef' };
     expect(() => decrypt(tampered)).toThrow();
+  });
+
+  test('round-trips API and webhook credentials', () => {
+    const encrypted = encryptGatewayCredentials('api-key', 'webhook-token');
+    expect(decryptGatewayCredentials(encrypted)).toEqual({
+      apiKey: 'api-key',
+      webhookToken: 'webhook-token',
+    });
+  });
+
+  test('reads legacy API-key-only credentials', () => {
+    expect(decryptGatewayCredentials(encrypt('legacy-api-key'))).toEqual({
+      apiKey: 'legacy-api-key',
+    });
   });
 
   test('throws without ENCRYPTION_KEY', () => {

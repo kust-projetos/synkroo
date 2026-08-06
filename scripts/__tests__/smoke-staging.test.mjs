@@ -49,6 +49,30 @@ test('runs the complete privacy-safe staging contract with authenticated checks'
     { name: 'assets', status: 'pass' },
   ]);
   assert.equal(requests.filter(({ init }) => init.headers?.cookie === 'session=synthetic').length, 4);
+  const protectedPaths = new Set(['/api/appointments', '/dashboard', '/api/internal/readiness']);
+  for (const request of requests.filter(({ url }) => protectedPaths.has(new URL(url).pathname))) {
+    assert.equal(request.init.redirect, 'manual');
+  }
+});
+
+test('serializes staging checks to avoid cold-start database races', async () => {
+  let active = 0;
+  let maxActive = 0;
+  const fetchImpl = async (url) => {
+    active += 1;
+    maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active -= 1;
+    const path = new URL(url).pathname;
+    const status = path === '/api/health' || path === '/widget.js' ? 200
+      : path === '/api/messages/inbound' ? 403
+        : path === '/api/appointments' || path === '/api/internal/readiness' || path === '/dashboard' ? 307
+          : 200;
+    return new Response('{}', { status });
+  };
+
+  await runSmoke('https://staging.example.test', { fetchImpl });
+  assert.equal(maxActive, 1);
 });
 
 test('blocks authenticated staging checks when synthetic credentials are absent', async () => {

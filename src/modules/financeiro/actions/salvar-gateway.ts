@@ -16,6 +16,7 @@ export const salvarGateway = defineAction({
     isEnabled: z.boolean().default(true),
     maskedLabel: z.string().optional(),
     apiKey: z.string().optional(),
+    webhookToken: z.string().optional(),
   }),
   handler: async (input, _ctx: ActionContext) => {
     const safe = await saveGateway(input);

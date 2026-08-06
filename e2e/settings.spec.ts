@@ -14,6 +14,10 @@ async function login(page: Page) {
   ])
 }
 
+async function expectSettingsContent(page: Page) {
+  await expect(page.locator('form, [class*="card"], input, button').first()).toBeVisible()
+}
+
 test.describe('Settings Page', () => {
   test.beforeEach(async ({ page }) => {
     await login(page)
@@ -26,9 +30,7 @@ test.describe('Settings Page', () => {
   })
 
   test('should have settings navigation', async ({ page }) => {
-    await page.waitForSelector('nav, [role="navigation"], [role="tablist"], aside', { timeout: 15000 }).catch(() => {})
-    const hasNav = await page.locator('nav, [role="navigation"], [role="tablist"], aside').count() > 0
-    expect(hasNav).toBeTruthy()
+    await expect(page.locator('nav, [role="navigation"], [role="tablist"], aside').first()).toBeVisible()
   })
 })
 
@@ -44,9 +46,7 @@ test.describe('Clinic Settings', () => {
   })
 
   test('should have settings form or cards', async ({ page }) => {
-    await page.waitForSelector('form, [class*="card"], input, button', { timeout: 15000 }).catch(() => {})
-    const hasContent = await page.locator('form, [class*="card"], input, button').count() > 0
-    expect(hasContent).toBeTruthy()
+    await expectSettingsContent(page)
   })
 })
 
@@ -62,8 +62,6 @@ test.describe('Reminder Settings', () => {
   })
 
   test('should have notification settings', async ({ page }) => {
-    await page.waitForSelector('form, input, button, [class*="switch"]', { timeout: 15000 }).catch(() => {})
-    const hasContent = await page.locator('form, input, button, [class*="switch"]').count() > 0
-    expect(hasContent).toBeTruthy()
+    await expect(page.locator('form, input, button, [class*="switch"]').first()).toBeVisible()
   })
 })

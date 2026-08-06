@@ -47,6 +47,7 @@ async function check(baseUrl, name, path, { fetchImpl, expected, ...init } = {})
   try {
     const response = await fetchImpl(new URL(path, baseUrl), {
       ...init,
+      redirect: 'manual',
       signal: AbortSignal.timeout(10_000),
     });
     return {
@@ -67,43 +68,45 @@ export async function runSmoke(baseUrl, options = {}) {
   const authHeaders = authCookie ? { cookie: authCookie } : undefined;
   const hasSyntheticAuth = Boolean(authCookie && clinicId);
   const checks = [
-    check(baseUrl, 'liveness', paths.liveness, { fetchImpl, expected: isSuccess }),
-    check(baseUrl, 'invalid-auth', paths.appointments, { fetchImpl, expected: isUnauthorized }),
+    () => check(baseUrl, 'liveness', paths.liveness, { fetchImpl, expected: isSuccess }),
+    () => check(baseUrl, 'invalid-auth', paths.appointments, { fetchImpl, expected: isUnauthorized }),
     hasSyntheticAuth
-      ? check(baseUrl, 'valid-auth', paths.session, { fetchImpl, expected: isSuccess, headers: authHeaders })
-      : blocked('valid-auth'),
+      ? () => check(baseUrl, 'valid-auth', paths.session, { fetchImpl, expected: isSuccess, headers: authHeaders })
+      : () => blocked('valid-auth'),
     hasSyntheticAuth
-      ? check(baseUrl, 'session', paths.session, { fetchImpl, expected: isSuccess, headers: authHeaders })
-      : blocked('session'),
+      ? () => check(baseUrl, 'session', paths.session, { fetchImpl, expected: isSuccess, headers: authHeaders })
+      : () => blocked('session'),
     hasSyntheticAuth
-      ? check(baseUrl, 'switch-clinic', paths.switchClinic, {
+      ? () => check(baseUrl, 'switch-clinic', paths.switchClinic, {
         fetchImpl,
         expected: isSuccess,
         method: 'POST',
         headers: { ...authHeaders, 'content-type': 'application/json' },
         body: JSON.stringify({ clinicId }),
       })
-      : blocked('switch-clinic'),
-    check(baseUrl, 'route-protection', paths.protectedRoute, { fetchImpl, expected: isUnauthorized }),
+      : () => blocked('switch-clinic'),
+    () => check(baseUrl, 'route-protection', paths.protectedRoute, { fetchImpl, expected: isUnauthorized }),
     hasSyntheticAuth
-      ? check(baseUrl, 'agenda-tenant-scope', paths.appointments, {
+      ? () => check(baseUrl, 'agenda-tenant-scope', paths.appointments, {
         fetchImpl,
         expected: isSuccess,
         headers: authHeaders,
       })
-      : blocked('agenda-tenant-scope'),
-    check(baseUrl, 'invalid-webhook', paths.invalidWebhook, {
+      : () => blocked('agenda-tenant-scope'),
+    () => check(baseUrl, 'invalid-webhook', paths.invalidWebhook, {
       fetchImpl,
       expected: (status) => status === 400 || status === 403,
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: '{}',
     }),
-    check(baseUrl, 'protected-readiness', paths.readiness, { fetchImpl, expected: isUnauthorized }),
-    check(baseUrl, 'assets', paths.assets, { fetchImpl, expected: isSuccess }),
+    () => check(baseUrl, 'protected-readiness', paths.readiness, { fetchImpl, expected: isUnauthorized }),
+    () => check(baseUrl, 'assets', paths.assets, { fetchImpl, expected: isSuccess }),
   ];
 
-  return (await Promise.all(checks)).map(redactSmokeOutput);
+  const results = [];
+  for (const runCheck of checks) results.push(await runCheck());
+  return results.map(redactSmokeOutput);
 }
 
 if (isCliInvocation(import.meta.url, process.argv[1])) {
