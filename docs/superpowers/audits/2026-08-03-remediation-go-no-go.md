@@ -2,7 +2,7 @@
 
 **Decision:** NO-GO
 **Evidence date:** 2026-08-05
-**Candidate:** working tree after `ab851782`
+**Candidate:** commit `f09ad7eb`
 
 ## Evidence matrix
 
