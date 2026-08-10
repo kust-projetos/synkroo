@@ -168,4 +168,34 @@ describe('Evolution webhook authentication', () => {
     expect(response.status).toBe(403);
     expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
   });
+  it('rejects messages.upsert without a provider message ID', async () => {
+    const response = await POST(makeRequest(
+      'http://localhost/api/whatsapp/evolution?token=test-evolution-secret',
+      {},
+      { event: 'messages.upsert', instance: 'ted', data: { key: { remoteJid: '5511999999999@s.whatsapp.net' } } },
+    ));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Missing provider event ID' });
+    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
+  });
+
+  it('rejects Evolution Go callbacks without Info.ID', async () => {
+    const response = await POST(makeRequest(
+      'http://localhost/api/whatsapp/evolution?token=test-evolution-secret',
+      {},
+      {
+        event: 'Message',
+        instanceName: 'ted',
+        data: {
+          Info: { Chat: '5511999999999@s.whatsapp.net' },
+          Message: { Conversation: 'Oi' },
+        },
+      },
+    ));
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({ error: 'Missing provider event ID' });
+    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
+  });
 });

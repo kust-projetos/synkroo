@@ -51,8 +51,14 @@ async function handlePOST(request: NextRequest) {
     : body.data as Record<string, unknown> | undefined;
 
   const normalizedKey = data?.key as Record<string, unknown> | undefined;
-  if (!data || (event !== 'messages.upsert' && !isEvolutionGoMessage) || !normalizedKey?.remoteJid) {
+  if (event !== 'messages.upsert' && !isEvolutionGoMessage) {
     return NextResponse.json({ status: 'ignored', event });
+  }
+  if (!data || !normalizedKey?.remoteJid) {
+    return NextResponse.json({ error: 'Invalid Evolution message payload' }, { status: 400 });
+  }
+  if (typeof normalizedKey.id !== 'string' || normalizedKey.id.trim() === '') {
+    return NextResponse.json({ error: 'Missing provider event ID' }, { status: 400 });
   }
 
 
