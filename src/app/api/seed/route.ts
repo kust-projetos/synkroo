@@ -445,11 +445,6 @@ export async function GET(request: NextRequest) {
     null, null, null,
   ]
 
-  const timeSlots: string[] = []
-  for (let h = 8; h <= 17; h++) {
-    timeSlots.push(`${String(h).padStart(2, '0')}:00`)
-    if (h < 18) timeSlots.push(`${String(h).padStart(2, '0')}:30`)
-  }
 
   results.appointments = { ok: 0, err: 0, errors: [] }
   const dayOffsets = [-3, -2, -1, 0, 0, 0, 0, 0, 1, 1, 2, 2, 3, 4, 5, 6, 7]
@@ -460,8 +455,9 @@ export async function GET(request: NextRequest) {
 
     for (const dentistId of dentistIds) {
       const countThisDay = 2 + randomInt(0, 2)
-      const shuffled = [...timeSlots].sort(() => seededRandom() - 0.5)
-      const dayTimeSlots = shuffled.slice(0, Math.min(countThisDay, shuffled.length))
+      // Keep deterministic seed appointments non-overlapping even for 120-minute procedures.
+      const seedAppointmentTimes = ['08:00', '10:00', '13:00', '15:00']
+      const dayTimeSlots = seedAppointmentTimes.slice(0, countThisDay)
 
       for (const time of dayTimeSlots) {
         const key = slotKey(dentistId, dayOffset, time)
