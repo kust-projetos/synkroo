@@ -2,8 +2,7 @@
  * Instagram webhook processor action.
  *
  * Bridges to the existing Instagram DM processing logic.
- * Preserves current behavior: 24h window check, message storage,
- * conversation management. AI processing deferred to W5.3.
+ * Preserves current behavior: 24h window check, message storage, conversation management.
  */
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';

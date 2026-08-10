@@ -9,7 +9,14 @@ const prefix = `dispatcher-integration:${process.pid}:${Date.now()}`;
 let pool: Pool;
 
 describeIntegration('operation-routed outbox worker against PostgreSQL', () => {
-  beforeAll(() => { pool = new Pool({ connectionString: process.env.DATABASE_URL }); });
+  beforeAll(async () => {
+    pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    await pool.query(`
+      INSERT INTO clinics (id, name, slug, phone, email, subscription_plan, subscription_status)
+      VALUES ($1, 'Outbox Integration Clinic', 'outbox-integration-clinic', '+5500000000001', 'outbox@test.local', 'starter', 'active')
+      ON CONFLICT (id) DO NOTHING
+    `, [clinicId]);
+  });
   afterEach(async () => { await pool.query('DELETE FROM outbox_jobs WHERE business_key LIKE $1', [`${prefix}%`]); });
   afterAll(async () => { await pool.end(); await closeDb(); });
 

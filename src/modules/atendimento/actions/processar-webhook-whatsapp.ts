@@ -1,9 +1,9 @@
 /**
  * WhatsApp webhook processor action.
  *
- * Bridges to the existing legacy webhook handlers for Meta Business API and Evolution API.
+ * Bridges to the current webhook handlers for Meta Business API and Evolution API.
  * Preserves current behavior: message storage, confirmation processing, waitlist processing,
- * and lead capture. Does NOT reconnect the AI agent (deferred to W5.3).
+ * lead capture, and AI routing where the channel processor supports it.
  *
  * Route-level concerns (HMAC signature, rate limiting, dedup) stay in the route file.
  */

@@ -2,7 +2,7 @@
  * GET /api/appointments/availability
  *
  * Returns available time slots for a dentist on a given date.
- * Replaces legacy stub (TODO W5.3) with operacional action adapter.
+ * Replaces the previous legacy stub with the operational action adapter.
  * No direct DB access in this file.
  */
 

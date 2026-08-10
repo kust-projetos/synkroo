@@ -26,6 +26,8 @@ export interface Campaign {
 		| "running"
 		| "paused"
 		| "completed"
+		| "failed"
+		| "partial"
 		| "cancelled";
 	scheduledAt?: Date;
 	startedAt?: Date;

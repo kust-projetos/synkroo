@@ -376,3 +376,40 @@ describeOrSkip('Atendimento — conversation actions (F3)', () => {
     expect(data.entities.hora).toBe('10:00');
   });
 });
+
+describeOrSkip('Evolution tenancy isolation', () => {
+  const OTHER_CLINIC_ID = '00000000-0000-0000-0000-00000000a009';
+  const ENABLED_INSTANCE = 'evolution-enabled-e01';
+  const DISABLED_INSTANCE = 'evolution-disabled-e01';
+  const OTHER_INSTANCE = 'evolution-other-e01';
+
+  it('fails closed for unknown and disabled instances and preserves the installation owner', async () => {
+    await pool!.query(
+      `INSERT INTO clinics (id, name, slug, phone, email, subscription_plan, subscription_status)
+       VALUES ($1, 'Other Clinic E01', 'test-clinic-other-e01', '+5500000000009', 'other-e01@test.local', 'starter', 'active')
+       ON CONFLICT (id) DO NOTHING`,
+      [OTHER_CLINIC_ID],
+    );
+    await pool!.query(
+      `INSERT INTO channel_installations (clinic_id, provider, installation_id, secret_hash, enabled)
+       VALUES
+         ($1, 'evolution', $2, repeat('a', 64), true),
+         ($1, 'evolution', $3, repeat('b', 64), false),
+         ($4, 'evolution', $5, repeat('c', 64), true)
+       ON CONFLICT (installation_id) DO UPDATE SET enabled = EXCLUDED.enabled, clinic_id = EXCLUDED.clinic_id`,
+      [CLINIC_ID, ENABLED_INSTANCE, DISABLED_INSTANCE, OTHER_CLINIC_ID, OTHER_INSTANCE],
+    );
+
+    const repo = await import('../../repositories/conversations-repository');
+    await expect(repo.getClinicByInstance('unknown-e01')).resolves.toBeNull();
+    await expect(repo.getClinicByInstance(DISABLED_INSTANCE)).resolves.toBeNull();
+    await expect(repo.getClinicByInstance(ENABLED_INSTANCE)).resolves.toBe(CLINIC_ID);
+    await expect(repo.getClinicByInstance(OTHER_INSTANCE)).resolves.toBe(OTHER_CLINIC_ID);
+
+    await pool!.query(
+      `DELETE FROM channel_installations WHERE installation_id IN ($1, $2, $3)`,
+      [ENABLED_INSTANCE, DISABLED_INSTANCE, OTHER_INSTANCE],
+    );
+    await pool!.query(`DELETE FROM clinics WHERE id = $1`, [OTHER_CLINIC_ID]);
+  });
+});

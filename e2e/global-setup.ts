@@ -1,6 +1,7 @@
 import { chromium, type FullConfig } from '@playwright/test'
 import { loadEnvConfig } from '@next/env'
 import { testCredentials } from './fixtures/test-data'
+import { assertSeedPayload, type SeedPayload } from './seed-validation'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -18,10 +19,14 @@ export default async function globalSetup(_config: FullConfig) {
     const seedResponse = await page.request.get(`${BASE_URL}/api/seed?secret=${encodeURIComponent(seedSecret)}`, {
       timeout: 120_000,
     })
-    if (!seedResponse.ok()) {
-      const body = (await seedResponse.text()).slice(0, 300).replace(/\s+/g, ' ')
-      throw new Error(`E2E fixture seed failed: status=${seedResponse.status()}; body=${body}`)
+    const seedBody = await seedResponse.text()
+    let seedPayload: SeedPayload
+    try {
+      seedPayload = JSON.parse(seedBody) as SeedPayload
+    } catch {
+      throw new Error(`E2E fixture seed returned invalid JSON: status=${seedResponse.status()}; body=${seedBody.slice(0, 300).replace(/\s+/g, ' ')}`)
     }
+    assertSeedPayload(seedResponse.status(), seedPayload, seedBody)
     const loginResponse = await page.goto(`${BASE_URL}/login`)
     if (!loginResponse || !loginResponse.ok()) throw new Error(`E2E setup login page failed: ${loginResponse?.status()}`)
     const csrfResponse = await page.request.get(`${BASE_URL}/api/auth/csrf`)

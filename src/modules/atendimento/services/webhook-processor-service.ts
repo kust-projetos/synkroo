@@ -2,8 +2,7 @@
  * Webhook processor service.
  *
  * Bridges Meta Business API and Evolution API webhook processing.
- * Preserves existing behavior: message storage, confirmation handling, waitlist, lead capture.
- * AI processing disabled — deferred to W5.3.
+ * Preserves existing behavior: message storage, confirmation handling, waitlist, lead capture, and agent routing.
  *
  * All DB access delegated to conversations-repository; no direct getDb() usage.
  */
@@ -73,6 +72,7 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
   const messageId = key.id as string;
   const storeResult = await repo.appendInboundMessageDeduped({
     conversationId: conv.id,
+    externalProvider: 'evolution',
     content,
     externalMessageId: messageId,
     messageType: messageType as string,
@@ -188,6 +188,7 @@ async function storeAndProcessMetaMessage(
   // Store message with dedup by externalMessageId (msg.id from Meta)
   const storeResult = await repo.appendInboundMessageDeduped({
     conversationId: conv.id,
+    externalProvider: 'meta',
     content,
     externalMessageId: msgId,
     messageType: msgType,
@@ -343,6 +344,7 @@ export async function processInstagramEntry(entry: Record<string, unknown>): Pro
 
     const storeResult = await repo.appendInboundMessageDeduped({
       conversationId: conv.id,
+      externalProvider: 'instagram',
       content,
       externalMessageId: instagramMsgId,
       messageType: msgType,

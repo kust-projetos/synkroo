@@ -64,24 +64,34 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/knowledge
- * Create knowledge entry.
- * Legacy RAG service removed — returns 501.
- * TODO(W5.3): reconnect knowledge ingestion to new retrieval backend.
+ * Create a tenant-scoped knowledge entry. Embeddings are optional and can be generated asynchronously.
  */
 export async function POST(request: NextRequest) {
   try {
     const auth = await validateApiAuth()
     if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
-    return NextResponse.json(
-      {
-        success: false,
-        disabled: true,
-        reason: 'legacy_rag_removed',
-        todo: 'TODO(W5.3): reconnect knowledge ingestion to new retrieval backend',
-      },
-      { status: 501 }
-    )
+    const body = await request.json() as Record<string, unknown>
+    const category = typeof body.category === 'string' ? body.category.trim() : ''
+    const question = typeof body.question === 'string' ? body.question.trim() : ''
+    const answer = typeof body.answer === 'string' ? body.answer.trim() : ''
+    if (!category || !question || !answer) {
+      return NextResponse.json({ error: 'category, question and answer are required' }, { status: 400 })
+    }
+
+    const keywords = Array.isArray(body.keywords)
+      ? body.keywords.filter((keyword): keyword is string => typeof keyword === 'string')
+      : []
+    const [row] = await getDb().insert(KB).values({
+      clinicId: auth.profile!.clinic_id,
+      category,
+      question,
+      answer,
+      keywords,
+      isActive: true,
+    }).returning()
+
+    return NextResponse.json({ data: toSnake(row) }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }

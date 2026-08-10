@@ -272,10 +272,25 @@ export async function updateCampaignCounts(id: string): Promise<void> {
     .from(campaignRecipients)
     .where(and(eq(campaignRecipients.campaignId, id), sql`converted_at IS NOT NULL`))
 
+  const [totalCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignRecipients)
+    .where(eq(campaignRecipients.campaignId, id))
+
+  const [failedCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignRecipients)
+    .where(and(eq(campaignRecipients.campaignId, id), eq(campaignRecipients.status, 'failed')))
+
   const [pendingCountRow] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(campaignRecipients)
     .where(and(eq(campaignRecipients.campaignId, id), eq(campaignRecipients.status, 'pending')))
+
+  const total = totalCountRow?.count ?? 0
+  const failed = failedCountRow?.count ?? 0
+  const pending = pendingCountRow?.count ?? 0
+  const terminalStatus = failed === total && total > 0 ? 'failed' : failed > 0 ? 'partial' : 'completed'
 
   await db
     .update(campaigns)
@@ -283,7 +298,7 @@ export async function updateCampaignCounts(id: string): Promise<void> {
       sentCount: sentCountRow?.count ?? 0,
       responseCount: responseCountRow?.count ?? 0,
       conversionCount: conversionCountRow?.count ?? 0,
-      ...(pendingCountRow?.count === 0 ? { status: 'completed', completedAt: new Date() } : {}),
+      ...(pending === 0 ? { status: terminalStatus, completedAt: new Date() } : {}),
       updatedAt: new Date(),
     })
     .where(and(eq(campaigns.id, id), eq(campaigns.status, 'running')))

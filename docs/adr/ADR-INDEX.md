@@ -1,7 +1,7 @@
 # ADR Index — Synkroo Foundations
 
-**Última atualização:** 2026-07-29  
-**Verificação:** lint/tsc ✅ | tests: 201 suites / 1465 pass ✅ | coverage: 53% (meta 80%)
+**Última atualização:** 2026-08-10
+**Verificação:** remediation gates ✅ | outbox scheduled consumer ✅ | production audit high/critical ✅
 
 | ID | Decisão | Status | Gap |
 |---|---|---|---|
@@ -17,7 +17,7 @@
 | [ADR-BASE-10](ADR-BASE-10-api-contracts.md) | API camelCase com `{ data, meta? }` | ✅ Implementado | Migração gradual de rotas |
 | [ADR-BASE-11](ADR-BASE-11-onboarding-gerenciado.md) | Onboarding gerenciado | ✅ Implementado | Nenhum |
 | [ADR-BASE-12](ADR-BASE-12-audit-allowlist.md) | Audit allowlist (LGPD) | ✅ Implementado | allowedAuditFields nas ações existentes |
-| [ADR-BASE-13](ADR-BASE-13-cloudflare-queues.md) | Cloudflare Queues para jobs | 🟡 Em progresso | Consumer Worker + migration de cron |
+| [ADR-BASE-13](ADR-BASE-13-cloudflare-queues.md) | Outbox de jobs com consumer Cron Cloudflare | ✅ Implementado | Cloudflare Queue nativa é alternativa futura |
 | [ADR-BASE-14](ADR-BASE-14-sem-master.md) | Sem Master permanente no banco | 🔴 Decisão pendente | Remover isMaster, usar master:* |
 
 ## Gates
