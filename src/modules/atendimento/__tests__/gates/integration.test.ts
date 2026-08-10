@@ -26,12 +26,16 @@ import { Pool } from 'pg';
 import { withModuleRoute } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
 import { hashChannelSecret } from '@/modules/atendimento/integrations/resolve-channel-installation';
+jest.mock('@/core/ia-channel/webhook-router', () => ({
+  routeInboundToAgent: jest.fn().mockResolvedValue({ from: 'integration', action: 'agent_replied' }),
+}));
 const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 const describeOrSkip = SKIP ? describe.skip : describe;
 
 const VALID_SECRET = process.env.WEBHOOK_SECRET!;
 const CLINIC_ID = '00000000-0000-0000-0000-00000000a001';
 const EVOLUTION_INSTANCE = 'test';
+const P3_EVOLUTION_INSTANCE = 'p3-evolution';
 
 // ─── Pool for DB-dependent tests ──────────────────────────────────────────────
 
@@ -342,6 +346,12 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [P3_CLINIC_ID],
   );
+  await pool!.query(
+    `INSERT INTO channel_installations (clinic_id, provider, installation_id, secret_hash, enabled)
+     VALUES ($1, 'evolution', $2, $3, true)
+     ON CONFLICT (installation_id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, provider = EXCLUDED.provider, secret_hash = EXCLUDED.secret_hash, enabled = true`,
+    [P3_CLINIC_ID, P3_EVOLUTION_INSTANCE, hashChannelSecret(VALID_SECRET)],
+  );
 }, 60_000);
 
 afterAll(async () => {
@@ -349,7 +359,8 @@ afterAll(async () => {
   try {
     await pool.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [P3_CLINIC_ID]);
     await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [P3_CLINIC_ID]);
-    await pool.query(`DELETE FROM clinics WHERE id = $1`, [P3_CLINIC_ID]);
+    await pool!.query(`DELETE FROM channel_installations WHERE installation_id = $1`, [P3_EVOLUTION_INSTANCE]);
+    await pool!.query(`DELETE FROM clinics WHERE id = $1`, [P3_CLINIC_ID]);
   } catch { /* ignore */ }
 });
 
@@ -455,8 +466,8 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
       body: JSON.stringify({ event: 'messages.upsert', instance: EVOLUTION_INSTANCE, data: {} }),
     });
     const res = await POST(req);
-    // Gate + auth pass → processor returns [] (no key.remoteJid) → route returns 200
-    expect(res.status).toBe(200);
+    // Authenticated installation with no provider key is rejected before processing.
+    expect(res.status).toBe(400);
   });
 
   // ── Handshake GET revalidate ─────────────────────────────────
@@ -515,5 +526,34 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     );
     expect(msgRows.length).toBe(1);
     expect(msgRows[0].content).toBe('Hello world');
+  });
+  it('duplicate Evolution delivery persists one inbound message in PostgreSQL', async () => {
+    await pool!.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [P3_CLINIC_ID]);
+    await pool!.query(`DELETE FROM conversations WHERE clinic_id = $1`, [P3_CLINIC_ID]);
+    const { POST } = await import('@/app/api/whatsapp/evolution/route');
+    const payload = {
+      event: 'messages.upsert',
+      instance: P3_EVOLUTION_INSTANCE,
+      data: {
+        key: { id: 'evolution-duplicate-001', remoteJid: '5511999990001@s.whatsapp.net', fromMe: false },
+        message: { conversation: 'Mensagem duplicada de teste' },
+      },
+    };
+    const makeRequest = () => new NextRequest('http://localhost/api/whatsapp/evolution', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Webhook-Secret': VALID_SECRET },
+      body: JSON.stringify(payload),
+    });
+
+    const first = await POST(makeRequest());
+    const second = await POST(makeRequest());
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+
+    const { rows } = await pool!.query(
+      `SELECT count(*)::int AS count FROM messages WHERE metadata->>'whatsapp_message_id' = $1`,
+      ['evolution-duplicate-001'],
+    );
+    expect(rows[0].count).toBe(1);
   });
 });
