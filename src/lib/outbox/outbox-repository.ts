@@ -1,4 +1,4 @@
-import { and, eq, lte, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, lte, or, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { outboxJobs } from '@/lib/db/schema';
 
@@ -19,18 +19,22 @@ export async function enqueueOutbox(db: any, job: OutboxInsert): Promise<OutboxJ
 
 const OUTBOX_LEASE_MS = 5 * 60 * 1000;
 
-export async function claimOutboxJob(now = new Date()): Promise<OutboxJob | undefined> {
+export type ClaimOutboxOptions = { now?: Date; operations?: readonly string[] };
+
+export async function claimOutboxJob(options: ClaimOutboxOptions = {}): Promise<OutboxJob | undefined> {
   const db = getDb();
+  const now = options.now ?? new Date();
   const staleBefore = new Date(now.getTime() - OUTBOX_LEASE_MS);
+  if (options.operations?.length === 0) return undefined;
   return db.transaction(async (tx: any) => {
     const claimable = or(
       eq(outboxJobs.status, 'pending'),
       and(eq(outboxJobs.status, 'processing'), lte(outboxJobs.updatedAt, staleBefore)),
     );
-    const [job] = await tx.select().from(outboxJobs).where(and(
-      claimable,
-      lte(outboxJobs.nextAttemptAt, now),
-    )).orderBy(outboxJobs.nextAttemptAt).limit(1).for('update', { skipLocked: true });
+    const filters = [claimable, lte(outboxJobs.nextAttemptAt, now)];
+    if (options.operations) filters.push(inArray(outboxJobs.operation, options.operations));
+    const [job] = await tx.select().from(outboxJobs).where(and(...filters))
+      .orderBy(outboxJobs.nextAttemptAt).limit(1).for('update', { skipLocked: true });
     if (!job) return undefined;
     const [claimed] = await tx.update(outboxJobs).set({
       status: 'processing',

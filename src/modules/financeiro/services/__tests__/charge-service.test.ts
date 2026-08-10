@@ -22,10 +22,10 @@ jest.mock('@/lib/idempotency', () => ({
 jest.mock('@/modules/financeiro/repositories/financeiro-repository', () => ({
   getBudget: (...args: any[]) => mockGetBudget(...args),
   getDefaultGateway: (...args: any[]) => mockGetDefaultGateway(...args),
-  createPaymentCharge: (...args: any[]) => mockCreateCharge(...args),
+  createPaymentChargeWithOutbox: (...args: any[]) => mockCreateCharge(...args),
   getPaymentCharge: (...args: any[]) => mockGetCharge(...args),
   getPaymentGateway: (...args: any[]) => mockGetPaymentGateway(...args),
-  updatePaymentCharge: (...args: any[]) => mockUpdateCharge(...args),
+  updatePaymentChargeWithOutbox: (...args: any[]) => mockUpdateCharge(...args),
   buildChargeInsert: (data: any) => data,
   findPaymentChargeByBudget: (...args: any[]) => jest.fn()(...args),
 }));
@@ -111,18 +111,17 @@ describe('charge-service', () => {
       );
     });
 
-    it('cancels a charge through an idempotent operation key', async () => {
+    it('enqueues cancellation without calling the provider inline', async () => {
       const cancelProvider = { cancelCharge: jest.fn().mockResolvedValue({ success: true }) };
       mockGetGatewayProvider.mockReturnValue(cancelProvider);
-
       await expect(cancelCharge({ clinicId: 'c1', chargeId: 'c1' })).resolves.toMatchObject({ cancelled: true });
-
       expect(mockWithIdempotency).toHaveBeenCalledWith(
         'charge:cancel:c1:c1',
         'payment_charge_cancel',
         expect.any(Function),
       );
-      expect(cancelProvider.cancelCharge).toHaveBeenCalledTimes(1);
+      expect(cancelProvider.cancelCharge).not.toHaveBeenCalled();
+      expect(mockUpdateCharge).toHaveBeenCalledWith('c1', { status: 'cancellation_pending' }, expect.objectContaining({ expectedStatuses: ['pending', 'created', 'failed'] }));
     });
 
     it('rejects cross-clinic budget access', async () => {

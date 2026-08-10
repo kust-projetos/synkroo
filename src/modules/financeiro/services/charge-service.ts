@@ -7,14 +7,12 @@
 
 import { getGatewayProvider } from '../gateways/registry';
 import {
-  createPaymentCharge as repoCreateCharge,
+  createPaymentChargeWithOutbox as repoCreateChargeWithOutbox,
   getPaymentCharge as repoGetCharge,
-  updatePaymentCharge as repoUpdateCharge,
+  updatePaymentChargeWithOutbox as repoUpdateChargeWithOutbox,
   listOverdueCharges as repoListOverdue,
   getDefaultGateway,
   getBudget,
-  getPaymentGateway,
-  createPayment as repoCreatePayment,
   type PaymentChargeRow,
 } from '../repositories/financeiro-repository';
 import { buildChargeInsert, findPaymentChargeByBudget } from '../repositories/financeiro-repository';
@@ -48,24 +46,20 @@ export async function createCharge(input: CreateChargeInput): Promise<{
   if (!gateway) throw new Error('No enabled default gateway found for clinic');
 
   const chargeData = buildChargeInsert({ clinicId, budgetId, gatewayId: gateway.id, amount, dueDate });
-
   const provider = getGatewayProvider(gateway.provider as GatewayProvider);
   if (!provider) throw new Error(`Gateway provider ${gateway.provider} is not registered`);
   const key = `charge:create:${clinicId}:${budgetId}`;
   const outcome = await withIdempotency(key, 'payment_charge_create', async () => {
-    const gatewayResponse = await provider.createCharge({ clinicId, amount, dueDate, customerName: 'Cliente' });
-    const charge = await repoCreateCharge({
-      clinicId: chargeData.clinicId,
-      budgetId: chargeData.budgetId,
-      gatewayId: chargeData.gatewayId,
-      externalChargeId: gatewayResponse.externalChargeId,
-      paymentUrl: gatewayResponse.paymentUrl,
-      pixQrCode: gatewayResponse.pixQrCode,
-      dueDate: chargeData.dueDate,
-      amount: chargeData.amount,
-      status: gatewayResponse.status,
+    const charge = await repoCreateChargeWithOutbox({
+      clinicId: chargeData.clinicId, budgetId: chargeData.budgetId, gatewayId: chargeData.gatewayId,
+      dueDate: chargeData.dueDate, amount: chargeData.amount, businessKey: key,
+      payload: { clinicId, budgetId, gatewayId: gateway.id, amount, dueDate, provider: gateway.provider },
     });
-    return { charge, gatewayResponse };
+    return {
+      charge,
+      gatewayResponse: { externalChargeId: charge.externalChargeId ?? '', paymentUrl: charge.paymentUrl,
+        pixQrCode: charge.pixQrCode, status: charge.status as CreateChargeResult['status'] },
+    };
   });
   if (outcome.status === 'completed' && outcome.result) return outcome.result;
   const existing = await findPaymentChargeByBudget(clinicId, budgetId);
@@ -100,16 +94,19 @@ export async function cancelCharge(input: {
     `charge:cancel:${clinicId}:${chargeId}`,
     'payment_charge_cancel',
     async () => {
-      const gateway = await getPaymentGateway(charge.gatewayId);
-      if (gateway?.isEnabled) {
-        const provider = getGatewayProvider(gateway.provider as GatewayProvider);
-        if (provider && charge.externalChargeId) {
-          await provider.cancelCharge({ externalChargeId: charge.externalChargeId, clinicId });
+      const updated = await repoUpdateChargeWithOutbox(chargeId, { status: 'cancellation_pending' }, {
+        clinicId, businessKey: `charge:cancel:${clinicId}:${chargeId}`,
+        payload: { clinicId, chargeId, gatewayId: charge.gatewayId, externalChargeId: charge.externalChargeId },
+        expectedStatuses: ['pending', 'created', 'failed'],
+      });
+      if (!updated) {
+        const current = await repoGetCharge(chargeId);
+        if (current?.status === 'cancellation_pending' || current?.status === 'cancelled' || current?.status === 'paid' || current?.status === 'settled') {
+          return { cancelled: false, charge: current };
         }
+        throw new Error('Charge cancellation state changed concurrently');
       }
-
-      const updated = await repoUpdateCharge(chargeId, { status: 'cancelled' });
-      return { cancelled: true, charge: updated! };
+      return { cancelled: true, charge: updated };
     },
   );
 

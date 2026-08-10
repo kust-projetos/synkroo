@@ -4,10 +4,9 @@ import path from 'path'
 const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json') })
 const contactSearch = 'input[placeholder="Buscar por nome, telefone ou email..."]'
 
-async function expectContactListOrEmpty(page: import('@playwright/test').Page) {
+async function expectContactList(page: import('@playwright/test').Page) {
   const list = page.locator('main button.w-full').first()
-  const empty = page.getByText('Nenhum contato encontrado').first()
-  await expect(list.or(empty)).toBeVisible({ timeout: 15000 })
+  await expect(list).toBeVisible({ timeout: 15000 })
 }
 
 t.describe('CRM Contacts - Search and Listing', () => {
@@ -16,9 +15,9 @@ t.describe('CRM Contacts - Search and Listing', () => {
     await page.waitForLoadState('networkidle')
   })
 
-  t('renders contacts list or explicit empty state', async ({ page }) => {
+  t('renders contacts list', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Contatos' })).toBeVisible()
-    await expectContactListOrEmpty(page)
+    await expectContactList(page)
   })
 
   t('renders search input', async ({ page }) => {

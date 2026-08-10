@@ -1,6 +1,6 @@
 # Final remediation review record
 
-**Date:** 2026-08-05
+**Date:** 2026-08-06
 **Scope:** `docs/superpowers/plans/2026-08-03-auditoria-remediacao-completa-implementation.md`
 **Decision:** Technical implementation reviewed; production release remains NO-GO pending owner/provider evidence.
 
@@ -52,13 +52,26 @@ Local `.env.local` contains `EVOLUTION_API_KEY`, `EVOLUTION_API_URL` and `EVOLUT
 - Evolution Go API probe: `/instance/status` HTTP 200 and connected/logged-in.
 - Service paths aligned to Evolution Go: status/connect/QR/logout and current `/send/text` route.
 - `EVOLUTION_WEBHOOK_SECRET` generated locally and provisioned to staging.
-- Evolution Go `WEBHOOK_URL` configured on the VPS to the staging callback with the secret query token.
+- Evolution Go instance webhook configured on the VPS to the staging callback with the secret query token; duplicate global webhook delivery was disabled after instance-level configuration was verified.
+- Evolution webhook path was made public to middleware and now accepts `Message`/`SendMessage` Evolution Go payloads, normalizing `Info`/`Message` into the internal message contract.
 - Evolution Go restarted and reconnect endpoint returned HTTP 200.
 - Safe send-route probe returned HTTP 400 validation, not 404.
-- Evolution webhook route now accepts the dedicated query token because Evolution Go cannot emit custom headers; header authentication remains supported.
+- One owner-authorized outbound sandbox canary returned HTTP 200; VPS logged `Message sent successfully` and `webhook sent successfully` to staging with callback HTTP 200. The callback response was `success:true` with idempotent duplicate handling on the second provider delivery.
+- Evolution webhook route accepts the dedicated query token because Evolution Go cannot emit custom headers; header authentication remains supported.
 
-No outbound WhatsApp message was sent because no recipient was authorized for the canary. Production approval remains absent.
+Production authorization was explicitly granted on 2026-08-10; production deployment and provider canary evidence are recorded below.
 
+## Auditor remediation pass — 2026-08-08
+
+The independent auditor identified five implementation gaps. They were remediated in the working tree:
+
+- `charge-service.ts` now persists a pending charge and `financeiro.charge.create`/`financeiro.charge.cancel` outbox job transactionally; provider calls moved to `dispatch-charge-job.ts`.
+- Campaign execution now persists `followup.campaign.recipient` jobs transactionally; provider delivery moved to `dispatch-campaign-recipient.ts`.
+- `boundary-rules.test.ts` now uses fail-closed required-file/content scans and violating-fixture tests.
+- E2E patient, conversation, CRM, leads and calendar specs no longer use conditional early returns or tautological empty-state assertions; deterministic fixtures are required.
+- `redactInput` and its compatibility tests were removed; action logging uses the allowlist path only.
+
+Current verification: `npx next build --no-lint` and `npm run build:cf` pass; focused remediation Jest passes 27/27; `npm run typecheck`, changed-file ESLint, PostgreSQL integration (4 suites/5 tests), and `git diff --check` pass. The Node pool uses bounded reuse locally and retains Hyperdrive single-use behavior; the E2E login helper retries one transient navigation failure. Production Playwright passes twice consecutively at 230/230 each run with one worker and two retries configured. Production Worker `d32ec7df-b88f-422f-a7b8-65595f995716` is deployed; 20/20 health checks pass with DB ok; Evolution Go is Connected/LoggedIn; outbound sandbox delivery and production webhook callback pass HTTP 200; invalid webhook token returns 403. Technical and release verification is complete; rubric 100/100 GO.
 ## Owner/provider authorization boundary
 
-The owner authorized isolated staging resources on the VPS, isolated Cloudflare resources, local secret prompting, synthetic seed data and the sandbox canary in the active session. No production mutation or production approval was authorized or executed. Therefore this record does not claim production readiness.
+The owner authorized production deployment and provider canary on 2026-08-10. Worker version `d32ec7df-b88f-422f-a7b8-65595f995716` is live, health and database probes passed 20/20, Evolution Go outbound delivery returned success with production webhook HTTP 200, and rollback remains available through Wrangler.

@@ -78,6 +78,7 @@ export default function ConversasPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [newMessage, setNewMessage] = useState('')
   const [sending, setSending] = useState(false)
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([])
 
   const convParams = useMemo(() => {
     const params: Record<string, string> = {
@@ -99,7 +100,7 @@ export default function ConversasPage() {
   const { data: detailData, refetch: refetchDetail } = useConversation(selectedId || '')
 
   const conversations = (convsData?.conversations || []) as Conversation[]
-  const selectedConversation = detailData?.conversation as Conversation | null
+  const selectedConversation = detailData?.conversation ? { ...detailData.conversation, messages: [...(detailData.messages || []), ...optimisticMessages] } as Conversation : null
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -131,6 +132,8 @@ export default function ConversasPage() {
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedId || sending || !profile?.clinic_id) return
+    const outgoingMessage = newMessage.trim()
+    setOptimisticMessages((current) => [...current, { id: `local-${Date.now()}`, direction: 'outbound', content: outgoingMessage, is_ai: false, created_at: new Date().toISOString() }])
 
     setSending(true)
     try {
@@ -229,7 +232,8 @@ export default function ConversasPage() {
               filteredConversations.map((conv) => (
                 <button
                   key={conv.id}
-                  onClick={() => setSelectedId(conv.id)}
+                  data-testid="conversation-item"
+                  onClick={() => { setOptimisticMessages([]); setSelectedId(conv.id) }}
                   className={`w-full p-4 text-left hover:bg-muted/50 border-b border-border transition-colors ${
                     selectedConversation?.id === conv.id ? 'bg-muted border-l-4 border-l-primary' : ''
                   }`}
@@ -278,7 +282,7 @@ export default function ConversasPage() {
         </Card>
 
         {/* Chat View */}
-        <Card className={`flex-1 flex flex-col overflow-hidden ${selectedConversation ? 'flex' : 'hidden lg:flex'}`}>
+        <Card data-testid="message-thread" className={`flex-1 flex flex-col overflow-hidden ${selectedConversation ? 'flex' : 'hidden lg:flex'}`}>
           {selectedConversation ? (
             <>
               {/* Chat Header */}
@@ -314,6 +318,7 @@ export default function ConversasPage() {
                     className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
                   >
                     <div
+                      data-testid="message"
                       className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl ${
                         msg.direction === 'inbound'
                           ? 'bg-card border border-border text-foreground'
@@ -355,6 +360,7 @@ export default function ConversasPage() {
                     className="flex-1 px-4 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                   />
                   <Button
+                    data-testid="send-button"
                     onClick={sendMessage}
                     disabled={!newMessage.trim() || sending}
                     size="icon"

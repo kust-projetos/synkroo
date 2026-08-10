@@ -14,19 +14,11 @@ async function login(page: Page) {
   ])
 }
 
-async function openConversationOrAssertEmpty(page: Page): Promise<boolean> {
+async function openConversation(page: Page): Promise<void> {
   const conversation = page.locator('[data-testid="conversation-item"], [class*="conversation"]').first()
-  const emptyState = page.getByText('Selecione uma conversa').first()
-  await expect(conversation.first().or(emptyState)).toBeVisible()
-  if (await conversation.count() === 0) {
-    await expect(emptyState).toBeVisible()
-    return false
-  }
-
-  await expect(conversation).toBeVisible()
+  await expect(conversation).toBeVisible({ timeout: 15000 })
   await conversation.click()
   await page.waitForLoadState('networkidle')
-  return true
 }
 
 test.describe('Conversations Page', () => {
@@ -40,10 +32,8 @@ test.describe('Conversations Page', () => {
     await expect(page.locator('h1, h2')).toContainText(/conversas/i)
   })
 
-  test('should have conversation list or empty state', async ({ page }) => {
-    const hasConversations = await page.locator('[data-testid="conversation-item"], [class*="conversation-item"]').count() > 0
-    const hasEmptyState = await page.getByText('Selecione uma conversa').count() > 0
-    expect(hasConversations || hasEmptyState).toBe(true)
+  test('should have conversation list', async ({ page }) => {
+    await expect(page.locator('[data-testid="conversation-item"], [class*="conversation-item"]').first()).toBeVisible()
   })
 
   test('should have filter buttons', async ({ page }) => {
@@ -60,22 +50,22 @@ test.describe('Conversation Thread', () => {
   })
 
   test('should open message thread when conversation clicked', async ({ page }) => {
-    if (!await openConversationOrAssertEmpty(page)) return
+    await openConversation(page)
     await expect(page.locator('[data-testid="message-thread"], [class*="message"], [class*="chat"]').first()).toBeVisible()
   })
 
   test('should display message bubbles in thread', async ({ page }) => {
-    if (!await openConversationOrAssertEmpty(page)) return
+    await openConversation(page)
     await expect(page.locator('[data-testid="message"], [class*="message"], [class*="bubble"]').first()).toBeVisible()
   })
 
   test('should have message input field', async ({ page }) => {
-    if (!await openConversationOrAssertEmpty(page)) return
+    await openConversation(page)
     await expect(page.locator('input[type="text"], textarea, [data-testid="message-input"]').first()).toBeVisible()
   })
 
   test('should send message', async ({ page }) => {
-    if (!await openConversationOrAssertEmpty(page)) return
+    await openConversation(page)
     const input = page.locator('input[type="text"], textarea, [data-testid="message-input"]').first()
     await expect(input).toBeVisible()
     await input.fill('Olá, teste de mensagem')
@@ -93,16 +83,19 @@ test.describe('Campaign List', () => {
     await page.waitForLoadState('networkidle')
   })
 
-  test('should display campaign list or empty state', async ({ page }) => {
+  test('should display seeded campaign list', async ({ page }) => {
     await expect(page.locator('h1, h2')).toContainText(/campanha/i)
-    const hasList = await page.locator('table, [data-testid*="campaign"], [class*="campaign"]').count() > 0
-    const hasEmpty = await page.getByText(/sem|nenhum|vazio/i).count() > 0
-    expect(hasList || hasEmpty).toBe(true)
+    const response = await page.request.get(`${BASE_URL}/api/campaigns`)
+    expect(response.ok()).toBe(true)
+    const body = await response.json() as { campaigns?: Array<{ id: string }> }
+    expect(body.campaigns).toBeDefined()
+    expect(body.campaigns!.length).toBeGreaterThan(0)
   })
 
-  test('should show campaign status or empty state', async ({ page }) => {
-    const hasStatus = await page.getByText(/ativa|pausada|concluíd/i).count() > 0
-    const hasEmpty = await page.getByText(/sem|nenhum|vazio/i).count() > 0
-    expect(hasStatus || hasEmpty).toBe(true)
+  test('should expose status for every seeded campaign', async ({ page }) => {
+    const response = await page.request.get(`${BASE_URL}/api/campaigns`)
+    expect(response.ok()).toBe(true)
+    const body = await response.json() as { campaigns?: Array<{ status: string }> }
+    expect(body.campaigns?.every((campaign) => ['draft', 'scheduled', 'running', 'completed', 'cancelled', 'paused'].includes(campaign.status))).toBe(true)
   })
 })

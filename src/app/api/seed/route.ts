@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, asc } from 'drizzle-orm'
+import { eq, asc, and } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
-import { clinics, users, leads, leadActivities, campaigns, campaignRecipients, waitlist, patientFeedback, procedureGuidelines, scheduleBlocks, followUpConfigs, pipelineStages, patients } from '@/lib/db/schema'
+import { clinics, users, leads, leadActivities, campaigns, campaignRecipients, waitlist, patientFeedback, procedureGuidelines, scheduleBlocks, followUpConfigs, pipelineStages, patients, conversations, messages, instanceModules } from '@/lib/db/schema'
+import { roles, rolePermissions, userClinicAccess } from '@/modules/core/schema/rbac'
 import * as dentistRepo from '@/repositories/dentists'
 import * as procedureRepo from '@/repositories/procedures'
 import * as appointmentRepo from '@/repositories/appointments'
@@ -52,12 +53,19 @@ interface ScheduleDaySeed {
 
 // ── Helpers ─────────────────────────────────────────────────
 
+let seedState = 1
+
+function seededRandom(): number {
+  seedState = (seedState * 1_664_525 + 1_013_904_223) >>> 0
+  return seedState / 4_294_967_296
+}
+
 function randomPick<T>(arr: readonly T[]): T {
-  return arr[Math.floor(Math.random() * arr.length)] as T
+  return arr[Math.floor(seededRandom() * arr.length)] as T
 }
 
 function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min
+  return Math.floor(seededRandom() * (max - min + 1)) + min
 }
 
 function hoursAgo(hours: number): Date {
@@ -97,9 +105,12 @@ export async function GET(request: NextRequest) {
   if (secret !== seedSecret) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+  seedState = 1
 
   const results: Record<string, DomainResult> = {}
   const db = getDb()
+  const e2eModules = ['atendimento', 'comercial', 'crm', 'operacional', 'followup', 'financeiro', 'analytics', 'ia']
+  await db.insert(instanceModules).values(e2eModules.map((moduleId) => ({ moduleId, enabled: true, contractedAt: new Date() }))).onConflictDoUpdate({ target: instanceModules.moduleId, set: { enabled: true, updatedAt: new Date() } })
 
   // Get clinic
   const clinicRows = await db.select({ id: clinics.id }).from(clinics).where(eq(clinics.slug, CLINIC_SLUG)).limit(1)
@@ -112,13 +123,40 @@ export async function GET(request: NextRequest) {
   const admin = userRows[0]
   const userId: string | undefined = admin?.id
 
+  // E2E admin must have the current comercial permissions, even when the database was seeded with an older role catalog.
+  if (userId) {
+    const adminRole = await db.select({ id: roles.id }).from(roles).where(and(eq(roles.clinicId, cid), eq(roles.name, 'Administrador'))).limit(1)
+    if (adminRole[0]) {
+      const comercialPermissions = ['comercial:view', 'comercial:capture_leads', 'comercial:edit_leads', 'comercial:manage_pipeline', 'comercial:manage_tasks', 'comercial:manage_hot_leads']
+      await db.insert(rolePermissions).values(comercialPermissions.map((permissionKey) => ({ roleId: adminRole[0].id, permissionKey }))).onConflictDoNothing()
+      await db.insert(userClinicAccess).values({ userId, clinicId: cid, roleId: adminRole[0].id }).onConflictDoUpdate({ target: [userClinicAccess.userId, userClinicAccess.clinicId], set: { roleId: adminRole[0].id } })
+    }
+  }
   // Get existing data IDs
   const dentistRows = await dentistRepo.findByClinic(cid, { activeOnly: true })
   const dentistIds: string[] = dentistRows.map((d) => d.id)
   const procedureRows = await procedureRepo.findByClinic(cid, { activeOnly: true })
   const procedureIds: string[] = procedureRows.map((p) => p.id)
-  const patientRows = await db.select({ id: patients.id }).from(patients).where(eq(patients.clinicId, cid))
+  let patientRows = await db.select({ id: patients.id }).from(patients).where(eq(patients.clinicId, cid))
+  if (patientRows.length === 0) {
+    await db.insert(patients).values(Array.from({ length: 8 }, (_, index) => ({
+      clinicId: cid, name: `Paciente E2E ${index + 1}`, phone: `551199900${String(index + 1).padStart(4, '0')}`,
+      email: `e2e-patient-${index + 1}@example.test`, status: 'active', optOutMarketing: false, optOutReminders: false,
+    }))).onConflictDoNothing()
+    patientRows = await db.select({ id: patients.id }).from(patients).where(eq(patients.clinicId, cid))
+  }
   const patientIds: string[] = patientRows.map((p) => p.id)
+
+  const existingConversations = await db.select({ id: conversations.id }).from(conversations).where(eq(conversations.clinicId, cid)).limit(1)
+  if (existingConversations.length === 0 && patientIds.length > 0) {
+    for (const [index, patientId] of patientIds.slice(0, 3).entries()) {
+      const [conversation] = await db.insert(conversations).values({
+        clinicId: cid, patientId, channel: 'whatsapp', externalId: `e2e-conversation-${index + 1}`, status: 'active', messageCount: 1,
+        metadata: { source: 'e2e-fixture' },
+      }).returning({ id: conversations.id })
+      if (conversation) await db.insert(messages).values({ conversationId: conversation.id, direction: 'inbound', content: `Mensagem E2E ${index + 1}`, messageType: 'text' })
+    }
+  }
   const procMap = new Map(procedureRows.map((p) => [p.id, p]))
 
   // ── PIPELINE STAGES + CLEANUP (large scenario) ────────────
@@ -319,9 +357,9 @@ export async function GET(request: NextRequest) {
         feedbackType: randomPick(feedbackTypes),
         rating: randomInt(3, 5),
         npsScore: randomInt(6, 10),
-        wouldRecommend: Math.random() > 0.2,
+        wouldRecommend: seededRandom() > 0.2,
         comments: randomPick(feedbackComments),
-        improvements: Math.random() > 0.5 ? (['Tempo de espera', 'Estacionamento'] as const) : null,
+        improvements: seededRandom() > 0.5 ? (['Tempo de espera', 'Estacionamento'] as const) : null,
         collectedAt: hoursAgo(randomInt(1, 720)),
         channel: randomPick(feedbackChannels),
       })
@@ -421,7 +459,7 @@ export async function GET(request: NextRequest) {
 
     for (const dentistId of dentistIds) {
       const countThisDay = 2 + randomInt(0, 2)
-      const shuffled = [...timeSlots].sort(() => Math.random() - 0.5)
+      const shuffled = [...timeSlots].sort(() => seededRandom() - 0.5)
       const dayTimeSlots = shuffled.slice(0, Math.min(countThisDay, shuffled.length))
 
       for (const time of dayTimeSlots) {

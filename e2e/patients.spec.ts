@@ -14,21 +14,12 @@ async function login(page: Page) {
   ])
 }
 
-async function openPatientOrAssertEmpty(page: Page): Promise<boolean> {
+async function openPatient(page: Page): Promise<void> {
   const patientLink = page.getByRole('link', { name: 'Ver', exact: true }).first()
-  const emptyState = page.getByText(/Nenhum paciente encontrado|Nenhum paciente cadastrado/).first()
-  await expect(patientLink.or(emptyState)).toBeVisible({ timeout: 15000 })
-  if (await patientLink.count() === 0) {
-    await expect(emptyState).toBeVisible()
-    return false
-  }
-  await expect(patientLink).toBeVisible()
+  await expect(patientLink).toBeVisible({ timeout: 15000 })
   await patientLink.click()
   await page.waitForLoadState('networkidle')
-  const detailTab = page.getByRole('tab', { name: /Informações/i }).first()
-  const missingPatient = page.getByRole('heading', { name: 'Paciente não encontrado' })
-  await expect(detailTab.or(missingPatient)).toBeVisible()
-  return await detailTab.count() > 0
+  await expect(page.getByRole('tab', { name: /Informações/i }).first()).toBeVisible()
 }
 
 test.describe('Patients Page', () => {
@@ -46,14 +37,13 @@ test.describe('Patients Page', () => {
     await expect(page.locator('input[placeholder="Buscar por nome, telefone ou email..."]')).toBeVisible()
   })
 
-  test('should display patient list or explicit empty state', async ({ page }) => {
+  test('should display patient list', async ({ page }) => {
     const patients = page.locator('table tbody tr, [data-testid="patient-card"], [class*="patient-card"]')
-    const empty = page.getByText(/Nenhum paciente encontrado|Nenhum paciente cadastrado/).first()
-    await expect(patients.first().or(empty)).toBeVisible({ timeout: 15000 })
+    await expect(patients.first()).toBeVisible({ timeout: 15000 })
   })
 
   test('should navigate to patient detail', async ({ page }) => {
-    if (!await openPatientOrAssertEmpty(page)) return
+    await openPatient(page)
     await expect(page.locator('h1, h2').first()).toBeVisible()
     await expect(page.getByRole('tab', { name: /Informações/i })).toBeVisible()
   })
@@ -67,13 +57,13 @@ test.describe('Patient Detail', () => {
   })
 
   test('should show patient detail page with tabs', async ({ page }) => {
-    if (!await openPatientOrAssertEmpty(page)) return
+    await openPatient(page)
     await expect(page.getByRole('tab', { name: /Informações/i })).toBeVisible()
     await expect(page.getByRole('tab', { name: /Agendamentos/i })).toBeVisible()
   })
 
   test('should display patient information or appointment empty state', async ({ page }) => {
-    if (!await openPatientOrAssertEmpty(page)) return
+    await openPatient(page)
     await expect(page.getByText('Telefone', { exact: true })).toBeVisible()
     const appointments = page.getByRole('tab', { name: /Agendamentos/i })
     await appointments.click()
@@ -81,7 +71,7 @@ test.describe('Patient Detail', () => {
   })
 
   test('should expose appointment creation from empty patient schedule', async ({ page }) => {
-    if (!await openPatientOrAssertEmpty(page)) return
+    await openPatient(page)
     await page.getByRole('tab', { name: /Agendamentos/i }).click()
     const appointmentLink = page.getByRole('link', { name: /Agendar consulta/i })
     const appointmentTable = page.getByText('Data/Hora', { exact: true })
@@ -89,7 +79,7 @@ test.describe('Patient Detail', () => {
   })
 
   test('should expose patient edit action', async ({ page }) => {
-    if (!await openPatientOrAssertEmpty(page)) return
+    await openPatient(page)
     await expect(page.getByRole('link', { name: 'Editar' }).first()).toBeVisible()
   })
 })

@@ -31,11 +31,3 @@ export function allowlistInput(input: unknown, allowed: readonly string[]): Reco
   const source = input as Record<string, unknown>;
   return Object.fromEntries(allowed.filter((key) => key in source).map((key) => [key, source[key]]));
 }
-
-// Mascara campos sensíveis do input antes de logar (LGPD).
-export function redactInput(input: unknown, sensitive: string[]): unknown {
-  if (!input || typeof input !== 'object') return input;
-  const clone: Record<string, unknown> = { ...(input as Record<string, unknown>) };
-  for (const key of sensitive) if (key in clone) clone[key] = '[REDACTED]';
-  return clone;
-}

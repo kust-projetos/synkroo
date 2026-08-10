@@ -69,15 +69,23 @@ export function getDb() {
   }
   if (_db) return _db;
 
+  const isWorkersRuntime = Boolean(
+    _hyperdriveConnString ||
+    (globalThis as { __SYNKROO_HYPERDRIVE?: string }).__SYNKROO_HYPERDRIVE,
+  );
   _pool = new Pool({
     connectionString: connString,
-    max: 1,
-    // Force a fresh Hyperdrive socket for each query; reused idle sockets can
-    // be stale after a Workers isolate is suspended.
-    maxUses: 1,
-    // Do not let pg call client.end() from a suspended Workers isolate.
-    // Hyperdrive owns origin pooling; the Worker-side socket must stay open.
-    idleTimeoutMillis: 0,
+    max: isWorkersRuntime ? 1 : 10,
+    ...(isWorkersRuntime
+      ? {
+          // Force a fresh Hyperdrive socket for each query; reused idle sockets can
+          // be stale after a Workers isolate is suspended.
+          maxUses: 1,
+          // Do not let pg call client.end() from a suspended Workers isolate.
+          // Hyperdrive owns origin pooling; the Worker-side socket must stay open.
+          idleTimeoutMillis: 0,
+        }
+      : { idleTimeoutMillis: 30_000 }),
     connectionTimeoutMillis: 5_000,
     allowExitOnIdle: true,
   });

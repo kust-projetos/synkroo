@@ -12,6 +12,7 @@ jest.mock('@/repositories/campaigns', () => ({
   markRecipientError: jest.fn(),
   updateCampaignCounts: jest.fn(),
   updateCampaignStatus: jest.fn(),
+  enqueueRecipientDelivery: jest.fn().mockResolvedValue(undefined),
 }))
 const mockWithIdempotency = jest.fn()
 jest.mock('@/lib/idempotency', () => ({
@@ -79,7 +80,7 @@ describe('campaign execution', () => {
     const result = await startCampaign(campaign.id)
 
     expect(result).toEqual({ success: false, error: 'No recipients delivered' })
-    expect(repo.updateCampaignStatus).toHaveBeenLastCalledWith(campaign.id, 'failed')
+    expect(repo.updateCampaignStatus).not.toHaveBeenCalledWith(campaign.id, 'failed')
   })
 
   it('processes only campaigns due now for one clinic', async () => {
@@ -121,6 +122,6 @@ describe('campaign execution', () => {
     const result = await startCampaign(campaign.id)
 
     expect(result).toEqual({ success: true })
-    expect(repo.updateCampaignStatus).toHaveBeenLastCalledWith(campaign.id, 'completed')
+    expect(repo.updateCampaignStatus).not.toHaveBeenCalledWith(campaign.id, 'completed')
   })
 })

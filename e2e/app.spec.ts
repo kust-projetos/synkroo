@@ -5,16 +5,25 @@ const BASE_URL = 'http://127.0.0.1:3003'
 // This file exercises login and logout flows; inherited authenticated state would redirect /login.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-// Canonical NextAuth UI login; failures remain visible to the suite.
+// Canonical NextAuth UI login; retry one transient navigation failure without hiding persistent failures.
 async function login(page: Page) {
-  await page.goto(`${BASE_URL}/login`)
-  await page.fill('#email', 'admin@clinicademo.com')
-  await page.fill('#password', 'demo123')
-  await Promise.all([
-    page.waitForURL('**/dashboard**'),
-    page.click('button[type="submit"]'),
-  ])
-  await page.waitForLoadState('networkidle')
+  let lastError: unknown
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.goto(`${BASE_URL}/login`)
+      await page.fill('#email', 'admin@clinicademo.com')
+      await page.fill('#password', 'demo123')
+      await Promise.all([
+        page.waitForURL('**/dashboard**', { timeout: 15000 }),
+        page.click('button[type="submit"]'),
+      ])
+      await page.waitForLoadState('networkidle')
+      return
+    } catch (error) {
+      lastError = error
+    }
+  }
+  throw lastError ?? new Error('Login failed without an error')
 }
 
 // ============================================

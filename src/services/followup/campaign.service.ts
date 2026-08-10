@@ -4,7 +4,7 @@
  * Migrated from Supabase to Drizzle
  */
 
-import { dbLogger, whatsappLogger } from "@/lib/logger";
+import { dbLogger } from "@/lib/logger";
 import * as campaignRepo from "@/repositories/campaigns";
 import { hasActiveConsent } from '@/services/contacts/consents.service';
 import { withIdempotency } from '@/lib/idempotency';
@@ -157,31 +157,22 @@ async function executeCampaign(
 			continue;
 		}
 		try {
-			const key = `campaign:${campaign.id}:${recipient.patientId}:${campaign.channel}`;
-			const delivery = await withIdempotency(key, 'campaign_recipient_send', async () => {
-				const result = await sendCampaignMessage(recipient.patientPhone ?? undefined, campaign.messageTemplate);
-				if (!result.success) throw new Error(result.error ?? 'CAMPAIGN_SEND_FAILED');
-				return result;
-			});
-			if (delivery.status === 'completed' || delivery.status === 'already_processed') {
-				await campaignRepo.markRecipientSent(recipient.id);
-				sent++;
-				continue;
-			}
-			await campaignRepo.markRecipientError(recipient.id, 'CAMPAIGN_SEND_CONFLICT');
+      await campaignRepo.enqueueRecipientDelivery({
+        clinicId: campaign.clinicId, campaignId: campaign.id, recipientId: recipient.id,
+        patientId: recipient.patientId, phone: recipient.patientPhone ?? '', message: campaign.messageTemplate,
+      });
+      sent++;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'CAMPAIGN_SEND_FAILED';
 			await campaignRepo.markRecipientError(recipient.id, message);
 		}
 	}
 
-	await campaignRepo.updateCampaignCounts(campaignId);
-	if (sent === 0) {
-		await campaignRepo.updateCampaignStatus(campaignId, 'failed');
-		return { success: false, error: 'No recipients delivered' };
-	}
-	await campaignRepo.updateCampaignStatus(campaignId, 'completed');
-	return { success: true };
+  await campaignRepo.updateCampaignCounts(campaignId);
+  if (sent === 0) {
+    return { success: false, error: 'No recipients delivered' };
+  }
+  return { success: true };
 }
 
 export async function getCampaigns(
@@ -198,51 +189,6 @@ export async function getCampaigns(
 
 // ─── Message Sending ───────────────────────────────────────────
 
-async function sendCampaignMessage(
-	phone: string | undefined,
-	message: string,
-): Promise<{ success: boolean; error?: string }> {
-	if (!phone) {
-		return { success: false, error: "No phone number" };
-	}
-
-	try {
-		const whatsappApiUrl = process.env.WHATSAPP_API_URL;
-		const whatsappToken = process.env.WHATSAPP_TOKEN;
-
-		if (!whatsappApiUrl || !whatsappToken) {
-			return { success: false, error: "WhatsApp not configured" };
-		}
-
-		let formattedPhone = phone.replace(/\D/g, "");
-		if (!formattedPhone.startsWith("55")) {
-			formattedPhone = "55" + formattedPhone;
-		}
-
-		const response = await fetch(whatsappApiUrl, {
-			method: "POST",
-			headers: {
-				Authorization: `Bearer ${whatsappToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				messaging_product: "whatsapp",
-				to: formattedPhone,
-				type: "text",
-				text: { body: message },
-			}),
-		});
-
-		if (!response.ok) {
-			const data = (await response.json()) as { error?: { message?: string } };
-			return { success: false, error: data.error?.message };
-		}
-
-		return { success: true };
-	} catch (error) {
-		return { success: false, error: "Internal error" };
-	}
-}
 
 // ─── Scheduled Processing ─────────────────────────────────────
 

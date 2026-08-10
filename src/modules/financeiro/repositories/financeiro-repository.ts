@@ -5,8 +5,9 @@
  * Replaces the in-memory financeiro-store for all runtime paths.
  */
 
-import { eq, and, desc, sql, lte } from 'drizzle-orm';
+import { eq, and, desc, inArray, sql, lte } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
 import {
   budgets,
   budgetItems,
@@ -202,6 +203,49 @@ export async function createPaymentCharge(data: {
   return row;
 }
 
+export async function createPaymentChargeWithOutbox(data: {
+  clinicId: string; budgetId: string; gatewayId: string; dueDate: string; amount: string;
+  businessKey: string; payload: Record<string, unknown>;
+}): Promise<PaymentChargeRow> {
+  const db = getDb();
+  return db.transaction(async (tx: any) => {
+    const [charge] = await tx.insert(paymentCharges).values({
+      clinicId: data.clinicId, budgetId: data.budgetId, gatewayId: data.gatewayId,
+      externalChargeId: null, paymentUrl: null, pixQrCode: null, dueDate: data.dueDate,
+      amount: data.amount, status: 'pending',
+    }).onConflictDoNothing().returning();
+    if (charge) {
+      await enqueueOutbox(tx, {
+        clinicId: data.clinicId, operation: 'financeiro.charge.create',
+        businessKey: data.businessKey, payload: { ...data.payload, chargeId: charge.id },
+      });
+      return charge as PaymentChargeRow;
+    }
+    const [existing] = await tx.select().from(paymentCharges).where(and(
+      eq(paymentCharges.clinicId, data.clinicId), eq(paymentCharges.budgetId, data.budgetId),
+    )).limit(1);
+    if (!existing) throw new Error('CHARGE_CREATE_CONFLICT');
+    return existing as PaymentChargeRow;
+  });
+}
+
+export async function updatePaymentChargeWithOutbox(
+  id: string, patch: Partial<PaymentChargeRow>, job: { clinicId: string; businessKey: string; payload: Record<string, unknown>; expectedStatuses?: readonly string[] },
+ ): Promise<PaymentChargeRow | undefined> {
+  const db = getDb();
+  return db.transaction(async (tx: any) => {
+    const statusFilter = job.expectedStatuses?.length ? inArray(paymentCharges.status, job.expectedStatuses) : undefined;
+    const [charge] = await tx.update(paymentCharges).set({ ...patch, updatedAt: new Date() })
+      .where(statusFilter ? and(eq(paymentCharges.id, id), statusFilter) : eq(paymentCharges.id, id)).returning();
+    if (!charge) return undefined;
+    await enqueueOutbox(tx, {
+      clinicId: job.clinicId, operation: 'financeiro.charge.cancel',
+      businessKey: job.businessKey, payload: { ...job.payload, chargeId: id },
+    });
+    return charge as PaymentChargeRow;
+  });
+}
+
 export async function getPaymentCharge(id: string): Promise<PaymentChargeRow | undefined> {
   const db = getDb();
   const [row] = await db.select().from(paymentCharges).where(eq(paymentCharges.id, id)).limit(1);
@@ -228,9 +272,13 @@ export async function findPaymentChargeByExternalId(clinicId: string, externalCh
   return row;
 }
 
-export async function updatePaymentCharge(id: string, patch: Partial<PaymentChargeRow>): Promise<PaymentChargeRow | undefined> {
+export async function updatePaymentCharge(
+  id: string, patch: Partial<PaymentChargeRow>, expectedStatuses?: readonly string[],
+ ): Promise<PaymentChargeRow | undefined> {
   const db = getDb();
-  const [row] = await db.update(paymentCharges).set({ ...patch, updatedAt: new Date() }).where(eq(paymentCharges.id, id)).returning();
+  const statusFilter = expectedStatuses?.length ? inArray(paymentCharges.status, expectedStatuses) : undefined;
+  const [row] = await db.update(paymentCharges).set({ ...patch, updatedAt: new Date() })
+    .where(statusFilter ? and(eq(paymentCharges.id, id), statusFilter) : eq(paymentCharges.id, id)).returning();
   return row;
 }
 

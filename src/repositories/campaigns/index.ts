@@ -5,10 +5,10 @@
 
 import { eq, and, desc, sql, lte } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository'
 import { campaigns, campaignRecipients } from '@/lib/db/schema'
 import { patients } from '@/modules/operacional/schema'
 import { dbLogger } from '@/lib/logger'
-
 // ─── Types ────────────────────────────────────────────────────
 
 export type CampaignType = 'reactivation' | 'retention' | 'promotional' | 'follow_up'
@@ -117,6 +117,21 @@ export async function addCampaignRecipients(params: {
     return 0
   }
 }
+
+export async function enqueueRecipientDelivery(params: {
+  clinicId: string; campaignId: string; recipientId: string; patientId: string; phone: string; message: string;
+}): Promise<void> {
+  const db = getDb()
+  await db.transaction(async (tx: any) => {
+    await enqueueOutbox(tx, {
+      clinicId: params.clinicId, operation: 'followup.campaign.recipient',
+      businessKey: `${params.campaignId}:${params.recipientId}`,
+      payload: params,
+    })
+  })
+}
+
+
 
 // ─── Read ─────────────────────────────────────────────────────
 
@@ -257,15 +272,21 @@ export async function updateCampaignCounts(id: string): Promise<void> {
     .from(campaignRecipients)
     .where(and(eq(campaignRecipients.campaignId, id), sql`converted_at IS NOT NULL`))
 
+  const [pendingCountRow] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(campaignRecipients)
+    .where(and(eq(campaignRecipients.campaignId, id), eq(campaignRecipients.status, 'pending')))
+
   await db
     .update(campaigns)
     .set({
       sentCount: sentCountRow?.count ?? 0,
       responseCount: responseCountRow?.count ?? 0,
       conversionCount: conversionCountRow?.count ?? 0,
+      ...(pendingCountRow?.count === 0 ? { status: 'completed', completedAt: new Date() } : {}),
       updatedAt: new Date(),
     })
-    .where(eq(campaigns.id, id))
+    .where(and(eq(campaigns.id, id), eq(campaigns.status, 'running')))
 }
 
 export async function updateRecipientStatus(

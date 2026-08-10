@@ -29,4 +29,15 @@ describe('outbox dispatcher', () => {
 
     await expect(dispatchNextOutbox(async () => undefined)).resolves.toEqual({ status: 'empty' });
   });
+  it('routes operation filters and dead-letter callbacks', async () => {
+    const deadLetterJob = { ...job, attempts: 5, operation: 'campaign' };
+    claimOutboxJob.mockResolvedValue(deadLetterJob);
+    const onDeadLetter = jest.fn().mockResolvedValue(undefined);
+    markOutboxRetry.mockResolvedValue(undefined);
+
+    await expect(dispatchNextOutbox(async () => { throw new Error('provider down'); }, { operations: ['campaign'], onDeadLetter }))
+      .resolves.toEqual({ status: 'dead_letter', jobId: 'job-1' });
+    expect(claimOutboxJob).toHaveBeenCalledWith({ operations: ['campaign'] });
+    expect(onDeadLetter).toHaveBeenCalledWith(deadLetterJob, expect.any(Error));
+  });
 });

@@ -19,17 +19,15 @@ t.describe('CRM Pipeline Page', () => {
     expect(await page.locator('h3, [data-testid="pipeline-empty"]').count()).toBeGreaterThan(0)
   })
 
-  t('lead cards or explicit empty state appear in kanban columns', async ({ page }) => {
+  t('lead cards appear in kanban columns', async ({ page }) => {
     const cards = page.locator('[data-rfd-draggable-id], [draggable="true"]')
-    const empty = page.locator('[data-testid="pipeline-empty"]')
-    await expect(cards.first().or(empty.first())).toBeVisible({ timeout: 15000 })
+    await expect(cards.first()).toBeVisible({ timeout: 15000 })
   })
 
-  t('stage columns show lead count or explicit empty state', async ({ page }) => {
+  t('stage columns show lead count', async ({ page }) => {
     const stage = page.locator('h3').first()
-    const empty = page.getByText('Nenhuma etapa de pipeline configurada.')
-    await expect(stage.or(empty)).toBeVisible({ timeout: 15000 })
-    if (await stage.count() > 0) await expect(stage).toContainText(/\d+/)
+    await expect(stage).toBeVisible({ timeout: 15000 })
+    await expect(stage).toContainText(/\d+/)
   })
 })
 
