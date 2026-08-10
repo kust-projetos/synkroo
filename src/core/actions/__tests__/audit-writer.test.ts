@@ -5,11 +5,9 @@
  *   - allowlistInput only keeps explicitly permitted fields
  *   - empty allowlist returns {} (safe default)
  *   - non-object inputs return {}
- *   - redactInput still works for backward compat (deprecated)
  */
 
-import { allowlistInput, redactInput } from '../audit-writer';
-
+import { allowlistInput } from '../audit-writer';
 describe('allowlistInput (ADR-BASE-12)', () => {
   it('keeps only allowed fields', () => {
     const input = { name: 'John', email: 'john@clinic.com', cpf: '123', phone: '555' };
@@ -64,28 +62,5 @@ describe('allowlistInput (ADR-BASE-12)', () => {
     expect(serialized).not.toContain('maria@example.com');
     expect(serialized).not.toContain('5511999999999');
     expect(serialized).not.toContain('diabetes');
-  });
-});
-
-describe('redactInput (deprecated, backward compat)', () => {
-  it('redacts sensitive fields', () => {
-    const input = { name: 'John', password: 'secret123', email: 'john@clinic.com' };
-    const result = redactInput(input, ['password', 'email']);
-    expect(result).toEqual({
-      name: 'John',
-      password: '[REDACTED]',
-      email: '[REDACTED]',
-    });
-  });
-
-  it('returns input unchanged when no sensitive fields match', () => {
-    const input = { name: 'John', role: 'admin' };
-    const result = redactInput(input, ['password']);
-    expect(result).toEqual({ name: 'John', role: 'admin' });
-  });
-
-  it('handles null/undefined gracefully', () => {
-    expect(redactInput(null, ['x'])).toBe(null);
-    expect(redactInput(undefined, ['x'])).toBe(undefined);
   });
 });

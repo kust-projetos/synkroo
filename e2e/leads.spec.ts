@@ -14,10 +14,9 @@ async function login(page: Page) {
   ])
 }
 
-async function expectLeadDataOrEmpty(page: Page) {
+async function expectLeadData(page: Page) {
   const leadRows = page.locator('[data-testid="lead-card"], table tbody tr, [class*="lead-card"]')
-  const empty = page.getByText(/Nenhum lead encontrado|Falha ao carregar leads/)
-  await expect(leadRows.first().or(empty.first())).toBeVisible({ timeout: 15000 })
+  await expect(leadRows.first()).toBeVisible({ timeout: 15000 })
 }
 
 test.describe('Leads Page', () => {
@@ -33,14 +32,13 @@ test.describe('Leads Page', () => {
     await expect(page.getByText('Temperatura', { exact: true })).toBeVisible()
   })
 
-  test('should display lead rows or explicit empty state', async ({ page }) => {
-    await expectLeadDataOrEmpty(page)
+  test('should display lead rows', async ({ page }) => {
+    await expectLeadData(page)
   })
 
   test('should display lead rows when data exists', async ({ page }) => {
     const rows = page.locator('table tbody tr, [data-testid="lead-card"], [class*="lead-card"]')
-    const empty = page.getByText(/Nenhum lead encontrado|Falha ao carregar leads/)
-    await expect(rows.first().or(empty.first())).toBeVisible({ timeout: 15000 })
+    await expect(rows.first()).toBeVisible({ timeout: 15000 })
   })
 
   test('should have new lead button', async ({ page }) => {
@@ -54,10 +52,9 @@ test.describe('Leads Page', () => {
     await expect(page.getByRole('heading', { name: 'Novo Lead' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Salvar Lead' })).toBeVisible()
   })
-  test('should show lead score or an explicit empty state', async ({ page }) => {
+  test('should show lead score', async ({ page }) => {
     const score = page.locator('[data-testid*="score"], [class*="score"]').first()
-    const empty = page.getByText(/Nenhum lead encontrado|Falha ao carregar leads/).first()
-    await expect(score.or(empty)).toBeVisible({ timeout: 15000 })
+    await expect(score).toBeVisible({ timeout: 15000 })
   })
 
   test('should have filter controls for temperature and status', async ({ page }) => {
@@ -80,12 +77,8 @@ test.describe('Leads status interaction', () => {
     await login(page)
     await page.goto(`${BASE_URL}/dashboard/leads`)
     await page.waitForLoadState('networkidle')
-    await expectLeadDataOrEmpty(page)
+    await expectLeadData(page)
     const rows = page.locator('table tbody tr, [data-testid="lead-card"], [class*="lead-card"]')
-    if (await rows.count() === 0) {
-      await expect(page.getByText(/Nenhum lead encontrado|Falha ao carregar leads/)).toBeVisible()
-      return
-    }
     await expect(rows.first()).toBeVisible()
   })
 })

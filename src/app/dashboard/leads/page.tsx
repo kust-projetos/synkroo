@@ -336,7 +336,7 @@ export default function LeadsPage() {
       <Card className="p-4">
         <div className="flex flex-wrap gap-4">
           <div>
-            <label className="text-sm text-muted-foreground block mb-1">Status</label>
+            <label className="text-sm text-muted-foreground block mb-1">Filtrar por status</label>
             <Select
               value={statusFilter}
               onValueChange={(v) => setStatusFilter(v as LeadStatus | 'all')}
@@ -426,7 +426,7 @@ export default function LeadsPage() {
                             style={{ width: `${lead.score}%` }}
                           />
                         </div>
-                        <span className="text-sm text-muted-foreground">{lead.score}%</span>
+                        <span data-testid="lead-score" className="text-sm text-muted-foreground">{lead.score}%</span>
                       </div>
                     </td>
                     <td className="px-4 py-3">

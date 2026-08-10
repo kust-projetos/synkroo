@@ -83,7 +83,7 @@ export function useKanbanLeads(clinicId: string) {
  * Fetch pipeline stages for kanban
  */
 export function fetchPipelineStages(clinicId: string) {
-  return fetcher<{ data?: any[] }>(`/api/pipeline/stages?clinic_id=${clinicId}`).then(r => r.data ?? [])
+  return fetcher<{ stages?: any[] }>(`/api/pipeline/stages?clinic_id=${clinicId}`).then(r => r.stages ?? [])
 }
 
 /**

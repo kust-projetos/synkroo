@@ -74,7 +74,7 @@ export function StageColumn({ stage, leads, onRename, onDelete, onChangeColor, o
             style={{ backgroundColor: stage.color }}
             onClick={() => onChangeColor && onChangeColor(stage.id, stage.color)}
           />
-          <h3 className="font-medium text-sm">{stage.name}</h3>
+          <h3 className="font-medium text-sm">{stage.name} <span className="text-xs text-muted-foreground">({leads.length})</span></h3>
           {stageTotal > 0 && (
             <span className="text-sm font-medium text-muted-foreground ml-2">
               ({stageTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })})
@@ -82,9 +82,6 @@ export function StageColumn({ stage, leads, onRename, onDelete, onChangeColor, o
           )}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-            {leads.length}
-          </span>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="p-1 rounded hover:bg-muted-foreground/10 transition-colors">

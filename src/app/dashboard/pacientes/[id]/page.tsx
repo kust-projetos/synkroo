@@ -37,7 +37,7 @@ export default function PatientDetailPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setPatient(data.patient)
+        setPatient(data.patient ?? data)
       } else {
         console.error('Failed to fetch patient:', data.error)
       }

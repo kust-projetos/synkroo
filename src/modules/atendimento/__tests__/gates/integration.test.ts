@@ -309,7 +309,7 @@ describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => 
     expect(res.status).toBe(404);
   });
 
-  it('whatsapp/evolution POST returns 404', async () => {
+  it('whatsapp/evolution POST remains reachable when atendimento is disabled', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -317,7 +317,7 @@ describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => 
       body: JSON.stringify({ event: 'messages.upsert', instance: 'test', data: { key: { remoteJid: 't', id: 'm1' } } }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(404);
+    expect(res.status).not.toBe(404);
   });
 });
 

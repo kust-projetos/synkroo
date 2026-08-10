@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { processEvolutionMessage } from '@/modules/atendimento/services/webhook-processor-service';
-import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+export const dynamic = 'force-dynamic';
 
 /**
  * Verify Evolution API webhook secret via timing-safe comparison.
@@ -24,19 +23,48 @@ function verifyEvolutionSecret(request: NextRequest): boolean {
 const processedIds = new Map<string, number>();
 const DEDUP_TTL = 5 * 60 * 1000;
 
+function normalizeEvolutionGoMessage(body: Record<string, unknown>): Record<string, unknown> {
+  const raw = (body.data || {}) as Record<string, unknown>;
+  const info = (raw.Info || raw.info || {}) as Record<string, unknown>;
+  const message = (raw.Message || raw.message || {}) as Record<string, unknown>;
+
+  return {
+    key: {
+      id: info.ID ?? info.id,
+      remoteJid: info.Chat ?? info.chat,
+      remoteJidAlt: info.SenderAlt ?? info.senderAlt,
+      fromMe: info.IsFromMe ?? info.isFromMe ?? false,
+    },
+    message: {
+      conversation: message.Conversation ?? message.conversation,
+      extendedTextMessage: message.ExtendedTextMessage ?? message.extendedTextMessage,
+      imageMessage: message.ImageMessage ?? message.imageMessage,
+      audioMessage: message.AudioMessage ?? message.audioMessage,
+      documentMessage: message.DocumentMessage ?? message.documentMessage,
+      buttonsResponseMessage: message.ButtonsResponseMessage ?? message.buttonsResponseMessage,
+    },
+  };
+}
+
 async function handlePOST(request: NextRequest) {
   if (!verifyEvolutionSecret(request)) {
     return NextResponse.json({ error: 'Invalid secret' }, { status: 403 });
   }
 
-  const body = await request.json();
-  const { event, instance, data } = body;
+  const body = await request.json() as Record<string, unknown>;
+  const event = body.event;
+  const instance = body.instanceName || body.instance || 'synkroo';
+  const isEvolutionGoMessage = event === 'Message' || event === 'SendMessage';
+  const data = isEvolutionGoMessage
+    ? normalizeEvolutionGoMessage(body)
+    : body.data as Record<string, unknown> | undefined;
 
-  if (event !== 'messages.upsert' || !data?.key?.remoteJid) {
+  const normalizedKey = data?.key as Record<string, unknown> | undefined;
+  if (!data || (event !== 'messages.upsert' && !isEvolutionGoMessage) || !normalizedKey?.remoteJid) {
     return NextResponse.json({ status: 'ignored', event });
   }
 
-  const key = data.key;
+  const key = normalizedKey;
   const messageId = key.id as string;
   if (messageId) {
     const now = Date.now();
@@ -49,11 +77,12 @@ async function handlePOST(request: NextRequest) {
     }
   }
 
-  const results = await processEvolutionMessage(data, instance || 'synkroo');
+  const instanceName = typeof instance === 'string' ? instance : 'synkroo';
+  const results = await processEvolutionMessage(data, instanceName);
   return NextResponse.json({
     success: true, processed: results.length > 0, results,
     ai_enabled: false, reason: 'legacy_agent_removed', todo: 'TODO(W5.3): reconnect to new agent',
   });
 }
 
-export const POST = withModuleRoute('atendimento', moduleManifest)(handlePOST);
+export const POST = handlePOST;

@@ -26,14 +26,14 @@ export const obterEstatisticasLeads = defineAction({
       totalScore += l.score || 0;
     }
 
+    const convertedCount = byStatus.converted || 0;
     return {
-      stats: {
-        total,
-        byStatus,
-        byTemperature,
-        hotLeads: hotCount,
-        avgScore: rows.length > 0 ? Math.round(totalScore / rows.length) : 0,
-      },
+      total,
+      byStatus,
+      byTemperature,
+      hotLeads: hotCount,
+      avgScore: rows.length > 0 ? Math.round(totalScore / rows.length) : 0,
+      conversionRate: total > 0 ? Math.round((convertedCount / total) * 100) : 0,
     };
   },
 });

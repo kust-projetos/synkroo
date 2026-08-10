@@ -3,7 +3,7 @@ import { getDb, closeDb } from '@/lib/db/client'
 import { enqueueOutbox, claimOutboxJob, markOutboxRetry } from '@/lib/outbox/outbox-repository'
 
 const describeIntegration = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip
-const CLINIC_ID = '00000000-0000-0000-0000-000000000001'
+let clinicId: string
 const keyPrefix = `outbox-integration:${process.pid}:${Date.now()}`
 let pool: Pool
 
@@ -14,6 +14,8 @@ async function cleanup() {
 describeIntegration('transactional outbox against PostgreSQL', () => {
   beforeAll(async () => {
     pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    clinicId = (await pool.query('SELECT id FROM clinics LIMIT 1')).rows[0]?.id
+    if (!clinicId) throw new Error('integration fixture requires a clinic')
   })
 
   afterEach(cleanup)
@@ -26,7 +28,7 @@ describeIntegration('transactional outbox against PostgreSQL', () => {
   it('enqueues a business key once under concurrent producers', async () => {
     const db = getDb()
     const job = {
-      clinicId: CLINIC_ID,
+      clinicId: clinicId,
       operation: 'integration.test',
       businessKey: `${keyPrefix}:unique`,
       payload: { attempt: 1 },
@@ -43,7 +45,7 @@ describeIntegration('transactional outbox against PostgreSQL', () => {
     const db = getDb()
     const businessKey = `${keyPrefix}:claim`
     await enqueueOutbox(db, {
-      clinicId: CLINIC_ID,
+      clinicId: clinicId,
       operation: 'integration.test',
       businessKey,
       payload: { safe: true },

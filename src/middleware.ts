@@ -11,8 +11,8 @@ import { exceedsBodyLimit, shouldRejectCsrf } from '@/lib/security/request-guard
  *   NÃO em module-init. Portanto, qualquer leitura de env var DEVE
  *   ser feita dentro da função middleware, não no module scope.
  */
-const PUBLIC_EXACT = new Set(['/','/login','/signup','/pi-finance','/api/health']);
-const PUBLIC_PREFIXES = ['/api/auth/', '/api/financeiro/webhooks/'] as const;
+const PUBLIC_EXACT = new Set(['/','/login','/signup','/pi-finance','/api/health','/api/whatsapp/evolution']);
+const PUBLIC_PREFIXES = ['/api/auth/', '/api/financeiro/webhooks/', '/api/whatsapp/evolution/'] as const;
 const SIGNED_TRANSPORT = /^\/api\/(messages\/inbound|cron\/|agent\/)/;
 
 export function isPublicPath(pathname: string): boolean {

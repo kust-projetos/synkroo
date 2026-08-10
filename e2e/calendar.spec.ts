@@ -349,10 +349,8 @@ test.describe('Calendar - Event Interactions', () => {
     await switchView(page, 'Semana')
 
     const eventButtons = page.locator('[role="button"][aria-label*="- "]')
-    const count = await eventButtons.count()
-    // Week may be empty in demo data — check for events OR empty week state
-    const hasEmptyWeek = await page.locator('text=/sem|nenhum|0 evento/i').count() > 0
-    expect(count > 0 || hasEmptyWeek).toBeTruthy()
+    await expect(eventButtons.first()).toBeVisible({ timeout: 15000 })
+    expect(await eventButtons.count()).toBeGreaterThan(0)
   })
 
   test('professionals view should group events by dentist', async ({ page }) => {
@@ -463,12 +461,8 @@ test.describe('Calendar - Dark Mode', () => {
 
     const eventButtons = page.locator('[role="button"][aria-label*="- "]')
     await expect(eventButtons.first()).toBeVisible()
-    if (await eventButtons.count() > 0) {
-      const classes = await eventButtons.first().evaluate(el => el.className)
-      expect(classes).toContain('dark:')
-    } else {
-      await expect(page.getByText('+ Criar encaixe').first()).toBeVisible()
-    }
+    const classes = await eventButtons.first().evaluate(el => el.className)
+    expect(classes).toContain('dark:')
   })
 
   test('click-to-create should work in dark mode', async ({ page }) => {

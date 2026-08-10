@@ -10,6 +10,7 @@ describe('middleware security gates', () => {
   it.each([
     ['/api/health', true],
     ['/api/auth/signin', true],
+    ['/api/whatsapp/evolution', true],
     ['/api/messages/inbound', false],
     ['/api/messages/send', false],
     ['/api/cron/cleanup', false],
