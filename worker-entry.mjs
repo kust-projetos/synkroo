@@ -1,4 +1,5 @@
 import openNextWorker from './.open-next/worker.js';
+export { DOQueueHandler } from './.open-next/.build/durable-objects/queue.js';
 
 const OUTBOX_PATH = '/api/cron/outbox?limit=25';
 
