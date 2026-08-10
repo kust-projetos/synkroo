@@ -39,7 +39,7 @@ export default function PatientsPage() {
     return params
   }, [clinicId, page, search])
 
-  const { data, isLoading: loading, refetch } = usePatients(
+  const { data, isLoading: loading, refetch, error } = usePatients(
     clinicId ? queryParams : undefined
   )
 
@@ -167,7 +167,13 @@ export default function PatientsPage() {
         />
       </form>
 
-      {(!loading && patients.length === 0) ? (
+      {error ? (
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 p-6 text-destructive">
+          <h2 className="font-semibold">Não foi possível carregar os pacientes</h2>
+          <p className="mt-2 text-sm">O serviço está indisponível. Tente novamente.</p>
+          <Button className="mt-4" variant="outline" onClick={() => refetch()}>Tentar novamente</Button>
+        </div>
+      ) : (!loading && patients.length === 0) ? (
         <EmptyState
           icon={<UserGroupIcon className="h-8 w-8 text-teal-600 dark:text-teal-400" />}
           title={search ? 'Nenhum paciente encontrado' : 'Nenhum paciente cadastrado'}

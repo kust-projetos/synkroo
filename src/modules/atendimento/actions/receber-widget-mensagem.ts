@@ -3,9 +3,7 @@ import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 
 /**
- * Widget message receive action.
- * Currently disabled — legacy agent removed.
- * TODO(W5.3): reconnect to new agent.
+ * Retired widget action. The HTTP endpoint returns 410 until a replacement channel is introduced.
  */
 export const receberWidgetMensagem = defineAction({
   name: 'atendimento.receberWidgetMensagem',
@@ -18,12 +16,8 @@ export const receberWidgetMensagem = defineAction({
     message: z.string(),
     clinicId: z.string().optional(),
   }),
-  handler: async (_input, _ctx: ActionContext) => {
-    return {
-      success: false,
-      disabled: true,
-      reason: 'legacy_agent_removed',
-      todo: 'TODO(W5.3): reconnect to new agent',
-    };
-  },
+  handler: async (_input, _ctx: ActionContext) => ({
+    success: false,
+    code: 'WIDGET_MESSAGING_RETIRED',
+  }),
 });

@@ -15,7 +15,9 @@ Estado durável das execuções `/goal` do plano mestre. Nunca registrar secrets
 
 | Goal ID | Task/REQs | Branch/known-good SHA | Allowed paths | Gates | Commit auth | Status | Approval/evidence |
 |---|---|---|---|---|---|---|---|
-| G-AUDIT-20260804 | REM-01..REM-15 | main / HEAD | audit remediation paths | local/staging/Asaas/Evolution config green; authorized staging outbound canary green; production approval pending | session owner authorized staging, sandbox, VPS config and one sandbox recipient | BLOCKED | final review record; production approval absent |
+| G-AUDIT-20260804 | REM-01..REM-15 | main / HEAD | audit remediation paths | local/staging/Asaas/Evolution config green; production deployment/canary and rollback green | owner authorization recorded 2026-08-10; no secrets stored | GO | cycle 27; final rubric 100/100; production Worker `d32ec7df-b88f-422f-a7b8-65595f995716`; health 20/20; Evolution outbound/webhook and invalid-token 403 verified |
+
+**Canonical E2E count:** historical cycles 18–19 retain their pre-cleanup 235/235 results; after removing swallowed/no-op assertions, the final canonical matrix is 230/230 twice (cycles 22, 26, and final Go/No-Go evidence).
 
 ## Ciclos append-only
 

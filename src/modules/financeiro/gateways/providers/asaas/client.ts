@@ -37,8 +37,12 @@ async function getApiKey(clinicId: string): Promise<string> {
   return decryptGatewayCredentials(enc).apiKey;
 }
 
-function reqHeaders(apiKey: string): Record<string, string> {
-  return { 'Content-Type': 'application/json', access_token: apiKey };
+function reqHeaders(apiKey: string, idempotencyKey?: string): Record<string, string> {
+  return {
+    'Content-Type': 'application/json',
+    access_token: apiKey,
+    ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+  };
 }
 
 function mapStatus(s: string): 'pending' | 'paid' | 'cancelled' | 'overdue' {
@@ -62,7 +66,7 @@ export const asaasClient: PaymentGateway = {
     };
     const res = await fetch(`${ASAAS_API_BASE}/payments`, {
       method: 'POST',
-      headers: reqHeaders(apiKey),
+      headers: reqHeaders(apiKey, input.idempotencyKey),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -100,7 +104,7 @@ export const asaasClient: PaymentGateway = {
     const apiKey = await getApiKey(input.clinicId);
     const res = await fetch(`${ASAAS_API_BASE}/payments/${input.externalChargeId}/cancel`, {
       method: 'POST',
-      headers: reqHeaders(apiKey),
+      headers: reqHeaders(apiKey, input.idempotencyKey),
     });
     if (!res.ok) {
       const err = await res.text();

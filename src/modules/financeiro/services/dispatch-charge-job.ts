@@ -20,6 +20,7 @@ export async function dispatchChargeJob(job: OutboxJob): Promise<void> {
       amount: Number(payload.amount),
       dueDate: String(payload.dueDate),
       customerName: 'Cliente',
+      idempotencyKey: job.businessKey,
     });
     const updated = await updatePaymentCharge(chargeId, {
       externalChargeId: result.externalChargeId,
@@ -33,7 +34,11 @@ export async function dispatchChargeJob(job: OutboxJob): Promise<void> {
 
   if (job.operation === 'financeiro.charge.cancel') {
     if (payload.externalChargeId) {
-      await provider.cancelCharge({ externalChargeId: String(payload.externalChargeId), clinicId });
+      await provider.cancelCharge({
+        externalChargeId: String(payload.externalChargeId),
+        clinicId,
+        idempotencyKey: job.businessKey,
+      });
     }
     await updatePaymentCharge(chargeId, { status: 'cancelled' }, ['cancellation_pending']);
     return;

@@ -1,9 +1,14 @@
 import { NextRequest } from 'next/server';
 
 const mockProcessEvolutionMessage = jest.fn();
+const mockResolveChannelInstallation = jest.fn();
 
 jest.mock('@/modules/atendimento/services/webhook-processor-service', () => ({
   processEvolutionMessage: (...args: unknown[]) => mockProcessEvolutionMessage(...args),
+}));
+
+jest.mock('@/modules/atendimento/integrations/resolve-channel-installation', () => ({
+  resolveChannelInstallation: (...args: unknown[]) => mockResolveChannelInstallation(...args),
 }));
 
 jest.mock('@/core/modules/gates', () => ({
@@ -14,11 +19,11 @@ jest.mock('@/core/modules/manifest', () => ({ moduleManifest: {} }));
 
 import { POST } from './route';
 
-function makeRequest(url: string, headers: Record<string, string> = {}) {
+function makeRequest(url: string, headers: Record<string, string> = {}, body: Record<string, unknown> = { event: 'Connected', instance: 'ted', data: {} }) {
   return new NextRequest(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify({ event: 'Connected', instance: 'ted', data: {} }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -30,8 +35,9 @@ describe('Evolution webhook authentication', () => {
     (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
     process.env.EVOLUTION_WEBHOOK_SECRET = 'test-evolution-secret';
     mockProcessEvolutionMessage.mockReset();
+    mockResolveChannelInstallation.mockReset();
+    mockResolveChannelInstallation.mockResolvedValue({ installationId: 'ted', clinicId: 'clinic-1' });
   });
-
   afterAll(() => {
     (process.env as Record<string, string | undefined>).NODE_ENV = originalNodeEnv;
     if (originalSecret === undefined) delete process.env.EVOLUTION_WEBHOOK_SECRET;
@@ -110,11 +116,56 @@ describe('Evolution webhook authentication', () => {
   });
 
   it('rejects invalid Evolution Go query tokens in production', async () => {
+    mockResolveChannelInstallation.mockResolvedValue(null);
     const response = await POST(makeRequest(
       'http://localhost/api/whatsapp/evolution?token=wrong',
     ));
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({ error: 'Invalid secret' });
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid Evolution installation' });
+  });
+  it('rejects a missing instance without fallback', async () => {
+    mockResolveChannelInstallation.mockResolvedValue(null);
+    const response = await POST(makeRequest(
+      'http://localhost/api/whatsapp/evolution?token=test-evolution-secret',
+      {},
+      { event: 'messages.upsert', data: { key: { remoteJid: '5511999999999@s.whatsapp.net' } } },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(mockResolveChannelInstallation).toHaveBeenCalledWith({
+      installationId: '',
+      providedSecret: 'test-evolution-secret',
+      provider: 'evolution',
+    });
+  });
+
+  it('rejects an unknown or disabled installation', async () => {
+    mockResolveChannelInstallation.mockResolvedValue(null);
+
+    const response = await POST(makeRequest(
+      'http://localhost/api/whatsapp/evolution?token=test-evolution-secret',
+      {},
+      { event: 'messages.upsert', instance: 'unknown-instance', data: { key: { remoteJid: '5511999999999@s.whatsapp.net' } } },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
+  });
+
+  it('rejects cross-installation spoofing', async () => {
+    mockResolveChannelInstallation.mockImplementation(({ installationId, providedSecret }: { installationId: string; providedSecret: string }) => {
+      if (installationId === 'victim-instance' && providedSecret === 'attacker-secret') return null;
+      return { installationId, clinicId: 'victim-clinic' };
+    });
+
+    const response = await POST(makeRequest(
+      'http://localhost/api/whatsapp/evolution?token=attacker-secret',
+      {},
+      { event: 'messages.upsert', instance: 'victim-instance', data: { key: { remoteJid: '5511999999999@s.whatsapp.net' } } },
+    ));
+
+    expect(response.status).toBe(403);
+    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
   });
 });

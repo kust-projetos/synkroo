@@ -6,8 +6,7 @@
  * Identity copy — no schema changes.
  */
 
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, decimal } from 'drizzle-orm/pg-core';
-import { vector } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, decimal, uniqueIndex, vector } from 'drizzle-orm/pg-core';
 import { clinics, users } from '@/lib/db/schema/core';
 import { patients } from '@/lib/db/schema';
 import { channelType, conversationStatus, messageDirection, messageType } from '@/lib/db/schema/enums';
@@ -39,6 +38,8 @@ export const messages = pgTable('messages', {
   direction: messageDirection('direction').notNull(),
   content: text('content').notNull(),
   messageType: messageType('message_type').notNull().default('text'),
+  externalProvider: text('external_provider'),
+  externalMessageId: text('external_message_id'),
   mediaUrl: text('media_url'),
   metadata: jsonb('metadata').default('{}'),
   intent: text('intent'),
@@ -49,7 +50,9 @@ export const messages = pgTable('messages', {
   deliveredAt: timestamp('delivered_at', { withTimezone: true }),
   readAt: timestamp('read_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (table) => ({
+  externalEventUnique: uniqueIndex('messages_external_provider_event_unique').on(table.externalProvider, table.externalMessageId),
+}));
 
 // ──────────────────────────────────────────────
 // CONVERSATION STATES

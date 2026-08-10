@@ -5,9 +5,7 @@ import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
 /**
  * POST /api/cron/smart-triggers
  * Cron endpoint to process all smart triggers.
- *
- * TODO(W5.3): reconnect to new agent.
- * Legacy agent removed — returns no-op.
+ * This retired endpoint is intentionally unavailable; smart triggers must use registered jobs.
  *
  * Headers:
  *   Authorization: Bearer <CRON_SECRET>
@@ -28,7 +26,7 @@ export async function POST(request: NextRequest) {
     const cronSecret = process.env.CRON_SECRET
     const expectedSecret = cronSecret ? `Bearer ${cronSecret}` : ''
 
-    if (cronSecret && (
+    if (!cronSecret || (
       authHeader.length !== expectedSecret.length ||
       !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedSecret))
     )) {
@@ -36,12 +34,10 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      success: true,
-      skipped: true,
-      reason: 'legacy_agent_removed',
-      todo: 'TODO(W5.3): reconnect to new agent',
+      error: 'Smart triggers endpoint retired',
+      code: 'SMART_TRIGGERS_RETIRED',
       timestamp: new Date().toISOString(),
-    })
+    }, { status: 410 })
   } catch (error) {
     return NextResponse.json(
       { error: 'Internal error', reason: String(error) },

@@ -18,6 +18,8 @@ export interface CreateChargeInput {
   customerEmail?: string;
   customerPhone?: string;
   description?: string;
+  /** Stable provider key reused across outbox retries. */
+  idempotencyKey?: string;
 }
 
 export interface GetChargeInput {
@@ -28,6 +30,8 @@ export interface GetChargeInput {
 export interface CancelChargeInput {
   externalChargeId: string;
   clinicId: string;
+  /** Stable provider key reused across outbox retries. */
+  idempotencyKey?: string;
 }
 
 export interface WebhookInput {

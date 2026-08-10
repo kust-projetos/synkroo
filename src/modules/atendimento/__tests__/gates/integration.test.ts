@@ -25,12 +25,13 @@ import { createHmac } from 'crypto';
 import { Pool } from 'pg';
 import { withModuleRoute } from '@/core/modules/gates';
 import { moduleManifest } from '@/core/modules/manifest';
-
+import { hashChannelSecret } from '@/modules/atendimento/integrations/resolve-channel-installation';
 const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 const describeOrSkip = SKIP ? describe.skip : describe;
 
 const VALID_SECRET = process.env.WEBHOOK_SECRET!;
 const CLINIC_ID = '00000000-0000-0000-0000-00000000a001';
+const EVOLUTION_INSTANCE = 'test';
 
 // ─── Pool for DB-dependent tests ──────────────────────────────────────────────
 
@@ -45,6 +46,12 @@ beforeAll(async () => {
      ON CONFLICT (id) DO NOTHING`,
     [CLINIC_ID],
   );
+  await pool.query(
+    `INSERT INTO channel_installations (clinic_id, provider, installation_id, secret_hash, enabled)
+     VALUES ($1, 'evolution', $2, $3, true)
+     ON CONFLICT (installation_id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, provider = EXCLUDED.provider, secret_hash = EXCLUDED.secret_hash, enabled = true`,
+    [CLINIC_ID, EVOLUTION_INSTANCE, hashChannelSecret(VALID_SECRET)],
+  );
 }, 60_000);
 
 afterAll(async () => {
@@ -53,6 +60,7 @@ afterAll(async () => {
     await pool.query(`DELETE FROM instance_modules WHERE module_id = 'atendimento'`);
     await pool.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [CLINIC_ID]);
     await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [CLINIC_ID]);
+    await pool.query(`DELETE FROM channel_installations WHERE installation_id = $1`, [EVOLUTION_INSTANCE]);
     await pool.query(`DELETE FROM clinics WHERE id = $1`, [CLINIC_ID]);
   } catch { /* ignore */ }
   await pool.end();
@@ -218,7 +226,7 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
         'Content-Type': 'application/json',
         'X-Webhook-Secret': VALID_SECRET,
       },
-      body: JSON.stringify({ event: 'messages.upsert', instance: 'test', data: { key: { remoteJid: 'test', id: 'msg3' } } }),
+      body: JSON.stringify({ event: 'messages.upsert', instance: EVOLUTION_INSTANCE, data: { key: { remoteJid: 'test', id: 'msg3' } } }),
     });
     const res = await POST(req);
     expect(res.status).not.toBe(404);
@@ -444,7 +452,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Webhook-Secret': VALID_SECRET },
-      body: JSON.stringify({ event: 'messages.upsert', data: {} }),
+      body: JSON.stringify({ event: 'messages.upsert', instance: EVOLUTION_INSTANCE, data: {} }),
     });
     const res = await POST(req);
     // Gate + auth pass → processor returns [] (no key.remoteJid) → route returns 200

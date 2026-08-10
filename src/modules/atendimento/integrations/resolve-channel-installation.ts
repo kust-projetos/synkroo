@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { channelInstallations } from '@/lib/db/schema';
 
@@ -9,8 +9,9 @@ export type ChannelInstallation = {
 };
 
 type ResolveInput = {
-  installationId: string;
-  providedSecret: string;
+  installationId: string
+  providedSecret: string
+  provider?: string
 };
 
 function hashSecret(secret: string): Buffer {
@@ -28,7 +29,11 @@ export async function resolveChannelInstallation(input: ResolveInput): Promise<C
   const [row] = await getDb()
     .select({ installationId: channelInstallations.installationId, clinicId: channelInstallations.clinicId, secretHash: channelInstallations.secretHash })
     .from(channelInstallations)
-    .where(eq(channelInstallations.installationId, input.installationId))
+    .where(and(
+      eq(channelInstallations.installationId, input.installationId),
+      eq(channelInstallations.enabled, true),
+      ...(input.provider ? [eq(channelInstallations.provider, input.provider)] : []),
+    ))
     .limit(1);
   if (!row || !row.secretHash || !matchesSecret(input.providedSecret, row.secretHash)) return null;
   return { installationId: row.installationId, clinicId: row.clinicId };

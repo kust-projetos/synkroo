@@ -494,7 +494,6 @@ não aprovada bloqueia PR.
 
 ## 17. Próxima ação única
 
-Auditoria de remediação 2026-08-04: ver `docs/superpowers/audits/2026-08-03-remediation-go-no-go.md` e o registro final em `docs/superpowers/audits/2026-08-05-final-review-record.md`. Integração PostgreSQL, E2E completo em duas execuções, staging e rollback estão comprovados. O estado técnico permanece NO-GO somente para release externo enquanto faltar canário WhatsApp com destinatário autorizado e aprovação formal do owner; nenhuma mutação de produção foi executada.
+Auditoria de remediação concluída: `docs/superpowers/audits/2026-08-03-remediation-go-no-go.md` e `docs/superpowers/audits/2026-08-05-final-review-record.md` registram integração PostgreSQL, E2E 230/230 em duas execuções, staging, canary de provider, produção e rollback comprovados. O estado atual é GO; o outbox possui consumer agendado no Cloudflare Cron via `worker-entry.mjs`, e os gaps de idempotência/deduplicação foram fechados no tree atual.
 
-Próxima ação: registrar autorização do canário/provider e exceção ou aprovação do owner. Não autenticar GitHub, mergear PR #6, iniciar feature, smoke IA ou refactor
-antes de preservar evidência e rotacionar credenciais potencialmente expostas.
+Próxima ação: manter monitoramento do callback e rollback pronto; qualquer nova mudança deve anexar evidência ao ledger antes de alterar o status.

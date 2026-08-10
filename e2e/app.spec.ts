@@ -502,8 +502,8 @@ test.describe('Error Handling', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(2000) // Give React time to handle error states
 
-    await expect(page.locator('main')).toBeVisible()
-    await expect(page.locator('body')).toBeVisible()
+    await expect(page.getByRole('alert')).toContainText('Não foi possível carregar os pacientes')
+    await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible()
   })
 })
 

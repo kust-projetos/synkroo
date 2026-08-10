@@ -127,6 +127,13 @@
       "when": 1785858829310,
       "tag": "0018_payment_charge_budget_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786375773680,
+      "tag": "0019_next_cobalt_man",
+      "breakpoints": true
     }
   ]
 }

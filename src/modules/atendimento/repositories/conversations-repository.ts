@@ -9,7 +9,7 @@
 
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { conversations, messages, patients, users, clinics, whatsappInstances, appointments } from '@/lib/db/schema';
+import { conversations, messages, patients, users, clinics, whatsappInstances, channelInstallations, appointments } from '@/lib/db/schema';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -575,22 +575,19 @@ export async function getClinicByPhoneNumber(phoneNumberId: string): Promise<str
   return rows?.[0]?.id || null;
 }
 
-/** Resolve clinicId from an Evolution API instance name. */
+/** Resolve clinicId from an enabled Evolution channel installation. */
 export async function getClinicByInstance(instanceName: string): Promise<string | null> {
   const db = getDb();
   const rows = await db
-    .select({ clinicId: whatsappInstances.clinicId })
-    .from(whatsappInstances)
-    .where(eq(whatsappInstances.evolutionInstanceName, instanceName))
-    .limit(1);
-  if (rows[0]) return rows[0].clinicId;
-
-  const clinicRows = await db
-    .select({ id: clinics.id })
-    .from(clinics)
-    .where(eq(clinics.subscriptionStatus, 'active'))
-    .limit(1);
-  return clinicRows[0]?.id || null;
+    .select({ clinicId: channelInstallations.clinicId })
+    .from(channelInstallations)
+    .where(and(
+      eq(channelInstallations.provider, 'evolution'),
+      eq(channelInstallations.installationId, instanceName),
+      eq(channelInstallations.enabled, true),
+    ))
+    .limit(2);
+  return rows.length === 1 ? rows[0].clinicId : null;
 }
 
 /** Find appointment by id and clinic, used by button response handler. */
@@ -633,50 +630,47 @@ export async function messageExistsById(messageId: string): Promise<boolean> {
   return existing.length > 0;
 }
 
-/** Check if a message with the given externalMessageId already exists in the conversation. */
-export async function messageExistsByExternalId(conversationId: string, externalMessageId: string): Promise<boolean> {
+/** Check if a provider event already exists in this conversation. */
+export async function messageExistsByExternalId(conversationId: string, externalMessageId: string, externalProvider = 'unknown'): Promise<boolean> {
   const db = getDb();
   const [row] = await db
     .select({ id: messages.id })
     .from(messages)
     .where(and(
       eq(messages.conversationId, conversationId),
-      sql`${messages.metadata}->>'externalMessageId' = ${externalMessageId}`,
+      eq(messages.externalProvider, externalProvider),
+      eq(messages.externalMessageId, externalMessageId),
     ))
     .limit(1);
   return !!row;
 }
 
-/**
- * Append an inbound message with dedup by externalMessageId.
- * If externalMessageId is provided and already exists in this conversation,
- * returns { deduped: true }. Otherwise persists and returns { deduped: false, id }.
- *
- * Limitation: read-then-write (not atomic). For strong guarantees
- * under concurrency, an external_message_id column + unique index would be needed.
- * The Meta retry pattern is mostly sequential, so this covers the common case.
- */
+/** Append an inbound message with an atomic provider/event uniqueness claim. */
 export async function appendInboundMessageDeduped(data: {
   conversationId: string;
   content: string;
+  externalProvider?: string;
   externalMessageId?: string;
   messageType?: string;
   metadata?: Record<string, unknown>;
 }): Promise<{ deduped: true } | { deduped: false; id: string }> {
-  if (data.externalMessageId && await messageExistsByExternalId(data.conversationId, data.externalMessageId)) {
-    return { deduped: true };
-  }
   const meta = {
     ...(data.metadata ?? {}),
     ...(data.externalMessageId ? { externalMessageId: data.externalMessageId } : {}),
   };
-  const msg = await createMessage({
-    conversationId: data.conversationId,
-    direction: 'inbound',
-    content: data.content,
-    messageType: data.messageType ?? 'text',
-    metadata: meta,
-    isAi: false,
-  });
-  return { deduped: false, id: msg.id };
+  const [msg] = await getDb()
+    .insert(messages)
+    .values({
+      conversationId: data.conversationId,
+      direction: 'inbound' as any,
+      content: data.content,
+      messageType: (data.messageType ?? 'text') as any,
+      externalProvider: data.externalProvider ?? (data.externalMessageId ? 'unknown' : null),
+      externalMessageId: data.externalMessageId ?? null,
+      metadata: meta,
+      isAi: false,
+    } as any)
+    .onConflictDoNothing({ target: [messages.externalProvider, messages.externalMessageId] })
+    .returning({ id: messages.id });
+  return msg ? { deduped: false, id: msg.id } : { deduped: true };
 }

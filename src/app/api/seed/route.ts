@@ -95,6 +95,7 @@ function slotKey(dentistId: string, dayOffset: number, time: string): string {
 // ── GET /api/seed ────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
+  try {
   const secret = request.nextUrl.searchParams.get('secret')
   const scenario = request.nextUrl.searchParams.get('scenario') ?? 'default'
   const isLargeScenario = scenario === 'large'
@@ -525,5 +526,39 @@ export async function GET(request: NextRequest) {
     summary[k] = v.ok
   }
 
-  return NextResponse.json({ success: true, results, summary })
+  const fixtures = {
+    clinic: 1,
+    admin: userId ? 1 : 0,
+    dentists: dentistIds.length,
+    procedures: procedureIds.length,
+    patients: patientIds.length,
+    pipeline_stages: pipelineRows.length,
+    leads: summary.leads ?? 0,
+    campaigns: summary.campaigns ?? 0,
+    appointments: summary.appointments ?? 0,
+  }
+  const requiredFixtures = ['clinic', 'admin', 'dentists', 'procedures', 'patients', 'pipeline_stages', 'leads', 'campaigns', 'appointments'] as const
+  const missingFixtures = requiredFixtures.filter((name) => fixtures[name] < 1)
+  const failures = Object.entries(results)
+    .filter(([, result]) => result.err > 0 || result.errors.length > 0)
+    .map(([domain, result]) => ({ domain, count: result.err, errors: result.errors }))
+  if (missingFixtures.length > 0 || failures.length > 0) {
+    return NextResponse.json({
+      success: false,
+      error: 'E2E fixture seed incomplete',
+      missingFixtures,
+      failures,
+      results,
+      summary,
+      fixtures,
+    }, { status: 500 })
+  }
+  return NextResponse.json({ success: true, results, summary, fixtures })
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      error: 'E2E fixture seed failed',
+      details: error instanceof Error ? error.message : String(error),
+    }, { status: 500 })
+  }
 }

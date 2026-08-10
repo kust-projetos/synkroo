@@ -51,8 +51,7 @@ export async function GET(
 
 /**
  * PUT /api/knowledge/[id]
- * Legacy RAG/embedding service removed — returns 501.
- * TODO(W5.3): reconnect knowledge ingestion to new retrieval backend.
+ * Update a tenant-scoped knowledge entry. Embeddings remain optional.
  */
 export async function PUT(
   request: NextRequest,
@@ -62,15 +61,23 @@ export async function PUT(
     const auth = await validateApiAuth()
     if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
-    return NextResponse.json(
-      {
-        success: false,
-        disabled: true,
-        reason: 'legacy_rag_removed',
-        todo: 'TODO(W5.3): reconnect knowledge ingestion to new retrieval backend',
-      },
-      { status: 501 }
-    )
+    const { id } = await params
+    const body = await request.json() as Record<string, unknown>
+    const updateData: Record<string, unknown> = {}
+    for (const field of ['category', 'question', 'answer'] as const) {
+      if (typeof body[field] === 'string' && body[field].trim()) updateData[field] = body[field].trim()
+    }
+    if (Array.isArray(body.keywords)) {
+      updateData.keywords = body.keywords.filter((keyword): keyword is string => typeof keyword === 'string')
+    }
+    if (typeof body.is_active === 'boolean') updateData.isActive = body.is_active
+    if (Object.keys(updateData).length === 0) return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
+
+    const [row] = await getDb().update(KB).set({ ...updateData, updatedAt: new Date() }).where(
+      and(eq(KB.id, id), eq(KB.clinicId, auth.profile!.clinic_id)),
+    ).returning()
+    if (!row) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
+    return NextResponse.json({ data: toSnake(row) })
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 })
   }
