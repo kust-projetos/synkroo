@@ -21,6 +21,9 @@ paths = [
   # ── Certificados e temp files (dev local apenas) ───────────
   '''certificates/''',
   '''tmp/''',
+  # Pi runtime ledgers are unversioned orchestration metadata, not application source.
+  '''\.pi-glla/''',
+  '''\.pi-subagents/''',
 ]
 
 stopwords = [

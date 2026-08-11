@@ -445,7 +445,7 @@ test.describe('Navigation', () => {
     // Dashboard -> CRM
     const crmLink = page.locator('aside').getByRole('link', { name: 'CRM', exact: true })
     await expect(crmLink).toBeVisible()
-    await crmLink.evaluate((link) => (link as HTMLAnchorElement).click())
+    await crmLink.click()
     await expect(page).toHaveURL(/.*dashboard\/crm/)
     await page.waitForLoadState('networkidle')
 
@@ -502,8 +502,10 @@ test.describe('Error Handling', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(2000) // Give React time to handle error states
 
-    await expect(page.getByRole('alert')).toContainText('Não foi possível carregar os pacientes')
-    await expect(page.getByRole('button', { name: 'Tentar novamente' })).toBeVisible()
+    const patientError = page.locator('[role="alert"]').filter({ hasText: 'Não foi possível carregar os pacientes' })
+    await expect(patientError).toBeVisible()
+    await expect(patientError).toContainText('Não foi possível carregar os pacientes')
+    await expect(patientError.getByRole('button', { name: 'Tentar novamente' })).toBeVisible()
   })
 })
 

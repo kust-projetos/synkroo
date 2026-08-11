@@ -4,8 +4,7 @@
  */
 
 import { eq } from 'drizzle-orm'
-import { campaigns, campaignRecipients, leads, leadActivities, waitlist, patientFeedback, procedureGuidelines, followUpConfigs } from '@/lib/db/schema'
-
+import { appointments, campaigns, campaignRecipients, leads, leadActivities, waitlist, patientFeedback, procedureGuidelines, followUpConfigs } from '@/lib/db/schema'
 // ── Types ───────────────────────────────────────
 
 export interface LeadSeed {
@@ -122,6 +121,8 @@ export function buildLeadSeed(scale: 'default' | 'large'): LeadSeed[] {
 
 /** Idempotent cleanup of demo-owned seed tables for a clinic. */
 export async function cleanupDemoSeedTables(db: any, clinicId: string) {
+  // Seed appointments are owned by this deterministic fixture; clear them first so reruns are idempotent.
+  await db.delete(appointments).where(eq(appointments.clinicId, clinicId))
   // Delete children before parents to respect FK constraints
   const campRows = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.clinicId, clinicId))
   const campIds: string[] = campRows.map((r: any) => r.id)

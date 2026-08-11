@@ -160,10 +160,8 @@ export async function GET(request: NextRequest) {
   }
   const procMap = new Map(procedureRows.map((p) => [p.id, p]))
 
-  // ── PIPELINE STAGES + CLEANUP (large scenario) ────────────
-  if (isLargeScenario) {
-    await cleanupDemoSeedTables(db, cid)
-  }
+  // Cleanup is required for both default and large fixtures: global setup reruns between E2E passes.
+  await cleanupDemoSeedTables(db, cid)
   // Seed pipeline stages idempotently
   const existingStages = await db
     .select({ id: pipelineStages.id })

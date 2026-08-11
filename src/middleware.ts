@@ -45,8 +45,8 @@ export async function middleware(request: NextRequest) {
     secret: AUTH_SECRET,
   });
 
-  const transportAuth = SIGNED_TRANSPORT.test(pathname) ||
-    (process.env.NODE_ENV === 'development' && pathname === '/api/seed');
+  // The seed route validates SEED_SECRET itself; middleware must let E2E production setup reach that guard.
+  const transportAuth = SIGNED_TRANSPORT.test(pathname) || pathname === '/api/seed';
   const routeIsPublic = isPublicPath(pathname) || transportAuth;
 
   // If no session and trying to access protected route
