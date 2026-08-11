@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-11",
+  "targetCommit": "f30f3f32d8a87d5e7db11f87b193c8bae3503063",
+  "repairCommit": "a0b52d4e",
+  "branch": "main",
+  "database": {
+    "enabled": true,
+    "runner": "scripts/integration-run.mjs",
+    "databaseName": "synkroo_test",
+    "host": "127.0.0.1",
+    "credentialsRedacted": true
+  },
+  "gates": [
+    {
+      "name": "lint",
+      "commit": "f30f3f32",
+      "command": "./node_modules/.bin/eslint . --max-warnings=0",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": null,
+      "notes": "npm wrapper timed out in this Windows session; direct ESLint binary completed successfully."
+    },
+    {
+      "name": "typecheck",
+      "commit": "f30f3f32",
+      "command": "./node_modules/.bin/tsc --noEmit",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": null
+    },
+    {
+      "name": "unit",
+      "commit": "f30f3f32",
+      "command": "npm test -- --runInBand",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "suitesPassed": 230,
+        "suitesFailed": 0,
+        "suitesTotal": 230,
+        "testsPassed": 1555,
+        "testsFailed": 0,
+        "testsSkipped": 5,
+        "testsTotal": 1560
+      }
+    },
+    {
+      "name": "postgresqlIntegration",
+      "commit": "f30f3f32",
+      "command": "TEST_DATABASE_URL=<redacted> node scripts/integration-run.mjs --runInBand",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "suitesPassed": 33,
+        "suitesFailed": 0,
+        "suitesTotal": 33,
+        "testsPassed": 198,
+        "testsFailed": 0,
+        "testsTotal": 198
+      }
+    },
+    {
+      "name": "security",
+      "commit": "f30f3f32",
+      "command": "npm run test:security -- --runInBand",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": {
+        "suitesPassed": 9,
+        "suitesFailed": 0,
+        "suitesTotal": 9,
+        "testsPassed": 142,
+        "testsFailed": 0,
+        "testsTotal": 142
+      }
+    },
+    {
+      "name": "releaseSchema",
+      "commit": "f30f3f32",
+      "command": "npm run test:release",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": { "testsPassed": 10, "testsFailed": 0, "testsTotal": 10 }
+    },
+    {
+      "name": "productionAudit",
+      "commit": "f30f3f32",
+      "command": "npm audit --omit=dev --audit-level=high",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": { "highOrCritical": 0, "low": 1, "moderate": 1 },
+      "notes": "The configured high-severity gate passes; advisory output reports one low and one moderate development/toolchain advisory."
+    },
+    {
+      "name": "documentationLinks",
+      "commit": "f30f3f32",
+      "command": "node scripts/check-doc-links.mjs",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": null
+    },
+    {
+      "name": "fullHistorySecretsExactCommand",
+      "commit": "f30f3f32",
+      "command": "gitleaks detect --source . --no-banner --redact --log-opts='--all'",
+      "status": "timed_out",
+      "exitCode": 124,
+      "counts": null,
+      "notes": "The repository contains thousands of historical .pi-glla rewind artifacts; the exact command exceeded the bounded timeout."
+    },
+    {
+      "name": "fullHistorySecretsRuntimeExcluded",
+      "commit": "f30f3f32",
+      "command": "gitleaks git --no-banner --redact --log-opts=\"--all -- . :(exclude).pi-glla :(exclude).pi-subagents\"",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": { "commitsScanned": 2169, "leaks": 0 },
+      "notes": "Runtime metadata is explicitly allowed to remain unversioned and was excluded from the reconciled source-history scan."
+    },
+    {
+      "name": "productionBuild",
+      "commit": "f30f3f32",
+      "command": "npm run build",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": null
+    },
+    {
+      "name": "openNextBuild",
+      "commit": "f30f3f32",
+      "command": "npm run build:cf",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": null,
+      "notes": "OpenNext duplicate-case warning remained non-fatal."
+    },
+    {
+      "name": "wranglerDryRunTarget",
+      "commit": "f30f3f32",
+      "command": "npx wrangler deploy --dry-run --config wrangler.toml",
+      "status": "failed",
+      "exitCode": 1,
+      "counts": null,
+      "notes": "Target commit omitted DOQueueHandler from worker-entry.mjs; repaired in a0b52d4e."
+    },
+    {
+      "name": "wranglerDryRunRepair",
+      "commit": "a0b52d4e",
+      "command": "npx wrangler deploy --dry-run --config wrangler.toml",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": null,
+      "notes": "DOQueueHandler export fixed the target dry-run failure; duplicate-case warning remains non-fatal."
+    },
+    {
+      "name": "e2eTargetSeedFailFast",
+      "commit": "f30f3f32",
+      "command": "npm run test:e2e",
+      "status": "failed",
+      "exitCode": 1,
+      "counts": { "testsPassed": 0, "testsFailed": 0, "testsTotal": 230 },
+      "notes": "Global setup correctly stopped on seed appointment overlap errors after the new fail-fast contract."
+    },
+    {
+      "name": "e2eRepairRun1",
+      "commit": "a0b52d4e",
+      "command": "npm run test:e2e",
+      "status": "failed",
+      "exitCode": 1,
+      "counts": { "testsPassed": 217, "testsFailed": 13, "testsTotal": 230 },
+      "notes": "Seed completed after deterministic non-overlapping appointment slots; remaining failures were dev-server/DB transient page failures."
+    },
+    {
+      "name": "e2eRepairIsolatedInvalidCredentials",
+      "commit": "a0b52d4e",
+      "command": "CI=true npx playwright test e2e/app.spec.ts --grep \"invalid credentials\"",
+      "status": "passed",
+      "exitCode": 0,
+      "counts": { "testsPassed": 1, "testsFailed": 0, "testsTotal": 1 }
+    }
+  ],
+  "reconciliation": {
+    "unit": "230 suites / 1555 passed + 5 skipped = 1560 tests",
+    "postgresqlIntegration": "33 suites / 198 passed = 198 tests",
+    "security": "9 suites / 142 passed = 142 tests",
+    "releaseSchema": "10 passed = 10 tests",
+    "e2e": "target seed gate stopped before execution; repair run reached 230 tests with 217 passed and 13 failed",
+    "overallStatus": "NOT_GREEN_TARGET_REQUIRES_FOLLOW_UP",
+    "blockingGates": [
+      "Exact full-history gitleaks command timed out against historical runtime artifacts",
+      "Target wrangler dry-run failed before repair commit",
+      "Full E2E repair run was 217/230, not 230/230"
+    ]
+  }
+}
