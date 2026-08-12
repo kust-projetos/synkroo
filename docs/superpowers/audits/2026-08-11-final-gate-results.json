@@ -1,9 +1,14 @@
 {
   "schemaVersion": 2,
-  "recordedAt": "2026-08-11",
-  "targetCommit": "26d9342c",
-  "previousTargetCommit": "f30f3f32d8a87d5e7db11f87b193c8bae3503063",
-  "repairCommits": ["a0b52d4e", "035ecd01", "26d9342c"],
+  "recordedAt": "2026-08-12",
+  "targetCommit": "330a8ad3",
+  "previousTargetCommit": "26d9342c",
+  "repairCommits": [
+    "a0b52d4e",
+    "035ecd01",
+    "26d9342c",
+    "330a8ad3"
+  ],
   "branch": "main",
   "database": {
     "enabled": true,
@@ -72,14 +77,21 @@
       "command": "npm run test:release",
       "status": "passed",
       "exitCode": 0,
-      "counts": { "testsPassed": 10, "testsFailed": 0 }
+      "counts": {
+        "testsPassed": 10,
+        "testsFailed": 0
+      }
     },
     {
       "name": "productionAudit",
       "command": "npm audit --omit=dev --audit-level=high",
       "status": "passed",
       "exitCode": 0,
-      "counts": { "highOrCritical": 0, "low": 1, "moderate": 1 }
+      "counts": {
+        "highOrCritical": 0,
+        "low": 1,
+        "moderate": 1
+      }
     },
     {
       "name": "documentationLinks",
@@ -92,8 +104,12 @@
       "command": "gitleaks detect --source . --no-banner --redact --log-opts='--all'",
       "status": "passed",
       "exitCode": 0,
-      "counts": { "commitsScanned": 751, "bytesScanned": 71143514, "leaks": 0 },
-      "notes": "Executed exactly in a disposable single-branch clone of final main; --all therefore covered the candidate branch history rather than unrelated local backup refs."
+      "counts": {
+        "commitsScanned": 2160,
+        "bytesScanned": 159442063,
+        "leaks": 0
+      },
+      "notes": "Executed exactly in a disposable no-local clone of candidate 330a8ad3; --all scanned the candidate history; no leaks found."
     },
     {
       "name": "productionBuild",
@@ -120,16 +136,24 @@
       "command": "CI=true npx playwright test --config=playwright.production.config.ts",
       "status": "passed",
       "exitCode": 0,
-      "counts": { "testsPassed": 230, "testsFailed": 0, "testsTotal": 230 },
-      "log": "/tmp/final-candidate-e2e-retry.log"
+      "counts": {
+        "testsPassed": 230,
+        "testsFailed": 0,
+        "testsTotal": 230
+      },
+      "log": "/tmp/final-candidate-current-1.log"
     },
     {
       "name": "e2eProductionRun2",
       "command": "CI=true npx playwright test --config=playwright.production.config.ts",
       "status": "passed",
       "exitCode": 0,
-      "counts": { "testsPassed": 230, "testsFailed": 0, "testsTotal": 230 },
-      "log": "/tmp/final-candidate-e2e-final.log"
+      "counts": {
+        "testsPassed": 230,
+        "testsFailed": 0,
+        "testsTotal": 230
+      },
+      "log": "/tmp/final-candidate-current-2.log"
     }
   ],
   "reconciliation": {
@@ -137,8 +161,8 @@
     "postgresqlIntegration": "33 suites / 198 passed = 198 tests",
     "security": "9 suites / 142 passed = 142 tests",
     "releaseSchema": "10 passed = 10 tests",
-    "e2e": "two consecutive production-build runs: 230/230 and 230/230",
-    "gitleaks": "exact mandated command passed: 751 commits scanned, 0 leaks",
+    "e2e": "two consecutive current-candidate production runs: 230/230 and 230/230",
+    "gitleaks": "exact mandated command passed in disposable no-local clone: 2160 commits scanned, 159442063 bytes, 0 leaks",
     "overallStatus": "GO",
     "rubric": {
       "tenancyWebhooksAudit": "25/25",
