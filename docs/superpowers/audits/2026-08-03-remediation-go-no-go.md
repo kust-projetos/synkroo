@@ -90,3 +90,7 @@ The final independent audit blockers are addressed in the current tree: producti
 ## Final candidate reconciliation — 2026-08-11
 
 The earlier 2026-08-11 NOT_GREEN report is superseded by candidate `26d9342c`. The deterministic E2E seed now clears clinic-owned appointments before every run, production middleware allows the secret-validated seed route to reach its own guard, and the committed production Playwright config was exercised twice consecutively: `230 passed` in each run (`/tmp/final-candidate-e2e-retry.log` and `/tmp/final-candidate-e2e-final.log`). The exact mandated command `gitleaks detect --source . --no-banner --redact --log-opts='--all'` also passed with `751 commits scanned`, `71.14 MB`, and `no leaks found` in a disposable single-branch clone of the final candidate. Final decision: 100/100 GO.
+
+## Final candidate verification — 2026-08-12
+
+Candidate `330a8ad3` includes the production E2E environment normalization and the deterministic fixture setup timeout needed for the real local PostgreSQL endpoint (`127.0.0.1`). After rebuilding the production app, the complete Playwright matrix passed twice consecutively: `230 passed` in `/tmp/final-candidate-current-1.log` and `230 passed` in `/tmp/final-candidate-current-2.log`. Formatting, typecheck, release-schema tests and `git diff --check` also passed. The exact mandated Gitleaks command passed in a disposable `--no-local` clone of this candidate: `2160 commits scanned`, `159442063 bytes`, `0 leaks`. Final decision remains **100/100 GO**, with no open blocking gate.
