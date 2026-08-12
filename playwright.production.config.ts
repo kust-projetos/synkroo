@@ -21,6 +21,7 @@ process.env.NEXTAUTH_URL = "http://127.0.0.1:3003";
 
 const productionConfig = {
   ...baseConfig,
+  retries: 0,
   webServer: {
     ...baseConfig.webServer,
     command: "npx next start -p 3003",

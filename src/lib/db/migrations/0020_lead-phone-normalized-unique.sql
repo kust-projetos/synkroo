@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "leads_clinic_phone_normalized_uniq" ON "leads" USING btree ("clinic_id","phone_normalized") WHERE "leads"."phone_normalized" IS NOT NULL AND "leads"."phone_normalized" <> '';
