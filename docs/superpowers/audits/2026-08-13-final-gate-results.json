@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "recordedAt": "2026-08-13",
   "testedCommit": "352197e8",
-  "evidenceScope": "exact final implementation candidate; evidence files are committed beside this record",
+  "evidenceScope": "exact final implementation candidate at 658f3aa0; evidence files are committed beside this record",
   "gates": [
     {
       "name": "lint",
