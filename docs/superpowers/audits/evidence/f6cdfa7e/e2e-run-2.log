@@ -1,9 +1,9 @@
-(node:9544) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:18532) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 Running 230 tests using 1 worker
 
-[1A(node:22848) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+[1A(node:5492) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 [1A[1/230] [authenticated] › e2e\accessibility-critical.spec.ts:4:7 › Critical accessibility contracts › mobile header exposes menu and preserves viewport width
@@ -203,7 +203,7 @@ Running 230 tests using 1 worker
 [1A[195/230] [authenticated] › e2e\settings.spec.ts:70:7 › Reminder Settings › should have notification settings
 [1A[196/230] [authenticated] › e2e\waitlist\list.spec.ts:23:3 › Waitlist Page › renders page header
 [1A[197/230] [authenticated] › e2e\waitlist\list.spec.ts:26:3 › Waitlist Page › renders status filter
-[1A(node:23772) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+[1A(node:24508) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 [1A[198/230] [unauthenticated] › e2e\auth\login.spec.ts:6:7 › Login Page › renders login form with email, password, and submit
@@ -220,7 +220,7 @@ Running 230 tests using 1 worker
 [1A[209/230] [unauthenticated] › e2e\auth\signup.spec.ts:10:7 › Signup Page › has link to login page
 [1A[210/230] [unauthenticated] › e2e\auth\signup.spec.ts:13:7 › Signup Page › empty fields prevent submission
 [1A[211/230] [unauthenticated] › e2e\auth\storage-state.spec.ts:6:5 › global setup persists a real NextAuth session
-[1A(node:22592) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+[1A(node:1224) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 [1A[212/230] [api] › e2e\api\appointments-api.spec.ts:5:3 › Appointments API › GET returns list
@@ -242,4 +242,4 @@ Running 230 tests using 1 worker
 [1A[228/230] [api] › e2e\api\procedures-api.spec.ts:5:3 › Procedures API › GET returns response
 [1A[229/230] [api] › e2e\api\procedures-api.spec.ts:9:3 › Procedures API › POST with invalid data returns error
 [1A[230/230] [api] › e2e\api\waitlist-api.spec.ts:5:3 › Waitlist API › GET returns response
-[1A  230 passed (6.2m)
+[1A  230 passed (5.7m)
