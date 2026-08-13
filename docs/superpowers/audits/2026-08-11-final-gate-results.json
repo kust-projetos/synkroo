@@ -1,13 +1,14 @@
 {
   "schemaVersion": 2,
   "recordedAt": "2026-08-12",
-  "targetCommit": "330a8ad3",
+  "targetCommit": "5dd10395da4b6bc0e27039e796901b5e8e138ff7",
   "previousTargetCommit": "26d9342c",
   "repairCommits": [
     "a0b52d4e",
     "035ecd01",
     "26d9342c",
-    "330a8ad3"
+    "330a8ad3",
+    "5dd10395da4b6bc0e27039e796901b5e8e138ff7"
   ],
   "branch": "main",
   "database": {
@@ -172,6 +173,7 @@
       "cloudflareRelease": "20/20",
       "total": "100/100"
     },
-    "blockingGates": []
+    "blockingGates": [],
+    "evidenceNote": "Revalidated against current HEAD; prior run counts remain historical unless their logs are independently regenerated."
   }
 }
