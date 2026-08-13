@@ -106,6 +106,8 @@ e2e/.auth/
 
 # Local planner runtime files
 .pi/
+.pi-glla/
+.pi-subagents/
 .claude/napkin.md
 planner.bat
 reviewer.bat

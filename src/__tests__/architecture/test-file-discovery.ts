@@ -52,3 +52,20 @@ export function discoverProductionRouteEntrypoints(): string[] {
   if (!routes.length) throw new Error("ARCH_SCAN_EMPTY");
   return routes.sort();
 }
+
+export function discoverProductionApiSourceFiles(): string[] {
+  const files = discoverRequiredFiles("src/app/api/**/*.ts").filter(
+    (file) => !file.includes("/__tests__/") && !file.endsWith(".test.ts"),
+  );
+  if (!files.length) throw new Error("ARCH_SCAN_EMPTY");
+  return files.sort();
+}
+
+export function discoverProductionCronEntrypoints(): string[] {
+  const routes = discoverProductionRouteEntrypoints().filter((file) => {
+    const normalized = file.replaceAll("\\", "/");
+    return normalized.includes("/app/api/cron/");
+  });
+  if (!routes.length) throw new Error("ARCH_SCAN_EMPTY");
+  return routes;
+}

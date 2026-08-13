@@ -19,7 +19,7 @@
     "test:security:integration": "jest --config jest.security.integration.config.js --coverage",
     "test:security:repositories": "node scripts/repository-mutation-run.mjs",
     "test:security:services": "stryker run stryker.services.config.json",
-    "test:release": "node --test scripts/__tests__/cli-entrypoint.test.mjs scripts/__tests__/inject-pg-global.test.mjs scripts/__tests__/seed-test-clinic.test.mjs scripts/__tests__/smoke-staging.test.mjs scripts/__tests__/verify-remediation-schema.test.mjs",
+    "test:release": "node --test scripts/__tests__/cli-entrypoint.test.mjs scripts/__tests__/inject-pg-global.test.mjs scripts/__tests__/seed-test-clinic.test.mjs scripts/__tests__/smoke-staging.test.mjs scripts/__tests__/verify-remediation-schema.test.mjs scripts/__tests__/ignore-client-abort.test.mjs",
     "test:integration:watch": "jest --config jest.integration.config.js --watch",
     "test:watch": "jest --watch",
     "whatsapp:start": "ts-node src/services/whatsapp/cli.ts",

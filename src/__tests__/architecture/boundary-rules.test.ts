@@ -6,6 +6,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import {
+  discoverProductionApiSourceFiles,
+  discoverProductionCronEntrypoints,
   discoverProductionRouteEntrypoints,
   discoverRequiredFiles,
 } from "./test-file-discovery";
@@ -96,6 +98,16 @@ describe("Boundary Rules (Spec Section 5)", () => {
     expect(violations).toEqual([]);
   });
 
+  it("covers the complete API and cron route inventory", () => {
+    const routes = discoverProductionRouteEntrypoints();
+    const cronRoutes = discoverProductionCronEntrypoints();
+
+    expect(routes.length).toBeGreaterThanOrEqual(140);
+    expect(cronRoutes.length).toBeGreaterThanOrEqual(8);
+    expect(cronRoutes.every((route) => routes.includes(route))).toBe(true);
+    expect(new Set(routes).size).toBe(routes.length);
+  });
+
   it("does not allow direct database access in the route entrypoint", () => {
     for (const route of discoverProductionRouteEntrypoints()) {
       assertTransportOnly(
@@ -103,6 +115,21 @@ describe("Boundary Rules (Spec Section 5)", () => {
         route,
       );
     }
+  });
+
+  it("scans every production API source for untrusted tenant selection", () => {
+    const violations: string[] = [];
+    for (const file of discoverProductionApiSourceFiles()) {
+      try {
+        assertNoUntrustedTenantSelection(
+          readFileSync(resolve(process.cwd(), file), "utf8"),
+          file,
+        );
+      } catch (error) {
+        violations.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    expect(violations).toEqual([]);
   });
 
   it("API transport routes do not access the database directly", () => {
