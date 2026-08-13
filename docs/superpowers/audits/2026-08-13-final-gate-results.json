@@ -86,6 +86,29 @@
       "artifact": "evidence/f6cdfa7e/gitleaks.log"
     }
   ],
+  "externalReleaseEvidence": {
+    "stagingSmoke": {
+      "status": "passed",
+      "result": "4 consecutive runs; 10/10 checks per run",
+      "source": "docs/superpowers/audits/2026-08-05-final-review-record.md"
+    },
+    "providerCanary": {
+      "status": "passed",
+      "result": "Asaas PAYMENT_CREATED callback and Evolution outbound/callback HTTP 200; invalid token 403",
+      "source": "docs/superpowers/audits/2026-08-05-final-review-record.md"
+    },
+    "rollback": {
+      "status": "passed",
+      "result": "Worker rollback rehearsal and candidate restoration recorded",
+      "source": "docs/superpowers/audits/2026-08-05-final-review-record.md",
+      "runbook": "docs/runbooks/remediation-migration-rollback.md"
+    },
+    "startupGate": {
+      "status": "passed",
+      "result": "Wrangler startup analysis passed for staging configuration",
+      "source": "docs/superpowers/audits/2026-08-05-final-review-record.md"
+    }
+  },
   "structuralControls": {
     "playwrightRetries": 0,
     "routeEntrypoints": 144,
