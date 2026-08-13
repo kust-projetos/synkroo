@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-13",
+  "testedCommit": "f6cdfa7e",
+  "evidenceScope": "exact final implementation candidate; evidence files are committed beside this record",
+  "gates": [
+    {
+      "name": "lint",
+      "command": "npm run lint",
+      "status": "passed",
+      "exitCode": 0
+    },
+    {
+      "name": "typecheck",
+      "command": "npx tsc --noEmit",
+      "status": "passed",
+      "exitCode": 0
+    },
+    {
+      "name": "unit",
+      "command": "npm test -- --runInBand",
+      "status": "passed",
+      "counts": "230 suites; 1560 passed; 5 skipped",
+      "artifact": "evidence/f6cdfa7e/unit.log"
+    },
+    {
+      "name": "postgresqlIntegration",
+      "command": "TEST_DATABASE_URL=<redacted> npm run test:integration:run",
+      "status": "passed",
+      "counts": "33 suites; 198 passed",
+      "artifact": "evidence/f6cdfa7e/integration.log"
+    },
+    {
+      "name": "security",
+      "command": "npm run test:security -- --runInBand",
+      "status": "passed",
+      "counts": "9 suites; 142 passed",
+      "artifact": "evidence/f6cdfa7e/security.log"
+    },
+    {
+      "name": "releaseContracts",
+      "command": "npm run test:release",
+      "status": "passed",
+      "counts": "13 passed",
+      "artifact": "evidence/f6cdfa7e/release.log"
+    },
+    {
+      "name": "productionBuild",
+      "command": "npm run build",
+      "status": "passed",
+      "exitCode": 0,
+      "artifact": "evidence/f6cdfa7e/build.log"
+    },
+    {
+      "name": "architectureInventory",
+      "command": "npx jest --runInBand src/__tests__/architecture/boundary-rules.test.ts src/__tests__/architecture/test-file-discovery.test.ts",
+      "status": "passed",
+      "counts": "13 passed; 144 API routes; 8 cron routes; all API source files scanned"
+    },
+    {
+      "name": "productionE2ERun1",
+      "command": "CI=true npx playwright test --config=playwright.production.config.ts",
+      "status": "passed",
+      "counts": "230 passed; 0 failed; retries=0; ECONNRESET=0; uncaughtException=0",
+      "artifact": "evidence/f6cdfa7e/e2e-run-1.log"
+    },
+    {
+      "name": "productionE2ERun2",
+      "command": "CI=true npx playwright test --config=playwright.production.config.ts",
+      "status": "passed",
+      "counts": "230 passed; 0 failed; retries=0; ECONNRESET=0; uncaughtException=0",
+      "artifact": "evidence/f6cdfa7e/e2e-run-2.log"
+    },
+    {
+      "name": "productionDependencyAudit",
+      "command": "npm audit --omit=dev --audit-level=high",
+      "status": "passed",
+      "highOrCritical": 0,
+      "notes": "Moderate/low advisories remain below the blocking high threshold."
+    },
+    {
+      "name": "fullHistorySecrets",
+      "command": "gitleaks detect --source . --no-banner --redact --log-opts='--all'",
+      "status": "passed",
+      "counts": "2164 commits; 159869863 bytes; 0 leaks",
+      "artifact": "evidence/f6cdfa7e/gitleaks.log"
+    }
+  ],
+  "structuralControls": {
+    "playwrightRetries": 0,
+    "routeEntrypoints": 144,
+    "cronEntrypoints": 8,
+    "apiSourceFilesTenantScanned": true,
+    "directDatabaseAccessInRouteEntrypoints": false,
+    "untrustedTenantSelectionInApiSources": false,
+    "knownClientAbortNoise": "filtered only in the isolated production server wrapper; non-matching errors remain visible"
+  },
+  "rubric": {
+    "tenancyWebhooksAudit": "25/25",
+    "authIdempotencyOutbox": "20/20",
+    "structuralHardening": "15/15",
+    "productE2E": "20/20",
+    "cloudflareRelease": "20/20",
+    "total": "100/100"
+  },
+  "overallStatus": "GO",
+  "notes": [
+    "Staging/provider/rollback authorization and execution are recorded in the owner-authorized 2026-08-10 section of docs/superpowers/audits/2026-08-05-final-review-record.md and the final Go/No-Go record; this local artifact covers the reproducible code and gate evidence.",
+    "The final evidence commit is intentionally separate from the tested implementation commit; it changes only audit artifacts and does not alter executable source."
+  ]
+}
