@@ -1,0 +1,150 @@
+
+> synkroo@0.1.0 test:integration:run
+> node scripts/integration-run.mjs
+
+
+> synkroo@0.1.0 db:migrate
+> drizzle-kit migrate
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file 'D:\projetos\synkroo\drizzle.config.ts'
+Using 'pg' driver for database querying
+[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[⡿] applying migrations...[2K[1G[⢿] applying migrations...[2K[1G[⣻] applying migrations...[2K[1G[⣽] applying migrations...[2K[1G[⣷] applying migrations...[2K[1G[⣯] applying migrations...[2K[1G[⣟] applying migrations...[2K[1G[✓] migrations applied successfully!seed-test-clinic: deterministic clinic and credentials ready
+PASS src/modules/followup/__tests__/cron/integration.test.ts
+  ● Console
+
+    console.log
+      [INFO] Running inactivity detection... {"clinicId":"00000000-0000-0000-0000-000000000001"}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Clinic 00000000-0000-0000-0000-000000000001 updated {"updated":0,"errors":0}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Inactivity detection complete
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] scheduled campaigns processed {"clinicId":"00000000-0000-0000-0000-000000000001","count":0}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] [cron/followups] Checking hot leads across clinics...
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+PASS src/modules/atendimento/__tests__/conversations/integration.test.ts
+PASS src/modules/core/actions/__tests__/integration.test.ts
+PASS src/modules/atendimento/actions/__tests__/inbound-flow/integration.test.ts
+PASS src/modules/followup/__tests__/inactive/integration.test.ts
+  ● Console
+
+    console.log
+      [INFO] Running inactivity detection... {"clinicId":"a0000000-0000-4000-8000-006622344759"}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Clinic a0000000-0000-4000-8000-006622344759 updated {"updated":1,"errors":0}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Inactivity detection complete
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+PASS src/modules/operacional/actions/__tests__/scheduling/integration.test.ts
+PASS src/modules/operacional/actions/__tests__/availability/integration.test.ts
+PASS src/modules/followup/__tests__/followup/integration.test.ts
+  ● Console
+
+    console.log
+      [INFO] Starting follow-up processing... {"clinicId":"10000000-0000-4000-8000-006622353830"}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Processing post-consultation follow-ups... {"clinicId":"10000000-0000-4000-8000-006622353830"}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Post-consultation complete {"sent":0,"failed":0}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Processing return reminders... {"clinicId":"10000000-0000-4000-8000-006622353830"}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Return reminders complete {"sent":0,"failed":0}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Follow-up processing complete
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+    console.log
+      [INFO] Processing post-consultation follow-ups... {"clinicId":"10000000-0000-4000-8000-006622353830"}
+
+      at Logger.output (src/lib/logger.ts:75:17)
+
+PASS src/modules/financeiro/__tests__/collection-scope/integration.test.ts
+PASS src/core/rbac/__tests__/resolve/integration.test.ts
+PASS src/repositories/auth/__tests__/integration.test.ts
+PASS src/lib/outbox/__tests__/dispatch-outbox.integration.test.ts
+PASS src/core/rbac/__tests__/integration.test.ts
+PASS src/services/followup/__tests__/campaign-outbox.integration.test.ts
+PASS src/__tests__/api/tasks/tasks-scope/integration.test.ts
+PASS src/modules/financeiro/__tests__/installments-scope/integration.test.ts
+PASS src/modules/atendimento/__tests__/gates/integration.test.ts
+PASS src/modules/atendimento/actions/__tests__/send/integration.test.ts
+  ● Console
+
+    console.error
+      [ERROR] action handler threw {"action":"atendimento.enviarMensagem","error":"API rate limited","stack":"ActionError: API rate limited\n    at Object.handler (D:\\projetos\\synkroo\\src\\modules\\atendimento\\actions\\enviar-mensagem.ts:35:13)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at runAction (D:\\projetos\\synkroo\\src\\core\\actions\\run.ts:45:18)\n    at Object.<anonymous> (D:\\projetos\\synkroo\\src\\modules\\atendimento\\actions\\__tests__\\send\\integration.test.ts:164:20)"}
+
+    [0m [90m 79 |[39m         [36mbreak[39m
+     [90m 80 |[39m       [36mcase[39m [32m'error'[39m[33m:[39m
+    [31m[1m>[22m[39m[90m 81 |[39m         console[33m.[39merror(prefix[33m,[39m formattedMessage)
+     [90m    |[39m                 [31m[1m^[22m[39m
+     [90m 82 |[39m         [36mbreak[39m
+     [90m 83 |[39m     }
+     [90m 84 |[39m   }[0m
+
+      at Logger.output (src/lib/logger.ts:81:17)
+      at Logger.error (src/lib/logger.ts:108:10)
+      at runAction (src/core/actions/run.ts:50:39)
+      at Object.<anonymous> (src/modules/atendimento/actions/__tests__/send/integration.test.ts:164:20)
+
+PASS src/modules/operacional/repositories/__tests__/overbooking/integration.test.ts
+PASS src/modules/crm/__tests__/duplicate-execution.integration.test.ts
+PASS src/modules/financeiro/__tests__/integration.test.ts
+PASS src/modules/financeiro/gateways/__tests__/asaas-webhook.integration.test.ts
+PASS src/lib/idempotency/__tests__/idempotency.integration.test.ts
+PASS src/lib/embeddings/__tests__/search.integration.test.ts
+PASS src/core/rbac/__tests__/resolve-access/integration.test.ts
+PASS src/core/actions/__tests__/integration.test.ts
+PASS src/lib/outbox/__tests__/outbox.integration.test.ts
+PASS src/modules/financeiro/services/__tests__/charge-service.integration.test.ts
+PASS src/modules/comercial/__tests__/schema/dedup/integration.test.ts
+PASS src/lib/auth/__tests__/clinic-switch.integration.test.ts
+PASS src/__tests__/security/audit-remediation-fixtures.integration.test.ts
+PASS src/modules/followup/__tests__/gates/integration.test.ts
+PASS src/modules/operacional/__tests__/gates/integration.test.ts
+
+Test Suites: 33 passed, 33 total
+Tests:       198 passed, 198 total
+Snapshots:   0 total
+Time:        41.17 s, estimated 82 s
+Ran all test suites.

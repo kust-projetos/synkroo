@@ -1,0 +1,245 @@
+(node:9544) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 230 tests using 1 worker
+
+[1A(node:22848) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[1/230] [authenticated] › e2e\accessibility-critical.spec.ts:4:7 › Critical accessibility contracts › mobile header exposes menu and preserves viewport width
+[1A[2/230] [authenticated] › e2e\accessibility-critical.spec.ts:17:7 › Critical accessibility contracts › desktop navigation has a labelled landmark and visible focus
+[1A[3/230] [authenticated] › e2e\analytics\charts.spec.ts:6:3 › Analytics Page › renders page header
+[1A[4/230] [authenticated] › e2e\analytics\charts.spec.ts:7:3 › Analytics Page › renders chart sections
+[1A[5/230] [authenticated] › e2e\analytics\charts.spec.ts:11:3 › Analytics Page › renders no-show prediction
+[1A[6/230] [authenticated] › e2e\app.spec.ts:33:7 › Landing Page › should display homepage with hero section
+[1A[7/230] [authenticated] › e2e\app.spec.ts:44:7 › Landing Page › should navigate to login from homepage
+[1A[8/230] [authenticated] › e2e\app.spec.ts:58:7 › Authentication Flow › should display login page correctly
+[1A[9/230] [authenticated] › e2e\app.spec.ts:73:7 › Authentication Flow › should show error with invalid credentials
+[1A[10/230] [authenticated] › e2e\app.spec.ts:83:7 › Authentication Flow › should login successfully with valid credentials
+[1A[11/230] [authenticated] › e2e\app.spec.ts:88:7 › Authentication Flow › should logout successfully
+[1A[12/230] [authenticated] › e2e\app.spec.ts:108:7 › Dashboard Layout › should display sidebar on desktop
+[1A[13/230] [authenticated] › e2e\app.spec.ts:120:7 › Dashboard Layout › should toggle sidebar on mobile via Sheet
+[1A[14/230] [authenticated] › e2e\app.spec.ts:138:7 › Dashboard Layout › sidebar should NOT overlap content on desktop
+[1A[15/230] [authenticated] › e2e\app.spec.ts:153:7 › Dashboard Layout › should have collapsible sidebar on desktop
+[1A[16/230] [authenticated] › e2e\app.spec.ts:182:7 › Patients Page › should display patients list page
+[1A[17/230] [authenticated] › e2e\app.spec.ts:187:7 › Patients Page › should have search functionality
+[1A[18/230] [authenticated] › e2e\app.spec.ts:194:7 › Patients Page › should have add patient button
+[1A[19/230] [authenticated] › e2e\app.spec.ts:199:7 › Patients Page › should navigate to new patient form
+[1A[20/230] [authenticated] › e2e\app.spec.ts:217:7 › Appointments Page › should display appointments page
+[1A[21/230] [authenticated] › e2e\app.spec.ts:221:7 › Appointments Page › should have new appointment button
+[1A[22/230] [authenticated] › e2e\app.spec.ts:226:7 › Appointments Page › should navigate to new appointment form
+[1A[23/230] [authenticated] › e2e\app.spec.ts:233:7 › Appointments Page › new appointment form should have required fields
+[1A[24/230] [authenticated] › e2e\app.spec.ts:258:7 › Campaigns Page › should display campaigns page
+[1A[25/230] [authenticated] › e2e\app.spec.ts:262:7 › Campaigns Page › should have new campaign button
+[1A[26/230] [authenticated] › e2e\app.spec.ts:266:7 › Campaigns Page › should open the campaign wizard
+[1A[27/230] [authenticated] › e2e\app.spec.ts:281:7 › Conversations Page › should display conversations page
+[1A[28/230] [authenticated] › e2e\app.spec.ts:285:7 › Conversations Page › should have conversation list or empty state
+[1A[29/230] [authenticated] › e2e\app.spec.ts:301:7 › Inactive Patients Page › should display inactive patients page
+[1A[30/230] [authenticated] › e2e\app.spec.ts:305:7 › Inactive Patients Page › should show segment filters
+[1A[31/230] [authenticated] › e2e\app.spec.ts:310:7 › Inactive Patients Page › should have campaign button
+[1A[32/230] [authenticated] › e2e\app.spec.ts:325:7 › Leads Page › should display leads page
+[1A[33/230] [authenticated] › e2e\app.spec.ts:329:7 › Leads Page › should have new lead button
+[1A[34/230] [authenticated] › e2e\app.spec.ts:334:7 › Leads Page › should have status filters or tabs
+[1A[35/230] [authenticated] › e2e\app.spec.ts:348:7 › Responsive Design › mobile - should have hamburger menu
+[1A[36/230] [authenticated] › e2e\app.spec.ts:360:7 › Responsive Design › tablet - should adapt layout
+[1A[37/230] [authenticated] › e2e\app.spec.ts:369:7 › Responsive Design › desktop - should show full sidebar
+[1A[38/230] [authenticated] › e2e\app.spec.ts:389:7 › Accessibility › should have proper heading hierarchy
+[1A[39/230] [authenticated] › e2e\app.spec.ts:398:7 › Accessibility › buttons should be keyboard accessible
+[1A[40/230] [authenticated] › e2e\app.spec.ts:410:7 › Accessibility › forms should have labels or placeholders
+[1A[41/230] [authenticated] › e2e\app.spec.ts:426:7 › Accessibility › should have correct page title
+[1A[42/230] [authenticated] › e2e\app.spec.ts:441:7 › Navigation › should navigate between pages via sidebar
+[1A[43/230] [authenticated] › e2e\app.spec.ts:463:7 › Navigation › active nav item should be highlighted with teal
+[1A[44/230] [authenticated] › e2e\app.spec.ts:476:7 › Error Handling › should show 404 for non-existent pages
+[1A[45/230] [authenticated] › e2e\app.spec.ts:487:7 › Error Handling › should handle API errors gracefully
+[1A[46/230] [authenticated] › e2e\app.spec.ts:521:7 › Theme Toggle › should toggle between light and dark theme
+[1A[47/230] [authenticated] › e2e\calendar\date-navigation.spec.ts:6:3 › Calendar Date Navigation › Today button exists
+[1A[48/230] [authenticated] › e2e\calendar\date-navigation.spec.ts:9:3 › Calendar Date Navigation › can navigate to previous period
+[1A[49/230] [authenticated] › e2e\calendar\date-navigation.spec.ts:15:3 › Calendar Date Navigation › can navigate to next period
+[1A[50/230] [authenticated] › e2e\calendar\views.spec.ts:6:3 › Calendar Views › renders calendar grid
+[1A[51/230] [authenticated] › e2e\calendar\views.spec.ts:9:3 › Calendar Views › can switch to Week view
+[1A[52/230] [authenticated] › e2e\calendar\views.spec.ts:15:3 › Calendar Views › can switch to Month view
+[1A[53/230] [authenticated] › e2e\calendar\views.spec.ts:21:3 › Calendar Views › can switch to Professionals view
+[1A[54/230] [authenticated] › e2e\calendar.spec.ts:67:7 › Calendar - Rendering › should display calendar toolbar
+[1A[55/230] [authenticated] › e2e\calendar.spec.ts:84:7 › Calendar - Rendering › week view should render 7 day columns
+[1A[56/230] [authenticated] › e2e\calendar.spec.ts:96:7 › Calendar - Rendering › week view should render time labels
+[1A[57/230] [authenticated] › e2e\calendar.spec.ts:106:7 › Calendar - Rendering › week view should display event cards
+[1A[58/230] [authenticated] › e2e\calendar.spec.ts:113:7 › Calendar - Rendering › day view should render single column with events
+[1A[59/230] [authenticated] › e2e\calendar.spec.ts:125:7 › Calendar - Rendering › month view should render calendar grid with days
+[1A[60/230] [authenticated] › e2e\calendar.spec.ts:134:7 › Calendar - Rendering › month view should show mini event cards
+[1A[61/230] [authenticated] › e2e\calendar.spec.ts:144:7 › Calendar - Rendering › month view should show "+N mais" for overflow
+[1A[62/230] [authenticated] › e2e\calendar.spec.ts:151:7 › Calendar - Rendering › professionals view should render dentist columns
+[1A[63/230] [authenticated] › e2e\calendar.spec.ts:175:7 › Calendar - Navigation › "Hoje" button should navigate to current week
+[1A[64/230] [authenticated] › e2e\calendar.spec.ts:186:7 › Calendar - Navigation › prev button should navigate backward
+[1A[65/230] [authenticated] › e2e\calendar.spec.ts:194:7 › Calendar - Navigation › next button should navigate forward
+[1A[66/230] [authenticated] › e2e\calendar.spec.ts:202:7 › Calendar - Navigation › view switcher should change active view
+[1A[67/230] [authenticated] › e2e\calendar.spec.ts:222:7 › Calendar - Navigation › view state should sync with URL
+[1A[68/230] [authenticated] › e2e\calendar.spec.ts:234:7 › Calendar - Navigation › month view click on day should switch to day view
+[1A[69/230] [authenticated] › e2e\calendar.spec.ts:290:7 › Calendar - Click to Create › clicking empty slot should open create dialog
+[1A[70/230] [authenticated] › e2e\calendar.spec.ts:299:7 › Calendar - Click to Create › dialog should pre-fill date from clicked slot
+[1A[71/230] [authenticated] › e2e\calendar.spec.ts:311:7 › Calendar - Click to Create › dialog should have all required form fields
+[1A[72/230] [authenticated] › e2e\calendar.spec.ts:335:7 › Calendar - Click to Create › submit button should be disabled without patient name
+[1A[73/230] [authenticated] › e2e\calendar.spec.ts:347:7 › Calendar - Click to Create › submit button should enable after filling patient name
+[1A[74/230] [authenticated] › e2e\calendar.spec.ts:363:7 › Calendar - Click to Create › cancel button should close dialog
+[1A[75/230] [authenticated] › e2e\calendar.spec.ts:371:7 › Calendar - Click to Create › clicking week view slot should open dialog
+[1A[76/230] [authenticated] › e2e\calendar.spec.ts:388:7 › Calendar - Event Interactions › clicking event should open edit dialog
+[1A[77/230] [authenticated] › e2e\calendar.spec.ts:403:7 › Calendar - Event Interactions › events should display patient name
+[1A[78/230] [authenticated] › e2e\calendar.spec.ts:413:7 › Calendar - Event Interactions › events in week view should be distributed across days
+[1A[79/230] [authenticated] › e2e\calendar.spec.ts:423:7 › Calendar - Event Interactions › professionals view should group events by dentist
+[1A[80/230] [authenticated] › e2e\calendar.spec.ts:453:7 › Calendar - CSS Grid Architecture › time grid should have CSS variables for positioning
+[1A[81/230] [authenticated] › e2e\calendar.spec.ts:475:7 › Calendar - CSS Grid Architecture › grid should have 4 stacked layers via z-index
+[1A[82/230] [authenticated] › e2e\calendar.spec.ts:501:7 › Calendar - CSS Grid Architecture › hour labels should span the working hours
+[1A[83/230] [authenticated] › e2e\calendar.spec.ts:521:7 › Calendar - CSS Grid Architecture › empty slots should be clickable
+[1A[84/230] [authenticated] › e2e\calendar.spec.ts:543:7 › Calendar - Dark Mode › calendar should render in dark mode without errors
+[1A[85/230] [authenticated] › e2e\calendar.spec.ts:554:7 › Calendar - Dark Mode › day view should render events in dark mode
+[1A[86/230] [authenticated] › e2e\calendar.spec.ts:563:7 › Calendar - Dark Mode › click-to-create should work in dark mode
+[1A[87/230] [authenticated] › e2e\calendar.spec.ts:590:7 › Calendar - Responsive › calendar should be usable on tablet (768x1024)
+[1A[88/230] [authenticated] › e2e\calendar.spec.ts:596:7 › Calendar - Responsive › calendar should be usable on desktop (1440x900)
+[1A[89/230] [authenticated] › e2e\calendar.spec.ts:603:7 › Calendar - Responsive › view buttons should remain accessible on small screens
+[1A[90/230] [authenticated] › e2e\calendar.spec.ts:625:7 › Calendar - List Toggle › should have calendar/list toggle buttons
+[1A[91/230] [authenticated] › e2e\calendar.spec.ts:630:7 › Calendar - List Toggle › calendar should be default view
+[1A[92/230] [authenticated] › e2e\calendar.spec.ts:638:7 › Calendar - List Toggle › clicking "Lista" should switch to list view
+[1A[93/230] [authenticated] › e2e\calendar.spec.ts:649:7 › Calendar - List Toggle › clicking a calendar view should return from list
+[1A[94/230] [authenticated] › e2e\calendar.spec.ts:666:7 › Calendar - Data Loading › should load and display calendar data
+[1A[95/230] [authenticated] › e2e\calendar.spec.ts:672:7 › Calendar - Data Loading › should fetch appointments with correct date range for week view
+[1A[96/230] [authenticated] › e2e\calendar.spec.ts:688:7 › Calendar - Data Loading › should fetch appointments for single day in day view
+[1A[97/230] [authenticated] › e2e\campaigns\list.spec.ts:6:3 › Campaigns Page › renders page header
+[1A[98/230] [authenticated] › e2e\campaigns\list.spec.ts:7:3 › Campaigns Page › renders create campaign action
+[1A[99/230] [authenticated] › e2e\campaigns.spec.ts:22:7 › Campaigns › shows factual page state and create action
+[1A[100/230] [authenticated] › e2e\campaigns.spec.ts:30:7 › Campaigns › opens campaign wizard
+[1A[101/230] [authenticated] › e2e\campaigns.spec.ts:48:7 › Campaign wizard › exposes campaign type and progression controls
+[1A[102/230] [authenticated] › e2e\chat-widget.spec.ts:3:5 › publishes widget asset with JavaScript content type
+[1A[103/230] [authenticated] › e2e\conversations\list.spec.ts:6:3 › Conversations Page › renders page header
+[1A[104/230] [authenticated] › e2e\conversations\list.spec.ts:7:3 › Conversations Page › renders conversation area
+[1A[105/230] [authenticated] › e2e\conversations.spec.ts:33:7 › Conversations Page › should display conversations page
+[1A[106/230] [authenticated] › e2e\conversations.spec.ts:37:7 › Conversations Page › should have conversation list
+[1A[107/230] [authenticated] › e2e\conversations.spec.ts:47:7 › Conversations Page › should have filter buttons
+[1A[108/230] [authenticated] › e2e\conversations.spec.ts:64:7 › Conversation Thread › should open message thread when conversation clicked
+[1A[109/230] [authenticated] › e2e\conversations.spec.ts:77:7 › Conversation Thread › should display message bubbles in thread
+[1A[110/230] [authenticated] › e2e\conversations.spec.ts:88:7 › Conversation Thread › should have message input field
+[1A[111/230] [authenticated] › e2e\conversations.spec.ts:97:7 › Conversation Thread › should send message
+[1A[112/230] [authenticated] › e2e\conversations.spec.ts:124:7 › Campaign List › should display seeded campaign list
+[1A[113/230] [authenticated] › e2e\conversations.spec.ts:135:7 › Campaign List › should expose status for every seeded campaign
+[1A[114/230] [authenticated] › e2e\crm\contacts-creation.spec.ts:22:3 › CRM Contacts - Creation › renders contacts page
+[1A[115/230] [authenticated] › e2e\crm\contacts-creation.spec.ts:27:3 › CRM Contacts - Creation › keeps the contact list read-only
+[1A[116/230] [authenticated] › e2e\crm\contacts-creation.spec.ts:32:3 › CRM Contacts - Creation › creates new lead with basic info
+[1A[117/230] [authenticated] › e2e\crm\contacts-creation.spec.ts:40:3 › CRM Contacts - Creation › creates new patient with basic info
+[1A[118/230] [authenticated] › e2e\crm\contacts-creation.spec.ts:48:3 › CRM Contacts - Creation › validates required fields on contact creation
+[1A[119/230] [authenticated] › e2e\crm\contacts-mobile.spec.ts:6:7 › Contacts mobile layout › uses list-to-detail navigation without horizontal overflow
+[1A[120/230] [authenticated] › e2e\crm\contacts-notes.spec.ts:19:3 › CRM Contacts - Notes and Timeline › renders contact detail panel
+[1A[121/230] [authenticated] › e2e\crm\contacts-notes.spec.ts:24:3 › CRM Contacts - Notes and Timeline › renders notes tab in contact detail
+[1A[122/230] [authenticated] › e2e\crm\contacts-notes.spec.ts:32:3 › CRM Contacts - Notes and Timeline › renders timeline tab in contact detail
+[1A[123/230] [authenticated] › e2e\crm\contacts-notes.spec.ts:40:3 › CRM Contacts - Notes and Timeline › note composer enforces content before submission
+[1A[124/230] [authenticated] › e2e\crm\contacts-notes.spec.ts:53:3 › CRM Contacts - Notes and Timeline › timeline displays interaction history
+[1A[125/230] [authenticated] › e2e\crm\contacts-notes.spec.ts:61:3 › CRM Contacts - Notes and Timeline › can switch between tabs
+[1A[126/230] [authenticated] › e2e\crm\contacts-search.spec.ts:18:3 › CRM Contacts - Search and Listing › renders contacts list
+[1A[127/230] [authenticated] › e2e\crm\contacts-search.spec.ts:23:3 › CRM Contacts - Search and Listing › renders search input
+[1A[128/230] [authenticated] › e2e\crm\contacts-search.spec.ts:27:3 › CRM Contacts - Search and Listing › search filters contacts by name
+[1A[129/230] [authenticated] › e2e\crm\contacts-search.spec.ts:34:3 › CRM Contacts - Search and Listing › renders patients list page
+[1A[130/230] [authenticated] › e2e\crm\contacts-search.spec.ts:40:3 › CRM Contacts - Search and Listing › renders leads list page
+[1A[131/230] [authenticated] › e2e\crm\contacts-search.spec.ts:46:3 › CRM Contacts - Search and Listing › patients list has search functionality
+[1A[132/230] [authenticated] › e2e\crm\contacts-search.spec.ts:52:3 › CRM Contacts - Search and Listing › contacts list exposes type filters
+[1A[133/230] [authenticated] › e2e\crm\lgpd-consent.spec.ts:19:3 › CRM LGPD Consent Management › renders LGPD consent section in contact detail
+[1A[134/230] [authenticated] › e2e\crm\lgpd-consent.spec.ts:25:3 › CRM LGPD Consent Management › displays consent status indicators
+[1A[135/230] [authenticated] › e2e\crm\lgpd-consent.spec.ts:31:3 › CRM LGPD Consent Management › can update marketing consent
+[1A[136/230] [authenticated] › e2e\crm\lgpd-consent.spec.ts:38:3 › CRM LGPD Consent Management › can update data processing consent
+[1A[137/230] [authenticated] › e2e\crm\lgpd-consent.spec.ts:45:3 › CRM LGPD Consent Management › LGPD export and anonymization remain explicit API operations
+[1A[138/230] [authenticated] › e2e\crm\lgpd-consent.spec.ts:51:3 › CRM LGPD Consent Management › consent timestamps are displayed when a consent exists
+[1A[139/230] [authenticated] › e2e\crm\lgpd-consent.spec.ts:59:3 › CRM LGPD Consent Management › settings page has LGPD configuration
+[1A[140/230] [authenticated] › e2e\crm\pipeline.spec.ts:13:3 › CRM Pipeline Page › pipeline page loads without error
+[1A[141/230] [authenticated] › e2e\crm\pipeline.spec.ts:17:3 › CRM Pipeline Page › kanban board renders stage columns
+[1A[142/230] [authenticated] › e2e\crm\pipeline.spec.ts:22:3 › CRM Pipeline Page › lead cards appear in kanban columns
+[1A[143/230] [authenticated] › e2e\crm\pipeline.spec.ts:27:3 › CRM Pipeline Page › stage columns show lead count
+[1A[144/230] [authenticated] › e2e\crm\pipeline.spec.ts:35:3 › Pipeline API › kanban page loads without a client error
+[1A[145/230] [authenticated] › e2e\dashboard\overview.spec.ts:6:3 › Dashboard Overview › shows welcome card
+[1A[146/230] [authenticated] › e2e\dashboard\overview.spec.ts:7:3 › Dashboard Overview › renders primary stats
+[1A[147/230] [authenticated] › e2e\dashboard\overview.spec.ts:11:3 › Dashboard Overview › renders quick actions
+[1A[148/230] [authenticated] › e2e\dashboard\sidebar-navigation.spec.ts:13:5 › Sidebar Navigation › navigates to Dashboard
+[1A[149/230] [authenticated] › e2e\dashboard\sidebar-navigation.spec.ts:13:5 › Sidebar Navigation › navigates to CRM
+[1A[150/230] [authenticated] › e2e\dashboard\sidebar-navigation.spec.ts:13:5 › Sidebar Navigation › navigates to Campanhas
+[1A[151/230] [authenticated] › e2e\dashboard\sidebar-navigation.spec.ts:13:5 › Sidebar Navigation › navigates to Tarefas
+[1A[152/230] [authenticated] › e2e\dashboard\sidebar-navigation.spec.ts:13:5 › Sidebar Navigation › navigates to Conversas
+[1A[153/230] [authenticated] › e2e\dashboard\sidebar-navigation.spec.ts:13:5 › Sidebar Navigation › navigates to Inativos
+[1A[154/230] [authenticated] › e2e\dashboard\sidebar-navigation.spec.ts:13:5 › Sidebar Navigation › navigates to Analytics
+[1A[155/230] [authenticated] › e2e\dentists\list.spec.ts:23:3 › Dentists Page › renders page header
+[1A[156/230] [authenticated] › e2e\dentists\list.spec.ts:28:3 › Dentists Page › renders Novo Dentista button
+[1A[157/230] [authenticated] › e2e\dentists\list.spec.ts:33:3 › Dentists Page › renders search input
+[1A[158/230] [authenticated] › e2e\finance-mobile.spec.ts:6:7 › Finance mobile layout › reflows KPI cards and keeps tabs reachable
+[1A[159/230] [authenticated] › e2e\finance.spec.ts:4:7 › Financeiro smoke › authenticated user can open financeiro dashboard
+[1A[160/230] [authenticated] › e2e\leads\list.spec.ts:6:3 › Leads Page › renders page header
+[1A[161/230] [authenticated] › e2e\leads\list.spec.ts:7:3 › Leads Page › renders Novo Lead button
+[1A[162/230] [authenticated] › e2e\leads\list.spec.ts:8:3 › Leads Page › renders filters
+[1A[163/230] [authenticated] › e2e\leads.spec.ts:31:7 › Leads Page › should display leads page with pipeline controls
+[1A[164/230] [authenticated] › e2e\leads.spec.ts:37:7 › Leads Page › should display lead rows
+[1A[165/230] [authenticated] › e2e\leads.spec.ts:41:7 › Leads Page › should display lead rows when data exists
+[1A[166/230] [authenticated] › e2e\leads.spec.ts:48:7 › Leads Page › should have new lead button
+[1A[167/230] [authenticated] › e2e\leads.spec.ts:54:7 › Leads Page › should open new lead form
+[1A[168/230] [authenticated] › e2e\leads.spec.ts:68:7 › Leads Page › should show lead score
+[1A[169/230] [authenticated] › e2e\leads.spec.ts:75:7 › Leads Page › should have filter controls for temperature and status
+[1A[170/230] [authenticated] › e2e\leads.spec.ts:83:7 › Leads Page › should open lead creation form with name and phone fields
+[1A[171/230] [authenticated] › e2e\leads.spec.ts:99:7 › Leads status interaction › should expose status controls for an existing lead
+[1A[172/230] [authenticated] › e2e\patients\list.spec.ts:6:3 › Patients Page › renders page header
+[1A[173/230] [authenticated] › e2e\patients\list.spec.ts:7:3 › Patients Page › renders Novo Paciente button
+[1A[174/230] [authenticated] › e2e\patients\list.spec.ts:8:3 › Patients Page › renders search input
+[1A[175/230] [authenticated] › e2e\patients\list.spec.ts:9:3 › Patients Page › search filters results
+[1A[176/230] [authenticated] › e2e\patients.spec.ts:36:7 › Patients Page › should display patients list page
+[1A[177/230] [authenticated] › e2e\patients.spec.ts:40:7 › Patients Page › should have search functionality
+[1A[178/230] [authenticated] › e2e\patients.spec.ts:48:7 › Patients Page › should display patient list
+[1A[179/230] [authenticated] › e2e\patients.spec.ts:55:7 › Patients Page › should navigate to patient detail
+[1A[180/230] [authenticated] › e2e\patients.spec.ts:69:7 › Patient Detail › should show patient detail page with tabs
+[1A[181/230] [authenticated] › e2e\patients.spec.ts:77:7 › Patient Detail › should display patient information or appointment empty state
+[1A[182/230] [authenticated] › e2e\patients.spec.ts:89:7 › Patient Detail › should expose appointment creation from empty patient schedule
+[1A[183/230] [authenticated] › e2e\patients.spec.ts:101:7 › Patient Detail › should expose patient edit action
+[1A[184/230] [authenticated] › e2e\procedures\list.spec.ts:6:3 › Procedures Page › renders page header
+[1A[185/230] [authenticated] › e2e\procedures\list.spec.ts:7:3 › Procedures Page › renders Novo Procedimento button
+[1A[186/230] [authenticated] › e2e\procedures\list.spec.ts:8:3 › Procedures Page › renders search input
+[1A[187/230] [authenticated] › e2e\settings\settings.spec.ts:23:3 › Settings Page › renders page header
+[1A[188/230] [authenticated] › e2e\settings\settings.spec.ts:26:3 › Settings Page › renders clinic form fields
+[1A[189/230] [authenticated] › e2e\settings\settings.spec.ts:30:3 › Settings Page › renders save button
+[1A[190/230] [authenticated] › e2e\settings.spec.ts:30:7 › Settings Page › should display settings page
+[1A[191/230] [authenticated] › e2e\settings.spec.ts:36:7 › Settings Page › should have settings navigation
+[1A[192/230] [authenticated] › e2e\settings.spec.ts:50:7 › Clinic Settings › should display settings page with clinic info
+[1A[193/230] [authenticated] › e2e\settings.spec.ts:54:7 › Clinic Settings › should have settings form or cards
+[1A[194/230] [authenticated] › e2e\settings.spec.ts:66:7 › Reminder Settings › should display reminder settings page
+[1A[195/230] [authenticated] › e2e\settings.spec.ts:70:7 › Reminder Settings › should have notification settings
+[1A[196/230] [authenticated] › e2e\waitlist\list.spec.ts:23:3 › Waitlist Page › renders page header
+[1A[197/230] [authenticated] › e2e\waitlist\list.spec.ts:26:3 › Waitlist Page › renders status filter
+[1A(node:23772) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[198/230] [unauthenticated] › e2e\auth\login.spec.ts:6:7 › Login Page › renders login form with email, password, and submit
+[1A[199/230] [unauthenticated] › e2e\auth\login.spec.ts:11:7 › Login Page › shows demo credentials hint
+[1A[200/230] [unauthenticated] › e2e\auth\login.spec.ts:14:7 › Login Page › has link to signup page
+[1A[201/230] [unauthenticated] › e2e\auth\login.spec.ts:17:7 › Login Page › wrong password shows error message
+[1A[202/230] [unauthenticated] › e2e\auth\login.spec.ts:24:7 › Login Page › empty fields prevent submission
+[1A[203/230] [unauthenticated] › e2e\auth\login.spec.ts:28:7 › Login Page › displays Synkroo branding
+[1A[204/230] [unauthenticated] › e2e\auth\route-protection.spec.ts:3:7 › Route Protection › unauthenticated /dashboard redirects to /login
+[1A[205/230] [unauthenticated] › e2e\auth\route-protection.spec.ts:8:7 › Route Protection › unauthenticated /dashboard/pacientes redirects to /login
+[1A[206/230] [unauthenticated] › e2e\auth\route-protection.spec.ts:13:7 › Route Protection › /api/health is accessible without auth
+[1A[207/230] [unauthenticated] › e2e\auth\route-protection.spec.ts:17:7 › Route Protection › redirect preserves redirectTo param
+[1A[208/230] [unauthenticated] › e2e\auth\signup.spec.ts:4:7 › Signup Page › renders signup form with all fields
+[1A[209/230] [unauthenticated] › e2e\auth\signup.spec.ts:10:7 › Signup Page › has link to login page
+[1A[210/230] [unauthenticated] › e2e\auth\signup.spec.ts:13:7 › Signup Page › empty fields prevent submission
+[1A[211/230] [unauthenticated] › e2e\auth\storage-state.spec.ts:6:5 › global setup persists a real NextAuth session
+[1A(node:22592) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+[1A[212/230] [api] › e2e\api\appointments-api.spec.ts:5:3 › Appointments API › GET returns list
+[1A[213/230] [api] › e2e\api\appointments-api.spec.ts:11:3 › Appointments API › GET supports date range
+[1A[214/230] [api] › e2e\api\appointments-api.spec.ts:16:3 › Appointments API › POST with invalid data returns error
+[1A[215/230] [api] › e2e\api\budgets-api.spec.ts:5:3 › Budgets API › GET returns response
+[1A[216/230] [api] › e2e\api\campaigns-api.spec.ts:5:3 › Campaigns API › GET returns response
+[1A[217/230] [api] › e2e\api\conversations-api.spec.ts:5:3 › Conversations API › GET returns response
+[1A[218/230] [api] › e2e\api\dentists-api.spec.ts:5:3 › Dentists API › GET returns response
+[1A[219/230] [api] › e2e\api\dentists-api.spec.ts:9:3 › Dentists API › POST with invalid data returns error
+[1A[220/230] [api] › e2e\api\health.spec.ts:3:7 › GET /api/health › returns health status
+[1A[221/230] [api] › e2e\api\health.spec.ts:10:7 › GET /api/health › includes database check
+[1A[222/230] [api] › e2e\api\knowledge-api.spec.ts:5:3 › Knowledge API › GET returns response
+[1A[223/230] [api] › e2e\api\leads-api.spec.ts:5:3 › Leads API › GET returns response
+[1A[224/230] [api] › e2e\api\leads-api.spec.ts:9:3 › Leads API › POST with invalid data returns error
+[1A[225/230] [api] › e2e\api\patients-api.spec.ts:5:3 › Patients API › GET returns list
+[1A[226/230] [api] › e2e\api\patients-api.spec.ts:11:3 › Patients API › POST with invalid data returns error
+[1A[227/230] [api] › e2e\api\patients-api.spec.ts:15:3 › Patients API › GET supports search
+[1A[228/230] [api] › e2e\api\procedures-api.spec.ts:5:3 › Procedures API › GET returns response
+[1A[229/230] [api] › e2e\api\procedures-api.spec.ts:9:3 › Procedures API › POST with invalid data returns error
+[1A[230/230] [api] › e2e\api\waitlist-api.spec.ts:5:3 › Waitlist API › GET returns response
+[1A  230 passed (6.2m)

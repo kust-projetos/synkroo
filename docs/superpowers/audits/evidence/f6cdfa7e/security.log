@@ -1,0 +1,40 @@
+
+> synkroo@0.1.0 test:security
+> jest --config jest.security.config.js --coverage --runInBand
+
+PASS src/modules/crm/__tests__/duplicate-execution-service.test.ts (16.486 s)
+PASS src/__tests__/api/budgets/installments/route.test.ts
+PASS src/__tests__/api/tasks/route.test.ts
+PASS src/__tests__/api/instagram/webhook/contract.test.ts
+PASS src/modules/financeiro/services/__tests__/collection-service.test.ts
+PASS src/modules/financeiro/services/__tests__/installment-service.test.ts
+PASS src/modules/financeiro/services/__tests__/budget-scope-service.test.ts
+PASS src/modules/operacional/services/__tests__/patient-merge-state-service.test.ts
+PASS src/modules/comercial/services/__tests__/merge-state-service.test.ts
+-----------------------------------|---------|----------|---------|---------|-------------------
+File                               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-----------------------------------|---------|----------|---------|---------|-------------------
+All files                          |   95.22 |    90.81 |   95.23 |   96.33 |                   
+ app/api/budgets/[id]/installments |    91.3 |    83.33 |     100 |   93.15 |                   
+  route.ts                         |    91.3 |    83.33 |     100 |   93.15 | 47,76,111-112,136 
+ app/api/instagram/webhook         |   93.33 |    86.66 |     100 |   95.34 |                   
+  route.ts                         |   93.33 |    86.66 |     100 |   95.34 | 70-71             
+ app/api/tasks                     |     100 |      100 |     100 |     100 |                   
+  route.ts                         |     100 |      100 |     100 |     100 |                   
+ modules/comercial/services        |     100 |      100 |     100 |     100 |                   
+  merge-state-service.ts           |     100 |      100 |     100 |     100 |                   
+ modules/crm/services              |    97.8 |    95.65 |   83.33 |   97.77 |                   
+  duplicate-execution-service.ts   |    97.8 |    95.65 |   83.33 |   97.77 | 54,108            
+ modules/financeiro/services       |   96.59 |    89.47 |   95.65 |   97.46 |                   
+  budget-scope-service.ts          |     100 |      100 |     100 |     100 |                   
+  collection-service.ts            |   94.73 |    86.66 |   91.66 |   96.07 | 19,63             
+  installment-service.ts           |     100 |      100 |     100 |     100 |                   
+ modules/operacional/services      |     100 |      100 |     100 |     100 |                   
+  patient-merge-state-service.ts   |     100 |      100 |     100 |     100 |                   
+-----------------------------------|---------|----------|---------|---------|-------------------
+
+Test Suites: 9 passed, 9 total
+Tests:       142 passed, 142 total
+Snapshots:   0 total
+Time:        22.139 s
+Ran all test suites.
