@@ -24,7 +24,7 @@ const productionConfig = {
   retries: 0,
   webServer: {
     ...baseConfig.webServer,
-    command: "npx next start -p 3003",
+    command: "node scripts/next-start-safe.mjs -p 3003",
     timeout: 300000,
     env: {
       ...process.env,

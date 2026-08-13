@@ -1,51 +1,52 @@
-import { defineConfig, devices } from '@playwright/test'
-import path from 'path'
+import { defineConfig, devices } from "@playwright/test";
+import path from "path";
 
 export default defineConfig({
-  testDir: './e2e',
+  testDir: "./e2e",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // Retries hide flakes and violate the release gate; every CI failure is terminal.
+  retries: 0,
   workers: 1,
-  reporter: 'html',
-  globalSetup: path.join(__dirname, 'e2e/global-setup.ts'),
-  globalTeardown: path.join(__dirname, 'e2e/global-teardown.ts'),
+  reporter: "html",
+  globalSetup: path.join(__dirname, "e2e/global-setup.ts"),
+  globalTeardown: path.join(__dirname, "e2e/global-teardown.ts"),
   use: {
-    baseURL: 'http://127.0.0.1:3003',
-    trace: 'on-first-retry',
-    screenshot: 'only-on-failure',
+    baseURL: "http://127.0.0.1:3003",
+    trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
   projects: [
     {
-      name: 'authenticated',
+      name: "authenticated",
       use: {
-        ...devices['Desktop Chrome'],
-        storageState: path.join(__dirname, 'e2e/.auth/admin.json'),
+        ...devices["Desktop Chrome"],
+        storageState: path.join(__dirname, "e2e/.auth/admin.json"),
       },
-      testIgnore: ['**/auth/**', '**/api/**'],
+      testIgnore: ["**/auth/**", "**/api/**"],
     },
     {
-      name: 'unauthenticated',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/auth/**',
+      name: "unauthenticated",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: "**/auth/**",
     },
     {
-      name: 'api',
+      name: "api",
       use: {
-        ...devices['Desktop Chrome'],
-        storageState: path.join(__dirname, 'e2e/.auth/admin.json'),
+        ...devices["Desktop Chrome"],
+        storageState: path.join(__dirname, "e2e/.auth/admin.json"),
       },
-      testMatch: '**/api/**',
+      testMatch: "**/api/**",
     },
   ],
   webServer: {
-    command: 'npm run dev -- -p 3003',
-    url: 'http://127.0.0.1:3003/login',
+    command: "npm run dev -- -p 3003",
+    url: "http://127.0.0.1:3003/login",
     reuseExistingServer: false,
     timeout: 120000,
     env: {
       ...process.env,
-      NEXTAUTH_URL: 'http://127.0.0.1:3003',
+      NEXTAUTH_URL: "http://127.0.0.1:3003",
     },
   },
-})
+});
