@@ -1,0 +1,217 @@
+
+> synkroo@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.22
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 64s
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/119) ...
+   Generating static pages (29/119) 
+   Generating static pages (59/119) 
+   Generating static pages (89/119) 
+ ✓ Generating static pages (119/119)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                       Size  First Load JS
+┌ ○ /                                            166 B         106 kB
+├ ○ /_not-found                                   1 kB         103 kB
+├ ƒ /api/activities                              485 B         103 kB
+├ ƒ /api/admin/provision                         485 B         103 kB
+├ ƒ /api/admin/run-migration                     485 B         103 kB
+├ ƒ /api/analytics/insights                      485 B         103 kB
+├ ƒ /api/analytics/metrics                       485 B         103 kB
+├ ƒ /api/analytics/noshow-prediction             485 B         103 kB
+├ ƒ /api/analytics/roi                           485 B         103 kB
+├ ƒ /api/appointments                            485 B         103 kB
+├ ƒ /api/appointments/[id]                       485 B         103 kB
+├ ƒ /api/appointments/[id]/cancel                485 B         103 kB
+├ ƒ /api/appointments/[id]/confirm               485 B         103 kB
+├ ƒ /api/appointments/[id]/noshow                485 B         103 kB
+├ ƒ /api/appointments/[id]/reactivate            485 B         103 kB
+├ ƒ /api/appointments/[id]/reativate             485 B         103 kB
+├ ƒ /api/appointments/[id]/remind                485 B         103 kB
+├ ƒ /api/appointments/[id]/reminder-template     485 B         103 kB
+├ ƒ /api/appointments/[id]/reschedule            485 B         103 kB
+├ ƒ /api/appointments/availability               485 B         103 kB
+├ ƒ /api/appointments/confirm-response           485 B         103 kB
+├ ƒ /api/appointments/incomplete-treatments      485 B         103 kB
+├ ƒ /api/auth/[...nextauth]                      485 B         103 kB
+├ ƒ /api/auth/login                              485 B         103 kB
+├ ƒ /api/auth/logout                             485 B         103 kB
+├ ƒ /api/auth/refresh                            485 B         103 kB
+├ ƒ /api/auth/session                            485 B         103 kB
+├ ƒ /api/auth/signup                             485 B         103 kB
+├ ƒ /api/auth/switch-clinic                      485 B         103 kB
+├ ƒ /api/budgets                                 485 B         103 kB
+├ ƒ /api/budgets/[id]                            485 B         103 kB
+├ ƒ /api/budgets/[id]/accept                     485 B         103 kB
+├ ƒ /api/budgets/[id]/installments               485 B         103 kB
+├ ƒ /api/budgets/[id]/payments                   485 B         103 kB
+├ ƒ /api/budgets/[id]/reject                     485 B         103 kB
+├ ƒ /api/budgets/[id]/send                       485 B         103 kB
+├ ƒ /api/budgets/followup                        485 B         103 kB
+├ ƒ /api/campaigns                               485 B         103 kB
+├ ƒ /api/campaigns/[id]                          485 B         103 kB
+├ ƒ /api/campaigns/[id]/recipients               485 B         103 kB
+├ ƒ /api/campaigns/[id]/start                    485 B         103 kB
+├ ƒ /api/campaigns/process                       485 B         103 kB
+├ ƒ /api/campaigns/segments                      485 B         103 kB
+├ ƒ /api/campaigns/segments/preview              485 B         103 kB
+├ ƒ /api/clinics/settings                        485 B         103 kB
+├ ƒ /api/consents                                485 B         103 kB
+├ ƒ /api/contacts                                485 B         103 kB
+├ ƒ /api/contacts/[id]                           485 B         103 kB
+├ ƒ /api/contacts/[id]/appointments              485 B         103 kB
+├ ƒ /api/contacts/[id]/notes                     485 B         103 kB
+├ ƒ /api/contacts/[id]/tags                      485 B         103 kB
+├ ƒ /api/contacts/[id]/timeline                  485 B         103 kB
+├ ƒ /api/contacts/duplicates                     485 B         103 kB
+├ ƒ /api/contacts/duplicates/[id]                485 B         103 kB
+├ ƒ /api/contacts/duplicates/[id]/approve        485 B         103 kB
+├ ƒ /api/contacts/duplicates/[id]/dismiss        485 B         103 kB
+├ ƒ /api/contacts/duplicates/[id]/merge          485 B         103 kB
+├ ƒ /api/conversations                           485 B         103 kB
+├ ƒ /api/conversations/[id]                      485 B         103 kB
+├ ƒ /api/crm/stats                               485 B         103 kB
+├ ƒ /api/cron/cleanup                            485 B         103 kB
+├ ƒ /api/cron/crm-duplicates                     485 B         103 kB
+├ ƒ /api/cron/financeiro-collections             485 B         103 kB
+├ ƒ /api/cron/followups                          485 B         103 kB
+├ ƒ /api/cron/hot-leads                          485 B         103 kB
+├ ƒ /api/cron/outbox                             485 B         103 kB
+├ ƒ /api/cron/reminders                          485 B         103 kB
+├ ƒ /api/cron/smart-triggers                     485 B         103 kB
+├ ƒ /api/custom-fields/definitions               485 B         103 kB
+├ ƒ /api/custom-fields/definitions/[id]          485 B         103 kB
+├ ƒ /api/custom-fields/values                    485 B         103 kB
+├ ƒ /api/dashboard/alerts                        485 B         103 kB
+├ ƒ /api/dashboard/stats                         485 B         103 kB
+├ ƒ /api/dentists                                485 B         103 kB
+├ ƒ /api/dentists/[id]                           485 B         103 kB
+├ ƒ /api/financeiro/budgets                      485 B         103 kB
+├ ƒ /api/financeiro/budgets/[id]                 485 B         103 kB
+├ ƒ /api/financeiro/budgets/[id]/accept          485 B         103 kB
+├ ƒ /api/financeiro/budgets/[id]/installments    485 B         103 kB
+├ ƒ /api/financeiro/budgets/[id]/payments        485 B         103 kB
+├ ƒ /api/financeiro/budgets/[id]/reject          485 B         103 kB
+├ ƒ /api/financeiro/budgets/[id]/send            485 B         103 kB
+├ ƒ /api/financeiro/charges                      485 B         103 kB
+├ ƒ /api/financeiro/charges/[id]                 485 B         103 kB
+├ ƒ /api/financeiro/charges/[id]/cancel          485 B         103 kB
+├ ƒ /api/financeiro/collections                  485 B         103 kB
+├ ƒ /api/financeiro/collections/[id]/reminder    485 B         103 kB
+├ ƒ /api/financeiro/dashboard                    485 B         103 kB
+├ ƒ /api/financeiro/gateway-rules                485 B         103 kB
+├ ƒ /api/financeiro/gateways                     485 B         103 kB
+├ ƒ /api/financeiro/payments/manual              485 B         103 kB
+├ ƒ /api/financeiro/webhooks/[provider]          485 B         103 kB
+├ ƒ /api/health                                  485 B         103 kB
+├ ƒ /api/health/db                               485 B         103 kB
+├ ƒ /api/ia/chat                                 485 B         103 kB
+├ ƒ /api/instagram/webhook                       485 B         103 kB
+├ ƒ /api/internal/readiness                      485 B         103 kB
+├ ƒ /api/knowledge                               485 B         103 kB
+├ ƒ /api/knowledge/[id]                          485 B         103 kB
+├ ƒ /api/knowledge/categories                    485 B         103 kB
+├ ƒ /api/knowledge/search                        485 B         103 kB
+├ ƒ /api/leads                                   485 B         103 kB
+├ ƒ /api/leads/[id]                              485 B         103 kB
+├ ƒ /api/leads/[id]/convert                      485 B         103 kB
+├ ƒ /api/leads/[id]/stage                        485 B         103 kB
+├ ƒ /api/leads/hot                               485 B         103 kB
+├ ƒ /api/leads/kanban                            485 B         103 kB
+├ ƒ /api/leads/notifications                     485 B         103 kB
+├ ƒ /api/leads/notifications/[id]/acknowledge    485 B         103 kB
+├ ƒ /api/leads/stats                             485 B         103 kB
+├ ƒ /api/lgpd/anonymize                          485 B         103 kB
+├ ƒ /api/lgpd/export                             485 B         103 kB
+├ ƒ /api/messages/history/[conversationId]       485 B         103 kB
+├ ƒ /api/messages/inbound                        485 B         103 kB
+├ ƒ /api/messages/send                           485 B         103 kB
+├ ƒ /api/messages/whatsapp                       485 B         103 kB
+├ ƒ /api/patients                                485 B         103 kB
+├ ƒ /api/patients/[id]                           485 B         103 kB
+├ ƒ /api/patients/[id]/history                   485 B         103 kB
+├ ƒ /api/patients/[id]/observations              485 B         103 kB
+├ ƒ /api/patients/[id]/preferences               485 B         103 kB
+├ ƒ /api/patients/deduplicate                    485 B         103 kB
+├ ƒ /api/patients/inactive                       485 B         103 kB
+├ ƒ /api/patients/tags                           485 B         103 kB
+├ ƒ /api/pipeline/analytics                      485 B         103 kB
+├ ƒ /api/pipeline/stages                         485 B         103 kB
+├ ƒ /api/pipeline/stages/[id]                    485 B         103 kB
+├ ƒ /api/pipeline/stages/reorder                 485 B         103 kB
+├ ƒ /api/procedures                              485 B         103 kB
+├ ƒ /api/procedures/[id]                         485 B         103 kB
+├ ƒ /api/reminders/config                        485 B         103 kB
+├ ƒ /api/reports/export                          485 B         103 kB
+├ ƒ /api/reports/financial                       485 B         103 kB
+├ ƒ /api/reports/patients                        485 B         103 kB
+├ ƒ /api/seed                                    485 B         103 kB
+├ ƒ /api/tasks                                   485 B         103 kB
+├ ƒ /api/treatment-plans                         485 B         103 kB
+├ ƒ /api/treatment-plans/[id]                    485 B         103 kB
+├ ƒ /api/treatment-plans/[id]/sessions           485 B         103 kB
+├ ƒ /api/waitlist                                485 B         103 kB
+├ ƒ /api/whatsapp/evolution                      485 B         103 kB
+├ ƒ /api/whatsapp/qrcode                         485 B         103 kB
+├ ƒ /api/whatsapp/send                           485 B         103 kB
+├ ƒ /api/whatsapp/templates                      485 B         103 kB
+├ ƒ /api/whatsapp/webhook                        485 B         103 kB
+├ ƒ /api/widget/messages                         485 B         103 kB
+├ ○ /dashboard                                  5.2 kB         152 kB
+├ ○ /dashboard/agendamentos                    19.6 kB         216 kB
+├ ƒ /dashboard/agendamentos/[id]               8.47 kB         132 kB
+├ ○ /dashboard/agendamentos/novo               4.36 kB         132 kB
+├ ○ /dashboard/analytics                       11.7 kB         257 kB
+├ ○ /dashboard/atividades                        485 B         103 kB
+├ ○ /dashboard/campanhas                       8.54 kB         166 kB
+├ ƒ /dashboard/campanhas/[id]                  8.57 kB         132 kB
+├ ○ /dashboard/campanhas/nova                  3.68 kB         131 kB
+├ ○ /dashboard/configuracao                      485 B         103 kB
+├ ○ /dashboard/configuracoes                   8.15 kB         141 kB
+├ ƒ /dashboard/configuracoes/acessos           1.55 kB         104 kB
+├ ƒ /dashboard/configuracoes/acessos/perfis     1.3 kB         104 kB
+├ ƒ /dashboard/contatos                        27.5 kB         318 kB
+├ ○ /dashboard/conversas                       10.2 kB         150 kB
+├ ○ /dashboard/crm                             2.93 kB         141 kB
+├ ○ /dashboard/crm/pipeline                    42.2 kB         218 kB
+├ ○ /dashboard/dentistas                       1.74 kB         150 kB
+├ ƒ /dashboard/dentistas/[id]                  6.68 kB         130 kB
+├ ○ /dashboard/dentistas/novo                  1.14 kB         128 kB
+├ ƒ /dashboard/financeiro                      3.11 kB         125 kB
+├ ○ /dashboard/leads                            8.9 kB         188 kB
+├ ƒ /dashboard/leads/[id]                      8.78 kB         152 kB
+├ ○ /dashboard/leads/novo                      1.43 kB         129 kB
+├ ○ /dashboard/lista-espera                    7.52 kB         163 kB
+├ ○ /dashboard/pacientes                        2.9 kB         151 kB
+├ ƒ /dashboard/pacientes/[id]                  9.98 kB         130 kB
+├ ƒ /dashboard/pacientes/[id]/editar           3.88 kB         131 kB
+├ ○ /dashboard/pacientes/inativos              8.04 kB         145 kB
+├ ○ /dashboard/pacientes/novo                  3.66 kB         131 kB
+├ ○ /dashboard/pipeline                          485 B         103 kB
+├ ○ /dashboard/procedimentos                   6.14 kB         149 kB
+├ ƒ /dashboard/procedimentos/[id]              6.36 kB         130 kB
+├ ○ /dashboard/procedimentos/novo              1.09 kB         128 kB
+├ ○ /dashboard/tarefas                         6.09 kB         172 kB
+├ ○ /login                                     1.89 kB         126 kB
+├ ○ /pi-finance                                22.3 kB         147 kB
+└ ○ /signup                                    2.18 kB         126 kB
++ First Load JS shared by all                   102 kB
+  ├ chunks/1255-cf02c4775860a5ab.js              46 kB
+  ├ chunks/4bd1b696-100b9d70ed4e49c1.js        54.2 kB
+  └ other shared chunks (total)                2.02 kB
+
+
+ƒ Middleware                                   73.3 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

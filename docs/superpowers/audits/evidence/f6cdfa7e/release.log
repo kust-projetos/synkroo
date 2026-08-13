@@ -1,0 +1,25 @@
+
+> synkroo@0.1.0 test:release
+> node --test scripts/__tests__/cli-entrypoint.test.mjs scripts/__tests__/inject-pg-global.test.mjs scripts/__tests__/seed-test-clinic.test.mjs scripts/__tests__/smoke-staging.test.mjs scripts/__tests__/verify-remediation-schema.test.mjs scripts/__tests__/ignore-client-abort.test.mjs
+
+✔ smoke runner recognizes Windows and POSIX module paths (1.1319ms)
+✔ schema verifier recognizes Windows and POSIX module paths (0.2304ms)
+✔ recognizes only the expected Next.js client disconnect (1.2174ms)
+✔ keeps the generated pg injection marker ASCII-safe for Wrangler startup analysis (7.0372ms)
+✔ E2E seed provisions the clinic and credentials expected by global setup (1.1262ms)
+✔ redacts credentials and patient identifiers (2.4185ms)
+✔ runs the complete privacy-safe staging contract with authenticated checks (56.684ms)
+✔ serializes staging checks to avoid cold-start database races (81.8557ms)
+✔ blocks authenticated staging checks when synthetic credentials are absent (1.2814ms)
+✔ requires remediation columns and tenant-scoped unique keys (1.0277ms)
+✔ rejects a schema without the outbox tenant idempotency key (0.4016ms)
+✔ message event migration preflights duplicates and is replay-safe (5.2598ms)
+✔ lead phone migration is replay-safe (2.2783ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 313.7279
