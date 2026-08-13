@@ -2,15 +2,15 @@
 > synkroo@0.1.0 test:security
 > jest --config jest.security.config.js --coverage --runInBand
 
-PASS src/modules/crm/__tests__/duplicate-execution-service.test.ts (16.486 s)
+PASS src/modules/crm/__tests__/duplicate-execution-service.test.ts
 PASS src/__tests__/api/budgets/installments/route.test.ts
+PASS src/modules/financeiro/services/__tests__/collection-service.test.ts
 PASS src/__tests__/api/tasks/route.test.ts
 PASS src/__tests__/api/instagram/webhook/contract.test.ts
-PASS src/modules/financeiro/services/__tests__/collection-service.test.ts
+PASS src/modules/comercial/services/__tests__/merge-state-service.test.ts
+PASS src/modules/operacional/services/__tests__/patient-merge-state-service.test.ts
 PASS src/modules/financeiro/services/__tests__/installment-service.test.ts
 PASS src/modules/financeiro/services/__tests__/budget-scope-service.test.ts
-PASS src/modules/operacional/services/__tests__/patient-merge-state-service.test.ts
-PASS src/modules/comercial/services/__tests__/merge-state-service.test.ts
 -----------------------------------|---------|----------|---------|---------|-------------------
 File                               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
 -----------------------------------|---------|----------|---------|---------|-------------------
@@ -36,5 +36,5 @@ All files                          |   95.22 |    90.81 |   95.23 |   96.33 |
 Test Suites: 9 passed, 9 total
 Tests:       142 passed, 142 total
 Snapshots:   0 total
-Time:        22.139 s
+Time:        6.195 s, estimated 20 s
 Ran all test suites.
