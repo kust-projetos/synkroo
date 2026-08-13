@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "recordedAt": "2026-08-13",
-  "testedCommit": "352197e8",
-  "evidenceScope": "exact final implementation candidate at 658f3aa0; evidence files are committed beside this record",
+  "testedCommit": "cacffcb7",
+  "evidenceScope": "exact final implementation candidate at cacffcb7; evidence files are committed beside this record",
   "gates": [
     {
       "name": "lint",
@@ -76,13 +76,14 @@
       "command": "npm audit --omit=dev --audit-level=high",
       "status": "passed",
       "highOrCritical": 0,
-      "notes": "Moderate/low advisories remain below the blocking high threshold."
+      "notes": "Moderate/low advisories remain below the blocking high threshold.",
+      "artifact": "evidence/f6cdfa7e/production-audit.log"
     },
     {
       "name": "fullHistorySecrets",
       "command": "gitleaks detect --source . --no-banner --redact --log-opts='--all'",
       "status": "passed",
-      "counts": "2164 commits; 159869863 bytes; 0 leaks",
+      "counts": "2171 commits; 160004274 bytes; 0 leaks",
       "artifact": "evidence/f6cdfa7e/gitleaks.log"
     }
   ],
