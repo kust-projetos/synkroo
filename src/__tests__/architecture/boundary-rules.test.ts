@@ -166,8 +166,8 @@ describe("Boundary Rules (Spec Section 5)", () => {
     );
     expect(financeiro).toMatch(/listOverdueCharges\(clinicId: string\)/);
     const campaigns = requiredFile("repositories/campaigns/index.ts");
-    expect(campaigns).toMatch(/findScheduledCampaigns\(clinicId: string/);
-    expect(campaigns).toMatch(/findCampaignsByClinic\(clinicId: string/);
+    expect(campaigns).toMatch(/findScheduledCampaigns\(\s*clinicId: string/);
+    expect(campaigns).toMatch(/findCampaignsByClinic\(\s*clinicId: string/);
   });
 
   it("source discovery fails closed instead of accepting an empty tree", () => {
