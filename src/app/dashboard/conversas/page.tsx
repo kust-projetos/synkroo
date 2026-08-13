@@ -1,15 +1,15 @@
-'use client'
+"use client";
 
-import { useState, useMemo } from 'react'
-import { useAuth } from '@/lib/auth/context'
-import { useConversations, useConversation } from '@/lib/hooks/use-queries'
-import { PageHeader } from '@/components/ui/page-header'
-import { SearchInput } from '@/components/ui/search-input'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { StatusBadge } from '@/components/ui/status-badge'
-import { Card } from '@/components/ui/card'
+import { useState, useMemo } from "react";
+import { useAuth } from "@/lib/auth/context";
+import { useConversations, useConversation } from "@/lib/hooks/use-queries";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { Card } from "@/components/ui/card";
 import {
   ChatBubbleLeftRightIcon,
   PhoneIcon,
@@ -18,150 +18,212 @@ import {
   PaperAirplaneIcon,
   CalendarIcon,
   ClockIcon,
-} from '@heroicons/react/24/outline'
+} from "@heroicons/react/24/outline";
 
 interface Message {
-  id: string
-  direction: 'inbound' | 'outbound'
-  content: string
-  intent?: string
-  is_ai: boolean
-  created_at: string
+  id: string;
+  direction: "inbound" | "outbound";
+  content: string;
+  intent?: string;
+  is_ai: boolean;
+  created_at: string;
 }
 
 interface Conversation {
-  id: string
-  channel: 'whatsapp' | 'instagram' | 'web'
-  status: 'active' | 'waiting' | 'closed' | 'escalated'
-  external_id: string
-  last_message_at: string
+  id: string;
+  channel: "whatsapp" | "instagram" | "web";
+  status: "active" | "waiting" | "closed" | "escalated";
+  external_id?: string;
+  last_message_at?: string | null;
+  externalId?: string;
+  lastMessageAt?: string | null;
   patient?: {
-    id: string
-    name: string
-    phone: string
-  }
+    id: string;
+    name: string;
+    phone: string;
+  };
   last_message?: {
-    content: string
-    direction: string
-    intent?: string
-  }
-  messages?: Message[]
-  unread_count?: number
+    content: string;
+    direction: string;
+    intent?: string;
+  };
+  messages?: Message[];
+  unread_count?: number;
+  clinicId?: string;
 }
 
-const intentLabels: Record<string, { label: string; status: 'success' | 'info' | 'error' | 'warning' }> = {
-  agendamento: { label: 'Agendamento', status: 'success' },
-  duvida: { label: 'Dúvida', status: 'info' },
-  emergencia: { label: 'Emergência', status: 'error' },
-  confirmacao: { label: 'Confirmação', status: 'info' },
-  reclamacao: { label: 'Reclamação', status: 'warning' },
-  outros: { label: 'Outros', status: 'info' },
-}
+const intentLabels: Record<
+  string,
+  { label: string; status: "success" | "info" | "error" | "warning" }
+> = {
+  agendamento: { label: "Agendamento", status: "success" },
+  duvida: { label: "Dúvida", status: "info" },
+  emergencia: { label: "Emergência", status: "error" },
+  confirmacao: { label: "Confirmação", status: "info" },
+  reclamacao: { label: "Reclamação", status: "warning" },
+  outros: { label: "Outros", status: "info" },
+};
 
-const channelConfig: Record<string, { bg: string; icon: React.ReactNode; name: string }> = {
-  whatsapp: { bg: 'bg-green-500', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, name: 'WhatsApp' },
-  instagram: { bg: 'bg-gradient-to-br from-purple-500 to-pink-500', icon: <CameraIcon className="w-5 h-5" />, name: 'Instagram' },
-  web: { bg: 'bg-teal-600', icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />, name: 'Web' },
-}
+const channelConfig: Record<
+  string,
+  { bg: string; icon: React.ReactNode; name: string }
+> = {
+  whatsapp: {
+    bg: "bg-green-500",
+    icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />,
+    name: "WhatsApp",
+  },
+  instagram: {
+    bg: "bg-gradient-to-br from-purple-500 to-pink-500",
+    icon: <CameraIcon className="w-5 h-5" />,
+    name: "Instagram",
+  },
+  web: {
+    bg: "bg-teal-600",
+    icon: <ChatBubbleLeftRightIcon className="w-5 h-5" />,
+    name: "Web",
+  },
+};
 
-const statusConfig: Record<string, { label: string; status: 'success' | 'warning' | 'error' | 'info' | 'zinc' }> = {
-  active: { label: 'Ativo', status: 'success' },
-  waiting: { label: 'Aguardando', status: 'warning' },
-  closed: { label: 'Fechado', status: 'zinc' },
-  escalated: { label: 'Escalonado', status: 'error' },
-}
+const statusConfig: Record<
+  string,
+  { label: string; status: "success" | "warning" | "error" | "info" | "zinc" }
+> = {
+  active: { label: "Ativo", status: "success" },
+  waiting: { label: "Aguardando", status: "warning" },
+  closed: { label: "Fechado", status: "zinc" },
+  escalated: { label: "Escalonado", status: "error" },
+};
 
 export default function ConversasPage() {
-  const { profile } = useAuth()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [filter, setFilter] = useState<'all' | 'whatsapp' | 'instagram' | 'escalated'>('all')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [newMessage, setNewMessage] = useState('')
-  const [sending, setSending] = useState(false)
-  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([])
+  const { profile } = useAuth();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<
+    "all" | "whatsapp" | "instagram" | "escalated"
+  >("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
 
   const convParams = useMemo(() => {
     const params: Record<string, string> = {
-      clinic_id: profile?.clinic_id || '',
-      limit: '50',
+      clinic_id: profile?.clinic_id || "",
+      limit: "50",
+    };
+    if (filter === "escalated") {
+      params.status = "escalated";
+    } else if (filter !== "all") {
+      params.channel = filter;
     }
-    if (filter === 'escalated') {
-      params.status = 'escalated'
-    } else if (filter !== 'all') {
-      params.channel = filter
-    }
-    return params
-  }, [profile?.clinic_id, filter])
+    return params;
+  }, [profile?.clinic_id, filter]);
 
-  const { data: convsData, isLoading: loadingConvs, refetch: refetchConvs } = useConversations(
-    profile?.clinic_id ? convParams : undefined
-  )
+  const {
+    data: convsData,
+    isLoading: loadingConvs,
+    refetch: refetchConvs,
+  } = useConversations(profile?.clinic_id ? convParams : undefined);
 
-  const { data: detailData, refetch: refetchDetail } = useConversation(selectedId || '')
+  const { data: detailData, refetch: refetchDetail } = useConversation(
+    selectedId || "",
+  );
 
-  const conversations = (convsData?.conversations || []) as Conversation[]
-  const selectedConversation = detailData?.conversation ? { ...detailData.conversation, messages: [...(detailData.messages || []), ...optimisticMessages] } as Conversation : null
+  const conversations = (convsData?.conversations || []).map(
+    (conversation: any) => ({
+      ...conversation,
+      external_id: conversation.external_id || conversation.externalId || "",
+      last_message_at:
+        conversation.last_message_at ||
+        conversation.lastMessageAt ||
+        new Date().toISOString(),
+    }),
+  ) as Conversation[];
+  const selectedConversation = detailData?.conversation
+    ? ({
+        ...detailData.conversation,
+        external_id:
+          detailData.conversation.external_id ||
+          detailData.conversation.externalId ||
+          "",
+        last_message_at:
+          detailData.conversation.last_message_at ||
+          detailData.conversation.lastMessageAt ||
+          new Date().toISOString(),
+        messages: [...(detailData.messages || []), ...optimisticMessages],
+      } as Conversation)
+    : null;
 
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr)
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const minutes = Math.floor(diff / 60000)
-    const hours = Math.floor(diff / 3600000)
-    const days = Math.floor(diff / 86400000)
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
 
-    if (minutes < 1) return 'Agora'
-    if (minutes < 60) return `${minutes}min`
-    if (hours < 24) return `${hours}h`
-    if (days === 1) return 'Ontem'
-    if (days < 7) return `${days}d`
-    return date.toLocaleDateString('pt-BR')
-  }
+    if (minutes < 1) return "Agora";
+    if (minutes < 60) return `${minutes}min`;
+    if (hours < 24) return `${hours}h`;
+    if (days === 1) return "Ontem";
+    if (days < 7) return `${days}d`;
+    return date.toLocaleDateString("pt-BR");
+  };
 
-  const filteredConversations = conversations.filter(conv => {
-    if (!searchQuery) return true
-    const query = searchQuery.toLowerCase()
+  const filteredConversations = conversations.filter((conv) => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
     return (
       conv.patient?.name?.toLowerCase().includes(query) ||
       conv.external_id?.includes(query) ||
       conv.last_message?.content?.toLowerCase().includes(query)
-    )
-  })
+    );
+  });
 
-  const activeCount = conversations.filter(c => c.status === 'active').length
+  const activeCount = conversations.filter((c) => c.status === "active").length;
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedId || sending || !profile?.clinic_id) return
-    const outgoingMessage = newMessage.trim()
-    setOptimisticMessages((current) => [...current, { id: `local-${Date.now()}`, direction: 'outbound', content: outgoingMessage, is_ai: false, created_at: new Date().toISOString() }])
+    if (!newMessage.trim() || !selectedId || sending || !profile?.clinic_id)
+      return;
+    const outgoingMessage = newMessage.trim();
+    setOptimisticMessages((current) => [
+      ...current,
+      {
+        id: `local-${Date.now()}`,
+        direction: "outbound",
+        content: outgoingMessage,
+        is_ai: false,
+        created_at: new Date().toISOString(),
+      },
+    ]);
 
-    setSending(true)
+    setSending(true);
     try {
-      const conv = selectedConversation
-      const response = await fetch('/api/messages/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const conv = selectedConversation;
+      const response = await fetch("/api/messages/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clinicId: profile.clinic_id,
-          to: conv?.external_id || '',
+          to: conv?.external_id || "",
           message: newMessage.trim(),
-          channel: conv?.channel || 'whatsapp',
+          channel: conv?.channel || "whatsapp",
         }),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (data.success) {
-        setNewMessage('')
-        refetchDetail()
-        refetchConvs()
+        setNewMessage("");
+        refetchDetail();
+        refetchConvs();
       }
     } catch (error) {
-      console.error('Error sending message:', error)
+      console.error("Error sending message:", error);
     } finally {
-      setSending(false)
+      setSending(false);
     }
-  }
+  };
 
   return (
     <div className="flex flex-col gap-6 p-4 lg:p-6 h-[calc(100vh-80px)] lg:h-screen overflow-hidden">
@@ -171,7 +233,10 @@ export default function ConversasPage() {
         description={`Gerencie suas conversas em tempo real`}
         action={
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950 dark:text-teal-400 dark:border-teal-800">
+            <Badge
+              variant="outline"
+              className="bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950 dark:text-teal-400 dark:border-teal-800"
+            >
               {activeCount} ativas
             </Badge>
           </div>
@@ -195,14 +260,14 @@ export default function ConversasPage() {
           {/* Filters */}
           <div className="flex gap-2 p-3 border-b border-border overflow-x-auto">
             {[
-              { key: 'all', label: 'Todas' },
-              { key: 'whatsapp', label: 'WhatsApp' },
-              { key: 'instagram', label: 'Instagram' },
-              { key: 'escalated', label: 'Humanos' },
+              { key: "all", label: "Todas" },
+              { key: "whatsapp", label: "WhatsApp" },
+              { key: "instagram", label: "Instagram" },
+              { key: "escalated", label: "Humanos" },
             ].map((f) => (
               <Button
                 key={f.key}
-                variant={filter === f.key ? 'default' : 'ghost'}
+                variant={filter === f.key ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setFilter(f.key as typeof filter)}
                 className="whitespace-nowrap"
@@ -223,9 +288,13 @@ export default function ConversasPage() {
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
                   <ChatBubbleLeftRightIcon className="w-6 h-6 text-muted-foreground" />
                 </div>
-                <p className="text-sm font-medium text-foreground">Nenhuma conversa</p>
+                <p className="text-sm font-medium text-foreground">
+                  Nenhuma conversa
+                </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {searchQuery ? 'Tente outro termo de busca' : 'Novas conversas aparecerão aqui'}
+                  {searchQuery
+                    ? "Tente outro termo de busca"
+                    : "Novas conversas aparecerão aqui"}
                 </p>
               </div>
             ) : (
@@ -233,42 +302,66 @@ export default function ConversasPage() {
                 <button
                   key={conv.id}
                   data-testid="conversation-item"
-                  onClick={() => { setOptimisticMessages([]); setSelectedId(conv.id) }}
+                  onClick={() => {
+                    setOptimisticMessages([]);
+                    setSelectedId(conv.id);
+                  }}
                   className={`w-full p-4 text-left hover:bg-muted/50 border-b border-border transition-colors ${
-                    selectedConversation?.id === conv.id ? 'bg-muted border-l-4 border-l-primary' : ''
+                    selectedConversation?.id === conv.id
+                      ? "bg-muted border-l-4 border-l-primary"
+                      : ""
                   }`}
                 >
                   <div className="flex items-start gap-3">
                     <div className="relative">
                       <Avatar className="h-10 w-10">
-                        <AvatarFallback className={`text-white ${channelConfig[conv.channel]?.bg}`}>
-                          {conv.patient?.name?.charAt(0) || conv.external_id.charAt(0)}
+                        <AvatarFallback
+                          className={`text-white ${channelConfig[conv.channel]?.bg}`}
+                        >
+                          {conv.patient?.name?.charAt(0) ||
+                            (conv.externalId || conv.external_id || "?").charAt(
+                              0,
+                            )}
                         </AvatarFallback>
                       </Avatar>
-                      {conv.status === 'active' && (
+                      {conv.status === "active" && (
                         <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 border-2 border-card" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <p className="font-medium text-foreground truncate text-sm">
-                          {conv.patient?.name || conv.external_id}
+                          {conv.patient?.name ||
+                            conv.externalId ||
+                            conv.external_id}
                         </p>
                         <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                          {formatTime(conv.last_message_at)}
+                          {formatTime(
+                            conv.lastMessageAt ||
+                              conv.last_message_at ||
+                              new Date().toISOString(),
+                          )}
                         </span>
                       </div>
                       <p className="text-sm text-muted-foreground truncate">
-                        {conv.last_message?.content || 'Sem mensagens'}
+                        {conv.last_message?.content || "Sem mensagens"}
                       </p>
                       <div className="flex items-center gap-2 mt-1.5">
-                        {conv.last_message?.intent && intentLabels[conv.last_message.intent] && (
-                          <StatusBadge status={intentLabels[conv.last_message.intent].status}>
-                            {intentLabels[conv.last_message.intent].label}
-                          </StatusBadge>
-                        )}
+                        {conv.last_message?.intent &&
+                          intentLabels[conv.last_message.intent] && (
+                            <StatusBadge
+                              status={
+                                intentLabels[conv.last_message.intent].status
+                              }
+                            >
+                              {intentLabels[conv.last_message.intent].label}
+                            </StatusBadge>
+                          )}
                         {conv.unread_count && conv.unread_count > 0 && (
-                          <Badge variant="outline" className="bg-primary text-primary-foreground border-primary text-xs px-1.5 py-0">
+                          <Badge
+                            variant="outline"
+                            className="bg-primary text-primary-foreground border-primary text-xs px-1.5 py-0"
+                          >
                             {conv.unread_count}
                           </Badge>
                         )}
@@ -282,7 +375,10 @@ export default function ConversasPage() {
         </Card>
 
         {/* Chat View */}
-        <Card data-testid="message-thread" className={`flex-1 flex flex-col overflow-hidden ${selectedConversation ? 'flex' : 'hidden lg:flex'}`}>
+        <Card
+          data-testid="message-thread"
+          className={`flex-1 flex flex-col overflow-hidden ${selectedConversation ? "flex" : "hidden lg:flex"}`}
+        >
           {selectedConversation ? (
             <>
               {/* Chat Header */}
@@ -297,14 +393,22 @@ export default function ConversasPage() {
                 </Button>
                 <div className="flex-1">
                   <p className="font-medium text-foreground">
-                    {selectedConversation.patient?.name || selectedConversation.external_id}
+                    {selectedConversation.patient?.name ||
+                      selectedConversation.externalId ||
+                      selectedConversation.external_id ||
+                      "Conversa"}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    {selectedConversation.patient?.phone || selectedConversation.external_id}
+                    {selectedConversation.patient?.phone ||
+                      selectedConversation.externalId ||
+                      selectedConversation.external_id ||
+                      "Sem telefone"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <StatusBadge status={statusConfig[selectedConversation.status].status}>
+                  <StatusBadge
+                    status={statusConfig[selectedConversation.status].status}
+                  >
                     {statusConfig[selectedConversation.status].label}
                   </StatusBadge>
                 </div>
@@ -315,20 +419,22 @@ export default function ConversasPage() {
                 {selectedConversation.messages?.map((msg) => (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.direction === 'inbound' ? 'justify-start' : 'justify-end'}`}
+                    className={`flex ${msg.direction === "inbound" ? "justify-start" : "justify-end"}`}
                   >
                     <div
                       data-testid="message"
                       className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl ${
-                        msg.direction === 'inbound'
-                          ? 'bg-card border border-border text-foreground'
-                          : 'bg-primary text-primary-foreground'
+                        msg.direction === "inbound"
+                          ? "bg-card border border-border text-foreground"
+                          : "bg-primary text-primary-foreground"
                       }`}
                     >
                       <p className="text-sm">{msg.content}</p>
-                      <p className={`text-xs mt-1 ${msg.direction === 'inbound' ? 'text-muted-foreground' : 'text-primary-foreground/70'}`}>
+                      <p
+                        className={`text-xs mt-1 ${msg.direction === "inbound" ? "text-muted-foreground" : "text-primary-foreground/70"}`}
+                      >
                         {formatTime(msg.created_at)}
-                        {msg.is_ai && ' · IA'}
+                        {msg.is_ai && " · IA"}
                       </p>
                     </div>
                   </div>
@@ -355,7 +461,7 @@ export default function ConversasPage() {
                     placeholder="Digite sua mensagem..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                    onKeyPress={(e) => e.key === "Enter" && sendMessage()}
                     disabled={sending}
                     className="flex-1 px-4 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                   />
@@ -375,7 +481,9 @@ export default function ConversasPage() {
               <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
                 <ChatBubbleLeftRightIcon className="w-8 h-8 text-muted-foreground" />
               </div>
-              <p className="text-lg font-medium text-foreground">Selecione uma conversa</p>
+              <p className="text-lg font-medium text-foreground">
+                Selecione uma conversa
+              </p>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                 Escolha uma conversa na lista para visualizar e responder
               </p>
@@ -384,5 +492,5 @@ export default function ConversasPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }
