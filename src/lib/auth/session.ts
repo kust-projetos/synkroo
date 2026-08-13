@@ -1,7 +1,7 @@
-import { getServerSession } from 'next-auth';
-import type { Session } from 'next-auth';
-import { authOptions } from './auth';
-import { findUserProfileById } from '@/repositories/auth';
+import { getServerSession } from "next-auth";
+import type { Session } from "next-auth";
+import { authOptions } from "./auth";
+import { findUserProfileById, hasUserClinicAccess } from "@/repositories/auth";
 
 export interface ServerUserProfile {
   id: string;
@@ -75,9 +75,17 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
     const profile = await findUserProfileById(session.user.id);
     if (!profile || !profile.isActive) return null;
     const sessionVersion = session.user.sessionVersion;
-    if (sessionVersion !== undefined && sessionVersion !== profile.sessionVersion) return null;
+    if (
+      sessionVersion !== undefined &&
+      sessionVersion !== profile.sessionVersion
+    )
+      return null;
     const activeProfile = toProfileCamel(profile);
-    if (session.user.clinicId) activeProfile.clinic_id = session.user.clinicId;
+    if (session.user.clinicId) {
+      if (!(await hasUserClinicAccess(session.user.id, session.user.clinicId)))
+        return null;
+      activeProfile.clinic_id = session.user.clinicId;
+    }
     return activeProfile;
   } catch {
     return null;
@@ -89,10 +97,13 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
  */
 export async function requireActiveProfile(): Promise<ServerUserProfile> {
   const session = await getSession();
-  if (!session?.user?.id) throw new Error('Unauthorized');
+  if (!session?.user?.id) throw new Error("Unauthorized");
   const profile = await getUserProfile();
-  if (!profile || profile.session_version !== (session.user.sessionVersion ?? 0)) {
-    throw new Error('Unauthorized');
+  if (
+    !profile ||
+    profile.session_version !== (session.user.sessionVersion ?? 0)
+  ) {
+    throw new Error("Unauthorized");
   }
   return profile;
 }
@@ -107,7 +118,7 @@ export async function requireAuth(): Promise<{ id: string; email: string }> {
  */
 export async function requireRole(roles: string[]): Promise<ServerUserProfile> {
   const profile = await requireActiveProfile();
-  if (!roles.includes(profile.role)) throw new Error('Forbidden');
+  if (!roles.includes(profile.role)) throw new Error("Forbidden");
   return profile;
 }
 
@@ -128,10 +139,16 @@ export async function validateApiAuth(): Promise<AuthResult> {
   try {
     const profile = await getUserProfile();
     if (!profile) {
-      return { success: false, error: { message: 'Unauthorized', status: 401 } };
+      return {
+        success: false,
+        error: { message: "Unauthorized", status: 401 },
+      };
     }
     if (!profile.is_active) {
-      return { success: false, error: { message: 'User account is inactive', status: 403 } };
+      return {
+        success: false,
+        error: { message: "User account is inactive", status: 403 },
+      };
     }
     return {
       success: true,
@@ -139,7 +156,10 @@ export async function validateApiAuth(): Promise<AuthResult> {
       profile,
     };
   } catch {
-    return { success: false, error: { message: 'Authentication error', status: 500 } };
+    return {
+      success: false,
+      error: { message: "Authentication error", status: 500 },
+    };
   }
 }
 
@@ -152,7 +172,10 @@ export async function validateClinicAccess(
   const result = await validateApiAuth();
   if (!result.success) return result;
   if (result.profile!.clinic_id !== clinicId) {
-    return { success: false, error: { message: 'Access denied to this clinic', status: 403 } };
+    return {
+      success: false,
+      error: { message: "Access denied to this clinic", status: 403 },
+    };
   }
   return result;
 }

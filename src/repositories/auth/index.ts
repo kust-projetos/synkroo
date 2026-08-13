@@ -1,9 +1,9 @@
-import { eq, sql, and } from 'drizzle-orm';
-import { getDb } from '@/lib/db/client';
-import { clinics, users, userCredentials } from '@/lib/db/schema';
-import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
-import { seedRbacForClinic } from '@/core/rbac/seed';
-import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
+import { eq, sql, and } from "drizzle-orm";
+import { getDb } from "@/lib/db/client";
+import { clinics, users, userCredentials } from "@/lib/db/schema";
+import { roles, userClinicAccess } from "@/modules/core/schema/rbac";
+import { seedRbacForClinic } from "@/core/rbac/seed";
+import { RESERVED_ROLE_OWNER } from "@/core/rbac/presets";
 
 export interface AuthUserRow {
   id: string;
@@ -80,6 +80,23 @@ export async function findUserProfileById(
   };
 }
 
+export async function hasUserClinicAccess(
+  userId: string,
+  clinicId: string,
+): Promise<boolean> {
+  const db = getDb();
+  const [access] = await db
+    .select({ userId: userClinicAccess.userId })
+    .from(userClinicAccess)
+    .where(
+      and(
+        eq(userClinicAccess.userId, userId),
+        eq(userClinicAccess.clinicId, clinicId),
+      ),
+    )
+    .limit(1);
+  return Boolean(access);
+}
 /**
  * Fetch user by email (for signup duplicate check).
  */
@@ -110,14 +127,14 @@ export async function createUserWithClinic(
   params: CreateUserWithClinicParams,
 ): Promise<AuthUserRow> {
   const db = getDb();
-  const { hashPassword } = await import('@/lib/auth/password');
+  const { hashPassword } = await import("@/lib/auth/password");
 
   const slug = params.clinicName
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
 
   const result = await db.transaction(async (tx) => {
     // 1. Create clinic
@@ -126,16 +143,16 @@ export async function createUserWithClinic(
       .values({
         name: params.clinicName,
         slug,
-        phone: '',
+        phone: "",
         email: params.email,
         settings: {
           business_hours: {
-            monday: { open: '08:00', close: '18:00' },
-            tuesday: { open: '08:00', close: '18:00' },
-            wednesday: { open: '08:00', close: '18:00' },
-            thursday: { open: '08:00', close: '18:00' },
-            friday: { open: '08:00', close: '18:00' },
-            saturday: { open: '08:00', close: '12:00' },
+            monday: { open: "08:00", close: "18:00" },
+            tuesday: { open: "08:00", close: "18:00" },
+            wednesday: { open: "08:00", close: "18:00" },
+            thursday: { open: "08:00", close: "18:00" },
+            friday: { open: "08:00", close: "18:00" },
+            saturday: { open: "08:00", close: "12:00" },
             sunday: { open: null, close: null },
           },
           ai_settings: {
@@ -154,7 +171,7 @@ export async function createUserWithClinic(
         clinicId: clinic.id,
         email: params.email,
         name: params.name,
-        role: 'owner',
+        role: "owner",
         isActive: true,
       })
       .returning();
@@ -167,7 +184,7 @@ export async function createUserWithClinic(
 
     // 4. Garante catálogo populado (idempotente) antes do seed.
     // Sem bootstrap, seedRbacForClinic semeia perfis com permissões vazias.
-    const { bootstrapActions } = await import('@/core/actions/bootstrap');
+    const { bootstrapActions } = await import("@/core/actions/bootstrap");
     await bootstrapActions();
 
     // 5. Seed dos perfis de sistema (idempotente) na MESMA tx — atomicidade da FK roles.clinic_id.
@@ -177,9 +194,11 @@ export async function createUserWithClinic(
     const [ownerRole] = await tx
       .select({ id: roles.id })
       .from(roles)
-      .where(and(eq(roles.clinicId, clinic.id), eq(roles.name, RESERVED_ROLE_OWNER)))
+      .where(
+        and(eq(roles.clinicId, clinic.id), eq(roles.name, RESERVED_ROLE_OWNER)),
+      )
       .limit(1);
-    if (!ownerRole) throw new Error('[signup] perfil Owner não foi semeado');
+    if (!ownerRole) throw new Error("[signup] perfil Owner não foi semeado");
     await tx.insert(userClinicAccess).values({
       userId: user.id,
       clinicId: clinic.id,
