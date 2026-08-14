@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Reproduzir e fechar cinco bloqueadores P0 sem alterar escopo de produto.
 
@@ -24,7 +24,7 @@ commits entram serialmente e Task 6 roda após todas.
 - Create: `src/__tests__/security/audit-remediation-fixtures.ts`
 - Test: `src/__tests__/security/audit-remediation-fixtures.test.ts`
 
-- [ ] **Step 1: escrever teste RED das fixtures**
+- [x] **Step 1: escrever teste RED das fixtures**
 
 ```ts
 it('creates attacker and victim in distinct clinics', async () => {
@@ -33,7 +33,7 @@ it('creates attacker and victim in distinct clinics', async () => {
 })
 ```
 
-- [ ] **Step 2: executar e confirmar RED**
+- [x] **Step 2: executar e confirmar RED**
 
 ```bash
 npm test -- src/__tests__/security/audit-remediation-fixtures.test.ts --runInBand
@@ -41,7 +41,7 @@ npm test -- src/__tests__/security/audit-remediation-fixtures.test.ts --runInBan
 
 Expected: FAIL por `seedAuditTenants` ausente.
 
-- [ ] **Step 3: criar fixture mínima com duas clínicas, acessos, paciente, consulta e gateway**
+- [x] **Step 3: criar fixture mínima com duas clínicas, acessos, paciente, consulta e gateway**
 
 ```ts
 export type AuditTenantFixture = {
@@ -50,13 +50,13 @@ export type AuditTenantFixture = {
 }
 ```
 
-- [ ] **Step 4: executar GREEN e registrar baseline no ledger**
+- [x] **Step 4: executar GREEN e registrar baseline no ledger**
 
 ```bash
 npm test -- src/__tests__/security/audit-remediation-fixtures.test.ts --runInBand
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add docs/superpowers/audits/goal-ledger.md src/__tests__/security
@@ -70,7 +70,7 @@ git commit -m "test: add audit remediation fixtures"
 - Modify: `src/app/api/appointments/confirm-response/route.ts`
 - Test: `src/modules/operacional/actions/__tests__/processar-confirmacao-resposta.security.test.ts`
 
-- [ ] **Step 1: escrever teste RED com payload forjado**
+- [x] **Step 1: escrever teste RED com payload forjado**
 
 ```ts
 it('uses context clinic instead of payload clinic', async () => {
@@ -83,7 +83,7 @@ it('uses context clinic instead of payload clinic', async () => {
 })
 ```
 
-- [ ] **Step 2: executar e confirmar mutação indevida atual**
+- [x] **Step 2: executar e confirmar mutação indevida atual**
 
 ```bash
 npm test -- processar-confirmacao-resposta.security.test.ts --runInBand
@@ -91,7 +91,7 @@ npm test -- processar-confirmacao-resposta.security.test.ts --runInBand
 
 Expected: FAIL; consulta da vítima muda ou handler recebe `victimClinicId`.
 
-- [ ] **Step 3: remover tenant do schema e usar contexto**
+- [x] **Step 3: remover tenant do schema e usar contexto**
 
 ```ts
 input: z.object({
@@ -102,14 +102,14 @@ handler: (input, ctx) =>
   processConfirmationResponse(ctx.clinicId, input.patientPhone, input.message),
 ```
 
-- [ ] **Step 4: testar ataque e fluxo legítimo**
+- [x] **Step 4: testar ataque e fluxo legítimo**
 
 ```bash
 npm test -- processar-confirmacao-resposta.security.test.ts --runInBand
 npm test -- src/services/appointments/__tests__/confirmation-handler.service.test.ts --runInBand
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/modules/operacional/actions src/app/api/appointments/confirm-response
@@ -127,7 +127,7 @@ git commit -m "fix: scope confirmation replies to active clinic"
 - Create: `src/lib/db/migrations/meta/0013_snapshot.json`
 - Modify: `src/lib/db/migrations/meta/_journal.json`
 
-- [ ] **Step 1: escrever contrato RED**
+- [x] **Step 1: escrever contrato RED**
 
 ```ts
 it('ignores forged clinicId and resolves clinic by installation', async () => {
@@ -146,13 +146,13 @@ it('ignores forged clinicId and resolves clinic by installation', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/app/api/messages/inbound/route.security.test.ts --runInBand
 ```
 
-- [ ] **Step 3: implementar resolução fail-closed**
+- [x] **Step 3: implementar resolução fail-closed**
 
 ```ts
 const installation = await resolveChannelInstallation({
@@ -168,14 +168,14 @@ Migration adiciona hash/identificador único da instalação; segredo bruto não
 npm run db:generate -- --name=channel_installation
 ```
 
-- [ ] **Step 4: testar assinatura inválida, instalação desconhecida e body forjado**
+- [x] **Step 4: testar assinatura inválida, instalação desconhecida e body forjado**
 
 ```bash
 npm test -- src/app/api/messages/inbound/route.security.test.ts --runInBand
 npm run test:integration -- --runInBand resolve-channel-installation
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/app/api/messages/inbound src/modules/atendimento/integrations \
@@ -194,7 +194,7 @@ git commit -m "fix: derive inbound tenant from installation"
 - Create: `src/lib/db/migrations/meta/0014_snapshot.json`
 - Modify: `src/lib/db/migrations/meta/_journal.json`
 
-- [ ] **Step 1: escrever teste RED de falha intermediária + replay**
+- [x] **Step 1: escrever teste RED de falha intermediária + replay**
 
 ```ts
 it('settles once after first transaction fails', async () => {
@@ -204,13 +204,13 @@ it('settles once after first transaction fails', async () => {
 })
 ```
 
-- [ ] **Step 2: executar contra PostgreSQL real e confirmar RED**
+- [x] **Step 2: executar contra PostgreSQL real e confirmar RED**
 
 ```bash
 npm run test:integration -- --runInBand asaas-webhook.integration.test.ts
 ```
 
-- [ ] **Step 3: mover claim, lookup, payment e processedAt para uma transaction**
+- [x] **Step 3: mover claim, lookup, payment e processedAt para uma transaction**
 
 ```ts
 await db.transaction(async (tx) => {
@@ -229,14 +229,14 @@ await db.transaction(async (tx) => {
 npm run db:generate -- --name=gateway_event_atomicity
 ```
 
-- [ ] **Step 4: testar duplicata, concorrência, charge ausente e rollback**
+- [x] **Step 4: testar duplicata, concorrência, charge ausente e rollback**
 
 ```bash
 npm run test:integration -- --runInBand asaas-webhook.integration.test.ts
 npm test -- src/modules/financeiro/gateways/__tests__/asaas-webhook.test.ts --runInBand
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/modules/financeiro src/lib/db/schema/business.ts src/lib/db/migrations
@@ -250,7 +250,7 @@ git commit -m "fix: process Asaas events atomically"
 - Test: `src/app/api/admin/provision/route.test.ts`
 - Modify: `docs/superpowers/audits/goal-ledger.md`
 
-- [ ] **Step 1: escrever RED para qualquer token clínico**
+- [x] **Step 1: escrever RED para qualquer token clínico**
 
 ```ts
 it.each(['active-master', 'inactive-master', 'stale-master'])
@@ -261,13 +261,13 @@ it.each(['active-master', 'inactive-master', 'stale-master'])
   })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/app/api/admin/provision/route.test.ts --runInBand
 ```
 
-- [ ] **Step 3: desabilitar endpoint no app clínico**
+- [x] **Step 3: desabilitar endpoint no app clínico**
 
 ```ts
 export async function POST(): Promise<NextResponse> {
@@ -278,14 +278,14 @@ export async function POST(): Promise<NextResponse> {
 Remover `isMaster` como autorização operacional. Provisionamento gerenciado externo permanece no
 plano mestre e exige identidade operacional dedicada; não criar substituto inseguro nesta onda.
 
-- [ ] **Step 4: executar auth, route protection e provision**
+- [x] **Step 4: executar auth, route protection e provision**
 
 ```bash
 npm test -- src/app/api/admin/provision/route.test.ts \
   src/__tests__/middleware.security.test.ts --runInBand
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/app/api/admin/provision docs/superpowers/audits/goal-ledger.md
@@ -302,21 +302,21 @@ git commit -m "fix: disable clinical master provisioning"
 - Test: `src/core/actions/__tests__/audit-writer.test.ts`
 - Test: `src/core/actions/__tests__/run.test.ts`
 
-- [ ] **Step 1: escrever teste RED com PII aninhada**
+- [x] **Step 1: escrever teste RED com PII aninhada**
 
 ```ts
 expect(allowlistInput({ name: 'Ana', cpf: '123', metadata: { phone: '999' } }, ['eventId']))
   .toEqual({})
 ```
 
-- [ ] **Step 2: confirmar que `runAction` ainda chama `redactInput`**
+- [x] **Step 2: confirmar que `runAction` ainda chama `redactInput`**
 
 ```bash
 npm test -- src/core/actions/__tests__/audit-writer.test.ts \
   src/core/actions/__tests__/run.test.ts --runInBand
 ```
 
-- [ ] **Step 3: mudar contrato da Action**
+- [x] **Step 3: mudar contrato da Action**
 
 ```ts
 // Replace `sensitiveFields?: string[]` in ActionDefinition with:
@@ -326,7 +326,7 @@ auditFields?: readonly string[]
 `runAction` usa `allowlistInput(rawInput, action.auditFields ?? [])`. Remover `sensitiveFields` e
 `redactInput` após migrar todos os consumidores.
 
-- [ ] **Step 4: executar scan e testes**
+- [x] **Step 4: executar scan e testes**
 
 ```bash
 rg "sensitiveFields|redactInput" src && exit 1 || true
@@ -334,7 +334,7 @@ npm test -- src/core/actions --runInBand
 npm run test:security
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/core/actions src/modules
@@ -343,11 +343,11 @@ git commit -m "fix: allowlist action audit metadata"
 
 ### Task 7: Gate W1
 
-- [ ] Executar migration em banco descartável e validar constraints.
-- [ ] Executar concorrência/replay com duas conexões.
-- [ ] Executar gates globais.
-- [ ] Atualizar ledger; zero P0 aberto.
-- [ ] Solicitar review correctness + AppSec.
+- [x] Executar migration em banco descartável e validar constraints.
+- [x] Executar concorrência/replay com duas conexões.
+- [x] Executar gates globais.
+- [x] Atualizar ledger; zero P0 aberto.
+- [x] Solicitar review correctness + AppSec.
 
 ```bash
 npm run db:reset
@@ -356,3 +356,12 @@ npm run test:integration
 npm run test:security
 npm run lint && npm run typecheck && npm test -- --runInBand && npm run build
 ```
+
+
+## Checkbox reconciliation (2026-08-14)
+
+All planned implementation steps are marked complete because the corresponding wave was previously completed and its gates are recorded in the audit ledger. This reconciliation does not claim new execution of historical steps.
+
+W0-W1 security evidence is recorded in docs/superpowers/audits/2026-08-13-final-gate-results.json and the historical ledger; current candidate boundary evidence is in docs/superpowers/audits/2026-08-14-final-gate-results.json.
+
+Current-candidate follow-up: the fail-closed API/cron implementation migration, Stryker, OpenNext build, Wrangler dry-run, and startup check are tracked in docs/superpowers/audits/2026-08-14-final-gate-results.json.
