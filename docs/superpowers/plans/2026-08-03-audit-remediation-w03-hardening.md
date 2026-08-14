@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Fechar superfícies P1/P2 de HTTP, exportação, dados, embeddings, migrations e supply chain.
 
@@ -22,7 +22,7 @@ implementados em paralelo; consent migration e dependency update entram serialme
 - Modify: `src/middleware.ts`
 - Test: `src/__tests__/middleware.security.test.ts`
 
-- [ ] **Step 1: escrever tabela RED de rotas**
+- [x] **Step 1: escrever tabela RED de rotas**
 
 ```ts
 it.each([
@@ -37,13 +37,13 @@ it.each([
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/__tests__/middleware.security.test.ts --runInBand
 ```
 
-- [ ] **Step 3: criar allowlist exata e matchers explícitos**
+- [x] **Step 3: criar allowlist exata e matchers explícitos**
 
 ```ts
 const PUBLIC_EXACT = new Set(['/api/health'])
@@ -53,7 +53,7 @@ const PUBLIC_PREFIXES = ['/api/auth/', '/api/financeiro/webhooks/'] as const
 Cada prefixo permitido recebe autenticação própria dentro da rota. `/api/health/db` deixa de ser
 público; readiness detalhado muda para `/api/internal/readiness` protegido.
 
-- [ ] **Step 4: executar security suite e commit**
+- [x] **Step 4: executar security suite e commit**
 
 ```bash
 npm test -- src/__tests__/middleware.security.test.ts --runInBand
@@ -68,7 +68,7 @@ git commit -m "fix: narrow public route allowlist"
 - Modify: `next.config.ts`
 - Test: `src/__tests__/security/headers.test.ts`
 
-- [ ] **Step 1: escrever teste RED da configuração**
+- [x] **Step 1: escrever teste RED da configuração**
 
 ```ts
 expect(headers).toEqual(expect.arrayContaining([
@@ -78,13 +78,13 @@ expect(headers).toEqual(expect.arrayContaining([
 ]))
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/__tests__/security/headers.test.ts --runInBand
 ```
 
-- [ ] **Step 3: configurar baseline compatível com Next/OpenNext**
+- [x] **Step 3: configurar baseline compatível com Next/OpenNext**
 
 ```ts
 { key: 'Content-Security-Policy', value: csp },
@@ -96,7 +96,7 @@ npm test -- src/__tests__/security/headers.test.ts --runInBand
 CSP começa report-only se inventário identificar bloqueio; issue e data de promoção para enforce
 são obrigatórios. HSTS somente produção HTTPS.
 
-- [ ] **Step 4: build, smoke de assets e commit**
+- [x] **Step 4: build, smoke de assets e commit**
 
 ```bash
 npm test -- src/__tests__/security/headers.test.ts --runInBand
@@ -112,7 +112,7 @@ git commit -m "fix: add browser security headers"
 - Test: `src/app/api/reports/export/route.test.ts`
 - Test: `src/__tests__/api/reports/export/route.test.ts`
 
-- [ ] **Step 1: escrever RED para seis prefixos perigosos**
+- [x] **Step 1: escrever RED para seis prefixos perigosos**
 
 ```ts
 it.each(['=SUM(A1:A2)', '+cmd', '-1+2', '@IMPORT', '\tcmd', '\rcmd'])
@@ -121,13 +121,13 @@ it.each(['=SUM(A1:A2)', '+cmd', '-1+2', '@IMPORT', '\tcmd', '\rcmd'])
   })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/app/api/reports/export/route.test.ts --runInBand
 ```
 
-- [ ] **Step 3: neutralizar antes do escape CSV**
+- [x] **Step 3: neutralizar antes do escape CSV**
 
 ```ts
 export function neutralizeSpreadsheetFormula(value: string): string {
@@ -137,7 +137,7 @@ export function neutralizeSpreadsheetFormula(value: string): string {
 
 Aplicar em toda célula textual; depois escapar aspas, vírgulas e newlines.
 
-- [ ] **Step 4: testar CSV completo e commit**
+- [x] **Step 4: testar CSV completo e commit**
 
 ```bash
 npm test -- src/app/api/reports/export/route.test.ts \
@@ -156,7 +156,7 @@ git commit -m "fix: neutralize formulas in CSV exports"
 - Create: `src/lib/db/migrations/meta/0016_snapshot.json`
 - Modify: `src/lib/db/migrations/meta/_journal.json`
 
-- [ ] **Step 1: escrever RED com mesmo contactId em duas clínicas**
+- [x] **Step 1: escrever RED com mesmo contactId em duas clínicas**
 
 ```ts
 it('stores same contact purpose independently per clinic', async () => {
@@ -166,13 +166,13 @@ it('stores same contact purpose independently per clinic', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar conflito atual**
+- [x] **Step 2: confirmar conflito atual**
 
 ```bash
 npm run test:integration -- --runInBand consents.integration.test.ts
 ```
 
-- [ ] **Step 3: preflight e constraint tenant-scoped**
+- [x] **Step 3: preflight e constraint tenant-scoped**
 
 ```sql
 SELECT clinic_id, contact_id, contact_type, purpose, count(*)
@@ -188,7 +188,7 @@ Migration aborta se preflight retornar linha. Nova unique:
 npm run db:generate -- --name=consent_tenant_unique
 ```
 
-- [ ] **Step 4: aplicar em banco descartável e commit**
+- [x] **Step 4: aplicar em banco descartável e commit**
 
 ```bash
 npm run db:reset && npm run db:migrate
@@ -206,7 +206,7 @@ git commit -m "fix: scope consent uniqueness by clinic"
 - Test: `src/lib/embeddings/__tests__/generate.contract.test.ts`
 - Test: `src/lib/embeddings/__tests__/search.integration.test.ts`
 
-- [ ] **Step 1: escrever RED para dimensão, timeout e ownership**
+- [x] **Step 1: escrever RED para dimensão, timeout e ownership**
 
 ```ts
 it('does not update knowledge from another clinic', async () => {
@@ -214,14 +214,14 @@ it('does not update knowledge from another clinic', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/lib/embeddings/__tests__/generate.contract.test.ts --runInBand
 npm run test:integration -- --runInBand search.integration.test.ts
 ```
 
-- [ ] **Step 3: congelar provider/model/dimensão e timeout**
+- [x] **Step 3: congelar provider/model/dimensão e timeout**
 
 ```ts
 const EMBEDDING_DIMENSIONS = 1536
@@ -235,7 +235,7 @@ if (parsed.data[0].embedding.length !== EMBEDDING_DIMENSIONS) {
 Update usa `where(and(eq(id), eq(clinicId)))`. Remover fallback com dimensão divergente e resolver
 conflito pgvector/Vectorize conforme ADR-BASE-04: pgvector único v1.
 
-- [ ] **Step 4: testar e commit**
+- [x] **Step 4: testar e commit**
 
 ```bash
 npm test -- src/lib/embeddings --runInBand
@@ -251,7 +251,7 @@ git commit -m "fix: enforce embedding contract and tenant scope"
 - Create: `src/__tests__/architecture/test-file-discovery.ts`
 - Test: `src/__tests__/architecture/test-file-discovery.test.ts`
 
-- [ ] **Step 1: escrever RED para glob vazio**
+- [x] **Step 1: escrever RED para glob vazio**
 
 ```ts
 it('fails when architecture scan finds no production files', () => {
@@ -259,13 +259,13 @@ it('fails when architecture scan finds no production files', () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/__tests__/architecture --runInBand
 ```
 
-- [ ] **Step 3: descobrir arquivos reais e proibir tautologias**
+- [x] **Step 3: descobrir arquivos reais e proibir tautologias**
 
 ```ts
 const files = discoverRequiredFiles('src/**/*.{ts,tsx}', {
@@ -277,7 +277,7 @@ expect(files.length).toBeGreaterThan(0)
 Rules mínimas: route sem acesso direto cross-domain proibido; Action audit usa allowlist; rotas
 públicas exatas; side effects externos referenciam outbox/idempotency.
 
-- [ ] **Step 4: remover `expect(true)` e commit**
+- [x] **Step 4: remover `expect(true)` e commit**
 
 ```bash
 rg "expect\(true\)" src/__tests__/architecture && exit 1 || true
@@ -293,7 +293,7 @@ git commit -m "test: make architecture scans fail closed"
 - Modify: `package-lock.json`
 - Test: full gate
 
-- [ ] **Step 1: capturar árvore e origem de cada high**
+- [x] **Step 1: capturar árvore e origem de cada high**
 
 ```bash
 npm audit --json > audit-before.json
@@ -302,12 +302,12 @@ npm explain brace-expansion fast-uri tmp undici
 
 `audit-before.json` fica fora do commit.
 
-- [ ] **Step 2: atualizar dependências diretas responsáveis**
+- [x] **Step 2: atualizar dependências diretas responsáveis**
 
 Usar menor update compatível. Proibido `npm audit fix --force`, downgrade de framework ou override
 sem teste de contrato do consumidor.
 
-- [ ] **Step 3: verificar produção e toolchain**
+- [x] **Step 3: verificar produção e toolchain**
 
 ```bash
 npm audit --omit=dev --audit-level=high
@@ -318,7 +318,7 @@ npm run lint && npm run typecheck && npm test -- --runInBand && npm run build
 Meta: zero high/critical produção. High apenas de toolchain exige issue, owner e prazo; não pode ser
 ocultado.
 
-- [ ] **Step 4: commit**
+- [x] **Step 4: commit**
 
 ```bash
 git add package.json package-lock.json
@@ -334,7 +334,16 @@ npm run lint && npm run typecheck && npm test -- --runInBand && npm run build
 npm audit --omit=dev --audit-level=high
 ```
 
-- [ ] Catálogo PostgreSQL confirma todas as constraints.
-- [ ] Nenhum scan arquitetural vazio ou tautológico.
-- [ ] Gitleaks staged e full history verdes.
-- [ ] Review AppSec + architecture aprovado.
+- [x] Catálogo PostgreSQL confirma todas as constraints.
+- [x] Nenhum scan arquitetural vazio ou tautológico.
+- [x] Gitleaks staged e full history verdes.
+- [x] Review AppSec + architecture aprovado.
+
+
+## Checkbox reconciliation (2026-08-14)
+
+All planned implementation steps are marked complete because the corresponding wave was previously completed and its gates are recorded in the audit ledger. This reconciliation does not claim new execution of historical steps.
+
+W3 hardening evidence is recorded in docs/superpowers/audits/2026-08-13-final-gate-results.json and the historical ledger; current candidate local gates are linked by the 2026-08-14 gate record.
+
+Current-candidate follow-up: the fail-closed API/cron implementation migration, Stryker, OpenNext build, Wrangler dry-run, and startup check are tracked in docs/superpowers/audits/2026-08-14-final-gate-results.json.

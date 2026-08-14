@@ -132,12 +132,23 @@ describe("Boundary Rules (Spec Section 5)", () => {
     expect(violations).toEqual([]);
   });
 
+  it("API and cron implementation files do not access the database directly", () => {
+    const violations: string[] = [];
+    for (const file of discoverProductionApiSourceFiles()) {
+      try {
+        assertTransportOnly(readFileSync(resolve(process.cwd(), file), "utf8"), file);
+      } catch (error) {
+        violations.push(error instanceof Error ? error.message : String(error));
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
   it("API transport routes do not access the database directly", () => {
     const route = requiredFile("app/api/whatsapp/evolution/route.ts");
     assertTransportOnly(route, "app/api/whatsapp/evolution/route.ts");
     expect(route).toContain("processEvolutionMessage");
   });
-
   it("outbound financial and campaign effects are queue consumers", () => {
     const chargeService = requiredFile(
       "modules/financeiro/services/charge-service.ts",

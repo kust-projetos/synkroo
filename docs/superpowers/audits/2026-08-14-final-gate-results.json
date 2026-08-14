@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-08-14",
+  "status": "passed",
+  "candidate": {
+    "baseCommit": "74d5ac782b94cee3f51a07c5d6e808692150613c",
+    "workingTreeNote": "Candidate includes the fail-closed API/cron boundary migration; all evidence is tied to this candidate before commit.",
+    "changedImplementation": "src/app/api adapters + src/services/api-handlers/** + architecture test"
+  },
+  "gates": [
+    {
+      "name": "architectureBoundary",
+      "command": "npx jest --runInBand src/__tests__/architecture/boundary-rules.test.ts src/__tests__/architecture/test-file-discovery.test.ts",
+      "status": "passed",
+      "counts": "14 passed",
+      "notes": "All discovered API/cron implementation files are scanned fail-closed; direct DB access was moved out of src/app/api adapters."
+    },
+    {
+      "name": "lint",
+      "command": "npm run lint",
+      "status": "passed",
+      "exitCode": 0,
+      "artifact": "evidence/74d5ac78/lint.log",
+      "artifactSha256": "ffa5d775b5712cf6307f120857490d2a276b3218f9fa8045517906c60e7a86ac"
+    },
+    {
+      "name": "typecheck",
+      "command": "npm run typecheck",
+      "status": "passed",
+      "exitCode": 0
+    },
+    {
+      "name": "unit",
+      "command": "npm test -- --runInBand",
+      "status": "passed",
+      "counts": "230 suites; 1561 passed; 5 skipped",
+      "exitCode": 0
+    },
+    {
+      "name": "postgresqlIntegration",
+      "command": "npm run test:integration:run",
+      "status": "passed",
+      "counts": "33 suites; 198 passed",
+      "exitCode": 0,
+      "artifact": "evidence/74d5ac78/integration-clean.log",
+      "artifactSha256": "73391fae63dc12aa9d265ba87d7346771a58b5af74a74c1933107487bf8f539c",
+      "notes": "The isolated local synkroo_test database was recreated before the run; DATABASE_URL was never used by the integration runner."
+    },
+    {
+      "name": "security",
+      "command": "npm run test:security",
+      "status": "passed",
+      "counts": "9 suites; 142 passed",
+      "exitCode": 0,
+      "artifact": "evidence/74d5ac78/security.log",
+      "artifactSha256": "2b3d5d8700fbf4a50e8fa7a3b9971abcadb916af7886d921c68a1bc67115f276"
+    },
+    {
+      "name": "releaseContracts",
+      "command": "npm run test:release",
+      "status": "passed",
+      "counts": "13 passed",
+      "exitCode": 0,
+      "artifact": "evidence/74d5ac78/release.log",
+      "artifactSha256": "628e615fdbe1e3075f3f33f3b3433b218db7ed7502a4eb2c4a4e1325338c6440"
+    },
+    {
+      "name": "mutationServices",
+      "command": "npm run test:security:services",
+      "status": "passed",
+      "mutationScore": 91.98,
+      "threshold": 70,
+      "mutants": {
+        "total": 212,
+        "killed": 195,
+        "survived": 12,
+        "noCoverage": 5,
+        "timedOut": 0,
+        "errors": 0
+      },
+      "rawArtifact": "evidence/74d5ac78/stryker-raw.log",
+      "rawArtifactSha256": "6d548871b5452ad5388df8a28a6396997483cb2b3a0b9ea06ab4ab7689efeac2",
+      "htmlReport": "evidence/74d5ac78/stryker-mutation.html",
+      "htmlReportSha256": "fb34220fe2a8e20ace146f827148be1d2a721817a104c0a39fdbc596fbf884d2"
+    },
+    {
+      "name": "openNextBuild",
+      "command": "npm run build:cf",
+      "status": "passed",
+      "exitCode": 0,
+      "artifact": "evidence/74d5ac78/build-cf.log",
+      "artifactSha256": "d8011edb2e5f8177832574e3e6f7ad5f8820c52d222b7ffbeb64aa9bda8b17fd",
+      "notes": "OpenNext worker generated and pg/Hyperdrive runtime globals injected; duplicate-case warning remained non-fatal."
+    },
+    {
+      "name": "wranglerDryRun",
+      "command": "npx wrangler deploy --dry-run --config wrangler.toml",
+      "status": "passed",
+      "exitCode": 0,
+      "artifact": "evidence/74d5ac78/wrangler-dry-run.log",
+      "artifactSha256": "4c9bc8da805af3f42dc0e13e2c1bb8571dfdf3eaf83509e945a5f81160bc783d"
+    },
+    {
+      "name": "startupCheck",
+      "command": "npx wrangler check startup --config wrangler.toml --env staging",
+      "status": "passed",
+      "exitCode": 0,
+      "artifact": "evidence/74d5ac78/startup-check.log",
+      "artifactSha256": "f85c15b72ea13b86f7e4ea95e1fba4e829b9706ffe0de5db5ba771fb04efc26f",
+      "startupProfileMs": 2240.3,
+      "startupActiveMs": 1318.4,
+      "startupIdleMs": 921.8,
+      "startupSamples": 525
+    }
+  ],
+  "externalReleaseEvidence": {
+    "authorization": "user-authorized-staging-only",
+    "stagingBaseUrl": "https://synkroo-staging.walissonead.workers.dev",
+    "candidateVersion": "cd5d20b9-d22d-4297-92eb-e05bdaa54bf1",
+    "stagingSmoke": {
+      "status": "passed",
+      "result": "10/10 checks passed; login/session, tenant agenda scope, route protection, invalid webhook and assets verified.",
+      "artifact": "evidence/74d5ac78/staging-smoke-restored.log",
+      "artifactSha256": "b24d0150bd95a9cf70ecc73aef6d610ddcfa54f39afe347b6da2ca43723499ae"
+    },
+    "rollback": {
+      "status": "passed",
+      "targetVersion": "d60eba2f-0d41-41e7-bdcc-372794252d9b",
+      "result": "Rollback deployed to 100%; health 200 and 10/10 smoke checks passed; candidate version restored to 100% and smoke passed again.",
+      "commandArtifact": "evidence/74d5ac78/rollback-rehearsal.log",
+      "commandArtifactSha256": "c2fd2fbbcf419fa29f9fc203022d1193fd0a2e030d5f1e625d5589c499d38219",
+      "rollbackSmokeArtifact": "evidence/74d5ac78/rollback-smoke.log",
+      "rollbackSmokeSha256": "d40b6cccebd8af3e4bdcbe4fd348b924114f6e4df680d285497e25dc7b0d5c78"
+    }
+  },
+  "reconciliation": {
+    "plans": [
+      "docs/superpowers/plans/2026-08-03-audit-remediation-w01-security.md",
+      "docs/superpowers/plans/2026-08-03-audit-remediation-w02-auth-idempotency.md",
+      "docs/superpowers/plans/2026-08-03-audit-remediation-w03-hardening.md",
+      "docs/superpowers/plans/2026-08-03-audit-remediation-w04-product-e2e.md",
+      "docs/superpowers/plans/2026-08-03-audit-remediation-w05-release.md"
+    ],
+    "uncheckedSteps": 0
+  },
+  "overallStatus": "GO"
+}

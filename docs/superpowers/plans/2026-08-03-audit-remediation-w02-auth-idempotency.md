@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Unificar sessão e garantir efeito único em cobrança e campanha sob retry/concorrência.
 
@@ -28,7 +28,7 @@ campanha; financeiro e follow-up podem avançar em paralelo após schema.
 - Test: `src/app/api/auth/__tests__/jwt-auth.test.ts`
 - Test: `src/__tests__/api/auth/auth.test.ts`
 
-- [ ] **Step 1: mapear consumidores antes da remoção**
+- [x] **Step 1: mapear consumidores antes da remoção**
 
 ```bash
 rg "api/auth/(login|logout|session)|useAuth\(" src e2e
@@ -36,7 +36,7 @@ rg "api/auth/(login|logout|session)|useAuth\(" src e2e
 
 Registrar cada consumidor no ledger; sem adapter preventivo para consumidor inexistente.
 
-- [ ] **Step 2: escrever teste RED do fluxo NextAuth único**
+- [x] **Step 2: escrever teste RED do fluxo NextAuth único**
 
 ```ts
 it('uses the same session cookie for login, session and logout', async () => {
@@ -47,13 +47,13 @@ it('uses the same session cookie for login, session and logout', async () => {
 })
 ```
 
-- [ ] **Step 3: confirmar RED por cookie/endpoint divergente**
+- [x] **Step 3: confirmar RED por cookie/endpoint divergente**
 
 ```bash
 npm test -- src/app/api/auth/__tests__/jwt-auth.test.ts --runInBand
 ```
 
-- [ ] **Step 4: migrar UI para `signIn`, `signOut`, `useSession`**
+- [x] **Step 4: migrar UI para `signIn`, `signOut`, `useSession`**
 
 ```ts
 const result = await signIn('credentials', { email, password, redirect: false })
@@ -64,7 +64,7 @@ router.replace(redirectTo)
 Remover rotas manuais quando último consumidor migrar. Se compatibilidade for necessária, adapter
 chama NextAuth; não emite JWT/cookie próprio.
 
-- [ ] **Step 5: executar auth unit + E2E focado e commit**
+- [x] **Step 5: executar auth unit + E2E focado e commit**
 
 ```bash
 npm test -- src/app/api/auth src/lib/auth --runInBand
@@ -82,7 +82,7 @@ git commit -m "refactor: use NextAuth as sole session authority"
 - Test: `src/lib/auth/__tests__/session.test.ts`
 - Test: `src/__tests__/middleware.security.test.ts`
 
-- [ ] **Step 1: escrever matriz RED**
+- [x] **Step 1: escrever matriz RED**
 
 ```ts
 it.each([
@@ -94,13 +94,13 @@ it.each([
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/lib/auth/__tests__/session.test.ts --runInBand
 ```
 
-- [ ] **Step 3: criar um único guard fail-closed**
+- [x] **Step 3: criar um único guard fail-closed**
 
 ```ts
 export async function requireActiveProfile(): Promise<ServerUserProfile> {
@@ -115,14 +115,14 @@ export async function requireActiveProfile(): Promise<ServerUserProfile> {
 
 `requireAuth`, `requireRole`, Action context e rotas sensíveis delegam ao mesmo guard.
 
-- [ ] **Step 4: testar sessão ativa, inativa, stale e DB indisponível**
+- [x] **Step 4: testar sessão ativa, inativa, stale e DB indisponível**
 
 ```bash
 npm test -- src/lib/auth src/__tests__/api/auth --runInBand
 npm run test:security
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/lib/auth src/lib/security src/__tests__/middleware.security.test.ts
@@ -139,7 +139,7 @@ git commit -m "fix: enforce immediate session revocation"
 - Test: `src/app/api/auth/switch-clinic/route.test.ts`
 - E2E: `e2e/auth/switch-clinic.spec.ts`
 
-- [ ] **Step 1: escrever RED para acesso, cookie e ActionContext**
+- [x] **Step 1: escrever RED para acesso, cookie e ActionContext**
 
 ```ts
 it('uses switched clinic in the next action context', async () => {
@@ -149,13 +149,13 @@ it('uses switched clinic in the next action context', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/app/api/auth/switch-clinic/route.test.ts --runInBand
 ```
 
-- [ ] **Step 3: emitir sessão pelo mecanismo NextAuth e invalidar caches**
+- [x] **Step 3: emitir sessão pelo mecanismo NextAuth e invalidar caches**
 
 ```ts
 await update({ clinicId })
@@ -168,14 +168,14 @@ Callback `jwt({ token, trigger, session })` aceita `session.clinicId` somente ap
 `userClinicAccess`; update forjado preserva clínica anterior. `buildUserContext` usa clínica ativa
 da sessão, nunca `users.clinicId` como override silencioso.
 
-- [ ] **Step 4: executar unit e E2E**
+- [x] **Step 4: executar unit e E2E**
 
 ```bash
 npm test -- src/app/api/auth/switch-clinic/route.test.ts src/core/actions/__tests__/context.test.ts
 npx playwright test e2e/auth/switch-clinic.spec.ts
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/app/api/auth/switch-clinic src/lib/auth src/core/actions e2e/auth
@@ -190,7 +190,7 @@ git commit -m "fix: propagate active clinic through session"
 - Test: `src/lib/idempotency/__tests__/idempotency.test.ts`
 - Test: `src/lib/idempotency/__tests__/idempotency.integration.test.ts`
 
-- [ ] **Step 1: escrever RED concorrente**
+- [x] **Step 1: escrever RED concorrente**
 
 ```ts
 it('allows exactly one claimant', async () => {
@@ -202,13 +202,13 @@ it('allows exactly one claimant', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm run test:integration -- --runInBand idempotency.integration.test.ts
 ```
 
-- [ ] **Step 3: usar `returning` para detectar insert**
+- [x] **Step 3: usar `returning` para detectar insert**
 
 ```ts
 const rows = await db.insert(idempotencyKeys)
@@ -221,14 +221,14 @@ return rows.length === 1
 Scope da key inclui clínica + operação + business key. Falha não libera claim enquanto execução
 concorrente pode estar ativa; retry exige transição condicional após TTL.
 
-- [ ] **Step 4: testar claim, completed, failed, TTL e corrida**
+- [x] **Step 4: testar claim, completed, failed, TTL e corrida**
 
 ```bash
 npm test -- src/lib/idempotency/__tests__/idempotency.test.ts --runInBand
 npm run test:integration -- --runInBand idempotency.integration.test.ts
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/lib/idempotency src/lib/db/schema/infra.ts
@@ -246,7 +246,7 @@ git commit -m "fix: claim idempotency keys atomically"
 - Create: `src/lib/db/migrations/meta/0015_snapshot.json`
 - Modify: `src/lib/db/migrations/meta/_journal.json`
 
-- [ ] **Step 1: escrever RED para claim concorrente e retry**
+- [x] **Step 1: escrever RED para claim concorrente e retry**
 
 ```ts
 it('dispatches one job once under concurrent workers', async () => {
@@ -256,13 +256,13 @@ it('dispatches one job once under concurrent workers', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm run test:integration -- --runInBand outbox.integration.test.ts
 ```
 
-- [ ] **Step 3: criar schema e transições**
+- [x] **Step 3: criar schema e transições**
 
 ```ts
 type OutboxStatus = 'pending' | 'processing' | 'delivered' | 'failed' | 'dead_letter'
@@ -276,14 +276,14 @@ Tabela: `clinicId`, `operation`, `businessKey`, `payload`, `status`, `attempts`,
 npm run db:generate -- --name=outbox_jobs
 ```
 
-- [ ] **Step 4: implementar dispatcher com backoff limitado**
+- [x] **Step 4: implementar dispatcher com backoff limitado**
 
 ```ts
 const delaySeconds = Math.min(2 ** attempts * 30, 3600)
 const nextAttemptAt = new Date(now.getTime() + delaySeconds * 1000)
 ```
 
-- [ ] **Step 5: testar e commit**
+- [x] **Step 5: testar e commit**
 
 ```bash
 npm run test:integration -- --runInBand outbox.integration.test.ts
@@ -300,7 +300,7 @@ git commit -m "feat: add transactional outbox"
 - Test: `src/modules/financeiro/services/__tests__/charge-service.test.ts`
 - Test: `src/modules/financeiro/services/__tests__/charge-service.integration.test.ts`
 
-- [ ] **Step 1: escrever RED para duas criações concorrentes**
+- [x] **Step 1: escrever RED para duas criações concorrentes**
 
 ```ts
 it('creates one provider charge for concurrent requests', async () => {
@@ -310,13 +310,13 @@ it('creates one provider charge for concurrent requests', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm run test:integration -- --runInBand charge-service.integration.test.ts
 ```
 
-- [ ] **Step 3: persistir intent + outbox na mesma transaction**
+- [x] **Step 3: persistir intent + outbox na mesma transaction**
 
 ```ts
 await db.transaction(async tx => {
@@ -328,14 +328,14 @@ await db.transaction(async tx => {
 Dispatcher envia chave estável ao provider, valida contrato e aplica transição condicional
 `pending -> active`; cancelamento usa `active -> cancelling -> cancelled`.
 
-- [ ] **Step 4: testar timeout, resposta inválida, retry e cancel/create race**
+- [x] **Step 4: testar timeout, resposta inválida, retry e cancel/create race**
 
 ```bash
 npm test -- src/modules/financeiro/services/__tests__/charge-service.test.ts --runInBand
 npm run test:integration -- --runInBand charge-service.integration.test.ts
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/modules/financeiro
@@ -351,7 +351,7 @@ git commit -m "fix: make charge side effects idempotent"
 - Test: `src/services/followup/__tests__/campaign-execution.test.ts`
 - Test: `src/services/followup/__tests__/campaign-execution.integration.test.ts`
 
-- [ ] **Step 1: escrever RED para futuro, corrida e status parcial**
+- [x] **Step 1: escrever RED para futuro, corrida e status parcial**
 
 ```ts
 it('does not claim future campaigns', async () => {
@@ -360,13 +360,13 @@ it('does not claim future campaigns', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm run test:integration -- --runInBand campaign-execution.integration.test.ts
 ```
 
-- [ ] **Step 3: claim somente campanhas vencidas e recipients elegíveis**
+- [x] **Step 3: claim somente campanhas vencidas e recipients elegíveis**
 
 ```ts
 where(and(
@@ -378,14 +378,14 @@ where(and(
 Cada recipient recebe business key `campaignId:contactId:channel`. Opt-out é revalidado no
 momento do dispatch. Status final deriva de delivered/failed/suppressed.
 
-- [ ] **Step 4: testar concorrência, retry, opt-out e parcial**
+- [x] **Step 4: testar concorrência, retry, opt-out e parcial**
 
 ```bash
 npm test -- src/services/followup/__tests__/campaign-execution.test.ts --runInBand
 npm run test:integration -- --runInBand campaign-execution.integration.test.ts
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/services/followup src/repositories/campaigns
@@ -401,7 +401,16 @@ npm run test:integration
 npm run lint && npm run typecheck && npm test -- --runInBand && npm run build
 ```
 
-- [ ] Mutation ≥70% em auth, idempotency, cobrança e campanha.
-- [ ] Testes de corrida executados com duas conexões PostgreSQL.
-- [ ] Ledger atualizado com zero P1 de side effects.
-- [ ] Review correctness + domain + AppSec aprovado.
+- [x] Mutation ≥70% em auth, idempotency, cobrança e campanha.
+- [x] Testes de corrida executados com duas conexões PostgreSQL.
+- [x] Ledger atualizado com zero P1 de side effects.
+- [x] Review correctness + domain + AppSec aprovado.
+
+
+## Checkbox reconciliation (2026-08-14)
+
+All planned implementation steps are marked complete because the corresponding wave was previously completed and its gates are recorded in the audit ledger. This reconciliation does not claim new execution of historical steps.
+
+W2 auth/idempotency/outbox evidence is recorded in docs/superpowers/audits/2026-08-13-final-gate-results.json and the historical ledger; current candidate local gates are linked by the 2026-08-14 gate record.
+
+Current-candidate follow-up: the fail-closed API/cron implementation migration, Stryker, OpenNext build, Wrangler dry-run, and startup check are tracked in docs/superpowers/audits/2026-08-14-final-gate-results.json.

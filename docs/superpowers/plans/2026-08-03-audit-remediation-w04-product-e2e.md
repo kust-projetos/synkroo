@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development
 > (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Corrigir rotas mortas, dados fictícios, mobile, acessibilidade e tornar E2E determinístico.
 
@@ -25,7 +25,7 @@ paralelo; E2E inicia após contratos UI estabilizarem.
 - Test: `src/lib/ui/__tests__/menu-actions.test.ts`
 - E2E: `e2e/dashboard/sidebar-navigation.spec.ts`
 
-- [ ] **Step 1: escrever RED para todos os links internos publicados**
+- [x] **Step 1: escrever RED para todos os links internos publicados**
 
 ```ts
 it.each(visibleMenuPaths)('%s resolves without accidental 404', async path => {
@@ -34,18 +34,18 @@ it.each(visibleMenuPaths)('%s resolves without accidental 404', async path => {
 })
 ```
 
-- [ ] **Step 2: confirmar 404 em `/api/docs` e `/dashboard/ia`**
+- [x] **Step 2: confirmar 404 em `/api/docs` e `/dashboard/ia`**
 
 ```bash
 npx playwright test e2e/dashboard/sidebar-navigation.spec.ts
 ```
 
-- [ ] **Step 3: remover links sem capability aprovada**
+- [x] **Step 3: remover links sem capability aprovada**
 
 Landing remove `/api/docs` até documentação existir. Manifest IA aponta para rota real de
 configuração ou omite item; não criar página vazia para satisfazer teste.
 
-- [ ] **Step 4: adicionar favicon/metadata somente se asset real existir**
+- [x] **Step 4: adicionar favicon/metadata somente se asset real existir**
 
 ```ts
 export const metadata = {
@@ -56,7 +56,7 @@ export const metadata = {
 
 Criar asset original em `src/app/favicon.ico`; validar 200 e MIME.
 
-- [ ] **Step 5: testar e commit**
+- [x] **Step 5: testar e commit**
 
 ```bash
 npm test -- src/lib/ui/__tests__/menu-actions.test.ts --runInBand
@@ -73,7 +73,7 @@ git commit -m "fix: remove dead product navigation"
 - Test: `src/app/dashboard/page.test.tsx`
 - E2E: `e2e/dashboard/overview.spec.ts`
 
-- [ ] **Step 1: escrever RED para zero, vazio e desconectado**
+- [x] **Step 1: escrever RED para zero, vazio e desconectado**
 
 ```ts
 it('renders zero confirmation rate without fallback', () => {
@@ -83,23 +83,23 @@ it('renders zero confirmation rate without fallback', () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED em `confirmationRate || 94`**
+- [x] **Step 2: confirmar RED em `confirmationRate || 94`**
 
 ```bash
 npm test -- src/app/dashboard/page.test.tsx --runInBand
 ```
 
-- [ ] **Step 3: remover dados e status fabricados**
+- [x] **Step 3: remover dados e status fabricados**
 
 Usar `stats?.metrics.confirmationRate ?? 0`. WhatsApp/IA exibem estado da API; ausência vira
 `Não configurado`. Tendências e atividades aparecem apenas com resposta real; vazio usa EmptyState.
 
-- [ ] **Step 4: corrigir contraste do CTA e status mobile**
+- [x] **Step 4: corrigir contraste do CTA e status mobile**
 
 Status no header não assume `IA Conectada`; usa badge neutro até health real. CTA respeita AA em
 light/dark e possui foco visível.
 
-- [ ] **Step 5: snapshot, E2E e commit**
+- [x] **Step 5: snapshot, E2E e commit**
 
 ```bash
 npm test -- src/app/dashboard/page.test.tsx --runInBand
@@ -117,7 +117,7 @@ git commit -m "fix: show truthful dashboard states"
 - Test: `src/components/contacts/__tests__/contact-split-view.test.tsx`
 - E2E: `e2e/crm/contacts-mobile.spec.ts`
 
-- [ ] **Step 1: escrever RED da navegação lista→detalhe**
+- [x] **Step 1: escrever RED da navegação lista→detalhe**
 
 ```ts
 it('shows one pane at a time on mobile', async () => {
@@ -129,18 +129,18 @@ it('shows one pane at a time on mobile', async () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED com split 35/65**
+- [x] **Step 2: confirmar RED com split 35/65**
 
 ```bash
 npm test -- contact-split-view.test.tsx --runInBand
 ```
 
-- [ ] **Step 3: implementar breakpoint sem duplicar estado**
+- [x] **Step 3: implementar breakpoint sem duplicar estado**
 
 Desktop mantém `PanelGroup`. Mobile renderiza lista ou detalhe a partir do mesmo `selectedContactId`.
 Detalhe possui botão Voltar com foco restaurado ao item selecionado.
 
-- [ ] **Step 4: validar overflow, teclado e screenshot**
+- [x] **Step 4: validar overflow, teclado e screenshot**
 
 ```bash
 npx playwright test e2e/crm/contacts-mobile.spec.ts --project=authenticated
@@ -148,7 +148,7 @@ npx playwright test e2e/crm/contacts-mobile.spec.ts --project=authenticated
 
 Asserts: `scrollWidth === clientWidth`, ação principal visível, tabs roláveis com nome acessível.
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/components/contacts e2e/crm/contacts-mobile.spec.ts
@@ -163,7 +163,7 @@ git commit -m "fix: make contacts usable on mobile"
 - Test: `src/components/financeiro/__tests__/FinanceDashboard.test.tsx`
 - E2E: `e2e/finance-mobile.spec.ts`
 
-- [ ] **Step 1: escrever RED para cards/tabs responsivos**
+- [x] **Step 1: escrever RED para cards/tabs responsivos**
 
 ```ts
 it('renders KPI cards in one column on narrow viewports', () => {
@@ -172,18 +172,18 @@ it('renders KPI cards in one column on narrow viewports', () => {
 })
 ```
 
-- [ ] **Step 2: confirmar RED**
+- [x] **Step 2: confirmar RED**
 
 ```bash
 npm test -- src/components/financeiro/__tests__/FinanceDashboard.test.tsx --runInBand
 ```
 
-- [ ] **Step 3: aplicar reflow focado**
+- [x] **Step 3: aplicar reflow focado**
 
 KPIs: `grid-cols-1 sm:grid-cols-2 xl:grid-cols-3`. Tabs usam overflow horizontal intencional com
 indicador e foco visível; conteúdo não recebe largura fixa.
 
-- [ ] **Step 4: executar unit/E2E e commit**
+- [x] **Step 4: executar unit/E2E e commit**
 
 ```bash
 npm test -- src/components/financeiro --runInBand
@@ -200,7 +200,7 @@ git commit -m "fix: reflow finance dashboard on mobile"
 - Test: `src/lib/ui/__tests__/dashboard-layout.test.tsx`
 - E2E: `e2e/accessibility-critical.spec.ts`
 
-- [ ] **Step 1: escrever RED para 360px e teclado**
+- [x] **Step 1: escrever RED para 360px e teclado**
 
 ```ts
 it('keeps menu and current status visible at 360px', () => {
@@ -210,19 +210,19 @@ it('keeps menu and current status visible at 360px', () => {
 })
 ```
 
-- [ ] **Step 2: implementar truncamento e semântica**
+- [x] **Step 2: implementar truncamento e semântica**
 
 Header usa `min-w-0`, label curta/ocultável e nenhum status falso. Sidebar Sheet recebe título,
 focus trap e retorno de foco. Headings mantêm um `h1` por página.
 
-- [ ] **Step 3: validar contraste, labels e teclado**
+- [x] **Step 3: validar contraste, labels e teclado**
 
 ```bash
 npm test -- src/lib/ui/__tests__/dashboard-layout.test.tsx --runInBand
 npx playwright test e2e/accessibility-critical.spec.ts
 ```
 
-- [ ] **Step 4: commit**
+- [x] **Step 4: commit**
 
 ```bash
 git add src/lib/ui e2e/accessibility-critical.spec.ts
@@ -237,7 +237,7 @@ git commit -m "fix: harden mobile header accessibility"
 - Modify: `e2e/global-teardown.ts`
 - Create: `e2e/auth/storage-state.spec.ts`
 
-- [ ] **Step 1: escrever RED para storageState vazio**
+- [x] **Step 1: escrever RED para storageState vazio**
 
 ```ts
 expect(authState.cookies.some(cookie =>
@@ -245,12 +245,12 @@ expect(authState.cookies.some(cookie =>
 )).toBe(true)
 ```
 
-- [ ] **Step 2: remover catches que convertem falha em sucesso**
+- [x] **Step 2: remover catches que convertem falha em sucesso**
 
 Setup chama login, exige response 200, cookie esperado e `/api/auth/session` autenticado antes de
 salvar state. Qualquer falha lança erro com status, URL e body redigido.
 
-- [ ] **Step 3: impedir servidor reutilizado silenciosamente**
+- [x] **Step 3: impedir servidor reutilizado silenciosamente**
 
 ```ts
 webServer: {
@@ -262,12 +262,12 @@ webServer: {
 
 Config usa `127.0.0.1` de forma consistente. Processo anterior na porta causa falha imediata.
 
-- [ ] **Step 4: separar setup de project dependency duplicada**
+- [x] **Step 4: separar setup de project dependency duplicada**
 
 Escolher um mecanismo: `globalSetup` ou projeto `setup`, nunca ambos. Recomendado projeto setup com
 `dependencies: ['setup']` e state versionado somente como artefato ignorado.
 
-- [ ] **Step 5: testar e commit**
+- [x] **Step 5: testar e commit**
 
 ```bash
 npx playwright test e2e/auth/storage-state.spec.ts --workers=1
@@ -285,7 +285,7 @@ git commit -m "test: fail fast when E2E auth setup breaks"
 - Modify: specs com `if (isVisible)` ou catch silencioso
 - Test: `src/lib/__tests__/rate-limit.test.ts`
 
-- [ ] **Step 1: escrever RED para reset controlado em test env**
+- [x] **Step 1: escrever RED para reset controlado em test env**
 
 ```ts
 it('resets limiter only with test-only dependency', () => {
@@ -295,12 +295,12 @@ it('resets limiter only with test-only dependency', () => {
 })
 ```
 
-- [ ] **Step 2: injetar store de limiter; sem endpoint público de reset**
+- [x] **Step 2: injetar store de limiter; sem endpoint público de reset**
 
 Produção usa store runtime; testes recebem store isolado por worker. Specs autenticadas reutilizam
 storageState e não fazem login antes de cada teste.
 
-- [ ] **Step 3: substituir condicionais por expectativas explícitas**
+- [x] **Step 3: substituir condicionais por expectativas explícitas**
 
 ```ts
 const button = page.getByRole('button', { name: 'Profissionais', exact: true }).last()
@@ -308,14 +308,14 @@ await expect(button).toBeVisible()
 await button.click()
 ```
 
-- [ ] **Step 4: executar auth/calendar duas vezes**
+- [x] **Step 4: executar auth/calendar duas vezes**
 
 ```bash
 npx playwright test e2e/auth e2e/calendar --workers=1
 npx playwright test e2e/auth e2e/calendar --workers=1
 ```
 
-- [ ] **Step 5: commit**
+- [x] **Step 5: commit**
 
 ```bash
 git add src/lib/rate-limit.ts src/lib/__tests__/rate-limit.test.ts e2e playwright.config.ts
@@ -331,18 +331,18 @@ git commit -m "test: isolate E2E auth and rate limiting"
 - Create: `docs/runbook-cloudflare-build.md`
 - Create: `scripts/check-doc-links.mjs`
 
-- [ ] **Step 1: comparar claim com código/teste/artefato**
+- [x] **Step 1: comparar claim com código/teste/artefato**
 
 ```bash
 rg -n "implementado|concluído|fechado|PASS" docs/superpowers docs/adr
 ```
 
-- [ ] **Step 2: marcar apenas capability comprovada**
+- [x] **Step 2: marcar apenas capability comprovada**
 
 Fases futuras permanecem pendentes. ADR-BASE-05, 12 e 13 só mudam para implementado após auth,
 audit e outbox verdes. Runbook registra WSL, comandos, bindings e rollback sem secrets.
 
-- [ ] **Step 3: validar links e trailing whitespace**
+- [x] **Step 3: validar links e trailing whitespace**
 
 Criar `check-doc-links.mjs` para validar links locais Markdown; URL externa fica fora do scan.
 
@@ -351,7 +351,7 @@ git diff --check
 node scripts/check-doc-links.mjs
 ```
 
-- [ ] **Step 4: commit**
+- [x] **Step 4: commit**
 
 ```bash
 git add docs scripts/check-doc-links.mjs
@@ -367,8 +367,17 @@ npm run test:e2e
 npm run test:e2e
 ```
 
-- [ ] Zero falha, timeout, retry oculto ou storageState vazio.
-- [ ] Desktop 1440×900 e mobile 360×800 sem overflow nas jornadas críticas.
-- [ ] Nenhum link interno publicado retorna 404 acidental.
-- [ ] Snapshots focados revisados; sem snapshot maior que 50 linhas.
-- [ ] Review UX/a11y + correctness aprovado.
+- [x] Zero falha, timeout, retry oculto ou storageState vazio.
+- [x] Desktop 1440×900 e mobile 360×800 sem overflow nas jornadas críticas.
+- [x] Nenhum link interno publicado retorna 404 acidental.
+- [x] Snapshots focados revisados; sem snapshot maior que 50 linhas.
+- [x] Review UX/a11y + correctness aprovado.
+
+
+## Checkbox reconciliation (2026-08-14)
+
+All planned implementation steps are marked complete because the corresponding wave was previously completed and its gates are recorded in the audit ledger. This reconciliation does not claim new execution of historical steps.
+
+W4 product/E2E evidence is recorded in docs/superpowers/audits/2026-08-13-final-gate-results.json and the historical ledger; current candidate local gates are linked by the 2026-08-14 gate record.
+
+Current-candidate follow-up: the fail-closed API/cron implementation migration, Stryker, OpenNext build, Wrangler dry-run, and startup check are tracked in docs/superpowers/audits/2026-08-14-final-gate-results.json.
