@@ -21,13 +21,13 @@
 |---|---|---|---|---|
 | F0.01 | Congelar release, merge, push e novos clones | DEFERRED | O trabalho local foi mantido sem push; o commit de remediação já ocorreu | Definir com o owner se o freeze operacional ainda deve ser aplicado antes da rotação |
 | F0.02 | Preservar evidência e backup sem registrar valores | PARTIAL | Evidências versionadas em `docs/superpowers/audits/evidence/74d5ac78/` e gate JSON | Confirmar backup/retention fora do repositório sem incluir secrets |
-| F0.03 | Inventariar `.gitleaksignore` por fingerprint | OPEN | Gitleaks passou no commit atual | Classificar cada suppression como fixture falsa, teste ou finding confirmado |
+| F0.03 | Inventariar `.gitleaksignore` por fingerprint | PARTIAL | `.gitleaksignore` tem 83 entradas não-comentário (71 históricas, 12 worktree); `docs/security/credential-inventory.md` existe | Classificar cada suppression e anexar scan completo; full-history Gitleaks local excedeu 180s |
 | F0.04 | Revogar/rotacionar secrets de GitHub, Cloudflare, DB, LLM, Evolution, Asaas e auth | EXTERNAL | Nenhuma rotação executada | Owner deve fornecer acesso/autorizar rotação por provider; executar somente em staging/contas autorizadas |
 | F0.05 | Verificar forks, Actions logs, artifacts e caches | EXTERNAL | Não há evidência nominal | Auditar GitHub com credencial nova e registrar somente resultado/fingerprint |
 | F0.06 | Restaurar `gh auth` com credencial nova | EXTERNAL | Não executado | Após rotação, autenticar novamente e registrar somente `gh auth status` sanitizado |
 | F0.07 | Sanear histórico e invalidar clones antigos | EXTERNAL | Não executado | Exige plano coordenado, autorização explícita e comunicação aos consumidores do repositório |
-| F0.08 | Reduzir suppressions a fixtures falsas comprovadas | OPEN | Não há inventário de suppressions anexado | Fazer revisão de `.gitleaksignore` após F0.03 |
-| F0.09 | Adicionar Gitleaks em pre-commit e CI sobre tree e histórico | PARTIAL | Hook Gitleaks executou no commit `11fe3f32`; gate de secrets passou | Confirmar workflow CI e scan histórico relevante com artifact reproduzível |
+| F0.08 | Reduzir suppressions a fixtures falsas comprovadas | PARTIAL | Inventory document exists and `.gitleaksignore` comments state confirmed suppressions were removed; 83 entries still require classification evidence | Reconcile each of the 83 entries with `docs/security/credential-inventory.md`; do not remove entries by inference |
+| F0.09 | Adicionar Gitleaks em pre-commit e CI sobre tree e histórico | PARTIAL | Hook Gitleaks executou no commit `11fe3f32`; workflow `.github/workflows/gitleaks-scheduled.yml` faz full-history semanal; execução local full-history excedeu 180s | Confirmar workflow de PR/push e anexar artifact de scan histórico concluído |
 | F0.10 | Registrar owner, rotação e evidência sem valor de credencial | EXTERNAL | Não há ledger de rotação neste repositório | Criar ledger sanitizado após F0.04–F0.06 |
 
 ## F1 — Estabilizar Git e baseline
@@ -41,20 +41,20 @@
 | F1.05 | Preservar `AGENTS.md` | VERIFIED | `AGENTS.md` não aparece no commit de remediação | Manter proteção contra sobrescrita em futuras alterações |
 | F1.06 | Rodar lint, typecheck, unit, integration e builds | VERIFIED | Gate: lint, typecheck, unit, PostgreSQL integration, build:cf, dry-run e startup passaram | Repetir apenas quando F0–F3 alterar código |
 | F1.07 | Criar baseline machine-readable de gates e coverage | VERIFIED | `docs/superpowers/audits/2026-08-14-final-gate-results.json` | Atualizar somente quando a matriz receber novo ciclo de evidência |
-| F1.08 | Remover DB real de arquivo nomeado como teste | PARTIAL | Runner de integração usa DB `synkroo_test` isolado | Auditar todos os arquivos de teste e anexar scan nominal |
+| F1.08 | Remover DB real de arquivo nomeado como teste | PARTIAL | `node --test scripts/__tests__/integration-run.test.mjs` passou 43/43; `scripts/integration-run.mjs` exige `TEST_DATABASE_URL` loopback `/synkroo_test` e não encaminha essa variável | Auditar os demais testes nomeados (`ci-workflow`, repository mutation, scale seed) para provar que nenhum executa DB real indevidamente |
 
 ## F2 — Fechar P0 de autorização/LGPD
 
 | ID | Requisito | Status | Evidência atual | Lacuna / próximo passo |
 |---|---|---|---|---|
-| F2.01 | Remover JWT artesanal e exigir NextAuth + `AUTH_SECRET` | PARTIAL | Security gate e smoke de login/session passaram | Anexar scan de rotas/auth sem caminho JWT paralelo |
+| F2.01 | Remover JWT artesanal e exigir NextAuth + `AUTH_SECRET` | PARTIAL | `src/lib/auth/__tests__/session.revocation.test.ts` passou; security suite 9/142 passou; `src/lib/env.ts` e middleware referenciam `AUTH_SECRET` | Anexar scan de rotas/auth sem caminho JWT paralelo |
 | F2.02 | Desabilitar signup em produção | OPEN | Não há evidência específica no gate | Verificar middleware/config de produção; não alterar produção sem autorização |
-| F2.03 | Testar `input.clinicId != ctx.clinicId` em Core Actions | PARTIAL | Security/tenant gates passaram | Exigir teste nominal por Action |
-| F2.04 | Remover scope de clínica controlável ou falhar fechado | PARTIAL | Boundary e staging tenant scope passaram | Anexar inventário de payloads e asserts fail-closed |
-| F2.05 | Validar role/user/entidade na mesma clínica | PARTIAL | Smoke tenant e architecture boundary passaram | Expandir para matriz de entidades e roles |
-| F2.06 | Derivar clínica do credential de canal no webhook | PARTIAL | Invalid webhook smoke passou | Provar binding de credential→clinic em teste de integração |
-| F2.07 | Bloquear treatment item cross-plan/cross-clinic e POST repetido | PARTIAL | Integração e security gate passaram | Anexar teste nominal de ownership e idempotência |
-| F2.08 | Update tenant-scoped, atômico e idempotente com concorrência | PARTIAL | Integration gate passou | Executar/registrar race test específico por endpoint |
+| F2.03 | Testar `input.clinicId != ctx.clinicId` em Core Actions | PARTIAL | Security suite 142/142 e architecture boundary 14/14 passaram | Exigir teste nominal por Action |
+| F2.04 | Remover scope de clínica controlável ou falhar fechado | PARTIAL | Architecture boundary 14/14 e staging tenant smoke passaram | Anexar inventário de payloads e asserts fail-closed |
+| F2.05 | Validar role/user/entidade na mesma clínica | PARTIAL | Security suite 9/9, tenant smoke e boundary tests passaram | Expandir para matriz de entidades e roles |
+| F2.06 | Derivar clínica do credential de canal no webhook | PARTIAL | Invalid webhook smoke passou; security suite passou | Provar binding de credential→clinic em teste de integração |
+| F2.07 | Bloquear treatment item cross-plan/cross-clinic e POST repetido | PARTIAL | Integration 33/33 suites e security 142/142 passaram | Anexar teste nominal de ownership e idempotência |
+| F2.08 | Update tenant-scoped, atômico e idempotente com concorrência | PARTIAL | Integration 33/33 suites passou; testes direcionados locais passaram | Executar/registrar race test específico por endpoint |
 | F2.09 | Revogar acesso de usuário desativado com JWT válido | OPEN | Não há evidência nominal | Criar teste RED/GREEN de sessão revogada |
 | F2.10 | Adicionar session version/revocation | OPEN | Não há evidência nominal no gate | Confirmar implementação e cobrir middleware/contexto |
 | F2.11 | Revogar após logout, senha, role e access change | OPEN | Não há evidência nominal | Criar matriz de eventos de revogação |
@@ -71,9 +71,9 @@
 
 | ID | Requisito | Status | Evidência atual | Lacuna / próximo passo |
 |---|---|---|---|---|
-| F3.01 | E-mail normalizado unique por instância | OPEN | Não há evidência nominal | Inspecionar schema/migration e criar integration test de duplicidade |
-| F3.02 | Env schema separado para app, bridge, agent e sidecar | OPEN | Startup check passou, sem matriz de env | Inventariar env por runtime e validar fail-fast |
-| F3.03 | Validar secrets obrigatórios no startup/smoke | PARTIAL | Wrangler startup check passou | Cobrir ausência de cada secret sem expor valor |
+| F3.01 | E-mail normalizado unique por instância | PARTIAL | `src/lib/db/schema/core.ts` declara `users_clinic_email_uniq`; typecheck passou | Confirmar migration aplicada e adicionar integration test de duplicidade/normalização |
+| F3.02 | Env schema separado para app, bridge, agent e sidecar | OPEN | `src/lib/env.ts` cobre env da app; não há matriz completa por runtime | Inventariar env por runtime e validar fail-fast |
+| F3.03 | Validar secrets obrigatórios no startup/smoke | PARTIAL | `npm run typecheck` passou e startup check do gate passou; `AUTH_SECRET`/`DATABASE_URL` aparecem na validação | Cobrir ausência de cada secret sem expor valor |
 | F3.04 | Corrigir constraints Drizzle e deduplicar antes da migration | OPEN | Não há artifact de catálogo/preflight neste gate | Gerar preflight read-only e revisar migrations |
 | F3.05 | Índices tenant/date/status/FK guiados por query | OPEN | Não há evidência de análise de índices | Produzir inventário query→index e migration somente após revisão |
 | F3.06 | Garantir extensões `vector` e `btree_gist` | OPEN | Não há evidência nominal | Check em DB de integração e migration/preflight |
@@ -92,6 +92,6 @@
 ## Próximo ciclo seguro
 
 1. Resolver dependências **EXTERNAL** de F0 somente após autorização do owner; não registrar valores.
-2. Em paralelo, executar a primeira tranche local e reversível: F0.03, F0.08, F1.08, F2.01–F2.08 e F3.01–F3.03.
+2. Executar a próxima tranche local: F0.03/F0.08 classificação de suppressions, F1.08 auditoria dos demais testes nomeados e F3.01–F3.03 migration/env/startup.
 3. Anexar cada resultado ao gate JSON ou a um artifact novo antes de marcar qualquer item como `VERIFIED`.
 4. Só depois decidir se F0–F3 podem ser fechadas ou se continuam parciais.
