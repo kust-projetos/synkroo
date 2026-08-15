@@ -247,7 +247,7 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F2.10 | F2 | VERIFIED | Adicionar session version/revocation ao contexto e middleware. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.11 | F2 | PARTIAL | Revogar também após logout, senha, role e access change. | `f2-11-revocation-primitive.md`, `f2-11-signout-revocation.md` | W2 gate: password-change mutation remains open |
 | F2.12 | F2 | VERIFIED | Substituir audit payload por allowlist; provar ausência de PII top-level/aninhada. | `f2-12-audit-redaction.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.13 | F2 | PARTIAL | Corrigir webhook Asaas para evento + charge transition na mesma transaction. | `f2-13-asaas-webhook.md` | W2 gate: DB concurrency remains open |
+| F2.13 | F2 | VERIFIED | Corrigir webhook Asaas para evento + charge transition na mesma transaction. | `f2-13-asaas-webhook.md`, `f2-isolated-integration.md` | W2 gate: provider/deploy smoke remains external |
 | F2.14 | F2 | PARTIAL | Injetar Hyperdrive na IA bridge e testar uma tool DB-backed fail-closed. | `f2-f3-f4-f11-tranche-reconciliation.md` | W2 gate: Hyperdrive bridge remains open |
 | F2.15 | F2 | VERIFIED | Inventariar paths públicos exatos; remover prefix allowlists amplos. | `f2-15-public-routes.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.16 | F2 | VERIFIED | Validar Origin/CSRF em Actions e APIs cookie-authenticated sensíveis. | `f2-16-csrf-origin.md` | W2 gate: security RED/GREEN and mutation evidence |
