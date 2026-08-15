@@ -21,12 +21,12 @@
 |---|---|---|---|---|
 | F0.01 | Congelar release, merge, push e novos clones | DEFERRED | O trabalho local foi mantido sem push; o commit de remediação já ocorreu | Definir com o owner se o freeze operacional ainda deve ser aplicado antes da rotação |
 | F0.02 | Preservar evidência e backup sem registrar valores | PARTIAL | Evidências versionadas em `docs/superpowers/audits/evidence/74d5ac78/` e gate JSON | Confirmar backup/retention fora do repositório sem incluir secrets |
-| F0.03 | Inventariar `.gitleaksignore` por fingerprint | PARTIAL | `.gitleaksignore` tem 83 entradas não-comentário (71 históricas, 12 worktree); `docs/security/credential-inventory.md` existe | Classificar cada suppression e anexar scan completo; full-history Gitleaks local excedeu 180s |
+| F0.03 | Inventariar `.gitleaksignore` por fingerprint | OPEN | 83 entradas atuais; 79 com caminho no inventário, 4 sem correspondência (`src/modules/financeiro/__tests__/routes.test.ts`); o inventário interno ainda afirma 52 entradas | Reconciliar o inventário antes de remover ou aceitar suppressions; full-history Gitleaks local excedeu 180s |
 | F0.04 | Revogar/rotacionar secrets de GitHub, Cloudflare, DB, LLM, Evolution, Asaas e auth | EXTERNAL | Nenhuma rotação executada | Owner deve fornecer acesso/autorizar rotação por provider; executar somente em staging/contas autorizadas |
 | F0.05 | Verificar forks, Actions logs, artifacts e caches | EXTERNAL | Não há evidência nominal | Auditar GitHub com credencial nova e registrar somente resultado/fingerprint |
 | F0.06 | Restaurar `gh auth` com credencial nova | EXTERNAL | Não executado | Após rotação, autenticar novamente e registrar somente `gh auth status` sanitizado |
 | F0.07 | Sanear histórico e invalidar clones antigos | EXTERNAL | Não executado | Exige plano coordenado, autorização explícita e comunicação aos consumidores do repositório |
-| F0.08 | Reduzir suppressions a fixtures falsas comprovadas | PARTIAL | Inventory document exists and `.gitleaksignore` comments state confirmed suppressions were removed; 83 entries still require classification evidence | Reconcile each of the 83 entries with `docs/security/credential-inventory.md`; do not remove entries by inference |
+| F0.08 | Reduzir suppressions a fixtures falsas comprovadas | OPEN | Inventory claims 14 `confirmed`, 7 `test`, 7 `false-positive` and 3 worktree while current ignore has 83 entries; classification is inconsistent | Reconcile every entry with the inventory and current Git history before deleting or retaining suppressions |
 | F0.09 | Adicionar Gitleaks em pre-commit e CI sobre tree e histórico | PARTIAL | Hook Gitleaks executou no commit `11fe3f32`; workflow `.github/workflows/gitleaks-scheduled.yml` faz full-history semanal; execução local full-history excedeu 180s | Confirmar workflow de PR/push e anexar artifact de scan histórico concluído |
 | F0.10 | Registrar owner, rotação e evidência sem valor de credencial | EXTERNAL | Não há ledger de rotação neste repositório | Criar ledger sanitizado após F0.04–F0.06 |
 
@@ -41,7 +41,7 @@
 | F1.05 | Preservar `AGENTS.md` | VERIFIED | `AGENTS.md` não aparece no commit de remediação | Manter proteção contra sobrescrita em futuras alterações |
 | F1.06 | Rodar lint, typecheck, unit, integration e builds | VERIFIED | Gate: lint, typecheck, unit, PostgreSQL integration, build:cf, dry-run e startup passaram | Repetir apenas quando F0–F3 alterar código |
 | F1.07 | Criar baseline machine-readable de gates e coverage | VERIFIED | `docs/superpowers/audits/2026-08-14-final-gate-results.json` | Atualizar somente quando a matriz receber novo ciclo de evidência |
-| F1.08 | Remover DB real de arquivo nomeado como teste | PARTIAL | `node --test scripts/__tests__/integration-run.test.mjs` passou 43/43; `scripts/integration-run.mjs` exige `TEST_DATABASE_URL` loopback `/synkroo_test` e não encaminha essa variável | Auditar os demais testes nomeados (`ci-workflow`, repository mutation, scale seed) para provar que nenhum executa DB real indevidamente |
+| F1.08 | Remover DB real de arquivo nomeado como teste | PARTIAL | Repository mutation 9/9 e seed-local-scale 15/15 passaram; `ci-workflow.test.mjs` 9/10 passou porque espera `CREATE DATABASE "synkroo"` sem os escapes presentes no workflow; nenhum dos três executa DB real | Corrigir a expectativa stale do CI test e rodar a suíte novamente; manter o runner `/synkroo_test` fail-closed |
 
 ## F2 — Fechar P0 de autorização/LGPD
 
@@ -71,9 +71,9 @@
 
 | ID | Requisito | Status | Evidência atual | Lacuna / próximo passo |
 |---|---|---|---|---|
-| F3.01 | E-mail normalizado unique por instância | PARTIAL | `src/lib/db/schema/core.ts` declara `users_clinic_email_uniq`; typecheck passou | Confirmar migration aplicada e adicionar integration test de duplicidade/normalização |
-| F3.02 | Env schema separado para app, bridge, agent e sidecar | OPEN | `src/lib/env.ts` cobre env da app; não há matriz completa por runtime | Inventariar env por runtime e validar fail-fast |
-| F3.03 | Validar secrets obrigatórios no startup/smoke | PARTIAL | `npm run typecheck` passou e startup check do gate passou; `AUTH_SECRET`/`DATABASE_URL` aparecem na validação | Cobrir ausência de cada secret sem expor valor |
+| F3.01 | E-mail normalizado unique por instância | PARTIAL | `src/lib/db/schema/core.ts` declara `users_clinic_email_uniq`; não há migration SQL com esse nome; typecheck passou | Criar/confirmar migration e integration test de duplicidade/normalização antes de marcar VERIFIED |
+| F3.02 | Env schema separado para app, bridge, agent e sidecar | OPEN | `src/lib/env.ts` valida somente o processo app; `wrangler.toml`, `wrangler.ia-bridge.jsonc` e `src/workers/ia-agent/wrangler.jsonc` possuem vars/bindings separados, sem schema fail-fast por runtime | Definir inventário/schema por app, bridge, agent e sidecar sem registrar valores |
+| F3.03 | Validar secrets obrigatórios no startup/smoke | OPEN | `AUTH_SECRET` é `.optional()` em `src/lib/env.ts` e `criticalVars` contém apenas `JWT_SECRET`; startup/typecheck passaram, mas não provam AUTH_SECRET obrigatório | Corrigir via TDD: teste RED para AUTH_SECRET ausente em produção, implementação mínima e startup smoke sem segredo real |
 | F3.04 | Corrigir constraints Drizzle e deduplicar antes da migration | OPEN | Não há artifact de catálogo/preflight neste gate | Gerar preflight read-only e revisar migrations |
 | F3.05 | Índices tenant/date/status/FK guiados por query | OPEN | Não há evidência de análise de índices | Produzir inventário query→index e migration somente após revisão |
 | F3.06 | Garantir extensões `vector` e `btree_gist` | OPEN | Não há evidência nominal | Check em DB de integração e migration/preflight |
@@ -92,6 +92,6 @@
 ## Próximo ciclo seguro
 
 1. Resolver dependências **EXTERNAL** de F0 somente após autorização do owner; não registrar valores.
-2. Executar a próxima tranche local: F0.03/F0.08 classificação de suppressions, F1.08 auditoria dos demais testes nomeados e F3.01–F3.03 migration/env/startup.
+2. Corrigir o teste stale de CI; depois tratar F3.03 via TDD e preparar migration/teste de F3.01.
 3. Anexar cada resultado ao gate JSON ou a um artifact novo antes de marcar qualquer item como `VERIFIED`.
 4. Só depois decidir se F0–F3 podem ser fechadas ou se continuam parciais.
