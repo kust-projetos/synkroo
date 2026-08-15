@@ -148,6 +148,13 @@
       "when": 1786791183433,
       "tag": "0021_heavy_giant_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1786805471021,
+      "tag": "0022_far_stature",
+      "breakpoints": true
     }
   ]
 }

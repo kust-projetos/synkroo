@@ -11,8 +11,29 @@ import { exceedsBodyLimit, shouldRejectCsrf } from '@/lib/security/request-guard
  *   NÃO em module-init. Portanto, qualquer leitura de env var DEVE
  *   ser feita dentro da função middleware, não no module scope.
  */
-const PUBLIC_EXACT = new Set(['/','/login','/signup','/pi-finance','/api/health','/api/whatsapp/evolution']);
-const PUBLIC_PREFIXES = ['/api/auth/', '/api/financeiro/webhooks/', '/api/whatsapp/evolution/'] as const;
+const PUBLIC_EXACT = new Set([
+  '/',
+  '/login',
+  '/signup',
+  '/pi-finance',
+  '/api/health',
+  '/api/whatsapp/evolution',
+  '/api/auth/providers',
+  '/api/auth/csrf',
+  '/api/auth/session',
+  '/api/auth/signin',
+  '/api/auth/error',
+  '/api/auth/signup',
+  '/api/financeiro/webhooks/asaas',
+]);
+const PUBLIC_PREFIXES = ['/api/auth/callback/'] as const;
+const CUSTOM_AUTH_ROUTES = new Set([
+  '/api/auth/login',
+  '/api/auth/logout',
+  '/api/auth/refresh',
+  '/api/auth/signup',
+  '/api/auth/switch-clinic',
+]);
 const SIGNED_TRANSPORT = /^\/api\/(messages\/inbound|cron\/|agent\/)/;
 
 export function isPublicPath(pathname: string): boolean {
@@ -23,12 +44,18 @@ export async function middleware(request: NextRequest) {
   if (exceedsBodyLimit(request)) {
     return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
   }
-  const isNextAuthRoute = request.nextUrl.pathname.startsWith('/api/auth/');
+  const isNextAuthRoute = request.nextUrl.pathname.startsWith('/api/auth/') && !CUSTOM_AUTH_ROUTES.has(request.nextUrl.pathname);
   if (!isNextAuthRoute && shouldRejectCsrf(request)) {
     return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
   }
 
   const pathname = request.nextUrl.pathname;
+  if (
+    process.env.NODE_ENV === 'production' &&
+    (pathname === '/signup' || pathname === '/api/auth/signup')
+  ) {
+    return new NextResponse(null, { status: 404 });
+  }
   const AUTH_SECRET = process.env.AUTH_SECRET;
 
   // Dev bypass: skip auth when AUTH_SECRET is missing OR mock mode is active

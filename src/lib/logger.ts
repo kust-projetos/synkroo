@@ -17,6 +17,8 @@ interface LogEntry {
   message: string
   context?: Record<string, unknown>
   service?: string
+  requestId?: string
+  correlationId?: string
 }
 
 const LOG_LEVELS: Record<LogLevel, number> = {
@@ -24,6 +26,21 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   info: 1,
   warn: 2,
   error: 3,
+}
+
+const SENSITIVE_LOG_KEYS = new Set([
+  'apikey', 'authorization', 'connectionstring', 'cookie', 'databaseurl', 'password',
+  'refreshtoken', 'secret', 'setcookie', 'token',
+])
+
+function redactLogValue(value: unknown, key?: string): unknown {
+  const normalizedKey = key?.toLowerCase().replace(/[-_]/g, '')
+  if (normalizedKey && SENSITIVE_LOG_KEYS.has(normalizedKey)) return '[REDACTED]'
+  if (Array.isArray(value)) return value.map((item) => redactLogValue(item))
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value).map(([nestedKey, nestedValue]) => [nestedKey, redactLogValue(nestedValue, nestedKey)]),
+  )
 }
 
 class Logger {
@@ -45,17 +62,34 @@ class Logger {
   }
 
   private formatEntry(level: LogLevel, message: string, context?: Record<string, unknown>): LogEntry {
+    const safeContext = (redactLogValue(context) || {}) as Record<string, unknown>
+    const requestId = typeof safeContext.requestId === 'string' ? safeContext.requestId : undefined
+    const correlationId = typeof safeContext.correlationId === 'string' ? safeContext.correlationId : undefined
+    delete safeContext.requestId
+    delete safeContext.correlationId
     return {
       timestamp: new Date().toISOString(),
       level,
       message,
-      context,
+      context: Object.keys(safeContext).length > 0 ? safeContext : undefined,
       service: this.service,
+      requestId,
+      correlationId,
     }
   }
 
   private output(entry: LogEntry): void {
     if (!this.config.enableConsole) return
+    if (!this.config.isDevelopment) {
+      const serialized = JSON.stringify(entry)
+      switch (entry.level) {
+        case 'debug': console.debug(serialized); break
+        case 'info': console.log(serialized); break
+        case 'warn': console.warn(serialized); break
+        case 'error': console.error(serialized); break
+      }
+      return
+    }
 
     const prefix = this.config.isDevelopment
       ? `[${entry.timestamp}] [${entry.level.toUpperCase()}] [${entry.service}]`
