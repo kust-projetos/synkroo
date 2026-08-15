@@ -240,7 +240,7 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F2.03 | F2 | PARTIAL | RED: tentar `input.clinicId != ctx.clinicId` em cada Core Action. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.04 | F2 | PARTIAL | Remover clinic scope controlável de payload ou comparar fail-closed. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.05 | F2 | PARTIAL | Validar role/user/entidade na mesma clínica. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.06 | F2 | PARTIAL | RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.06 | F2 | PARTIAL | RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado. | `f2-03-f2-08-core-actions.md`, `f2-webhook-gates-integration.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.07 | F2 | PARTIAL | RED: treatment item de outro plano/clínica e POST repetido. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.08 | F2 | PARTIAL | Implementar update tenant-scoped, atômico e idempotente; testar concorrência. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.09 | F2 | VERIFIED | RED: usuário desativado com JWT ainda válido. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
@@ -249,8 +249,8 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F2.12 | F2 | VERIFIED | Substituir audit payload por allowlist; provar ausência de PII top-level/aninhada. | `f2-12-audit-redaction.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.13 | F2 | VERIFIED | Corrigir webhook Asaas para evento + charge transition na mesma transaction. | `f2-13-asaas-webhook.md`, `f2-isolated-integration.md` | W2 gate: provider/deploy smoke remains external |
 | F2.14 | F2 | PARTIAL | Injetar Hyperdrive na IA bridge e testar uma tool DB-backed fail-closed. | `f2-14-hyperdrive-contract.md`, `f2-14-db-health-primitive.md`, `f2-14-db-health-rpc.md` | W2 gate: worker-level smoke/deploy remains external |
-| F2.15 | F2 | VERIFIED | Inventariar paths públicos exatos; remover prefix allowlists amplos. | `f2-15-public-routes.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.16 | F2 | VERIFIED | Validar Origin/CSRF em Actions e APIs cookie-authenticated sensíveis. | `f2-16-csrf-origin.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.15 | F2 | VERIFIED | Inventariar paths públicos exatos; remover prefix allowlists amplos. | `f2-15-public-routes.md`, `f2-webhook-gates-integration.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.16 | F2 | VERIFIED | Validar Origin/CSRF em Actions e APIs cookie-authenticated sensíveis. | `f2-16-csrf-origin.md`, `f2-webhook-gates-integration.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.17 | F2 | VERIFIED | Sanitizar `redirectTo` para path interno. | `f2-17-redirect-sanitization.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.18 | F2 | VERIFIED | Corrigir agent permission fallback para `[]`. | `f2-18-agent-permissions.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.19 | F2 | PARTIAL | Ampliar Stryker para auth, RBAC, Actions e audit; executar target focado >=70%. | tranche validation | W2 gate: focused mutation evidence remains open |
