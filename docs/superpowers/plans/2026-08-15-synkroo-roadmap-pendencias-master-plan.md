@@ -259,7 +259,7 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F3.03 | F3 | PARTIAL | Validar secrets obrigatórios no startup/smoke. | `f3-03-auth-secret-startup.md` | W3 gate: broader runtime smoke remains open |
 | F3.04 | F3 | PARTIAL | Corrigir constraints Drizzle não emitidas e deduplicar antes da migration. | drizzle-kit check; `0022_far_stature.sql` | W3 gate: duplicate cleanup must be owner-approved |
 | F3.05 | F3 | OPEN | Adicionar índices tenant/date/status/FK guiados por query e scale seed. | — | W3 gate: query/scale evidence required |
-| F3.06 | F3 | OPEN | Garantir `vector` e `btree_gist` antes do schema dependente. | — | W3 gate: extension preflight required |
+| F3.06 | F3 | PARTIAL | Garantir `vector` e `btree_gist` antes do schema dependente. | `f3-06-extension-order.md` | W3 gate: owner-controlled migration apply remains blocked |
 | F3.07 | F3 | VERIFIED | Separar CLI RBAC em função pura; `--dry-run` default; `--apply` explícito. | `f3-07-rbac-backfill.md` | W3 gate: `--apply` external action not executed |
 | F3.08 | F3 | PARTIAL | Implementar Cloudflare Queues, outbox, retry, idempotência e DLQ antes de integrações. | `f3-08-outbox-idempotency.md` | W3 gate: provider deployment remains open |
 | F3.09 | F3 | PARTIAL | Corrigir lint boundaries sem side-effect imports cruzados. | tranche validation | W3 gate: broader boundary audit remains open |

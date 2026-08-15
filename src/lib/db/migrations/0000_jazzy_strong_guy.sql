@@ -1,3 +1,4 @@
+CREATE EXTENSION IF NOT EXISTS vector;--> statement-breakpoint
 CREATE TYPE "public"."appointment_status" AS ENUM('scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show');--> statement-breakpoint
 CREATE TYPE "public"."channel_type" AS ENUM('whatsapp', 'instagram', 'web', 'telegram');--> statement-breakpoint
 CREATE TYPE "public"."conversation_status" AS ENUM('active', 'waiting', 'closed', 'escalated');--> statement-breakpoint
