@@ -63,4 +63,17 @@ describe('allowlistInput (ADR-BASE-12)', () => {
     expect(serialized).not.toContain('5511999999999');
     expect(serialized).not.toContain('diabetes');
   });
+
+  it('redacts PII nested inside an explicitly allowed metadata object', () => {
+    const result = allowlistInput({
+      metadata: {
+        appointmentDate: '2026-08-01',
+        patient: { name: 'Maria', email: 'maria@example.com', phone: '+5511999999999' },
+        safeCode: 'A-17',
+      },
+    }, ['metadata']);
+
+    expect(result).toEqual({ metadata: { appointmentDate: '2026-08-01', safeCode: 'A-17' } });
+    expect(JSON.stringify(result)).not.toMatch(/Maria|maria@email\.com|5511999999999/);
+  });
 });

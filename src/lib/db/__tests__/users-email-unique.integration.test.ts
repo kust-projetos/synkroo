@@ -12,7 +12,7 @@ const USER_A = '00000000-0000-0000-0000-00000000cc01'
 const USER_B = '00000000-0000-0000-0000-00000000cc02'
 const USER_C = '00000000-0000-0000-0000-00000000cc03'
 const EMAIL = 'email-unique@integration.test'
-
+const EMAIL_VARIANT = '  EMAIL-UNIQUE@INTEGRATION.TEST  '
 async function cleanup() {
   const db = getDb()
   await db.delete(users).where(inArray(users.id, [USER_A, USER_B, USER_C]))
@@ -41,7 +41,7 @@ describeOrSkip('users clinic email uniqueness (DB real)', () => {
     await db.insert(users).values({
       id: USER_A,
       clinicId: CLINIC_A,
-      email: EMAIL,
+      email: EMAIL_VARIANT,
       name: 'Email Unique A',
       role: 'owner',
     })

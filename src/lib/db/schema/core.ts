@@ -1,5 +1,6 @@
 import { boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { userRole } from './enums';
 
 // ──────────────────────────────────────────────
@@ -40,7 +41,10 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (t) => ({
-  clinicEmailUniq: uniqueIndex('users_clinic_email_uniq').on(t.clinicId, t.email),
+  clinicEmailUniq: uniqueIndex('users_clinic_email_uniq').on(
+    t.clinicId,
+    sql`lower(btrim(${t.email}))`,
+  ),
 }));
 
 // ──────────────────────────────────────────────

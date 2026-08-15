@@ -2,6 +2,8 @@ import type { NextAuthOptions, Session, User } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import { getDb } from '@/lib/db/client';
+import { revokeUserSession } from '@/repositories/auth';
+import { normalizeEmail } from '@/lib/validations/common';
 import { users, userCredentials } from '@/lib/db/schema';
 import { userClinicAccess } from '@/modules/core/schema/rbac';
 import { eq, and } from 'drizzle-orm';
@@ -21,7 +23,7 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const email = credentials.email as string;
+        const email = normalizeEmail(credentials.email as string);
         const plainPassword = credentials.password as string;
 
         try {
@@ -66,6 +68,11 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: 'jwt',
     maxAge: 30 * 24 * 60 * 60,
+  },
+  events: {
+    async signOut({ token }) {
+      if (token?.id) await revokeUserSession(token.id);
+    },
   },
   callbacks: {
     async jwt({ token, user, trigger, session }: { token: JWT; user?: User; trigger?: string; session?: Session }) {

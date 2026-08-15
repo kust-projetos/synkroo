@@ -25,6 +25,6 @@ export const drizzleAgentAccessRepo: AgentAccessRepo = {
       .from(roles)
       .innerJoin(rolePermissions, eq(rolePermissions.roleId, roles.id))
       .where(and(eq(roles.clinicId, clinicId), eq(roles.name, AGENT_ROLE_NAME), eq(roles.isSystem, true)));
-    return r.length ? r.map((x) => x.key) : DEFAULT_AGENT_PERMISSIONS;
+    return r.map((x) => x.key);
   },
 };

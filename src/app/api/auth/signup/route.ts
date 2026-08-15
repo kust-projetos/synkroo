@@ -11,6 +11,10 @@ import { createUserWithClinic, findUserByEmail } from '@/repositories/auth';
  *   { success: true, user: { id, email }, profile }
  */
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === 'production') {
+    return new NextResponse(null, { status: 404 });
+  }
+
   try {
     const rawBody = await request.json();
     const { email, password, name, clinicName } = signupSchema.parse(rawBody);

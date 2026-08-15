@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
 
   async headers() {
     const securityHeaders = [
-      { key: 'Content-Security-Policy-Report-Only', value: "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
+      { key: 'Content-Security-Policy', value: "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

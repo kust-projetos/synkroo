@@ -128,17 +128,23 @@ A contagem acima foi obtida diretamente de `.gitleaksignore`, sem ler ou registr
 
 Esta reconciliação não revoga, rota ou remove suppressions. Qualquer item `confirmed-owner-action` permanece pendente de ação do owner.
 
-## Ações pendentes do owner
+## W0 status — owner actions pendentes
 
-1. **IMEDIATO:** Revogar GitHub PATs (C01-C03) em https://github.com/settings/tokens
-2. **IMEDIATO:** Revogar Supabase keys (C04-C08) no dashboard Supabase → Project Settings → API
-3. **IMEDIATO:** Revogar API keys LLM (C09-C11) em cada provider (GLM, MiniMax, OpenRouter)
-4. Rotacionar AUTH_SECRET e JWT_SECRET (expostos nos build artifacts)
-5. Rotacionar DATABASE_URL credentials
-6. Coordenar sanitização do histórico Git (BFG/git-filter-repo) para remover commits `359dce6`, `67f72ab6`, `9b79dc21`, `7ba34ec`, `ce6348b`, `dda6bee`, `8447795`, `dd8422b`
-7. Verificar forks do GitHub, Actions logs, artifacts e caches
-8. Invalidar clones antigos após sanitização
+## Gate W0 — desbloqueios externos (não executados)
 
+| Trilha | Owner necessário | Autorização/evidência exigida | Status |
+|---|---|---|---|
+| Revogação e rotação | Owner de GitHub, Cloudflare, DB, LLM, Evolution, Asaas e Auth | janela de manutenção, fingerprints antes/depois e recibo sanitizado | BLOCKED — ação externa |
+| Auditoria de superfície | Owner GitHub/Cloudflare e administradores de deploy | forks, Actions logs, artifacts, caches e clones antigos revisados | BLOCKED — acesso externo |
+| Sanitização histórica | Owner do repositório + aprovação de comunicação | plano BFG/filter-repo, backup verificado, invalidação de clones e rollback | BLOCKED — irreversível |
+| Recuperação de acessos | Owner de credenciais e administrador local | `gh auth`/tokens somente após rotação; nunca registrar valor | BLOCKED — credencial nova |
+
+Nenhuma revogação, rotação, alteração histórica, invalidação de clone ou autenticação externa foi executada pelo agente. As ações abaixo permanecem como checklist do owner e exigem recibo sanitizado:
+
+1. Revogar GitHub PATs, chaves de banco/Cloudflare/LLM/Evolution/Asaas e secrets de autenticação afetados.
+2. Coordenar sanitização do histórico Git apenas após backup e aprovação explícita.
+3. Verificar forks, Actions logs, artifacts, caches e invalidar clones antigos após a sanitização.
+4. Restaurar `gh auth` somente com credencial nova e registrar apenas fingerprint, owner, timestamp e resultado.
 ## Worktree — segredos em arquivos locais (gitignored)
 
 Estes arquivos contêm credenciais reais mas NÃO estão commitados.

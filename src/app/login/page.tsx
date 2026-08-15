@@ -3,6 +3,7 @@
 import { Suspense } from 'react'
 import { useState } from 'react'
 import { useAuth } from '@/lib/auth/context'
+import { sanitizeInternalRedirect } from '@/lib/auth/redirect'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -17,7 +18,7 @@ function LoginForm() {
   const { login } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+  const redirectTo = sanitizeInternalRedirect(searchParams.get('redirectTo'))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

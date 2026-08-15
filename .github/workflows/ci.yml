@@ -27,7 +27,7 @@ jobs:
     needs: gitleaks
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_USER: synkroo
           POSTGRES_PASSWORD: test

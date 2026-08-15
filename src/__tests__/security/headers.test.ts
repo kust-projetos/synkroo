@@ -5,6 +5,7 @@ test('defines baseline browser security headers', async () => {
   const values = headers?.[0]?.headers ?? [];
 
   expect(values).toEqual(expect.arrayContaining([
+    expect.objectContaining({ key: 'Content-Security-Policy' }),
     expect.objectContaining({ key: 'X-Content-Type-Options', value: 'nosniff' }),
     expect.objectContaining({ key: 'Referrer-Policy' }),
     expect.objectContaining({ key: 'Permissions-Policy' }),

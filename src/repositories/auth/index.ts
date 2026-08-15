@@ -1,4 +1,5 @@
 import { eq, sql, and } from "drizzle-orm";
+import { normalizeEmail } from "@/lib/validations/common";
 import { getDb } from "@/lib/db/client";
 import { clinics, users, userCredentials } from "@/lib/db/schema";
 import { roles, userClinicAccess } from "@/modules/core/schema/rbac";
@@ -103,13 +104,21 @@ export async function hasUserClinicAccess(
 export async function findUserByEmail(
   email: string,
 ): Promise<{ id: string } | null> {
+  const normalizedEmail = normalizeEmail(email);
   const db = getDb();
   const rows = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.email, email))
+    .where(eq(users.email, normalizedEmail))
     .limit(1);
   return rows[0] || null;
+}
+
+export async function revokeUserSession(userId: string): Promise<void> {
+  await getDb()
+    .update(users)
+    .set({ sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
+    .where(eq(users.id, userId));
 }
 
 interface CreateUserWithClinicParams {
@@ -128,6 +137,7 @@ export async function createUserWithClinic(
 ): Promise<AuthUserRow> {
   const db = getDb();
   const { hashPassword } = await import("@/lib/auth/password");
+  const normalizedEmail = normalizeEmail(params.email);
 
   const slug = params.clinicName
     .toLowerCase()
@@ -144,7 +154,7 @@ export async function createUserWithClinic(
         name: params.clinicName,
         slug,
         phone: "",
-        email: params.email,
+        email: normalizedEmail,
         settings: {
           business_hours: {
             monday: { open: "08:00", close: "18:00" },
@@ -169,7 +179,7 @@ export async function createUserWithClinic(
       .insert(users)
       .values({
         clinicId: clinic.id,
-        email: params.email,
+        email: normalizedEmail,
         name: params.name,
         role: "owner",
         isActive: true,
