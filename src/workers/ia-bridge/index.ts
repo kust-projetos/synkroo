@@ -1,7 +1,9 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { buildSystemContext, buildDelegatedContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
-import { setDbConnectionString } from '@/lib/db/client';
+import { getDb, setDbConnectionString } from '@/lib/db/client';
+import { sql } from 'drizzle-orm';
+import { runDbHealthCheck } from '@/core/agent-bridge/db-health';
 import { getActions } from '@/core/actions/registry';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
 import { bootstrapActions } from '@/core/actions/bootstrap';
@@ -63,6 +65,11 @@ export class AppService extends WorkerEntrypoint<Env> {
   async ping() {
     validateBridgeEnv(this.env);
     return { ok: true as const, from: 'ia-bridge', now: Date.now() };
+  }
+
+  async dbHealth() {
+    validateBridgeEnv(this.env);
+    return runDbHealthCheck(() => getDb().execute(sql`SELECT 1`));
   }
 
   async issueHandle(input: {
