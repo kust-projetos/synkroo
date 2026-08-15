@@ -2,6 +2,7 @@ import { WorkerEntrypoint } from 'cloudflare:workers';
 import { buildSystemContext, buildDelegatedContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
 import { getActions } from '@/core/actions/registry';
+import { parseRuntimeEnv } from '@/lib/runtime-env';
 import { bootstrapActions } from '@/core/actions/bootstrap';
 import { issueHandle, type SeenStore } from '@/core/agent-bridge/handle';
 import {
@@ -38,8 +39,13 @@ function kvSeenStore(kv: KVNamespace): SeenStore {
   };
 }
 
+function validateBridgeEnv(env: Env): void {
+  parseRuntimeEnv('bridge', env as unknown as Record<string, unknown>);
+}
+
 export class AppService extends WorkerEntrypoint<Env> {
   private deps(): BridgeDeps {
+    validateBridgeEnv(this.env);
     return {
       secret: this.env.HANDLE_SECRET,
       store: kvSeenStore(this.env.IA_SEEN),
@@ -52,6 +58,7 @@ export class AppService extends WorkerEntrypoint<Env> {
   }
 
   async ping() {
+    validateBridgeEnv(this.env);
     return { ok: true as const, from: 'ia-bridge', now: Date.now() };
   }
 
@@ -62,6 +69,7 @@ export class AppService extends WorkerEntrypoint<Env> {
     source: 'system' | 'agent_delegated';
     ttlSeconds?: number;
   }) {
+    validateBridgeEnv(this.env);
     return issueHandle(this.env.HANDLE_SECRET, input);
   }
 

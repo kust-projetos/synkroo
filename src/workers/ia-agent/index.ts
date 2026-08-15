@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
+import { parseRuntimeEnv } from '@/lib/runtime-env';
 import type {
   AppBinding,
   RunTurnInput,
@@ -32,6 +33,7 @@ export interface Env extends Cloudflare.Env {
  */
 export class AgentOrchestrator extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
+    parseRuntimeEnv('agent', env as unknown as Record<string, unknown>);
     super(ctx, env);
   }
 
@@ -77,6 +79,7 @@ export class AgentOrchestrator extends DurableObject<Env> {
 
 const worker = {
   async fetch(_request: Request, _env: Env) {
+    parseRuntimeEnv('agent', _env as unknown as Record<string, unknown>);
     return new Response('ia-agent up', { status: 200 });
   },
 };
