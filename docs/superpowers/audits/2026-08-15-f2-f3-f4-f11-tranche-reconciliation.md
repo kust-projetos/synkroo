@@ -18,7 +18,7 @@ Status conservador: `VERIFIED` significa prova local do requisito delimitado; `P
 | F2.17 | VERIFIED | `f2-17-redirect-sanitization.md` | Navegação E2E ainda não executada |
 | F2.18 | VERIFIED | `f2-18-agent-permissions.md` | Seed/runtime integration separado |
 | F3.01 | PARTIAL | `f3-01-email-normalization.md` | Dev DB bloqueado por duplicate preflight; owner remediation necessária |
-| F3.02 | PARTIAL | `f3-02-runtime-env.md` | Schemas ainda não wired nos quatro bootstraps |
+| F3.02 | PARTIAL | `f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md` | App/sidecar wiring and runtime smoke remain open |
 | F3.03 | VERIFIED | `f3-03-auth-secret-startup.md` | Outros secrets/runtime schemas em F3.02 |
 | F3.07 | VERIFIED | `f3-07-rbac-backfill.md` | `--apply` externo não executado |
 | F3.08 | PARTIAL | `f3-08-outbox-idempotency.md` | Queue/provider deployment não executado |
