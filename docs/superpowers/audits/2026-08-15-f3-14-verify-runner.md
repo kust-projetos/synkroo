@@ -11,6 +11,6 @@
 | Verificação | Resultado |
 |---|---|
 | `node --test scripts/__tests__/verify.test.mjs` | PASS — 2 testes |
-| `npm run verify` | PARTIAL — lint/typechecks e 236 suites (1.578 testes) passaram; cobertura falhou nos thresholds globais existentes: statements 53,43%, branches 38,31%, lines 54,6%, functions 41,63% |
+| `npm run verify` | PARTIAL — lint/typechecks e 240 suites (1.595 testes) passaram; cobertura falhou nos thresholds globais existentes: statements 53,5%, branches 38,47%, lines 54,66%, functions 41,92% |
 
 O runner está operacional e falha corretamente no gate de cobertura. O threshold de 70% permanece um residual aberto do roadmap, não é mascarado pelo comando.
