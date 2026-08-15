@@ -6,7 +6,7 @@ Status conservador: `VERIFIED` significa prova local do requisito delimitado; `P
 |---|---|---|---|
 | F2.01 | VERIFIED | `f2-01-authjs-boundary.md` | Nenhum no escopo unitário |
 | F2.02 | VERIFIED | `f2-02-signup-production.md` | Deploy/runtime externo não executado |
-| F2.03–F2.08 | PARTIAL | `f2-03-f2-08-core-actions.md`, `f2-isolated-integration.md` | Isolated DB integration PASS; concurrent race suites still required |
+| F2.03–F2.08 | PARTIAL | `f2-03-f2-08-core-actions.md`, `f2-isolated-integration.md`, `f2-core-actions-integration.md` | Core actions DB suites PASS; webhook/cross-domain race suites remain |
 | F2.09 | VERIFIED | `f2-09-f2-10-session-revocation.md` | Mutação automática é F2.11 |
 | F2.10 | VERIFIED | `f2-09-f2-10-session-revocation.md` | Mutação automática é F2.11 |
 | F2.11 | PARTIAL | `f2-11-revocation-primitive.md`, `f2-11-signout-revocation.md` | Password-change mutation/coverage remains open |
