@@ -10,9 +10,9 @@
 |---|---|---|
 | Scanner bloqueante verde (CI) | ✅ | `gitleaks detect` (git history): zero leaks |
 | Scanner worktree limpo | ⚠️ | 14 findings em `.env.local`/`.dev.vars` (gitignored). CI não os vê. Resolve com rotação. |
-| Suppressions só fixtures/docs comprovados | ✅ | `.gitleaksignore`: 52 entradas classificadas (0 confirmed) |
+| Suppressions atuais | ⚠️ | `.gitleaksignore`: 83 entradas (12 worktree + 71 históricas); classificação reconciliada na seção de 2026-08-14 |
 | Pre-commit + CI configurados | ✅ | `.pre-commit-config.yaml` + `.github/workflows/ci.yml` + schedule semanal |
-| Inventário completo | ✅ | 14 confirmed + 7 test + 7 false-positive + 3 worktree |
+| Inventário histórico | ⚠️ | 14 confirmed + 7 test + 7 false-positive + 3 worktree; contagens de suppressions atuais ficam na reconciliação 2026-08-14 |
 
 **Gate só fecha 100% após owner executar rotação (itens C01-C14 abaixo).**
 O agente entregou tudo no seu escopo; o restante depende de acesso a dashboards externos.
@@ -82,6 +82,7 @@ O agente entregou tudo no seu escopo; o restante depende de acesso a dashboards 
 | T05 | `src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:289,299,306,307` | `stripe-access-token` | Mock Stripe tokens — valores de teste |
 | T06 | `src/modules/followup/__tests__/cron/integration.test.ts:17,20` | `generic-api-key` | API key placeholder para teste de integração |
 | T07 | `src/repositories/auth/__tests__/integration.test.ts:44,45` | `generic-api-key` | API key placeholder para teste de integração |
+| T08 | `src/modules/financeiro/__tests__/routes.test.ts` | `generic-api-key` | Fingerprints históricos atuais; classificar após revisar a fixture e manter sem valor real |
 
 **Nota:** Pi Finance é projeto separado conforme spec canônica §2 (Fora da v1). Remover da árvore na Fase 4.
 
@@ -105,10 +106,27 @@ O agente entregou tudo no seu escopo; o restante depende de acesso a dashboards 
 
 | Classificação | Contagem |
 |---|---|
-| CONFIRMED (requer rotação) | 14 |
-| TEST (fixtures) | 7 |
-| FALSE-POSITIVE (docs) | 7 |
-| **Total classificado** | **28** |
+| Classificação | Contagem | Escopo |
+|---|---:|---|
+| CONFIRMED histórico (requer rotação) | 14 | Findings históricos C01–C14; não são a contagem de suppressions atuais |
+| TEST histórico documentado | 7 | Registros T01–T07 da revisão original |
+| FALSE-POSITIVE histórico documentado | 7 | Registros F01–F07 da revisão original |
+| Suppressions atuais: confirmed-owner-action | 6 | `api-*.bat` e seeds E2E/scale; exigem revisão/rotação do owner |
+| Suppressions atuais: test-fixture/placeholder | 52 | Testes, CI, seeds e scripts de fixture |
+| Suppressions atuais: false-positive/doc/example | 25 | Documentação, planos e setup placeholders |
+| **Suppressions atuais: total** | **83** | 12 worktree + 71 históricas |
+
+## Reconciliação de suppressions — 2026-08-14
+
+A contagem acima foi obtida diretamente de `.gitleaksignore`, sem ler ou registrar valores. Há 20 caminhos únicos e 83 entradas: 12 sem SHA (worktree) e 71 com SHA (histórico). A classificação atual é por caminho/regra:
+
+- **6 confirmed-owner-action:** `api-glm.bat`, `api-minimax.bat`, `api-nemotron.bat`, `scripts/seed-e2e-clinic.js`, `scripts/seed-e2e-data.js`, `scripts/seed-scale-data.js`.
+- **52 test-fixture/placeholder:** `.github/workflows/ci.yml`, scripts de seed não confirmados e arquivos de teste/fixture.
+- **25 false-positive/doc/example:** documentação, plano e `scripts/setup-env.sh`.
+- As quatro entradas que não tinham correspondência no inventário anterior pertencem ao caminho `src/modules/financeiro/__tests__/routes.test.ts`; agora estão registradas como T08, ainda dependentes de revisão da fixture.
+- O scan local full-history excedeu o timeout de 180s nesta sessão; o workflow CI e o schedule semanal continuam sendo a evidência operacional disponível.
+
+Esta reconciliação não revoga, rota ou remove suppressions. Qualquer item `confirmed-owner-action` permanece pendente de ação do owner.
 
 ## Ações pendentes do owner
 
