@@ -17,6 +17,7 @@ const appSchema = z.object({
 const bridgeSchema = z.object({
   HANDLE_SECRET: z.string().min(32),
   IA_SEEN: z.unknown().refine(Boolean, 'IA_SEEN binding required'),
+  HYPERDRIVE: z.object({ connectionString: z.string().min(1) }),
 })
 
 const agentSchema = z.object({

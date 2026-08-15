@@ -14,7 +14,11 @@ describe('runtime environment schemas', () => {
 
   it('requires bridge and agent bindings', () => {
     expect(() => parseRuntimeEnv('bridge', {})).toThrow(/HANDLE_SECRET|IA_SEEN/)
-    expect(() => parseRuntimeEnv('bridge', { HANDLE_SECRET: secret(32), IA_SEEN: {} })).not.toThrow()
+    expect(() => parseRuntimeEnv('bridge', {
+      HANDLE_SECRET: secret(32),
+      IA_SEEN: {},
+      HYPERDRIVE: { connectionString: 'hyperdrive-placeholder' },
+    })).not.toThrow()
     expect(() => parseRuntimeEnv('agent', {
       OPENCODE_ZEN_API_KEY: 'configured',
       IA_LLM_MODEL: 'model',

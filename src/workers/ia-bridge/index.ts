@@ -1,6 +1,7 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { buildSystemContext, buildDelegatedContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
+import { setDbConnectionString } from '@/lib/db/client';
 import { getActions } from '@/core/actions/registry';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
 import { bootstrapActions } from '@/core/actions/bootstrap';
@@ -16,6 +17,7 @@ import {
 export interface Env {
   HANDLE_SECRET: string;
   IA_SEEN: KVNamespace;
+  HYPERDRIVE: { connectionString: string };
 }
 
 // bootstrapActions() é ASYNC (dynamic imports). Memoizar a Promise garante que o
@@ -41,6 +43,7 @@ function kvSeenStore(kv: KVNamespace): SeenStore {
 
 function validateBridgeEnv(env: Env): void {
   parseRuntimeEnv('bridge', env as unknown as Record<string, unknown>);
+  setDbConnectionString(env.HYPERDRIVE.connectionString);
 }
 
 export class AppService extends WorkerEntrypoint<Env> {
