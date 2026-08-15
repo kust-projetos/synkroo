@@ -63,6 +63,11 @@ let _env: Env | null = null
 export function getEnv(): Env {
   if (_env) return _env
 
+  if (process.env.NODE_ENV === 'production' &&
+      (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 32)) {
+    throw new Error('[ENV] Invalid environment configuration: AUTH_SECRET must be at least 32 characters in production')
+  }
+
   const result = envSchema.safeParse({
     NODE_ENV: process.env.NODE_ENV,
     DATABASE_URL: process.env.DATABASE_URL,
