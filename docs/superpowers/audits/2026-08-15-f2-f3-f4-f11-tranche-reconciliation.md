@@ -6,12 +6,12 @@ Status conservador: `VERIFIED` significa prova local do requisito delimitado; `P
 |---|---|---|---|
 | F2.01 | VERIFIED | `f2-01-authjs-boundary.md` | Nenhum no escopo unitário |
 | F2.02 | VERIFIED | `f2-02-signup-production.md` | Deploy/runtime externo não executado |
-| F2.03–F2.08 | PARTIAL | `f2-03-f2-08-core-actions.md` | Concorrência/DB real ainda requer `synkroo_test` |
+| F2.03–F2.08 | PARTIAL | `f2-03-f2-08-core-actions.md`, `f2-isolated-integration.md` | Isolated DB integration PASS; concurrent race suites still required |
 | F2.09 | VERIFIED | `f2-09-f2-10-session-revocation.md` | Mutação automática é F2.11 |
 | F2.10 | VERIFIED | `f2-09-f2-10-session-revocation.md` | Mutação automática é F2.11 |
 | F2.11 | PARTIAL | `f2-11-revocation-primitive.md`, `f2-11-signout-revocation.md` | Password-change mutation/coverage remains open |
 | F2.12 | VERIFIED | `f2-12-audit-redaction.md` | Allowlist por action continua necessária |
-| F2.13 | PARTIAL | `f2-13-asaas-webhook.md` | Concorrência de DB ainda não rodada no isolated runner |
+| F2.13 | PARTIAL | `f2-13-asaas-webhook.md`, `f2-isolated-integration.md` | Isolated integration PASS; concurrent webhook race remains unproven |
 | F2.14 | OPEN | — | Hyperdrive bridge DB-backed tool |
 | F2.15 | VERIFIED | `f2-15-public-routes.md` | Provider/runtime smoke externo não executado |
 | F2.16 | VERIFIED | `f2-16-csrf-origin.md` | Matrix cobre middleware custom auth |
