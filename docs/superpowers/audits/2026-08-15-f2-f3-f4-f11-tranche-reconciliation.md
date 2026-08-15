@@ -21,7 +21,7 @@ Status conservador: `VERIFIED` significa prova local do requisito delimitado; `P
 | F3.02 | PARTIAL | `f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md` | App/sidecar wiring and runtime smoke remain open |
 | F3.03 | PARTIAL | `f3-03-auth-secret-startup.md` | Broader runtime smoke remains open |
 | F3.04 | PARTIAL | drizzle-kit check; `0022_far_stature.sql` | Duplicate cleanup requires owner-approved remediation |
-| F3.05 | OPEN | — | Query/scale index evidence not yet produced |
+| F3.05 | PARTIAL | `f3-05-appointment-indexes.md` | DB apply and scale-plan evidence remain open |
 | F3.06 | PARTIAL | `f3-06-extension-order.md` | Migration apply remains owner-controlled |
 | F3.07 | VERIFIED | `f3-07-rbac-backfill.md` | `--apply` externo não executado |
 | F3.08 | PARTIAL | `f3-08-outbox-idempotency.md` | Queue/provider deployment não executado |

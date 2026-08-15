@@ -1,0 +1,3 @@
+CREATE INDEX "appointment_reminders_appointment_status_idx" ON "appointment_reminders" USING btree ("appointment_id","status");--> statement-breakpoint
+CREATE INDEX "appointments_clinic_scheduled_status_idx" ON "appointments" USING btree ("clinic_id","scheduled_at","status");--> statement-breakpoint
+CREATE INDEX "waitlist_clinic_status_preferred_date_idx" ON "waitlist" USING btree ("clinic_id","status","preferred_date");

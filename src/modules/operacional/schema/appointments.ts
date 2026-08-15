@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, numeric, pgTable, text, time, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, jsonb, numeric, pgTable, text, time, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { clinics, users } from '@/lib/db/schema/core';
 import { dentists, procedures } from './clinical';
 import { patients } from './patients';
@@ -27,7 +27,9 @@ export const appointments = pgTable('appointments', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
-});
+}, (t) => ({
+  clinicScheduledStatusIdx: index('appointments_clinic_scheduled_status_idx').on(t.clinicId, t.scheduledAt, t.status),
+}));
 
 // ──────────────────────────────────────────────
 // SCHEDULE BLOCKS (Availability)
@@ -57,7 +59,9 @@ export const appointmentReminders = pgTable('appointment_reminders', {
   errorMessage: text('error_message'),
   sentAt: timestamp('sent_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
-});
+}, (t) => ({
+  appointmentStatusIdx: index('appointment_reminders_appointment_status_idx').on(t.appointmentId, t.status),
+}));
 
 // ──────────────────────────────────────────────
 // WAITLIST
@@ -78,7 +82,9 @@ export const waitlist = pgTable('waitlist', {
   scheduledAppointmentId: uuid('scheduled_appointment_id').references(() => appointments.id, { onDelete: 'set null' }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+}, (t) => ({
+  clinicStatusDateIdx: index('waitlist_clinic_status_preferred_date_idx').on(t.clinicId, t.status, t.preferredDate),
+}));
 
 // ──────────────────────────────────────────────
 // APPOINTMENT REMINDER CONFIGS
