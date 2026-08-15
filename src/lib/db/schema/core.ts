@@ -1,4 +1,4 @@
-import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 import { userRole } from './enums';
 
@@ -40,7 +40,7 @@ export const users = pgTable('users', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
 }, (t) => ({
-  clinicEmailUniq: { name: 'users_clinic_email_uniq', columns: [t.clinicId, t.email], type: 'unique' },
+  clinicEmailUniq: uniqueIndex('users_clinic_email_uniq').on(t.clinicId, t.email),
 }));
 
 // ──────────────────────────────────────────────
