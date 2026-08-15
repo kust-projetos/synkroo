@@ -235,43 +235,43 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F1.06 | F1 | VERIFIED | Rodar lint, typechecks, unit, integration segura e builds. | none | W1 gate: safe runners and baseline |
 | F1.07 | F1 | VERIFIED | Criar baseline machine-readable de gates e coverage. | none | W1 gate: safe runners and baseline |
 | F1.08 | F1 | VERIFIED | Remover execução real de DB do arquivo nomeado como teste antes de qualquer suíte agregada. | none | W1 gate: safe runners and baseline |
-| F2.01 | F2 | PARTIAL | Remover login JWT artesanal e exigir NextAuth + `AUTH_SECRET` único. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.02 | F2 | OPEN | Desabilitar `/signup` e `/api/auth/signup` em produção antes de session revocation. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.03 | F2 | PARTIAL | RED: tentar `input.clinicId != ctx.clinicId` em cada Core Action. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.04 | F2 | PARTIAL | Remover clinic scope controlável de payload ou comparar fail-closed. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.05 | F2 | PARTIAL | Validar role/user/entidade na mesma clínica. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.06 | F2 | PARTIAL | RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.07 | F2 | PARTIAL | RED: treatment item de outro plano/clínica e POST repetido. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.08 | F2 | PARTIAL | Implementar update tenant-scoped, atômico e idempotente; testar concorrência. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.09 | F2 | OPEN | RED: usuário desativado com JWT ainda válido. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.10 | F2 | OPEN | Adicionar session version/revocation ao contexto e middleware. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.11 | F2 | OPEN | Revogar também após logout, senha, role e access change. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.12 | F2 | PARTIAL | Substituir audit payload por allowlist; provar ausência de PII top-level/aninhada. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.13 | F2 | OPEN | Corrigir webhook Asaas para evento + charge transition na mesma transaction. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.14 | F2 | PARTIAL | Injetar Hyperdrive na IA bridge e testar uma tool DB-backed fail-closed. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.15 | F2 | PARTIAL | Inventariar paths públicos exatos; remover prefix allowlists amplos. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.16 | F2 | OPEN | Validar Origin/CSRF em Actions e APIs cookie-authenticated sensíveis. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.17 | F2 | OPEN | Sanitizar `redirectTo` para path interno. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.18 | F2 | OPEN | Corrigir agent permission fallback para `[]`. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F2.19 | F2 | PARTIAL | Ampliar Stryker para auth, RBAC, Actions e audit; executar target focado >=70%. | local evidence or implementation required | W2 gate: security RED/GREEN and mutation evidence |
-| F3.01 | F3 | PARTIAL | Definir e migrar e-mail normalizado unique por instância. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.02 | F3 | OPEN | Criar env schema por runtime: app, bridge, agent e sidecar. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.03 | F3 | PARTIAL | Validar secrets obrigatórios no startup/smoke. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.04 | F3 | OPEN | Corrigir constraints Drizzle não emitidas e deduplicar antes da migration. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.05 | F3 | OPEN | Adicionar índices tenant/date/status/FK guiados por query e scale seed. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.06 | F3 | OPEN | Garantir `vector` e `btree_gist` antes do schema dependente. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.07 | F3 | OPEN | Separar CLI RBAC em função pura; `--dry-run` default; `--apply` explícito. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.08 | F3 | PARTIAL | Implementar Cloudflare Queues, outbox, retry, idempotência e DLQ antes de integrações. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.09 | F3 | PARTIAL | Corrigir lint boundaries sem side-effect imports cruzados. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.10 | F3 | OPEN | Alinhar Jest/jsdom major. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.11 | F3 | PARTIAL | Reparar E2E: setup de auth obrigatório; remover catches, tautologias e skips por defeito. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.12 | F3 | PARTIAL | Criar banco E2E isolado e runner reproduzível. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.13 | F3 | OPEN | Triar `npm audit`; atualizar, mitigar ou criar waiver owner-expirável por finding. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.14 | F3 | OPEN | Criar `npm run verify` com lint, app/workers typecheck, coverage e contract tests. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.15 | F3 | PARTIAL | CI: PostgreSQL 17, scripts auxiliares, security e CF dry-run. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
+| F2.01 | F2 | VERIFIED | Remover login JWT artesanal e exigir NextAuth + `AUTH_SECRET` único. | `f2-01-authjs-boundary.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.02 | F2 | VERIFIED | Desabilitar `/signup` e `/api/auth/signup` em produção antes de session revocation. | `f2-02-signup-production.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.03 | F2 | PARTIAL | RED: tentar `input.clinicId != ctx.clinicId` em cada Core Action. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.04 | F2 | PARTIAL | Remover clinic scope controlável de payload ou comparar fail-closed. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.05 | F2 | PARTIAL | Validar role/user/entidade na mesma clínica. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.06 | F2 | PARTIAL | RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.07 | F2 | PARTIAL | RED: treatment item de outro plano/clínica e POST repetido. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.08 | F2 | PARTIAL | Implementar update tenant-scoped, atômico e idempotente; testar concorrência. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.09 | F2 | VERIFIED | RED: usuário desativado com JWT ainda válido. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.10 | F2 | VERIFIED | Adicionar session version/revocation ao contexto e middleware. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.11 | F2 | PARTIAL | Revogar também após logout, senha, role e access change. | `f2-11-revocation-primitive.md`, `f2-11-signout-revocation.md` | W2 gate: password-change mutation remains open |
+| F2.12 | F2 | VERIFIED | Substituir audit payload por allowlist; provar ausência de PII top-level/aninhada. | `f2-12-audit-redaction.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.13 | F2 | PARTIAL | Corrigir webhook Asaas para evento + charge transition na mesma transaction. | `f2-13-asaas-webhook.md` | W2 gate: DB concurrency remains open |
+| F2.14 | F2 | PARTIAL | Injetar Hyperdrive na IA bridge e testar uma tool DB-backed fail-closed. | `f2-f3-f4-f11-tranche-reconciliation.md` | W2 gate: Hyperdrive bridge remains open |
+| F2.15 | F2 | VERIFIED | Inventariar paths públicos exatos; remover prefix allowlists amplos. | `f2-15-public-routes.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.16 | F2 | VERIFIED | Validar Origin/CSRF em Actions e APIs cookie-authenticated sensíveis. | `f2-16-csrf-origin.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.17 | F2 | VERIFIED | Sanitizar `redirectTo` para path interno. | `f2-17-redirect-sanitization.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.18 | F2 | VERIFIED | Corrigir agent permission fallback para `[]`. | `f2-18-agent-permissions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.19 | F2 | PARTIAL | Ampliar Stryker para auth, RBAC, Actions e audit; executar target focado >=70%. | tranche validation | W2 gate: focused mutation evidence remains open |
+| F3.01 | F3 | PARTIAL | Definir e migrar e-mail normalizado unique por instância. | `f3-01-email-normalization.md` | W3 gate: dev DB duplicate preflight blocked |
+| F3.02 | F3 | PARTIAL | Criar env schema por runtime: app, bridge, agent e sidecar. | `f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md` | W3 gate: app/sidecar wiring and runtime smoke remain open |
+| F3.03 | F3 | PARTIAL | Validar secrets obrigatórios no startup/smoke. | `f3-03-auth-secret-startup.md` | W3 gate: broader runtime smoke remains open |
+| F3.04 | F3 | PARTIAL | Corrigir constraints Drizzle não emitidas e deduplicar antes da migration. | drizzle-kit check; `0022_far_stature.sql` | W3 gate: duplicate cleanup must be owner-approved |
+| F3.05 | F3 | OPEN | Adicionar índices tenant/date/status/FK guiados por query e scale seed. | — | W3 gate: query/scale evidence required |
+| F3.06 | F3 | OPEN | Garantir `vector` e `btree_gist` antes do schema dependente. | — | W3 gate: extension preflight required |
+| F3.07 | F3 | VERIFIED | Separar CLI RBAC em função pura; `--dry-run` default; `--apply` explícito. | `f3-07-rbac-backfill.md` | W3 gate: `--apply` external action not executed |
+| F3.08 | F3 | PARTIAL | Implementar Cloudflare Queues, outbox, retry, idempotência e DLQ antes de integrações. | `f3-08-outbox-idempotency.md` | W3 gate: provider deployment remains open |
+| F3.09 | F3 | PARTIAL | Corrigir lint boundaries sem side-effect imports cruzados. | tranche validation | W3 gate: broader boundary audit remains open |
+| F3.10 | F3 | VERIFIED | Alinhar Jest/jsdom major. | `f3-10-jest-jsdom.md` | W3 gate: no remaining local dependency mismatch |
+| F3.11 | F3 | PARTIAL | Reparar E2E: setup de auth obrigatório; remover catches, tautologias e skips por defeito. | tranche validation | W3 gate: E2E suite not run |
+| F3.12 | F3 | PARTIAL | Criar banco E2E isolado e runner reproduzível. | `f3-15-ci-postgres17.md` | W3 gate: full isolated run remains open |
+| F3.13 | F3 | PARTIAL | Triar `npm audit`; atualizar, mitigar ou criar waiver owner-expirável por finding. | `f3-13-npm-audit.md` | W3 gate: 1 moderate + 1 low waiver remains |
+| F3.14 | F3 | PARTIAL | Criar `npm run verify` com lint, app/workers typecheck, coverage e contract tests. | `f3-14-verify-runner.md` | W3 gate: global coverage threshold fails |
+| F3.15 | F3 | PARTIAL | CI: PostgreSQL 17, scripts auxiliares, security e CF dry-run. | `f3-15-ci-postgres17.md` | W3 gate: remote Actions not executed |
 | F3.16 | F3 | PARTIAL | Subir walking skeleton staging: app + bridge + agent + PostgreSQL 17 + Hyperdrive. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
 | F3.17 | F3 | OPEN | Corrigir lifecycle de pool para Worker e validar concorrência no `workerd`. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F4.01 | F4 | UNVERIFIED | Criar `ApiSuccess`, `ApiFailure` e request ID centralizados. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
+| F4.01 | F4 | VERIFIED | Criar `ApiSuccess`, `ApiFailure` e request ID centralizados. | `f4-01-api-response-contract.md` | W4 gate: contract tests and tenant shell |
 | F4.02 | F4 | UNVERIFIED | Criar um route adapter compartilhado para Action Layer. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
 | F4.03 | F4 | UNVERIFIED | Padronizar camelCase e `{data,meta?}` sem duplicar serializers. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
 | F4.04 | F4 | UNVERIFIED | Criar contract tests entre hooks e endpoints antes de migrar tela. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
@@ -343,15 +343,15 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F11.04 | F11 | UNVERIFIED | Offboarding com export, revogação, retenção e destruição auditada. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.05 | F11 | UNVERIFIED | Pipeline: backup/preflight → expand migration → workers → app → smoke → contract cleanup. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.06 | F11 | UNVERIFIED | Deploy bridge e agent antes do app dependente. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
-| F11.07 | F11 | UNVERIFIED | Liveness público mínimo; readiness protegido e barato. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
-| F11.08 | F11 | UNVERIFIED | Logs JSON com request/correlation ID e redaction. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
+| F11.07 | F11 | VERIFIED | Liveness público mínimo; readiness protegido e barato. | `f11-07-health-readiness.md` | W11 gate: rollout/rollback/SLO evidence |
+| F11.08 | F11 | VERIFIED | Logs JSON com request/correlation ID e redaction. | `f11-08-structured-logging.md` | W11 gate: rollout/rollback/SLO evidence |
 | F11.09 | F11 | UNVERIFIED | Métricas/SLO: auth, DB, webhook, queue, agent, provider e sidecar. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.10 | F11 | UNVERIFIED | Alertas e runbooks acionáveis. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.11 | F11 | UNVERIFIED | Ensaiar rollback app/workers e compatibilidade DB. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.12 | F11 | UNVERIFIED | Versionar app/bridge/agent, RPC, schema e estado DO por release/cliente. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.13 | F11 | UNVERIFIED | Provar old/new compatibility e version skew; lifecycle DO não pode cruzar rollback/rollout gradual. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.14 | F11 | UNVERIFIED | Definir thresholds de abort; DB aplicada recebe roll-forward, não down destrutivo. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
-| F11.15 | F11 | UNVERIFIED | Security headers: CSP, HSTS, nosniff, referrer e permissions policy. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
+| F11.15 | F11 | VERIFIED | Security headers: CSP, HSTS, nosniff, referrer e permissions policy. | `f11-15-security-headers.md` | W11 gate: rollout/rollback/SLO evidence |
 | F12.01 | F12 | UNVERIFIED | Provisionar cliente piloto via onboarding gerenciado. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
 | F12.02 | F12 | UNVERIFIED | Importar dados anonimizados ou aprovados. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
 | F12.03 | F12 | UNVERIFIED | Executar J-01 a J-12 sem capacidade baseline beta. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
