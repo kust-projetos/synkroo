@@ -302,6 +302,7 @@ describeOrSkip('Core actions — service/repository flow (DB real)', () => {
 
 const FOREIGN_CLINIC = `00000000-0000-0000-0000-${String(u + 1).slice(-12).padStart(12, '0')}`;
 let foreignRecepRoleId: string;
+const foreignUserId = `00000000-0000-0000-0000-0000000f${String(u).slice(-4)}`;
 
 describeOrSkip('O1-G03 — tenant scope matrix (DB real)', () => {
   beforeAll(async () => {
@@ -313,6 +314,14 @@ describeOrSkip('O1-G03 — tenant scope matrix (DB real)', () => {
       phone: '',
       email: `foreign+${u}@t.local`,
     }).onConflictDoNothing();
+    await db.insert(users).values({
+      id: foreignUserId,
+      clinicId: FOREIGN_CLINIC,
+      email: `foreign-user+${u}@t.local`,
+      name: 'Foreign User',
+      role: 'receptionist',
+      isActive: true,
+    }).onConflictDoNothing();
     await seedRbacForClinic(FOREIGN_CLINIC);
     const [role] = await db.select({ id: roles.id }).from(roles)
       .where(and(eq(roles.clinicId, FOREIGN_CLINIC), eq(roles.name, 'Recepcionista'))).limit(1);
@@ -322,9 +331,11 @@ describeOrSkip('O1-G03 — tenant scope matrix (DB real)', () => {
   afterAll(async () => {
     const db = getDb();
     await db.delete(userClinicAccess).where(eq(userClinicAccess.clinicId, FOREIGN_CLINIC));
+    await db.delete(users).where(eq(users.id, foreignUserId));
     const foreignRoles = await db.select({ id: roles.id }).from(roles)
       .where(eq(roles.clinicId, FOREIGN_CLINIC));
     for (const role of foreignRoles) {
+      await db.delete(userClinicAccess).where(eq(userClinicAccess.roleId, role.id));
       await db.delete(rolePermissions).where(eq(rolePermissions.roleId, role.id));
     }
     await db.delete(roles).where(eq(roles.clinicId, FOREIGN_CLINIC));
@@ -332,11 +343,21 @@ describeOrSkip('O1-G03 — tenant scope matrix (DB real)', () => {
   });
 
   it('rejects foreign clinic scope for mutating actions without foreign mutation', async () => {
-    const [assign, create, remove, deactivate] = await Promise.all([
+    const [assign, assignForeignRole, assignForeignUser, create, remove, deactivate] = await Promise.all([
       runAction(assignUserAccess, {
         userId: ownerUserId,
         clinicId: FOREIGN_CLINIC,
         roleId: foreignRecepRoleId,
+      }, adminCtx),
+      runAction(assignUserAccess, {
+        userId: ownerUserId,
+        clinicId: CLINIC,
+        roleId: foreignRecepRoleId,
+      }, adminCtx),
+      runAction(assignUserAccess, {
+        userId: foreignUserId,
+        clinicId: CLINIC,
+        roleId: recepRoleId,
       }, adminCtx),
       runAction(createRole, {
         clinicId: FOREIGN_CLINIC,
@@ -353,7 +374,7 @@ describeOrSkip('O1-G03 — tenant scope matrix (DB real)', () => {
       }, adminCtx),
     ]);
 
-    for (const result of [assign, create, remove, deactivate]) {
+    for (const result of [assign, assignForeignRole, assignForeignUser, create, remove, deactivate]) {
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.code).toBe('forbidden');
     }

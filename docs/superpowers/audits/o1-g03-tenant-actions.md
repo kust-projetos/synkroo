@@ -62,3 +62,12 @@ Risk is reduced at the action boundary but not closed across every repository/en
 ## Next action
 
 Continue the O1-G03 RED matrix for entity ownership, duplicate/idempotency and concurrent final-state invariants before any roadmap status promotion.
+
+## Entity/race GREEN receipt — 2026-08-20
+
+- `assignUserAccess` now verifies both user clinic and role clinic before upsert; `removeUserAccess` and `deactivateUser` reject absent/foreign users before mutation.
+- Foreign role and foreign user cases plus the existing foreign clinic batch pass 15/15 twice; foreign access/role rows are not created.
+- `npm run typecheck`, `npm run lint` and LSP remain green.
+- Repository mutation target remains 70.97% (88 killed, 35 survived, 1 no-coverage, 2 timed-out mutants); the current Stryker configuration mutates four repository files and does not include Core Action repositories, so this is not an Action mutation closure.
+- Residual: duplicate POST/idempotency and two concurrent same-entity updates across every action still need dedicated proof. F2.03–F2.08 remain `EVIDENCE_PENDING`.
+- Rollback: revert the owner/service/test commit; isolated fixtures are cleaned by teardown and no production data was changed.

@@ -40,6 +40,11 @@ export async function assignUserAccess(input: {
   clinicId: string;
   roleId: string;
 }) {
+  const scope = await accessRepo.getUserRoleScope(input.userId, input.roleId);
+  if (!scope || scope.userClinicId !== input.clinicId || scope.roleClinicId !== input.clinicId) {
+    throw new ActionError('forbidden', 'Usuário ou perfil pertence a outra clínica.');
+  }
+
   await assertOwnerInvariant({
     clinicId: input.clinicId,
     userId: input.userId,
@@ -53,6 +58,10 @@ export async function assignUserAccess(input: {
 // ── Remove ───────────────────────────────────────────────────────────────────
 
 export async function removeUserAccess(input: { userId: string; clinicId: string }) {
+  if (!await usersRepo.getUserInClinic(input.userId, input.clinicId)) {
+    throw new ActionError('forbidden', 'Usuário não pertence à clínica ativa.');
+  }
+
   await assertOwnerInvariant({
     clinicId: input.clinicId,
     userId: input.userId,
@@ -66,6 +75,10 @@ export async function removeUserAccess(input: { userId: string; clinicId: string
 // ── Deactivate ───────────────────────────────────────────────────────────────
 
 export async function deactivateUser(input: { userId: string; clinicId: string }) {
+  if (!await usersRepo.getUserInClinic(input.userId, input.clinicId)) {
+    throw new ActionError('forbidden', 'Usuário não pertence à clínica ativa.');
+  }
+
   await assertOwnerInvariant({
     clinicId: input.clinicId,
     userId: input.userId,
