@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import * as accessService from '../services/access-service';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 
 export const assignUserAccess = defineAction({
   name: 'core.assignUserAccess',
@@ -8,5 +9,8 @@ export const assignUserAccess = defineAction({
   requires: 'core:manage_users',
   label: 'Conceder acesso de usuário a uma clínica',
   input: z.object({ userId: z.string().min(1), clinicId: z.string().min(1), roleId: z.string().min(1) }),
-  handler: async (input) => accessService.assignUserAccess(input),
+  handler: async (input, ctx) => {
+    assertClinicScope(input.clinicId, ctx);
+    return accessService.assignUserAccess(input);
+  },
 });

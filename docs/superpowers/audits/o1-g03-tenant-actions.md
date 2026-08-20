@@ -44,6 +44,21 @@ Action handlers for `assignUserAccess`, `removeUserAccess`, `deactivateUser` and
 
 Risk: accepting payload-controlled clinic scope can grant, remove or deactivate access across tenants. Rollback is revert of the owning action/test commit; database effects use isolated `synkroo_test` fixtures and are cleaned by test teardown. No production or external provider action was executed.
 
+## GREEN receipt — 2026-08-20
+
+- `assertClinicScope(input.clinicId, ctx)` now runs before `assignUserAccess`, `removeUserAccess`, `deactivateUser` and `createRole` services.
+- `setModuleContract` remains a global/master action and was not given a tenant guard.
+- Core Actions matrix: 15/15 scenarios passed in two consecutive loopback runs; foreign scope returns `forbidden` and creates zero foreign access/role mutation.
+- `npm run typecheck`: PASS. `npm run lint`: PASS. LSP: six changed files clean.
+
+## Residual classification
+
+F2.03–F2.08 remain `EVIDENCE_PENDING`: repository predicates for foreign role/user/entity, treatment-item ownership, duplicate POST idempotency and two concurrent updates for every mutating action still require their own matrix. The current commit proves trusted clinic context only.
+
+## Risk and rollback
+
+Risk is reduced at the action boundary but not closed across every repository/entity path. Rollback is revert of the helper/handler/test commit; isolated test fixtures are cleaned by teardown. No production or external provider action was executed.
+
 ## Next action
 
-Keep O1-G03 `EVIDENCE_PENDING`. Implement the trusted-context boundary in the owning action/service lane, rerun the RED matrix as GREEN and preserve all failing test names if another boundary is found.
+Continue the O1-G03 RED matrix for entity ownership, duplicate/idempotency and concurrent final-state invariants before any roadmap status promotion.
