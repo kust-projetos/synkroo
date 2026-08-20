@@ -2,7 +2,7 @@
 jest.unmock('@/lib/db/client')
 
 import { eq } from 'drizzle-orm'
-import { changeUserPassword, createUserWithClinic } from '../index'
+import { changeUserPassword, createUserWithClinic, revokeUserSession } from '../index'
 import { closeDb, getDb } from '@/lib/db/client'
 import { clinics, userCredentials, users } from '@/lib/db/schema'
 import { roles, rolePermissions, userClinicAccess } from '@/modules/core/schema/rbac'
@@ -64,6 +64,22 @@ describeOrSkip('Password change — DB real', () => {
     expect(after.sessionVersion).toBe(before.sessionVersion + 1)
     expect(verifyPassword('next-password-456', credential.passwordHash)).toBe(true)
     expect(verifyPassword(initialPassword, credential.passwordHash)).toBe(false)
+  })
+
+  it('increments session version for explicit session revocation', async () => {
+    const [before] = await getDb()
+      .select({ sessionVersion: users.sessionVersion })
+      .from(users)
+      .where(eq(users.id, userId))
+
+    await revokeUserSession(userId)
+
+    const [after] = await getDb()
+      .select({ sessionVersion: users.sessionVersion })
+      .from(users)
+      .where(eq(users.id, userId))
+
+    expect(after.sessionVersion).toBe(before.sessionVersion + 1)
   })
 
   it('allows at most one concurrent change using the same current password', async () => {
