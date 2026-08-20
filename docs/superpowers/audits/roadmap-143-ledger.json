@@ -1,0 +1,1158 @@
+{
+  "schemaVersion": 1,
+  "source": "docs/superpowers/plans/2026-08-15-synkroo-roadmap-pendencias-master-plan.md",
+  "expectedCount": 143,
+  "records": [
+    {
+      "id": "F0.01",
+      "phase": "F0",
+      "status": "DEFERRED",
+      "requirement": "Congelar release, merge, push e novos clones.",
+      "blocker": "none / decision record needed",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.02",
+      "phase": "F0",
+      "status": "PARTIAL",
+      "requirement": "Preservar evidência e backup sem registrar valores.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.03",
+      "phase": "F0",
+      "status": "VERIFIED",
+      "requirement": "Inventariar `.gitleaksignore` por fingerprint e classificar `confirmed/test/false-positive`.",
+      "blocker": "none",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.04",
+      "phase": "F0",
+      "status": "EXTERNAL",
+      "requirement": "Revogar/rotacionar GitHub, Cloudflare, DB, LLM, Evolution, Asaas e auth secrets afetados.",
+      "blocker": "owner/provider authorization",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.05",
+      "phase": "F0",
+      "status": "EXTERNAL",
+      "requirement": "Verificar forks, Actions logs, artifacts e caches.",
+      "blocker": "owner/provider authorization",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.06",
+      "phase": "F0",
+      "status": "EXTERNAL",
+      "requirement": "Restaurar `gh auth` somente com credencial nova.",
+      "blocker": "owner/provider authorization",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.07",
+      "phase": "F0",
+      "status": "EXTERNAL",
+      "requirement": "Sanear histórico com coordenação; invalidar clones antigos.",
+      "blocker": "owner/provider authorization",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.08",
+      "phase": "F0",
+      "status": "PARTIAL",
+      "requirement": "Reduzir suppressions a fixtures falsas comprovadas.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.09",
+      "phase": "F0",
+      "status": "PARTIAL",
+      "requirement": "Adicionar Gitleaks em pre-commit e CI sobre tree + history relevante.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F0.10",
+      "phase": "F0",
+      "status": "EXTERNAL",
+      "requirement": "Registrar credencial, owner, rotação e evidência, nunca valor.",
+      "blocker": "owner/provider authorization",
+      "gate": "W0 gate: inventory/scan/owner ledger"
+    },
+    {
+      "id": "F1.01",
+      "phase": "F1",
+      "status": "EXTERNAL",
+      "requirement": "Consultar e revisar PR #6 usando credencial rotacionada.",
+      "blocker": "owner/provider authorization",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F1.02",
+      "phase": "F1",
+      "status": "PARTIAL",
+      "requirement": "Confirmar commits esperados de RBAC, CRM, Financeiro, cron e migration journal.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F1.03",
+      "phase": "F1",
+      "status": "DEFERRED",
+      "requirement": "Mergear PR aprovado ou recriar PR sem alterar conteúdo.",
+      "blocker": "none / decision record needed",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F1.04",
+      "phase": "F1",
+      "status": "DEFERRED",
+      "requirement": "Rebasear nova branch de execução sobre `main` atualizado.",
+      "blocker": "none / decision record needed",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F1.05",
+      "phase": "F1",
+      "status": "VERIFIED",
+      "requirement": "Preservar alteração local de `AGENTS.md`; não sobrescrever.",
+      "blocker": "none",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F1.06",
+      "phase": "F1",
+      "status": "VERIFIED",
+      "requirement": "Rodar lint, typechecks, unit, integration segura e builds.",
+      "blocker": "none",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F1.07",
+      "phase": "F1",
+      "status": "VERIFIED",
+      "requirement": "Criar baseline machine-readable de gates e coverage.",
+      "blocker": "none",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F1.08",
+      "phase": "F1",
+      "status": "VERIFIED",
+      "requirement": "Remover execução real de DB do arquivo nomeado como teste antes de qualquer suíte agregada.",
+      "blocker": "none",
+      "gate": "W1 gate: safe runners and baseline"
+    },
+    {
+      "id": "F2.01",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Remover login JWT artesanal e exigir NextAuth + `AUTH_SECRET` único.",
+      "blocker": "`f2-01-authjs-boundary.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.02",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Desabilitar `/signup` e `/api/auth/signup` em produção antes de session revocation.",
+      "blocker": "`f2-02-signup-production.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.03",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "RED: tentar `input.clinicId != ctx.clinicId` em cada Core Action.",
+      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.04",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "Remover clinic scope controlável de payload ou comparar fail-closed.",
+      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.05",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "Validar role/user/entidade na mesma clínica.",
+      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.06",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado.",
+      "blocker": "`f2-03-f2-08-core-actions.md`, `f2-webhook-gates-integration.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.07",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "RED: treatment item de outro plano/clínica e POST repetido.",
+      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.08",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "Implementar update tenant-scoped, atômico e idempotente; testar concorrência.",
+      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.09",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "RED: usuário desativado com JWT ainda válido.",
+      "blocker": "`f2-09-f2-10-session-revocation.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.10",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Adicionar session version/revocation ao contexto e middleware.",
+      "blocker": "`f2-09-f2-10-session-revocation.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.11",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "Revogar também após logout, senha, role e access change.",
+      "blocker": "`f2-11-revocation-primitive.md` — PostgreSQL/concurrency green twice; repository mutation target 70.16%, auth file 60.24% with 33 survivors/1 no-coverage; revocation guard mutation killed",
+      "gate": "W2 gate: auth-file residual mutation survivors remain"
+    },
+    {
+      "id": "F2.12",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Substituir audit payload por allowlist; provar ausência de PII top-level/aninhada.",
+      "blocker": "`f2-12-audit-redaction.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.13",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Corrigir webhook Asaas para evento + charge transition na mesma transaction.",
+      "blocker": "`f2-13-asaas-webhook.md`, `f2-isolated-integration.md`",
+      "gate": "W2 gate: provider/deploy smoke remains external"
+    },
+    {
+      "id": "F2.14",
+      "phase": "F2",
+      "status": "PARTIAL",
+      "requirement": "Injetar Hyperdrive na IA bridge e testar uma tool DB-backed fail-closed.",
+      "blocker": "`f2-14-hyperdrive-contract.md`, `f2-14-db-health-primitive.md`, `f2-14-db-health-rpc.md` — contract/binding dry-run, local Wrangler dbHealth e 8 concorrentes verdes; Cloudflare staging smoke permanece EXTERNAL",
+      "gate": "W2 gate: deployed runtime smoke remains EXTERNAL"
+    },
+    {
+      "id": "F2.15",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Inventariar paths públicos exatos; remover prefix allowlists amplos.",
+      "blocker": "`f2-15-public-routes.md`, `f2-webhook-gates-integration.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.16",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Validar Origin/CSRF em Actions e APIs cookie-authenticated sensíveis.",
+      "blocker": "`f2-16-csrf-origin.md`, `f2-webhook-gates-integration.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.17",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Sanitizar `redirectTo` para path interno.",
+      "blocker": "`f2-17-redirect-sanitization.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.18",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Corrigir agent permission fallback para `[]`.",
+      "blocker": "`f2-18-agent-permissions.md`",
+      "gate": "W2 gate: security RED/GREEN and mutation evidence"
+    },
+    {
+      "id": "F2.19",
+      "phase": "F2",
+      "status": "VERIFIED",
+      "requirement": "Ampliar Stryker para auth, RBAC, Actions e audit; executar target focado >=70%.",
+      "blocker": "`f2-11-revocation-primitive.md`, `reports/mutation/mutation.json` — 124 mutantes, 70.16% geral; auth residual 60.24% explicitamente mantido",
+      "gate": "W2 gate: repository mutation target >=70% verde; auth-file residuals permanecem em F2.11"
+    },
+    {
+      "id": "F3.01",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Definir e migrar e-mail normalizado unique por instância.",
+      "blocker": "`f3-01-email-normalization.md`",
+      "gate": "W3 gate: dev DB duplicate preflight blocked"
+    },
+    {
+      "id": "F3.02",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Criar env schema por runtime: app, bridge, agent e sidecar.",
+      "blocker": "`f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md`",
+      "gate": "W3 gate: app/sidecar wiring and runtime smoke remain open"
+    },
+    {
+      "id": "F3.03",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Validar secrets obrigatórios no startup/smoke.",
+      "blocker": "`f3-03-auth-secret-startup.md`",
+      "gate": "W3 gate: broader runtime smoke remains open"
+    },
+    {
+      "id": "F3.04",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Corrigir constraints Drizzle não emitidas e deduplicar antes da migration.",
+      "blocker": "drizzle-kit check; `0022_far_stature.sql`",
+      "gate": "W3 gate: duplicate cleanup must be owner-approved"
+    },
+    {
+      "id": "F3.05",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Adicionar índices tenant/date/status/FK guiados por query e scale seed.",
+      "blocker": "`f3-05-appointment-indexes.md`",
+      "gate": "W3 gate: DB apply and scale-plan evidence remain open"
+    },
+    {
+      "id": "F3.06",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Garantir `vector` e `btree_gist` antes do schema dependente.",
+      "blocker": "`f3-06-extension-order.md`",
+      "gate": "W3 gate: owner-controlled migration apply remains blocked"
+    },
+    {
+      "id": "F3.07",
+      "phase": "F3",
+      "status": "VERIFIED",
+      "requirement": "Separar CLI RBAC em função pura; `--dry-run` default; `--apply` explícito.",
+      "blocker": "`f3-07-rbac-backfill.md`",
+      "gate": "W3 gate: `--apply` external action not executed"
+    },
+    {
+      "id": "F3.08",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Implementar Cloudflare Queues, outbox, retry, idempotência e DLQ antes de integrações.",
+      "blocker": "`f3-08-outbox-idempotency.md`",
+      "gate": "W3 gate: provider deployment remains open"
+    },
+    {
+      "id": "F3.09",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Corrigir lint boundaries sem side-effect imports cruzados.",
+      "blocker": "tranche validation",
+      "gate": "W3 gate: broader boundary audit remains open"
+    },
+    {
+      "id": "F3.10",
+      "phase": "F3",
+      "status": "VERIFIED",
+      "requirement": "Alinhar Jest/jsdom major.",
+      "blocker": "`f3-10-jest-jsdom.md`",
+      "gate": "W3 gate: no remaining local dependency mismatch"
+    },
+    {
+      "id": "F3.11",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Reparar E2E: setup de auth obrigatório; remover catches, tautologias e skips por defeito.",
+      "blocker": "tranche validation",
+      "gate": "W3 gate: E2E suite not run"
+    },
+    {
+      "id": "F3.12",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Criar banco E2E isolado e runner reproduzível.",
+      "blocker": "`f3-15-ci-postgres17.md`",
+      "gate": "W3 gate: full isolated run remains open"
+    },
+    {
+      "id": "F3.13",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Triar `npm audit`; atualizar, mitigar ou criar waiver owner-expirável por finding.",
+      "blocker": "`f3-13-npm-audit.md`",
+      "gate": "W3 gate: 1 moderate + 1 low waiver remains"
+    },
+    {
+      "id": "F3.14",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Criar `npm run verify` com lint, app/workers typecheck, coverage e contract tests.",
+      "blocker": "`f3-14-verify-runner.md` — runner/gates verificados; fresh global coverage 54.84% statements, 40.45% branches, 56.06% lines, 42.96% functions vs threshold 70%",
+      "gate": "W3 gate: global coverage threshold remains open"
+    },
+    {
+      "id": "F3.15",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "CI: PostgreSQL 17, scripts auxiliares, security e CF dry-run.",
+      "blocker": "`f3-15-ci-postgres17.md`",
+      "gate": "W3 gate: remote Actions not executed"
+    },
+    {
+      "id": "F3.16",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Subir walking skeleton staging: app + bridge + agent + PostgreSQL 17 + Hyperdrive.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W3 gate: migration, runtime, CI and worker lifecycle"
+    },
+    {
+      "id": "F3.17",
+      "phase": "F3",
+      "status": "PARTIAL",
+      "requirement": "Corrigir lifecycle de pool para Worker e validar concorrência no `workerd`.",
+      "blocker": "`f2-14-hyperdrive-contract.md`, `f2-11-revocation-primitive.md` — PostgreSQL integration/concurrency green twice; ephemeral Wrangler local dbHealth and 8-way concurrency green; deployed workerd/Cloudflare smoke remains EXTERNAL",
+      "gate": "W3 gate: deployed worker runtime evidence remains external"
+    },
+    {
+      "id": "F4.01",
+      "phase": "F4",
+      "status": "VERIFIED",
+      "requirement": "Criar `ApiSuccess`, `ApiFailure` e request ID centralizados.",
+      "blocker": "`f4-01-api-response-contract.md`",
+      "gate": "W4 gate: contract tests and tenant shell"
+    },
+    {
+      "id": "F4.02",
+      "phase": "F4",
+      "status": "PARTIAL",
+      "requirement": "Criar um route adapter compartilhado para Action Layer.",
+      "blocker": "`34a7757b` adiciona `src/lib/api/action-route.ts` e focused adapter tests com data/error envelope e x-request-id; nenhuma migração de rota ainda",
+      "gate": "W4 gate: route migrations remain open"
+    },
+    {
+      "id": "F4.03",
+      "phase": "F4",
+      "status": "PARTIAL",
+      "requirement": "Padronizar camelCase e `{data,meta?}` sem duplicar serializers.",
+      "blocker": "Adapter contract preserves camelCase and canonical `{data}`; full route/page serializer migration remains unverified",
+      "gate": "W4 gate: broader endpoint contract audit remains open"
+    },
+    {
+      "id": "F4.04",
+      "phase": "F4",
+      "status": "PARTIAL",
+      "requirement": "Criar contract tests entre hooks e endpoints antes de migrar tela.",
+      "blocker": "Adapter-level contract tests cover HTTP envelope; hook↔endpoint contracts are not yet migrated/proven",
+      "gate": "W4 gate: hook↔endpoint contract audit remains open"
+    },
+    {
+      "id": "F4.05",
+      "phase": "F4",
+      "status": "PARTIAL",
+      "requirement": "Fazer sidebar derivar exclusivamente de manifest + RBAC.",
+      "blocker": "`build-menu.test.ts`, `menu-actions.test.ts`, `gates.test.ts` e `src/lib/ui/sidebar.tsx` usam manifest/RBAC filtering; visual/route-wide proof remains open",
+      "gate": "W4 gate: full sidebar audit remains open"
+    },
+    {
+      "id": "F4.06",
+      "phase": "F4",
+      "status": "PARTIAL",
+      "requirement": "Corrigir paths inexistentes em manifests.",
+      "blocker": "Read-only scanner found 4 stale declarations: `/dashboard/conversations` (actual `/dashboard/conversas`) and `/dashboard/followup` (no page); fixes remain open",
+      "gate": "W4 gate: manifest path repair remains open"
+    },
+    {
+      "id": "F4.07",
+      "phase": "F4",
+      "status": "PARTIAL",
+      "requirement": "Impedir página protegida de depender apenas de guard client-side.",
+      "blocker": "`src/app/dashboard/layout.tsx` currently redirects/returns null client-side; server-side protected entrypoint proof remains open",
+      "gate": "W4 gate: server auth boundary remains open"
+    },
+    {
+      "id": "F4.08",
+      "phase": "F4",
+      "status": "PARTIAL",
+      "requirement": "Disabled representa módulo não contratado; implementação parcial nunca conta como entregue.",
+      "blocker": "`withModuleRoute`, `filterMenuByAccess`, `assertModuleForJob` and manifest tests enforce disabled gating; full page/module contract audit remains open",
+      "gate": "W4 gate: disabled semantics across all consumers remain open"
+    },
+    {
+      "id": "F4.09",
+      "phase": "F4",
+      "status": "UNVERIFIED",
+      "requirement": "Criar seletor de clínica visível para multi-clínica e oculto para single-clinic.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W4 gate: contract tests and tenant shell"
+    },
+    {
+      "id": "F4.10",
+      "phase": "F4",
+      "status": "UNVERIFIED",
+      "requirement": "Invalidar cache/query ao trocar clínica e testar roles diferentes por unidade.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W4 gate: contract tests and tenant shell"
+    },
+    {
+      "id": "F4.11",
+      "phase": "F4",
+      "status": "UNVERIFIED",
+      "requirement": "Remover rota, componentes e testes Pi Finance após confirmar preservação no projeto separado.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W4 gate: contract tests and tenant shell"
+    },
+    {
+      "id": "F5.01",
+      "phase": "F5",
+      "status": "PARTIAL",
+      "requirement": "Pacientes: lista, detalhe, criação, edição, dedup e preferências.",
+      "blocker": "Patient preferences API, dedup/merge services and focused tests pass; complete list/detail/create/edit journey is not E2E-proven",
+      "gate": "W5 gate: complete patient journey remains open"
+    },
+    {
+      "id": "F5.02",
+      "phase": "F5",
+      "status": "UNVERIFIED",
+      "requirement": "Dentistas/procedimentos: contratos, PATCH/DELETE e validação monetária/duração.",
+      "blocker": "No focused dentist/procedure route contract evidence was executed in this tranche",
+      "gate": "W5 gate: dentist/procedure contracts remain open"
+    },
+    {
+      "id": "F5.03",
+      "phase": "F5",
+      "status": "PARTIAL",
+      "requirement": "Agenda: disponibilidade, calendário, conflito DB e timezone por clínica.",
+      "blocker": "Availability service/integration and PostgreSQL overbooking conflict tests pass; full calendar/timezone journey remains open",
+      "gate": "W5 gate: complete appointment journey remains open"
+    },
+    {
+      "id": "F5.04",
+      "phase": "F5",
+      "status": "UNVERIFIED",
+      "requirement": "Waitlist: CRUD e preenchimento de vaga idempotente.",
+      "blocker": "No focused waitlist CRUD/idempotency evidence was executed in this tranche",
+      "gate": "W5 gate: waitlist contract remains open"
+    },
+    {
+      "id": "F5.05",
+      "phase": "F5",
+      "status": "PARTIAL",
+      "requirement": "Tratamentos: ownership, sessões e estados.",
+      "blocker": "`0e4dfb87` adiciona focused 8-test treatment-plan service coverage including session/progress states; route ownership/tenant contract remains open",
+      "gate": "W5 gate: treatment ownership journey remains open"
+    },
+    {
+      "id": "F5.06",
+      "phase": "F5",
+      "status": "UNVERIFIED",
+      "requirement": "Migrar routes para Action Layer; remover caminhos legados sem consumidor.",
+      "blocker": "No route-wide migration/consumer search evidence was executed in this tranche",
+      "gate": "W5 gate: Action Layer migration remains open"
+    },
+    {
+      "id": "F6.01",
+      "phase": "F6",
+      "status": "PARTIAL",
+      "requirement": "Mensagens/conversas com external IDs únicos e transação.",
+      "blocker": "Atendimento inbound/send PostgreSQL integrations pass; complete external-ID uniqueness/conversation transaction audit remains open",
+      "gate": "W6 gate: message/conversation invariants remain open"
+    },
+    {
+      "id": "F6.02",
+      "phase": "F6",
+      "status": "PARTIAL",
+      "requirement": "Evolution inbound/outbound com contract tests, timeout, replay window e tenant binding.",
+      "blocker": "Inbound/send/gates integration and channel installation unit tests pass; real Evolution provider timeout/replay evidence remains external/open",
+      "gate": "W6 gate: provider contract/runtime remains open"
+    },
+    {
+      "id": "F6.03",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Chat widget no mesmo pipeline, com rate limit distribuído.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.04",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Executar smoke app + bridge + agent local/preview.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.05",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Se raw DO passar, criar ADR ratificando. Se falhar, comparar Agents SDK em spike limitado.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.06",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "ADR escolhe LLM provider, embedding model e dimensão produzida pelo modelo antes de ingestão.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.07",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Implementar níveis R0-R3 e proof server-side imutável, expirável e single-use.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.08",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Identificar IA, oferecer takeover e escalar sintoma/diagnóstico/medicação/urgência.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.09",
+      "phase": "F6",
+      "status": "PARTIAL",
+      "requirement": "Criar LLM adapter real; falhar fechado sem provider/bridge/DB e preservar contexto.",
+      "blocker": "Bridge failure matrix, DB health and channel adapter tests pass; real multi-provider LLM adapter/provider outage evidence remains open",
+      "gate": "W6 gate: provider/runtime integration remains open"
+    },
+    {
+      "id": "F6.10",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Restaurar CRUD knowledge, ingestão, busca vetorial, re-embedding, purge e evals.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.11",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Consolidar pgvector e remover binding/código Vectorize da v1.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.12",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Versionar estado DO e definir retention, purge, recovery e RPC contract version.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.13",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Criar sidecar Playwright como package/deploy próprio, sessão criptografada e um owner por clínica.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.14",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Autenticar sidecar por mTLS + HMAC com nonce; definir timeout, idempotência e egress allowlist.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F6.15",
+      "phase": "F6",
+      "status": "UNVERIFIED",
+      "requirement": "Proibir fallback automático; sidecar é entregue e testado, mas default off.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W6 gate: app/bridge/agent failure-mode evidence"
+    },
+    {
+      "id": "F7.01",
+      "phase": "F7",
+      "status": "PARTIAL",
+      "requirement": "Jobs idempotentes para reminder, follow-up, inactive e campaign dispatch.",
+      "blocker": "Campaign execution and follow-up/outbox integration tests pass; complete reminder/inactive idempotency matrix remains open",
+      "gate": "W7 gate: all job consumers remain open"
+    },
+    {
+      "id": "F7.02",
+      "phase": "F7",
+      "status": "PARTIAL",
+      "requirement": "Consumir Queue/outbox da Fase 3; nenhuma chamada externa inline.",
+      "blocker": "Outbox dispatch integration passes; Cloudflare Queue consumer/runtime proof and inline-call audit remain open",
+      "gate": "W7 gate: Queue/DLQ runtime remains open"
+    },
+    {
+      "id": "F7.03",
+      "phase": "F7",
+      "status": "UNVERIFIED",
+      "requirement": "Resolver recipient phone antes de dispatch.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W7 gate: retry/DLQ/consent evidence"
+    },
+    {
+      "id": "F7.04",
+      "phase": "F7",
+      "status": "UNVERIFIED",
+      "requirement": "Rejeitar `null` incompatível com schemas Zod.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W7 gate: retry/DLQ/consent evidence"
+    },
+    {
+      "id": "F7.05",
+      "phase": "F7",
+      "status": "PARTIAL",
+      "requirement": "Estados `draft/scheduled/running/partial/failed/completed/cancelled`.",
+      "blocker": "Campaign execution tests cover state transitions, but full state-machine contract across all persisted states is not proven",
+      "gate": "W7 gate: complete campaign state matrix remains open"
+    },
+    {
+      "id": "F7.06",
+      "phase": "F7",
+      "status": "PARTIAL",
+      "requirement": "Campanha 100% falha termina `failed`.",
+      "blocker": "Campaign execution tests exercise failure handling; dedicated 100%-failure persisted-state proof remains open",
+      "gate": "W7 gate: all-failure integration case remains open"
+    },
+    {
+      "id": "F7.07",
+      "phase": "F7",
+      "status": "PARTIAL",
+      "requirement": "Retry com backoff, limite e dead-letter observável.",
+      "blocker": "Outbox dispatch tests pass; bounded retry/DLQ observability proof remains open",
+      "gate": "W7 gate: retry/DLQ runtime remains open"
+    },
+    {
+      "id": "F7.08",
+      "phase": "F7",
+      "status": "UNVERIFIED",
+      "requirement": "Aplicar consentimento versionado e opt-out antes de cada envio não transacional.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W7 gate: retry/DLQ/consent evidence"
+    },
+    {
+      "id": "F8.01",
+      "phase": "F8",
+      "status": "PARTIAL",
+      "requirement": "Leads com filtros, paginação, detalhe e create response corretos.",
+      "blocker": "CRM/comercial route/service suites pass; complete filter/pagination/detail contract evidence remains open",
+      "gate": "W8 gate: lead API contract remains open"
+    },
+    {
+      "id": "F8.02",
+      "phase": "F8",
+      "status": "PARTIAL",
+      "requirement": "Pipeline hook e endpoint no mesmo contrato.",
+      "blocker": "CRM route and manifest tests pass; hook↔endpoint contract migration remains open",
+      "gate": "W8 gate: pipeline contract remains open"
+    },
+    {
+      "id": "F8.03",
+      "phase": "F8",
+      "status": "PARTIAL",
+      "requirement": "Tarefas e hot-lead notification reais.",
+      "blocker": "Hot-lead listing/notification and CRM route tests pass; real task persistence/notification journey remains open",
+      "gate": "W8 gate: task/notification integration remains open"
+    },
+    {
+      "id": "F8.04",
+      "phase": "F8",
+      "status": "PARTIAL",
+      "requirement": "Conversão lead→paciente transacional e deduplicada.",
+      "blocker": "Lead conversion and PostgreSQL dedup/duplicate-execution tests pass; full lead→patient transaction journey remains open",
+      "gate": "W8 gate: conversion invariants remain open"
+    },
+    {
+      "id": "F8.05",
+      "phase": "F8",
+      "status": "PARTIAL",
+      "requirement": "CRM permanece read model sobre lead/paciente; notas/tags via owner Action pública.",
+      "blocker": "Contact read-model, owner-action and duplicate route tests pass; complete notes/tags owner journey remains open",
+      "gate": "W8 gate: CRM read-model contract remains open"
+    },
+    {
+      "id": "F8.06",
+      "phase": "F8",
+      "status": "PARTIAL",
+      "requirement": "Fechar boundaries por `index.ts`; remover side-effect dispatcher.",
+      "blocker": "CRM action taxonomy/registry and owner-bridge guard tests pass; complete boundary/side-effect audit remains open",
+      "gate": "W8 gate: boundary audit remains open"
+    },
+    {
+      "id": "F8.07",
+      "phase": "F8",
+      "status": "PARTIAL",
+      "requirement": "Merge com self-FK/tenant invariants e proteção contra ciclos.",
+      "blocker": "Lead/patient merge and duplicate execution suites plus PostgreSQL dedup pass; full self-FK/cycle matrix remains open",
+      "gate": "W8 gate: merge invariant matrix remains open"
+    },
+    {
+      "id": "F9.01",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Remover cobrança simulada; provider ausente falha.",
+      "blocker": "Finance gateway/charge unit tests pass; provider sandbox and full no-provider production path remain open",
+      "gate": "W9 gate: provider failure evidence remains open"
+    },
+    {
+      "id": "F9.02",
+      "phase": "F9",
+      "status": "UNVERIFIED",
+      "requirement": "Asaas secrets e webhook secret separados.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W9 gate: idempotent provider/race evidence"
+    },
+    {
+      "id": "F9.03",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Liberar somente rota exata de webhook no middleware.",
+      "blocker": "Asaas webhook route/gate tests pass; deployed middleware route audit remains open",
+      "gate": "W9 gate: deployed route proof remains open"
+    },
+    {
+      "id": "F9.04",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Verificar assinatura/token constant-time e evento idempotente.",
+      "blocker": "Crypto/webhook unit and PostgreSQL webhook integration tests pass; provider signature sandbox evidence remains open",
+      "gate": "W9 gate: provider verification remains open"
+    },
+    {
+      "id": "F9.05",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Resolver gateway→clínica→charge local; nunca aceitar tenant de query/header livre.",
+      "blocker": "Charge-service and scope integration tests pass; full registered-credential/provider resolution matrix remains open",
+      "gate": "W9 gate: provider credential binding remains open"
+    },
+    {
+      "id": "F9.06",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Persistir gateway event + payment/charge transition em uma transaction.",
+      "blocker": "Asaas webhook and charge integration tests pass with transactional evidence; provider reconciliation remains open",
+      "gate": "W9 gate: provider/reconciliation runtime remains open"
+    },
+    {
+      "id": "F9.07",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Orçamento, parcelas, pagamento e cobrança em transações coerentes.",
+      "blocker": "Installment/collection/charge integration tests pass; complete cross-domain coherence matrix remains open",
+      "gate": "W9 gate: full finance coherence remains open"
+    },
+    {
+      "id": "F9.08",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Race tests para criação, webhook duplicado/simultâneo, falha parcial, settlement e cancelamento.",
+      "blocker": "Duplicate execution and finance integration suites pass; full concurrent provider/race matrix remains open",
+      "gate": "W9 gate: race matrix remains open"
+    },
+    {
+      "id": "F9.09",
+      "phase": "F9",
+      "status": "PARTIAL",
+      "requirement": "Outbox para chamada externa e reconciliação.",
+      "blocker": "Shared outbox integration tests pass; finance-specific external dispatch/reconciliation remains open",
+      "gate": "W9 gate: provider reconciliation remains open"
+    },
+    {
+      "id": "F10.01",
+      "phase": "F10",
+      "status": "PARTIAL",
+      "requirement": "Dashboard com métricas reais, período e definição documentada.",
+      "blocker": "Analytics service/route suites pass; metric dictionary and dashboard source/window proof remain open",
+      "gate": "W10 gate: metric governance remains open"
+    },
+    {
+      "id": "F10.02",
+      "phase": "F10",
+      "status": "UNVERIFIED",
+      "requirement": "Criar metric dictionary: fórmula, fonte, janela, timezone, freshness e clínica.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W10 gate: metric and data-lifecycle evidence"
+    },
+    {
+      "id": "F10.03",
+      "phase": "F10",
+      "status": "PARTIAL",
+      "requirement": "Eliminar previsão/ROI apresentado como dado quando for heurística.",
+      "blocker": "ROI/noshow analytics tests pass; product labeling and formula/source dictionary proof remain open",
+      "gate": "W10 gate: heuristic-vs-fact labeling remains open"
+    },
+    {
+      "id": "F10.04",
+      "phase": "F10",
+      "status": "PARTIAL",
+      "requirement": "Relatórios CSV/PDF tenant-scoped e redacted.",
+      "blocker": "Reports export/patient route suites pass; complete PDF/CSV tenant and redaction matrix remains open",
+      "gate": "W10 gate: complete reporting audit remains open"
+    },
+    {
+      "id": "F10.05",
+      "phase": "F10",
+      "status": "UNVERIFIED",
+      "requirement": "CRUD de perfis, clone, assign/revoke e anti-escalation.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W10 gate: metric and data-lifecycle evidence"
+    },
+    {
+      "id": "F10.06",
+      "phase": "F10",
+      "status": "UNVERIFIED",
+      "requirement": "Configuração de clínica, timezone, horário, canais e agente persistida.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W10 gate: metric and data-lifecycle evidence"
+    },
+    {
+      "id": "F10.07",
+      "phase": "F10",
+      "status": "PARTIAL",
+      "requirement": "LGPD export/anonymize com permission, confirmação e transaction.",
+      "blocker": "LGPD export/anonymize route tests pass; full transaction/permission and downstream lifecycle proof remains open",
+      "gate": "W10 gate: complete LGPD lifecycle remains open"
+    },
+    {
+      "id": "F10.08",
+      "phase": "F10",
+      "status": "UNVERIFIED",
+      "requirement": "Política de retenção para mensagens, DO, audit, gateway events e exports.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W10 gate: metric and data-lifecycle evidence"
+    },
+    {
+      "id": "F10.09",
+      "phase": "F10",
+      "status": "PARTIAL",
+      "requirement": "Minimizar/redact payload bruto de gateway, traces, errors e logs.",
+      "blocker": "Audit-remediation and structured logging/security-header suites pass; full gateway/traces/errors redaction audit remains open",
+      "gate": "W10 gate: complete redaction audit remains open"
+    },
+    {
+      "id": "F10.10",
+      "phase": "F10",
+      "status": "UNVERIFIED",
+      "requirement": "Implementar legal hold, purge verificável e opt-out global não transacional.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W10 gate: metric and data-lifecycle evidence"
+    },
+    {
+      "id": "F11.01",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "IaC/config gerada por cliente; sem editar IDs Wrangler manualmente.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.02",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Onboarding invite-only: owner, clínicas, módulos, equipe, import, canais e consulta de teste.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.03",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Importação com preview, rejeições, idempotência e rollback.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.04",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Offboarding com export, revogação, retenção e destruição auditada.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.05",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Pipeline: backup/preflight → expand migration → workers → app → smoke → contract cleanup.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.06",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Deploy bridge e agent antes do app dependente.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.07",
+      "phase": "F11",
+      "status": "VERIFIED",
+      "requirement": "Liveness público mínimo; readiness protegido e barato.",
+      "blocker": "`f11-07-health-readiness.md`, `src/__tests__/api/health/route.test.ts`, `src/app/api/internal/readiness/route.test.ts` — 4 health/readiness assertions pass",
+      "gate": "W11 gate: rollout/rollback/SLO evidence remains open"
+    },
+    {
+      "id": "F11.08",
+      "phase": "F11",
+      "status": "VERIFIED",
+      "requirement": "Logs JSON com request/correlation ID e redaction.",
+      "blocker": "`f11-08-structured-logging.md`, `src/lib/__tests__/logger.test.ts` — structured logging tests pass",
+      "gate": "W11 gate: rollout/rollback/SLO evidence remains open"
+    },
+    {
+      "id": "F11.09",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Métricas/SLO: auth, DB, webhook, queue, agent, provider e sidecar.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.10",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Alertas e runbooks acionáveis.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.11",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Ensaiar rollback app/workers e compatibilidade DB.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.12",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Versionar app/bridge/agent, RPC, schema e estado DO por release/cliente.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.13",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Provar old/new compatibility e version skew; lifecycle DO não pode cruzar rollback/rollout gradual.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.14",
+      "phase": "F11",
+      "status": "UNVERIFIED",
+      "requirement": "Definir thresholds de abort; DB aplicada recebe roll-forward, não down destrutivo.",
+      "blocker": "local evidence or implementation required",
+      "gate": "W11 gate: rollout/rollback/SLO evidence"
+    },
+    {
+      "id": "F11.15",
+      "phase": "F11",
+      "status": "VERIFIED",
+      "requirement": "Security headers: CSP, HSTS, nosniff, referrer e permissions policy.",
+      "blocker": "`f11-15-security-headers.md`, `src/__tests__/security/headers.test.ts` — headers suite passes",
+      "gate": "W11 gate: rollout/rollback/SLO evidence remains open"
+    },
+    {
+      "id": "F12.01",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Provisionar cliente piloto via onboarding gerenciado.",
+      "blocker": "Requires approved pilot owner, tenant and maintenance window; no provisioning authorized",
+      "gate": "W12 gate: owner-approved pilot required"
+    },
+    {
+      "id": "F12.02",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Importar dados anonimizados ou aprovados.",
+      "blocker": "Requires owner-approved dataset/import record; no data import authorized",
+      "gate": "W12 gate: approved import required"
+    },
+    {
+      "id": "F12.03",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Executar J-01 a J-12 sem capacidade baseline beta.",
+      "blocker": "Requires approved staging/pilot environment and test participants; no pilot execution authorized",
+      "gate": "W12 gate: approved pilot execution required"
+    },
+    {
+      "id": "F12.04",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Testar indisponibilidade Evolution, LLM, DB, Queue e sidecar.",
+      "blocker": "Requires provider/staging resources and outage drill authorization; no external outage exercise authorized",
+      "gate": "W12 gate: approved outage drill required"
+    },
+    {
+      "id": "F12.05",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Validar mobile/desktop, acessibilidade e performance.",
+      "blocker": "Requires approved pilot/staging candidate and UX/performance acceptance window; not executed against a release candidate",
+      "gate": "W12 gate: approved pilot validation required"
+    },
+    {
+      "id": "F12.06",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Treinar equipe e registrar feedback sem alterar scope automaticamente.",
+      "blocker": "Requires named pilot team, training session and feedback owner; no human training authorized",
+      "gate": "W12 gate: owner-approved training required"
+    },
+    {
+      "id": "F12.07",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Produzir scorecard de defects, segurança, SLO e operação.",
+      "blocker": "Depends on approved pilot execution and owner acceptance data; no scorecard inputs exist",
+      "gate": "W12 gate: pilot evidence required"
+    },
+    {
+      "id": "F12.08",
+      "phase": "F12",
+      "status": "EXTERNAL",
+      "requirement": "Owner decide go/no-go.",
+      "blocker": "Requires owner review of pilot scorecard; no decision authority or pilot record supplied",
+      "gate": "W12 gate: formal owner go/no-go required"
+    }
+  ],
+  "statusCounts": {
+    "DEFERRED": 3,
+    "EXTERNAL": 14,
+    "PARTIAL": 65,
+    "UNVERIFIED": 39,
+    "VERIFIED": 22
+  }
+}
