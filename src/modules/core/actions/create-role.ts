@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import * as rolesService from '../services/roles-service';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 
 export const createRole = defineAction({
   name: 'core.createRole',
@@ -13,5 +14,8 @@ export const createRole = defineAction({
     description: z.string().optional(),
     permissionKeys: z.array(z.string()).default([]),
   }),
-  handler: async (input) => rolesService.createRole(input),
+  handler: async (input, ctx) => {
+    assertClinicScope(input.clinicId, ctx);
+    return rolesService.createRole(input);
+  },
 });
