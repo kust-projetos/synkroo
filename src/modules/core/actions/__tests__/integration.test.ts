@@ -299,3 +299,68 @@ describeOrSkip('Core actions — service/repository flow (DB real)', () => {
     expect(row).toEqual({ moduleId, enabled: true });
   });
 });
+
+const FOREIGN_CLINIC = `00000000-0000-0000-0000-${String(u + 1).slice(-12).padStart(12, '0')}`;
+let foreignRecepRoleId: string;
+
+describeOrSkip('O1-G03 — tenant scope matrix (DB real)', () => {
+  beforeAll(async () => {
+    const db = getDb();
+    await db.insert(clinics).values({
+      id: FOREIGN_CLINIC,
+      name: `Foreign Clinic ${u}`,
+      slug: `foreign-clinic-${u}`,
+      phone: '',
+      email: `foreign+${u}@t.local`,
+    }).onConflictDoNothing();
+    await seedRbacForClinic(FOREIGN_CLINIC);
+    const [role] = await db.select({ id: roles.id }).from(roles)
+      .where(and(eq(roles.clinicId, FOREIGN_CLINIC), eq(roles.name, 'Recepcionista'))).limit(1);
+    foreignRecepRoleId = role.id;
+  });
+
+  afterAll(async () => {
+    const db = getDb();
+    await db.delete(userClinicAccess).where(eq(userClinicAccess.clinicId, FOREIGN_CLINIC));
+    const foreignRoles = await db.select({ id: roles.id }).from(roles)
+      .where(eq(roles.clinicId, FOREIGN_CLINIC));
+    for (const role of foreignRoles) {
+      await db.delete(rolePermissions).where(eq(rolePermissions.roleId, role.id));
+    }
+    await db.delete(roles).where(eq(roles.clinicId, FOREIGN_CLINIC));
+    await db.delete(clinics).where(eq(clinics.id, FOREIGN_CLINIC));
+  });
+
+  it('rejects foreign clinic scope for mutating actions without foreign mutation', async () => {
+    const [assign, create, remove, deactivate] = await Promise.all([
+      runAction(assignUserAccess, {
+        userId: ownerUserId,
+        clinicId: FOREIGN_CLINIC,
+        roleId: foreignRecepRoleId,
+      }, adminCtx),
+      runAction(createRole, {
+        clinicId: FOREIGN_CLINIC,
+        name: `Foreign role ${u}`,
+        permissionKeys: ['core:manage_users'],
+      }, adminCtx),
+      runAction(removeUserAccess, {
+        userId: ownerUserId,
+        clinicId: FOREIGN_CLINIC,
+      }, adminCtx),
+      runAction(deactivateUser, {
+        userId: ownerUserId,
+        clinicId: FOREIGN_CLINIC,
+      }, adminCtx),
+    ]);
+
+    for (const result of [assign, create, remove, deactivate]) {
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.error.code).toBe('forbidden');
+    }
+
+    const foreignAccess = await getDb().select({ userId: userClinicAccess.userId })
+      .from(userClinicAccess)
+      .where(and(eq(userClinicAccess.userId, ownerUserId), eq(userClinicAccess.clinicId, FOREIGN_CLINIC)));
+    expect(foreignAccess).toHaveLength(0);
+  });
+});
