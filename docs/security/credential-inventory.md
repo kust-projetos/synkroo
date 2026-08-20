@@ -198,4 +198,12 @@ enxergam. A rotação é responsabilidade do owner.
 - `gitleaks detect` (git history): ✅ ZERO leaks (734 commits escaneados)
 - `gitleaks detect --source . --no-git`: 14 findings, TODOS em arquivos gitignored (`.env.local`, `.dev.vars`, `src/workers/ia-agent/.dev.vars`). Zero em arquivos committed.
 
+## O1-G01 local control receipt — 2026-08-20
+
+- Policy test: `node --test scripts/__tests__/gitleaks-policy.test.mjs` — 5/5 passed, 0 skipped.
+- `.gitleaksignore`: 83 fingerprint-scoped entries; wildcard/path suppressions are not permitted by policy test.
+- CI and scheduled workflow: full-history checkout (`fetch-depth: 0`), `gitleaks detect --source . --log-opts="--all" --redact`, blocking job; no secret values recorded.
+- Six `confirmed-owner-action` entries remain pending owner rotation/revocation receipts. This inventory stores fingerprints/classes/owners only.
+- F0.01 decision: keep safe local work open; do not execute freeze, production, credential rotation, history rewrite or clone invalidation automatically.
+- Gate O1-X01 remains `EVIDENCE_PENDING` for F0.04–F0.07/F0.10 until the owner supplies sanitized rotation, surface-audit and history/clone receipts with rollback/communications evidence.
 **Gate Fase 0 status (agente):** todas as correções verificadas. Scanner bloqueante verde. Rotaço das 14 credenciais C01-C14 + AUTH_SECRET + JWT_SECRET + DATABASE_URL pendente do owner (ver seção "Ações pendentes do owner" abaixo).

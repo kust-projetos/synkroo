@@ -1,5 +1,6 @@
 # Gitleaks config — Synkroo
 # Fase 0: regras especificas para o stack do projeto
+# O1-G01: only named local/build artifacts are allowlisted; fingerprints stay in .gitleaksignore.
 
 title = "Synkroo Gitleaks Config"
 
