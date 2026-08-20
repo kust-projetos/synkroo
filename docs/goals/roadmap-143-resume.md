@@ -1,8 +1,7 @@
 # Roadmap 143 Resume
 
-- Last verified goal: `O0-G-ledger`
-- Current wave: `O1`
-- Next READY goal: `O1-G01-incident-controls` in `docs/superpowers/plans/2026-08-16-roadmap-143-wave-1-foundation.md`
+- Last verified goal: `O1-G01-incident-controls` (commit `4b0e7a57cd06e40be8f49dcb725bf615e98dc40c`)
+- Current wave: `O1`; next goal `O1-G02-git-baseline` is `BLOCKED_R2` by its integration baseline receipt, so O1-G03 must not advance yet.
 - Active blockers: [`../superpowers/audits/roadmap-143-blockers.md`](../superpowers/audits/roadmap-143-blockers.md)
 - Ledger: [`../superpowers/audits/roadmap-143-ledger.json`](../superpowers/audits/roadmap-143-ledger.json)
 - Planning index: [`../superpowers/plans/INDEX.md`](../superpowers/plans/INDEX.md)
@@ -27,8 +26,16 @@
 - Security: 9 suites, 142 tests; focused coverage 95.22/90.81/95.23/96.33
 - Release contracts: 13 tests passed
 - Gate R score: `10/10`
-- Decision: O0 READY; next independent goal `O1-G01-incident-controls`
+- Decision: O0 READY; next independent goal was `O1-G01-incident-controls`
 - Residual risks: global coverage below 70, F2.11 auth mutation survivors, and external Cloudflare/provider/secret/migration/pilot gates remain in the blocker registry
+
+## O1-G02 baseline receipt
+
+- Local ancestry: all four expected commits are contained in `main`.
+- PR #6: OPEN, head `fix/rbac-seed-bootstrap-and-menu-dedupe`, base `main`, mergeable `CONFLICTING`; no merge/rebase executed.
+- Lint/typecheck/unit/build/build:cf: PASS.
+- Full loopback integration: BLOCKED_R2 — 34/35 suites, 201/202 tests; followup cron integration exceeded 10 seconds with sanitized API rate-limit activity.
+- Rollback: revert the owning local commit; reproduce after clean DB/process start; do not promote F1.06/F1.08 or advance O1-G03 until integration is green.
 
 
 ## O0 receipts
