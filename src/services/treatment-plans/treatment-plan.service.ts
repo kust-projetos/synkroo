@@ -9,7 +9,7 @@ import {
 	findByPatient as findPlansByPatient,
 	findById as findPlanById,
 	update as updatePlan,
-	updateItem as updatePlanItem,
+	completeSessionProgress,
 	getProgress,
 	deleteTreatmentPlan as deleteTreatmentPlanDb,
 } from "@/repositories/treatment-plans";
@@ -246,39 +246,11 @@ export async function updateSessionProgress(
 	treatmentPlanItemId: string,
 	treatmentPlanId: string,
 ): Promise<TreatmentPlanItem | null> {
-	const now = new Date();
-
-	// Update only an item owned by the route's treatment plan.
-	const item = await updatePlanItem(treatmentPlanItemId, treatmentPlanId, {
-		status: "completed",
-		completedAt: now,
-	});
+	const item = await completeSessionProgress(treatmentPlanItemId, treatmentPlanId);
 	if (!item) {
 		dbLogger.error("Error updating treatment plan item", null);
 		return null;
 	}
-
-	// Get current progress
-	const plan = await getProgress(item.treatmentPlanId);
-	if (!plan) {
-		return itemToSnake(item as unknown as Record<string, unknown>);
-	}
-
-	// Update completed sessions count
-	const newCompleted = plan.completedSessions + 1;
-	await updatePlan(item.treatmentPlanId, {
-		completedSessions: newCompleted,
-		lastSessionAt: now,
-	});
-
-	// Check if all sessions are complete
-	if (newCompleted >= plan.totalSessions) {
-		await updatePlan(item.treatmentPlanId, {
-			status: "completed",
-			completedAt: now,
-		});
-	}
-
 	return itemToSnake(item as unknown as Record<string, unknown>);
 }
 

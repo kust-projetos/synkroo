@@ -95,3 +95,11 @@ Continue the O1-G03 RED matrix for entity ownership, duplicate/idempotency and c
 - Focused route/service/payment proof: 3 suites/20 tests; typecheck/lint pass; six LSP files clean.
 - Residual: `updateSessionProgress` still reads progress and updates item/plan status across multiple repository calls; real cross-clinic fixtures and concurrent completion transaction proof remain open.
 - Rollback: revert the binding commit; no production data or external service was touched.
+
+## Treatment session transaction GREEN — 2026-08-20
+
+- `completeSessionProgress(itemId, treatmentPlanId)` now locks the scoped item and plan rows in one transaction, returns completed items idempotently and updates item/status/count atomically.
+- Focused route/service/payment tests: 3 suites/20 tests pass. PostgreSQL race test: 1 suite/1 test passes twice; concurrent completion plus retry leaves `completedSessions=1` and plan status `completed`.
+- Typecheck/lint pass and six LSP files are clean.
+- Residual: cross-clinic fixture breadth beyond the route plan ownership check and every treatment mutation route still require dedicated item-level evidence. F2.07/F2.08 remain `EVIDENCE_PENDING`.
+- Rollback: revert the transaction/service/caller/test commit; no production or external provider action occurred.
