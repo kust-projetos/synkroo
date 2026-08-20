@@ -1,6 +1,8 @@
 # Gitleaks ignore — somente fixtures de teste e false-positivos comprovados
 # Fase 0: todas as suppressions "confirmed" removidas.
 # Credenciais reais expostas devem falhar o scanner.
+# O1-G01: cada entry abaixo permanece fingerprint-scoped; não adicionar wildcard/path suppressions.
+# O1-G01: confirmed-owner-action entries require an owner rotation receipt before removal.
 # Ver docs/security/credential-inventory.md para classificação completa.
 
 # ── FALSE-POSITIVE: Documentação e exemplos ──────────────────────
