@@ -114,6 +114,43 @@ export async function findUserByEmail(
   return rows[0] || null;
 }
 
+export type ChangePasswordResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid_current_password' };
+
+export async function changeUserPassword(
+  userId: string,
+  currentPassword: string,
+  nextPassword: string,
+): Promise<ChangePasswordResult> {
+  const db = getDb();
+  const { hashPassword, verifyPassword } = await import('@/lib/auth/password');
+
+  return db.transaction(async (tx) => {
+    const [credential] = await tx
+      .select({ passwordHash: userCredentials.passwordHash })
+      .from(userCredentials)
+      .where(eq(userCredentials.userId, userId))
+      .for('update');
+
+    if (!credential || !verifyPassword(currentPassword, credential.passwordHash)) {
+      return { ok: false as const, reason: 'invalid_current_password' as const };
+    }
+
+    await tx
+      .update(userCredentials)
+      .set({ passwordHash: hashPassword(nextPassword), updatedAt: new Date() })
+      .where(eq(userCredentials.userId, userId));
+
+    await tx
+      .update(users)
+      .set({ sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+
+    return { ok: true as const };
+  });
+}
+
 export async function revokeUserSession(userId: string): Promise<void> {
   await getDb()
     .update(users)
