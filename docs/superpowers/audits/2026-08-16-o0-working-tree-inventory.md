@@ -89,6 +89,26 @@ The generated report filenames and hashes are intentionally omitted from the dur
 - Unclassified untracked files after directory expansion: 0.
 - No file other than this inventory was modified while collecting the evidence.
 
-## Next action
+## Gate R receipt — 2026-08-20
 
-Commit this inventory alone. Then execute O0 Task 2 (cluster A) without staging any other row from this table.
+Commands and results:
+
+| Command | Result |
+|---|---|
+| `git diff --check` | PASS |
+| `npm run roadmap:check` | PASS — 143 records, 143 unique; 3 DEFERRED, 14 EXTERNAL, 65 PARTIAL, 39 UNVERIFIED, 22 VERIFIED |
+| `npm run lint` | PASS — zero warnings |
+| `npm run typecheck` | PASS |
+| `npm test -- --runInBand` | PASS — 245 suites, 1618 passed, 5 pre-existing skips |
+| `TEST_DATABASE_URL=<loopback synkroo_test> npm run test:integration:run` | PASS — 35 suites, 202 tests |
+| `npm run test:security -- --runInBand` | PASS — 9 suites, 142 tests; focused coverage 95.22/90.81/95.23/96.33 |
+| `npm run test:release` | PASS — 13 tests |
+| Gate R invariant validator | PASS — score 10/10 |
+
+Recovery commits are separated by cluster: inventory `c883dbe1`, auth `81ed9608`, seed `2981e6da`, Action/validation `34a7757b`, treatment `0e4dfb87`, evidence reconciliation `b8e27231`, planning index `4d71567c`, ledger `bd3fe999`, blocker/resume `da4fbcd1`.
+
+Residual risks are not hidden: global coverage remains below 70%; F2.11 retains auth mutation survivors; Cloudflare staging, provider sandboxes, secret rotation, owner migrations and pilot actions remain in the blocker registry. Rollback is the owning commit revert or documented roll-forward/restore procedure; no production or irreversible action was executed.
+
+## Gate R decision
+
+O0 scores `10/10` and is READY to hand off to O1. Next independent goal: `O1-G01-incident-controls`. The ledger remains the only status authority; no item is promoted by this wave gate alone.
