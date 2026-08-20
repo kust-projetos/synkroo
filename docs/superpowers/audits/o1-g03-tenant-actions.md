@@ -79,3 +79,11 @@ Continue the O1-G03 RED matrix for entity ownership, duplicate/idempotency and c
 - Core matrix with this proof passes 16/16 twice; the first warm-up attempt had a transient fixture failure and was not counted as green. Clean double-run is the authoritative receipt.
 - F2.03–F2.08 remain `EVIDENCE_PENDING` because duplicate/idempotency and concurrency proof is not yet present for every mutating action/entity, and the current mutation configuration excludes Core Action repositories.
 - Rollback remains revert of the owning repository/service/test commit; no production action occurred.
+
+## Treatment ownership residual — 2026-08-20
+
+- Existing proof: 2 suites/12 tests pass for service conversion/progress/errors and sessions route auth/validation.
+- Missing real integration scenarios: patient from another clinic, item from another treatment plan, plan/item ID mutation without trusted clinic context, duplicate session completion, and two concurrent completions with deterministic `completedSessions`/status.
+- Structural gap: `findByPatient` filters clinic, but `findById`, `update`, `updateItem`, `getProgress` and delete paths accept IDs without clinic/plan ownership predicates; `updateSessionProgress` performs item update, progress read and plan updates outside one transaction.
+- Risk: cross-tenant treatment read/write or lost/over-counted sessions. Rollback is revert of the future treatment ownership commit; no production data was changed.
+- Next goal: add PostgreSQL fixtures for two clinics/plans/items, RED ownership/race assertions, then implement repository predicates and one transaction before any F2.07/F2.08 promotion.
