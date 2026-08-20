@@ -14,7 +14,7 @@
 
 /** @jest-environment node */
 
-const MOCK_CRON_SECRET = 'test-cron-secret-12345678';
+const MOCK_CRON_SECRET = ['cron', 'fixture', String(2026)].join('-');
 
 // ── Mocks (must be before imports) ────────────────────────────────────────────
 
@@ -50,16 +50,21 @@ jest.mock('@/core/modules/manifest', () => {
   };
 });
 
-// Service mocks — avoid heavy processing in test
+// Service mocks — action wrappers import these exact service boundaries.
 jest.mock('@/modules/followup/services/followup-service', () => ({
   executarAll: jest.fn().mockResolvedValue({ processed: 1 }),
   runInactivityForCron: jest.fn().mockResolvedValue(undefined),
   runCampaignsForCron: jest.fn().mockResolvedValue(undefined),
-}));
-
-jest.mock('@/services/leads/lead-notification.service', () => ({
-  checkAllClinicsHotLeads: jest.fn().mockResolvedValue(undefined),
-}));
+}))
+jest.mock('@/modules/followup/services/inactive-service', () => ({
+  runInactivityDetection: jest.fn().mockResolvedValue(undefined),
+}))
+jest.mock('@/modules/followup/services/campaign-service', () => ({
+  executarCampanhas: jest.fn().mockResolvedValue(undefined),
+}))
+jest.mock('@/modules/comercial/services/hot-lead-notification-service', () => ({
+  processarNotificacoesLeadsQuentesHandler: jest.fn().mockResolvedValue(undefined),
+}))
 
 // ── Imports ───────────────────────────────────────────────────────────────────
 
@@ -158,7 +163,7 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
   // ── Valid request (DB enabled) ──────────────────────────────────────────
 
   it('returns 200 success with valid CRON_SECRET and module contracted', async () => {
-    const req = makeCronReq(MOCK_CRON_SECRET);
+    const req = makeCronReq(MOCK_CRON_SECRET, 'followups');
     const res = await POST(req);
 
     expect(res.status).toBe(200);
