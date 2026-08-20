@@ -12,6 +12,8 @@ const mockCountActiveUsersWithRole = jest.fn();
 const mockUpsertUserAccess = jest.fn();
 const mockRemoveUserAccess = jest.fn();
 const mockDeactivateUser = jest.fn();
+const mockGetUserInClinic = jest.fn();
+const mockGetUserRoleScope = jest.fn();
 
 jest.mock('@/modules/core/repositories/roles-repository', () => ({
   getOwnerRole: (...args: unknown[]) => mockGetOwnerRole(...args),
@@ -19,6 +21,7 @@ jest.mock('@/modules/core/repositories/roles-repository', () => ({
 
 jest.mock('@/modules/core/repositories/access-repository', () => ({
   getUserClinicAccess: (...args: unknown[]) => mockGetUserClinicAccess(...args),
+  getUserRoleScope: (...args: unknown[]) => mockGetUserRoleScope(...args),
   countActiveUsersWithRole: (...args: unknown[]) => mockCountActiveUsersWithRole(...args),
   upsertUserAccess: (...args: unknown[]) => mockUpsertUserAccess(...args),
   removeUserAccess: (...args: unknown[]) => mockRemoveUserAccess(...args),
@@ -26,6 +29,7 @@ jest.mock('@/modules/core/repositories/access-repository', () => ({
 
 jest.mock('@/modules/core/repositories/users-repository', () => ({
   deactivateUser: (...args: unknown[]) => mockDeactivateUser(...args),
+  getUserInClinic: (...args: unknown[]) => mockGetUserInClinic(...args),
 }));
 
 import {
@@ -47,6 +51,8 @@ beforeEach(() => {
   jest.resetAllMocks();
   // default: Owner role existe na clínica
   mockGetOwnerRole.mockResolvedValue({ id: OWNER_ROLE_ID });
+  mockGetUserRoleScope.mockResolvedValue({ userClinicId: CLINIC_ID, roleClinicId: CLINIC_ID });
+  mockGetUserInClinic.mockResolvedValue({ id: USER_ID, clinicId: CLINIC_ID });
 });
 
 describe('assignUserAccess — owner invariant', () => {
