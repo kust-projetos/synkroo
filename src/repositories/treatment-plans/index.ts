@@ -300,6 +300,59 @@ export async function getProgress(
 	};
 }
 
+export async function completeSessionProgress(
+	itemId: string,
+	treatmentPlanId: string,
+): Promise<TreatmentPlanItemRow | null> {
+	const db = getDb();
+	return db.transaction(async (tx) => {
+		const itemRows = await tx.select()
+			.from(treatmentPlanItems)
+			.where(and(
+				eq(treatmentPlanItems.id, itemId),
+				eq(treatmentPlanItems.treatmentPlanId, treatmentPlanId),
+			))
+			.for('update');
+		const item = itemRows[0] as TreatmentPlanItemRow | undefined;
+		if (!item) return null;
+		if (item.status === 'completed') return item;
+
+		const planRows = await tx.select({
+			totalSessions: treatmentPlans.totalSessions,
+			completedSessions: treatmentPlans.completedSessions,
+			status: treatmentPlans.status,
+		})
+			.from(treatmentPlans)
+			.where(eq(treatmentPlans.id, treatmentPlanId))
+			.for('update');
+		const plan = planRows[0];
+		if (!plan) return null;
+
+		const now = new Date();
+		const [updatedItem] = await tx.update(treatmentPlanItems)
+			.set({ status: 'completed', completedAt: now, updatedAt: now } as any)
+			.where(and(
+				eq(treatmentPlanItems.id, itemId),
+				eq(treatmentPlanItems.treatmentPlanId, treatmentPlanId),
+			))
+			.returning() as [TreatmentPlanItemRow | undefined];
+
+		const completedSessions = (plan.completedSessions ?? 0) + 1;
+		await tx.update(treatmentPlans)
+			.set({
+				completedSessions,
+				lastSessionAt: now,
+				...(completedSessions >= (plan.totalSessions ?? 1)
+					? { status: 'completed', completedAt: now }
+					: {}),
+				updatedAt: now,
+			} as any)
+			.where(eq(treatmentPlans.id, treatmentPlanId));
+
+		return updatedItem ?? null;
+	});
+}
+
 /**
  * Update a treatment plan item and return the updated row.
  */

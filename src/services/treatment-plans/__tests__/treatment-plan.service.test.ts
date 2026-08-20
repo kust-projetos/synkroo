@@ -8,36 +8,36 @@ import {
   updateTreatmentPlan,
 } from '../treatment-plan.service'
 import {
+  completeSessionProgress,
   createWithItems,
   deleteTreatmentPlan as deleteTreatmentPlanDb,
   findById,
   findByPatient,
   getProgress,
   update,
-  updateItem,
 } from '@/repositories/treatment-plans'
 
 jest.mock('@/repositories/treatment-plans', () => ({
+  completeSessionProgress: jest.fn(),
   createWithItems: jest.fn(),
   deleteTreatmentPlan: jest.fn(),
   findById: jest.fn(),
   findByPatient: jest.fn(),
   getProgress: jest.fn(),
   update: jest.fn(),
-  updateItem: jest.fn(),
 }))
 
 jest.mock('@/lib/logger', () => ({
   dbLogger: { error: jest.fn() },
 }))
 
+const mockCompleteSessionProgress = completeSessionProgress as jest.MockedFunction<typeof completeSessionProgress>
 const mockCreateWithItems = createWithItems as jest.MockedFunction<typeof createWithItems>
 const mockDeleteTreatmentPlanDb = deleteTreatmentPlanDb as jest.MockedFunction<typeof deleteTreatmentPlanDb>
 const mockFindById = findById as jest.MockedFunction<typeof findById>
 const mockFindByPatient = findByPatient as jest.MockedFunction<typeof findByPatient>
 const mockGetProgress = getProgress as jest.MockedFunction<typeof getProgress>
 const mockUpdate = update as jest.MockedFunction<typeof update>
-const mockUpdateItem = updateItem as jest.MockedFunction<typeof updateItem>
 
 const planRow = {
   id: 'plan-1',
@@ -156,20 +156,15 @@ describe('treatment plan service', () => {
     await expect(updateTreatmentPlan('plan-1', {})).resolves.toBeNull()
   })
 
-  it('updates session progress through partial, complete, no-plan and missing-item paths', async () => {
-    mockUpdateItem.mockResolvedValue(itemRow)
-    mockGetProgress.mockResolvedValue({ totalSessions: 3, completedSessions: 1 })
-    mockUpdate.mockResolvedValue(planRow)
+  it('uses one transactional repository call for progress and idempotent retry', async () => {
+    mockCompleteSessionProgress.mockResolvedValue(itemRow)
     await expect(updateSessionProgress('item-1', 'plan-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
-    expect(mockUpdate).toHaveBeenCalledWith('plan-1', expect.objectContaining({ completedSessions: 2 }))
+    expect(mockCompleteSessionProgress).toHaveBeenCalledWith('item-1', 'plan-1')
 
-    mockGetProgress.mockResolvedValue({ totalSessions: 2, completedSessions: 1 })
     await updateSessionProgress('item-1', 'plan-1')
-    expect(mockUpdate).toHaveBeenCalledWith('plan-1', expect.objectContaining({ status: 'completed', completedAt: expect.any(Date) }))
+    expect(mockCompleteSessionProgress).toHaveBeenCalledTimes(2)
 
-    mockGetProgress.mockResolvedValue(null)
-    await expect(updateSessionProgress('item-1', 'plan-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
-    mockUpdateItem.mockResolvedValue(null)
+    mockCompleteSessionProgress.mockResolvedValue(null)
     await expect(updateSessionProgress('missing', 'plan-1')).resolves.toBeNull()
   })
 
