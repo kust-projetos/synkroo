@@ -27,6 +27,14 @@ export async function listClinicUsers(clinicId: string): Promise<ClinicUserOptio
     .where(eq(users.clinicId, clinicId));
 }
 
+export async function getUserInClinic(userId: string, clinicId: string) {
+  const [row] = await getDb().select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, userId), eq(users.clinicId, clinicId)))
+    .limit(1);
+  return row ?? null;
+}
+
 export async function deactivateUser(userId: string, clinicId: string) {
   await getDb().update(users)
     .set({

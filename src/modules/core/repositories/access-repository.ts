@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db/client';
 import { users } from '@/lib/db/schema/core';
-import { userClinicAccess } from '@/modules/core/schema/rbac';
+import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
 import { and, eq, sql } from 'drizzle-orm';
 
 export async function getUserClinicAccess(userId: string, clinicId: string) {
@@ -8,6 +8,17 @@ export async function getUserClinicAccess(userId: string, clinicId: string) {
     .from(userClinicAccess)
     .where(and(eq(userClinicAccess.userId, userId), eq(userClinicAccess.clinicId, clinicId)))
     .limit(1);
+  return row ?? null;
+}
+
+export async function getUserRoleScope(userId: string, roleId: string) {
+  const [row] = await getDb().select({
+    userClinicId: users.clinicId,
+    roleClinicId: roles.clinicId,
+  })
+    .from(users)
+    .leftJoin(roles, eq(roles.id, roleId))
+    .where(eq(users.id, userId))
   return row ?? null;
 }
 
