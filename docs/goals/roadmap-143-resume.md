@@ -1,7 +1,7 @@
 # Roadmap 143 Resume
 
-- Last verified goal: `O1-G01-incident-controls` (commit `4b0e7a57cd06e40be8f49dcb725bf615e98dc40c`)
-- Current wave: `O1`; next goal `O1-G02-git-baseline` is `BLOCKED_R2` by its integration baseline receipt, so O1-G03 must not advance yet.
+- Last verified goal: `O1-G02-git-baseline` (commit `6c5d83f5b4e09bd0e73294fc96b3bbb7eb06b937`)
+- Current wave: `O1`; next READY goal: `O1-G03-tenant-actions` after resolved cron fixture baseline
 - Active blockers: [`../superpowers/audits/roadmap-143-blockers.md`](../superpowers/audits/roadmap-143-blockers.md)
 - Ledger: [`../superpowers/audits/roadmap-143-ledger.json`](../superpowers/audits/roadmap-143-ledger.json)
 - Planning index: [`../superpowers/plans/INDEX.md`](../superpowers/plans/INDEX.md)
@@ -34,8 +34,10 @@
 - Local ancestry: all four expected commits are contained in `main`.
 - PR #6: OPEN, head `fix/rbac-seed-bootstrap-and-menu-dedupe`, base `main`, mergeable `CONFLICTING`; no merge/rebase executed.
 - Lint/typecheck/unit/build/build:cf: PASS.
-- Full loopback integration: BLOCKED_R2 — 34/35 suites, 201/202 tests; followup cron integration exceeded 10 seconds with sanitized API rate-limit activity.
-- Rollback: revert the owning local commit; reproduce after clean DB/process start; do not promote F1.06/F1.08 or advance O1-G03 until integration is green.
+- Full loopback integration: PASS after test-boundary fix — 35 suites, 203 tests, two consecutive runs.
+- Root cause: default `tasks=all` iterated every active clinic and outdated service mocks let real inactive/campaign/hot-lead work run; `API rate limited` send log was expected/non-failing.
+- Fix: exact action-service mocks plus valid case bounded to `tasks=followups`; production handler/rate-limit/timeout unchanged.
+- Rollback: revert the owning cron integration test commit; O1-G03 may proceed, while task-wide cron coverage remains in dedicated suites.
 
 
 ## O0 receipts

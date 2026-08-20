@@ -57,3 +57,11 @@ The baseline ran against HEAD `4b0e7a57` with sanitized logs under `.tmp/o1-g02-
 The integration failure is not treated as a green baseline or a code waiver. Reproduce with the same loopback runner after a clean DB/test-process start, isolate the followup cron timeout/rate-limit interaction, and add a focused regression before promoting F1.06/F1.08. No remote DB or provider was touched.
 
 Rollback is the owning local commit revert; no merge/rebase state exists to abort. Preserve `.tmp/o1-g02-baseline/` as ignored local receipt only. After the R2 blocker is resolved and the six-command baseline is green, update `docs/goals/roadmap-143-resume.md` to O1-G03 or the first dependency-free goal.
+
+## R2 root-cause resolution — 2026-08-20
+
+- Reproduction: the valid cron integration case used the default `tasks=all`, which iterated every active clinic and called `buildCronContext` for each task; the test also mocked outdated service paths, so real inactive/campaign/hot-lead work ran. The send-suite `API rate limited` message was an expected non-failing log, not the timeout cause.
+- Fix: `src/modules/followup/__tests__/cron/integration.test.ts` now mocks the exact action service boundaries and bounds the valid success request to `tasks=followups`. Production cron handler, rate-limit utility, global Jest timeout and skip policy were not changed.
+- Proof: focused cron suite passed 6/6 twice; full loopback integration passed 35 suites/203 tests twice (36.342s and 34.003s). `npm run typecheck` and `npm run lint` remained green.
+- Risk/rollback: the test no longer exercises all cron tasks in the valid success case; those task-specific paths remain covered by the dedicated query test and service suites. Revert the owning test commit to restore the prior fixture; no production rollback is needed.
+- Classification: the O1-G02 integration R2 blocker is resolved for the baseline. F1.06/F1.08 can proceed to their next item-level evidence; O1-G03 is now the next READY goal.
