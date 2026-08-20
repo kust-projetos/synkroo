@@ -127,3 +127,6 @@ dayprof_after.txt
 
 # Miniflare/Wrangler runtime state
 .wrangler/state/
+
+# Generated Stryker reports; durable metrics live in docs/superpowers/audits/
+reports/mutation/
