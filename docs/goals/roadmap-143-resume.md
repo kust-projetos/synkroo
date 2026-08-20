@@ -12,11 +12,24 @@
 
 - Branch: `main`
 - Last commit at resume creation: `bd3fe9995b2adc0af3e9ac9fbc406447c9874c85`
-- Working tree: clean after the ledger commit
+- Gate R source HEAD before final receipt commit: `da4fbcd13db0ec89a67b02fc34452c2596e79bfd`
+- Working tree: clean before the final inventory/resume receipt commit
 - Ledger counts: 143 unique records; 22 `VERIFIED`, 65 `PARTIAL`, 39 `UNVERIFIED`, 14 `EXTERNAL`, 3 `DEFERRED`
 - Mutation receipt: repository target 70.16% against break threshold 70; auth-specific residuals remain in F2.11
 - Global coverage receipt: 54.84% statements, 40.45% branches, 56.06% lines, 42.96% functions; global threshold remains 70%
 - Hyperdrive receipt: local workerd/Wrangler smoke is green; deployed Cloudflare staging remains external
+
+## Gate R receipt
+
+- `git diff --check`, `roadmap:check`, lint and typecheck: PASS
+- Full unit: 245 suites, 1618 passed, 5 pre-existing skips
+- Full loopback integration: 35 suites, 202 tests passed
+- Security: 9 suites, 142 tests; focused coverage 95.22/90.81/95.23/96.33
+- Release contracts: 13 tests passed
+- Gate R score: `10/10`
+- Decision: O0 READY; next independent goal `O1-G01-incident-controls`
+- Residual risks: global coverage below 70, F2.11 auth mutation survivors, and external Cloudflare/provider/secret/migration/pilot gates remain in the blocker registry
+
 
 ## O0 receipts
 
