@@ -244,11 +244,12 @@ export async function updateTreatmentPlan(
  */
 export async function updateSessionProgress(
 	treatmentPlanItemId: string,
+	treatmentPlanId: string,
 ): Promise<TreatmentPlanItem | null> {
 	const now = new Date();
 
-	// Update the item
-	const item = await updatePlanItem(treatmentPlanItemId, {
+	// Update only an item owned by the route's treatment plan.
+	const item = await updatePlanItem(treatmentPlanItemId, treatmentPlanId, {
 		status: "completed",
 		completedAt: now,
 	});

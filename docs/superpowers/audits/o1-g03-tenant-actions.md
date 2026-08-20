@@ -87,3 +87,11 @@ Continue the O1-G03 RED matrix for entity ownership, duplicate/idempotency and c
 - Structural gap: `findByPatient` filters clinic, but `findById`, `update`, `updateItem`, `getProgress` and delete paths accept IDs without clinic/plan ownership predicates; `updateSessionProgress` performs item update, progress read and plan updates outside one transaction.
 - Risk: cross-tenant treatment read/write or lost/over-counted sessions. Rollback is revert of the future treatment ownership commit; no production data was changed.
 - Next goal: add PostgreSQL fixtures for two clinics/plans/items, RED ownership/race assertions, then implement repository predicates and one transaction before any F2.07/F2.08 promotion.
+
+## Treatment item-plan binding GREEN — 2026-08-20
+
+- Sessions POST now passes the authenticated route `planId` to `updateSessionProgress`.
+- Repository `updateItem` requires both `itemId` and `treatmentPlanId`; an item from another plan cannot match the update predicate.
+- Focused route/service/payment proof: 3 suites/20 tests; typecheck/lint pass; six LSP files clean.
+- Residual: `updateSessionProgress` still reads progress and updates item/plan status across multiple repository calls; real cross-clinic fixtures and concurrent completion transaction proof remain open.
+- Rollback: revert the binding commit; no production data or external service was touched.

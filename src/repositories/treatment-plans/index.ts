@@ -305,6 +305,7 @@ export async function getProgress(
  */
 export async function updateItem(
 	itemId: string,
+	treatmentPlanId: string,
 	data: {
 		status?: string;
 		completedAt?: Date | null;
@@ -316,7 +317,10 @@ export async function updateItem(
 	const [row] = (await db
 		.update(treatmentPlanItems)
 		.set({ ...data, updatedAt: new Date() } as any)
-		.where(eq(treatmentPlanItems.id, itemId))
+		.where(and(
+			eq(treatmentPlanItems.id, itemId),
+			eq(treatmentPlanItems.treatmentPlanId, treatmentPlanId),
+		))
 		.returning()) as [TreatmentPlanItemRow | null];
 	return row ?? null;
 }

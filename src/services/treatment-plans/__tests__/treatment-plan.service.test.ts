@@ -160,17 +160,17 @@ describe('treatment plan service', () => {
     mockUpdateItem.mockResolvedValue(itemRow)
     mockGetProgress.mockResolvedValue({ totalSessions: 3, completedSessions: 1 })
     mockUpdate.mockResolvedValue(planRow)
-    await expect(updateSessionProgress('item-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
+    await expect(updateSessionProgress('item-1', 'plan-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
     expect(mockUpdate).toHaveBeenCalledWith('plan-1', expect.objectContaining({ completedSessions: 2 }))
 
     mockGetProgress.mockResolvedValue({ totalSessions: 2, completedSessions: 1 })
-    await updateSessionProgress('item-1')
+    await updateSessionProgress('item-1', 'plan-1')
     expect(mockUpdate).toHaveBeenCalledWith('plan-1', expect.objectContaining({ status: 'completed', completedAt: expect.any(Date) }))
 
     mockGetProgress.mockResolvedValue(null)
-    await expect(updateSessionProgress('item-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
+    await expect(updateSessionProgress('item-1', 'plan-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
     mockUpdateItem.mockResolvedValue(null)
-    await expect(updateSessionProgress('missing')).resolves.toBeNull()
+    await expect(updateSessionProgress('missing', 'plan-1')).resolves.toBeNull()
   })
 
   it('calculates progress including empty and zero-total cases', async () => {
