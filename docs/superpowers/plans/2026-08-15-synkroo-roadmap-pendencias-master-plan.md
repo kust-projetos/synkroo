@@ -25,12 +25,12 @@
 
 | Status | Count | Meaning |
 |---|---:|---|
-| VERIFIED | 5 | F0.03 and F1.05–F1.08 have evidence at current scope. |
-| PARTIAL | 23 | Implementation/evidence exists, but a requirement, normalization, external action or targeted proof remains. |
-| OPEN | 17 | Local implementation or nominal test evidence is still required. |
-| EXTERNAL | 6 | Owner/provider/GitHub/production authorization is required. |
+| VERIFIED | 22 | Nominal evidence exists for the exact requirement at current scope. |
+| PARTIAL | 65 | Implementation/evidence exists, but a requirement, normalization, external action or targeted proof remains. |
+| OPEN | 0 | No remaining item is classified OPEN; unverified local work is tracked as UNVERIFIED. |
+| EXTERNAL | 14 | Owner/provider/GitHub/production/pilot authorization is required. |
 | DEFERRED | 3 | Explicitly postponed or waiting for a decision. |
-| UNVERIFIED | 89 | F4–F12 items require item-level proof; this is not a claim that no code exists. |
+| UNVERIFIED | 39 | F4–F11 residuals still require item-level proof; F12 pilot items are now classified EXTERNAL pending owner authorization. |
 | **Total** | **143** | Every unchecked roadmap item is represented below. |
 
 ### Important residuals after the previous four goals
@@ -245,15 +245,15 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F2.08 | F2 | PARTIAL | Implementar update tenant-scoped, atômico e idempotente; testar concorrência. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.09 | F2 | VERIFIED | RED: usuário desativado com JWT ainda válido. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.10 | F2 | VERIFIED | Adicionar session version/revocation ao contexto e middleware. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.11 | F2 | PARTIAL | Revogar também após logout, senha, role e access change. | `f2-11-revocation-primitive.md`, `f2-11-signout-revocation.md` | W2 gate: password-change mutation remains open |
+| F2.11 | F2 | PARTIAL | Revogar também após logout, senha, role e access change. | `f2-11-revocation-primitive.md` — PostgreSQL/concurrency green twice; repository mutation target 70.16%, auth file 60.24% with 33 survivors/1 no-coverage; revocation guard mutation killed | W2 gate: auth-file residual mutation survivors remain |
 | F2.12 | F2 | VERIFIED | Substituir audit payload por allowlist; provar ausência de PII top-level/aninhada. | `f2-12-audit-redaction.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.13 | F2 | VERIFIED | Corrigir webhook Asaas para evento + charge transition na mesma transaction. | `f2-13-asaas-webhook.md`, `f2-isolated-integration.md` | W2 gate: provider/deploy smoke remains external |
-| F2.14 | F2 | PARTIAL | Injetar Hyperdrive na IA bridge e testar uma tool DB-backed fail-closed. | `f2-14-hyperdrive-contract.md`, `f2-14-db-health-primitive.md`, `f2-14-db-health-rpc.md` | W2 gate: worker-level smoke/deploy remains external |
+| F2.14 | F2 | PARTIAL | Injetar Hyperdrive na IA bridge e testar uma tool DB-backed fail-closed. | `f2-14-hyperdrive-contract.md`, `f2-14-db-health-primitive.md`, `f2-14-db-health-rpc.md` — contract/binding dry-run, local Wrangler dbHealth e 8 concorrentes verdes; Cloudflare staging smoke permanece EXTERNAL | W2 gate: deployed runtime smoke remains EXTERNAL |
 | F2.15 | F2 | VERIFIED | Inventariar paths públicos exatos; remover prefix allowlists amplos. | `f2-15-public-routes.md`, `f2-webhook-gates-integration.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.16 | F2 | VERIFIED | Validar Origin/CSRF em Actions e APIs cookie-authenticated sensíveis. | `f2-16-csrf-origin.md`, `f2-webhook-gates-integration.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.17 | F2 | VERIFIED | Sanitizar `redirectTo` para path interno. | `f2-17-redirect-sanitization.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.18 | F2 | VERIFIED | Corrigir agent permission fallback para `[]`. | `f2-18-agent-permissions.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.19 | F2 | PARTIAL | Ampliar Stryker para auth, RBAC, Actions e audit; executar target focado >=70%. | tranche validation | W2 gate: focused mutation evidence remains open |
+| F2.19 | F2 | VERIFIED | Ampliar Stryker para auth, RBAC, Actions e audit; executar target focado >=70%. | `f2-11-revocation-primitive.md`, `reports/mutation/mutation.json` — 124 mutantes, 70.16% geral; auth residual 60.24% explicitamente mantido | W2 gate: repository mutation target >=70% verde; auth-file residuals permanecem em F2.11 |
 | F3.01 | F3 | PARTIAL | Definir e migrar e-mail normalizado unique por instância. | `f3-01-email-normalization.md` | W3 gate: dev DB duplicate preflight blocked |
 | F3.02 | F3 | PARTIAL | Criar env schema por runtime: app, bridge, agent e sidecar. | `f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md` | W3 gate: app/sidecar wiring and runtime smoke remain open |
 | F3.03 | F3 | PARTIAL | Validar secrets obrigatórios no startup/smoke. | `f3-03-auth-secret-startup.md` | W3 gate: broader runtime smoke remains open |
@@ -267,75 +267,75 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F3.11 | F3 | PARTIAL | Reparar E2E: setup de auth obrigatório; remover catches, tautologias e skips por defeito. | tranche validation | W3 gate: E2E suite not run |
 | F3.12 | F3 | PARTIAL | Criar banco E2E isolado e runner reproduzível. | `f3-15-ci-postgres17.md` | W3 gate: full isolated run remains open |
 | F3.13 | F3 | PARTIAL | Triar `npm audit`; atualizar, mitigar ou criar waiver owner-expirável por finding. | `f3-13-npm-audit.md` | W3 gate: 1 moderate + 1 low waiver remains |
-| F3.14 | F3 | PARTIAL | Criar `npm run verify` com lint, app/workers typecheck, coverage e contract tests. | `f3-14-verify-runner.md` | W3 gate: global coverage threshold fails |
+| F3.14 | F3 | PARTIAL | Criar `npm run verify` com lint, app/workers typecheck, coverage e contract tests. | `f3-14-verify-runner.md` — runner/gates verificados; fresh global coverage 54.84% statements, 40.45% branches, 56.06% lines, 42.96% functions vs threshold 70% | W3 gate: global coverage threshold remains open |
 | F3.15 | F3 | PARTIAL | CI: PostgreSQL 17, scripts auxiliares, security e CF dry-run. | `f3-15-ci-postgres17.md` | W3 gate: remote Actions not executed |
 | F3.16 | F3 | PARTIAL | Subir walking skeleton staging: app + bridge + agent + PostgreSQL 17 + Hyperdrive. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
-| F3.17 | F3 | OPEN | Corrigir lifecycle de pool para Worker e validar concorrência no `workerd`. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |
+| F3.17 | F3 | PARTIAL | Corrigir lifecycle de pool para Worker e validar concorrência no `workerd`. | `f2-14-hyperdrive-contract.md`, `f2-11-revocation-primitive.md` — PostgreSQL integration/concurrency green twice; ephemeral Wrangler local dbHealth and 8-way concurrency green; deployed workerd/Cloudflare smoke remains EXTERNAL | W3 gate: deployed worker runtime evidence remains external |
 | F4.01 | F4 | VERIFIED | Criar `ApiSuccess`, `ApiFailure` e request ID centralizados. | `f4-01-api-response-contract.md` | W4 gate: contract tests and tenant shell |
-| F4.02 | F4 | UNVERIFIED | Criar um route adapter compartilhado para Action Layer. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
-| F4.03 | F4 | UNVERIFIED | Padronizar camelCase e `{data,meta?}` sem duplicar serializers. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
-| F4.04 | F4 | UNVERIFIED | Criar contract tests entre hooks e endpoints antes de migrar tela. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
-| F4.05 | F4 | UNVERIFIED | Fazer sidebar derivar exclusivamente de manifest + RBAC. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
-| F4.06 | F4 | UNVERIFIED | Corrigir paths inexistentes em manifests. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
-| F4.07 | F4 | UNVERIFIED | Impedir página protegida de depender apenas de guard client-side. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
-| F4.08 | F4 | UNVERIFIED | Disabled representa módulo não contratado; implementação parcial nunca conta como entregue. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
+| F4.02 | F4 | PARTIAL | Criar um route adapter compartilhado para Action Layer. | `34a7757b` adiciona `src/lib/api/action-route.ts` e focused adapter tests com data/error envelope e x-request-id; nenhuma migração de rota ainda | W4 gate: route migrations remain open |
+| F4.03 | F4 | PARTIAL | Padronizar camelCase e `{data,meta?}` sem duplicar serializers. | Adapter contract preserves camelCase and canonical `{data}`; full route/page serializer migration remains unverified | W4 gate: broader endpoint contract audit remains open |
+| F4.04 | F4 | PARTIAL | Criar contract tests entre hooks e endpoints antes de migrar tela. | Adapter-level contract tests cover HTTP envelope; hook↔endpoint contracts are not yet migrated/proven | W4 gate: hook↔endpoint contract audit remains open |
+| F4.05 | F4 | PARTIAL | Fazer sidebar derivar exclusivamente de manifest + RBAC. | `build-menu.test.ts`, `menu-actions.test.ts`, `gates.test.ts` e `src/lib/ui/sidebar.tsx` usam manifest/RBAC filtering; visual/route-wide proof remains open | W4 gate: full sidebar audit remains open |
+| F4.06 | F4 | PARTIAL | Corrigir paths inexistentes em manifests. | Read-only scanner found 4 stale declarations: `/dashboard/conversations` (actual `/dashboard/conversas`) and `/dashboard/followup` (no page); fixes remain open | W4 gate: manifest path repair remains open |
+| F4.07 | F4 | PARTIAL | Impedir página protegida de depender apenas de guard client-side. | `src/app/dashboard/layout.tsx` currently redirects/returns null client-side; server-side protected entrypoint proof remains open | W4 gate: server auth boundary remains open |
+| F4.08 | F4 | PARTIAL | Disabled representa módulo não contratado; implementação parcial nunca conta como entregue. | `withModuleRoute`, `filterMenuByAccess`, `assertModuleForJob` and manifest tests enforce disabled gating; full page/module contract audit remains open | W4 gate: disabled semantics across all consumers remain open |
 | F4.09 | F4 | UNVERIFIED | Criar seletor de clínica visível para multi-clínica e oculto para single-clinic. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
 | F4.10 | F4 | UNVERIFIED | Invalidar cache/query ao trocar clínica e testar roles diferentes por unidade. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
 | F4.11 | F4 | UNVERIFIED | Remover rota, componentes e testes Pi Finance após confirmar preservação no projeto separado. | local evidence or implementation required | W4 gate: contract tests and tenant shell |
-| F5.01 | F5 | UNVERIFIED | Pacientes: lista, detalhe, criação, edição, dedup e preferências. | local evidence or implementation required | W5 gate: complete patient-to-confirmation journey |
-| F5.02 | F5 | UNVERIFIED | Dentistas/procedimentos: contratos, PATCH/DELETE e validação monetária/duração. | local evidence or implementation required | W5 gate: complete patient-to-confirmation journey |
-| F5.03 | F5 | UNVERIFIED | Agenda: disponibilidade, calendário, conflito DB e timezone por clínica. | local evidence or implementation required | W5 gate: complete patient-to-confirmation journey |
-| F5.04 | F5 | UNVERIFIED | Waitlist: CRUD e preenchimento de vaga idempotente. | local evidence or implementation required | W5 gate: complete patient-to-confirmation journey |
-| F5.05 | F5 | UNVERIFIED | Tratamentos: ownership, sessões e estados. | local evidence or implementation required | W5 gate: complete patient-to-confirmation journey |
-| F5.06 | F5 | UNVERIFIED | Migrar routes para Action Layer; remover caminhos legados sem consumidor. | local evidence or implementation required | W5 gate: complete patient-to-confirmation journey |
-| F6.01 | F6 | UNVERIFIED | Mensagens/conversas com external IDs únicos e transação. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
-| F6.02 | F6 | UNVERIFIED | Evolution inbound/outbound com contract tests, timeout, replay window e tenant binding. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
+| F5.01 | F5 | PARTIAL | Pacientes: lista, detalhe, criação, edição, dedup e preferências. | Patient preferences API, dedup/merge services and focused tests pass; complete list/detail/create/edit journey is not E2E-proven | W5 gate: complete patient journey remains open |
+| F5.02 | F5 | UNVERIFIED | Dentistas/procedimentos: contratos, PATCH/DELETE e validação monetária/duração. | No focused dentist/procedure route contract evidence was executed in this tranche | W5 gate: dentist/procedure contracts remain open |
+| F5.03 | F5 | PARTIAL | Agenda: disponibilidade, calendário, conflito DB e timezone por clínica. | Availability service/integration and PostgreSQL overbooking conflict tests pass; full calendar/timezone journey remains open | W5 gate: complete appointment journey remains open |
+| F5.04 | F5 | UNVERIFIED | Waitlist: CRUD e preenchimento de vaga idempotente. | No focused waitlist CRUD/idempotency evidence was executed in this tranche | W5 gate: waitlist contract remains open |
+| F5.05 | F5 | PARTIAL | Tratamentos: ownership, sessões e estados. | `0e4dfb87` adiciona focused 8-test treatment-plan service coverage including session/progress states; route ownership/tenant contract remains open | W5 gate: treatment ownership journey remains open |
+| F5.06 | F5 | UNVERIFIED | Migrar routes para Action Layer; remover caminhos legados sem consumidor. | No route-wide migration/consumer search evidence was executed in this tranche | W5 gate: Action Layer migration remains open |
+| F6.01 | F6 | PARTIAL | Mensagens/conversas com external IDs únicos e transação. | Atendimento inbound/send PostgreSQL integrations pass; complete external-ID uniqueness/conversation transaction audit remains open | W6 gate: message/conversation invariants remain open |
+| F6.02 | F6 | PARTIAL | Evolution inbound/outbound com contract tests, timeout, replay window e tenant binding. | Inbound/send/gates integration and channel installation unit tests pass; real Evolution provider timeout/replay evidence remains external/open | W6 gate: provider contract/runtime remains open |
 | F6.03 | F6 | UNVERIFIED | Chat widget no mesmo pipeline, com rate limit distribuído. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.04 | F6 | UNVERIFIED | Executar smoke app + bridge + agent local/preview. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.05 | F6 | UNVERIFIED | Se raw DO passar, criar ADR ratificando. Se falhar, comparar Agents SDK em spike limitado. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.06 | F6 | UNVERIFIED | ADR escolhe LLM provider, embedding model e dimensão produzida pelo modelo antes de ingestão. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.07 | F6 | UNVERIFIED | Implementar níveis R0-R3 e proof server-side imutável, expirável e single-use. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.08 | F6 | UNVERIFIED | Identificar IA, oferecer takeover e escalar sintoma/diagnóstico/medicação/urgência. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
-| F6.09 | F6 | UNVERIFIED | Criar LLM adapter real; falhar fechado sem provider/bridge/DB e preservar contexto. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
+| F6.09 | F6 | PARTIAL | Criar LLM adapter real; falhar fechado sem provider/bridge/DB e preservar contexto. | Bridge failure matrix, DB health and channel adapter tests pass; real multi-provider LLM adapter/provider outage evidence remains open | W6 gate: provider/runtime integration remains open |
 | F6.10 | F6 | UNVERIFIED | Restaurar CRUD knowledge, ingestão, busca vetorial, re-embedding, purge e evals. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.11 | F6 | UNVERIFIED | Consolidar pgvector e remover binding/código Vectorize da v1. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.12 | F6 | UNVERIFIED | Versionar estado DO e definir retention, purge, recovery e RPC contract version. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.13 | F6 | UNVERIFIED | Criar sidecar Playwright como package/deploy próprio, sessão criptografada e um owner por clínica. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.14 | F6 | UNVERIFIED | Autenticar sidecar por mTLS + HMAC com nonce; definir timeout, idempotência e egress allowlist. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
 | F6.15 | F6 | UNVERIFIED | Proibir fallback automático; sidecar é entregue e testado, mas default off. | local evidence or implementation required | W6 gate: app/bridge/agent failure-mode evidence |
-| F7.01 | F7 | UNVERIFIED | Jobs idempotentes para reminder, follow-up, inactive e campaign dispatch. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
-| F7.02 | F7 | UNVERIFIED | Consumir Queue/outbox da Fase 3; nenhuma chamada externa inline. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
+| F7.01 | F7 | PARTIAL | Jobs idempotentes para reminder, follow-up, inactive e campaign dispatch. | Campaign execution and follow-up/outbox integration tests pass; complete reminder/inactive idempotency matrix remains open | W7 gate: all job consumers remain open |
+| F7.02 | F7 | PARTIAL | Consumir Queue/outbox da Fase 3; nenhuma chamada externa inline. | Outbox dispatch integration passes; Cloudflare Queue consumer/runtime proof and inline-call audit remain open | W7 gate: Queue/DLQ runtime remains open |
 | F7.03 | F7 | UNVERIFIED | Resolver recipient phone antes de dispatch. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
 | F7.04 | F7 | UNVERIFIED | Rejeitar `null` incompatível com schemas Zod. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
-| F7.05 | F7 | UNVERIFIED | Estados `draft/scheduled/running/partial/failed/completed/cancelled`. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
-| F7.06 | F7 | UNVERIFIED | Campanha 100% falha termina `failed`. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
-| F7.07 | F7 | UNVERIFIED | Retry com backoff, limite e dead-letter observável. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
+| F7.05 | F7 | PARTIAL | Estados `draft/scheduled/running/partial/failed/completed/cancelled`. | Campaign execution tests cover state transitions, but full state-machine contract across all persisted states is not proven | W7 gate: complete campaign state matrix remains open |
+| F7.06 | F7 | PARTIAL | Campanha 100% falha termina `failed`. | Campaign execution tests exercise failure handling; dedicated 100%-failure persisted-state proof remains open | W7 gate: all-failure integration case remains open |
+| F7.07 | F7 | PARTIAL | Retry com backoff, limite e dead-letter observável. | Outbox dispatch tests pass; bounded retry/DLQ observability proof remains open | W7 gate: retry/DLQ runtime remains open |
 | F7.08 | F7 | UNVERIFIED | Aplicar consentimento versionado e opt-out antes de cada envio não transacional. | local evidence or implementation required | W7 gate: retry/DLQ/consent evidence |
-| F8.01 | F8 | UNVERIFIED | Leads com filtros, paginação, detalhe e create response corretos. | local evidence or implementation required | W8 gate: conversion/merge invariants |
-| F8.02 | F8 | UNVERIFIED | Pipeline hook e endpoint no mesmo contrato. | local evidence or implementation required | W8 gate: conversion/merge invariants |
-| F8.03 | F8 | UNVERIFIED | Tarefas e hot-lead notification reais. | local evidence or implementation required | W8 gate: conversion/merge invariants |
-| F8.04 | F8 | UNVERIFIED | Conversão lead→paciente transacional e deduplicada. | local evidence or implementation required | W8 gate: conversion/merge invariants |
-| F8.05 | F8 | UNVERIFIED | CRM permanece read model sobre lead/paciente; notas/tags via owner Action pública. | local evidence or implementation required | W8 gate: conversion/merge invariants |
-| F8.06 | F8 | UNVERIFIED | Fechar boundaries por `index.ts`; remover side-effect dispatcher. | local evidence or implementation required | W8 gate: conversion/merge invariants |
-| F8.07 | F8 | UNVERIFIED | Merge com self-FK/tenant invariants e proteção contra ciclos. | local evidence or implementation required | W8 gate: conversion/merge invariants |
-| F9.01 | F9 | UNVERIFIED | Remover cobrança simulada; provider ausente falha. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
+| F8.01 | F8 | PARTIAL | Leads com filtros, paginação, detalhe e create response corretos. | CRM/comercial route/service suites pass; complete filter/pagination/detail contract evidence remains open | W8 gate: lead API contract remains open |
+| F8.02 | F8 | PARTIAL | Pipeline hook e endpoint no mesmo contrato. | CRM route and manifest tests pass; hook↔endpoint contract migration remains open | W8 gate: pipeline contract remains open |
+| F8.03 | F8 | PARTIAL | Tarefas e hot-lead notification reais. | Hot-lead listing/notification and CRM route tests pass; real task persistence/notification journey remains open | W8 gate: task/notification integration remains open |
+| F8.04 | F8 | PARTIAL | Conversão lead→paciente transacional e deduplicada. | Lead conversion and PostgreSQL dedup/duplicate-execution tests pass; full lead→patient transaction journey remains open | W8 gate: conversion invariants remain open |
+| F8.05 | F8 | PARTIAL | CRM permanece read model sobre lead/paciente; notas/tags via owner Action pública. | Contact read-model, owner-action and duplicate route tests pass; complete notes/tags owner journey remains open | W8 gate: CRM read-model contract remains open |
+| F8.06 | F8 | PARTIAL | Fechar boundaries por `index.ts`; remover side-effect dispatcher. | CRM action taxonomy/registry and owner-bridge guard tests pass; complete boundary/side-effect audit remains open | W8 gate: boundary audit remains open |
+| F8.07 | F8 | PARTIAL | Merge com self-FK/tenant invariants e proteção contra ciclos. | Lead/patient merge and duplicate execution suites plus PostgreSQL dedup pass; full self-FK/cycle matrix remains open | W8 gate: merge invariant matrix remains open |
+| F9.01 | F9 | PARTIAL | Remover cobrança simulada; provider ausente falha. | Finance gateway/charge unit tests pass; provider sandbox and full no-provider production path remain open | W9 gate: provider failure evidence remains open |
 | F9.02 | F9 | UNVERIFIED | Asaas secrets e webhook secret separados. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F9.03 | F9 | UNVERIFIED | Liberar somente rota exata de webhook no middleware. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F9.04 | F9 | UNVERIFIED | Verificar assinatura/token constant-time e evento idempotente. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F9.05 | F9 | UNVERIFIED | Resolver gateway→clínica→charge local; nunca aceitar tenant de query/header livre. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F9.06 | F9 | UNVERIFIED | Persistir gateway event + payment/charge transition em uma transaction. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F9.07 | F9 | UNVERIFIED | Orçamento, parcelas, pagamento e cobrança em transações coerentes. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F9.08 | F9 | UNVERIFIED | Race tests para criação, webhook duplicado/simultâneo, falha parcial, settlement e cancelamento. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F9.09 | F9 | UNVERIFIED | Outbox para chamada externa e reconciliação. | local evidence or implementation required | W9 gate: idempotent provider/race evidence |
-| F10.01 | F10 | UNVERIFIED | Dashboard com métricas reais, período e definição documentada. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
+| F9.03 | F9 | PARTIAL | Liberar somente rota exata de webhook no middleware. | Asaas webhook route/gate tests pass; deployed middleware route audit remains open | W9 gate: deployed route proof remains open |
+| F9.04 | F9 | PARTIAL | Verificar assinatura/token constant-time e evento idempotente. | Crypto/webhook unit and PostgreSQL webhook integration tests pass; provider signature sandbox evidence remains open | W9 gate: provider verification remains open |
+| F9.05 | F9 | PARTIAL | Resolver gateway→clínica→charge local; nunca aceitar tenant de query/header livre. | Charge-service and scope integration tests pass; full registered-credential/provider resolution matrix remains open | W9 gate: provider credential binding remains open |
+| F9.06 | F9 | PARTIAL | Persistir gateway event + payment/charge transition em uma transaction. | Asaas webhook and charge integration tests pass with transactional evidence; provider reconciliation remains open | W9 gate: provider/reconciliation runtime remains open |
+| F9.07 | F9 | PARTIAL | Orçamento, parcelas, pagamento e cobrança em transações coerentes. | Installment/collection/charge integration tests pass; complete cross-domain coherence matrix remains open | W9 gate: full finance coherence remains open |
+| F9.08 | F9 | PARTIAL | Race tests para criação, webhook duplicado/simultâneo, falha parcial, settlement e cancelamento. | Duplicate execution and finance integration suites pass; full concurrent provider/race matrix remains open | W9 gate: race matrix remains open |
+| F9.09 | F9 | PARTIAL | Outbox para chamada externa e reconciliação. | Shared outbox integration tests pass; finance-specific external dispatch/reconciliation remains open | W9 gate: provider reconciliation remains open |
+| F10.01 | F10 | PARTIAL | Dashboard com métricas reais, período e definição documentada. | Analytics service/route suites pass; metric dictionary and dashboard source/window proof remain open | W10 gate: metric governance remains open |
 | F10.02 | F10 | UNVERIFIED | Criar metric dictionary: fórmula, fonte, janela, timezone, freshness e clínica. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
-| F10.03 | F10 | UNVERIFIED | Eliminar previsão/ROI apresentado como dado quando for heurística. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
-| F10.04 | F10 | UNVERIFIED | Relatórios CSV/PDF tenant-scoped e redacted. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
+| F10.03 | F10 | PARTIAL | Eliminar previsão/ROI apresentado como dado quando for heurística. | ROI/noshow analytics tests pass; product labeling and formula/source dictionary proof remain open | W10 gate: heuristic-vs-fact labeling remains open |
+| F10.04 | F10 | PARTIAL | Relatórios CSV/PDF tenant-scoped e redacted. | Reports export/patient route suites pass; complete PDF/CSV tenant and redaction matrix remains open | W10 gate: complete reporting audit remains open |
 | F10.05 | F10 | UNVERIFIED | CRUD de perfis, clone, assign/revoke e anti-escalation. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
 | F10.06 | F10 | UNVERIFIED | Configuração de clínica, timezone, horário, canais e agente persistida. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
-| F10.07 | F10 | UNVERIFIED | LGPD export/anonymize com permission, confirmação e transaction. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
+| F10.07 | F10 | PARTIAL | LGPD export/anonymize com permission, confirmação e transaction. | LGPD export/anonymize route tests pass; full transaction/permission and downstream lifecycle proof remains open | W10 gate: complete LGPD lifecycle remains open |
 | F10.08 | F10 | UNVERIFIED | Política de retenção para mensagens, DO, audit, gateway events e exports. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
-| F10.09 | F10 | UNVERIFIED | Minimizar/redact payload bruto de gateway, traces, errors e logs. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
+| F10.09 | F10 | PARTIAL | Minimizar/redact payload bruto de gateway, traces, errors e logs. | Audit-remediation and structured logging/security-header suites pass; full gateway/traces/errors redaction audit remains open | W10 gate: complete redaction audit remains open |
 | F10.10 | F10 | UNVERIFIED | Implementar legal hold, purge verificável e opt-out global não transacional. | local evidence or implementation required | W10 gate: metric and data-lifecycle evidence |
 | F11.01 | F11 | UNVERIFIED | IaC/config gerada por cliente; sem editar IDs Wrangler manualmente. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.02 | F11 | UNVERIFIED | Onboarding invite-only: owner, clínicas, módulos, equipe, import, canais e consulta de teste. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
@@ -343,23 +343,23 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F11.04 | F11 | UNVERIFIED | Offboarding com export, revogação, retenção e destruição auditada. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.05 | F11 | UNVERIFIED | Pipeline: backup/preflight → expand migration → workers → app → smoke → contract cleanup. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.06 | F11 | UNVERIFIED | Deploy bridge e agent antes do app dependente. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
-| F11.07 | F11 | VERIFIED | Liveness público mínimo; readiness protegido e barato. | `f11-07-health-readiness.md` | W11 gate: rollout/rollback/SLO evidence |
-| F11.08 | F11 | VERIFIED | Logs JSON com request/correlation ID e redaction. | `f11-08-structured-logging.md` | W11 gate: rollout/rollback/SLO evidence |
+| F11.07 | F11 | VERIFIED | Liveness público mínimo; readiness protegido e barato. | `f11-07-health-readiness.md`, `src/__tests__/api/health/route.test.ts`, `src/app/api/internal/readiness/route.test.ts` — 4 health/readiness assertions pass | W11 gate: rollout/rollback/SLO evidence remains open |
+| F11.08 | F11 | VERIFIED | Logs JSON com request/correlation ID e redaction. | `f11-08-structured-logging.md`, `src/lib/__tests__/logger.test.ts` — structured logging tests pass | W11 gate: rollout/rollback/SLO evidence remains open |
 | F11.09 | F11 | UNVERIFIED | Métricas/SLO: auth, DB, webhook, queue, agent, provider e sidecar. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.10 | F11 | UNVERIFIED | Alertas e runbooks acionáveis. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.11 | F11 | UNVERIFIED | Ensaiar rollback app/workers e compatibilidade DB. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.12 | F11 | UNVERIFIED | Versionar app/bridge/agent, RPC, schema e estado DO por release/cliente. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.13 | F11 | UNVERIFIED | Provar old/new compatibility e version skew; lifecycle DO não pode cruzar rollback/rollout gradual. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
 | F11.14 | F11 | UNVERIFIED | Definir thresholds de abort; DB aplicada recebe roll-forward, não down destrutivo. | local evidence or implementation required | W11 gate: rollout/rollback/SLO evidence |
-| F11.15 | F11 | VERIFIED | Security headers: CSP, HSTS, nosniff, referrer e permissions policy. | `f11-15-security-headers.md` | W11 gate: rollout/rollback/SLO evidence |
-| F12.01 | F12 | UNVERIFIED | Provisionar cliente piloto via onboarding gerenciado. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
-| F12.02 | F12 | UNVERIFIED | Importar dados anonimizados ou aprovados. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
-| F12.03 | F12 | UNVERIFIED | Executar J-01 a J-12 sem capacidade baseline beta. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
-| F12.04 | F12 | UNVERIFIED | Testar indisponibilidade Evolution, LLM, DB, Queue e sidecar. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
-| F12.05 | F12 | UNVERIFIED | Validar mobile/desktop, acessibilidade e performance. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
-| F12.06 | F12 | UNVERIFIED | Treinar equipe e registrar feedback sem alterar scope automaticamente. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
-| F12.07 | F12 | UNVERIFIED | Produzir scorecard de defects, segurança, SLO e operação. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
-| F12.08 | F12 | UNVERIFIED | Owner decide go/no-go. | local evidence or implementation required | W12 gate: pilot scorecard and formal decision |
+| F11.15 | F11 | VERIFIED | Security headers: CSP, HSTS, nosniff, referrer e permissions policy. | `f11-15-security-headers.md`, `src/__tests__/security/headers.test.ts` — headers suite passes | W11 gate: rollout/rollback/SLO evidence remains open |
+| F12.01 | F12 | EXTERNAL | Provisionar cliente piloto via onboarding gerenciado. | Requires approved pilot owner, tenant and maintenance window; no provisioning authorized | W12 gate: owner-approved pilot required |
+| F12.02 | F12 | EXTERNAL | Importar dados anonimizados ou aprovados. | Requires owner-approved dataset/import record; no data import authorized | W12 gate: approved import required |
+| F12.03 | F12 | EXTERNAL | Executar J-01 a J-12 sem capacidade baseline beta. | Requires approved staging/pilot environment and test participants; no pilot execution authorized | W12 gate: approved pilot execution required |
+| F12.04 | F12 | EXTERNAL | Testar indisponibilidade Evolution, LLM, DB, Queue e sidecar. | Requires provider/staging resources and outage drill authorization; no external outage exercise authorized | W12 gate: approved outage drill required |
+| F12.05 | F12 | EXTERNAL | Validar mobile/desktop, acessibilidade e performance. | Requires approved pilot/staging candidate and UX/performance acceptance window; not executed against a release candidate | W12 gate: approved pilot validation required |
+| F12.06 | F12 | EXTERNAL | Treinar equipe e registrar feedback sem alterar scope automaticamente. | Requires named pilot team, training session and feedback owner; no human training authorized | W12 gate: owner-approved training required |
+| F12.07 | F12 | EXTERNAL | Produzir scorecard de defects, segurança, SLO e operação. | Depends on approved pilot execution and owner acceptance data; no scorecard inputs exist | W12 gate: pilot evidence required |
+| F12.08 | F12 | EXTERNAL | Owner decide go/no-go. | Requires owner review of pilot scorecard; no decision authority or pilot record supplied | W12 gate: formal owner go/no-go required |
 
 ## Appendix B — source and evidence artifacts
 
