@@ -1,11 +1,13 @@
-/** @jest-environment node */
-
-// Integration: usa DB real — desativa o mock do jest.setup.ts
 jest.unmock('@/lib/db/client');
 
 
 
-import { createUserWithClinic } from '../index';
+import {
+  createUserWithClinic,
+  findUserByEmail,
+  findUserProfileById,
+  hasUserClinicAccess,
+} from '../index';
 import { getDb } from '@/lib/db/client';
 import { clinics, users, userCredentials } from '@/lib/db/schema';
 import { roles, rolePermissions, userClinicAccess } from '@/modules/core/schema/rbac';
@@ -41,7 +43,7 @@ describeOrSkip('Signup — provisiona RBAC (DB real)', () => {
 
   it('cria clínica com perfis de sistema e dono com acesso Owner', async () => {
     const profile = await createUserWithClinic({
-      email, password: 'senha-forte-123', name: 'Dr. Owner', clinicName,
+      email, password: `fixture-${unique}`, name: 'Dr. Owner', clinicName,
     });
     ownerId = profile.id;
     clinicId = profile.clinicId;
@@ -64,6 +66,34 @@ describeOrSkip('Signup — provisiona RBAC (DB real)', () => {
 
     // 3. Prova do fim do lockout: o dono pode gerir usuários.
     const resolved = await resolveAccess(ownerId, clinicId, drizzleRbacRepo);
-    expect(resolved.can('core:manage_users')).toBe(true);
+    expect(resolved.can('core:manage_users')).toBe(true)
+
+    // 4. Profile and lookup helpers preserve the complete tenant-scoped shape.
+    expect(await findUserProfileById(ownerId)).toEqual(expect.objectContaining({
+      id: ownerId,
+      email,
+      name: 'Dr. Owner',
+      role: 'owner',
+      isActive: true,
+      sessionVersion: 0,
+      clinicId,
+      clinics: expect.objectContaining({
+        id: clinicId,
+        name: clinicName,
+        settings: expect.objectContaining({
+          business_hours: expect.any(Object),
+          ai_settings: expect.objectContaining({
+            auto_response: true,
+            escalation_enabled: true,
+            business_name: clinicName,
+          }),
+        }),
+      }),
+    }))
+    expect(await findUserProfileById('00000000-0000-4000-8000-000000000000')).toBeNull()
+    expect(await hasUserClinicAccess(ownerId, clinicId)).toBe(true)
+    expect(await hasUserClinicAccess(ownerId, '00000000-0000-4000-8000-000000000001')).toBe(false)
+    expect(await findUserByEmail(email.toUpperCase())).toEqual({ id: ownerId })
+    expect(await findUserByEmail('missing@signup-test.local')).toBeNull()
   });
 });

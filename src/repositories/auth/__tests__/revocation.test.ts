@@ -17,5 +17,8 @@ describe('revokeUserSession', () => {
     expect(update).toHaveBeenCalledTimes(1)
     expect(set).toHaveBeenCalledTimes(1)
     expect(where).toHaveBeenCalledTimes(1)
+    expect(set.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ sessionVersion: expect.anything() }),
+    )
   })
 })

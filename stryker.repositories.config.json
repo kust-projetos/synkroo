@@ -4,20 +4,27 @@
   "plugins": ["@stryker-mutator/jest-runner"],
   "testRunner": "jest",
   "coverageAnalysis": "perTest",
+  "reporters": ["progress", "json", "html"],
+  "jsonReporter": { "fileName": "reports/mutation/mutation.json" },
   "concurrency": 1,
   "mutate": [
     "src/modules/financeiro/repositories/financeiro-scope-repository.ts",
     "src/modules/financeiro/repositories/installment-replacement-repository.ts",
-    "src/modules/crm/repositories/merge-execution-repository.ts"
+    "src/modules/crm/repositories/merge-execution-repository.ts",
+    "src/repositories/auth/index.ts"
   ],
   "jest": {
     "configFile": "jest.security.integration.config.js",
     "projectType": "custom",
     "config": {
+      "testEnvironment": "@stryker-mutator/jest-runner/jest-env/node",
       "testMatch": [
         "**/modules/financeiro/__tests__/installments-scope/integration.test.ts",
         "**/modules/financeiro/__tests__/collection-scope/integration.test.ts",
-        "**/modules/crm/__tests__/duplicate-execution.integration.test.ts"
+        "**/modules/crm/__tests__/duplicate-execution.integration.test.ts",
+        "**/repositories/auth/__tests__/revocation.test.ts",
+        "**/repositories/auth/__tests__/password-change.integration.test.ts",
+        "**/repositories/auth/__tests__/integration.test.ts"
       ]
     }
   },
