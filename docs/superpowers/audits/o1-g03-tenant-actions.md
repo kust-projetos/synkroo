@@ -71,3 +71,11 @@ Continue the O1-G03 RED matrix for entity ownership, duplicate/idempotency and c
 - Repository mutation target remains 70.97% (88 killed, 35 survived, 1 no-coverage, 2 timed-out mutants); the current Stryker configuration mutates four repository files and does not include Core Action repositories, so this is not an Action mutation closure.
 - Residual: duplicate POST/idempotency and two concurrent same-entity updates across every action still need dedicated proof. F2.03–F2.08 remain `EVIDENCE_PENDING`.
 - Rollback: revert the owner/service/test commit; isolated fixtures are cleaned by teardown and no production data was changed.
+
+## Idempotency/race receipt — 2026-08-20
+
+- Duplicate Owner→Owner assignment remains a single `(user_id, clinic_id)` row.
+- Two concurrent assignments to the same user/clinic/role both complete successfully, final role is `recepRoleId`, and `users.sessionVersion` increases by exactly two.
+- Core matrix with this proof passes 16/16 twice; the first warm-up attempt had a transient fixture failure and was not counted as green. Clean double-run is the authoritative receipt.
+- F2.03–F2.08 remain `EVIDENCE_PENDING` because duplicate/idempotency and concurrency proof is not yet present for every mutating action/entity, and the current mutation configuration excludes Core Action repositories.
+- Rollback remains revert of the owning repository/service/test commit; no production action occurred.
