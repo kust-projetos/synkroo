@@ -2,20 +2,15 @@
 
 Date: 2026-08-20
 Roadmap IDs: F2.11, F3.14
-Status: baseline captured; release gate remains NO-GO until test regression and coverage are repaired.
+Status: regression fixed; release gate remains NO-GO until coverage reaches 70%.
 
 ## Coverage receipt
 
-Command: `npm test -- --coverage --runInBand`
+Command: `npm test -- --coverage --runInBand` after commit `564e8814`.
 
-- Result: **failed** — 244 suites passed, 1 failed; 1,609 tests passed, 10 failed, 5 skipped.
-- Failing suite: `src/modules/core/services/__tests__/access-service.test.ts`.
-- Root error: mocked `accessRepo` lacks `getUserRoleScope`, producing `TypeError` before the expected `ActionError` assertions.
-- Generated `coverage/coverage-summary.json` metrics:
-  - Statements: **52.06%** (7,606/14,608)
-  - Branches: **36.53%** (1,950/5,338)
-  - Lines: **53.22%** (7,100/13,340)
-  - Functions: **39.92%** (1,004/2,515)
+- Result: **245 suites passed**, 1,619 tests passed, 5 skipped; the command exits 1 only on global thresholds.
+- The previous 10 access-service TypeErrors are resolved by the test-only mock alignment in `564e8814`.
+- Current Jest metrics: statements **54.85%**, branches **40.44%**, lines **56.06%**, functions **42.93%**.
 - The global Jest thresholds remain 70% for all four dimensions. No exclusion or threshold was changed.
 
 ## Gate comparison
@@ -24,10 +19,10 @@ Command: `npm test -- --coverage --runInBand`
 
 ## Current verification
 
-- `npm run verify` — failed at coverage with the same access-service mock regression; lint and typechecks completed before the failure.
-- The failure is actionable: update the access-service test repository mock to include the current `getUserRoleScope` contract, then rerun the focused suite and full coverage.
-- Coverage work must prioritize the failed auth/tenancy tests and largest uncovered critical modules (Actions, migrations, finance, LGPD, outbox and agent side effects) without weakening measurement.
+- `npm run verify` — reaches coverage with all 245 suites and 1,619 tests passing, then exits 1 because the global 70% threshold is unmet.
+- The access-service mock regression is closed; the remaining blocker is structural coverage debt across critical modules.
+- Coverage work must prioritize auth/tenancy, Actions, migrations, finance, LGPD, outbox and agent side effects without weakening measurement.
 
 ## Residual gates
 
-F2.11/F3.14 remain open. The 70% gate is not satisfied, test suite is not green, and verify/CI parity requires an explicit owner-approved change. This audit records baseline evidence only; it does not authorize CI push, staging, production E2E or external provider actions.
+F2.11/F3.14 remain open. The 70% gate is not satisfied, although the unit suite is green. Verify/CI parity also remains open because integration, security, build, production E2E and Wrangler are separate CI stages. This audit does not authorize CI push, staging, production E2E or external provider actions.
