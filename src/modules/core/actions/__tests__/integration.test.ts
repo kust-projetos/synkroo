@@ -128,6 +128,27 @@ describeOrSkip('assignUserAccess — anti-lockout (DB real)', () => {
       { userId: soloOwnerId, clinicId: CLINIC, roleId: ownerRoleId }, adminCtx);
     expect(r.ok).toBe(true);
   });
+
+  it('keeps duplicate and concurrent access assignment deterministic', async () => {
+    const db = getDb();
+    await db.insert(userClinicAccess).values({ userId: otherOwnerId, clinicId: CLINIC, roleId: ownerRoleId })
+      .onConflictDoUpdate({ target: [userClinicAccess.userId, userClinicAccess.clinicId], set: { roleId: ownerRoleId } });
+    const [before] = await db.select({ sessionVersion: users.sessionVersion }).from(users)
+      .where(eq(users.id, soloOwnerId));
+
+    const results = await Promise.all([
+      runAction(assignUserAccess, { userId: soloOwnerId, clinicId: CLINIC, roleId: recepRoleId }, adminCtx),
+      runAction(assignUserAccess, { userId: soloOwnerId, clinicId: CLINIC, roleId: recepRoleId }, adminCtx),
+    ]);
+
+    expect(results.every((result) => result.ok)).toBe(true);
+    const [access] = await db.select({ roleId: userClinicAccess.roleId }).from(userClinicAccess)
+      .where(and(eq(userClinicAccess.userId, soloOwnerId), eq(userClinicAccess.clinicId, CLINIC)));
+    const [after] = await db.select({ sessionVersion: users.sessionVersion }).from(users)
+      .where(eq(users.id, soloOwnerId));
+    expect(access.roleId).toBe(recepRoleId);
+    expect(after.sessionVersion).toBe(before.sessionVersion + 2);
+  });
 });
 
 describeOrSkip('Core read-actions — admin lists (DB real)', () => {
