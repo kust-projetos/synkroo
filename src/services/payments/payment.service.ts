@@ -86,7 +86,7 @@ async function autoCompleteSessions(
 
   let completed = 0
   for (const item of items) {
-    const result = await updateSessionProgress(item.id)
+    const result = await updateSessionProgress(item.id, treatmentPlanId)
     if (result) completed++
   }
   return completed

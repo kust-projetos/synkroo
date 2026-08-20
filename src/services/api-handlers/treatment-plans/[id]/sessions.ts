@@ -29,7 +29,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const body = await request.json() as Record<string,any>
     if (!body.treatment_plan_item_id) return NextResponse.json({ error: 'treatment_plan_item_id is required' }, { status: 400 })
 
-    const item = await updateSessionProgress(body.treatment_plan_item_id)
+    const item = await updateSessionProgress(body.treatment_plan_item_id, planId)
     if (!item) return NextResponse.json({ error: 'Failed to update session' }, { status: 500 })
     return NextResponse.json({ treatment_plan_item: item })
   } catch (error) { return handleApiError(error) }
