@@ -51,7 +51,7 @@ try {
   await client.query(
     `INSERT INTO clinics (id, name, slug, phone, email)
      VALUES ($1, 'Clinica Demo', 'clinica-demo', '+5500000000000', 'contato@clinicademo.com')
-     ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, phone = EXCLUDED.phone, email = EXCLUDED.email, deleted_at = NULL
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug, phone = EXCLUDED.phone, email = EXCLUDED.email, deleted_at = NULL
      RETURNING id`,
     [CLINIC_ID],
   );
