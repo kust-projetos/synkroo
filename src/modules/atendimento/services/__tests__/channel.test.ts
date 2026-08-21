@@ -56,10 +56,10 @@ describe('sendByChannel', () => {
     expect(result.error).toContain('receive-only');
   });
 
-  it('returns error for instagram (not yet implemented)', async () => {
+  it('returns configuration error when Instagram credentials are absent', async () => {
     const result = await sendByChannel('instagram', 'any', 'Hello');
     expect(result.success).toBe(false);
-    expect(result.error).toContain('not yet implemented');
+    expect(result.error).toContain('provider not configured');
   });
 });
 

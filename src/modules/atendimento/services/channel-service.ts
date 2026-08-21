@@ -106,9 +106,29 @@ export async function sendWhatsApp(to: string, text: string): Promise<SendResult
   }
 }
 
-export async function sendInstagram(_to: string, _text: string): Promise<SendResult> {
-  dbLogger.warn('channel-service: instagram send not implemented');
-  return { success: false, error: 'Instagram outbound not yet implemented' };
+export async function sendInstagram(to: string, text: string): Promise<SendResult> {
+  const accountId = process.env.INSTAGRAM_ACCOUNT_ID;
+  const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
+  if (!accountId || !accessToken) {
+    return { success: false, error: 'Instagram provider not configured' };
+  }
+
+  try {
+    const response = await fetch(`https://graph.facebook.com/v18.0/${accountId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ recipient: { id: to }, message: { text } }),
+    });
+    if (!response.ok) return { success: false, error: 'Instagram provider request failed' };
+    const payload = await response.json() as { message_id?: string };
+    return { success: true, messageId: payload.message_id };
+  } catch (err: unknown) {
+    dbLogger.error('channel-service: instagram send failed', err);
+    return { success: false, error: 'Instagram provider request failed' };
+  }
 }
 
 // ─── WhatsAppService (Playwright browser automation) ────────────
