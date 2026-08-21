@@ -4,6 +4,7 @@ import { moduleManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
+import { resolveIaTimezone } from '../timezone';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // buildUserContext lança 'unauthenticated' sem sessão; dá user + can (RBAC real).
@@ -46,7 +47,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       source: 'agent_delegated',
       personaType: who.personaType,
       context: who.context,
-      timezone: 'America/Sao_Paulo', // TODO: timezone real da clínica (clinic settings)
+      timezone: resolveIaTimezone(),
       userMessage: message,
       confirmedToken: body.confirmedToken,
       identityVerifiedToken: body.identityVerifiedToken,
