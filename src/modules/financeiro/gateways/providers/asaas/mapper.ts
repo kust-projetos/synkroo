@@ -2,29 +2,52 @@
  * Financeiro — Asaas payload mapper.
  *
  * Maps Asaas API request/response shapes to normalized finance DTOs.
- * Full mapping implementation added alongside webhook processing.
  */
 
 import type { CreateChargeResult, NormalizedGatewayEvent } from '../../contracts';
+import { normalizeAsaasWebhookEvent } from './webhook';
+
+type AsaasChargeResponse = {
+  id?: unknown;
+  invoiceUrl?: unknown;
+  pixQrCode?: unknown;
+  status?: unknown;
+};
+
+function mapStatus(status: unknown): CreateChargeResult['status'] {
+  switch (status) {
+    case 'RECEIVED':
+    case 'CONFIRMED':
+      return 'paid';
+    case 'OVERDUE':
+      return 'overdue';
+    case 'REFUNDED':
+    case 'DELETED':
+      return 'cancelled';
+    default:
+      return 'pending';
+  }
+}
 
 /**
  * Map Asaas create charge response to normalized result.
  */
-export function mapAsaasCreateChargeResponse(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  response: any,
-): CreateChargeResult {
-  // TODO: implement mapping when Asaas API integration is built
-  throw new Error('mapAsaasCreateChargeResponse not yet implemented');
+export function mapAsaasCreateChargeResponse(response: AsaasChargeResponse): CreateChargeResult {
+  if (!response || typeof response !== 'object' || typeof response.id !== 'string' || !response.id) {
+    throw new Error('Invalid Asaas create charge response');
+  }
+
+  return {
+    externalChargeId: response.id,
+    paymentUrl: typeof response.invoiceUrl === 'string' ? response.invoiceUrl : null,
+    pixQrCode: typeof response.pixQrCode === 'string' ? response.pixQrCode : null,
+    status: mapStatus(response.status),
+  };
 }
 
 /**
  * Map Asaas webhook event to normalized gateway event.
  */
-export function mapAsaasWebhookEvent(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload: any,
-): NormalizedGatewayEvent {
-  // TODO: implement webhook event mapping
-  throw new Error('mapAsaasWebhookEvent not yet implemented');
+export function mapAsaasWebhookEvent(payload: unknown): NormalizedGatewayEvent {
+  return normalizeAsaasWebhookEvent(payload);
 }
