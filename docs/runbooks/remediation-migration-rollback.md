@@ -5,8 +5,8 @@
 Migrations `0013`–`0016` are additive or constraint changes. Apply to an anonymized staging database, run preflight checks, then execute:
 
 ```bash
-TEST_DATABASE_URL="$STAGING_TEST_DATABASE_URL" npm run db:migrate
-TEST_DATABASE_URL="$STAGING_TEST_DATABASE_URL" node scripts/verify-remediation-schema.mjs
+DATABASE_URL="$STAGING_TEST_DATABASE_URL" npm run db:migrate
+DATABASE_URL="$STAGING_TEST_DATABASE_URL" node scripts/verify-remediation-schema.mjs
 ```
 
 Verification checks required remediation columns and the tenant-scoped unique keys for
