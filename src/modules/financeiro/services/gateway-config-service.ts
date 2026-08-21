@@ -11,6 +11,7 @@ import {
   updatePaymentGateway as repoUpdateGateway,
   listGateways as repoListGateways,
   createRoutingRule as repoCreateRoutingRule,
+  updateRoutingRule as repoUpdateRoutingRule,
   listRoutingRules as repoListRoutingRules,
   type PaymentGatewayRow,
   type GatewayRoutingRuleRow,
@@ -110,7 +111,16 @@ export async function saveRoutingRule(input: SaveRoutingRuleInput): Promise<Gate
   const { clinicId, gatewayId, campaignId, patientId, leadId } = input;
   assertSingleRoutingScope({ campaignId, patientId, leadId });
 
-  if (input.id) throw new Error('Routing rule update not yet implemented');
+  if (input.id) {
+    const updated = await repoUpdateRoutingRule(input.id, clinicId, {
+      gatewayId,
+      campaignId: campaignId ?? null,
+      patientId: patientId ?? null,
+      leadId: leadId ?? null,
+    });
+    if (!updated) throw new Error('Routing rule not found');
+    return updated;
+  }
 
   return repoCreateRoutingRule({
     clinicId,

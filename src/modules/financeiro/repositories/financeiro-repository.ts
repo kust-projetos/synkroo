@@ -362,6 +362,19 @@ export async function listRoutingRules(clinicId: string): Promise<GatewayRouting
   return db.select().from(gatewayRoutingRules).where(eq(gatewayRoutingRules.clinicId, clinicId));
 }
 
+export async function updateRoutingRule(
+  id: string,
+  clinicId: string,
+  patch: Pick<GatewayRoutingRuleRow, 'gatewayId' | 'campaignId' | 'patientId' | 'leadId'>,
+): Promise<GatewayRoutingRuleRow | undefined> {
+  const db = getDb();
+  const [row] = await db.update(gatewayRoutingRules)
+    .set({ ...patch, updatedAt: new Date() })
+    .where(and(eq(gatewayRoutingRules.id, id), eq(gatewayRoutingRules.clinicId, clinicId)))
+    .returning();
+  return row;
+}
+
 // ─── GatewayEvent CRUD ──────────────────────────────────────────────────────────
 
 export async function createGatewayEvent(data: {
