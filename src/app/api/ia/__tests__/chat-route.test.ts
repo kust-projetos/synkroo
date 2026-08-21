@@ -7,6 +7,7 @@ jest.mock('@/core/modules/manifest', () => ({ moduleManifest: {} }));
 
 import { NextRequest } from 'next/server';
 import { POST } from '../chat/route';
+import { resolveIaTimezone } from '../timezone';
 
 function req(body: unknown) {
   return new Request('http://localhost/api/ia/chat', {
@@ -64,5 +65,9 @@ describe('POST /api/ia/chat', () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body).toEqual({ error: 'Internal server error', turnsUsed: 0 });
+  });
+  it('resolves configured timezone and falls back safely', () => {
+    expect(resolveIaTimezone('Europe/Lisbon')).toBe('Europe/Lisbon');
+    expect(resolveIaTimezone(undefined)).toBe('America/Sao_Paulo');
   });
 });
