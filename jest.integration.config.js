@@ -6,6 +6,9 @@
  * Run with: npm run test:integration
  */
 
+// Load local integration credentials for Jest; dotenv never logs or persists the value.
+require('dotenv').config({ path: '.env.local', quiet: true });
+
 // Set the flag before Jest initializes
 process.env.RUN_INTEGRATION_TESTS = '1';
 
