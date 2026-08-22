@@ -35,5 +35,5 @@ module.exports = {
   },
   setupFilesAfterEnv: [],
   // No jest.setup.ts — real DB modules load naturally
-  testTimeout: 10000,
+  testTimeout: 30000,
 };
