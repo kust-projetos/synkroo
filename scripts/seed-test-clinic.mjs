@@ -48,6 +48,13 @@ const client = new Client({ connectionString: DB_URL });
 try {
   await client.connect();
   await client.query("BEGIN");
+  const existingClinicResult = await client.query(
+    "SELECT id FROM clinics WHERE slug = $1 LIMIT 1",
+    ["clinica-demo"],
+  );
+  if (existingClinicResult.rows[0]) {
+    CLINIC_ID = existingClinicResult.rows[0].id;
+  }
   await client.query(
     `INSERT INTO clinics (id, name, slug, phone, email)
      VALUES ($1, 'Clinica Demo', 'clinica-demo', '+5500000000000', 'contato@clinicademo.com')
