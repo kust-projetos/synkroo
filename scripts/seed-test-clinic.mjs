@@ -8,7 +8,7 @@ const DB_URL =
   process.env.DATABASE_URL ||
   "postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo";
 let CLINIC_ID = "00000000-0000-0000-0000-000000000001";
-const USER_ID = "00000000-0000-4000-8000-000000000002";
+let USER_ID = "00000000-0000-4000-8000-000000000002";
 const DEMO_EMAIL = "admin@clinicademo.com";
 const DEMO_PASSWORD = "demo123";
 
@@ -67,6 +67,13 @@ try {
     ["clinica-demo"],
   );
   CLINIC_ID = clinicResult.rows[0].id;
+  const existingUserResult = await client.query(
+    "SELECT id FROM users WHERE clinic_id = $1 AND lower(btrim(email)) = lower(btrim($2)) ORDER BY created_at ASC, id ASC LIMIT 1",
+    [CLINIC_ID, DEMO_EMAIL],
+  );
+  if (existingUserResult.rows[0]) {
+    USER_ID = existingUserResult.rows[0].id;
+  }
   await client.query(
     `INSERT INTO users (id, clinic_id, email, name, role, is_active)
      VALUES ($1, $2, $3, 'Admin Demo', 'owner', true)
