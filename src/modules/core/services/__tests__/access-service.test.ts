@@ -1,5 +1,5 @@
 /**
- * Unit tests for access-service — owner anti-lockout invariant.
+ * Unit tests for access-service — owner anti-lockout invariant and tenancy/cross-tenant boundaries.
  * All repository dependencies are mocked.
  * Each test sets up its own mocks — no cross-test bleed.
  */
@@ -43,6 +43,7 @@ import { ActionError } from '@/core/actions/types';
 const OWNER_ROLE_ID = 'owner-role-id';
 const USER_ID = 'user-id';
 const CLINIC_ID = 'clinic-id';
+const OTHER_CLINIC_ID = 'other-clinic-id';
 const OTHER_ROLE_ID = 'other-role-id';
 const RECEP_ROLE_ID = 'recep-role-id';
 
@@ -55,9 +56,132 @@ beforeEach(() => {
   mockGetUserInClinic.mockResolvedValue({ id: USER_ID, clinicId: CLINIC_ID });
 });
 
+describe('assignUserAccess — tenancy and cross-tenant entity boundaries', () => {
+  it('rejects when user or role scope is not found in database', async () => {
+    mockGetUserRoleScope.mockResolvedValue(null);
+
+    await expect(
+      assignUserAccess({ userId: USER_ID, clinicId: CLINIC_ID, roleId: OTHER_ROLE_ID }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Usuário ou perfil pertence a outra clínica.',
+    });
+    expect(mockUpsertUserAccess).not.toHaveBeenCalled();
+  });
+
+  it('rejects when user belongs to a foreign clinic', async () => {
+    mockGetUserRoleScope.mockResolvedValue({
+      userClinicId: OTHER_CLINIC_ID,
+      roleClinicId: CLINIC_ID,
+    });
+
+    await expect(
+      assignUserAccess({ userId: USER_ID, clinicId: CLINIC_ID, roleId: OTHER_ROLE_ID }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Usuário ou perfil pertence a outra clínica.',
+    });
+    expect(mockUpsertUserAccess).not.toHaveBeenCalled();
+  });
+
+  it('rejects when role belongs to a foreign clinic', async () => {
+    mockGetUserRoleScope.mockResolvedValue({
+      userClinicId: CLINIC_ID,
+      roleClinicId: OTHER_CLINIC_ID,
+    });
+
+    await expect(
+      assignUserAccess({ userId: USER_ID, clinicId: CLINIC_ID, roleId: OTHER_ROLE_ID }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Usuário ou perfil pertence a outra clínica.',
+    });
+    expect(mockUpsertUserAccess).not.toHaveBeenCalled();
+  });
+
+  it('rejects when both user and role belong to a foreign clinic', async () => {
+    mockGetUserRoleScope.mockResolvedValue({
+      userClinicId: OTHER_CLINIC_ID,
+      roleClinicId: OTHER_CLINIC_ID,
+    });
+
+    await expect(
+      assignUserAccess({ userId: USER_ID, clinicId: CLINIC_ID, roleId: OTHER_ROLE_ID }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Usuário ou perfil pertence a outra clínica.',
+    });
+    expect(mockUpsertUserAccess).not.toHaveBeenCalled();
+  });
+
+  it('succeeds nominally when both user and role belong to the target clinic', async () => {
+    mockGetUserRoleScope.mockResolvedValue({
+      userClinicId: CLINIC_ID,
+      roleClinicId: CLINIC_ID,
+    });
+    mockGetUserClinicAccess.mockResolvedValue(null);
+    mockUpsertUserAccess.mockResolvedValue(undefined);
+
+    const result = await assignUserAccess({ userId: USER_ID, clinicId: CLINIC_ID, roleId: OTHER_ROLE_ID });
+    expect(result).toEqual({ ok: true });
+    expect(mockUpsertUserAccess).toHaveBeenCalledWith({
+      userId: USER_ID,
+      clinicId: CLINIC_ID,
+      roleId: OTHER_ROLE_ID,
+    });
+  });
+});
+
+describe('removeUserAccess — tenancy and cross-tenant entity boundaries', () => {
+  it('rejects when user is absent or does not belong to active clinic', async () => {
+    mockGetUserInClinic.mockResolvedValue(null);
+
+    await expect(
+      removeUserAccess({ userId: USER_ID, clinicId: CLINIC_ID }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Usuário não pertence à clínica ativa.',
+    });
+    expect(mockRemoveUserAccess).not.toHaveBeenCalled();
+  });
+
+  it('succeeds nominally when user belongs to active clinic', async () => {
+    mockGetUserInClinic.mockResolvedValue({ id: USER_ID, clinicId: CLINIC_ID });
+    mockGetUserClinicAccess.mockResolvedValue(null);
+    mockRemoveUserAccess.mockResolvedValue(undefined);
+
+    const result = await removeUserAccess({ userId: USER_ID, clinicId: CLINIC_ID });
+    expect(result).toEqual({ ok: true });
+    expect(mockRemoveUserAccess).toHaveBeenCalledWith(USER_ID, CLINIC_ID);
+  });
+});
+
+describe('deactivateUser — tenancy and cross-tenant entity boundaries', () => {
+  it('rejects when user is absent or does not belong to active clinic', async () => {
+    mockGetUserInClinic.mockResolvedValue(null);
+
+    await expect(
+      deactivateUser({ userId: USER_ID, clinicId: CLINIC_ID }),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+      message: 'Usuário não pertence à clínica ativa.',
+    });
+    expect(mockDeactivateUser).not.toHaveBeenCalled();
+  });
+
+  it('succeeds nominally when user belongs to active clinic', async () => {
+    mockGetUserInClinic.mockResolvedValue({ id: USER_ID, clinicId: CLINIC_ID });
+    mockGetUserClinicAccess.mockResolvedValue(null);
+    mockDeactivateUser.mockResolvedValue(undefined);
+
+    const result = await deactivateUser({ userId: USER_ID, clinicId: CLINIC_ID });
+    expect(result).toEqual({ ok: true });
+    expect(mockDeactivateUser).toHaveBeenCalledWith(USER_ID, CLINIC_ID);
+  });
+});
+
 describe('assignUserAccess — owner invariant', () => {
   it('bloqueia rebaixar o último Owner', async () => {
-    // assertOwnerInvariant: current é Owner, count=1 → throw
     mockGetUserClinicAccess.mockResolvedValue({ roleId: OWNER_ROLE_ID });
     mockCountActiveUsersWithRole.mockResolvedValue(1);
 
@@ -77,8 +201,6 @@ describe('assignUserAccess — owner invariant', () => {
   });
 
   it('permite reatribuir o próprio Owner a Owner (assertOwnerInvariant early-return)', async () => {
-    // Plan: sem idempotency check. assertOwnerInvariant vê nextRoleId=OWNER_ROLE_ID (keepsOwnerRole) → early return.
-    // upsertUserAccess é chamado (idempotente via onConflictDoUpdate).
     mockGetUserClinicAccess.mockResolvedValue({ roleId: OWNER_ROLE_ID });
     mockUpsertUserAccess.mockResolvedValue(undefined);
 
@@ -87,7 +209,6 @@ describe('assignUserAccess — owner invariant', () => {
   });
 
   it('permite rebaixar usuário não-Owner', async () => {
-    // assertOwnerInvariant: current não é Owner → segue
     mockGetUserClinicAccess.mockResolvedValue({ roleId: RECEP_ROLE_ID });
     mockUpsertUserAccess.mockResolvedValue(undefined);
 
