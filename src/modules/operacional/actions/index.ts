@@ -28,6 +28,9 @@ import { atualizarProcedimento } from './atualizar-procedimento';
 import { listarWaitlist } from './listar-waitlist';
 import { entrarWaitlist } from './entrar-waitlist';
 import { cancelarWaitlist } from './cancelar-waitlist';
+import { obterWaitlist } from './obter-waitlist';
+import { atualizarWaitlist } from './atualizar-waitlist';
+import { preencherWaitlist } from './preencher-waitlist';
 import { listarConfigsLembrete } from './listar-configs-lembrete';
 import { salvarConfigLembrete } from './salvar-config-lembrete';
 import { obterConsulta } from './obter-consulta';
@@ -62,6 +65,9 @@ export * from './atualizar-procedimento';
 export * from './listar-waitlist';
 export * from './entrar-waitlist';
 export * from './cancelar-waitlist';
+export * from './obter-waitlist';
+export * from './atualizar-waitlist';
+export * from './preencher-waitlist';
 export * from './listar-configs-lembrete';
 export * from './salvar-config-lembrete';
 export * from './obter-consulta';
@@ -96,6 +102,9 @@ registerActions([
   listarWaitlist,
   entrarWaitlist,
   cancelarWaitlist,
+  obterWaitlist,
+  atualizarWaitlist,
+  preencherWaitlist,
   listarConfigsLembrete,
   salvarConfigLembrete,
   obterConsulta,

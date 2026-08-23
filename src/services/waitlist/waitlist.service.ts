@@ -11,6 +11,9 @@ import {
 	markScheduled,
 	cancelEntry,
 	expireOldEntries,
+	findById,
+	updateEntry,
+	fillSlot,
 } from "@/repositories/waitlist";
 
 /**
@@ -48,6 +51,16 @@ export interface CreateWaitlistParams {
 	procedureId?: string;
 	dentistId?: string;
 	priority?: number;
+	notes?: string;
+}
+
+export interface FillWaitlistSlotParams {
+	clinicId: string;
+	waitlistId: string;
+	scheduledAt: Date;
+	durationMinutes?: number;
+	dentistId?: string;
+	procedureId?: string;
 	notes?: string;
 }
 
@@ -194,6 +207,48 @@ export async function getWaitlist(
 }
 
 /**
+ * Get waitlist entry by ID
+ */
+export async function getWaitlistEntryById(
+	id: string,
+	clinicId?: string,
+): Promise<WaitlistEntry | null> {
+	try {
+		const row = await findById(id, clinicId);
+		if (!row) return null;
+		return mapRow(row);
+	} catch (error) {
+		dbLogger.error("Error getting waitlist entry by id", error);
+		return null;
+	}
+}
+
+/**
+ * Update waitlist entry
+ */
+export async function updateWaitlistEntry(
+	id: string,
+	data: Partial<{
+		priority: number;
+		notes: string | null;
+		preferredDate: Date | null;
+		preferredTimeStart: string | null;
+		preferredTimeEnd: string | null;
+		dentistId: string | null;
+		procedureId: string | null;
+		status: string;
+	}>,
+): Promise<{ success: boolean; error?: string }> {
+	try {
+		const success = await updateEntry(id, data);
+		return { success };
+	} catch (error: any) {
+		dbLogger.error("Error updating waitlist entry", error);
+		return { success: false, error: error?.message ?? "Failed to update" };
+	}
+}
+
+/**
  * Find matching waitlist entries for an available slot
  */
 export async function findMatchingWaitlist(
@@ -310,6 +365,41 @@ export async function cancelWaitlistEntry(
 		return { success: false, error: "Failed to cancel" };
 	}
 	return { success: true };
+}
+
+/**
+ * Idempotently fill slot from waitlist
+ */
+export async function fillWaitlistSlot(
+	params: FillWaitlistSlotParams,
+): Promise<{
+	success: boolean;
+	appointmentId?: string;
+	alreadyScheduled?: boolean;
+	error?: string;
+}> {
+	try {
+		const result = await fillSlot(params.clinicId, {
+			waitlistId: params.waitlistId,
+			scheduledAt: params.scheduledAt,
+			durationMinutes: params.durationMinutes,
+			dentistId: params.dentistId,
+			procedureId: params.procedureId,
+			notes: params.notes,
+		});
+
+		return {
+			success: true,
+			appointmentId: result.appointmentId,
+			alreadyScheduled: result.alreadyScheduled,
+		};
+	} catch (error: any) {
+		dbLogger.error("Error filling waitlist slot", error);
+		return {
+			success: false,
+			error: error?.message ?? "Internal error",
+		};
+	}
 }
 
 /**
