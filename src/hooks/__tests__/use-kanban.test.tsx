@@ -44,6 +44,19 @@ function createWrapper() {
   return { queryClient, Wrapper };
 }
 
+function createDropResult(overrides: Partial<DropResult> = {}): DropResult {
+  return {
+    draggableId: 'lead-1',
+    type: 'DEFAULT',
+    source: { droppableId: 'stage-1', index: 0 },
+    destination: { droppableId: 'stage-2', index: 0 },
+    reason: 'DROP',
+    mode: 'FLUID',
+    combine: null,
+    ...overrides,
+  };
+}
+
 describe('useKanbanBoard Hook Suite', () => {
   const originalFetch = global.fetch;
 
@@ -67,14 +80,12 @@ describe('useKanbanBoard Hook Suite', () => {
 
       const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
 
-      const dropResult: DropResult = {
+      const dropResult = createDropResult({
         draggableId: 'lead-1',
-        type: 'DEFAULT',
         source: { droppableId: 'stage-1', index: 0 },
         destination: null,
         reason: 'CANCEL',
-        mode: 'FLUID',
-      };
+      });
 
       await act(async () => {
         await result.current.onDragEnd(dropResult);
@@ -90,14 +101,11 @@ describe('useKanbanBoard Hook Suite', () => {
 
       const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
 
-      const dropResult: DropResult = {
+      const dropResult = createDropResult({
         draggableId: 'lead-1',
-        type: 'DEFAULT',
         source: { droppableId: 'stage-1', index: 2 },
         destination: { droppableId: 'stage-1', index: 2 },
-        reason: 'DROP',
-        mode: 'FLUID',
-      };
+      });
 
       await act(async () => {
         await result.current.onDragEnd(dropResult);
@@ -111,14 +119,11 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper } = createWrapper();
       const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
 
-      const dropResult: DropResult = {
+      const dropResult = createDropResult({
         draggableId: 'lead-1',
-        type: 'DEFAULT',
         source: { droppableId: 'stage-1', index: 0 },
         destination: { droppableId: 'stage-1', index: 3 },
-        reason: 'DROP',
-        mode: 'FLUID',
-      };
+      });
 
       await act(async () => {
         await result.current.onDragEnd(dropResult);
@@ -140,14 +145,11 @@ describe('useKanbanBoard Hook Suite', () => {
 
       const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
 
-      const dropResult: DropResult = {
+      const dropResult = createDropResult({
         draggableId: 'lead-1',
-        type: 'DEFAULT',
         source: { droppableId: 'stage-1', index: 0 },
         destination: { droppableId: 'stage-2', index: 0 },
-        reason: 'DROP',
-        mode: 'FLUID',
-      };
+      });
 
       await act(async () => {
         await result.current.onDragEnd(dropResult);
@@ -172,14 +174,13 @@ describe('useKanbanBoard Hook Suite', () => {
       const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
 
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-2', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-2', index: 0 },
+          }),
+        );
       });
 
       expect(global.fetch).toHaveBeenCalledWith('/api/leads/lead-1/stage', {
@@ -194,27 +195,25 @@ describe('useKanbanBoard Hook Suite', () => {
       // 2. Cache is non-array object
       queryClient.setQueryData(['kanban-leads'], { someData: 'non-array' });
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-3', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-3', index: 0 },
+          }),
+        );
       });
 
       // 3. Cache is null/undefined
       queryClient.setQueryData(['kanban-leads'], null);
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-4', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-4', index: 0 },
+          }),
+        );
       });
     });
 
@@ -230,14 +229,13 @@ describe('useKanbanBoard Hook Suite', () => {
       });
 
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-2', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-2', index: 0 },
+          }),
+        );
       });
 
       expect(capturedUpdater).toBeDefined();
@@ -274,14 +272,13 @@ describe('useKanbanBoard Hook Suite', () => {
       const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
 
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-2', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-2', index: 0 },
+          }),
+        );
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
@@ -301,14 +298,13 @@ describe('useKanbanBoard Hook Suite', () => {
       const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
 
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-2', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-2', index: 0 },
+          }),
+        );
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
@@ -331,14 +327,13 @@ describe('useKanbanBoard Hook Suite', () => {
       const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
 
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-2', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-2', index: 0 },
+          }),
+        );
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
@@ -358,14 +353,13 @@ describe('useKanbanBoard Hook Suite', () => {
       const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
 
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-2', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-2', index: 0 },
+          }),
+        );
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
@@ -388,14 +382,13 @@ describe('useKanbanBoard Hook Suite', () => {
       const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
 
       await act(async () => {
-        await result.current.onDragEnd({
-          draggableId: 'lead-1',
-          type: 'DEFAULT',
-          source: { droppableId: 'stage-1', index: 0 },
-          destination: { droppableId: 'stage-2', index: 0 },
-          reason: 'DROP',
-          mode: 'FLUID',
-        });
+        await result.current.onDragEnd(
+          createDropResult({
+            draggableId: 'lead-1',
+            source: { droppableId: 'stage-1', index: 0 },
+            destination: { droppableId: 'stage-2', index: 0 },
+          }),
+        );
       });
 
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
