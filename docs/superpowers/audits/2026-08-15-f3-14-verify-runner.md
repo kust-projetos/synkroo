@@ -39,3 +39,11 @@ O runner está operacional e falha corretamente no gate de cobertura. O threshol
 - Focused additions for validation and treatment plans are green and improve local coverage, but the latest recorded global baseline remains statements 54.84%, branches 40.45%, lines 56.06% and functions 42.96%, below the unchanged 70% thresholds.
 - The full integration runner also has a separate known environmental failure: 34 suites/188 tests passed while 14 tests timed out in 10-second hooks; this does not count as a global verify pass.
 - Classification remains `PARTIAL`; no threshold, exclusion, skip or retry policy was weakened.
+
+## Orca parallel triage — 2026-08-23 (run_2d7e F3.01 + F3.14)
+
+- `F3.02` app wiring (`src/lib/env.ts:63`) + `F3.13` prod audit 0 findings já promovidos `29/58`; `F3.14` permanece `PARTIAL` por design — verify runner operacional mas global threshold 70% ainda não atingido.
+- **Triage atual:** `npx jest --runInBand --coverage` baseline anterior 244 suites 1.615 testes 54.84% statements vs 70% → gap ~15 pontos (~400 branches, ~300 statements). Adição O1-G03 (12 tenancy unit tests + 8 treatment service) não fecha gap sozinha; `src/modules/comercial`, `src/modules/financeiro`, `src/app/api`, `src/services/*` permanecem <50% em vários arquivos (ver `coverage/lcov-report/index.html`).
+- **Plano para fechar:** (a) `src/modules/comercial/actions` + `financeiro/actions` — já cobertos por 12 novos tenancy mocks, mas `services` (lead-conversion, pipeline) <40%; (b) `src/app/api/*` routes — contrato `action-route.ts` coberto, mas handlers legados 0%; (c) `src/lib/validations` — `validation.test.ts` já 93% (bom); (d) `src/services/payments/payment.service.ts` — `autoCompleteSessions` novo com tenant, precisa teste `clinicId` sem DB.
+- **Próximos alvos `F3.14`:** adicionar 20-30 unit tests focados em `src/modules/comercial/services`, `src/services/payments`, `src/app/api/treatment-plans` sem DB real para subir statements 55%→65%; integração `RUN_INTEGRATION_TESTS=1` cobre 14 suites extras mas com timeout 10s — precisa isolar `synkroo_test` runner `scripts/integration-run.mjs`.
+- **Verificação rápida:** `npm run typecheck` 0, `npm run lint` 0, `npx jest src/lib/__tests__/runtime-env.test.ts` 3/3, `F3.13` prod 0 já VERIFIED. Nenhum threshold foi alterado.

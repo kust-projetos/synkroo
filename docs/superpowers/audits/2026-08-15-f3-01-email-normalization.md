@@ -13,6 +13,7 @@
 | Verificação | Resultado |
 |---|---|
 | `npx jest src/lib/validations/__tests__/common.test.ts --runInBand` | PASS — 2 testes |
+| `npx jest src/lib/validations/__tests__/email-normalization-collision.test.ts --runInBand` | PASS — 3 testes (same-clinic collision, cross-clinic acceptance) 2026-08-23 Orca paralelo |
 | `npm run typecheck` | PASS |
 | `npm run lint` | PASS |
 | `git diff --check` | PASS |
