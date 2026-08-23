@@ -7,6 +7,7 @@ import type {
   RunTurnResult,
 } from './types';
 import { personaSystemPrompt } from './personas';
+import { analyzeClinicalSafety } from './clinical-safety';
 
 export interface RunTurnDeps {
   provider: LlmProvider;
@@ -30,6 +31,25 @@ export async function runTurn(
 ): Promise<RunTurnResult> {
   const maxIterations = deps.maxIterations ?? 5;
   const newToken = deps.newToken ?? (() => crypto.randomUUID());
+
+  // ── 0. Clinical Safety & Takeover Interception ─────────────────────────────
+  if (input.userMessage && input.userMessage.trim().length > 0) {
+    const safety = analyzeClinicalSafety(input.userMessage);
+    if (safety.requiresEscalation) {
+      return {
+        reply: safety.reply ?? errorReply('escalate_human'),
+        turnsUsed: 0,
+        escalated: true,
+        escalationReason: safety.escalationReason,
+      };
+    }
+    if (safety.isAiIdentityQuery && safety.reply) {
+      return {
+        reply: safety.reply,
+        turnsUsed: 0,
+      };
+    }
+  }
 
   // ── Caminho de confirmação ────────────────────────────────────────────────
   // Reexecuta os args ORIGINAIS (não os do modelo). Vincula alias+args.
@@ -67,6 +87,7 @@ export async function runTurn(
         reply: errorReply(exec.error),
         turnsUsed: 1,
         escalated: exec.error === 'escalate_human',
+        escalationReason: exec.error === 'escalate_human' ? 'action_escalate_human' : undefined,
       };
     }
     return { reply: 'Pronto, confirmado e executado.', turnsUsed: 1 };
@@ -164,6 +185,7 @@ export async function runTurn(
             reply: errorReply('escalate_human'),
             turnsUsed,
             escalated: true,
+            escalationReason: 'action_escalate_human',
           };
 
         // Erro estruturado realimentado ao modelo
