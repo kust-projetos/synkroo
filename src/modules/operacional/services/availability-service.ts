@@ -9,13 +9,38 @@
  * We parse them directly (not via Date) to avoid server timezone offset issues.
  */
 
+import { eq } from 'drizzle-orm';
+import { getDb } from '@/lib/db/client';
+import { clinics } from '@/lib/db/schema/core';
 import * as repo from '../repositories/appointments-repository';
+import {
+  getDayOfWeekInTimezone,
+  getDayRangeUtc,
+  resolveClinicTimezone,
+  zonedTimeToUtc,
+} from '@/lib/timezone';
 
 export interface SlotQuery {
   clinicId: string;
   dentistId: string;
   date: string; // 'YYYY-MM-DD'
   slotMinutes?: number;
+}
+
+export async function getClinicTimezone(clinicId: string): Promise<string> {
+  try {
+    const db = getDb();
+    const rows = await db
+      .select({ timezone: clinics.timezone, settings: clinics.settings })
+      .from(clinics)
+      .where(eq(clinics.id, clinicId))
+      .limit(1);
+    if (rows[0]) return resolveClinicTimezone(rows[0] as { timezone?: string | null; settings?: unknown });
+    return 'America/Sao_Paulo';
+  } catch {
+    // In unit tests or when DB is unavailable, fall back to default (treat as America/Sao_Paulo)
+    return 'America/Sao_Paulo';
+  }
 }
 
 interface BlockSlot {
@@ -44,11 +69,13 @@ function minutesToTime(m: number): string {
 /**
  * Returns free slot start-times (ISO strings) for a dentist/date.
  * Slot generation is driven by schedule_blocks + slotMinutes granularity.
+ * Timezone is resolved per clinic (clinics.timezone or settings.timezone),
+ * defaulting to America/Sao_Paulo. All returned ISO strings are UTC.
  */
 export async function consultarDisponibilidade(q: SlotQuery): Promise<string[]> {
   const slotMinutes = q.slotMinutes ?? 30;
-  // Use UTC so day-of-week matches the UTC-based slot generation.
-  const dayOfWeek = new Date(q.date + 'T00:00:00Z').getUTCDay();
+  const timeZone = await getClinicTimezone(q.clinicId);
+  const dayOfWeek = getDayOfWeekInTimezone(q.date, timeZone);
 
   const blocks = await repo.getScheduleBlocksForDay(
     q.clinicId,
@@ -58,12 +85,11 @@ export async function consultarDisponibilidade(q: SlotQuery): Promise<string[]> 
 
   if (blocks.length === 0) return [];
 
-  const dayStart = new Date(`${q.date}T00:00:00Z`);
-  const dayEnd = new Date(`${q.date}T23:59:59Z`);
+  const { start: dayStart, end: dayEnd } = getDayRangeUtc(q.date, timeZone);
 
   const booked = await repo.bookedSlots(q.clinicId, q.dentistId, dayStart, dayEnd);
 
-  return computeFreeSlots(q.date, blocks, booked, slotMinutes);
+  return computeFreeSlots(q.date, blocks, booked, slotMinutes, timeZone);
 }
 
 function computeFreeSlots(
@@ -71,6 +97,7 @@ function computeFreeSlots(
   blocks: ScheduleBlock[],
   booked: BlockSlot[],
   slotMinutes: number,
+  timeZone: string,
 ): string[] {
   const out: string[] = [];
 
@@ -80,18 +107,10 @@ function computeFreeSlots(
 
     while (current + slotMinutes <= end) {
       const slotStart = minutesToTime(current);
-      const slotEnd = minutesToTime(current + slotMinutes);
 
-      // Build Date from the timezone-naive time using UTC to get a stable reference
-      // We compare in the same UTC coordinate system for consistency.
-      // slotStartDate/slotEndDate are used only for overlap math (not display).
-      const [sh, sm] = slotStart.split(':').map(Number);
-      const [eh, em] = slotEnd.split(':').map(Number);
-      const slotStartDate = new Date(Date.UTC(
-        ...date.split('-').map(Number) as [number, number, number],
-        sh, sm, 0, 0,
-      ));
-      const slotEndDate = new Date(slotStartDate.getTime() + slotMinutes * 60_000);
+      // Clinic wall time → UTC for correct overlap with UTC-stored appointments
+      const slotStartUtc = zonedTimeToUtc(date, slotStart, timeZone);
+      const slotEndUtc = new Date(slotStartUtc.getTime() + slotMinutes * 60_000);
 
       const isBooked = booked.some((appt) => {
         const apptStart = new Date(appt.scheduledAt);
@@ -99,11 +118,11 @@ function computeFreeSlots(
           apptStart.getTime() + (appt.durationMinutes ?? 30) * 60_000,
         );
         // Overlap: slot starts before appt ends AND slot ends after appt starts
-        return slotStartDate < apptEnd && slotEndDate > apptStart;
+        return slotStartUtc < apptEnd && slotEndUtc > apptStart;
       });
 
       if (!isBooked) {
-        out.push(slotStartDate.toISOString());
+        out.push(slotStartUtc.toISOString());
       }
 
       current += slotMinutes;

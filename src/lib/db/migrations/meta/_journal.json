@@ -162,6 +162,13 @@
       "when": 1786816971313,
       "tag": "0023_appointment_query_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786816971314,
+      "tag": "0024_clinic_timezone",
+      "breakpoints": true
     }
   ]
 }
