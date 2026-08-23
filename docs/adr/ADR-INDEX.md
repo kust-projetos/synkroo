@@ -19,6 +19,7 @@
 | [ADR-BASE-12](ADR-BASE-12-audit-allowlist.md) | Audit allowlist (LGPD) | ✅ Implementado | allowedAuditFields nas ações existentes |
 | [ADR-BASE-13](ADR-BASE-13-cloudflare-queues.md) | Outbox de jobs com consumer Cron Cloudflare | ✅ Implementado | Cloudflare Queue nativa é alternativa futura |
 | [ADR-BASE-14](ADR-BASE-14-sem-master.md) | Sem Master permanente no banco | 🔴 Decisão pendente | Remover isMaster, usar master:* |
+| [ADR-LLM-01](adr-llm-embedding.md) | Escolha de LLM Provider, Modelo de Embedding e Dimensão pgvector | ✅ Implementado | Nenhum |
 
 ## Gates
 
