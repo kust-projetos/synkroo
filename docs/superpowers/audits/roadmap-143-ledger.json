@@ -166,49 +166,49 @@
     {
       "id": "F2.03",
       "phase": "F2",
-      "status": "PARTIAL",
+      "status": "VERIFIED",
       "requirement": "RED: tentar `input.clinicId != ctx.clinicId` em cada Core Action.",
-      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "blocker": "`o1-g03-tenant-actions.md` — 12 comercial/financeiro actions com assertClinicScope, 12 testes RED→GREEN",
       "gate": "W2 gate: security RED/GREEN and mutation evidence"
     },
     {
       "id": "F2.04",
       "phase": "F2",
-      "status": "PARTIAL",
+      "status": "VERIFIED",
       "requirement": "Remover clinic scope controlável de payload ou comparar fail-closed.",
-      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "blocker": "`o1-g03-tenant-actions.md` — payload clinicId validado fail-closed via assertClinicScope",
       "gate": "W2 gate: security RED/GREEN and mutation evidence"
     },
     {
       "id": "F2.05",
       "phase": "F2",
-      "status": "PARTIAL",
+      "status": "VERIFIED",
       "requirement": "Validar role/user/entidade na mesma clínica.",
-      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "blocker": "`o1-g03-tenant-actions.md` — cross-entity ownership via WHERE clinicId",
       "gate": "W2 gate: security RED/GREEN and mutation evidence"
     },
     {
       "id": "F2.06",
       "phase": "F2",
-      "status": "PARTIAL",
+      "status": "VERIFIED",
       "requirement": "RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado.",
-      "blocker": "`f2-03-f2-08-core-actions.md`, `f2-webhook-gates-integration.md`",
+      "blocker": "`o1-g03-tenant-actions.md` — 3 webhook actions com assertClinicScope + channel credential binding",
       "gate": "W2 gate: security RED/GREEN and mutation evidence"
     },
     {
       "id": "F2.07",
       "phase": "F2",
-      "status": "PARTIAL",
+      "status": "VERIFIED",
       "requirement": "RED: treatment item de outro plano/clínica e POST repetido.",
-      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "blocker": "`o1-g03-tenant-actions.md` — repository tenant-scoped (6 funções exigem clinicId) + 6 integration tests",
       "gate": "W2 gate: security RED/GREEN and mutation evidence"
     },
     {
       "id": "F2.08",
       "phase": "F2",
-      "status": "PARTIAL",
+      "status": "VERIFIED",
       "requirement": "Implementar update tenant-scoped, atômico e idempotente; testar concorrência.",
-      "blocker": "`f2-03-f2-08-core-actions.md`",
+      "blocker": "`o1-g03-tenant-actions.md` — transaction FOR UPDATE + idempotente check + Promise.all concorrência",
       "gate": "W2 gate: security RED/GREEN and mutation evidence"
     },
     {
@@ -1151,8 +1151,8 @@
   "statusCounts": {
     "DEFERRED": 3,
     "EXTERNAL": 14,
-    "PARTIAL": 65,
+    "PARTIAL": 59,
     "UNVERIFIED": 39,
-    "VERIFIED": 22
+    "VERIFIED": 28
   }
 }

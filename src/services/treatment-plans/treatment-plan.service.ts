@@ -185,13 +185,14 @@ export async function getTreatmentPlansByPatient(
 }
 
 /**
- * Get single treatment plan by ID with items
+ * Get single treatment plan by ID with items - tenant-scoped
  */
 export async function getTreatmentPlanById(
 	treatmentPlanId: string,
+	clinicId: string,
 ): Promise<TreatmentPlan | null> {
 	try {
-		const plan = await findPlanById(treatmentPlanId);
+		const plan = await findPlanById(treatmentPlanId, clinicId);
 		if (!plan) return null;
 		const planSnake = toSnake<TreatmentPlan>(
 			plan as unknown as Record<string, unknown>,
@@ -207,14 +208,15 @@ export async function getTreatmentPlanById(
 }
 
 /**
- * Update treatment plan
+ * Update treatment plan - tenant-scoped
  */
 export async function updateTreatmentPlan(
 	treatmentPlanId: string,
+	clinicId: string,
 	input: UpdateTreatmentPlanInput,
 ): Promise<TreatmentPlan | null> {
 	try {
-		const updateData: Parameters<typeof updatePlan>[1] = {};
+		const updateData: Parameters<typeof updatePlan>[2] = {};
 		if (input.title !== undefined) updateData.title = input.title;
 		if (input.description !== undefined)
 			updateData.description = input.description;
@@ -230,7 +232,7 @@ export async function updateTreatmentPlan(
 			updateData.expectedCompletionAt = new Date(input.expected_completion_at);
 		if (input.notes !== undefined) updateData.notes = input.notes;
 
-		const row = await updatePlan(treatmentPlanId, updateData);
+		const row = await updatePlan(treatmentPlanId, clinicId, updateData);
 		if (!row) return null;
 		return toSnake<TreatmentPlan>(row as unknown as Record<string, unknown>);
 	} catch (error) {
@@ -240,13 +242,14 @@ export async function updateTreatmentPlan(
 }
 
 /**
- * Update session/progress for a treatment plan item
+ * Update session/progress for a treatment plan item - tenant-scoped
  */
 export async function updateSessionProgress(
 	treatmentPlanItemId: string,
 	treatmentPlanId: string,
+	clinicId: string,
 ): Promise<TreatmentPlanItem | null> {
-	const item = await completeSessionProgress(treatmentPlanItemId, treatmentPlanId);
+	const item = await completeSessionProgress(treatmentPlanItemId, treatmentPlanId, clinicId);
 	if (!item) {
 		dbLogger.error("Error updating treatment plan item", null);
 		return null;
@@ -255,12 +258,13 @@ export async function updateSessionProgress(
 }
 
 /**
- * Get treatment plan progress aggregate
+ * Get treatment plan progress aggregate - tenant-scoped
  */
 export async function getTreatmentPlanProgress(
 	treatmentPlanId: string,
+	clinicId: string,
 ): Promise<TreatmentPlanProgress> {
-	const row = await getProgress(treatmentPlanId);
+	const row = await getProgress(treatmentPlanId, clinicId);
 	if (!row) {
 		return { totalSessions: 0, completedSessions: 0, percent: 0 };
 	}
@@ -273,13 +277,15 @@ export async function getTreatmentPlanProgress(
 }
 
 /**
- * Delete treatment plan (cascades to items)
+ * Delete treatment plan (cascades to items) - tenant-scoped
  */
 export async function deleteTreatmentPlan(
 	treatmentPlanId: string,
+	clinicId: string,
 ): Promise<boolean> {
 	try {
-		await deleteTreatmentPlanDb(treatmentPlanId);
+		const ok = await deleteTreatmentPlanDb(treatmentPlanId, clinicId);
+		if (!ok) return false;
 		return true;
 	} catch (error) {
 		dbLogger.error("Error deleting treatment plan", error);

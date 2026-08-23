@@ -9,17 +9,27 @@ import { treatmentPlans, treatmentPlanItems } from "@/lib/db/schema/business";
 import { patients } from "@/modules/operacional/schema";
 
 /**
- * Delete a treatment plan and its items.
- * Replaces two Supabase delete calls.
+ * Delete a treatment plan and its items. Tenant-scoped: only deletes if clinic owns the plan.
+ * Returns true if deleted, false if plan not found or clinic mismatch.
  */
 export async function deleteTreatmentPlan(
 	treatmentPlanId: string,
-): Promise<void> {
+	clinicId: string,
+): Promise<boolean> {
 	const db = getDb();
+	const [plan] = (await db
+		.select({ id: treatmentPlans.id })
+		.from(treatmentPlans)
+		.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)))
+		.limit(1)) as [{ id: string } | null];
+	if (!plan) return false;
 	await db
 		.delete(treatmentPlanItems)
 		.where(eq(treatmentPlanItems.treatmentPlanId, treatmentPlanId));
-	await db.delete(treatmentPlans).where(eq(treatmentPlans.id, treatmentPlanId));
+	await db
+		.delete(treatmentPlans)
+		.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)));
+	return true;
 }
 
 // ──────────────────────────────────────────────
@@ -195,10 +205,11 @@ export async function findByPatient(
 }
 
 /**
- * Find a single treatment plan by ID with items and patient info.
+ * Find a single treatment plan by ID with items and patient info. Tenant-scoped.
  */
 export async function findById(
 	treatmentPlanId: string,
+	clinicId: string,
 ): Promise<TreatmentPlanWithDetails | null> {
 	const db = getDb();
 
@@ -229,7 +240,7 @@ export async function findById(
 		})
 		.from(treatmentPlans)
 		.leftJoin(patients, eq(patients.id, treatmentPlans.patientId))
-		.where(eq(treatmentPlans.id, treatmentPlanId))
+		.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)))
 		.limit(1)) as [
 		| (TreatmentPlanRow & {
 				patient: { id: string; name: string; phone: string } | null;
@@ -250,10 +261,11 @@ export async function findById(
 }
 
 /**
- * Update a treatment plan and return the updated row.
+ * Update a treatment plan and return the updated row. Tenant-scoped.
  */
 export async function update(
 	treatmentPlanId: string,
+	clinicId: string,
 	data: {
 		title?: string;
 		description?: string | null;
@@ -270,16 +282,17 @@ export async function update(
 	const [row] = (await db
 		.update(treatmentPlans)
 		.set({ ...data, updatedAt: new Date() } as any)
-		.where(eq(treatmentPlans.id, treatmentPlanId))
+		.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)))
 		.returning()) as [TreatmentPlanRow | null];
 	return row ?? null;
 }
 
 /**
- * Get plan progress (total/completed sessions).
+ * Get plan progress (total/completed sessions). Tenant-scoped.
  */
 export async function getProgress(
 	treatmentPlanId: string,
+	clinicId: string,
 ): Promise<{ totalSessions: number; completedSessions: number } | null> {
 	const db = getDb();
 	const [row] = (await db
@@ -288,7 +301,7 @@ export async function getProgress(
 			completedSessions: treatmentPlans.completedSessions,
 		})
 		.from(treatmentPlans)
-		.where(eq(treatmentPlans.id, treatmentPlanId))
+		.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)))
 		.limit(1)) as [
 		{ totalSessions: number | null; completedSessions: number | null } | null,
 	];
@@ -303,9 +316,17 @@ export async function getProgress(
 export async function completeSessionProgress(
 	itemId: string,
 	treatmentPlanId: string,
+	clinicId: string,
 ): Promise<TreatmentPlanItemRow | null> {
 	const db = getDb();
 	return db.transaction(async (tx) => {
+		const planCheck = await tx
+			.select({ id: treatmentPlans.id })
+			.from(treatmentPlans)
+			.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)))
+			.for('update');
+		if (planCheck.length === 0) return null;
+
 		const itemRows = await tx.select()
 			.from(treatmentPlanItems)
 			.where(and(
@@ -323,7 +344,7 @@ export async function completeSessionProgress(
 			status: treatmentPlans.status,
 		})
 			.from(treatmentPlans)
-			.where(eq(treatmentPlans.id, treatmentPlanId))
+			.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)))
 			.for('update');
 		const plan = planRows[0];
 		if (!plan) return null;
@@ -347,18 +368,19 @@ export async function completeSessionProgress(
 					: {}),
 				updatedAt: now,
 			} as any)
-			.where(eq(treatmentPlans.id, treatmentPlanId));
+			.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)));
 
 		return updatedItem ?? null;
 	});
 }
 
 /**
- * Update a treatment plan item and return the updated row.
+ * Update a treatment plan item and return the updated row. Tenant-scoped: verifies plan clinic ownership.
  */
 export async function updateItem(
 	itemId: string,
 	treatmentPlanId: string,
+	clinicId: string,
 	data: {
 		status?: string;
 		completedAt?: Date | null;
@@ -367,6 +389,12 @@ export async function updateItem(
 	},
 ): Promise<TreatmentPlanItemRow | null> {
 	const db = getDb();
+	const [plan] = (await db
+		.select({ id: treatmentPlans.id })
+		.from(treatmentPlans)
+		.where(and(eq(treatmentPlans.id, treatmentPlanId), eq(treatmentPlans.clinicId, clinicId)))
+		.limit(1)) as [{ id: string } | null];
+	if (!plan) return null;
 	const [row] = (await db
 		.update(treatmentPlanItems)
 		.set({ ...data, updatedAt: new Date() } as any)

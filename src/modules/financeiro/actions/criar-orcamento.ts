@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { createBudget } from '../services/budget-service';
 
 const createBudgetItem = z.object({
@@ -35,7 +36,8 @@ export const criarOrcamento = defineAction({
     },
     { message: 'Exactly one of patientId or leadId is required' },
   ),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     const budget = await createBudget(input);
     return budget;
   },

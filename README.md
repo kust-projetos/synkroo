@@ -1,159 +1,140 @@
 # Synkroo
 
-Automação inteligente para clínicas odontológicas com agentes IA conversacionais.
+Automação inteligente para clínicas odontológicas com agentes IA conversacionais, gestão clínica, CRM, financeiro e LGPD.
 
 ## Setup
 
 ```bash
-# Install dependencies
+# Instalar dependências
 npm install
 
-# Copy environment variables
+# Configurar variáveis de ambiente
 cp .env.example .env.local
 
-# Configure your credentials
+# Configurar credenciais essenciais
 # - PostgreSQL (DATABASE_URL)
-# - MiniMax or OpenAI API key
+# - NextAuth (AUTH_SECRET, JWT_SECRET)
+# - MiniMax ou OpenAI API key
 # - WhatsApp integration (Evolution API)
 
-# Run development server
+# Executar servidor de desenvolvimento
 npm run dev
 ```
 
-## Project Structure
+## Estrutura do Projeto
 
 ```
 src/
-├── app/                      # Next.js App Router
-│   ├── api/                  # API Routes (85+ endpoints)
-│   │   ├── agent/            # AI agent endpoints
-│   │   ├── appointments/     # Scheduling endpoints
-│   │   ├── patients/         # Patient management
-│   │   ├── leads/            # CRM leads
-│   │   ├── campaigns/        # Marketing campaigns
-│   │   ├── budgets/          # Quote/budget management
-│   │   ├── conversations/    # Chat conversations
-│   │   ├── whatsapp/         # WhatsApp integration
-│   │   ├── analytics/        # Metrics and predictions
-│   │   └── auth/             # Authentication
-│   ├── dashboard/           # Admin dashboard (26 pages)
-│   ├── login/                # Login page
-│   └── signup/               # Signup page
+├── app/                      # Next.js 15 App Router
+│   ├── api/                  # 36 módulos de API (192 arquivos de rotas/handlers)
+│   │   ├── agent/            # Endpoints do agente IA
+│   │   ├── appointments/     # Gestão e agendamentos de consultas
+│   │   ├── auth/             # Autenticação e sessão NextAuth
+│   │   ├── budgets/          # Orçamentos e aprovações
+│   │   ├── campaigns/        # Campanhas e segmentações
+│   │   ├── contacts/         # CRM contatos e histórico
+│   │   ├── conversations/    # Chat e conversas multicanal
+│   │   ├── cron/             # Jobs periódicos de limpeza e triggers
+│   │   ├── leads/            # Captura e qualificação de leads
+│   │   ├── messages/         # Mensageria inbound/outbound
+│   │   ├── patients/         # Prontuário, histórico e preferências
+│   │   ├── payments/         # Processamento de cobranças e webhooks
+│   │   ├── pipeline/         # Funil de vendas e etapas
+│   │   ├── treatment-plans/  # Planos de tratamento e sessões
+│   │   ├── whatsapp/         # Webhooks e integração Evolution API
+│   │   └── analytics/        # Métricas, ROI e predição de no-show
+│   ├── dashboard/           # Painel administrativo protegido (17 páginas)
+│   ├── login/                # Página de login
+│   └── signup/               # Página de cadastro (desabilitada em prod)
+├── components/               # UI por 12 domínios (calendar, campaigns, charts, contacts, financeiro, lgpd, notifications, pi-finance, pipeline, reports, ui, whatsapp)
+├── hooks/                    # 5 hooks custom (useKanban, useToast, useFinancialSummary, usePayments, useTreatmentPlans)
 ├── lib/
-│   ├── db/                   # Drizzle ORM (schema, client, migrations, types)
-│   ├── llm/                  # Multi-LLM provider factory
-│   ├── auth/                 # Auth context and helpers (NextAuth)
-│   ├── ui/                   # Shared UI components
-│   └── validations/          # Zod schemas
-├── services/                 # Business logic services
-│   ├── agent/                # AI agent orchestration
-│   ├── appointments/         # Scheduling logic
-│   ├── patients/             # Patient management
-│   ├── leads/                # Lead tracking
-│   ├── followup/             # Retention campaigns
-│   ├── analytics/            # Metrics and predictions
-│   ├── whatsapp/             # WhatsApp integration
-│   └── rag/                  # RAG for knowledge base
-└── components/
-    ├── chat-widget/          # Embedded chat widget
-    └── ui/                   # UI components
+│   ├── db/                   # Drizzle ORM (11 schemas, client, migrations, types)
+│   ├── llm/                  # Factory multi-provider (MiniMax, OpenAI, OpenRouter)
+│   ├── auth/                 # Auth context e helpers (NextAuth)
+│   ├── ui/                   # Componentes base e menu actions
+│   └── validations/          # 11 Zod schemas por domínio
+├── modules/                  # Bounded contexts modulares (atendimento, comercial, core, crm, financeiro, followup, operacional)
+├── repositories/             # Data access layer com Drizzle ORM
+├── services/                 # 16 domínios de regras de negócio
+├── workers/                  # Cloudflare Workers auxiliares
+│   ├── ia-agent/             # Durable Objects, Agents SDK e busca vetorial
+│   └── ia-bridge/            # Bridge de mensageria e webhook no edge
+└── middleware.ts             # Proteção de rotas SSR (NextAuth edge-ready)
 ```
 
-## Tech Stack
+## Stack Tecnológica
 
-| Layer | Technology |
-|-------|------------|
-| Framework | Next.js 15 (App Router) + TypeScript |
-| Database | PostgreSQL via Drizzle ORM + `pg` (Supabase removido) |
+| Camada | Tecnologia |
+|---|---|
+| Framework | Next.js 15 (App Router) + React 19 + TypeScript 5.6 |
+| DB | PostgreSQL 17 via Drizzle ORM + `pg` (Supabase removido) |
 | Auth | NextAuth/Auth.js (JWT, edge middleware) |
-| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive + Vectorize (em migração) |
-| LLM | Multi-provider factory (MiniMax, OpenAI, Claude via proxy) |
-| WhatsApp | Evolution API v2.3.7 (Docker) + Playwright fallback |
-| Styling | Tailwind CSS |
-| Validation | Zod |
-| Testing | Jest + React Testing Library |
+| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive + Vectorize |
+| Workers auxiliares | Cloudflare Agents SDK / Agent DO (`ia-agent`) + `ia-bridge` |
+| State | Zustand 5 (local) + TanStack Query 5 (server) |
+| UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
+| LLM | Multi-provider factory (MiniMax, OpenAI, OpenRouter) |
+| WhatsApp | Evolution API v2.3.7 + Playwright fallback |
+| Validação | Zod (11 schemas dedicados) |
+| Testes | Jest (264 suites) + Playwright (14 specs E2E) + Stryker (mutation) |
 
-## API Overview
-
-### Core Modules
-
-| Module | Endpoints | Description |
-|--------|-----------|-------------|
-| **Appointments** | 12 | CRUD, availability, confirmations, rescheduling |
-| **Patients** | 10 | Patient management, history, preferences, dedup |
-| **Leads** | 6 | Lead capture, hot leads, notifications |
-| **Campaigns** | 6 | Follow-up campaigns, segmentation |
-| **Budgets** | 7 | Quotes, acceptance, follow-up |
-| **Analytics** | 5 | Metrics, ROI, no-show prediction |
-| **WhatsApp** | 6 | Send, receive, webhook, QR code |
-| **Auth** | 5 | Login, logout, signup, session |
-
-### Key API Endpoints
-
-```
-POST   /api/agent/classify          # Classify message intent
-POST   /api/messages/inbound        # Process inbound message
-POST   /api/messages/send           # Send message
-GET    /api/appointments/availability  # Check available slots
-POST   /api/appointments/[id]/confirm   # Confirm appointment
-POST   /api/analytics/noshow-prediction # Predict no-show risk
-POST   /api/campaigns/[id]/start    # Start marketing campaign
-```
-
-## Features
-
-### Implemented (MVP)
-
-- [x] **E-01**: Atendimento Multicanal (WhatsApp + AI Agent)
-- [x] **E-02**: Gestão de Agendamentos (CRUD + disponibilidade)
-- [x] **E-03**: Follow-up e Retenção (campanhas, pacientes inativos)
-- [x] **E-04**: CRM Inteligente (leads, pacientes, tags, dedup)
-- [x] **E-05**: Vendas e Conversão (orçamentos, ROI)
-- [x] **E-08**: Dashboard de Gestão (analytics, configurações)
-
-### Running Tests
+## Comandos Principais
 
 ```bash
-# Run all tests
-npm test
+# Desenvolvimento e build
+npm run dev                  # Dev server local (porta 3000)
+npm run build                # Production build (valida TS e ESLint)
+npm run lint                 # ESLint com zero warnings
+npm run typecheck            # Validação de tipos TypeScript (tsc --noEmit)
 
-# Run tests in watch mode
-npm run test:watch
+# Testes e qualidade
+npm test                     # Testes unitários e de integração (Jest)
+npm run test:integration:run # Runner seguro de integração isolada em loopback
+npm run test:security        # Security test suite com relatório de cobertura
+npm run test:e2e             # Playwright E2E tests
+npm run verify               # Verificação canônica completa de integridade
+npm run roadmap:check        # Validação do ledger de conformidade do roadmap (143 itens)
 
-# Run with coverage
-npm test -- --coverage
+# Banco de dados
+npm run db:up / npm run db:down # Subir / parar PostgreSQL via Docker Compose
+npm run db:migrate           # Executar migrações Drizzle
+npm run db:seed              # Seed de banco local
+npm run db:health            # Health check do banco de dados
+
+# Cloudflare Workers
+npm run build:cf             # Build OpenNext para Cloudflare Workers
+npm run dev:ia-agent         # Dev server do worker de agente IA
+npm run dev:ia-bridge        # Dev server do worker bridge de mensageria
 ```
 
-## Documentation
+## Documentação
 
-- [Arquitetura Técnica](./docs/architecture-v1.1.md) - Architecture v1.1
-- [PRD](./docs/planning/prd-v3.2.md) - Product Requirements
-- [UX Design](./docs/ux-design.md) - Design System
-- [Stories](./docs/planning/stories/) - User Stories by Epic
+- [Arquitetura Técnica Base](./docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md) - Especificação técnica modular
+- [Índice de Decisões de Arquitetura (ADRs)](./docs/adr/INDEX.md) - Registros de decisões de arquitetura
+- [Plano Mestre de Pendências](./docs/superpowers/plans/2026-08-15-synkroo-roadmap-pendencias-master-plan.md) - Roadmap de conformidade
+- [PRD](./docs/planning/prd-v3.2.md) - Requisitos do produto
+- [UX Design](./docs/ux-design.md) - Design system e interfaces
 
-## Environment Variables
+## Variáveis de Ambiente
 
 ```bash
-# PostgreSQL (required)
+# PostgreSQL (obrigatório)
 DATABASE_URL=postgresql://synkroo:password@127.0.0.1:55432/synkroo
 
-# Auth (NextAuth)
-AUTH_SECRET=
-JWT_SECRET=
+# Autenticação NextAuth (obrigatório)
+AUTH_SECRET=sua-chave-secreta-com-pelo-menos-32-caracteres
+JWT_SECRET=sua-chave-jwt-com-pelo-menos-16-caracteres
 
-# LLM Provider (choose one)
-LLM_PROVIDER=minimax|openai|claude|openrouter
+# Provedores de IA (opcional por feature)
 MINIMAX_API_KEY=
 OPENAI_API_KEY=
 
-# WhatsApp (Evolution API)
+# Integração WhatsApp (opcional por feature)
 EVOLUTION_API_URL=
 EVOLUTION_API_KEY=
-```
 
-## Development
-
-```bash
-# Start local DB and dev server
-npm run dev
+# Segredos de Webhook e Cron
+WEBHOOK_SECRET=
+CRON_SECRET=
 ```

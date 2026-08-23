@@ -10,6 +10,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 
 export const processarWebhookWhatsApp = defineAction({
   name: 'atendimento.processarWebhookWhatsApp',
@@ -25,6 +26,7 @@ export const processarWebhookWhatsApp = defineAction({
     conversationId: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     // Bridge to the existing service chain.
     // Full processing (confirmation/waitlist/lead capture) happens in the
     // legacy route handlers. This action is the seam for the route to call.

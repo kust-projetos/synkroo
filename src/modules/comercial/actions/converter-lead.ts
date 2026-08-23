@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { updateLead, findLeadByIdForClinic } from '../repositories/leads-repository';
 
 export const converterLead = defineAction({
@@ -14,7 +15,8 @@ export const converterLead = defineAction({
     clinicId: z.string().uuid(),
     patientId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     const existing = await findLeadByIdForClinic(input.leadId, input.clinicId);
     if (!existing) throw new ActionError('not_found', 'Lead não encontrado.');
 

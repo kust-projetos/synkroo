@@ -72,6 +72,13 @@ async function autoCompleteSessions(
   if (sessionsToComplete <= 0) return 0
 
   const db = getDb()
+  const [plan] = await db
+    .select({ clinicId: treatmentPlans.clinicId })
+    .from(treatmentPlans)
+    .where(eq(treatmentPlans.id, treatmentPlanId))
+    .limit(1)
+  if (!plan) return 0
+
   const items = await db
     .select({ id: treatmentPlanItems.id })
     .from(treatmentPlanItems)
@@ -86,7 +93,7 @@ async function autoCompleteSessions(
 
   let completed = 0
   for (const item of items) {
-    const result = await updateSessionProgress(item.id, treatmentPlanId)
+    const result = await updateSessionProgress(item.id, treatmentPlanId, plan.clinicId)
     if (result) completed++
   }
   return completed

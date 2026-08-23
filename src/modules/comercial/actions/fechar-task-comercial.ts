@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { fecharTask } from '../services/tasks-service';
 
 export const fecharTaskComercial = defineAction({
@@ -12,7 +13,8 @@ export const fecharTaskComercial = defineAction({
     clinicId: z.string().uuid(),
     taskId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     return fecharTask(input.clinicId, input.taskId);
   },
 });

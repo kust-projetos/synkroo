@@ -7,6 +7,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 
 export const processarWebhookInstagram = defineAction({
   name: 'atendimento.processarWebhookInstagram',
@@ -22,6 +23,7 @@ export const processarWebhookInstagram = defineAction({
     conversationId: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     // If a conversationId is provided, verify it belongs to the clinic
     if (input.conversationId) {
       const { findById } = await import('../repositories/conversations-repository');

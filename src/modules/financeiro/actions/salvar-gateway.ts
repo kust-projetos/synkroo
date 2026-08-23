@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { saveGateway } from '../services/gateway-config-service';
 
 export const salvarGateway = defineAction({
@@ -18,7 +19,8 @@ export const salvarGateway = defineAction({
     apiKey: z.string().optional(),
     webhookToken: z.string().optional(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     const safe = await saveGateway(input);
     return safe; // safe response — no apiKey field
   },
