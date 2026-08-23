@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { createCharge } from '../services/charge-service';
 
 export const gerarCobranca = defineAction({
@@ -14,7 +15,8 @@ export const gerarCobranca = defineAction({
     dueDate: z.string(),
     amount: z.number().positive(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     const result = await createCharge(input);
     return {
       charge: result.charge,

@@ -134,53 +134,55 @@ describe('treatment plan service', () => {
 
   it('gets a plan, returns null when absent and handles failures', async () => {
     mockFindById.mockResolvedValue({ ...planRow, items: [itemRow] })
-    await expect(getTreatmentPlanById('plan-1')).resolves.toEqual(expect.objectContaining({ id: 'plan-1', items: [expect.any(Object)] }))
+    await expect(getTreatmentPlanById('plan-1', 'clinic-1')).resolves.toEqual(expect.objectContaining({ id: 'plan-1', items: [expect.any(Object)] }))
     mockFindById.mockResolvedValue(null)
-    await expect(getTreatmentPlanById('missing')).resolves.toBeNull()
+    await expect(getTreatmentPlanById('missing', 'clinic-1')).resolves.toBeNull()
     mockFindById.mockRejectedValue(new Error('db down'))
-    await expect(getTreatmentPlanById('plan-1')).resolves.toBeNull()
+    await expect(getTreatmentPlanById('plan-1', 'clinic-1')).resolves.toBeNull()
   })
 
   it('updates fields, completes status and handles null/errors', async () => {
     mockUpdate.mockResolvedValue(planRow)
-    await expect(updateTreatmentPlan('plan-1', {
+    await expect(updateTreatmentPlan('plan-1', 'clinic-1', {
       title: 'Novo', description: 'Desc', status: 'completed', total_sessions: 4,
       expected_completion_at: '2026-03-01T10:00:00.000Z', notes: 'Nota',
     })).resolves.toEqual(expect.objectContaining({ id: 'plan-1' }))
-    expect(mockUpdate).toHaveBeenCalledWith('plan-1', expect.objectContaining({
+    expect(mockUpdate).toHaveBeenCalledWith('plan-1', 'clinic-1', expect.objectContaining({
       title: 'Novo', status: 'completed', totalSessions: 4, completedAt: expect.any(Date), expectedCompletionAt: expect.any(Date),
     }))
     mockUpdate.mockResolvedValue(null)
-    await expect(updateTreatmentPlan('plan-1', {})).resolves.toBeNull()
+    await expect(updateTreatmentPlan('plan-1', 'clinic-1', {})).resolves.toBeNull()
     mockUpdate.mockRejectedValue(new Error('db down'))
-    await expect(updateTreatmentPlan('plan-1', {})).resolves.toBeNull()
+    await expect(updateTreatmentPlan('plan-1', 'clinic-1', {})).resolves.toBeNull()
   })
 
   it('uses one transactional repository call for progress and idempotent retry', async () => {
     mockCompleteSessionProgress.mockResolvedValue(itemRow)
-    await expect(updateSessionProgress('item-1', 'plan-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
-    expect(mockCompleteSessionProgress).toHaveBeenCalledWith('item-1', 'plan-1')
+    await expect(updateSessionProgress('item-1', 'plan-1', 'clinic-1')).resolves.toEqual(expect.objectContaining({ id: 'item-1' }))
+    expect(mockCompleteSessionProgress).toHaveBeenCalledWith('item-1', 'plan-1', 'clinic-1')
 
-    await updateSessionProgress('item-1', 'plan-1')
+    await updateSessionProgress('item-1', 'plan-1', 'clinic-1')
     expect(mockCompleteSessionProgress).toHaveBeenCalledTimes(2)
 
     mockCompleteSessionProgress.mockResolvedValue(null)
-    await expect(updateSessionProgress('missing', 'plan-1')).resolves.toBeNull()
+    await expect(updateSessionProgress('missing', 'plan-1', 'clinic-1')).resolves.toBeNull()
   })
 
   it('calculates progress including empty and zero-total cases', async () => {
     mockGetProgress.mockResolvedValue(null)
-    await expect(getTreatmentPlanProgress('missing')).resolves.toEqual({ totalSessions: 0, completedSessions: 0, percent: 0 })
+    await expect(getTreatmentPlanProgress('missing', 'clinic-1')).resolves.toEqual({ totalSessions: 0, completedSessions: 0, percent: 0 })
     mockGetProgress.mockResolvedValue({ totalSessions: 3, completedSessions: 1 })
-    await expect(getTreatmentPlanProgress('plan-1')).resolves.toEqual({ totalSessions: 3, completedSessions: 1, percent: 33 })
+    await expect(getTreatmentPlanProgress('plan-1', 'clinic-1')).resolves.toEqual({ totalSessions: 3, completedSessions: 1, percent: 33 })
     mockGetProgress.mockResolvedValue({ totalSessions: 0, completedSessions: 0 })
-    await expect(getTreatmentPlanProgress('plan-1')).resolves.toEqual({ totalSessions: 0, completedSessions: 0, percent: 0 })
+    await expect(getTreatmentPlanProgress('plan-1', 'clinic-1')).resolves.toEqual({ totalSessions: 0, completedSessions: 0, percent: 0 })
   })
 
   it('deletes plans and returns false when repository deletion fails', async () => {
-    mockDeleteTreatmentPlanDb.mockResolvedValue(undefined)
-    await expect(deleteTreatmentPlan('plan-1')).resolves.toBe(true)
+    mockDeleteTreatmentPlanDb.mockResolvedValue(true)
+    await expect(deleteTreatmentPlan('plan-1', 'clinic-1')).resolves.toBe(true)
+    mockDeleteTreatmentPlanDb.mockResolvedValue(false)
+    await expect(deleteTreatmentPlan('plan-1', 'clinic-1')).resolves.toBe(false)
     mockDeleteTreatmentPlanDb.mockRejectedValue(new Error('db down'))
-    await expect(deleteTreatmentPlan('plan-1')).resolves.toBe(false)
+    await expect(deleteTreatmentPlan('plan-1', 'clinic-1')).resolves.toBe(false)
   })
 })

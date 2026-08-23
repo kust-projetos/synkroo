@@ -37,14 +37,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id
 
     const { id } = await params
-    const plan = await getTreatmentPlanById(id)
+    const plan = await getTreatmentPlanById(id, clinicId)
 
     if (!plan) {
       return NextResponse.json({ error: 'Treatment plan not found' }, { status: 404 })
-    }
-
-    if (plan.clinic_id !== clinicId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     return NextResponse.json({ treatment_plan: plan })
@@ -69,20 +65,16 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id
 
     const { id } = await params
-    const plan = await getTreatmentPlanById(id)
+    const plan = await getTreatmentPlanById(id, clinicId)
 
     if (!plan) {
       return NextResponse.json({ error: 'Treatment plan not found' }, { status: 404 })
     }
 
-    if (plan.clinic_id !== clinicId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     const rawBody = await request.json()
     const body = updateTreatmentPlanSchema.parse(rawBody)
 
-    const updatedPlan = await updateTreatmentPlan(id, body)
+    const updatedPlan = await updateTreatmentPlan(id, clinicId, body)
 
     if (!updatedPlan) {
       return NextResponse.json({ error: 'Failed to update treatment plan' }, { status: 500 })
@@ -113,17 +105,13 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id
 
     const { id } = await params
-    const plan = await getTreatmentPlanById(id)
+    const plan = await getTreatmentPlanById(id, clinicId)
 
     if (!plan) {
       return NextResponse.json({ error: 'Treatment plan not found' }, { status: 404 })
     }
 
-    if (plan.clinic_id !== clinicId) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
-    const success = await deleteTreatmentPlan(id)
+    const success = await deleteTreatmentPlan(id, clinicId)
 
     if (!success) {
       return NextResponse.json({ error: 'Failed to delete treatment plan' }, { status: 500 })

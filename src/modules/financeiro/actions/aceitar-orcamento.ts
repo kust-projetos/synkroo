@@ -3,6 +3,7 @@ import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { acceptBudget, getBudget } from '../services/budget-service';
 import { converterLeadSemAgendarAction } from '@/modules/comercial/actions';
 
@@ -15,7 +16,8 @@ export const aceitarOrcamento = defineAction({
     clinicId: z.string().uuid(),
     id: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     const { clinicId, id } = input;
 
     // Load budget to check lead context

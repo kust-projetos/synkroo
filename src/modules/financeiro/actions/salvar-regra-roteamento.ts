@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
+import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { saveRoutingRule } from '../services/gateway-config-service';
 
 export const salvarRegraRoteamento = defineAction({
@@ -22,7 +23,8 @@ export const salvarRegraRoteamento = defineAction({
     },
     { message: 'Exactly one scope target is required: campaignId, patientId, or leadId' },
   ),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
+    assertClinicScope(input.clinicId, ctx);
     const rule = await saveRoutingRule(input);
     return rule;
   },

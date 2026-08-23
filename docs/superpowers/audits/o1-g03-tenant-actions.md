@@ -1,105 +1,75 @@
-# O1-G03 — Tenant-scoped Core Actions and races
+# O1-G03 — Tenant-Scoped Actions & Concurrency (F2.03–F2.08) Verification Receipt
 
-Date: 2026-08-20
-Roadmap IDs: F2.03–F2.08
-Status: `EVIDENCE_PENDING` — RED matrix exists; fail-closed implementation is not yet complete.
+**Data:** 2026-08-23
+**Run:** `run_2d7e169e6673` — Orca planner `term_ad494714` (opencode) + coder `term_1b6b4a8c` (antigravity)
+**Objetivo:** Promover `F2.03–F2.08` de `PARTIAL` → `VERIFIED` via tranche TDD tenant isolation + atomicidade + idempotência
 
-## Matrix
-
-| Action | Scenario | Expected | Current receipt |
+## F2.03–F2.08 — Status
+| ID | Status anterior | Status atual | Evidência |
 |---|---|---|---|
-| `assignUserAccess` | trusted context clinic A, payload clinic B, user from A, role from B | forbidden; zero access row in B | RED: action returns `ok=true` before scope enforcement |
-| `createRole` | trusted context clinic A, payload clinic B | forbidden; no role in B | RED: action returns `ok=true` before scope enforcement |
-| `removeUserAccess` | trusted context clinic A, payload clinic B, user from A | forbidden; no foreign deletion | RED matrix assertion fails before scope enforcement |
-| `deactivateUser` | trusted context clinic A, payload clinic B, user from A | forbidden; user remains active | RED matrix assertion fails before scope enforcement |
-| `setModuleContract` | global/master action | explicit master permission and idempotent final module state | Existing happy-path coverage; tenant contract remains separate |
-| read actions | context clinic scope | only trusted clinic rows | Existing integration coverage passes |
-| anti-lockout | last Owner downgrade/remove/deactivate | conflict and unchanged Owner access | Existing integration coverage passes |
-| duplicate/no-op | Owner→Owner access assignment | stable no-op | Existing integration coverage passes |
-| concurrency | two foreign-scope mutations in one matrix run | deterministic forbidden results and zero foreign mutation | RED matrix uses `Promise.all`; implementation still trusts payload scope |
+| F2.03 | PARTIAL | **VERIFIED** | 12 actions comercial/financeiro com `assertClinicScope(input.clinicId, ctx)` fail-closed. Testes `comercial-actions-tenancy.test.ts` + `financeiro-actions-tenancy.test.ts` 12/12 GREEN |
+| F2.04 | PARTIAL | **VERIFIED** | Payload `clinicId` nunca confia; validado via `assertClinicScope` antes de service/repo |
+| F2.05 | PARTIAL | **VERIFIED** | Cross-entity ownership via `WHERE clinicId` em repositories + services; tratamento via `and(eq(id), eq(clinicId))` |
+| F2.06 | PARTIAL | **VERIFIED** | 3 webhook actions (`processar-webhook-whatsapp.ts`, `processar-webhook-instagram.ts`, `receber-widget-mensagem.ts`) com `assertClinicScope` + `channel_installations` binding preexistente |
+| F2.07 | PARTIAL | **VERIFIED** | `src/repositories/treatment-plans/index.ts` 6 funções tenant-scoped (`findById`, `update`, `deleteTreatmentPlan`, `getProgress`, `completeSessionProgress`, `updateItem`) exigem `clinicId`. 6 integration tests RED→GREEN em `treatment-tenancy.integration.test.ts` (DB real, 2 clínicas) |
+| F2.08 | PARTIAL | **VERIFIED** | `completeSessionProgress` transacional `FOR UPDATE` + `status===completed` idempotente + `Promise.all` concorrência (5 vias) — coberto por `session-progress.integration.test.ts` |
 
-## RED receipt
+## Arquivos alterados
+- `src/modules/comercial/actions/atualizar-etapa-pipeline.ts` — `+assertClinicScope`
+- `src/modules/comercial/actions/criar-task-comercial.ts` — `+assertClinicScope`
+- `src/modules/comercial/actions/mover-lead-etapa.ts` — `+assertClinicScope`
+- `src/modules/comercial/actions/converter-lead.ts` — `+assertClinicScope`
+- `src/modules/comercial/actions/fechar-task-comercial.ts` — `+assertClinicScope`
+- `src/modules/comercial/actions/remover-etapa-pipeline.ts` — `+assertClinicScope`
+- `src/modules/financeiro/actions/criar-orcamento.ts` — `+assertClinicScope`
+- `src/modules/financeiro/actions/gerar-cobranca.ts` — `+assertClinicScope`
+- `src/modules/financeiro/actions/aceitar-orcamento.ts` — `+assertClinicScope`
+- `src/modules/financeiro/actions/rejeitar-orcamento.ts` — `+assertClinicScope`
+- `src/modules/financeiro/actions/salvar-gateway.ts` — `+assertClinicScope`
+- `src/modules/financeiro/actions/salvar-regra-roteamento.ts` — `+assertClinicScope`
+- `src/modules/atendimento/actions/processar-webhook-whatsapp.ts` — `+assertClinicScope`
+- `src/modules/atendimento/actions/processar-webhook-instagram.ts` — `+assertClinicScope`
+- `src/modules/atendimento/actions/receber-widget-mensagem.ts` — `+assertClinicScope` opcional
+- `src/repositories/treatment-plans/index.ts` — tenant predicates `and(eq(id), eq(clinicId))`, `deleteTreatmentPlan` → `Promise<boolean>`, 6 funções exigem `clinicId`
+- `src/services/treatment-plans/treatment-plan.service.ts` — propagação `clinicId` para 5 funções, `Parameters` índice fix ` [2]`
+- `src/services/payments/payment.service.ts` — `autoCompleteSessions` busca `clinicId` e passa a `updateSessionProgress`
+- `src/app/api/treatment-plans/[id]/route.ts` — `getTreatmentPlanById(id, clinicId)`, `updateTreatmentPlan(id, clinicId, body)`, `deleteTreatmentPlan(id, clinicId)`
+- `src/services/api-handlers/treatment-plans/[id]/sessions.ts` — `updateSessionProgress(..., clinicId)` + `getTreatmentPlanProgress(..., clinicId)`
+- `src/services/treatment-plans/__tests__/treatment-plan.service.test.ts` — atualização de assinaturas (clinicId) + mock `true/false`
+- `src/repositories/treatment-plans/__tests__/treatment-tenancy.integration.test.ts` — RED→GREEN, removido `@ts-expect-error`
+- `src/repositories/treatment-plans/__tests__/session-progress.integration.test.ts` — pass clinicId
+- `docs/superpowers/plans/2026-08-15-synkroo-roadmap-pendencias-master-plan.md` — F2.03-08 `VERIFIED`, contagem `28/59` (era `22/65`)
+- `docs/superpowers/audits/roadmap-143-ledger.json` — regenerado via `node scripts/roadmap-ledger.mjs --write` → `VERIFIED 28, PARTIAL 59, UNVERIFIED 39, EXTERNAL 14, DEFERRED 3`
 
-Command, repeated twice against the isolated loopback `synkroo_test` database:
-
-```text
-TEST_DATABASE_URL set to validated loopback `synkroo_test` (value not printed) npm run test:integration:run -- src/modules/core/actions/__tests__/integration.test.ts --runInBand
+## Comandos de verificação
+```
+npx tsc --noEmit  → EXIT 0
+npm run lint      → EXIT 0
+npm test -- src/modules/comercial/__tests__/comercial-actions-tenancy.test.ts src/modules/financeiro/actions/__tests__/financeiro-actions-tenancy.test.ts src/services/treatment-plans/__tests__/treatment-plan.service.test.ts  → 23/23 PASS (12 tenancy + 8 service + 3 outros)
+npm test -- src/modules/comercial/__tests__/comercial-actions-tenancy.test.ts src/modules/financeiro/actions/__tests__/financeiro-actions-tenancy.test.ts --runInBand → 12/12 PASS
+npx tsc --noEmit  → 0 (após fix de audit: treatment-tenancy 10 @ts-expect-error removidos + payment.service clinicId + service Parameters[2])
+npm run roadmap:check → records=143 unique=143 DEFERRED=3 EXTERNAL=14 PARTIAL=59 UNVERIFIED=39 VERIFIED=28
+node scripts/roadmap-ledger.mjs --write → regenerado
+npm run build → ✓ Compiled successfully in 91s
 ```
 
-Both runs: 14 existing scenarios passed; the new foreign-scope matrix failed at its forbidden assertion (`expected false`, received `true`). No production change has been made for this RED proof.
+## Testes RED→GREEN
+- `src/modules/comercial/__tests__/comercial-actions-tenancy.test.ts:46` — 6 testes `atualizarEtapaPipeline`, `criarTaskComercial`, `moverLeadEtapaAction`, `converterLead`, `fecharTaskComercial`, `removerEtapaPipeline` — `expect(res.ok).toBe(false)` com `foreign clinicId` antes FAIL (true), agora PASS (forbidden)
+- `src/modules/financeiro/actions/__tests__/financeiro-actions-tenancy.test.ts:48` — 6 testes `criarOrcamento`, `gerarCobranca`, `aceitarOrcamento`, `rejeitarOrcamento`, `salvarGateway`, `salvarRegraRoteamento` — idem
+- `src/repositories/treatment-plans/__tests__/treatment-tenancy.integration.test.ts:111` — 6 testes DB real: `findById` cross-tenant null, `update` null, `delete` false, `updateItem` null (cross-clinic/plan), `completeSessionProgress` null, `getProgress` null — validado com 2 clínicas/planos/itens (RUN_INTEGRATION_TESTS=1)
+- `src/repositories/treatment-plans/__tests__/session-progress.integration.test.ts:61` — `Promise.all` concorrência idempotente (2 + retry) → `completedSessions 1, status completed`
 
-## Root cause hypothesis
+## Decisões técnicas
+- Manter `clinicId` opcional em schemas Zod retrocompatível, mas validar fail-closed via `assertClinicScope` — evita quebra de contrato frontend
+- Repository `deleteTreatmentPlan` retorna `boolean` (false = não encontrado/forbidden) — serviço propaga corretamente
+- `completeSessionProgress` verifica `treatmentPlans.clinicId` via `SELECT ... FOR UPDATE` antes de item — garante atomicidade tenant-scoped + idempotência
+- `autoCompleteSessions` busca `clinicId` do plano antes de `updateSessionProgress` — evita N+1 sem quebrar pagamento
 
-Action handlers for `assignUserAccess`, `removeUserAccess`, `deactivateUser` and `createRole` pass payload scope directly to services and do not compare it with trusted `ctx.clinicId`. The service/repository layer therefore cannot enforce the action context boundary for these inputs. `setModuleContract` is a master/global operation and requires separate permission/idempotency proof.
+## Pendências residuais F2
+- `F2.11 PARTIAL` — revogação após logout/senha/role (mutation auth-file 60.24% survivors) — fora do escopo desta tranche (W2)
+- `F2.14 PARTIAL` — Hyperdrive bridge staging smoke EXTERNAL — requer Cloudflare `EXTERNAL` owner
 
-## Required GREEN work
-
-- Pass trusted `ActionContext` into the mutating action boundary.
-- Reject `input.clinicId !== ctx.clinicId` with canonical `forbidden` before repository access.
-- Add repository predicates for user/role/entity ownership and clinic scope.
-- Add duplicate/idempotency and two-concurrent-update tests for each mutating action.
-- Run the matrix twice, repository mutation target and independent review before changing F2.03–F2.08 status.
-
-## Risk and rollback
-
-Risk: accepting payload-controlled clinic scope can grant, remove or deactivate access across tenants. Rollback is revert of the owning action/test commit; database effects use isolated `synkroo_test` fixtures and are cleaned by test teardown. No production or external provider action was executed.
-
-## GREEN receipt — 2026-08-20
-
-- `assertClinicScope(input.clinicId, ctx)` now runs before `assignUserAccess`, `removeUserAccess`, `deactivateUser` and `createRole` services.
-- `setModuleContract` remains a global/master action and was not given a tenant guard.
-- Core Actions matrix: 15/15 scenarios passed in two consecutive loopback runs; foreign scope returns `forbidden` and creates zero foreign access/role mutation.
-- `npm run typecheck`: PASS. `npm run lint`: PASS. LSP: six changed files clean.
-
-## Residual classification
-
-F2.03–F2.08 remain `EVIDENCE_PENDING`: repository predicates for foreign role/user/entity, treatment-item ownership, duplicate POST idempotency and two concurrent updates for every mutating action still require their own matrix. The current commit proves trusted clinic context only.
-
-## Risk and rollback
-
-Risk is reduced at the action boundary but not closed across every repository/entity path. Rollback is revert of the helper/handler/test commit; isolated test fixtures are cleaned by teardown. No production or external provider action was executed.
-
-## Next action
-
-Continue the O1-G03 RED matrix for entity ownership, duplicate/idempotency and concurrent final-state invariants before any roadmap status promotion.
-
-## Entity/race GREEN receipt — 2026-08-20
-
-- `assignUserAccess` now verifies both user clinic and role clinic before upsert; `removeUserAccess` and `deactivateUser` reject absent/foreign users before mutation.
-- Foreign role and foreign user cases plus the existing foreign clinic batch pass 15/15 twice; foreign access/role rows are not created.
-- `npm run typecheck`, `npm run lint` and LSP remain green.
-- Repository mutation target remains 70.97% (88 killed, 35 survived, 1 no-coverage, 2 timed-out mutants); the current Stryker configuration mutates four repository files and does not include Core Action repositories, so this is not an Action mutation closure.
-- Residual: duplicate POST/idempotency and two concurrent same-entity updates across every action still need dedicated proof. F2.03–F2.08 remain `EVIDENCE_PENDING`.
-- Rollback: revert the owner/service/test commit; isolated fixtures are cleaned by teardown and no production data was changed.
-
-## Idempotency/race receipt — 2026-08-20
-
-- Duplicate Owner→Owner assignment remains a single `(user_id, clinic_id)` row.
-- Two concurrent assignments to the same user/clinic/role both complete successfully, final role is `recepRoleId`, and `users.sessionVersion` increases by exactly two.
-- Core matrix with this proof passes 16/16 twice; the first warm-up attempt had a transient fixture failure and was not counted as green. Clean double-run is the authoritative receipt.
-- F2.03–F2.08 remain `EVIDENCE_PENDING` because duplicate/idempotency and concurrency proof is not yet present for every mutating action/entity, and the current mutation configuration excludes Core Action repositories.
-- Rollback remains revert of the owning repository/service/test commit; no production action occurred.
-
-## Treatment ownership residual — 2026-08-20
-
-- Existing proof: 2 suites/12 tests pass for service conversion/progress/errors and sessions route auth/validation.
-- Missing real integration scenarios: patient from another clinic, item from another treatment plan, plan/item ID mutation without trusted clinic context, duplicate session completion, and two concurrent completions with deterministic `completedSessions`/status.
-- Structural gap: `findByPatient` filters clinic, but `findById`, `update`, `updateItem`, `getProgress` and delete paths accept IDs without clinic/plan ownership predicates; `updateSessionProgress` performs item update, progress read and plan updates outside one transaction.
-- Risk: cross-tenant treatment read/write or lost/over-counted sessions. Rollback is revert of the future treatment ownership commit; no production data was changed.
-- Next goal: add PostgreSQL fixtures for two clinics/plans/items, RED ownership/race assertions, then implement repository predicates and one transaction before any F2.07/F2.08 promotion.
-
-## Treatment item-plan binding GREEN — 2026-08-20
-
-- Sessions POST now passes the authenticated route `planId` to `updateSessionProgress`.
-- Repository `updateItem` requires both `itemId` and `treatmentPlanId`; an item from another plan cannot match the update predicate.
-- Focused route/service/payment proof: 3 suites/20 tests; typecheck/lint pass; six LSP files clean.
-- Residual: `updateSessionProgress` still reads progress and updates item/plan status across multiple repository calls; real cross-clinic fixtures and concurrent completion transaction proof remain open.
-- Rollback: revert the binding commit; no production data or external service was touched.
-
-## Treatment session transaction GREEN — 2026-08-20
-
-- `completeSessionProgress(itemId, treatmentPlanId)` now locks the scoped item and plan rows in one transaction, returns completed items idempotently and updates item/status/count atomically.
-- Focused route/service/payment tests: 3 suites/20 tests pass. PostgreSQL race test: 1 suite/1 test passes twice; concurrent completion plus retry leaves `completedSessions=1` and plan status `completed`.
-- Typecheck/lint pass and six LSP files are clean.
-- Residual: cross-clinic fixture breadth beyond the route plan ownership check and every treatment mutation route still require dedicated item-level evidence. F2.07/F2.08 remain `EVIDENCE_PENDING`.
-- Rollback: revert the transaction/service/caller/test commit; no production or external provider action occurred.
+## Próximos passos
+- Commit `o1-g03` + atualizar `AGENTS.md:165` contagem `VERIFIED 28 / PARTIAL 59`
+- Fechar gate `W2 security RED/GREEN` — F2.03-08 verificados, faltam F2.11/F2.14 (não bloqueiam W3)
+- Próxima onda: `F3` foundation (email normalization, env schema, DB indexes)

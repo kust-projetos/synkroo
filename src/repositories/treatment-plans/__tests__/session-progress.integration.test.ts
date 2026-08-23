@@ -60,10 +60,10 @@ describeOrSkip('Treatment session progress — PostgreSQL concurrency', () => {
 
   it('completes once under concurrency and remains idempotent on retry', async () => {
     await Promise.all([
-      updateSessionProgress(itemId, planId),
-      updateSessionProgress(itemId, planId),
+      updateSessionProgress(itemId, planId, clinicId),
+      updateSessionProgress(itemId, planId, clinicId),
     ])
-    await updateSessionProgress(itemId, planId)
+    await updateSessionProgress(itemId, planId, clinicId)
 
     const [plan] = await getDb()
       .select({ completedSessions: treatmentPlans.completedSessions, status: treatmentPlans.status })

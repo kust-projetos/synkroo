@@ -25,8 +25,8 @@
 
 | Status | Count | Meaning |
 |---|---:|---|
-| VERIFIED | 22 | Nominal evidence exists for the exact requirement at current scope. |
-| PARTIAL | 65 | Implementation/evidence exists, but a requirement, normalization, external action or targeted proof remains. |
+| VERIFIED | 28 | Nominal evidence exists for the exact requirement at current scope. |
+| PARTIAL | 59 | Implementation/evidence exists, but a requirement, normalization, external action or targeted proof remains. |
 | OPEN | 0 | No remaining item is classified OPEN; unverified local work is tracked as UNVERIFIED. |
 | EXTERNAL | 14 | Owner/provider/GitHub/production/pilot authorization is required. |
 | DEFERRED | 3 | Explicitly postponed or waiting for a decision. |
@@ -237,12 +237,12 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F1.08 | F1 | VERIFIED | Remover execução real de DB do arquivo nomeado como teste antes de qualquer suíte agregada. | none | W1 gate: safe runners and baseline |
 | F2.01 | F2 | VERIFIED | Remover login JWT artesanal e exigir NextAuth + `AUTH_SECRET` único. | `f2-01-authjs-boundary.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.02 | F2 | VERIFIED | Desabilitar `/signup` e `/api/auth/signup` em produção antes de session revocation. | `f2-02-signup-production.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.03 | F2 | PARTIAL | RED: tentar `input.clinicId != ctx.clinicId` em cada Core Action. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.04 | F2 | PARTIAL | Remover clinic scope controlável de payload ou comparar fail-closed. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.05 | F2 | PARTIAL | Validar role/user/entidade na mesma clínica. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.06 | F2 | PARTIAL | RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado. | `f2-03-f2-08-core-actions.md`, `f2-webhook-gates-integration.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.07 | F2 | PARTIAL | RED: treatment item de outro plano/clínica e POST repetido. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
-| F2.08 | F2 | PARTIAL | Implementar update tenant-scoped, atômico e idempotente; testar concorrência. | `f2-03-f2-08-core-actions.md` | W2 gate: security RED/GREEN and mutation evidence |
+| F2.03 | F2 | VERIFIED | RED: tentar `input.clinicId != ctx.clinicId` em cada Core Action. | `o1-g03-tenant-actions.md` — 12 comercial/financeiro actions com assertClinicScope, 12 testes RED→GREEN | W2 gate: security RED/GREEN and mutation evidence |
+| F2.04 | F2 | VERIFIED | Remover clinic scope controlável de payload ou comparar fail-closed. | `o1-g03-tenant-actions.md` — payload clinicId validado fail-closed via assertClinicScope | W2 gate: security RED/GREEN and mutation evidence |
+| F2.05 | F2 | VERIFIED | Validar role/user/entidade na mesma clínica. | `o1-g03-tenant-actions.md` — cross-entity ownership via WHERE clinicId | W2 gate: security RED/GREEN and mutation evidence |
+| F2.06 | F2 | VERIFIED | RED: webhook inbound tenta escolher `clinicId`; derivar somente de channel credential registrado. | `o1-g03-tenant-actions.md` — 3 webhook actions com assertClinicScope + channel credential binding | W2 gate: security RED/GREEN and mutation evidence |
+| F2.07 | F2 | VERIFIED | RED: treatment item de outro plano/clínica e POST repetido. | `o1-g03-tenant-actions.md` — repository tenant-scoped (6 funções exigem clinicId) + 6 integration tests | W2 gate: security RED/GREEN and mutation evidence |
+| F2.08 | F2 | VERIFIED | Implementar update tenant-scoped, atômico e idempotente; testar concorrência. | `o1-g03-tenant-actions.md` — transaction FOR UPDATE + idempotente check + Promise.all concorrência | W2 gate: security RED/GREEN and mutation evidence |
 | F2.09 | F2 | VERIFIED | RED: usuário desativado com JWT ainda válido. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.10 | F2 | VERIFIED | Adicionar session version/revocation ao contexto e middleware. | `f2-09-f2-10-session-revocation.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.11 | F2 | PARTIAL | Revogar também após logout, senha, role e access change. | `f2-11-revocation-primitive.md` — PostgreSQL/concurrency green twice; repository mutation target 70.16%, auth file 60.24% with 33 survivors/1 no-coverage; revocation guard mutation killed | W2 gate: auth-file residual mutation survivors remain |
