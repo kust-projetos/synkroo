@@ -88,5 +88,6 @@ export interface RunTurnResult {
   reply: string;
   turnsUsed: number;
   escalated?: boolean;
+  escalationReason?: string;
   pendingAction?: PendingAction;
 }
