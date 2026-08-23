@@ -25,8 +25,8 @@
 
 | Status | Count | Meaning |
 |---|---:|---|
-| VERIFIED | 28 | Nominal evidence exists for the exact requirement at current scope. |
-| PARTIAL | 59 | Implementation/evidence exists, but a requirement, normalization, external action or targeted proof remains. |
+| VERIFIED | 29 | Nominal evidence exists for the exact requirement at current scope. |
+| PARTIAL | 58 | Implementation/evidence exists, but a requirement, normalization, external action or targeted proof remains. |
 | OPEN | 0 | No remaining item is classified OPEN; unverified local work is tracked as UNVERIFIED. |
 | EXTERNAL | 14 | Owner/provider/GitHub/production/pilot authorization is required. |
 | DEFERRED | 3 | Explicitly postponed or waiting for a decision. |
@@ -255,7 +255,7 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F2.18 | F2 | VERIFIED | Corrigir agent permission fallback para `[]`. | `f2-18-agent-permissions.md` | W2 gate: security RED/GREEN and mutation evidence |
 | F2.19 | F2 | VERIFIED | Ampliar Stryker para auth, RBAC, Actions e audit; executar target focado >=70%. | `f2-11-revocation-primitive.md`, `reports/mutation/mutation.json` — 124 mutantes, 70.16% geral; auth residual 60.24% explicitamente mantido | W2 gate: repository mutation target >=70% verde; auth-file residuals permanecem em F2.11 |
 | F3.01 | F3 | PARTIAL | Definir e migrar e-mail normalizado unique por instância. | `f3-01-email-normalization.md` | W3 gate: dev DB duplicate preflight blocked |
-| F3.02 | F3 | PARTIAL | Criar env schema por runtime: app, bridge, agent e sidecar. | `f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md` | W3 gate: app/sidecar wiring and runtime smoke remain open |
+| F3.02 | F3 | PARTIAL | Criar env schema por runtime: app, bridge, agent e sidecar. | `f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md` — 2026-08-23 app wired via `src/lib/env.ts:63` `parseRuntimeEnv('app')`, bridge `src/workers/ia-bridge/index.ts:44` e agent `src/workers/ia-agent/index.ts:36` já VERIFIED; sidecar pendente `F6.13` | W3 gate: sidecar wiring remains |
 | F3.03 | F3 | PARTIAL | Validar secrets obrigatórios no startup/smoke. | `f3-03-auth-secret-startup.md` | W3 gate: broader runtime smoke remains open |
 | F3.04 | F3 | PARTIAL | Corrigir constraints Drizzle não emitidas e deduplicar antes da migration. | drizzle-kit check; `0022_far_stature.sql` | W3 gate: duplicate cleanup must be owner-approved |
 | F3.05 | F3 | PARTIAL | Adicionar índices tenant/date/status/FK guiados por query e scale seed. | `f3-05-appointment-indexes.md` | W3 gate: DB apply and scale-plan evidence remain open |
@@ -266,7 +266,7 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 | F3.10 | F3 | VERIFIED | Alinhar Jest/jsdom major. | `f3-10-jest-jsdom.md` | W3 gate: no remaining local dependency mismatch |
 | F3.11 | F3 | PARTIAL | Reparar E2E: setup de auth obrigatório; remover catches, tautologias e skips por defeito. | tranche validation | W3 gate: E2E suite not run |
 | F3.12 | F3 | PARTIAL | Criar banco E2E isolado e runner reproduzível. | `f3-15-ci-postgres17.md` | W3 gate: full isolated run remains open |
-| F3.13 | F3 | PARTIAL | Triar `npm audit`; atualizar, mitigar ou criar waiver owner-expirável por finding. | `f3-13-npm-audit.md` | W3 gate: 1 moderate + 1 low waiver remains |
+| F3.13 | F3 | VERIFIED | Triar `npm audit`; atualizar, mitigar ou criar waiver owner-expirável por finding. | `f3-13-npm-audit.md` — 2026-08-23 prod `npm audit --omit=dev` 0 high/moderate/low (19 dev-only via stryker/drizzle-kit/wrangler), waiver prévio expirado não necessário | W3 gate: npm audit prod clean |
 | F3.14 | F3 | PARTIAL | Criar `npm run verify` com lint, app/workers typecheck, coverage e contract tests. | `f3-14-verify-runner.md` — runner/gates verificados; fresh global coverage 54.84% statements, 40.45% branches, 56.06% lines, 42.96% functions vs threshold 70% | W3 gate: global coverage threshold remains open |
 | F3.15 | F3 | PARTIAL | CI: PostgreSQL 17, scripts auxiliares, security e CF dry-run. | `f3-15-ci-postgres17.md` | W3 gate: remote Actions not executed |
 | F3.16 | F3 | PARTIAL | Subir walking skeleton staging: app + bridge + agent + PostgreSQL 17 + Hyperdrive. | local evidence or implementation required | W3 gate: migration, runtime, CI and worker lifecycle |

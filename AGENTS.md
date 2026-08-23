@@ -165,7 +165,7 @@ src/
 ## Direção da Stack & Roadmap
 - Stack real: Drizzle ORM + `pg` + NextAuth + Cloudflare Workers (OpenNext) + Workers Auxiliares (`ia-agent`, `ia-bridge`).
 - Fonte de verdade: `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`.
-- Roadmap 143: Ledger rigoroso de 143 itens (28 VERIFIED / 59 PARTIAL / 39 UNVERIFIED / 14 EXTERNAL / 3 DEFERRED) — O1-G03 F2.03-08 VERIFIED 2026-08-23.
+- Roadmap 143: Ledger rigoroso de 143 itens (29 VERIFIED / 58 PARTIAL / 39 UNVERIFIED / 14 EXTERNAL / 3 DEFERRED) — O1-G03 F2.03-08 + F3.13 prod audit VERIFIED 2026-08-23.
 - Supabase removido; migrations convertidas para Drizzle em `src/lib/db/schema/`.
 
 ## VPS
