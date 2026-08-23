@@ -15,6 +15,7 @@ export const clinics = pgTable('clinics', {
   website: text('website'),
   address: jsonb('address').default('{}'),
   settings: jsonb('settings').default('{}'),
+  timezone: text('timezone').notNull().default('America/Sao_Paulo'),
   subscriptionPlan: text('subscription_plan').default('starter'),
   subscriptionStatus: text('subscription_status').default('active'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

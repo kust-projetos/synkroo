@@ -17,6 +17,7 @@ export interface ClinicRow {
   website: string | null
   address: Record<string, unknown>
   settings: Record<string, unknown>
+  timezone: string
   subscriptionPlan: string | null
   subscriptionStatus: string | null
   createdAt: Date
