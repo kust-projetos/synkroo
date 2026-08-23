@@ -4,6 +4,7 @@
  * App refuses to start if critical vars are missing.
  */
 import { z } from 'zod'
+import { parseRuntimeEnv } from './runtime-env'
 
 const envSchema = z.object({
   // Node
@@ -62,6 +63,21 @@ let _env: Env | null = null
  */
 export function getEnv(): Env {
   if (_env) return _env
+
+  // F3.02: wire app runtime schema — fail-closed with field names only, never values
+  try {
+    parseRuntimeEnv('app', {
+      NODE_ENV: process.env.NODE_ENV,
+      AUTH_SECRET: process.env.AUTH_SECRET,
+      JWT_SECRET: process.env.JWT_SECRET,
+      DATABASE_URL: process.env.DATABASE_URL,
+      // HYPERDRIVE is a Workers binding (not in process.env in Next.js dev); pass through if present
+      HYPERDRIVE: (process.env as unknown as Record<string, unknown>).HYPERDRIVE ?? (globalThis as unknown as Record<string, unknown>).HYPERDRIVE,
+    } as unknown as Record<string, unknown>)
+  } catch (error) {
+    // parseRuntimeEnv already formats as [ENV:app] invalid required fields: <fields>
+    throw error
+  }
 
   if (process.env.NODE_ENV === 'production' &&
       (!process.env.AUTH_SECRET || process.env.AUTH_SECRET.length < 32)) {

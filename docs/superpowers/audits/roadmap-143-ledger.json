@@ -312,8 +312,8 @@
       "phase": "F3",
       "status": "PARTIAL",
       "requirement": "Criar env schema por runtime: app, bridge, agent e sidecar.",
-      "blocker": "`f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md`",
-      "gate": "W3 gate: app/sidecar wiring and runtime smoke remain open"
+      "blocker": "`f3-02-runtime-env.md`, `f3-02-agent-bootstrap.md`, `f3-02-bridge-bootstrap.md` — 2026-08-23 app wired via `src/lib/env.ts:63` `parseRuntimeEnv('app')`, bridge `src/workers/ia-bridge/index.ts:44` e agent `src/workers/ia-agent/index.ts:36` já VERIFIED; sidecar pendente `F6.13`",
+      "gate": "W3 gate: sidecar wiring remains"
     },
     {
       "id": "F3.03",
@@ -398,10 +398,10 @@
     {
       "id": "F3.13",
       "phase": "F3",
-      "status": "PARTIAL",
+      "status": "VERIFIED",
       "requirement": "Triar `npm audit`; atualizar, mitigar ou criar waiver owner-expirável por finding.",
-      "blocker": "`f3-13-npm-audit.md`",
-      "gate": "W3 gate: 1 moderate + 1 low waiver remains"
+      "blocker": "`f3-13-npm-audit.md` — 2026-08-23 prod `npm audit --omit=dev` 0 high/moderate/low (19 dev-only via stryker/drizzle-kit/wrangler), waiver prévio expirado não necessário",
+      "gate": "W3 gate: npm audit prod clean"
     },
     {
       "id": "F3.14",
@@ -1151,8 +1151,8 @@
   "statusCounts": {
     "DEFERRED": 3,
     "EXTERNAL": 14,
-    "PARTIAL": 59,
+    "PARTIAL": 58,
     "UNVERIFIED": 39,
-    "VERIFIED": 28
+    "VERIFIED": 29
   }
 }
