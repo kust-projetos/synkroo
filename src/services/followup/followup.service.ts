@@ -12,6 +12,7 @@ import { procedureGuidelines, patientFeedback, patients, procedures, dentists } 
 import { clinics } from '@/lib/db/schema/core'
 import { dbLogger, whatsappLogger } from '@/lib/logger'
 import { createFeedback } from '@/repositories/followup'
+import { validateAndFormatPhone } from '@/modules/followup/services/phone-resolver'
 
 // -- Types ------------------------------------------------------------------
 
@@ -248,10 +249,13 @@ export async function sendFollowUpMessage(
       return { success: false, error: 'WhatsApp API not configured' }
     }
 
-    let formattedPhone = phone.replace(/\D/g, '')
-    if (!formattedPhone.startsWith('55')) {
-      formattedPhone = '55' + formattedPhone
+    const phoneValidation = validateAndFormatPhone(phone)
+    if (!phoneValidation.ok) {
+      whatsappLogger.warn('Invalid recipient phone, skipping follow-up', { phone, error: phoneValidation.error })
+      return { success: false, error: `Invalid recipient phone: ${phoneValidation.error}` }
     }
+
+    const formattedPhone = phoneValidation.phone
 
     const response = await fetch(whatsappApiUrl, {
       method: 'POST',

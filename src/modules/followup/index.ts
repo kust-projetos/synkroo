@@ -38,3 +38,5 @@ export const followupActions = [
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { followupManifest } from './manifest';
 export { followupAccessPermissions } from './permissions';
+export * from './services/phone-resolver';
+
