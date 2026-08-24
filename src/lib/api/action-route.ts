@@ -1,4 +1,4 @@
-import { apiFailure, apiSuccess, generateRequestId } from './response'
+import { apiFailure, apiSuccess, generateRequestId, type ApiMeta } from './response'
 
 export type ActionRouteHandler<T> = (request: Request) => T | Promise<T>
 
@@ -6,6 +6,7 @@ export interface ActionRouteOptions {
   code?: string
   status?: number
   message?: string
+  meta?: ApiMeta
 }
 
 /**
@@ -21,7 +22,14 @@ export function createActionRoute<T>(
     const requestId = request.headers.get('x-request-id') || generateRequestId()
 
     try {
-      const response = apiSuccess(await handler(request))
+      const result = await handler(request)
+      let response
+      if (result && typeof result === 'object' && 'data' in result && !Array.isArray(result)) {
+        const withMeta = result as { data: unknown; meta?: ApiMeta }
+        response = apiSuccess(withMeta.data, withMeta.meta ?? options.meta)
+      } else {
+        response = apiSuccess(result, options.meta)
+      }
       response.headers.set('x-request-id', requestId)
       return response
     } catch (error) {

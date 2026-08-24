@@ -1,4 +1,5 @@
 import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 const SALT_LENGTH = 16;
 const KEY_LENGTH = 64;
@@ -9,8 +10,8 @@ const SEPARATOR = ':';
  * Returns a portable string in format "salt:hash" (hex encoded).
  */
 export function hashPassword(password: string): string {
-  const salt = randomBytes(SALT_LENGTH).toString('hex');
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString('hex');
+  const salt = Buffer.from(randomBytes(SALT_LENGTH)).toString('hex');
+  const hash = Buffer.from(scryptSync(password, salt, KEY_LENGTH)).toString('hex');
   return `${salt}${SEPARATOR}${hash}`;
 }
 
@@ -23,7 +24,7 @@ export function verifyPassword(password: string, stored: string): boolean {
 
   const salt = stored.slice(0, sepIdx);
   const key = stored.slice(sepIdx + 1);
-  const hash = scryptSync(password, salt, KEY_LENGTH).toString('hex');
+  const hash = Buffer.from(scryptSync(password, salt, KEY_LENGTH)).toString('hex');
 
   // Constant-time comparison prevents timing attacks
   return timingSafeEqual(Buffer.from(hash), Buffer.from(key));

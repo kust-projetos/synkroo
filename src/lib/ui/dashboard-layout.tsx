@@ -1,6 +1,7 @@
 'use client'
 
 import { Sidebar, MobileSidebar } from '@/lib/ui/sidebar'
+import { ClinicSelector } from '@/components/clinic-selector'
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,8 +19,15 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               Synkroo
             </span>
           </div>
-          <span className="shrink-0 text-[11px] font-medium text-muted-foreground">IA: status indisponível</span>
+          <div className="flex items-center gap-2">
+            <ClinicSelector className="hidden sm:flex" />
+            <span className="shrink-0 text-[11px] font-medium text-muted-foreground">IA: status indisponível</span>
+          </div>
         </header>
+        {/* Desktop header — clinic selector multi-clínica hidden single */}
+        <div className="hidden lg:flex items-center justify-end gap-2 px-4 py-2 border-b border-border/40 bg-card/40 backdrop-blur-sm">
+          <ClinicSelector />
+        </div>
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto bg-gradient-to-b from-transparent via-teal-950/[0.02] to-transparent">

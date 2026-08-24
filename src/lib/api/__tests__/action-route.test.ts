@@ -14,6 +14,28 @@ describe('action route adapter contract', () => {
     })
   })
 
+  it('supports meta envelope and passes pagination metadata', async () => {
+    const route = createActionRoute(async () => ({
+      data: [{ patientId: 'p-1', displayName: 'Ana' }],
+      meta: { total: 1, cursor: 'cur-1' },
+    }))
+    const response = await route(new Request('http://localhost/api/patients'))
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('x-request-id')).toBeDefined()
+    await expect(response.json()).resolves.toEqual({
+      data: [{ patientId: 'p-1', displayName: 'Ana' }],
+      meta: { total: 1, cursor: 'cur-1' },
+    })
+  })
+
+  it('generates x-request-id when not provided by client', async () => {
+    const route = createActionRoute(async () => ({ status: 'ok' }))
+    const response = await route(new Request('http://localhost/api/test'))
+
+    expect(response.headers.get('x-request-id')).toMatch(/^req_|[0-9a-f-]{36}/)
+  })
+
   it('converts thrown errors to the canonical failure envelope', async () => {
     const route = createActionRoute(async () => {
       throw new Error('permission denied')
