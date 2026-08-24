@@ -2,6 +2,7 @@ import { dispatchNextOutbox } from "@/lib/outbox/dispatch-outbox";
 import type { OutboxJob } from "@/lib/outbox/outbox-repository";
 import * as campaignRepo from "@/repositories/campaigns";
 import { hasActiveConsent } from "@/services/contacts/consents.service";
+import { resolveRecipientPhone } from "@/modules/followup/services/phone-resolver";
 
 async function sendCampaignMessage(
   phone: string,
@@ -12,9 +13,7 @@ async function sendCampaignMessage(
   const url = process.env.WHATSAPP_API_URL;
   const token = process.env.WHATSAPP_TOKEN;
   if (!url || !token) throw new Error("WHATSAPP_NOT_CONFIGURED");
-  const formattedPhone = phone.replace(/\D/g, "").startsWith("55")
-    ? phone.replace(/\D/g, "")
-    : `55${phone.replace(/\D/g, "")}`;
+
   const response = await fetch(url, {
     method: "POST",
     headers: {
@@ -24,7 +23,7 @@ async function sendCampaignMessage(
     },
     body: JSON.stringify({
       messaging_product: "whatsapp",
-      to: formattedPhone,
+      to: phone,
       type: "text",
       text: { body: message },
     }),
@@ -64,8 +63,25 @@ export async function dispatchCampaignRecipientJob(
     await campaignRepo.updateCampaignCounts(payload.campaignId);
     return;
   }
+
+  // Pre-dispatch recipient phone resolution & validation (F7.03)
+  const phoneRes = await resolveRecipientPhone({
+    phone: current.patientPhone ?? payload.phone,
+    patientId: current.patientId,
+    clinicId: current.clinicId,
+  });
+
+  if (!phoneRes.ok) {
+    await campaignRepo.markRecipientSuppressed(
+      payload.recipientId,
+      `invalid-phone:${phoneRes.error}`,
+    );
+    await campaignRepo.updateCampaignCounts(payload.campaignId);
+    return;
+  }
+
   await sendCampaignMessage(
-    current.patientPhone ?? payload.phone,
+    phoneRes.phone,
     payload.message,
     job.businessKey,
   );
