@@ -9,6 +9,7 @@
  */
 
 import crypto from 'crypto';
+import { Buffer } from 'node:buffer';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16; // 128 bits for GCM
@@ -51,9 +52,9 @@ export function encrypt(plaintext: string): EncryptedPayload {
   const tag = cipher.getAuthTag();
 
   return {
-    iv: iv.toString('hex'),
-    data: encrypted.toString('hex'),
-    tag: tag.toString('hex'),
+    iv: Buffer.from(iv).toString('hex'),
+    data: Buffer.from(encrypted).toString('hex'),
+    tag: Buffer.from(tag).toString('hex'),
   };
 }
 

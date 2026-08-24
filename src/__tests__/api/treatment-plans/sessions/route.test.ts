@@ -105,7 +105,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
     expect(r.status).toBe(500);
     const data = await r.json();
     expect(data.error).toBe('Failed to update session');
-    expect(updateSessionProgress).toHaveBeenCalledWith('foreign-item-from-other-plan', 'plan1');
+    expect(updateSessionProgress).toHaveBeenCalledWith('foreign-item-from-other-plan', 'plan1', 'c1');
   });
 
   it('passes the authenticated route plan id to session progress for nominal update', async () => {
@@ -121,7 +121,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
     expect(r.status).toBe(200);
     const data = await r.json();
     expect(data).toEqual({ treatment_plan_item: { id: 'i1', treatment_plan_id: 'plan1', status: 'completed' } });
-    expect(updateSessionProgress).toHaveBeenCalledWith('i1', 'plan1');
+    expect(updateSessionProgress).toHaveBeenCalledWith('i1', 'plan1', 'c1');
   });
 });
 
@@ -159,6 +159,6 @@ describe('GET /api/treatment-plans/[id]/sessions — tenancy & progress', () => 
     expect(r.status).toBe(200);
     const data = await r.json();
     expect(data).toEqual({ progress: { totalSessions: 4, completedSessions: 2, percent: 50 } });
-    expect(getTreatmentPlanProgress).toHaveBeenCalledWith('plan1');
+    expect(getTreatmentPlanProgress).toHaveBeenCalledWith('plan1', 'c1');
   });
 });

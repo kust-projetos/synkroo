@@ -53,7 +53,16 @@ describe('Payment Service', () => {
 
     it('auto-completes sessions with treatment plan', async () => {
       (getRemainingBalance as jest.Mock).mockResolvedValue(1000)
-      seed([pRow], [{ finalValue: '900', treatmentPlanId: 'tp1' }], [{ totalSessions: 3 }], [{ treatmentPlanId: 'tp1' }], [{ id: 'ti1' }, { id: 'ti2' }], [{ finalValue: '900' }], [{ amount: '300', status: 'paid' }])
+      seed(
+        [pRow],
+        [{ finalValue: '900', treatmentPlanId: 'tp1' }],
+        [{ totalSessions: 3 }],
+        [{ treatmentPlanId: 'tp1' }],
+        [{ clinicId: 'clinic-1' }],
+        [{ id: 'ti1' }, { id: 'ti2' }],
+        [{ finalValue: '900' }],
+        [{ amount: '300', status: 'paid' }],
+      )
       const r = await recordPayment({ budget_id: 'b1', amount: 600, payment_method: 'pix', created_by: 'u1' })
       expect(r.sessions_completed).toBe(2) // 600/300 = 2
     })

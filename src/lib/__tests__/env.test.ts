@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals'
 const originalEnv = process.env
 const baseProductionEnv: NodeJS.ProcessEnv = {
   NODE_ENV: 'production',
+  DATABASE_URL: 'postgres://localhost:5432/synkroo',
   JWT_SECRET: 'jwt-placeholder-for-tests',
   WHATSAPP_VERIFY_TOKEN: 'verify-placeholder',
   WHATSAPP_APP_SECRET: 'app-secret-placeholder',

@@ -12,6 +12,8 @@ const scheduled = read('.github/workflows/gitleaks-scheduled.yml')
 const suppressions = read('.gitleaksignore')
 const inventory = read('docs/security/credential-inventory.md')
 const config = read('.gitleaks.toml')
+const preCommitConfig = read('.pre-commit-config.yaml')
+const preCommitHook = read('.githooks/pre-commit')
 
 for (const [name, workflow] of [['ci', ci], ['scheduled', scheduled]]) {
   test(`${name} gitleaks scans full history and redacts output`, () => {
@@ -22,6 +24,12 @@ for (const [name, workflow] of [['ci', ci], ['scheduled', scheduled]]) {
   })
 }
 
+test('pre-commit hook and configuration enforce staged gitleaks scanning', () => {
+  assert.match(preCommitConfig, /gitleaks/)
+  assert.match(preCommitHook, /git diff --cached/)
+  assert.match(preCommitHook, /gitleaks detect --source/)
+})
+
 test('suppression file is fingerprint inventory, not a broad allowlist', () => {
   const entries = suppressions
     .split(/\r?\n/)
@@ -31,6 +39,32 @@ test('suppression file is fingerprint inventory, not a broad allowlist', () => {
   assert.equal(entries.length, 83)
   assert.ok(entries.every((entry) => entry.includes(':')))
   assert.ok(!entries.some((entry) => entry === '*' || entry === '.*' || entry.includes('**/')))
+
+  for (const entry of entries) {
+    const parts = entry.split(':')
+    assert.ok(parts.length === 3 || parts.length === 4, `Invalid suppression structure: ${entry}`)
+    const lineNum = Number(parts[parts.length - 1])
+    assert.ok(Number.isInteger(lineNum) && lineNum > 0, `Invalid line number in suppression: ${entry}`)
+  }
+})
+
+test('rejection of false or broad suppressions (RED validation)', () => {
+  const validateSuppression = (line) => {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) return true
+    if (trimmed === '*' || trimmed === '.*' || trimmed.includes('**/')) return false
+    const parts = trimmed.split(':')
+    if (parts.length < 3 || parts.length > 4) return false
+    const lineNum = Number(parts[parts.length - 1])
+    return Number.isInteger(lineNum) && lineNum > 0
+  }
+
+  assert.equal(validateSuppression('src/components/app.tsx:generic-api-key:10'), true)
+  assert.equal(validateSuppression('d6138f853e156981eb2d25afb107a28bc7825928:docs/CONFIGURACAO.md:curl-auth-header:62'), true)
+  assert.equal(validateSuppression('src/**'), false)
+  assert.equal(validateSuppression('*'), false)
+  assert.equal(validateSuppression('src/components/app.tsx'), false)
+  assert.equal(validateSuppression('src/components/app.tsx:generic-api-key:not-a-number'), false)
 })
 
 test('credential inventory classifies owner action without storing secret values', () => {
