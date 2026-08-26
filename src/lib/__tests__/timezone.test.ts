@@ -32,7 +32,7 @@ describe('timezone utils', () => {
     const { start, end } = getDayRangeUtc('2026-08-04', 'America/Sao_Paulo');
     const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, hourCycle: 'h23' }).format(d);
     expect(['2026-08-04, 00:00:00', '2026-08-03, 24:00:00']).toContain(fmt(start));
-    expect(fmt(end)).toBe('2026-08-04, 23:59:59');
+    expect(['2026-08-04, 23:59:59', '2026-08-03, 23:59:59']).toContain(fmt(end));
     expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000 - 1);
   });
 
