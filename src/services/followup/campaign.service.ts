@@ -172,6 +172,7 @@ async function executeCampaign(
 
   await campaignRepo.updateCampaignCounts(campaignId);
   if (sent === 0) {
+    await campaignRepo.updateCampaignStatus(campaignId, 'failed');
     return { success: false, error: 'No recipients delivered' };
   }
   return { success: true };

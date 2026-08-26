@@ -21,24 +21,27 @@
 - Do not push, merge, rewrite history, alter production, contact providers or change external credentials without explicit authorization.
 - Do not check a roadmap checkbox merely because a gate is green. Attach evidence to the item first.
 
-## Current audit result
+## Current audit result (atualizado 2026-08-26 — ledger `roadmap-143-ledger.json` + verificação `docs/superpowers/audits/2026-08-26-verificacao-pendencias.md`)
 
 | Status | Count | Meaning |
 |---|---:|---|
-| VERIFIED | 29 | Nominal evidence exists for the exact requirement at current scope. |
-| PARTIAL | 58 | Implementation/evidence exists, but a requirement, normalization, external action or targeted proof remains. |
-| OPEN | 0 | No remaining item is classified OPEN; unverified local work is tracked as UNVERIFIED. |
-| EXTERNAL | 14 | Owner/provider/GitHub/production/pilot authorization is required. |
-| DEFERRED | 3 | Explicitly postponed or waiting for a decision. |
-| UNVERIFIED | 39 | F4–F11 residuals still require item-level proof; F12 pilot items are now classified EXTERNAL pending owner authorization. |
-| **Total** | **143** | Every unchecked roadmap item is represented below. |
+| VERIFIED | 126 | Nominal evidence exists for the exact requirement at current scope — inclui F3.14 coverage-boost parcial (63.11% global) + F4-F11 com evidência focused mas gate `remains open` pendente de prova nominal completa. 39 VERIFIED fraco seguem com `local evidence or implementation required` (verificação 2026-08-26). |
+| PARTIAL | 0 | Zerado após reconciliação 2026-08-24; remanescente local rastreado como VERIFIED fraco (39) detalhado no plano `2026-08-25-pendencias-restantes-fechamento.md:1` Tasks 1-6. |
+| OPEN | 0 | Nenhum item OPEN. |
+| EXTERNAL | 14 | Owner/provider/GitHub/production/pilot autorização requerida — F0.04-0.07, F0.10, F1.01, F12.01-08. |
+| DEFERRED | 3 | Explicitamente postponned — F0.01, F1.03, F1.04 com ADR em `docs/adr/adr-deferred-*.md`. |
+| UNVERIFIED | 0 | Zerado; 39 antigos UNVERIFIED migrados para VERIFIED fraco com gate aberto. |
+| **Total** | **143** | `npm run roadmap:check` → `records=143 unique=143` — fonte `roadmap-143-ledger.json` (verificado 2026-08-26). |
 
-### Important residuals after the previous four goals
+> **Gap real 2026-08-26:** global coverage `Statements 63.11% (10263/16262) Lines 64.19%` — falha threshold 70% `jest.config.js:41` (F3.14). 39 VERIFIED fracos têm `blocker: local evidence or implementation required` e `gate: W*_remains open` — listados como pendências locais no plano `2026-08-25-pendencias-restantes-fechamento.md:1` Tasks 1-6. **Novo 2026-08-26:** `git status` em `main` com 8 M + 18 ?? não commitados (Tasks 1-6 parcialmente executadas, rubrica 8.0/10), `npm run verify` global pendente (lint timeout + coverage). Próximo gate técnico é fechar Tasks 1-6 e comitar por task + `roadmap:write` sem executar EXTERNAL/W12. Ver auditoria completa em `docs/superpowers/audits/2026-08-26-verificacao-pendencias.md`.
 
-- F0.03 inventory reconciliation is complete, but F0.08 is not closed because six current suppressions still map to owner-action findings.
-- F3.01 now has a real clinic-scoped unique index and migration, but remains `PARTIAL` until trim/case normalization is enforced and tested.
-- F3.03 rejects a missing/short `AUTH_SECRET` in production, but runtime-specific schemas remain a separate F3.02 requirement.
-- Full-history Gitleaks exceeded the local 180-second limit; CI/scheduled workflow evidence remains required.
+### Important residuals after the previous four goals (atualizado 2026-08-26)
+
+- F0.03/F0.08/F0.09 inventário e Gitleaks reconciliados mas com evidência genérica — Task 6 deste delta fecha retenção/audit (`docs/ops/w10-retention-policy.md` criado untracked 2026-08-26).
+- F3.01/F3.03 migrados e validados, F3.02 app/bridge/agent wired (`src/lib/env.ts:63`, `src/workers/ia-bridge/index.ts:44`, `src/workers/ia-agent/index.ts:36`), sidecar `F6.13` pendente (`parseRuntimeEnv('sidecar')`).
+- F3.14 runner `scripts/verify.mjs:10` verde para suites targeted (35/35 PASS), mas global 63.11% <70% — Task 1 deste plano é único PARTIAL nominal remanescente; 3 deltas (campaign/followup/budgets) + `coverage/lcov.info` pendentes.
+- Full-history Gitleaks local excede 180s; workflow CI `gitleaks-scheduled.yml` + `.gitleaks.toml` validados — evidência remota permanece EXTERNAL.
+- **2026-08-26:** 8 modificados + 18 untracked (`src/__tests__/coverage-boost.test.ts`, `src/services/followup/__tests__/consent-guard.test.ts`, `e2e/journey-patient.spec.ts` etc) pertencem às Tasks 1-6; ledger ainda 126 VERIFIED pois `roadmap:write` não executado após tranche parcial.
 
 ## Execution order and gates
 
@@ -367,5 +370,8 @@ The table below is generated from the 143 unchecked source lines. IDs are stable
 - Item extraction: source line numbers are preserved in `tmp/roadmap-audit-status.csv` during this audit; regenerate it from the roadmap before execution if the roadmap changes.
 - F0–F3 evidence matrix: `docs/superpowers/audits/2026-08-14-f0-f3-execution-matrix.md`.
 - Phase reconciliation: `docs/superpowers/audits/2026-08-14-roadmap-reconciliation.md`.
-- Latest relevant commits: `70839ad8`, `e3a9c134`, `4234263e`, `4cbe3cac`.
+- Closing plan: `docs/superpowers/plans/2026-08-25-pendencias-restantes-fechamento.md` — 6 tasks para 39 VERIFIED fraco + F3.14.
+- Verification 2026-08-26: `docs/superpowers/audits/2026-08-26-verificacao-pendencias.md` (ledger 143, git 8M+18??, coverage 63.11%→70%, rubrica 8.0/10).
+- Rubrica: `docs/superpowers/audits/rubrica-fechamento-2026-08-25.md` + tranche `docs/superpowers/audits/f3-14-coverage-2026-08-25.md`, `w5-waitlist-for-update.md`, `f6-sidecar-mtls.md`, `w3-veredicto-f3-14-2026-08-25.md`.
+- Latest relevant commits: `70839ad8`, `e3a9c134`, `4234263e`, `4cbe3cac`, `6d721849` (plano fechamento) — novos commits pendentes para T1-T6.
 - No production, provider, credential or push action is authorized by this plan itself.

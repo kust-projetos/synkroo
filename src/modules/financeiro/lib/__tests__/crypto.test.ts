@@ -60,4 +60,36 @@ describe('encrypt / decrypt', () => {
     expect(() => encrypt('test')).toThrow(/ENCRYPTION_KEY/);
     process.env.ENCRYPTION_KEY = key;
   });
+
+  test('throws when ENCRYPTION_KEY is empty or too short', () => {
+    const key = process.env.ENCRYPTION_KEY;
+    process.env.ENCRYPTION_KEY = '';
+    expect(() => encrypt('test')).toThrow(/ENCRYPTION_KEY/);
+    process.env.ENCRYPTION_KEY = 'short';
+    expect(() => encrypt('test')).toThrow(/ENCRYPTION_KEY/);
+    process.env.ENCRYPTION_KEY = key;
+  });
+
+  test('throws on tampered tag', () => {
+    const encrypted = encrypt('sensitive');
+    const tampered = { ...encrypted, tag: '00'.repeat(16) };
+    expect(() => decrypt(tampered)).toThrow();
+  });
+
+  test('encryptGatewayCredentials without webhook round-trips as apiKey only', () => {
+    const encrypted = encryptGatewayCredentials('only-api-key');
+    // branch webhookToken falsy => plaintext is bare apiKey, not JSON
+    expect(decryptGatewayCredentials(encrypted)).toEqual({ apiKey: 'only-api-key' });
+  });
+
+  test('decryptGatewayCredentials falls back when JSON has no apiKey', () => {
+    // Simulate payload that decrypts to JSON without apiKey -> fallback to plaintext
+    const payload = encrypt(JSON.stringify({ notApiKey: 'x' }));
+    expect(decryptGatewayCredentials(payload)).toEqual({ apiKey: JSON.stringify({ notApiKey: 'x' }) });
+  });
+
+  test('decryptGatewayCredentials handles webhookToken non-string gracefully', () => {
+    const payload = encrypt(JSON.stringify({ apiKey: 'k', webhookToken: 123 }));
+    expect(decryptGatewayCredentials(payload)).toEqual({ apiKey: 'k' });
+  });
 });

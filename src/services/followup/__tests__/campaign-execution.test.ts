@@ -76,11 +76,11 @@ describe('campaign execution', () => {
     expect(repo.findCampaignById).not.toHaveBeenCalled()
   })
 
-  it('marks campaign failed when no recipient is delivered', async () => {
+  it('marks campaign failed when no recipient is delivered (F7.06 100% falha → failed)', async () => {
     const result = await startCampaign(campaign.id)
 
     expect(result).toEqual({ success: false, error: 'No recipients delivered' })
-    expect(repo.updateCampaignStatus).not.toHaveBeenCalledWith(campaign.id, 'failed')
+    expect(repo.updateCampaignStatus).toHaveBeenCalledWith(campaign.id, 'failed')
   })
 
   it('processes only campaigns due now for one clinic', async () => {

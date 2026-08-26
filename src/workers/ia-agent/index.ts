@@ -31,10 +31,26 @@ export interface Env extends Cloudflare.Env {
  *   RPC exposto via método runTurn() chamado por stub.runTurn() (binding).
  *   Persistência via this.ctx.storage (history + pendingAction por conversa).
  */
+const STATE_VERSION = 2;
+// Retention: DO state 30 days (F6.12 / F10.08 — docs/ops/w10-retention-policy.md)
+// Purge via alarm + deleteAll(); re-embedding/purge por clinicId via pgvector (não Vectorize)
+const RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
+
 export class AgentOrchestrator extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     parseRuntimeEnv('agent', env as unknown as Record<string, unknown>);
     super(ctx, env);
+    // F6.12 versioned state — lazy migration on first turn (non-blocking)
+    void this.ctx.storage.get<number>('STATE_VERSION').then((v) => {
+      if (v !== STATE_VERSION) void this.ctx.storage.put('STATE_VERSION', STATE_VERSION);
+    });
+  }
+
+  // F6.12 retention purge — alarm fires after RETENTION_MS, wipes history/pendingAction
+  async alarm(): Promise<void> {
+    await this.ctx.storage.delete('history');
+    await this.ctx.storage.delete('pendingAction');
+    // keep STATE_VERSION for migration tracking
   }
 
   /**
@@ -72,6 +88,8 @@ export class AgentOrchestrator extends DurableObject<Env> {
     ].slice(-20);
     await this.ctx.storage.put('history', nextHistory);
     await this.ctx.storage.put('pendingAction', result.pendingAction ?? null);
+    // F6.12 retention — reschedule purge alarm on every turn
+    await this.ctx.storage.setAlarm(Date.now() + RETENTION_MS);
 
     return result;
   }

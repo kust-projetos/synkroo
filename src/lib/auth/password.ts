@@ -27,5 +27,8 @@ export function verifyPassword(password: string, stored: string): boolean {
   const hash = Buffer.from(scryptSync(password, salt, KEY_LENGTH)).toString('hex');
 
   // Constant-time comparison prevents timing attacks
-  return timingSafeEqual(Buffer.from(hash), Buffer.from(key));
+  const hashBuf = Buffer.from(hash);
+  const keyBuf = Buffer.from(key);
+  if (hashBuf.length !== keyBuf.length) return false;
+  return timingSafeEqual(hashBuf, keyBuf);
 }

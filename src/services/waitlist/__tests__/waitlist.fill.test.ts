@@ -68,6 +68,29 @@ describe('Waitlist Service - Fill & Extra CRUD', () => {
       expect(res.success).toBe(false);
       expect(res.error).toBe('DB conflict');
     });
+
+    it('F5.04 fill idempotent: second call returns same appointmentId with alreadyScheduled', async () => {
+      mockRepo.fillSlot
+        .mockResolvedValueOnce({ appointmentId: 'appt-123', waitlistId: 'w-1', alreadyScheduled: false })
+        .mockResolvedValueOnce({ appointmentId: 'appt-123', waitlistId: 'w-1', alreadyScheduled: true });
+
+      const a = await fillWaitlistSlot({
+        clinicId: 'clinic-1',
+        waitlistId: 'w-1',
+        scheduledAt: new Date('2026-12-01T10:00:00Z'),
+      });
+      const b = await fillWaitlistSlot({
+        clinicId: 'clinic-1',
+        waitlistId: 'w-1',
+        scheduledAt: new Date('2026-12-01T10:00:00Z'),
+      });
+
+      expect(a.appointmentId).toBe('appt-123');
+      expect(b.appointmentId).toBe('appt-123');
+      expect(a.alreadyScheduled).toBe(false);
+      expect(b.alreadyScheduled).toBe(true);
+      expect(mockRepo.fillSlot).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('getWaitlistEntryById', () => {

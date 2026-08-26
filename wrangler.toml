@@ -39,10 +39,6 @@ binding = "HYPERDRIVE"
 id = "be5a789a003e4f08a94a82dffbb091be"
 localConnectionString = "postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo"
 
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "synkroo-embeddings"
-
 [vars]
 NODE_ENV = "production"
 OUTBOX_WORKER_URL = "https://synkroo.walissonead.workers.dev"
@@ -83,7 +79,3 @@ id = "f2ad31b71d484e0ba3fc6df1814d7d8e"
 [[env.staging.hyperdrive]]
 binding = "HYPERDRIVE"
 id = "e0033a75f4e2449084b00b41e22e49a6"
-
-[[env.staging.vectorize]]
-binding = "VECTORIZE"
-index_name = "synkroo-staging-embeddings"
