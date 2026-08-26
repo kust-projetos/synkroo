@@ -26,6 +26,7 @@ export function zonedTimeToUtc(dateStr: string, timeStr: string, timeZone: strin
       minute: '2-digit',
       second: '2-digit',
       hour12: false,
+      hourCycle: 'h23',
     }).formatToParts(utc);
     const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
     const wallYear = Number(get('year'));
