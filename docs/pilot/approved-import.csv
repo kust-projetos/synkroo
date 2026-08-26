@@ -1,0 +1,11 @@
+name,phone,email,birthDate,clinicSlug,consentVersion,optOutMarketing
+Ana Silva,11988887777,ana.silva+piloto@exemplo.com,1990-03-15,synkroo-staging,v1,false
+Bruno Costa,11988887778,bruno.costa+piloto@exemplo.com,1985-07-22,synkroo-staging,v1,false
+Carla Mendes,11988887779,carla.mendes+piloto@exemplo.com,1992-11-08,synkroo-staging,v1,false
+Daniel Oliveira,11988887780,daniel.oliveira+piloto@exemplo.com,1988-01-30,synkroo-staging,v1,false
+Elisa Rocha,11988887781,elisa.rocha+piloto@exemplo.com,1995-06-12,synkroo-staging,v1,false
+Fernanda Lima,11988887782,fernanda.lima+piloto@exemplo.com,1991-09-25,synkroo-staging,v1,true
+Gustavo Nunes,11988887783,gustavo.nunes+piloto@exemplo.com,1987-04-03,synkroo-staging,v1,false
+Helena Vieira,11988887784,helena.vieira+piloto@exemplo.com,1993-12-19,synkroo-staging,v1,false
+Igor Santos,11988887785,igor.santos+piloto@exemplo.com,1990-08-14,synkroo-staging,v1,false
+Julia Martins,11988887786,julia.martins+piloto@exemplo.com,1994-02-27,synkroo-staging,v1,false
