@@ -30,7 +30,7 @@ describe('timezone utils', () => {
 
   it('getDayRangeUtc for SP gives 00:00 SP wall time', () => {
     const { start, end } = getDayRangeUtc('2026-08-04', 'America/Sao_Paulo');
-    const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
+    const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, hourCycle: 'h23' }).format(d);
     expect(fmt(start)).toBe('2026-08-04, 00:00:00');
     expect(fmt(end)).toBe('2026-08-04, 23:59:59');
     expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000 - 1);
@@ -38,7 +38,7 @@ describe('timezone utils', () => {
 
   it('getDayRangeUtc for NY gives 00:00 NY wall time (EDT)', () => {
     const { start } = getDayRangeUtc('2026-08-04', 'America/New_York');
-    const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
+    const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, hourCycle: 'h23' }).format(d);
     expect(fmt(start)).toBe('2026-08-04, 00:00:00');
   });
 
