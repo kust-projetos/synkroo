@@ -17,6 +17,8 @@ const PUBLIC_EXACT = new Set([
   '/signup',
   '/pi-finance',
   '/api/health',
+  '/api/health/db',
+  '/api/internal/readiness',
   '/api/whatsapp/evolution',
   '/api/auth/providers',
   '/api/auth/csrf',
