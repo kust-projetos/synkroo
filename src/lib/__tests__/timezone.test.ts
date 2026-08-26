@@ -28,15 +28,18 @@ describe('timezone utils', () => {
     expect(getDayOfWeekInTimezone('2026-08-03', 'America/Sao_Paulo')).toBe(1);
   });
 
-  it('getDayRangeUtc for SP gives 03:00 UTC start', () => {
+  it('getDayRangeUtc for SP gives 00:00 SP wall time', () => {
     const { start, end } = getDayRangeUtc('2026-08-04', 'America/Sao_Paulo');
-    expect(start.toISOString()).toBe('2026-08-04T03:00:00.000Z'); // 00:00 SP = 03:00 UTC
-    expect(end.toISOString()).toBe('2026-08-05T02:59:59.999Z');
+    const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
+    expect(fmt(start)).toBe('2026-08-04, 00:00:00');
+    expect(fmt(end)).toBe('2026-08-04, 23:59:59');
+    expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000 - 1);
   });
 
-  it('getDayRangeUtc for NY gives 04:00 UTC start (EDT)', () => {
+  it('getDayRangeUtc for NY gives 00:00 NY wall time (EDT)', () => {
     const { start } = getDayRangeUtc('2026-08-04', 'America/New_York');
-    expect(start.toISOString()).toBe('2026-08-04T04:00:00.000Z'); // 00:00 NY = 04:00 UTC
+    const fmt = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).format(d);
+    expect(fmt(start)).toBe('2026-08-04, 00:00:00');
   });
 
   it('resolveClinicTimezone prefers column, then settings, then default', () => {
