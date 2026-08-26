@@ -70,11 +70,13 @@ async function waitForSchemaReady(maxAttempts = 20, baseDelayMs = 500): Promise<
     await pool.query('DELETE FROM dentists WHERE clinic_id = $1', [CLINIC_ID]);
     await pool.query('DELETE FROM clinics WHERE id = $1', [CLINIC_ID]);
 
-    // Seed clinic
+    // Seed clinic — inclui slug/phone/email NOT NULL (core.ts:12)
+    const clinicSlug = `waitlist-test-${CLINIC_ID.slice(0, 8)}`;
     await pool.query(
-      `INSERT INTO clinics (id, name, created_at, updated_at)
-       VALUES ($1, 'Waitlist Test Clinic', NOW(), NOW()) ON CONFLICT (id) DO NOTHING`,
-      [CLINIC_ID],
+      `INSERT INTO clinics (id, name, slug, phone, email, created_at, updated_at)
+       VALUES ($1, 'Waitlist Test Clinic', $2, '11999999999', 'waitlist@test.local', NOW(), NOW())
+       ON CONFLICT (id) DO NOTHING`,
+      [CLINIC_ID, clinicSlug],
     );
 
     // Seed dentists
