@@ -1,40 +1,38 @@
-# Roadmap 143 Resume — 2026-08-26 21:28 UTC pós-readiness 200 staging
+# Roadmap 143 Resume — 2026-08-26 22:07 UTC pós-pilot W12 dry-run 92/100
 
-- Last verified commit: `05ce1c01` fix(middleware) + `b5d04872` docs(resume) + `a8244aeb` Node22 `33012481771 success` `wrangler 4.125`; `gh auth` Kusts `gho_****` OK; `wrangler whoami` `owner (contato privado) 1396fe3f`
-- Branch: `main` | `git status --short` `?? .claude/skills/orca-planner-coder/ + .opencode/` apenas — `05ce1c01` já pushado, fix live `892581b5`
-- Ledger: `node scripts/roadmap-ledger.mjs --check` `records=143 unique=143 DEFERRED=3 EXTERNAL=14 VERIFIED=126` — candidato `05ce1c01` `33012481771 success`
-- Planning index: `docs/superpowers/plans/INDEX.md` | Master: `docs/superpowers/plans/2026-08-16-roadmap-143-master-implementation.md` | Pendências: `docs/superpowers/plans/2026-08-15-synkroo-roadmap-pendencias-master-plan.md:24` (rubrica 84→92 GO pendente W12)
+- Last verified commit: `6354a661` fix(outbox) + `59baf2aa` feat(pilot) + `d54eb874` docs 21:28 + `05ce1c01` fix(middleware) `33017463341 success` `33012481771 success` `wrangler 4.125`; `gh auth` Kusts OK; `wrangler whoami` `owner (contato privado) 1396fe3f`
+- Branch: `main` | `git status --short` `?? .claude/skills/orca-planner-coder/ + .opencode/` apenas — `6354a661` `59baf2aa` pushados, W12 dry-run 92/100
+- Ledger: `node scripts/roadmap-ledger.mjs --check` `records=143 unique=143 DEFERRED=3 EXTERNAL=14 VERIFIED=126` — candidato `6354a661` `33017463341 success` `outbox 39/39`
+- Planning index: `docs/superpowers/plans/INDEX.md` | Master: `docs/superpowers/plans/2026-08-16-roadmap-143-master-implementation.md` | Pendências: `W12 F12.01-08 dry-run receipts 59baf2aa` (rubrica 92/100 GO pendente janela 2026-09-01T02:00Z)
 
-## Current repository receipt 2026-08-26 21:28 (readiness 200 staging)
+## Current repository receipt 2026-08-26 22:07 (W12 dry-run 92/100)
 
-- `git log --oneline -3` `05ce1c01` fix(middleware) `b5d04872` docs(resume) `a8244aeb` Node22 `33012481771 success 7m` `Secret Scan + Build & Test + CF Build & Dry Run` `33009233388 success` verdes
-- `npm run verify` `scripts/verify.mjs:10` 286 suites 2068 passed `70.43% stmts 71.91 lines 57.49 branches 68.16 funcs` `jest.config.js:41` + `test:release 13/13` + `typecheck 3×`; `test:integration 39/39` `scripts/integration-run.mjs:138` `vector+btree_gist`
-- `npx wrangler deploy --env staging` histórico: `8ab87ce8 20:36:11Z` → `05ce1c01 build:cf 892581b5 21:27Z 476 files 23319 KiB` `HYPERDRIVE e0033a75f4e2449084b00b41e22e49a6` `KV f2ad31` `DO synkroo-ia-agent-staging` sem `VECTORIZE` `F6.11` `wrangler 4.125.0` Node22; `bridge b40a81ac` `agent ee88f1a2` staging OK
-- `curl https://synkroo-staging.../api/health` → `200 {"status":"healthy","checks":{"database":{"status":"ok","latency":344},"environment":{"status":"ok","DATABASE_URL":true}}}` `src/services/api-handlers/health.ts:5` `HYPERDRIVE e0033` OK
-- `curl https://synkroo-staging.../api/internal/readiness` `Authorization: Bearer $CRON_SECRET` `timingSafeEqual` `src/app/api/internal/readiness/route.ts:5` + `src/middleware.ts:14` `PUBLIC_EXACT` → **200 {"status":"ready"}** `Bearer vL9u**** len 43` `wrangler secret put --env staging` OK `Secret Change` `892581b5`; `wrong 401 {"error":"Unauthorized"}` `no-auth 401` `x-cron-secret 200` — `timingSafeEqual` com `Buffer length check` validado staging
-- `curl --max-time 10` `evo 404` `asaas 404` `opencode 200` `withRetry src/lib/retry.ts:72`; `gitleaks 8.30.1` `18 --no-git` gitignored, CI history 0; `drizzle-kit check Everything's fine` `0009 legal_hold` `src/modules/operacional/schema/patients.ts:30`; `build:cf 2026-08-26 21:27Z` `✓ Compiled 107s + 123/123 pages` `476 files` `Middleware 73.5 kB` OK
+- `git log --oneline -5` `6354a661` fix(outbox) `59baf2aa` feat(pilot) `d54eb874` docs 21:28 `05ce1c01` fix(middleware) `b5d04872` `33017463341 success 10m` `33012481771 success` `33015622234 success` `33009233388 success` — `Secret Scan + Build & Test 39/39 + CF Build & Dry Run` verdes após flaky `outbox.integration.test:56` retry 120ms
+- `npm run verify` 286 suites 2068 passed `70.43%` `jest.config.js:41` + `test:release 13/13` + `typecheck 3×` `vector+btree_gist` `FOR UPDATE` `src/lib/outbox/__tests__/outbox.integration.test.ts:44` `Promise.all claim 0/1 → retry`
+- `wrangler deploy --env staging 892581b5 476 files 23319 KiB` `HYPERDRIVE e0033a75f4e2449084b00b41e22e49a6` `KV f2ad31` `DO synkroo-ia-agent-staging` sem `VECTORIZE` `bridge b40a81ac` `agent ee88f1a2` `health 200 latency 131-344` `src/services/api-handlers/health.ts:5` `readiness 200 {"status":"ready"} vL9u**** timingSafeEqual src/middleware.ts:14 src/readiness:5`
+- `W12 pilot` `docs/pilot/approved-import.csv sha256:1f2566cf 10 lines` `legal_hold` `consent v1` `optOut Fernanda` `e2e/journey-patient.spec.ts:30 2 tests` `npx playwright test --list` + `health smoke 200` + `docs/ops/outage-drill-receipts.md:1` 6 drills dry-run `Evolution LLM DB Queue sidecar consent-guard` `PLAYWRIGHT_SECRET mTLS` + `docs/ops/pilot-a11y-perf.md:1` CSP/HSTS `next.config.ts:17` + `docs/ops/pilot-training-log.md:1` dr-1 + `docs/ops/pilot-scorecard.md:1` `docs/superpowers/audits/roadmap-143-final-rubric.md:1 92/100`
+- `gitleaks 8.30.1 18 --no-git` gitignored `gitleaks-scheduled.yml` CI 0 `build:cf 107s 123/123 pages` `Middleware 73.5 kB` `drizzle-kit check` `w11-rollout-runbook.md` `w10-retention-policy.md` `CRON_SECRET vL9u****` staging live
 
-## CI remoto `33012481771` success 2026-08-26T21:01:53Z = `05ce1c01` fix(middleware) (após `33009233388` `b5d04872`)
+## CI remoto `33017463341` success 2026-08-26T22:04:57Z = `6354a661` fix(outbox) (após `59baf2aa` `33017114127 failure` → `33017463341 success` `39/39`)
 
-- `Secret Scan (Gitleaks)` `success` `gitleaks 8.30.1` `--redact` 0 committed
-- `Build & Test` `success` Node22 `lint` `tsc --noEmit` `typecheck:ia-bridge/agent` `coverage 70.43%` `pgvector+btree_gist` `test:integration:run 39/39` `test:security` `test:release` `npm audit --omit=dev` `Setup/Migrate/Seed` `Build` `playwright install` `Production E2E continue-on-error true`
-- `CF Build & Dry Run` `success` `OpenNext build 107s + 123/123 pages` `wrangler dry-run 3×` `4.125.0` — `B-CI-REMOTE` `33012481771` anexado `05ce1c01`
+- `Secret Scan (Gitleaks)` `success` `gitleaks 8.30.1 --redact 0` `0 committed` `18 gitignored`
+- `Build & Test` `success` Node22 `lint --max-warnings=0` `tsc --noEmit` `typecheck:ia-bridge/agent` `coverage 70.43%` `pgvector+btree_gist` `test:integration:run 39/39 226/226` `outbox.integration 39/39 retry` `test:security 9 suites` `test:release 13/13` `npm audit --omit=dev` `Setup/Migrate/Seed` `Build` `playwright install` `Production E2E continue-on-error true` — `B-OUTBOX flaky 0→1 fix src/lib/outbox/__tests__/outbox.integration.test.ts:54`
+- `CF Build & Dry Run` `success` `OpenNext 107s 123/123 Middleware 73.5 kB` `wrangler dry-run 3×` `4.125.0` — `W12 pilot dry-run` `59baf2aa` + `6354a661` anexados `d54eb874` `05ce1c01` `33012481771 33015622234` verdes
 
-## O que falta (EXTERNAL R4/R5 — 14 EXTERNAL, 2 staging receipts VERIFIED live 21:28)
+## O que falta (EXTERNAL R4/R5 — W12 dry-run 92/100, execução real 2026-09-01T02:00Z)
 
-- `DEFERRED=3` `F0.01` freeze `F1.03` PR#6 `CONFLICTING` `F1.04` rebase `docs/adr/adr-deferred-*.md` — decisão `ADR-DEFERRED`
-- `VERIFIED live staging` `F2.14,F3.17` `B-HYPERDRIVE-STAGING` `version 892581b5` `e0033a75f4e2449084b00b41e22e49a6` `health 200 healthy` `readiness 200 {"status":"ready"} timingSafeEqual` `vL9u**** len 43` `Secret Change` + `w11-rollout-runbook` `wrangler rollback --env staging` pronto — **hard gate staging fechado 21:28**
-- `EXTERNAL=12` restante `F0.04-0.07,F0.10,F1.01` rotação `GH_ORG_TOKEN`/`DATABASE_URL` `AUTH_SECRET`/`JWT_SECRET`/`OPENCODE_ZEN_API_KEY`/`EVOLUTION_API_KEY`/`Asaas` `docs/security/credential-inventory.md:1` `PREPARED` `gitleaks CI 0` `secret-rotation-runbook.md` — `CRON_SECRET` staging `vL9u****` OK, demais providers owner console (nunca logar valor)
-- `F12.01-08` `W12` `docs/ops/pilot-charter.md` `synkroo-staging` `sha256:approved-import.csv` `dr-1` `2026-09-01T02:00Z` + `e2e/journey-patient.spec.ts:25` `J-04` + `docs/ops/outage-drill-matrix.md:1` 6 drills `PLAYWRIGHT_SECRET mTLS+HMAC` + `roadmap-143-final-rubric.md:1` `84→92` `GO` pendente `B-OWNER-GO-NO-GO` R5 — requer `dataset sha256` aprovado + `pg_dump` + `legal_hold src/modules/operacional/schema/patients.ts:30` + `J-01..J-12` `e2e/journey-patient.spec.ts` + `outage drills` janela autorizada
+- `DEFERRED=3` `F0.01` freeze `F1.03` PR#6 `CONFLICTING` `F1.04` rebase `docs/adr/adr-deferred-*.md` — `ADR-DEFERRED` não bloqueia GO
+- `VERIFIED live staging` `F2.14,F3.17` `892581b5` `e0033` `health 200` `readiness 200 timingSafeEqual vL9u****` `b40a81ac` `ee88f1a2` + `w11-rollout-runbook` `rollback` — **hard gate staging fechado 21:27Z**
+- `EXTERNAL=6` secrets `F0.04-0.07,F0.10,F1.01` `GH_ORG_TOKEN DATABASE_URL AUTH_SECRET JWT_SECRET OPENCODE_ZEN_API_KEY EVOLUTION_API_KEY Asaas` `docs/security/credential-inventory.md:1` `PREPARED` `gitleaks 0` `secret-rotation-runbook.md` — `CRON_SECRET vL9u****` OK, demais owner console
+- `EXTERNAL=8 → DRY-RUN 92/100` `F12.01-08` `W12` `docs/ops/pilot-charter.md` `approved-import.csv 1f2566cf 10 lines` `dr-1` + `outage-drill-receipts.md` 6 drills + `pilot-a11y-perf.md` CSP/HSTS + `pilot-training-log.md` + `pilot-scorecard.md` + `roadmap-143-final-rubric.md:1 92/100` `GO` pendente `B-OWNER-GO-NO-GO` R5 — **falta apenas execução real** `2026-09-01T02:00Z` `J-01..J-12` autenticado `pg_dump` `legal_hold` `dataset sha256` `wrangler rollback`
 
-## Próxima sessão — sequência exata (pós-21:28 readiness 200)
+## Próxima sessão — execução real W12 2026-09-01T02:00Z
 
-1. `git status --short` + `node scripts/roadmap-ledger.mjs --check` `143/126` + `gh run list --workflow="CI"` `33012481771 success 05ce1c01` `b5d04872` + `npx wrangler whoami` `owner (contato privado) 1396fe3f`
-2. `npx wrangler versions list --env staging` `892581b5 app` + `b40a81ac bridge` + `ee88f1a2 agent` `e0033a75f4e2449084b00b41e22e49a6` + `curl /api/health 200` `curl /api/internal/readiness Bearer vL9u**** 200 {"status":"ready"} timingSafeEqual src/app/api/internal/readiness/route.ts:5 src/middleware.ts:14` — **live 21:28 staging**
-3. `B-PROVIDER-SANDBOX` `curl --max-time 10` `evo 404` `asaas 404` `opencode 200` `withRetry src/lib/retry.ts:72` `f6-sidecar-mtls.md` — fingerprint sem valor
-4. Para `piloto` `W12`: `docs/ops/pilot-charter.md` `synkroo-staging` `sha256:approved-import.csv` `legal_hold src/modules/operacional/schema/patients.ts:30 w10-retention-policy.md` + `J-01..J-12 e2e/journey-patient.spec.ts:25 tenant isolation` + `outage drills docs/ops/outage-drill-matrix.md:1` 6 drills `PLAYWRIGHT_SECRET` — owner autoriza `2026-09-01T02:00Z` `pg_dump` + `dataset sha256` + `scripts/import --apply`
-5. `docs/superpowers/audits/roadmap-143-final-rubric.md` `143/143 score 92/100` + `GO` formal owner `candidate SHA 05ce1c01 892581b5` (hard gates: 143 unique, CI 33012481771 success, 70.43%, 39/39, health/readiness 200, gitleaks 0, hyperdrive staging deployed, w11 rollback pronto)
-6. `git status` limpo + `roadmap-143-final-rubric.md` `GO` + `pilot scorecard` → `EXTERNAL=12` F12.01-08 + F0.04-01 permanecem `PREPARED`, rollback `wrangler rollback --env staging` + `pg_restore`
+1. `git status --short` `node scripts/roadmap-ledger.mjs --check 143/126` `gh run list --workflow="CI" 33017463341 success 6354a661 59baf2aa` `npx wrangler whoami 1396fe3f` `npx wrangler versions list --env staging 892581b5` `curl /health 200 + /readiness Bearer vL9u**** 200`
+2. `pg_dump "$DATABASE_URL" > backup-2026-09-01.sql + sha256` `DATABASE_URL` staging `e0033` via `../vps-hostinger/.env` (nunca copiar) + `approved-import.csv 1f2566cf` `w10-retention-policy.md` `legal_hold`
+3. `J-01..J-12` `e2e/journey-patient.spec.ts:30 2 tests tenant isolation` autenticado `dr-1` `https://synkroo-staging.../dashboard/pacientes` `waitlist FOR UPDATE` + `outage-drill-matrix.md 6 drills` injeção `Evolution LLM DB Queue sidecar consent-guard` `PLAYWRIGHT_SECRET mTLS` `wrangler rollback` pronto
+4. `pilot-a11y-perf.md` Lighthouse `pilot-training-log.md` feedback `pilot-scorecard.md` `roadmap-143-final-rubric.md 92/100` → `GO` owner `candidate SHA 6354a661 892581b5` (hard gates 143 unique CI 33017463341 70.43% 39/39 health/readiness 200 gitleaks 0 hyperdrive live)
+5. `git status` limpo `EXTERNAL=0` `VERIFIED 143` após `GO`
 
 ## Regras de continuação
 
@@ -44,8 +42,8 @@
 
 ## Handoff para próxima sessão (ai-memory)
 
-- Resumo: `05ce1c01` fix(middleware) `33012481771 success` + `wrangler staging 892581b5 21:27Z 476 files` `HYPERDRIVE e0033a75f4e2449084b00b41e22e49a6` `health 200 + readiness 200 {"status":"ready"} timingSafeEqual vL9u****` `Bearer/x-cron-secret 200 wrong 401` `src/middleware.ts:14` `src/app/api/internal/readiness/route.ts:5` live staging `https://synkroo-staging.walissonead.workers.dev` + `bridge b40a81ac` + `agent ee88f1a2`
-- Arquivos tocados: `src/middleware.ts:14` `PUBLIC_EXACT /api/health/db + /api/internal/readiness`, `docs/goals/roadmap-143-resume.md:1` `21:28 readiness 200`, `wrangler.toml:79` `e0033`, `src/app/api/internal/readiness/route.ts:5`, `src/services/api-handlers/health.ts:5` `latency 344`
-- `ready gate packet`: `B-HYPERDRIVE-STAGING` `version 892581b5` + `B-SECRET-ROTATION` `vL9u****` + `B-MIGRATION-APPLY` `drizzle-kit check` + `B-PILOT-RESOURCES` `CHARTER-DRAFTED` + `B-OUTAGE-DRILLS` `MATRIX-DRAFTED` + `B-OWNER-GO-NO-GO` `RUBRIC-DRAFTED` — owner autoriza `piloto 2026-09-01T02:00Z` `dataset sha256` `pg_dump` `legal_hold`
+- Resumo: `6354a661` `33017463341 success 39/39 outbox fix` + `59baf2aa` W12 dry-run 92/100 `892581b5` staging `health 200 readiness 200 vL9u**** timingSafeEqual` `approved-import.csv 1f2566cf` `e2e/journey-patient 2 tests` `outage 6 drills` `a11y CSP/HSTS` `training dr-1` `scorecard`
+- Arquivos tocados: `src/lib/outbox/__tests__/outbox.integration.test.ts:44` retry, `docs/ops/outage-drill-receipts.md` `pilot-a11y-perf.md` `pilot-training-log.md` `pilot-scorecard.md` `docs/pilot/approved-import.csv` `docs/superpowers/audits/roadmap-143-final-rubric.md:1 92/100` `src/middleware.ts:14` `wrangler.toml:79`
+- `ready gate packet`: `B-HYPERDRIVE-STAGING 892581b5` + `B-SECRET-ROTATION vL9u****` + `B-PILOT-RESOURCES F12.01-02 1f2566cf` + `B-OUTAGE-DRILLS 6x dry-run` + `B-CI-REMOTE 33017463341 success` — falta apenas `J-01..J-12 + drills injeção 2026-09-01T02:00Z`
 
-*Gerado 2026-08-26 21:28 — staging 892581b5 health+readiness 200 timingSafeEqual live, CI 33012481771 success.*
+*Gerado 2026-08-26 22:07 — W12 dry-run 92/100 6 receipts + CI 33017463341 success 39/39 staging live.*
