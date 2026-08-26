@@ -21,6 +21,7 @@ function createMockDb() {
     set: jest.fn().mockReturnThis(),
     insert: jest.fn().mockReturnThis(),
     values: jest.fn().mockReturnThis(),
+    transaction: jest.fn(async (cb: any) => cb(chain)),
     then: jest.fn((resolve: any) => {
       const result = queryResults[queryIndex++] ?? queryResults[queryResults.length - 1] ?? []
       return resolve(result)
@@ -65,6 +66,7 @@ beforeEach(() => {
   mdb.update = jest.fn().mockReturnValue({ set: mdb.set })
   mdb.values = jest.fn().mockResolvedValue(undefined)
   mdb.insert = jest.fn().mockReturnValue({ values: mdb.values })
+  mdb.transaction = jest.fn(async (cb: any) => cb(mdb))
 })
 
 describe('POST /api/lgpd/anonymize', () => {
@@ -107,7 +109,7 @@ describe('POST /api/lgpd/anonymize', () => {
     seed([]) // no patient found
 
     const res = await POST(mockReq({ patientId: 'p-missing' }))
-    expect(res.status).toBe(200) // still succeeds, just oldValues = null
+    expect(res.status).toBe(404)
   })
 
   it('returns 500 on DB error', async () => {
