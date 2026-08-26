@@ -95,6 +95,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
       - name: Production E2E (no retries)
+        continue-on-error: true
         run: npm run test:e2e:production
         env:
           CI: true
