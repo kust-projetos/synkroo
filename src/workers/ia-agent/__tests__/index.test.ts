@@ -65,6 +65,8 @@ function createMockStorage() {
     put: jest.fn(async (key: string, val: any) => {
       store.set(key, val);
     }),
+    setAlarm: jest.fn(async (_ms: number) => {}),
+    getAlarm: jest.fn(async () => null),
   };
 }
 

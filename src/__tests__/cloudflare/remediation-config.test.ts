@@ -15,7 +15,9 @@ test('Cloudflare staging environment is isolated from production bindings', () =
   expect(config).toContain('[env.staging]');
   expect(config).toContain('name = "synkroo-staging"');
   expect(config).toContain('id = "f2ad31b71d484e0ba3fc6df1814d7d8e"');
-  expect(config).toContain('index_name = "synkroo-staging-embeddings"');
+  // F6.11: Vectorize removed, consolidated to pgvector — staging must NOT contain Vectorize bindings
+  expect(config).not.toContain('VECTORIZE');
+  expect(config).not.toContain('index_name = "synkroo-staging-embeddings"');
   expect(config).toContain('id = "e0033a75f4e2449084b00b41e22e49a6"');
   expect(config).toContain('service = "synkroo-ia-bridge-staging"');
   expect(config).toContain('service = "synkroo-staging"');
