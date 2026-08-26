@@ -5,6 +5,7 @@ on:
     branches: ["*"]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   # Full-history secret scan is always blocking.
@@ -49,9 +50,13 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc --noEmit
-      - run: npm test -- --runInBand
-      - name: Enable pgvector
-        run: psql -h 127.0.0.1 -p 5432 -U synkroo -d synkroo_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+      - run: npm run typecheck:ia-bridge
+      - run: npm run typecheck:ia-agent
+      - run: npm test -- --runInBand --coverage
+      - name: Enable pgvector + btree_gist
+        run: |
+          psql -h 127.0.0.1 -p 5432 -U synkroo -d synkroo_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          psql -h 127.0.0.1 -p 5432 -U synkroo -d synkroo_test -c "CREATE EXTENSION IF NOT EXISTS btree_gist;"
         env:
           PGPASSWORD: test
       - name: Integration tests
@@ -68,6 +73,7 @@ jobs:
         run: |
           psql -h 127.0.0.1 -p 5432 -U synkroo -d postgres -c "CREATE DATABASE \"synkroo\""
           psql -h 127.0.0.1 -p 5432 -U synkroo -d synkroo -c "CREATE EXTENSION IF NOT EXISTS vector"
+          psql -h 127.0.0.1 -p 5432 -U synkroo -d synkroo -c "CREATE EXTENSION IF NOT EXISTS btree_gist"
         env:
           PGPASSWORD: test
       - name: Migrate synkroo database
@@ -115,5 +121,8 @@ jobs:
           JWT_SECRET: fake-jwt-secret-for-ci
           MINIMAX_API_KEY: CI_PLACEHOLDER
           SEED_SECRET: CI_PLACEHOLDER
-      - name: Wrangler dry run
-        run: npx wrangler deploy --dry-run --config wrangler.toml
+      - name: Wrangler dry run (app + bridge + agent)
+        run: |
+          npx wrangler deploy --dry-run --config wrangler.toml
+          npx wrangler deploy --dry-run --config wrangler.ia-bridge.jsonc
+          npx wrangler deploy --dry-run --config src/workers/ia-agent/wrangler.jsonc
