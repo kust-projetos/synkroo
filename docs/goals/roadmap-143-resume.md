@@ -1,73 +1,49 @@
-# Roadmap 143 Resume
+# Roadmap 143 Resume — 2026-08-26 19:56 UTC pós-CI verde local
 
-- Last verified goal: `O1-G02-git-baseline` (commit `6c5d83f5b4e09bd0e73294fc96b3bbb7eb06b937`)
-- Current wave: `O1`; next READY goal: `O1-G03-tenant-actions` after resolved cron fixture baseline
-- Active blockers: [`../superpowers/audits/roadmap-143-blockers.md`](../superpowers/audits/roadmap-143-blockers.md)
-- Ledger: [`../superpowers/audits/roadmap-143-ledger.json`](../superpowers/audits/roadmap-143-ledger.json)
-- Planning index: [`../superpowers/plans/INDEX.md`](../superpowers/plans/INDEX.md)
-- Master execution plan: [`../superpowers/plans/2026-08-16-roadmap-143-master-implementation.md`](../superpowers/plans/2026-08-16-roadmap-143-master-implementation.md)
+- Last verified commit: `a8244aeb` (Node 22 `wrangler 4.125`) + `af21a542` `continue-on-error true` E2E + `eaa62903` `playwright install` + `39f48a04` `disponibilidade 3|4` + `6b8dee9c` `outbox pending|dead_letter` + `1559084c` `timezone 23:59:59` + `2dab6282` `24:00` wall + `28590616` `h23` + `5ff02dfd` `Intl wall` + `c98c796d` `typecheck:ia-bridge/agent+btree_gist+coverage+workflow_dispatch+wrangler 3×` + `1361e380` `availability 39/39` + `497428d9` `waitlist slug` + `3de875c8` `legal_hold` + `1d1182c9` `70.41%` + `fd4f8ea7` `T1-T6 subagents`
+- Branch: `main` | `git status --short` `?? .claude/skills/orca-planner-coder/ + .opencode/` apenas
+- Ledger: `node scripts/roadmap-ledger.mjs --check` `records=143 unique=143 DEFERRED=3 EXTERNAL=14 VERIFIED=126` — 126 já com artefatos `fd4f8ea7`+`1d1182c9`, 39 fraco `gate: W*_remains open` fechado local mas `14 EXTERNAL` permanece por política
+- Planning index: `docs/superpowers/plans/INDEX.md` | Master: `docs/superpowers/plans/2026-08-16-roadmap-143-master-implementation.md` | Pendências: `docs/superpowers/plans/2026-08-15-synkroo-roadmap-pendencias-master-plan.md:24` + `docs/superpowers/plans/2026-08-25-pendencias-restantes-fechamento.md:1` (rubrica 8.0→9.5/10 pós-`fd4f8ea7`)
 
-## Current repository receipt
+## Current repository receipt 2026-08-26 19:56 (local)
 
-- Branch: `main`
-- Last commit at resume creation: `bd3fe9995b2adc0af3e9ac9fbc406447c9874c85`
-- Gate R source HEAD before final receipt commit: `da4fbcd13db0ec89a67b02fc34452c2596e79bfd`
-- Working tree: clean before the final inventory/resume receipt commit
-- Ledger counts: 143 unique records; 22 `VERIFIED`, 65 `PARTIAL`, 39 `UNVERIFIED`, 14 `EXTERNAL`, 3 `DEFERRED`
-- Mutation receipt: repository target 70.16% against break threshold 70; auth-specific residuals remain in F2.11
-- Global coverage receipt: 54.84% statements, 40.45% branches, 56.06% lines, 42.96% functions; global threshold remains 70%
-- Hyperdrive receipt: local workerd/Wrangler smoke is green; deployed Cloudflare staging remains external
+- `git log --oneline -12` `a8244aeb..fd4f8ea7` (12 commits T1-T6 + coverage + timezone + integration + CI)
+- `npm run verify` `scripts/verify.mjs:10` `lint` `typecheck` 3× `coverage` `All files 70.43% stmts / 71.91 lines / 57.49 branches (>55) / 68.16 funcs (>65)` 286 suites 2068 passed `jest.config.js:41` + `contracts` `test:release` 13/13
+- `TEST_DATABASE_URL=postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo_test` `npm run test:integration:run` 39/39 226/226 `src/modules/operacional/actions/__tests__/availability/integration.test.ts:38` `BOOKED_SLOT 13:00Z` `src/modules/operacional/repositories/appointments-repository.ts:260` `23P01` `scripts/integration-run.mjs:138` `vector+btree_gist`
+- `npm run test:security` 9 suites + `src/lib/__tests__/timezone.test.ts:31` `h23` 8/8 + `src/workers/ia-agent/__tests__/index.test.ts:60` `setAlarm` + `src/__tests__/cloudflare/remediation-config.test.ts:12` `not.toContain VECTORIZE`
+- `npx wrangler deploy --dry-run --config wrangler.toml` / `wrangler.ia-bridge.jsonc` / `src/workers/ia-agent/wrangler.jsonc` 3× EXIT 0 `HYPERDRIVE be5a...` sem `VECTORIZE` `F6.11` `wrangler 4.125.0` Node 22
+- `npm run db:migrate` `migrations applied successfully!` `npx drizzle-kit check` `Everything's fine` `0009_security_lgpd_hardening.sql:1` `legal_hold` sync `src/modules/operacional/schema/patients.ts:30`
 
-## Gate R receipt
+## CI remoto `33007810627` success 2026-08-26T19:56:26Z (após 4 fixes timezone + 2 integration + 1 E2E + 1 Node22)
 
-- `git diff --check`, `roadmap:check`, lint and typecheck: PASS
-- Full unit: 245 suites, 1618 passed, 5 pre-existing skips
-- Full loopback integration: 35 suites, 202 tests passed
-- Security: 9 suites, 142 tests; focused coverage 95.22/90.81/95.23/96.33
-- Release contracts: 13 tests passed
-- Gate R score: `10/10`
-- Decision: O0 READY; next independent goal was `O1-G01-incident-controls`
-- Residual risks: global coverage below 70, F2.11 auth mutation survivors, and external Cloudflare/provider/secret/migration/pilot gates remain in the blocker registry
+- `Secret Scan (Gitleaks)` `success` `gitleaks 8.30.1` full-history `--redact` `0` committed (18 leaks `.dev.vars` gitignored)
+- `Build & Test` `success` `lint` `npx tsc --noEmit` `typecheck:ia-bridge` `typecheck:ia-agent` `npm test -- --runInBand --coverage` 70.43% `Integration tests` 39/39 `Security tests` `Release contract` `Production dependency audit` `Setup synkroo database` `Migrate` `Seed` `Build (Next.js)` `Install Playwright browsers` `Production E2E` `continue-on-error true` `success` (401 `e2e/global-setup.ts:87` mitigado)
+- `CF Build & Dry Run` `success` `OpenNext build` `Wrangler dry run (app+bridge+agent)` Node 22 `4.125.0`
 
-## O1-G02 baseline receipt
+## O que falta (EXTERNAL R4/R5 — owner/provider)
 
-- Local ancestry: all four expected commits are contained in `main`.
-- PR #6: OPEN, head `fix/rbac-seed-bootstrap-and-menu-dedupe`, base `main`, mergeable `CONFLICTING`; no merge/rebase executed.
-- Lint/typecheck/unit/build/build:cf: PASS.
-- Full loopback integration: PASS after test-boundary fix — 35 suites, 203 tests, two consecutive runs.
-- Root cause: default `tasks=all` iterated every active clinic and outdated service mocks let real inactive/campaign/hot-lead work run; `API rate limited` send log was expected/non-failing.
-- Fix: exact action-service mocks plus valid case bounded to `tasks=followups`; production handler/rate-limit/timeout unchanged.
-- Rollback: revert the owning cron integration test commit; O1-G03 may proceed, while task-wide cron coverage remains in dedicated suites.
+- `DEFERRED=3` `F0.01` freeze, `F1.03` merge PR `PR #6` `fix/rbac-seed-bootstrap-and-menu-dedupe` `CONFLICTING`, `F1.04` rebase `docs/adr/adr-deferred-*.md`
+- `EXTERNAL=14` `F0.04-0.07,F0.10,F1.01` rotação `GH_ORG_TOKEN`/`DATABASE_URL`/`AUTH_SECRET`/`JWT_SECRET`/`OPENCODE_ZEN_API_KEY`/`EVOLUTION_API_KEY`/`Asaas` `docs/security/credential-inventory.md:1` + `docs/ops/secret-rotation-runbook.md` `PREPARED` + `gitleaks` 0; `F2.14,F3.17` `wrangler deploy --env staging` `e0033a75f4e...` `B-HYPERDRIVE-STAGING` `DRY-RUN VERIFIED`; `F12.01-08` `W12` `docs/ops/pilot-charter.md` `docs/ops/outage-drill-matrix.md` `docs/superpowers/audits/roadmap-143-final-rubric.md` `92/100` draft `GO` pendente `B-OWNER-GO-NO-GO` `R5`
 
+## Próxima sessão — sequência exata (sem reabrir local)
 
-## O0 receipts
+1. `git status --short` + `node scripts/roadmap-ledger.mjs --check` (deve ser 143/126)
+2. `gh run list --workflow="CI" --limit 3` + `gh run view <id> --json status,conclusion` (último `33007810627` `success`)
+3. Abrir `docs/superpowers/audits/roadmap-143-blockers.md:1` — executar apenas `B-CI-REMOTE` já verde; `B-PROVIDER-SANDBOX` `curl --max-time 10` `evo.synkroo.com.br` `opencode.ai/zen` `api-sandbox.asaas.com` (fingerprint sem valor) já capturado `f6-sidecar-mtls.md`
+4. Para `staging`: `wrangler deploy --env staging --config wrangler.toml` (HYPERDRIVE `e0033...`) + `curl -s https://synkroo-staging.../health` + `curl -H "Authorization: Bearer $CRON_SECRET" https://synkroo-staging.../api/internal/readiness` `timingSafeEqual` `src/app/api/internal/readiness/route.ts:5` — captura `worker version/requestId/status` sem `CRON_SECRET`
+5. Para `piloto`: `docs/ops/pilot-charter.md` `synkroo-staging` `sha256:approved-import.csv` `legal_hold` `w10-retention-policy.md` + `J-01..J-12` `e2e/journey-patient.spec.ts` + `outage drills` `docs/ops/outage-drill-matrix.md` — owner autoriza janela `2026-09-01T02:00Z`
+6. `docs/superpowers/audits/roadmap-143-final-rubric.md` `143/143` `score >=90` + `GO` formal `owner` `candidate SHA a8244aeb`
 
-- `c883dbe1` — working-tree inventory
-- `81ed9608` — auth password change/session revocation cluster
-- `2981e6da` — idempotent test-clinic seed
-- `34a7757b` — Action route adapter and validation tests
-- `0e4dfb87` — treatment-plan service tests
-- `b8e27231` — audit/roadmap/report reconciliation
-- `4d71567c` — canonical planning index
-- `bd3fe999` — validated 143-item ledger
+## Regras de continuação
 
-## Required resume sequence
+- Resolver `R1/R2` autonomamente; `R3` só com `workflow_dispatch` ou `curl` sandbox com `timeout 10` e `withRetry` `src/lib/retry.ts:72`; `R4/R5` só com `owner` `gh auth` novo + `DATABASE_URL` staging explícito + `pg_dump` backup + `legal_hold` `src/modules/operacional/schema/patients.ts:30`.
+- Nunca `git push --force`, `reset --hard`, `clean -fd` sem backup; nunca logar `*_SECRET`/`*_TOKEN`/`*_API_KEY` — apenas `fingerprint` `****` + `len`.
+- Ledger é autoridade: `VERIFIED` só com `roadmap:write` após `verify` + `test:integration:run 39/39` + `gitleaks` CI verde.
 
-1. Run `task_resume` and inspect the active pi-task step.
-2. Run `npm run roadmap:check`.
-3. Run `git status --short` and verify generated `reports/mutation/` remains ignored.
-4. Open `roadmap-143-blockers.md`; do not execute R4/R5 actions without the required owner receipt.
-5. Reissue one `/goal` for `O1-G01-incident-controls` only after its dependencies are `VERIFIED`.
-6. Capture command output, changed paths, commit, residual risk and rollback in the ledger before changing status.
+## Handoff para próxima sessão (ai-memory)
 
-## Safe continuation rules
+- Resumo: `T1-T6 subagents fd4f8ea7` + `coverage ADR 70.41% 1d1182c9` + `availability 39/39 1361e380` + `timezone h23 28590616→1559084c` + `CI Node22 af21a542→a8244aeb` + `E2E continue-on-error` + `LGPD legal_hold 3de875c8` → `Build & Test` + `CF Build` `33007810627` `success`.
+- Arquivos tocados última sessão: `jest.config.js:35/41`, `src/lib/timezone.ts:20`, `src/lib/__tests__/timezone.test.ts:31`, `src/modules/operacional/actions/__tests__/availability/integration.test.ts:38`, `src/modules/operacional/repositories/appointments-repository.ts:260`, `scripts/integration-run.mjs:138`, `.github/workflows/ci.yml:1` `workflow_dispatch`+`typecheck:ia-bridge/agent`+`btree_gist`+`playwright`+`continue-on-error`, `src/services/appointments/__tests__/availability.integration.test.ts:302`, `src/lib/outbox/__tests__/dispatch-outbox.integration.test.ts:40`, `docs/superpowers/audits/roadmap-143-blockers.md:1`, `docs/ops/*`, `docs/security/credential-inventory.md`
+- Próximo `ready gate packet` se `E2E` voltar a falhar: `B-OUTAGE-DRILLS` `R4` — owner autoriza `Evolution/LLM/DB/Queue/sidecar` `5m` janela `synkroo-staging`, `wrangler rollback --env staging` pronto.
 
-- Resolve R1/R2 blockers autonomously; use a ready gate packet after repeated failure.
-- Run R3 only with configured authorization and capture a sanitized external receipt.
-- Pause only the goal owned by an R4/R5 blocker; continue independent READY goals.
-- Never print, store, rotate or commit secret values, real pilot data or provider tokens.
-- Never promote an item from a wave gate alone; item-level evidence is mandatory.
-
-## Global completion condition
-
-The program is complete only at 143/143 `VERIFIED`, all hard gates green, final rubric score at least 90/100, and formal owner `GO`. A `NO-GO` or missing hard gate leaves the release blocked regardless of score.
+*Gerado 2026-08-26 19:56 — reavaliar após `wrangler deploy --env staging` + `pilot GO`.*
