@@ -92,6 +92,8 @@ jobs:
           JWT_SECRET: fake-jwt-secret-for-ci
           MINIMAX_API_KEY: CI_PLACEHOLDER
           SEED_SECRET: CI_PLACEHOLDER
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
       - name: Production E2E (no retries)
         run: npm run test:e2e:production
         env:
