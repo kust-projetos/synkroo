@@ -30,12 +30,17 @@ const CLINIC_ID = '00000000-0000-0000-0000-0000000000f1';
 const DENTIST_ID = '00000000-0000-0000-0000-0000000001f1';
 const PATIENT_ID = '00000000-0000-0000-0000-0000000002f1';
 
-const TEST_DATE = '2026-08-03'; // Monday (dayOfWeek = 1 in UTC)
+const TEST_DATE = '2026-08-03'; // Monday (dayOfWeek = 1 in America/Sao_Paulo and UTC)
 const BLOCK_START = '08:00:00';
 const BLOCK_END = '18:00:00';
 
-// 10:00 UTC = 07:00 Brasília (no DST in Aug) = 10:00 local
-const BOOKED_SLOT = '2026-08-03T10:00:00.000Z';
+// Slots are generated timezone-aware (clinics.timezone defaults to America/Sao_Paulo).
+// 10:00 local SP = 13:00 UTC (SP is UTC-3, no DST in Aug). Book 13:00Z so it overlaps a real slot.
+// Previous value 10:00Z was 07:00 SP, outside 08-18 block -> no overlap -> false positives.
+const BOOKED_SLOT = '2026-08-03T13:00:00.000Z'; // 10:00 America/Sao_Paulo
+const BOOKED_09_30_LOCAL_UTC = '2026-08-03T12:30:00.000Z'; // 09:30 SP
+const BOOKED_10_30_LOCAL_UTC = '2026-08-03T13:30:00.000Z'; // 10:30 SP
+const BLOCK_08_00_LOCAL_UTC = '2026-08-03T11:00:00.000Z'; // 08:00 SP
 
 let pool: Pool;
 
@@ -171,11 +176,14 @@ describeOrSkip('operacional availability action (F2b)', () => {
     });
     expect(overlappingSlots).toHaveLength(0);
 
-    // Adjacent free slots must appear (e.g. 09:30 and 10:30)
-    const has09_30 = slots.some((s: string) => s.includes('T09:30'));
-    const has10_30 = slots.some((s: string) => s.includes('T10:30'));
-    expect(has09_30).toBe(true);
-    expect(has10_30).toBe(true);
+    // Adjacent free slots must appear (09:30 and 10:30 local = 12:30Z and 13:30Z)
+    const has09_30 = slots.some((s: string) => s === BOOKED_09_30_LOCAL_UTC);
+    const has10_30 = slots.some((s: string) => s === BOOKED_10_30_LOCAL_UTC);
+    // also accept substring fallback for robustness
+    const has09_30_fallback = slots.some((s: string) => s.includes('T12:30'));
+    const has10_30_fallback = slots.some((s: string) => s.includes('T13:30'));
+    expect(has09_30 || has09_30_fallback).toBe(true);
+    expect(has10_30 || has10_30_fallback).toBe(true);
   });
 
   it('should return all block slots when no appointments exist', async () => {
@@ -187,9 +195,9 @@ describeOrSkip('operacional availability action (F2b)', () => {
     expect(result.ok).toBe(true);
     const slots = (result as any).data as string[];
 
-    // Should have 08:00 and 08:30 at minimum
+    // Should have 08:00 local (11:00Z) at minimum
     expect(slots.length).toBeGreaterThan(0);
-    const has08_00 = slots.some((s: string) => s.includes('T08:00'));
+    const has08_00 = slots.some((s: string) => s === BLOCK_08_00_LOCAL_UTC || s.includes('T11:00'));
     expect(has08_00).toBe(true);
   });
 

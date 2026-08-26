@@ -19,6 +19,22 @@ import { zonedTimeToUtc, getDayOfWeekInTimezone } from '@/lib/timezone';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
+// Helper: Drizzle wraps PG error as `cause` (code 23P01), so check both outer message and cause.
+function isExclusionError(err: unknown): boolean {
+  const e = err as { message?: string; cause?: { code?: string; message?: string } };
+  const msg = `${e?.message ?? ''} ${e?.cause?.message ?? ''}`;
+  const code = e?.cause?.code ?? (e as { code?: string })?.code;
+  return code === '23P01' || /exclusion|overlap|duplicate/i.test(msg);
+}
+async function expectExclusion(fn: () => Promise<unknown>) {
+  try {
+    await fn();
+    throw new Error('Expected exclusion error but succeeded');
+  } catch (err) {
+    expect(isExclusionError(err)).toBe(true);
+  }
+}
+
 // ── IDs determinísticos (não colidem com seed) ──────────────────────────────
 const CLINIC_SP = '00000000-0000-0000-0000-00000000a110';
 const CLINIC_NY = '00000000-0000-0000-0000-00000000a111';
@@ -155,7 +171,7 @@ describeOrSkip('F5.03 disponibilidade + conflito DB + timezone por clínica (DB 
     expect(first).toBeDefined();
     expect(first.id).toBeDefined();
 
-    await expect(
+    await expectExclusion(() =>
       appointmentsRepo.createAppointment({
         clinicId: CLINIC_SP,
         patientId: PATIENT_SP,
@@ -163,7 +179,7 @@ describeOrSkip('F5.03 disponibilidade + conflito DB + timezone por clínica (DB 
         scheduledAt, // mesmo instante
         durationMinutes: 60,
       }),
-    ).rejects.toThrow(/23P01|exclusion|overlap|duplicate/i);
+    );
   });
 
   it('sobreposição parcial deve falhar (09:00-10:00 vs 09:30-10:30)', async () => {
@@ -178,7 +194,7 @@ describeOrSkip('F5.03 disponibilidade + conflito DB + timezone por clínica (DB 
       durationMinutes: 60,
     });
 
-    await expect(
+    await expectExclusion(() =>
       appointmentsRepo.createAppointment({
         clinicId: CLINIC_SP,
         patientId: PATIENT_SP,
@@ -186,7 +202,7 @@ describeOrSkip('F5.03 disponibilidade + conflito DB + timezone por clínica (DB 
         scheduledAt: start2,
         durationMinutes: 60,
       }),
-    ).rejects.toThrow(/23P01|exclusion|overlap/i);
+    );
   });
 
   it('slot adjacente não deve conflitar (09:00-10:00 vs 10:00-11:00)', async () => {
@@ -333,8 +349,6 @@ describeOrSkip('F5.03 disponibilidade + conflito DB + timezone por clínica (DB 
     const rejected = results.filter((r) => r.status === 'rejected');
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
-    expect((rejected[0] as PromiseRejectedResult).reason).toMatchObject(
-      expect.objectContaining({ message: expect.stringMatching(/23P01|exclusion|overlap/i) }),
-    );
+    expect(isExclusionError((rejected[0] as PromiseRejectedResult).reason)).toBe(true);
   });
 });

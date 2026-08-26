@@ -253,9 +253,21 @@ export async function createAppointment(data: {
   notes?: string | null;
 }) {
   const db = getDb();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [row] = await db.insert(appointments).values(data as any).returning();
-  return row;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [row] = await db.insert(appointments).values(data as any).returning();
+    return row;
+  } catch (err: any) {
+    // Drizzle wraps pg error as `cause`; expose pg code/message in outer message
+    // so integration tests matching /23P01|exclusion|overlap/ on `message` still pass.
+    const pgCode = err?.cause?.code ?? err?.code;
+    const pgMsg = err?.cause?.message ?? '';
+    if (pgCode === '23P01' || /exclusion/i.test(pgMsg)) {
+      // enrich outer message but keep original error identity and cause
+      err.message = `${err.message} [pg:${pgCode} ${pgMsg}]`;
+    }
+    throw err;
+  }
 }
 
 export async function setAppointmentStatus(

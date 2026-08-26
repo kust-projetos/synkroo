@@ -135,14 +135,14 @@ export function run(execute = execFileSync, testUrl = process.env.TEST_DATABASE_
   const validated = validateTestDatabaseUrl(testUrl);
   const opts = commandOptions(validated);
 
-  // Step 0: Ensure required PostgreSQL extensions exist (e.g., pgvector).
-  // Migration SQL may reference extension types like "vector"; creating
-  // the extension beforehand lets migrations succeed on pgvector-equipped DBs.
+  // Step 0: Ensure required PostgreSQL extensions exist (e.g., pgvector, btree_gist for EXCLUDE).
+  // Migration SQL may reference extension types like "vector" or GiST operators; creating
+  // the extensions beforehand lets migrations succeed on equipped DBs.
   // Best-effort: exits 0 even if the extension binary is unavailable —
   // the subsequent migrate step will surface the real error.
   execute(
     process.execPath,
-    ['-e', `const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});p.query('CREATE EXTENSION IF NOT EXISTS vector').then(()=>{p.end();},()=>{p.end();}).then(()=>process.exit(0),()=>process.exit(0));`],
+    ['-e', `const {Pool}=require('pg');const p=new Pool({connectionString:process.env.DATABASE_URL});Promise.all([p.query('CREATE EXTENSION IF NOT EXISTS vector'), p.query('CREATE EXTENSION IF NOT EXISTS btree_gist')]).then(()=>{p.end();},()=>{p.end();}).then(()=>process.exit(0),()=>process.exit(0));`],
     opts,
   );
 
