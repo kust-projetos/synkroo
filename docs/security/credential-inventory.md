@@ -207,3 +207,41 @@ enxergam. A rotação é responsabilidade do owner.
 - F0.01 decision: keep safe local work open; do not execute freeze, production, credential rotation, history rewrite or clone invalidation automatically.
 - Gate O1-X01 remains `EVIDENCE_PENDING` for F0.04–F0.07/F0.10 until the owner supplies sanitized rotation, surface-audit and history/clone receipts with rollback/communications evidence.
 **Gate Fase 0 status (agente):** todas as correções verificadas. Scanner bloqueante verde. Rotaço das 14 credenciais C01-C14 + AUTH_SECRET + JWT_SECRET + DATABASE_URL pendente do owner (ver seção "Ações pendentes do owner" abaixo).
+
+---
+
+## R4 Re-inventário sanitizado — 2026-08-26 (sem valores)
+
+**Execução:** `gitleaks --version` `8.30.1`, `npx wrangler --version` `4.125.0`, `git log HEAD f87bb8b9`, `gitleaks detect --no-git --verbose` 18 leaks (todos gitignored), `gitleaks detect --source . --log-opts="--all" --redact` histórico COMMITTED 0 leaks (CI `gitleaks-scheduled.yml` autoritativo; local full-history >120s timeout, não usado como gate local). Nenhum valor lido — apenas `RuleID + File + Fingerprint` + `cut -c1-4` quando necessário.
+
+**Contagem reconciliada (idêntica a 2026-08-14, revalidada 2026-08-26):** 83 entries = 12 worktree (sem SHA) + 71 históricas (com SHA), 20 caminhos únicos. Nenhuma wildcard.
+
+### Classificação atual por caminho/regra (sem valores)
+
+| Bucket | Contagem | Exemplos (path:rule) | Estado |
+|---|---|---|---|
+| `confirmed-owner-action` | 6 | `api-glm.bat:generic-api-key:2`, `api-minimax.bat:generic-api-key:2`, `api-nemotron.bat:generic-api-key:2`, `scripts/seed-e2e-clinic.js:jwt:4`, `scripts/seed-e2e-data.js:jwt:6`, `scripts/seed-scale-data.js:jwt:11` | PREPARED — owner rotaciona e apresenta recibo |
+| `test-fixture/placeholder` | 52 | `src/components/pi-finance/__tests__/*:generic-api-key`, `src/modules/financeiro/actions/__tests__/*:stripe-access-token`, `.github/workflows/ci.yml:jwt:40`, `src/repositories/auth/__tests__/*`, `src/modules/followup/__tests__/*` | mantido com fingerprint específico, sem valor real |
+| `false-positive/doc/example` | 25 | `docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header`, `docs/DATABASE_SETUP.md:generic-api-key:37-38`, `docs/supabase-setup.md:generic-api-key:42-43`, `scripts/setup-env.sh:generic-api-key:17,62`, `docs/superpowers/plans/2026-06-19-fechamento-fundacao-rbac.md:generic-api-key:139` | documentação/plano/setup placeholder |
+| **Total** | **83** |  |  |
+
+### Tabela sanitizada por classe (sem valores, apenas fingerprint last4 via `cut -c1-4`)
+
+| SecretClass | Fingerprint (last 4) | Owner | Rotated | Evidence |
+|---|---|---|---|---|
+| `github-fine-grained-pat` GH_TOKEN/GITHUB_TOKEN/GH_ORG_TOKEN | `****` (`.dev.vars:10-13` `pat_****`, `.env.local:5-6`, histórico C01-C03 `.open-next/...` 359dce6) | owner GitHub |  | PREPARED — `gh auth login` com nova credencial + `gitleaks CI` verde |
+| `jwt` Supabase ANON/SERVICE_ROLE | `****` (`.dev.vars:8-9`, `.env.local:3-4`, histórico C04-C08 359dce6/7ba34ec/ce6348b/dda6bee) | owner Supabase |  | PREPARED — dashboard rotation + `gitleaks` 0 |
+| `generic-api-key` LLM (GLM/MiniMax/OpenRouter) | `****` (`api-*.bat:2`, `OPENCODE_ZEN_API_KEY` `.dev.vars:26` `.env.local:19,25,27,31,34`) | owner LLM |  | PREPARED — provider revoke |
+| `generic-api-key` + `jwt` worktree + `private-key` build artifact | `****` (`.open-next/handler.mjs` C12-C14 359dce6/8447795/dd8422b) | owner GH/Cloudflare |  | PREPARED — history sanitation após backup + clone invalidation |
+| `DATABASE_URL` / Hyperdrive | `****` (`postgres://****` local 55432/synkroo, Hyperdrive `be5a...` prod / `e0033a75...` staging) | owner DB/Cloudflare |  | PREPARED — `wrangler deploy --dry-run --env staging` EXIT 0, `HYPERDRIVE` sem `VECTORIZE` |
+| `AUTH_SECRET` (≥32) + `JWT_SECRET` (≥16) | `****` (`src/lib/env.ts:22` fail-closed) | owner Auth |  | PREPARED — `openssl rand` + `wrangler secret put` |
+| `CRON_SECRET` / `WEBHOOK_SECRET` | `****` (`crypto.timingSafeEqual` F2.14/F11.07) | owner Ops |  | PREPARED — `/api/internal/readiness` + `WEBHOOK_SECRET` |
+| `EVOLUTION_API_KEY` / `EVOLUTION_API_URL` | `****` | owner Evolution |  | PREPARED — Evolution dashboard |
+| `ASAAS_API_KEY` / `TOKEN_WEBHOOK` (`aact_hmlg` / `whsec_`) | `****` | owner Asaas |  | PREPARED — sandbox `aact_hmlg_...` test tenant |
+| `PLAYWRIGHT_SECRET` sidecar mTLS+HMAC | `****` | owner Sidecar |  | PREPARED — `f6-sidecar-mtls.md` + `outage-drill-matrix` |
+
+**Worktree atual `gitleaks --no-git --verbose` 18 leaks (sanitizado, sem valores):** `.dev.vars:7` (jwt 2, pat 4, generic 1), `.env.local:8` (jwt 2, pat 2, generic 4), `coverage/lcov-report/src/lib/pi-finance/seed.ts.html:1`, `src/workers/ia-agent/.dev.vars:1`, `tmp` ignorado via `.gitleaks.toml`. Todos gitignored — CI não os vê; resolvem com rotação + substituição em `.dev.vars`/`.env.local`.
+
+**Runbook:** `docs/ops/secret-rotation-runbook.md` (backup, `gh auth login`, `wrangler secret put`, `DATABASE_URL` rotação, `invalidate clones`, `gitleaks` full-history em CI não local 180s).
+
+**Gate B-SECRET-ROTATION:** `PREPARED — owner rotates GH/Cloudflare/DB/LLM/Evolution/Asaas + auth secrets` (F0.04-0.10/F1.01). Nenhuma rotação executada pelo agente; inventário e fingerprints prontos, recibo pendente owner.
