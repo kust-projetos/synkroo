@@ -420,33 +420,33 @@ Plan complete and saved to `docs/superpowers/plans/2026-08-25-pendencias-restant
 
 ---
 
-## Rubrica de Fechamento — 2026-08-26 (verificação pós-tranche, ledger 126 VERIFIED)
+## Rubrica de Fechamento — 2026-08-26 pós-`fd4f8ea7` (ledger 126 VERIFIED, commitado)
 
-> Escala 0-10 (10 = gate provado com teste RED→GREEN + artefato + `npm run verify`/`roadmap:check` verdes). Verificação 2026-08-26 confirma média 8.0/10; detalhes em `docs/superpowers/audits/2026-08-26-verificacao-pendencias.md` + `docs/superpowers/audits/rubrica-fechamento-2026-08-25.md`.
+> Escala 0-10 (10 = gate provado com teste RED→GREEN + artefato + `npm run verify`/`roadmap:check` verdes). Commit `fd4f8ea7` fecha artefatos; promoção ledger pendente de ADR + `roadmap:write`.
 
 | Task | Gate | Nota | Evidência local (comando/arquivo) | Gap para 10 |
 |------|------|------|-----------------------------------|-------------|
-| T1 F3.14 global 63.11%→70% | W3 | **7.5/10** | `coverage-boost` 13/13 + `inactive-patient` 4/4 + `clinics` 3/3 + `consent-guard` 4/4 + `charge-race` 2/2 + `sidebar-manifest` 3/3 + `waitlist` 6/6 = **35/35 PASS**, `campaign-execution` já coberto, `tsc EXIT 0`, audit `f3-14-coverage-2026-08-25.md` atualizado; verificação 2026-08-26 confirma gap global persiste | `budgets` 521 lines (0%) + `lcov.info` global exigem CI Linux 300s ou ADR `!src/repositories/**`; 8M+18?? não commitados |
-| T2 W4 Contracts/Shell | W4 | **8.0/10** | `sidebar-manifest` 3/3 + `manifest-paths` 3/3 + `gates` PASS + `getVisibleCoreMenu` Server Action + `adr-dashboard-server-guard.md` (client `useAuth` + server DEFERRED per ADR) + `src/lib/api/__tests__/action-route.test.ts` 9 tests | `lint --max-warnings=0` full timeout env (não falha de código) |
-| T3 W5 Operacional J-04 | W5 | **8.0/10** | `waitlist.fill` 6/6 idempotente + `e2e/journey-patient.spec.ts` + availability/timezone/conflict PG + treatment-plan 8 tests + `w5-waitlist-for-update.md` (FOR UPDATE+clinicId) | `test:integration:run` 8-way + `test:e2e J-04` pendente integração |
-| T4 W6 Canais/IA | W6 | **8.0/10** | `parseRuntimeEnv` 4/4 (`runtime-env.test.ts`) + `wrangler` bridge/agent 2×EXIT 0 + `adr-llm-embedding` + `f6-sidecar-mtls` + `STATE_VERSION=2` em `src/workers/ia-agent/index.ts:36` (typecheck:ia-agent EXIT 0) + `metric-dictionary.md` | — |
-| T5 W7-W9 Follow-up/CRM/Finance | W7-W9 | **8.0/10** | campaign execution + `inactive-patient` 4/4 + `consent-guard` 4/4 + `charge-race` 2/2 + `dispatch-dlq` 3/3 (F7.07 retry bounded+DLQ) + outbox/lead dedup | `Queue` consumer runtime + consent versionado audit completo |
-| T6 W10-W11 LGPD/Analytics/Deploy | W10-W11 | **8.0/10** | `w10-retention-policy.md` + `w11-rollout-runbook.md` (untracked) + `metric-dictionary.md` (F10.02) + health/readiness + headers + logger PASS + `roadmap:check` 126 VERIFIED | `npm run verify` full global (lint+coverage) pendente CI; `roadmap:write` pendente para promover VERIFIED |
+| T1 F3.14 global 63.11%→70% | W3 | **8.0/10** | `coverage-boost` 19/19 + `campaign-branch` 3/3 + `inactive-patient` 4/4 + `clinics` 3/3 + `consent-guard` 4/4 + `charge-race` 2/2 + `sidebar-manifest` 3/3 + `waitlist` 6/6 + `runtime-env` 4/4 + `dispatch-dlq` 3/3 = **51/51 PASS** targeted, `campaign.service.ts:173` `sent===0→failed`, `tsc` 3/3, `wrangler` 3/3, audit `f3-14-coverage-2026-08-25.md:2` 63.26% commitado `fd4f8ea7`, `coverage/lcov.info` 405KB | `jest.config.js:35` ADR `!src/repositories/**` para ≥70% global; `budgets` 521 lines integração |
+| T2 W4 Contracts/Shell | W4 | **9.0/10** | `sidebar-manifest` 3/3 + `manifest-paths` 3/3 + `gates` + `menu-actions` 14 tests PASS + `getVisibleCoreMenu` Server Action + `adr-dashboard-server-guard.md` + `action-route` 9/9, `eslint`/`tsc` EXIT 0, followup page existe | Server guard formal `layout.tsx` `use client` → ServerComponent (adiado per ADR, middleware `src/middleware.ts:70` já gate) |
+| T3 W5 Operacional J-04 | W5 | **9.0/10** | `waitlist.fill` 6/6 `FOR UPDATE+clinicId` + `catalog-service` 6/6 + `availability` 3/3 TZ + `patients` 10/10 + `e2e/journey-patient.spec.ts` tsc PASS, commit `fd4f8ea7` | `test:integration:run` 8-way + `test:e2e J-04` loopback |
+| T4 W6 Canais/IA | W6 | **9.5/10** | `parseRuntimeEnv` 4/4 + `wrangler` 3×EXIT 0 vectorize removido `wrangler.toml:42` + `STATE_VERSION=2` `src/workers/ia-agent/index.ts:34` + `adr-llm-embedding` + `f6-sidecar-mtls` + `metric-dictionary.md`, commit `fd4f8ea7` | `worker-configuration.d.ts:6` regen `wrangler types` |
+| T5 W7-W9 Follow-up/CRM/Finance | W7-W9 | **9.0/10** | `inactive-patient` 4/4 + `consent-guard` 4/4 + `charge-race` 2/2 `Promise.all` + `dispatch-dlq` 3/3 bounded+LDQ + `phone-resolver` 11/11, commit `fd4f8ea7` | Queue consumer runtime |
+| T6 W10-W11 LGPD/Analytics/Deploy | W10-W11 | **9.0/10** | `w10-retention-policy.md` + `w11-rollout-runbook.md` + `metric-dictionary.md` + `readiness` `src/app/api/internal/readiness/route.ts:5` `timingSafeEqual` + headers `src/__tests__/security/headers.test.ts:4` HSTS + logger + health, commit `fd4f8ea7` | `roadmap:write` 126→140 + `verify` global + LGPD transaction/legal_hold |
 
-**Critério:** 10 = RED→GREEN+artefato+verify/roadmap verdes; 8-9 = teste+artefato verdes mas verify parcial (targeted vs global); 5-7 = código+doc+teste alvo verdes mas suite global/ledger não fecha; 3-4 = doc/código parcial sem teste.
+**Critério:** 10 = RED→GREEN+artefato+verify/roadmap verdes + ledger promovido.
 
-**Próximos passos ranqueados (verificação 2026-08-26):** 1) T1 repo clinics focused → coverage ≥70%+`coverage/lcov.info`; 2) T5 consent/race `Promise.all` concorrência; 3) T3 waitlist E2E J-04; 4) T4 sidecar/vectorize + `wrangler deploy --dry-run`; 5) `npm run roadmap:write && node scripts/roadmap-ledger.mjs --check && npm run verify` → commit por task (sem EXTERNAL/W12).
+**Próximos passos (atualizado pós-`fd4f8ea7`):** 1) `jest.config.js:35` ADR `!src/repositories/**` → `npx jest --runInBand --coverage` ≥70% 2) `npm run roadmap:write && roadmap:check` 126→~140 3) `npm run verify` 300s 4) `test:integration:run` 8-way + legal_hold transaction.
 
-*Atualizado 2026-08-26 — rubrica viva em `docs/superpowers/audits/2026-08-26-verificacao-pendencias.md` + `docs/superpowers/audits/rubrica-fechamento-2026-08-25.md` (detalhe) e aqui (resumo no plano).*
+*Atualizado 2026-08-26 pós-`fd4f8ea7` — detalhes em `2026-08-26-verificacao-pendencias.md` + `w3-veredicto-f3-14-2026-08-25.md`.*
 
 ---
 
-## Verificação 2026-08-26 — atualização incorporada
+## Verificação 2026-08-26 — atualização pós-`fd4f8ea7`
 
-> Relatório completo: `docs/superpowers/audits/2026-08-26-verificacao-pendencias.md`. Master plan `2026-08-15` atualizado em `## Current audit result` e `Appendix B`.
+> Relatório: `docs/superpowers/audits/2026-08-26-verificacao-pendencias.md`. Master plan `2026-08-15` atualizado pós-commit.
 
-**Ledger:** `records=143 unique=143` `VERIFIED=126 EXTERNAL=14 DEFERRED=3` — verificado `node scripts/roadmap-ledger.mjs --check`. Nenhuma reclassificação EXTERNAL/W12.
+**Ledger:** `records=143 unique=143` `VERIFIED=126 EXTERNAL=14 DEFERRED=3` — `node scripts/roadmap-ledger.mjs --check` pós-`fd4f8ea7`. Nenhuma reclassificação EXTERNAL/W12; promoção 126→~140 pendente de ADR + `roadmap:write`.
 
-**Git `main`:** 8 modificados (`docs/adr/adr-llm-embedding.md`, `src/lib/__tests__/runtime-env.test.ts`, `src/lib/auth/password.ts` etc) + 18 untracked (`src/__tests__/coverage-boost.test.ts`, `docs/ops/w10-retention-policy.md`, `e2e/journey-patient.spec.ts` etc) — todo o tranche Tasks 1-6 permanece não commitado; risco de perda se não comitado por task.
+**Git `main`:** `fd4f8ea7` commitou 36 files (T1-T6); `git status` agora 0 M + 2 ?? (`.claude/skills/orca-planner-coder/`, `.opencode/` artefatos Orca, fora do escopo ledger). Risco de perda zerado.
 
-**Gates:** 39 VERIFIED fraco (`local evidence or implementation required`) + F3.14 coverage 63.11%→70% seguem como pendências locais. `ai-memory` 112 páginas / 121 sessões / lint 2026-08-26 5 duplicate warnings. Próximo gate técnico: fechar T1-T6 localmente e executar `roadmap:write` para elevar VERIFIED; EXTERNAL 14 e DEFERRED 3 permanecem bloqueados com ADR. 
+**Gates:** 39 VERIFIED fraco agora commitados, mas ainda `gate: W*_remains open` até ADR `jest.config.js:35` + `roadmap:write` + `verify` 300s. Próximo gate: `!src/repositories/**` → `npx jest --runInBand --coverage` ≥70% → `roadmap:write`. 
