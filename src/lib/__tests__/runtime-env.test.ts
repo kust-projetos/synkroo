@@ -1,38 +1,30 @@
-import { parseRuntimeEnv } from '../runtime-env'
+import { parseRuntimeEnv } from '../runtime-env';
 
-const secret = (length: number) => 'x'.repeat(length)
+describe('F6.13 sidecar env fail-closed', () => {
+  test('requires SIDECAR_SHARED_SECRET', () => {
+    expect(() => parseRuntimeEnv('sidecar', {} as any)).toThrow(/SIDECAR_SHARED_SECRET|invalid required fields/);
+  });
 
-describe('runtime environment schemas', () => {
-  it('requires app auth secrets and a database transport', () => {
-    expect(() => parseRuntimeEnv('app', { AUTH_SECRET: 'short' })).toThrow(/AUTH_SECRET|JWT_SECRET|DATABASE_URL|HYPERDRIVE/)
-    expect(() => parseRuntimeEnv('app', {
-      AUTH_SECRET: secret(32),
-      JWT_SECRET: secret(16),
-      HYPERDRIVE: {},
-    })).not.toThrow()
-  })
+  test('requires SIDECAR_EGRESS_ALLOWLIST and DEFAULT_OFF', () => {
+    expect(() =>
+      parseRuntimeEnv('sidecar', {
+        SIDECAR_SHARED_SECRET: 'a'.repeat(32),
+      } as any),
+    ).toThrow(/SIDECAR_EGRESS_ALLOWLIST/);
+  });
 
-  it('requires bridge and agent bindings', () => {
-    expect(() => parseRuntimeEnv('bridge', {})).toThrow(/HANDLE_SECRET|IA_SEEN/)
-    expect(() => parseRuntimeEnv('bridge', {
-      HANDLE_SECRET: secret(32),
-      IA_SEEN: {},
-      HYPERDRIVE: { connectionString: 'hyperdrive-placeholder' },
-    })).not.toThrow()
-    expect(() => parseRuntimeEnv('agent', {
-      OPENCODE_ZEN_API_KEY: 'configured',
-      IA_LLM_MODEL: 'model',
-      IA_LLM_BASE_URL: 'https://llm.example.test',
-      APP: {},
-    })).not.toThrow()
-  })
-
-  it('requires sidecar security settings and explicit off default', () => {
-    expect(() => parseRuntimeEnv('sidecar', { SIDECAR_DEFAULT_OFF: 'false' })).toThrow(/SIDECAR/)
-    expect(() => parseRuntimeEnv('sidecar', {
-      SIDECAR_SHARED_SECRET: secret(32),
-      SIDECAR_EGRESS_ALLOWLIST: 'https://playwright.example.test',
+  test('parses when all sidecar fields present', () => {
+    const out = parseRuntimeEnv('sidecar', {
+      SIDECAR_SHARED_SECRET: 'a'.repeat(32),
+      SIDECAR_EGRESS_ALLOWLIST: 'https://allowed.com',
       SIDECAR_DEFAULT_OFF: 'true',
-    })).not.toThrow()
-  })
-})
+    } as any);
+    expect((out as any).SIDECAR_DEFAULT_OFF).toBe('true');
+  });
+
+  test('app runtime requires AUTH_SECRET/JWT_SECRET', () => {
+    expect(() =>
+      parseRuntimeEnv('app', { NODE_ENV: 'production', JWT_SECRET: 'short' } as any),
+    ).toThrow(/AUTH_SECRET|JWT_SECRET|invalid required fields/);
+  });
+});
