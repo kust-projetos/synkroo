@@ -46,13 +46,22 @@ export async function POST(request: NextRequest) {
       .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
       .limit(1)
 
-    const oldValues = snapshot ? {
+    if (!snapshot) {
+      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    }
+
+    // F10.10 legal_hold impede purge
+    if ((snapshot as any).legalHold) {
+      return NextResponse.json({ error: 'Patient under legal hold' }, { status: 423 })
+    }
+
+    const oldValues = {
       name: snapshot.name,
       phone: snapshot.phone,
       email: snapshot.email,
       cpf: snapshot.cpf,
       birthDate: snapshot.birthDate,
-    } : null
+    }
 
     const newValues = {
       name: anonymizedName,
@@ -62,37 +71,35 @@ export async function POST(request: NextRequest) {
       birthDate: null,
     }
 
-    // Step 1: Update patients
-    await db.update(patients)
-      .set(newValues as any)
-      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+    // F10.07 transaction: patients + appointments + budgets + leads + audit em 1 tx
+    await db.transaction(async (tx) => {
+      await tx.update(patients)
+        .set(newValues as any)
+        .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
 
-    // Step 2: Update appointments notes
-    await db.update(appointments)
-      .set({ notes: '[ANONYMIZED]' })
-      .where(and(eq(appointments.patientId, patientId), eq(appointments.clinicId, clinicId)))
+      await tx.update(appointments)
+        .set({ notes: '[ANONYMIZED]' })
+        .where(and(eq(appointments.patientId, patientId), eq(appointments.clinicId, clinicId)))
 
-    // Step 3: Update budgets notes
-    await db.update(budgets)
-      .set({ notes: '[ANONYMIZED]' })
-      .where(and(eq(budgets.patientId, patientId), eq(budgets.clinicId, clinicId)))
+      await tx.update(budgets)
+        .set({ notes: '[ANONYMIZED]' })
+        .where(and(eq(budgets.patientId, patientId), eq(budgets.clinicId, clinicId)))
 
-    // Step 4: Update leads
-    await db.update(leads)
-      .set({ name: '[ANONYMIZED]', phone: null, email: null } as any)
-      .where(and(eq(leads.patientId, patientId), eq(leads.clinicId, clinicId)))
+      await tx.update(leads)
+        .set({ name: '[ANONYMIZED]', phone: null, email: null } as any)
+        .where(and(eq(leads.patientId, patientId), eq(leads.clinicId, clinicId)))
 
-    // Step 5: Insert audit log
-    await db.insert(auditLogs).values({
-      clinicId,
-      userId,
-      action: 'patient_anonymized',
-      entityType: 'patient',
-      entityId: patientId,
-      oldValues: oldValues as any,
-      newValues: newValues as any,
-      ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null,
-      userAgent: request.headers.get('user-agent') ?? null,
+      await tx.insert(auditLogs).values({
+        clinicId,
+        userId,
+        action: 'patient_anonymized',
+        entityType: 'patient',
+        entityId: patientId,
+        oldValues: oldValues as any,
+        newValues: newValues as any,
+        ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null,
+        userAgent: request.headers.get('user-agent') ?? null,
+      })
     })
 
     return NextResponse.json({ success: true, auditId: requestId })

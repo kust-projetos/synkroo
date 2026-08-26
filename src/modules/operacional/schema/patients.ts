@@ -25,6 +25,8 @@ export const patients = pgTable('patients', {
   mergeStatus: text('merge_status').$type<'merged' | null>(),
   mergedIntoId: uuid('merged_into_id'),
   mergedAt: timestamp('merged_at', { withTimezone: true }),
+  legalHold: boolean('legal_hold').default(false).notNull(),
+  legalHoldReason: text('legal_hold_reason'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
   deletedAt: timestamp('deleted_at', { withTimezone: true }),
