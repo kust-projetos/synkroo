@@ -131,6 +131,23 @@ export function handleApiError(error: unknown): NextResponse {
     return NextResponse.json(error.toJSON(), { status: error.statusCode })
   }
 
+  // Map ActionError (from @/core/actions/types) without creating a hard import cycle
+  if (error instanceof Error && typeof (error as any).code === 'string') {
+    const code = (error as any).code as string
+    const map: Record<string, number> = {
+      not_found: 404,
+      forbidden: 403,
+      invalid_input: 400,
+      unauthenticated: 401,
+      conflict: 409,
+      module_disabled: 403,
+    }
+    if (map[code]) {
+      const bodyCode = code === 'not_found' ? 'NOT_FOUND' : code.toUpperCase()
+      return NextResponse.json({ error: error.message, code: bodyCode }, { status: map[code] })
+    }
+  }
+
   if (error instanceof Error) {
     // Generic error
     return NextResponse.json(

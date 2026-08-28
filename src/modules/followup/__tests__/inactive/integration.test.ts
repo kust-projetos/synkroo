@@ -225,15 +225,15 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
         .from(patients)
         .where(eq(patients.id, foreignPatientId));
 
-      // Pass explicit clinicId in input — action schema strips it, ctx.clinicId used for scope
+      // Pass explicit clinicId in input — guard rejects untrusted selector before handler (W1.4)
       const result = await runAction(reativarPaciente, {
         patientId: foreignPatientId,
-        clinicId: OTHER_CLINIC_ID, // forged — action does not accept this field
+        clinicId: OTHER_CLINIC_ID, // forged — guard should reject as invalid_input
       }, ctx);
 
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.error.code).toBe('not_found');
+        expect(result.error.code).toBe('invalid_input');
       }
 
       // Full row unchanged after action

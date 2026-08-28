@@ -4,6 +4,7 @@
 export const financeiroManifest = {
   id: 'financeiro' as const,
   name: 'Financeiro',
+  dependsOn: ['operacional', 'comercial'] as const,
   alwaysOn: false,
   menu: [
     {

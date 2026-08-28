@@ -31,9 +31,8 @@ async function main() {
   const allClinics = await db.select({ id: clinics.id }).from(clinics);
   for (const c of allClinics) {
     await seedRbacForClinic(c.id);
-    const staff = await db.select({ id: users.id, role: users.role, clinicId: users.clinicId, isMaster: users.isMaster }).from(users).where(eq(users.clinicId, c.id));
+    const staff = await db.select({ id: users.id, role: users.role, clinicId: users.clinicId }).from(users).where(eq(users.clinicId, c.id));
     for (const u of staff) {
-      if (u.isMaster) continue; // master não precisa de acesso por clínica
       const roleName = ROLE_MAP[u.role] ?? 'Recepcionista';
       const [role] = await db.select({ id: roles.id }).from(roles)
         .where(and(eq(roles.clinicId, c.id), eq(roles.name, roleName))).limit(1);

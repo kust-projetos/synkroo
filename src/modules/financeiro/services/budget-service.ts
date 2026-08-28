@@ -86,8 +86,9 @@ export async function createBudget(input: CreateBudgetInput): Promise<BudgetRow>
     validUntil: input.validUntil ?? null,
   });
 
-  // Persist items
+  // Persist items — clinicId derived from budget tenant-scoped (W2)
   const items = input.items.map(item => ({
+    clinicId: input.clinicId,
     budgetId: budget.id,
     procedureName: item.procedureName,
     quantity: item.quantity,

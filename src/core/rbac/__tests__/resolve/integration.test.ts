@@ -20,7 +20,6 @@ const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : de
 
 // Instância inline do repo que delega na query real do Drizzle
 const drizzleRbacRepo: RbacRepo = {
-  isMaster: async (userId: string) => false,
   getAccess: async (userId: string, clinicId: string) => {
     const db = getDb();
     const [row] = await db

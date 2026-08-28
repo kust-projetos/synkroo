@@ -23,7 +23,6 @@ const CLINIC = '00000000-0000-0000-0000-000000000001';
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
 const drizzleRbacRepo: RbacRepo = {
-  isMaster: async () => false,
   getAccess: async (userId: string, clinicId: string) => {
     const db = getDb();
     const [row] = await db

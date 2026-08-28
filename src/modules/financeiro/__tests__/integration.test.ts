@@ -134,7 +134,7 @@ describe('installment replacement rollback', () => {
 
     try {
       // Seed original installments via atomic replacement
-      const original = await replaceInstallmentsAtomic(BUDGET_ID, [
+      const original = await replaceInstallmentsAtomic(CLINIC_ID, BUDGET_ID, [
         { budgetId: BUDGET_ID, amount: '100.00', dueDate: '2026-08-15', status: 'pending' },
         { budgetId: BUDGET_ID, amount: '200.00', dueDate: '2026-09-15', status: 'pending' },
       ]);
@@ -148,13 +148,13 @@ describe('installment replacement rollback', () => {
       // PostgreSQL NOT NULL on budget_installments.amount rejects after DELETE
       // inside the transaction, forcing rollback.
       await expect(
-        replaceInstallmentsAtomic(BUDGET_ID, [
+        replaceInstallmentsAtomic(CLINIC_ID, BUDGET_ID, [
           { budgetId: BUDGET_ID, amount: null as unknown as string, dueDate: '2026-10-01', status: 'pending' },
         ]),
       ).rejects.toThrow();
 
       // Transaction rolled back — original installments intact
-      const remaining = await listInstallments(BUDGET_ID);
+      const remaining = await listInstallments(CLINIC_ID, BUDGET_ID);
       expect(remaining).toHaveLength(2);
 
       const remainingSorted = [...remaining].sort((a, b) => a.id.localeCompare(b.id));
@@ -173,12 +173,12 @@ describe('installment replacement rollback', () => {
 
   test('normal replacement succeeds and returns new installments', async () => {
     // Seed original
-    await replaceInstallments(BUDGET_ID, [
+    await replaceInstallments(CLINIC_ID, BUDGET_ID, [
       { amount: 100, dueDate: '2026-08-15' },
     ]);
 
     // Replace with two new installments (valid data)
-    const replaced = await replaceInstallments(BUDGET_ID, [
+    const replaced = await replaceInstallments(CLINIC_ID, BUDGET_ID, [
       { amount: 150, dueDate: '2026-10-01' },
       { amount: 150, dueDate: '2026-11-01' },
     ]);
@@ -187,7 +187,7 @@ describe('installment replacement rollback', () => {
     expect(replaced[0].budgetId).toBe(BUDGET_ID);
 
     // Only the new installments exist
-    const all = await listInstallments(BUDGET_ID);
+    const all = await listInstallments(CLINIC_ID, BUDGET_ID);
     expect(all).toHaveLength(2);
     expect(all.every(a => a.amount === '150.00')).toBe(true);
   });

@@ -84,17 +84,17 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
   const buttonResult = await handleButtonResponse(data, clinicId, phone, conv.id);
   if (buttonResult) {
     results.push(buttonResult);
-    await repo.updateConversationTimestamp(conv.id);
+    await repo.updateConversationTimestamp(clinicId, conv.id, new Date());
     return results;
   }
 
   // Confirmation response
   const confirmResult = await handleConfirmation(clinicId, phone, content, conv.id);
-  if (confirmResult) { results.push(confirmResult); await repo.updateConversationTimestamp(conv.id); return results; }
+  if (confirmResult) { results.push(confirmResult); await repo.updateConversationTimestamp(clinicId, conv.id, new Date()); return results; }
 
   // Waitlist confirmation
   const waitlistResult = await handleWaitlist(clinicId, phone, content, conv.id);
-  if (waitlistResult) { results.push(waitlistResult); await repo.updateConversationTimestamp(conv.id); return results; }
+  if (waitlistResult) { results.push(waitlistResult); await repo.updateConversationTimestamp(clinicId, conv.id, new Date()); return results; }
 
   // Lead capture via comercial action layer (best-effort)
   try {
@@ -125,7 +125,7 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
     timezone: 'America/Sao_Paulo',
   }, { clinicId, conversationId: conv.id, phone, content });
   results.push(agentResult);
-  await repo.updateConversationTimestamp(conv.id);
+  await repo.updateConversationTimestamp(clinicId, conv.id, new Date());
   return results;
 }
 
@@ -201,9 +201,9 @@ async function storeAndProcessMetaMessage(
 
   // Check confirmation, waitlist
   const confirmResult = await handleConfirmation(cId, from, content, conv.id);
-  if (confirmResult) { await repo.updateConversationTimestamp(conv.id); return confirmResult; }
+  if (confirmResult) { await repo.updateConversationTimestamp(cId, conv.id, new Date()); return confirmResult; }
   const waitlistResult = await handleWaitlist(cId, from, content, conv.id);
-  if (waitlistResult) { await repo.updateConversationTimestamp(conv.id); return waitlistResult; }
+  if (waitlistResult) { await repo.updateConversationTimestamp(cId, conv.id, new Date()); return waitlistResult; }
 
   // Roteia para o agente IA
   const agentResult = await routeInboundToAgent({
@@ -227,7 +227,7 @@ async function storeAndProcessMetaMessage(
     },
     timezone: 'America/Sao_Paulo',
   }, { clinicId: cId, conversationId: conv.id, phone: from, content });
-  await repo.updateConversationTimestamp(conv.id);
+  await repo.updateConversationTimestamp(cId, conv.id, new Date());
   return agentResult;
 }
 
@@ -250,14 +250,14 @@ async function handleButtonResponse(
   if (apptRows.length === 0) return null;
 
   const newStatus = action === 'confirm' ? 'confirmed' : 'cancelled';
-  await repo.updateAppointmentStatus(appointmentId, newStatus, `Via WhatsApp (botão ${action})`);
+  await repo.updateAppointmentStatus(clinicId, appointmentId, newStatus);
 
   const responseMsg = action === 'confirm'
     ? '✅ Confirmado! Sua presença foi registrada.'
     : '✅ Entendido. Sua consulta foi cancelada.';
   await sendWhatsAppMessage(phone, responseMsg);
 
-  await repo.appendOutboundMessage({
+  await repo.appendOutboundMessage(clinicId, {
     conversationId: convId,
     content: responseMsg,
     messageType: 'text',
@@ -274,7 +274,7 @@ async function handleConfirmation(
 ): Promise<{ from: string; action: string } | null> {
   const result = await processConfirmationResponse(clinicId, phone, content);
   if (!result.processed || !result.responseMessage) return null;
-  await repo.appendOutboundMessage({
+  await repo.appendOutboundMessage(clinicId, {
     conversationId: convId,
     content: result.responseMessage,
     messageType: 'text',
@@ -292,7 +292,7 @@ async function handleWaitlist(
 ): Promise<{ from: string; action: string } | null> {
   const result = await processWaitlistConfirmation(clinicId, phone, content);
   if (!result.processed || !result.responseMessage) return null;
-  await repo.appendOutboundMessage({
+  await repo.appendOutboundMessage(clinicId, {
     conversationId: convId,
     content: result.responseMessage,
     messageType: 'text',
@@ -351,7 +351,7 @@ export async function processInstagramEntry(entry: Record<string, unknown>): Pro
       metadata: msgMetadata,
     });
     if (storeResult.deduped) continue;
-    await repo.updateConversationTimestamp(conv.id);
+    await repo.updateConversationTimestamp(clinicId, conv.id, new Date());
     processed.push({ from: senderId.id as string, message: content });
   }
   return processed;

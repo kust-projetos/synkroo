@@ -9,7 +9,6 @@ export const registrarPagamento = defineAction({
   requires: 'financeiro:record_payment',
   label: 'Registrar pagamento',
   input: z.object({
-    clinicId: z.string().uuid(),
     budgetId: z.string().uuid(),
     chargeId: z.string().uuid().optional(),
     amount: z.number().positive(),
@@ -17,8 +16,19 @@ export const registrarPagamento = defineAction({
     paidAt: z.string().optional(),
     notes: z.string().optional(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const payment = await registerManualPayment(input);
+  handler: async (input, ctx: ActionContext) => {
+    const clinicId = ctx.clinicId;
+    const actorUserId = ctx.user?.id ?? null;
+    const payment = await registerManualPayment({
+      clinicId,
+      budgetId: input.budgetId,
+      chargeId: input.chargeId,
+      amount: input.amount,
+      paymentMethod: input.paymentMethod,
+      paidAt: input.paidAt,
+      notes: input.notes,
+      actorUserId,
+    });
     return payment;
   },
 });

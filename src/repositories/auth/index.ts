@@ -27,58 +27,114 @@ export interface AuthUserRow {
 }
 
 /**
- * Fetch the full user profile (with clinic) by user ID.
+ * Fetch the full user profile (with clinic) by user ID and active clinic.
+ * Now authoritative via user_clinic_access — role comes from access row, not users.role.
  */
 export async function findUserProfileById(
   userId: string,
+  activeClinicId?: string,
 ): Promise<AuthUserRow | null> {
   const db = getDb();
 
+  // Legacy fallback: if no activeClinicId, use users.clinicId (only for login bootstrap)
+  if (!activeClinicId) {
+    const rows = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        name: users.name,
+        role: users.role,
+        phone: users.phone,
+        avatarUrl: users.avatarUrl,
+        isActive: users.isActive,
+        sessionVersion: users.sessionVersion,
+        clinicId: users.clinicId,
+        clinicIdJson: clinics.id,
+        clinicName: clinics.name,
+        clinicSlug: clinics.slug,
+        clinicPhone: clinics.phone,
+        clinicEmail: clinics.email,
+        clinicSettings: clinics.settings,
+      })
+      .from(users)
+      .innerJoin(clinics, eq(clinics.id, users.clinicId))
+      .where(eq(users.id, userId))
+      .limit(1);
+    if (rows.length === 0) return null;
+    const row = rows[0];
+    return {
+      id: row.id,
+      email: row.email,
+      name: row.name,
+      role: row.role,
+      phone: row.phone,
+      avatarUrl: row.avatarUrl,
+      isActive: row.isActive,
+      sessionVersion: row.sessionVersion,
+      clinicId: row.clinicId,
+      clinics: {
+        id: row.clinicIdJson,
+        name: row.clinicName,
+        slug: row.clinicSlug,
+        phone: row.clinicPhone,
+        email: row.clinicEmail,
+        settings: (row.clinicSettings || {}) as Record<string, unknown>,
+      },
+    };
+  }
+
+  // Authoritative path: require access row for active clinic, join roles for effective role
   const rows = await db
     .select({
       id: users.id,
       email: users.email,
       name: users.name,
-      role: users.role,
+      // role efetiva vem de roles.name via access, fallback para users.role se access não tem role (legado)
+      role: roles.name,
+      legacyRole: users.role,
       phone: users.phone,
       avatarUrl: users.avatarUrl,
       isActive: users.isActive,
       sessionVersion: users.sessionVersion,
-      clinicId: users.clinicId,
-      clinicIdJson: clinics.id,
+      clinicId: clinics.id,
       clinicName: clinics.name,
       clinicSlug: clinics.slug,
       clinicPhone: clinics.phone,
       clinicEmail: clinics.email,
       clinicSettings: clinics.settings,
+      roleId: roles.id,
+      roleName: roles.name,
     })
     .from(users)
-    .innerJoin(clinics, eq(clinics.id, users.clinicId))
-    .where(eq(users.id, userId))
+    .innerJoin(userClinicAccess, and(eq(userClinicAccess.userId, users.id), eq(userClinicAccess.clinicId, activeClinicId)))
+    .innerJoin(clinics, eq(clinics.id, userClinicAccess.clinicId))
+    .leftJoin(roles, eq(roles.id, userClinicAccess.roleId))
+    .where(and(eq(users.id, userId), eq(users.isActive, true)))
     .limit(1);
 
   if (rows.length === 0) return null;
-
-  const row = rows[0];
+  const row: any = rows[0];
+  // If access revoked or role missing, fail closed
+  if (!row.roleId || !row.role) return null;
   return {
     id: row.id,
     email: row.email,
     name: row.name,
-    role: row.role,
+    role: row.role ?? row.legacyRole,
     phone: row.phone,
     avatarUrl: row.avatarUrl,
     isActive: row.isActive,
     sessionVersion: row.sessionVersion,
     clinicId: row.clinicId,
     clinics: {
-      id: row.clinicIdJson,
+      id: row.clinicId,
       name: row.clinicName,
       slug: row.clinicSlug,
       phone: row.clinicPhone,
       email: row.clinicEmail,
       settings: (row.clinicSettings || {}) as Record<string, unknown>,
     },
-  };
+  } as AuthUserRow;
 }
 
 export async function hasUserClinicAccess(
@@ -255,7 +311,7 @@ export async function createUserWithClinic(
     return { user, clinic };
   });
 
-  // Return full profile
-  const profile = await findUserProfileById(result.user.id);
+  // Return full profile — usar clínica recém-criada como ativa (W3.1)
+  const profile = await findUserProfileById(result.user.id, result.clinic.id);
   return profile!;
 }

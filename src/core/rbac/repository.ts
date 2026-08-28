@@ -1,7 +1,6 @@
 export interface ClinicAccess { roleId: string; roleName: string; isSystem: boolean; }
 
 export interface RbacRepo {
-  isMaster(userId: string): Promise<boolean>;
   getAccess(userId: string, clinicId: string): Promise<ClinicAccess | null>;
   getRolePermissions(roleId: string): Promise<string[]>;
   getOverrides(userId: string, clinicId: string): Promise<Array<{ permissionKey: string; granted: boolean }>>;
@@ -15,10 +14,6 @@ import { users } from '@/lib/db/schema/core';
 import { roles, rolePermissions, userClinicAccess, userPermissionOverrides } from '@/modules/core/schema/rbac';
 
 export const drizzleRbacRepo: RbacRepo = {
-  async isMaster(userId) {
-    const r = await getDb().select({ isMaster: users.isMaster }).from(users).where(eq(users.id, userId)).limit(1);
-    return r[0]?.isMaster ?? false;
-  },
   async getAccess(userId, clinicId) {
     const r = await getDb()
       .select({ roleId: roles.id, roleName: roles.name, isSystem: roles.isSystem })

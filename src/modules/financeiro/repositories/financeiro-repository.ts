@@ -115,6 +115,12 @@ export async function getBudget(id: string): Promise<BudgetRow | undefined> {
   return row;
 }
 
+export async function getBudgetForClinic(budgetId: string, clinicId: string): Promise<BudgetRow | undefined> {
+  const db = getDb();
+  const [row] = await db.select().from(budgets).where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId))).limit(1);
+  return row;
+}
+
 export async function updateBudget(id: string, patch: Partial<BudgetRow>): Promise<BudgetRow | undefined> {
   const db = getDb();
   const [row] = await db.update(budgets).set({ ...patch, updatedAt: new Date() }).where(eq(budgets.id, id)).returning();
@@ -150,6 +156,15 @@ export async function createInstallments(data: Array<{
 
 export async function listInstallments(budgetId: string): Promise<BudgetInstallmentRow[]> {
   const db = getDb();
+  return db.select().from(budgetInstallments).where(eq(budgetInstallments.budgetId, budgetId)).orderBy(budgetInstallments.dueDate);
+}
+
+export async function listInstallmentsForClinic(clinicId: string, budgetId: string): Promise<BudgetInstallmentRow[]> {
+  const db = getDb();
+  // Tenant check: ensure budget belongs to clinic before listing installments.
+  // While budget_installments.clinic_id does not exist, join/verify via budgets table.
+  const budget = await db.select().from(budgets).where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId))).limit(1);
+  if (budget.length === 0) return [];
   return db.select().from(budgetInstallments).where(eq(budgetInstallments.budgetId, budgetId)).orderBy(budgetInstallments.dueDate);
 }
 
@@ -252,6 +267,12 @@ export async function getPaymentCharge(id: string): Promise<PaymentChargeRow | u
   return row;
 }
 
+export async function getPaymentChargeForClinic(chargeId: string, clinicId: string): Promise<PaymentChargeRow | undefined> {
+  const db = getDb();
+  const [row] = await db.select().from(paymentCharges).where(and(eq(paymentCharges.id, chargeId), eq(paymentCharges.clinicId, clinicId))).limit(1);
+  return row;
+}
+
 export async function findPaymentChargeByBudget(clinicId: string, budgetId: string): Promise<PaymentChargeRow | undefined> {
   const db = getDb();
   const [row] = await db.select().from(paymentCharges).where(and(
@@ -279,6 +300,17 @@ export async function updatePaymentCharge(
   const statusFilter = expectedStatuses?.length ? inArray(paymentCharges.status, expectedStatuses) : undefined;
   const [row] = await db.update(paymentCharges).set({ ...patch, updatedAt: new Date() })
     .where(statusFilter ? and(eq(paymentCharges.id, id), statusFilter) : eq(paymentCharges.id, id)).returning();
+  return row;
+}
+
+export async function updatePaymentChargeForClinic(
+  chargeId: string, clinicId: string, patch: Partial<PaymentChargeRow>, expectedStatuses?: readonly string[],
+ ): Promise<PaymentChargeRow | undefined> {
+  const db = getDb();
+  const statusFilter = expectedStatuses?.length ? inArray(paymentCharges.status, expectedStatuses) : undefined;
+  const base = and(eq(paymentCharges.id, chargeId), eq(paymentCharges.clinicId, clinicId));
+  const where = statusFilter ? and(base, statusFilter) : base;
+  const [row] = await db.update(paymentCharges).set({ ...patch, updatedAt: new Date() }).where(where).returning();
   return row;
 }
 
@@ -485,6 +517,11 @@ export async function listPaymentsByBudget(budgetId: string): Promise<PaymentRow
   return db.select().from(payments).where(eq(payments.budgetId, budgetId));
 }
 
+export async function listPaymentsByBudgetForClinic(clinicId: string, budgetId: string): Promise<PaymentRow[]> {
+  const db = getDb();
+  return db.select().from(payments).where(and(eq(payments.clinicId, clinicId), eq(payments.budgetId, budgetId)));
+}
+
 // ─── CollectionAttempt CRUD ─────────────────────────────────────────────────────
 
 export async function createCollectionAttempt(data: {
@@ -508,6 +545,7 @@ export async function createCollectionAttempt(data: {
 // ─── Budget items ───────────────────────────────────────────────────────────────
 
 export async function createBudgetItems(data: Array<{
+  clinicId: string;
   budgetId: string;
   procedureName: string;
   quantity: number;

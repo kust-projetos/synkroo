@@ -8,7 +8,7 @@
 
 import { boolean, integer, jsonb, pgTable, text, timestamp, uuid, decimal, uniqueIndex, vector } from 'drizzle-orm/pg-core';
 import { clinics, users } from '@/lib/db/schema/core';
-import { patients } from '@/lib/db/schema';
+import { patients } from '@/modules/operacional/schema/patients';
 import { channelType, conversationStatus, messageDirection, messageType } from '@/lib/db/schema/enums';
 
 // ──────────────────────────────────────────────
@@ -27,7 +27,9 @@ export const conversations = pgTable('conversations', {
   metadata: jsonb('metadata').default('{}'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
-});
+}, (t) => ({
+  clinicChannelExternalUniq: uniqueIndex('conversations_clinic_channel_external_unique').on(t.clinicId, t.channel, t.externalId),
+}));
 
 // ──────────────────────────────────────────────
 // MESSAGES

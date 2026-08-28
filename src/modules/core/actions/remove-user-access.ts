@@ -8,9 +8,8 @@ export const removeUserAccess = defineAction({
   module: 'core',
   requires: 'core:manage_users',
   label: 'Remover acesso de usuário a uma clínica',
-  input: z.object({ userId: z.string().min(1), clinicId: z.string().min(1) }),
+  input: z.object({ userId: z.string().min(1) }),
   handler: async (input, ctx) => {
-    assertClinicScope(input.clinicId, ctx);
-    return accessService.removeUserAccess(input);
+    return accessService.removeUserAccess({ userId: input.userId, clinicId: ctx.clinicId });
   },
 });

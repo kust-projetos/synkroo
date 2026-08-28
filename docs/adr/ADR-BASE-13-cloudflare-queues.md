@@ -18,7 +18,6 @@ Cloudflare Queues para jobs assíncronos (follow-ups, campanhas, webhooks, retri
 - DO como fila geral: mistura responsabilidades, sem DLQ nativa
 - Queue direto sem idempotency: duplicação em retry
 
-## Gap
+## Gap (2026-08-28 W9 em progresso)
 
-- Consumer agendado implementado; Cloudflare Queue nativa permanece alternativa futura, não requisito do outbox atual
-- A fila ISR do OpenNext é uma preocupação distinta e agora usa `DOQueueHandler` conforme ADR-BASE-02; este ADR continua limitado a jobs de negócio.
+Cron + PostgreSQL outbox real com service binding interno (`env.WORKER_SELF_REFERENCE.fetch` via `https://synkroo.internal`) sem `OUTBOX_WORKER_URL` e sem Queue nativa; worker com registry `operation→moduleId`, gating por `manifest.enabledModules`, concorrência 5 com `SKIP LOCKED`, `unknown operation` observável. Marcar Implementado após testes de concorrência sem double delivery e dry-run service binding em staging.

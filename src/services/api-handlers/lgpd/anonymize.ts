@@ -17,92 +17,21 @@ import { eq, and } from 'drizzle-orm'
 
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error?.message || 'Unauthorized' },
-        { status: authResult.error?.status || 401 },
-      )
-    }
-
-    const clinicId = authResult.profile!.clinic_id
-    const userId = authResult.profile!.id
-    const requestId = crypto.randomUUID()
-
-    const body = await request.json()
-    const { patientId } = body
-
+    const { buildUserContext } = await import('@/core/actions/context');
+    const { runAction } = await import('@/core/actions/run');
+    const { anonimizarPaciente } = await import('@/modules/operacional/actions/anonimizar-paciente');
+    const ctx = await buildUserContext();
+    const body = await request.json();
+    const { patientId } = body;
     if (!patientId) {
-      return NextResponse.json({ error: 'Missing required field: patientId' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing required field: patientId' }, { status: 400 });
     }
-
-    const db = getDb()
-    const anonymizedHex = crypto.randomUUID().replace(/-/g, '').substring(0, 8)
-    const anonymizedName = `ANONYMIZED_${anonymizedHex}`
-
-    // Step 0: Capture patient snapshot before anonymization
-    const [snapshot] = await db.select()
-      .from(patients)
-      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
-      .limit(1)
-
-    if (!snapshot) {
-      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+    const result = await runAction(anonimizarPaciente, { patientId }, ctx);
+    if (!result.ok) {
+      const status = result.error.code === 'not_found' ? 404 : result.error.code === 'forbidden' ? 403 : result.error.code === 'conflict' ? 423 : 400;
+      return NextResponse.json({ error: result.error.message }, { status });
     }
-
-    // F10.10 legal_hold impede purge
-    if ((snapshot as any).legalHold) {
-      return NextResponse.json({ error: 'Patient under legal hold' }, { status: 423 })
-    }
-
-    const oldValues = {
-      name: snapshot.name,
-      phone: snapshot.phone,
-      email: snapshot.email,
-      cpf: snapshot.cpf,
-      birthDate: snapshot.birthDate,
-    }
-
-    const newValues = {
-      name: anonymizedName,
-      phone: null,
-      email: null,
-      cpf: null,
-      birthDate: null,
-    }
-
-    // F10.07 transaction: patients + appointments + budgets + leads + audit em 1 tx
-    await db.transaction(async (tx) => {
-      await tx.update(patients)
-        .set(newValues as any)
-        .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
-
-      await tx.update(appointments)
-        .set({ notes: '[ANONYMIZED]' })
-        .where(and(eq(appointments.patientId, patientId), eq(appointments.clinicId, clinicId)))
-
-      await tx.update(budgets)
-        .set({ notes: '[ANONYMIZED]' })
-        .where(and(eq(budgets.patientId, patientId), eq(budgets.clinicId, clinicId)))
-
-      await tx.update(leads)
-        .set({ name: '[ANONYMIZED]', phone: null, email: null } as any)
-        .where(and(eq(leads.patientId, patientId), eq(leads.clinicId, clinicId)))
-
-      await tx.insert(auditLogs).values({
-        clinicId,
-        userId,
-        action: 'patient_anonymized',
-        entityType: 'patient',
-        entityId: patientId,
-        oldValues: oldValues as any,
-        newValues: newValues as any,
-        ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null,
-        userAgent: request.headers.get('user-agent') ?? null,
-      })
-    })
-
-    return NextResponse.json({ success: true, auditId: requestId })
+    return NextResponse.json({ success: true, data: result.data });
   } catch (error) {
     console.error('LGPD anonymize error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

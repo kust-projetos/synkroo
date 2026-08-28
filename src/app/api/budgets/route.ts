@@ -20,7 +20,13 @@ export async function GET(request: NextRequest) {
   }
   const clinicId = authResult.profile!.clinic_id;
   const budgets = await listBudgets(clinicId);
-  return NextResponse.json({ budgets });
+  const res = NextResponse.json({ budgets });
+  res.headers.set('Deprecation', 'true');
+  res.headers.set('Link', '</api/financeiro/budgets>; rel="successor-version"');
+  res.headers.set('X-Synkroo-Legacy-Route', '1');
+  // Telemetria aceita — log sem PII
+  console.log(JSON.stringify({ legacyRoute: 'GET /api/budgets', at: new Date().toISOString() }));
+  return res;
 }
 
 const legacyCreateBudgetSchema = z.object({
@@ -69,5 +75,10 @@ export async function POST(request: NextRequest) {
     })),
   });
 
-  return NextResponse.json({ budget }, { status: 201 });
+  const res = NextResponse.json({ budget }, { status: 201 });
+  res.headers.set('Deprecation', 'true');
+  res.headers.set('Link', '</api/financeiro/budgets>; rel="successor-version"');
+  res.headers.set('X-Synkroo-Legacy-Route', '1');
+  console.log(JSON.stringify({ legacyRoute: 'POST /api/budgets', at: new Date().toISOString() }));
+  return res;
 }

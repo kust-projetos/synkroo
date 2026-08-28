@@ -3,7 +3,6 @@ import type { RbacRepo, ClinicAccess } from '../repository';
 
 function repo(over: Partial<RbacRepo> = {}): RbacRepo {
   return {
-    isMaster: async () => false,
     getAccess: async () => ({ roleId: 'r1', roleName: 'Recepcionista', isSystem: true } as ClinicAccess),
     getRolePermissions: async () => ['operacional:create'],
     getOverrides: async () => [],
@@ -12,10 +11,10 @@ function repo(over: Partial<RbacRepo> = {}): RbacRepo {
 }
 
 describe('resolveAccess', () => {
-  it('master bypasses everything', async () => {
-    const a = await resolveAccess('u', 'c', repo({ isMaster: async () => true }));
-    expect(a.role).toBe('master');
-    expect(a.can('anything:at:all')).toBe(true);
+  it('denies when master is requested via role (no bypass)', async () => {
+    const a = await resolveAccess('u', 'c', repo({ getAccess: async () => null }));
+    expect(a.role).toBeNull();
+    expect(a.can('master:manage_modules')).toBe(false);
   });
 
   it('owner role bypasses within instance but NOT master-only perms', async () => {

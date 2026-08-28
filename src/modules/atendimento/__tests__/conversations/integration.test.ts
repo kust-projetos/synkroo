@@ -127,7 +127,7 @@ describeOrSkip('Atendimento — repository (P1 — real queries, no legacy)', ()
     const convId = convRows[0].id;
 
     const repo = await import('../../repositories/conversations-repository');
-    const msg = await repo.appendInboundMessage({
+    const msg = await repo.appendInboundMessage(CLINIC_ID, {
       conversationId: convId,
       content: 'Inbound test',
       metadata: { source: 'test' },
@@ -174,7 +174,7 @@ describeOrSkip('Atendimento — repository (P1 — real queries, no legacy)', ()
     const repo = await import('../../repositories/conversations-repository');
     const id = await repo.getOrCreateConversation(CLINIC_ID, 'web', 'web_ext_test');
 
-    const conv = await repo.findById(id);
+    const conv = await repo.findByIdForClinic(id, CLINIC_ID);
     expect(conv).not.toBeNull();
     expect(conv!.clinicId).toBe(CLINIC_ID);
     expect(conv!.channel).toBe('web');
@@ -185,7 +185,7 @@ describeOrSkip('Atendimento — repository (P1 — real queries, no legacy)', ()
     const repo = await import('../../repositories/conversations-repository');
     const id = await repo.getOrCreateConversation(CLINIC_ID, 'whatsapp', '+5511999993333');
 
-    await repo.updateConversation(id, {
+    await repo.updateConversation(CLINIC_ID, id, {
       lastMessageAt: new Date(),
       messageCountIncrement: 1,
     });
@@ -202,7 +202,7 @@ describeOrSkip('Atendimento — repository (P1 — real queries, no legacy)', ()
     await repo.createMessage({ conversationId: id, direction: 'inbound', content: 'First', isAi: false });
     await repo.createMessage({ conversationId: id, direction: 'outbound', content: 'Second', isAi: false });
 
-    const msgs = await repo.findMessagesByConversation(id);
+    const msgs = await repo.findMessagesByConversation(CLINIC_ID, id);
     expect(msgs.length).toBe(2);
     expect(msgs[0].content).toBe('First');
     expect(msgs[1].content).toBe('Second');
@@ -213,14 +213,14 @@ describeOrSkip('Atendimento — repository (P1 — real queries, no legacy)', ()
     const conv = await repo.findOrCreateConversation(CLINIC_ID, 'whatsapp', '+5511999991111');
     expect(conv).not.toBeNull();
 
-    const msg = await repo.appendInboundMessage({
+    const msg = await repo.appendInboundMessage(CLINIC_ID, {
       conversationId: conv!.id,
       content: 'Webhook test',
       metadata: { externalMessageId: 'ext-123' },
     });
     expect(msg.id).toBeDefined();
 
-    await repo.updateConversationTimestamp(conv!.id);
+    await repo.updateConversationTimestamp(CLINIC_ID, conv!.id, new Date());
 
     const { rows } = await pool!.query(`SELECT last_message_at FROM conversations WHERE id = $1`, [conv!.id]);
     expect(rows[0].last_message_at).not.toBeNull();

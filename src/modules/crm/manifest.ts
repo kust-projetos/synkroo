@@ -2,6 +2,7 @@
 export const crmManifest = {
   id: 'crm' as const,
   name: 'CRM',
+  dependsOn: ['operacional', 'comercial'] as const,
   alwaysOn: false,
   menu: [
     {

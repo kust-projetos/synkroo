@@ -15,8 +15,21 @@ const nextConfig: NextConfig = {
   },
 
   async headers() {
+    // CSP compatível com Next.js (inline scripts + HMR). Em produção, nonce seria ideal;
+    // para manter headers.test e e2e funcionais, allowlist unsafe-inline/unsafe-eval é o trade-off documentado.
+    const cspValue = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self' ws: wss:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join('; ');
     const securityHeaders = [
-      { key: 'Content-Security-Policy', value: "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'" },
+      { key: 'Content-Security-Policy', value: cspValue },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
       { key: 'X-Frame-Options', value: 'DENY' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },

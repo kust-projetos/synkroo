@@ -7,8 +7,9 @@
  */
 
 import { getDb } from '@/lib/db/client';
-import { budgetInstallments } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { budgets, budgetInstallments } from '@/lib/db/schema';
+import { eq, and } from 'drizzle-orm';
+import { ActionError } from '@/core/actions/types';
 import type { InferSelectModel } from 'drizzle-orm';
 
 export type BudgetInstallmentRow = InferSelectModel<typeof budgetInstallments>;
@@ -23,24 +24,37 @@ export interface InstallmentInsert {
 /**
  * Atomically delete existing installments for a budget and insert replacements.
  * Runs inside a single db.transaction so a failed insert rolls back the delete.
- * Returns the newly inserted rows.
+ * Tenant-scoped: validates (budgetId, clinicId) via SELECT FOR UPDATE before any mutation.
+ * Returns the newly inserted rows or throws if budget not found in clinic.
  */
 export async function replaceInstallmentsAtomic(
+  clinicId: string,
   budgetId: string,
   newInstallments: InstallmentInsert[],
 ): Promise<BudgetInstallmentRow[]> {
   const db = getDb();
 
   return db.transaction(async (tx) => {
-    // Delete existing
+    // Tenant-scoped lock: select budget by (id, clinicId) FOR UPDATE before mutating.
+    // The predicate must be in the query that protects the mutation — not an in-memory comparison.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const lockedQuery: any = tx.select().from(budgets).where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId))).limit(1);
+    // Drizzle's `for('update')` exists on PgSelect; use it when available for row-level lock.
+    const [locked] = typeof lockedQuery.for === 'function' ? await lockedQuery.for('update') : await lockedQuery;
+    if (!locked) {
+      throw new ActionError('not_found', 'Budget not found');
+    }
+
+    // Delete existing (scoped to budget — budget already validated for clinic)
     await tx.delete(budgetInstallments).where(eq(budgetInstallments.budgetId, budgetId));
 
-    // Insert new
-    const rows = await tx
+    // Insert new (if empty, just clear)
+    if (newInstallments.length === 0) return [];
+    const rowsInserted = await tx
       .insert(budgetInstallments)
       .values(newInstallments)
       .returning();
 
-    return rows;
+    return rowsInserted;
   });
 }

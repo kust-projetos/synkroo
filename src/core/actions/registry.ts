@@ -26,7 +26,10 @@ export function getAction(name: string): ActionDefinition<any, any> | undefined 
   return registry.get(name);
 }
 
-// Apenas para testes.
+// Apenas para testes — limpa registry e permite re-bootstrap.
 export function clearRegistry(): void {
+  registry.clear();
+}
+export function clearRegistryForTests(): void {
   registry.clear();
 }

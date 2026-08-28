@@ -18,7 +18,6 @@ export const processarWebhookWhatsApp = defineAction({
   requires: 'atendimento:manage_webhooks',
   label: 'Processar webhook WhatsApp',
   input: z.object({
-    clinicId: z.string(),
     from: z.string(),
     content: z.string(),
     messageType: z.enum(['text', 'image', 'audio', 'document']).optional().default('text'),
@@ -26,18 +25,14 @@ export const processarWebhookWhatsApp = defineAction({
     conversationId: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    assertClinicScope(input.clinicId, ctx);
+    const clinicId = ctx.clinicId;
     // Bridge to the existing service chain.
-    // Full processing (confirmation/waitlist/lead capture) happens in the
-    // legacy route handlers. This action is the seam for the route to call.
-    // The action validates auth and accepts the payload; the route handles
-    // the domain-specific processing before/after calling this action.
 
-    // If a conversationId is provided, verify it belongs to the clinic
+    // If a conversationId is provided, verify it belongs to the clinic via tenant-scoped lookup
     if (input.conversationId) {
-      const { findById } = await import('../repositories/conversations-repository');
-      const conv = await findById(input.conversationId);
-      if (!conv || conv.clinicId !== input.clinicId) {
+      const { findByIdForClinic } = await import('../repositories/conversations-repository');
+      const conv = await findByIdForClinic(input.conversationId, clinicId);
+      if (!conv) {
         return {
           success: false,
           error: 'Conversa não encontrada ou acesso negado.',

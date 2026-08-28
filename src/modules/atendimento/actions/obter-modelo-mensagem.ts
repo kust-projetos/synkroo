@@ -13,13 +13,12 @@ export const obterModeloMensagem = defineAction({
     conversationId: z.string().uuid().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    // If a conversation is provided, get the clinic from it
-    let clinicId = ctx.clinicId;
+    // Never substitute ctx.clinicId by conversation's clinic. If conversationId provided, only validate ownership.
     if (input.conversationId) {
-      const conv = await repo.findById(input.conversationId);
-      if (conv) clinicId = conv.clinicId;
+      const conv = await repo.findByIdForClinic(input.conversationId, ctx.clinicId);
+      if (!conv) throw new (await import('@/core/actions/types')).ActionError('not_found', 'Conversa não encontrada.');
     }
-    const templates = await getApprovedTemplates(clinicId);
+    const templates = await getApprovedTemplates(ctx.clinicId);
     return { templates };
   },
 });

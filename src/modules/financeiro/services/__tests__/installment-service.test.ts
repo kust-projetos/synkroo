@@ -10,11 +10,18 @@ jest.mock('@/lib/db/client', () => ({
 
 jest.mock('../../repositories/financeiro-repository', () => ({
   listInstallments: jest.fn(),
+  listInstallmentsForClinic: jest.fn(),
   getInstallment: jest.fn(),
   updateInstallment: jest.fn(),
   deleteInstallment: jest.fn(),
   listPaymentsByBudget: jest.fn(),
+  listPaymentsByBudgetForClinic: jest.fn(),
   getBudget: jest.fn(),
+  getBudgetForClinic: jest.fn(),
+}));
+
+jest.mock('../../repositories/financeiro-scope-repository', () => ({
+  getBudgetForClinic: jest.fn(),
 }));
 
 jest.mock('../../repositories/installment-replacement-repository', () => ({
@@ -34,40 +41,47 @@ import * as atomicRepo from '../../repositories/installment-replacement-reposito
 
 const BUDGET_ID = randomUUID();
 const INSTALLMENT_ID = randomUUID();
+const CLINIC_ID = randomUUID();
 
 beforeEach(() => {
   jest.clearAllMocks();
 });
 
 describe('replaceInstallments', () => {
-  it('returns empty array when installments input is empty', async () => {
-    const result = await replaceInstallments(BUDGET_ID, []);
+  it('returns empty array when installments input is empty but still validates tenant via atomic', async () => {
+    (atomicRepo.replaceInstallmentsAtomic as jest.Mock).mockResolvedValue([]);
+    const result = await replaceInstallments(CLINIC_ID, BUDGET_ID, []);
     expect(result).toEqual([]);
-    expect(atomicRepo.replaceInstallmentsAtomic).not.toHaveBeenCalled();
+    expect(atomicRepo.replaceInstallmentsAtomic).toHaveBeenCalledWith(CLINIC_ID, BUDGET_ID, []);
   });
 
-  it('delegates to atomic repo with mapped data', async () => {
+  it('delegates to atomic repo with mapped data and tenant', async () => {
     const mockRows = [{ id: 'i1', budgetId: BUDGET_ID, amount: '100.00' }];
     (atomicRepo.replaceInstallmentsAtomic as jest.Mock).mockResolvedValue(mockRows);
 
-    const result = await replaceInstallments(BUDGET_ID, [
+    const result = await replaceInstallments(CLINIC_ID, BUDGET_ID, [
       { amount: 100, dueDate: '2026-08-15' },
     ]);
 
     expect(result).toEqual(mockRows);
-    expect(atomicRepo.replaceInstallmentsAtomic).toHaveBeenCalledWith(BUDGET_ID, [
+    expect(atomicRepo.replaceInstallmentsAtomic).toHaveBeenCalledWith(CLINIC_ID, BUDGET_ID, [
       { budgetId: BUDGET_ID, amount: '100', dueDate: '2026-08-15', status: 'pending' },
     ]);
   });
 });
 
 describe('listInstallments', () => {
-  it('delegates to repo', async () => {
+  it('throws not_found when budget not in clinic and delegates to repo when found', async () => {
+    const scopeRepo = await import('../../repositories/financeiro-scope-repository');
+    (scopeRepo.getBudgetForClinic as jest.Mock).mockResolvedValueOnce(null);
+    await expect(listInstallments(CLINIC_ID, BUDGET_ID)).rejects.toMatchObject({ code: 'not_found' });
+
+    (scopeRepo.getBudgetForClinic as jest.Mock).mockResolvedValueOnce({ id: BUDGET_ID, clinicId: CLINIC_ID });
     const mockRows = [{ id: INSTALLMENT_ID }];
-    (repo.listInstallments as jest.Mock).mockResolvedValue(mockRows);
-    const result = await listInstallments(BUDGET_ID);
+    (repo.listInstallmentsForClinic as jest.Mock).mockResolvedValue(mockRows);
+    const result = await listInstallments(CLINIC_ID, BUDGET_ID);
     expect(result).toEqual(mockRows);
-    expect(repo.listInstallments).toHaveBeenCalledWith(BUDGET_ID);
+    expect(repo.listInstallmentsForClinic).toHaveBeenCalledWith(CLINIC_ID, BUDGET_ID);
   });
 });
 
@@ -100,35 +114,34 @@ describe('deleteInstallment', () => {
 });
 
 describe('calculateRemainingBalance', () => {
-  it('returns 0 when budget is not found', async () => {
-    (repo.getBudget as jest.Mock).mockResolvedValue(null);
-    const result = await calculateRemainingBalance(BUDGET_ID);
-    expect(result).toBe(0);
+  it('throws not_found when budget not in clinic', async () => {
+    (repo.getBudgetForClinic as jest.Mock).mockResolvedValue(null);
+    await expect(calculateRemainingBalance(CLINIC_ID, BUDGET_ID)).rejects.toMatchObject({ code: 'not_found' });
   });
 
   it('returns 0 when budget finalValue is missing', async () => {
-    (repo.getBudget as jest.Mock).mockResolvedValue({ finalValue: null });
-    (repo.listPaymentsByBudget as jest.Mock).mockResolvedValue([]);
-    const result = await calculateRemainingBalance(BUDGET_ID);
+    (repo.getBudgetForClinic as jest.Mock).mockResolvedValue({ finalValue: null });
+    (repo.listPaymentsByBudgetForClinic as jest.Mock).mockResolvedValue([]);
+    const result = await calculateRemainingBalance(CLINIC_ID, BUDGET_ID);
     expect(result).toBe(0);
   });
 
   it('calculates remaining balance correctly', async () => {
-    (repo.getBudget as jest.Mock).mockResolvedValue({ finalValue: '500.00' });
-    (repo.listPaymentsByBudget as jest.Mock).mockResolvedValue([
+    (repo.getBudgetForClinic as jest.Mock).mockResolvedValue({ finalValue: '500.00' });
+    (repo.listPaymentsByBudgetForClinic as jest.Mock).mockResolvedValue([
       { amount: '100' },
       { amount: '50.50' },
     ]);
-    const result = await calculateRemainingBalance(BUDGET_ID);
+    const result = await calculateRemainingBalance(CLINIC_ID, BUDGET_ID);
     expect(result).toBe(349.5);
   });
 
   it('returns 0 when payments exceed budget', async () => {
-    (repo.getBudget as jest.Mock).mockResolvedValue({ finalValue: '100.00' });
-    (repo.listPaymentsByBudget as jest.Mock).mockResolvedValue([
+    (repo.getBudgetForClinic as jest.Mock).mockResolvedValue({ finalValue: '100.00' });
+    (repo.listPaymentsByBudgetForClinic as jest.Mock).mockResolvedValue([
       { amount: '200' },
     ]);
-    const result = await calculateRemainingBalance(BUDGET_ID);
+    const result = await calculateRemainingBalance(CLINIC_ID, BUDGET_ID);
     expect(result).toBe(0);
   });
 });

@@ -8,6 +8,8 @@
 
 import { ActionError } from '@/core/actions/types';
 import * as repo from '../repositories/appointments-repository';
+import * as patientsRepo from '../repositories/patients-repository';
+import * as catalogRepo from '../repositories/catalog-repository';
 import * as waitlistRepo from '../repositories/waitlist-repository';
 
 export interface AppointmentInput {
@@ -21,6 +23,17 @@ export interface AppointmentInput {
 }
 
 export async function agendarConsulta(input: AppointmentInput) {
+  // W1.3: validate relational ownership before insert
+  const patient = await patientsRepo.findById(input.clinicId, input.patientId);
+  if (!patient) throw new ActionError('not_found', 'Paciente não encontrado.');
+  if (input.dentistId) {
+    const dentist = await catalogRepo.findDentistById(input.clinicId, input.dentistId);
+    if (!dentist) throw new ActionError('not_found', 'Dentista não encontrado.');
+  }
+  if (input.procedureId) {
+    const procedure = await catalogRepo.findProcedureById(input.clinicId, input.procedureId);
+    if (!procedure) throw new ActionError('not_found', 'Procedimento não encontrado.');
+  }
   try {
     const appt = await repo.createAppointment(input);
     if (!appt) throw new ActionError('internal', 'Erro ao criar agendamento.');

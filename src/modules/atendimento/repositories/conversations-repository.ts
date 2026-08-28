@@ -170,7 +170,7 @@ export async function countByClinic(clinicId: string, opts?: { status?: string; 
   return row?.count ?? 0;
 }
 
-export async function findById(id: string): Promise<{
+export async function findByIdForClinic(id: string, clinicId: string): Promise<{
   id: string
   clinicId: string
   patientId: string | null
@@ -197,7 +197,7 @@ export async function findById(id: string): Promise<{
       updatedAt: conversations.updatedAt,
     })
     .from(conversations)
-    .where(eq(conversations.id, id))
+    .where(and(eq(conversations.id, id), eq(conversations.clinicId, clinicId)))
     .limit(1);
   return (row as any) ?? null;
 }
@@ -215,12 +215,13 @@ export async function findByExternalId(clinicId: string, channel: string, extern
     .limit(1);
 }
 
-export async function findByChannelAndExternalId(channel: string, externalId: string) {
+export async function findByChannelAndExternalId(clinicId: string, channel: string, externalId: string) {
   const db = getDb();
   return db
     .select({ id: conversations.id })
     .from(conversations)
     .where(and(
+      eq(conversations.clinicId, clinicId),
       eq(conversations.channel, channel as any),
       eq(conversations.externalId, externalId),
     ));
@@ -272,6 +273,7 @@ export async function getOrCreateConversation(
 // ─── Message queries ───────────────────────────────────────────
 
 export async function findMessagesByConversation(
+  clinicId: string,
   conversationId: string,
   opts?: { limit?: number; page?: number }
 ): Promise<MessageRow[]> {
@@ -297,7 +299,8 @@ export async function findMessagesByConversation(
       createdAt: messages.createdAt,
     })
     .from(messages)
-    .where(eq(messages.conversationId, conversationId))
+    .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(eq(messages.conversationId, conversationId), eq(conversations.clinicId, clinicId)))
     .orderBy(asc(messages.createdAt))
     .limit(limit)
     .offset(offset);
@@ -320,16 +323,17 @@ export async function findMessagesByConversation(
   } as MessageRow));
 }
 
-export async function countMessagesByConversation(conversationId: string): Promise<number> {
+export async function countMessagesByConversation(clinicId: string, conversationId: string): Promise<number> {
   const db = getDb();
   const [row] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(messages)
-    .where(eq(messages.conversationId, conversationId));
+    .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(eq(messages.conversationId, conversationId), eq(conversations.clinicId, clinicId)));
   return row?.count ?? 0;
 }
 
-export async function getLastMessage(conversationId: string): Promise<{
+export async function getLastMessage(clinicId: string, conversationId: string): Promise<{
   content: string; direction: string; intent: string | null; createdAt: Date | null
 } | null> {
   const db = getDb();
@@ -341,13 +345,15 @@ export async function getLastMessage(conversationId: string): Promise<{
       createdAt: messages.createdAt,
     })
     .from(messages)
-    .where(eq(messages.conversationId, conversationId))
+    .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(eq(messages.conversationId, conversationId), eq(conversations.clinicId, clinicId)))
     .orderBy(desc(messages.createdAt))
     .limit(1);
   return (rows[0] as any) ?? null;
 }
 
 export async function getConversationContext(
+  clinicId: string,
   conversationId: string,
   limit = 10,
 ): Promise<Array<{ role: string; content: string; intent: string | null }>> {
@@ -355,7 +361,8 @@ export async function getConversationContext(
   const rows = await db
     .select({ role: messages.direction, content: messages.content, intent: messages.intent })
     .from(messages)
-    .where(eq(messages.conversationId, conversationId))
+    .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(eq(messages.conversationId, conversationId), eq(conversations.clinicId, clinicId)))
     .orderBy(desc(messages.createdAt))
     .limit(limit);
   return rows.reverse().map((r: any) => ({
@@ -365,13 +372,14 @@ export async function getConversationContext(
   }));
 }
 
-export async function getPatientInsights(patientId: string) {
+export async function getPatientInsights(clinicId: string, patientId: string) {
   const db = getDb();
   const [apptCount] = await db
     .select({ count: sql<number>`count(*)` })
     .from(messages)
     .innerJoin(conversations, eq(conversations.id, messages.conversationId))
     .where(and(
+      eq(conversations.clinicId, clinicId),
       eq(conversations.patientId, patientId),
       sql`${messages.createdAt} > NOW() - INTERVAL '90 days'`,
     ));
@@ -411,17 +419,25 @@ export async function createMessage(data: {
   return row as MessageRow;
 }
 
-export async function updateMessage(id: string, data: Record<string, unknown>): Promise<MessageRow | null> {
+export async function updateMessage(clinicId: string, messageId: string, patch: Record<string, unknown>): Promise<MessageRow | null> {
   const db = getDb();
+  // Verify message belongs to clinic via conversation join
+  const [exists] = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(eq(messages.id, messageId), eq(conversations.clinicId, clinicId)))
+    .limit(1);
+  if (!exists) return null;
   const [row] = await db
     .update(messages)
-    .set(data as any)
-    .where(eq(messages.id, id))
+    .set(patch as any)
+    .where(eq(messages.id, messageId))
     .returning();
   return (row as MessageRow | null) ?? null;
 }
 
-export async function updateConversation(id: string, data: {
+export async function updateConversation(clinicId: string, conversationId: string, patch: {
   lastMessageAt?: Date
   status?: string
   messageCountIncrement?: number
@@ -430,21 +446,22 @@ export async function updateConversation(id: string, data: {
 }): Promise<void> {
   const db = getDb();
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
-  if (data.lastMessageAt) updateData.lastMessageAt = data.lastMessageAt;
-  if (data.status) updateData.status = data.status;
-  if (data.metadata) updateData.metadata = data.metadata;
-  if ('patientId' in data) updateData.patientId = data.patientId;
+  if (patch.lastMessageAt) updateData.lastMessageAt = patch.lastMessageAt;
+  if (patch.status) updateData.status = patch.status;
+  if (patch.metadata) updateData.metadata = patch.metadata;
+  if ('patientId' in patch) updateData.patientId = patch.patientId;
 
-  if (data.messageCountIncrement !== undefined) {
+  if (patch.messageCountIncrement !== undefined) {
     const [row] = await db
       .select({ messageCount: conversations.messageCount })
       .from(conversations)
-      .where(eq(conversations.id, id))
+      .where(and(eq(conversations.id, conversationId), eq(conversations.clinicId, clinicId)))
       .limit(1);
-    updateData.messageCount = (row?.messageCount ?? 0) + data.messageCountIncrement;
+    if (!row) return;
+    updateData.messageCount = (row.messageCount ?? 0) + patch.messageCountIncrement;
   }
 
-  await db.update(conversations).set(updateData as any).where(eq(conversations.id, id));
+  await db.update(conversations).set(updateData as any).where(and(eq(conversations.id, conversationId), eq(conversations.clinicId, clinicId)));
 }
 
 export async function createConversation(data: {
@@ -490,13 +507,16 @@ export async function escalateConversation(id: string, clinicId: string) {
 
 // ─── Webhook helpers (consumed by webhook-processor-service) ───
 
-/** Insert an inbound message. Convenience wrapper around createMessage. */
-export async function appendInboundMessage(data: {
+/** Insert an inbound message — tenant-scoped. */
+export async function appendInboundMessage(clinicId: string, data: {
   conversationId: string;
   content: string;
   messageType?: string;
   metadata?: Record<string, unknown>;
 }): Promise<MessageRow> {
+  const db = getDb();
+  const [conv] = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.id, data.conversationId), eq(conversations.clinicId, clinicId))).limit(1);
+  if (!conv) throw Object.assign(new Error('Conversation not found'), { code: 'not_found' });
   return createMessage({
     conversationId: data.conversationId,
     direction: 'inbound',
@@ -507,14 +527,17 @@ export async function appendInboundMessage(data: {
   });
 }
 
-/** Insert an outbound message. Convenience wrapper around createMessage. */
-export async function appendOutboundMessage(data: {
+/** Insert an outbound message — tenant-scoped. */
+export async function appendOutboundMessage(clinicId: string, data: {
   conversationId: string;
   content: string;
   messageType?: string;
   intent?: string | null;
   metadata?: Record<string, unknown>;
 }): Promise<MessageRow> {
+  const db = getDb();
+  const [conv] = await db.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.id, data.conversationId), eq(conversations.clinicId, clinicId))).limit(1);
+  if (!conv) throw Object.assign(new Error('Conversation not found'), { code: 'not_found' });
   return createMessage({
     conversationId: data.conversationId,
     direction: 'outbound',
@@ -555,12 +578,12 @@ export async function findOrCreateConversation(
   return (conv as any) ?? null;
 }
 
-/** Update conversation lastMessageAt timestamp. */
-export async function updateConversationTimestamp(conversationId: string): Promise<void> {
+/** Update conversation lastMessageAt timestamp — tenant-scoped. */
+export async function updateConversationTimestamp(clinicId: string, conversationId: string, at: Date): Promise<void> {
   const db = getDb();
   await db.update(conversations)
-    .set({ lastMessageAt: new Date() } as any)
-    .where(eq(conversations.id, conversationId));
+    .set({ lastMessageAt: at, updatedAt: new Date() } as any)
+    .where(and(eq(conversations.id, conversationId), eq(conversations.clinicId, clinicId)));
 }
 
 // ─── Cross-domain helpers (webhook-processor queries on non-conversation tables) ───
@@ -600,12 +623,12 @@ export async function findAppointmentById(appointmentId: string, clinicId: strin
     .limit(1);
 }
 
-/** Update appointment status (button response handler). */
-export async function updateAppointmentStatus(appointmentId: string, status: string, notes: string): Promise<void> {
+/** Update appointment status (button response handler) — tenant-scoped. */
+export async function updateAppointmentStatus(clinicId: string, appointmentId: string, status: string): Promise<void> {
   const db = getDb();
   await db.update(appointments)
-    .set({ status: status as any, notes } as any)
-    .where(eq(appointments.id, appointmentId));
+    .set({ status: status as any, updatedAt: new Date() } as any)
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)));
 }
 
 /** Resolve clinic by instagram account ID stored in settings. */
@@ -673,4 +696,68 @@ export async function appendInboundMessageDeduped(data: {
     .onConflictDoNothing({ target: [messages.externalProvider, messages.externalMessageId] })
     .returning({ id: messages.id });
   return msg ? { deduped: false, id: msg.id } : { deduped: true };
+}
+
+/**
+ * W6.2: Primitive transacional única para inbound — upsert conversation, dedup message, update aggregate atomically.
+ * externalMessageId é obrigatório; evento sem ID falha visivelmente.
+ */
+export async function persistInboundMessage(input: {
+  clinicId: string;
+  channel: 'whatsapp' | 'web';
+  externalConversationId: string;
+  externalProvider: string;
+  externalMessageId: string;
+  content: string;
+  messageType: string;
+  metadata: Record<string, unknown>;
+}): Promise<{ deduped: true; conversationId: string } | { deduped: false; conversationId: string; messageId: string }> {
+  if (!input.externalMessageId) throw new Error('externalMessageId is required for inbound dedup');
+  const db = getDb();
+  return db.transaction(async (tx: any) => {
+    // 1. Upsert conversation por (clinicId, channel, externalConversationId)
+    let conversationId: string;
+    const [existing] = await tx.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.clinicId, input.clinicId), eq(conversations.channel, input.channel as any), eq(conversations.externalId, input.externalConversationId))).limit(1);
+    if (existing) {
+      conversationId = existing.id;
+    } else {
+      const [conv] = await tx.insert(conversations).values({
+        clinicId: input.clinicId,
+        channel: input.channel as any,
+        externalId: input.externalConversationId,
+        status: 'active' as any,
+      } as any).onConflictDoNothing().returning({ id: conversations.id });
+      if (conv) {
+        conversationId = conv.id;
+      } else {
+        const [retry] = await tx.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.clinicId, input.clinicId), eq(conversations.channel, input.channel as any), eq(conversations.externalId, input.externalConversationId))).limit(1);
+        if (!retry) throw new Error('Failed to upsert conversation');
+        conversationId = retry.id;
+      }
+    }
+    // 2. Insert message with onConflictDoNothing
+    const [msg] = await tx.insert(messages).values({
+      conversationId,
+      direction: 'inbound' as any,
+      content: input.content,
+      messageType: input.messageType as any,
+      externalProvider: input.externalProvider,
+      externalMessageId: input.externalMessageId,
+      metadata: input.metadata ?? {},
+      isAi: false,
+    } as any).onConflictDoNothing({ target: [messages.externalProvider, messages.externalMessageId] }).returning({ id: messages.id });
+    if (!msg) {
+      // deduped — não alterar aggregate, não enfileirar side effects
+      return { deduped: true as const, conversationId };
+    }
+    // 4. Update aggregate atomically na mesma tx
+    await tx.update(conversations).set({
+      messageCount: sql`${conversations.messageCount} + 1`,
+      lastMessageAt: new Date(),
+      updatedAt: new Date(),
+    } as any).where(and(eq(conversations.id, conversationId), eq(conversations.clinicId, input.clinicId)));
+    // 5. Enfileirar eventos pós-persistência (placeholder — W9 outbox)
+    // Nota: producer/handler idempotente será criado no mesmo task; por enquanto apenas log
+    return { deduped: false as const, conversationId, messageId: msg.id };
+  });
 }

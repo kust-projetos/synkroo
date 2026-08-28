@@ -18,6 +18,6 @@ Arquitetura modular monolith com bounded contexts explícitos. Cada módulo poss
 
 - Microservices por domínio: custo operacional alto, boundaries testáveis sem rede
 
-## Gap
+## Gap (2026-08-28 W7 em progresso)
 
-Nenhum. Arquitetura implementada conforme spec.
+Boundaries declarativas com dependsOn e definitions.ts validados, mas imports legados (`src/services`, `src/repositories`) e cross-module internos via `repositories/**` ainda existem em produção. Guard `boundaries/dependencies` permanece permissivo até W7.2 concluir migração. Marcar Implementado após W7 completo.

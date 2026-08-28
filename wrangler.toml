@@ -14,6 +14,11 @@ service = "synkroo-ia-bridge"
 entrypoint = "AppService"
 
 [[services]]
+binding = "IA_HANDLE_ISSUER"
+service = "synkroo-ia-bridge"
+entrypoint = "HandleIssuerService"
+
+[[services]]
 binding = "WORKER_SELF_REFERENCE"
 service = "synkroo"
 
@@ -41,7 +46,6 @@ localConnectionString = "postgres://synkroo:change-me-local-dev-password@localho
 
 [vars]
 NODE_ENV = "production"
-OUTBOX_WORKER_URL = "https://synkroo.walissonead.workers.dev"
 
 [env.staging]
 name = "synkroo-staging"
@@ -49,11 +53,15 @@ name = "synkroo-staging"
 [env.staging.vars]
 NODE_ENV = "production"
 ENVIRONMENT = "staging"
-OUTBOX_WORKER_URL = "https://synkroo-staging.walissonead.workers.dev"
 [[env.staging.services]]
 binding = "IA_BRIDGE"
 service = "synkroo-ia-bridge-staging"
 entrypoint = "AppService"
+
+[[env.staging.services]]
+binding = "IA_HANDLE_ISSUER"
+service = "synkroo-ia-bridge-staging"
+entrypoint = "HandleIssuerService"
 
 [[env.staging.services]]
 binding = "WORKER_SELF_REFERENCE"

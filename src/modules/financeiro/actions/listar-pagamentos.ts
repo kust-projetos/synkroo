@@ -9,11 +9,11 @@ export const listarPagamentos = defineAction({
   requires: 'financeiro:view',
   label: 'Listar pagamentos',
   input: z.object({
-    clinicId: z.string().uuid(),
     budgetId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const payments = await listPayments(input.budgetId);
+  handler: async (input, ctx: ActionContext) => {
+    const clinicId = ctx.clinicId;
+    const payments = await listPayments(clinicId, input.budgetId);
     return { data: payments };
   },
 });

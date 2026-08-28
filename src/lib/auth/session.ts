@@ -72,21 +72,19 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
   if (!session?.user?.id) return null;
 
   try {
-    const profile = await findUserProfileById(session.user.id);
+    // W3.1: autoridade é user_clinic_access — role efetiva vem da clínica ativa
+    const activeClinicId = (session.user as any).clinicId as string | undefined;
+    const profile = await findUserProfileById(session.user.id, activeClinicId);
     if (!profile || !profile.isActive) return null;
-    const sessionVersion = session.user.sessionVersion;
+    const sessionVersion = (session.user as any).sessionVersion;
     if (
       sessionVersion !== undefined &&
       sessionVersion !== profile.sessionVersion
     )
       return null;
-    const activeProfile = toProfileCamel(profile);
-    if (session.user.clinicId) {
-      if (!(await hasUserClinicAccess(session.user.id, session.user.clinicId)))
-        return null;
-      activeProfile.clinic_id = session.user.clinicId;
-    }
-    return activeProfile;
+    // findUserProfileById já validou membership da clínica ativa; não precisa hasUserClinicAccess separado
+    // Mas mantemos fallback para sessão sem clinicId (primeiro login) — já resolvido via legacy branch
+    return toProfileCamel(profile);
   } catch {
     return null;
   }

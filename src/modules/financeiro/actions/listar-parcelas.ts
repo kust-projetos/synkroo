@@ -9,12 +9,12 @@ export const listarParcelas = defineAction({
   requires: 'financeiro:view',
   label: 'Listar parcelas',
   input: z.object({
-    clinicId: z.string().uuid(),
     budgetId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const installments = await listInstallments(input.budgetId);
-    const remainingBalance = await calculateRemainingBalance(input.budgetId);
+  handler: async (input, ctx: ActionContext) => {
+    const clinicId = ctx.clinicId;
+    const installments = await listInstallments(clinicId, input.budgetId);
+    const remainingBalance = await calculateRemainingBalance(clinicId, input.budgetId);
     return { data: installments, remaining_balance: remainingBalance };
   },
 });

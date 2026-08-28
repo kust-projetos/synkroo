@@ -9,12 +9,12 @@ import { eq, and, isNull, or } from 'drizzle-orm';
 
 // ─── Dentists ────────────────────────────────────────────────────────────────
 
-export async function findDentistById(id: string) {
+export async function findDentistById(clinicId: string, id: string) {
   const db = getDb();
   const [row] = await db
     .select()
     .from(dentists)
-    .where(and(eq(dentists.id, id), isNull(dentists.deletedAt)))
+    .where(and(eq(dentists.clinicId, clinicId), eq(dentists.id, id), isNull(dentists.deletedAt)))
     .limit(1);
   return row ?? null;
 }
@@ -63,12 +63,12 @@ export async function updateDentist(
 
 // ─── Procedures ─────────────────────────────────────────────────────────────
 
-export async function findProcedureById(id: string) {
+export async function findProcedureById(clinicId: string, id: string) {
   const db = getDb();
   const [row] = await db
     .select()
     .from(procedures)
-    .where(and(eq(procedures.id, id), isNull(procedures.deletedAt)))
+    .where(and(eq(procedures.clinicId, clinicId), eq(procedures.id, id), isNull(procedures.deletedAt)))
     .limit(1);
   return row ?? null;
 }

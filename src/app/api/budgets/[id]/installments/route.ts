@@ -17,7 +17,6 @@ import {
   updateInstallmentForBudget,
   deleteInstallmentForBudget,
 } from '@/modules/financeiro/services/budget-scope-service';
-import { getBudget } from '@/modules/financeiro/services/budget-service';
 import { handleApiError, ValidationError } from '@/lib/errors';
 
 const createInstallmentsSchema = z.object({
@@ -35,12 +34,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id;
     const { id } = await params;
 
-    const budget = await getBudget(id);
+    const budget = await getBudgetForClinic(id, clinicId);
     if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-    if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    const installments = await listInstallments(id);
-    const remainingBalance = await calculateRemainingBalance(id);
+    const installments = await listInstallments(clinicId, id);
+    const remainingBalance = await calculateRemainingBalance(clinicId, id);
 
     return NextResponse.json({ installments, remaining_balance: remainingBalance });
   } catch (error) {
@@ -55,9 +53,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const clinicId = authResult.profile!.clinic_id;
     const { id } = await params;
 
-    const budget = await getBudget(id);
+    const budget = await getBudgetForClinic(id, clinicId);
     if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-    if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const rawBody = await request.json();
     const body = createInstallmentsSchema.parse(rawBody);
@@ -68,7 +65,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       dueDate: i.due_date,
     }));
 
-    const saved = await replaceInstallments(id, installments);
+    const saved = await replaceInstallments(clinicId, id, installments);
 
     return NextResponse.json({ installments: saved }, { status: 201 });
   } catch (error) {

@@ -38,8 +38,9 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    const clinicId = authResult.profile!.clinic_id;
     const { id } = await params;
-    const payments = await listPayments(id);
+    const payments = await listPayments(clinicId, id);
 
     return NextResponse.json({ payments });
   } catch (error) {
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       amount: body.amount,
       paymentMethod: body.payment_method,
       notes: body.notes,
+      actorUserId: userId ?? null,
     });
 
     return NextResponse.json({ payment, remaining_balance: null }, { status: 201 });

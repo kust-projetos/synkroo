@@ -6,15 +6,17 @@
  */
 
 import {
-  listInstallments as repoList,
   getInstallment as repoGet,
   updateInstallment as repoUpdate,
   deleteInstallment as repoDelete,
-  listPaymentsByBudget as repoListPayments,
-  getBudget as repoGetBudget,
+  listInstallmentsForClinic as repoListForClinic,
+  listPaymentsByBudgetForClinic as repoListPayments,
+  getBudgetForClinic as repoGetBudgetForClinic,
   type BudgetInstallmentRow,
 } from '../repositories/financeiro-repository';
+import { getBudgetForClinic } from '../repositories/financeiro-scope-repository';
 import { replaceInstallmentsAtomic } from '../repositories/installment-replacement-repository';
+import { ActionError } from '@/core/actions/types';
 
 export interface InstallmentInput {
   amount: number;
@@ -23,15 +25,25 @@ export interface InstallmentInput {
 
 /**
  * Replace installments for a budget: delete existing, insert new.
+ * Tenant-scoped: validates (budgetId, clinicId) via FOR UPDATE before mutation.
  * Uses atomic transaction so a failed insert rolls back the delete.
  */
 export async function replaceInstallments(
+  clinicId: string,
   budgetId: string,
   installments: InstallmentInput[],
 ): Promise<BudgetInstallmentRow[]> {
-  if (installments.length === 0) return [];
+  if (installments.length === 0) {
+    // Still need to validate tenant and clear installments atomically
+    return replaceInstallmentsAtomic(
+      clinicId,
+      budgetId,
+      [],
+    );
+  }
 
   return replaceInstallmentsAtomic(
+    clinicId,
     budgetId,
     installments.map(inst => ({
       budgetId,
@@ -43,23 +55,30 @@ export async function replaceInstallments(
 }
 
 /**
- * List installments for a budget.
+ * List installments for a budget — tenant-scoped.
+ * Returns empty if budget not in clinic (not_found semantics handled by caller).
  */
-export async function listInstallments(budgetId: string): Promise<BudgetInstallmentRow[]> {
-  return repoList(budgetId);
+export async function listInstallments(clinicId: string, budgetId: string): Promise<BudgetInstallmentRow[]> {
+  const budget = await getBudgetForClinic(budgetId, clinicId);
+  if (!budget) {
+    throw new ActionError('not_found', 'Budget not found');
+  }
+  return repoListForClinic(clinicId, budgetId);
 }
 
 /**
- * Calculate the remaining balance for a budget.
+ * Calculate the remaining balance for a budget — tenant-scoped.
  * Formula: finalValue - sum of settled payments.
- * Returns 0 if budget not found.
+ * Throws not_found if budget not in clinic.
  */
-export async function calculateRemainingBalance(budgetId: string): Promise<number> {
-  const budget = await repoGetBudget(budgetId);
-  if (!budget) return 0;
+export async function calculateRemainingBalance(clinicId: string, budgetId: string): Promise<number> {
+  const budget = await repoGetBudgetForClinic(budgetId, clinicId);
+  if (!budget) {
+    throw new ActionError('not_found', 'Budget not found');
+  }
 
   const finalValue = parseFloat(budget.finalValue ?? '0');
-  const payments = await repoListPayments(budgetId);
+  const payments = await repoListPayments(clinicId, budgetId);
   const paidTotal = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
 
   return Math.max(0, Math.round((finalValue - paidTotal) * 100) / 100);

@@ -1,7 +1,7 @@
 # ADR-BASE-14: Sem Master Permanente no Banco Clínico
 
-**Status:** ✅ Auditado (ação: decisão pendente)  
-**Data:** 2026-07-29 (auditoria concluída)
+**Status:** ✅ Implementado (2026-08-28) — `users.is_master` removido, bypass `can:()=>true` eliminado, `master:*` via role_permissions tenant-scoped
+**Data:** 2026-07-29 (auditoria concluída) → 2026-08-28 (implementado W3.3)
 
 ## Decisão
 

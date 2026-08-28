@@ -156,7 +156,7 @@ export async function createWithItems(data: {
 					notes: item.notes ?? null,
 				})),
 			)
-			.returning()) as [BudgetItemRow];
+			.returning()) as unknown as BudgetItemRow[];
 		items.push(...inserted);
 	}
 
@@ -220,7 +220,7 @@ export async function findNeedingFollowUp(
 		const items = (await db
 			.select()
 			.from(budgetItems)
-			.where(eq(budgetItems.budgetId, row.id))) as [BudgetItemRow];
+			.where(eq(budgetItems.budgetId, row.id))) as unknown as BudgetItemRow[];
 		result.push({ ...row, items });
 	}
 
@@ -296,7 +296,7 @@ export async function findById(
 	const items = (await db
 		.select()
 		.from(budgetItems)
-		.where(eq(budgetItems.budgetId, budgetId))) as [BudgetItemRow];
+		.where(eq(budgetItems.budgetId, budgetId))) as unknown as BudgetItemRow[];
 
 	return { ...row, items };
 }
@@ -359,7 +359,7 @@ export async function findByClinic(params: {
 		const items = (await db
 			.select()
 			.from(budgetItems)
-			.where(eq(budgetItems.budgetId, row.id))) as [BudgetItemRow];
+			.where(eq(budgetItems.budgetId, row.id))) as unknown as BudgetItemRow[];
 		result.push({ ...row, items });
 	}
 
@@ -450,7 +450,7 @@ export async function findByTreatmentPlan(
 		const items = (await db
 			.select()
 			.from(budgetItems)
-			.where(eq(budgetItems.budgetId, row.id))) as [BudgetItemRow];
+			.where(eq(budgetItems.budgetId, row.id))) as unknown as BudgetItemRow[];
 		result.push({ ...row, items });
 	}
 
@@ -509,7 +509,7 @@ export async function findByIdWithInstallments(
 	const items = (await db
 		.select()
 		.from(budgetItems)
-		.where(eq(budgetItems.budgetId, budgetId))) as [BudgetItemRow];
+		.where(eq(budgetItems.budgetId, budgetId))) as unknown as BudgetItemRow[];
 
 	const installments = (await db
 		.select()

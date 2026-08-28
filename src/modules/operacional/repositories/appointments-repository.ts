@@ -346,6 +346,20 @@ export async function moveSlot(
   return row;
 }
 
+export async function updateAppointment(
+  clinicId: string,
+  id: string,
+  patch: Record<string, unknown>,
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(appointments)
+    .set({ ...patch, updatedAt: new Date() } as any)
+    .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
+    .returning();
+  return row;
+}
+
 // ─── Availability helpers ─────────────────────────────────────────────────────
 
 /**
