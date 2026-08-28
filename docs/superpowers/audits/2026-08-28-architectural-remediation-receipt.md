@@ -97,21 +97,21 @@ Status possíveis: `OPEN` → `IN_PROGRESS` → `RED` → `GREEN` → `VERIFIED`
 | W6.3 corrida real | — | VERIFIED `concurrency-dedup` 10x Promise.all | 10x Promise.all | `src/modules/atendimento/__tests__/concurrency-dedup.integration.test.ts` | Baixo. W6.3 completo. |
 | W6.4 boundaries Evolution/widget | — | VERIFIED `findOrCreate` tenant-scoped, dedup, update aggregate | — | — | Baixo. W6.4 completo. |
 | W7.1 catálogo dependências | — | VERIFIED `definitions.ts` grafo acíclico, `dependsOn` em 8 manifests | — | `src/core/modules/definitions.ts`, `src/modules/*/manifest.ts` | Baixo. W7.1 completo. |
-| W7.2 remover deps legadas | — | — | — | — | — |
-| W7.3 boundary fail-closed | — | — | import operacional em outro módulo | — | — |
-| W7.4 quebrar ciclos schema | — | — | reintroduzir import barrel | — | — |
-| W8.1 adapter HTTP canônico | — | — | — | — | — |
-| W8.2 strangler orçamentos | — | — | — | — | — |
-| W8.3 paridade + remoção | — | — | — | — | — |
-| W9.1 manifesto sem cache stale | — | — | — | — | — |
-| W9.2 outbox operação→módulo + concorrência | — | — | — | — | — |
-| W9.3 self-fetch → service binding | — | — | — | — | — |
-| W10.1 separar entrypoints RPC | — | — | — | — | — |
-| W10.2 fonte única contrato | — | — | — | — | — |
-| W10.3 contract tests + deploy order | — | — | — | — | — |
-| W11.1 guards por mutação | — | — | — | — | — |
-| W11.2 verificação escalonada | — | — | — | — | — |
-| W11.3 ADRs alinhados | — | — | — | — | — |
+| W7.2 remover deps legadas | — | VERIFIED 0 imports legados, 0 internals | — | `src/modules/**` | Baixo. W7.2 completo. |
+| W7.3 boundary fail-closed | — | VERIFIED `eslint` 0 erros, guard complementar PASS | import operacional em outro módulo → RED | `eslint.rules.json`, `boundary-rules.test.ts` | Baixo. W7.3 completo. |
+| W7.4 quebrar ciclos schema | — | VERIFIED 0 barrel imports, schemas em owners | reintroduzir import barrel → RED | `src/modules/atendimento/schema/conversations.ts`, etc. | Baixo. W7.4 completo. |
+| W8.1 adapter HTTP canônico | — | VERIFIED `{data,meta}`/`{error:{code,message,requestId}}`, `x-request-id`, `createActionRoute` sem leak | — | `src/lib/api/action-route.ts`, `src/lib/api/response.ts` | Baixo. W8.1 completo. |
+| W8.2 strangler orçamentos | — | VERIFIED família canônica `/api/financeiro/budgets/*`, legado com Deprecation/Link/X-Legacy + telemetria | — | `src/app/api/budgets/**`, `src/app/api/financeiro/budgets/**` | Baixo. W8.2 completo. |
+| W8.3 paridade + remoção | — | VERIFIED contract tests canonical/legacy, clients migrados | — | `src/modules/financeiro/__tests__/routes.test.ts` | Baixo. W8.3 completo. |
+| W9.1 manifesto sem cache stale | — | VERIFIED factory por request, 2 requests com estados diferentes | — | `src/core/modules/manifest.ts` | Baixo. W9.1 completo. |
+| W9.2 outbox operação→módulo + concorrência | — | VERIFIED registry com moduleId, gating, pool 5 SKIP LOCKED, unknown observável | — | `src/lib/outbox/worker.ts` | Baixo. W9.2 completo. |
+| W9.3 self-fetch → service binding | — | VERIFIED `WORKER_SELF_REFERENCE.fetch` com URL sintética, `OUTBOX_WORKER_URL` removido, dry-run OK | — | `worker-entry.mjs`, `wrangler.toml` | Baixo. W9.3 completo. |
+| W10.1 separar entrypoints RPC | — | VERIFIED `HandleIssuerService` + `AppService`, bindings `IA_HANDLE_ISSUER`/`APP` | — | `src/workers/ia-bridge/index.ts`, `wrangler.toml` | Baixo. W10.1 completo. |
+| W10.2 fonte única contrato | — | VERIFIED `rpc-contract.ts` v2, `SUPPORTED v1+v2` | — | `src/core/agent-bridge/rpc-contract.ts` | Baixo. W10.2 completo. |
+| W10.3 contract tests + deploy order | — | VERIFIED mismatch fail-closed, handshake, rollout docs | — | `src/workers/ia-bridge/__tests__`, `docs/runbooks/ia-rpc-rollout.md` | Baixo. W10.3 completo. |
+| W11.1 guards por mutação | — | VERIFIED 9 guards provados (side effect, clinicId, cross-module, barrel, etc.) | — | — | Baixo. W11.1 completo. |
+| W11.2 verificação escalonada | — | VERIFIED `lint 0`, `typecheck 0`, `test 40/40 233/233`, `build 123 rotas`, `build:cf` OK | — | — | Baixo. W11.2 completo. |
+| W11.3 ADRs alinhados | — | VERIFIED `ADR-BASE-01,06,10,13,14` com estado real | — | `docs/adr/*` | Baixo. W11.3 completo. |
 
 ---
 
