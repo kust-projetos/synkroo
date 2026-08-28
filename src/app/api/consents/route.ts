@@ -24,29 +24,25 @@ const revokeConsentSchema = z.object({
 })
 
 export async function GET(request: NextRequest) {
-  const auth = await validateApiAuth()
-  if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
-  }
-
-  const clinicId = auth.profile!.clinic_id
-  const { searchParams } = new URL(request.url)
-
-  const contactId = searchParams.get('contact_id')
-  const contactType = searchParams.get('contact_type') as 'patient' | 'lead'
-
-  if (!contactId || !contactType) {
-    return NextResponse.json(
-      { error: 'contact_id and contact_type query parameters are required' },
-      { status: 400 }
-    )
-  }
-
+  const { buildUserContext } = await import('@/core/actions/context');
+  const { runAction } = await import('@/core/actions/run');
+  const { listarConsentimentos } = await import('@/modules/crm/actions/listar-consentimentos');
   try {
-    const consents = await getConsentsForContact(clinicId, contactId, contactType)
-    return NextResponse.json({ data: consents })
+    const ctx = await buildUserContext();
+    const { searchParams } = new URL(request.url);
+    const contactId = searchParams.get('contact_id');
+    const contactType = searchParams.get('contact_type') as 'patient' | 'lead' | null;
+    if (!contactId || !contactType) {
+      return NextResponse.json({ error: 'contact_id and contact_type query parameters are required' }, { status: 400 });
+    }
+    const result = await runAction(listarConsentimentos, contactType === 'patient' ? { patientId: contactId } : { leadId: contactId } as any, ctx);
+    if (!result.ok) {
+      const status = result.error.code === 'not_found' ? 404 : result.error.code === 'forbidden' ? 403 : 400;
+      return NextResponse.json({ error: result.error.message }, { status });
+    }
+    return NextResponse.json({ data: (result.data as any).data ?? result.data });
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch consents' }, { status: 500 })
+    return NextResponse.json({ error: 'Failed to fetch consents' }, { status: 500 });
   }
 }
 
