@@ -20,7 +20,12 @@ export function registerOwnerMerge(
   ownerType: 'patient' | 'lead',
   dispatcher: OwnerMergeDispatcher,
 ): void {
+  if (ownerMergeRegistry.has(ownerType)) throw new Error(`duplicate owner merge adapter: ${ownerType}`);
   ownerMergeRegistry.set(ownerType, dispatcher);
+}
+
+export function clearOwnerMergeRegistryForTests(): void {
+  ownerMergeRegistry.clear();
 }
 
 export function getOwnerMergeDispatcher(

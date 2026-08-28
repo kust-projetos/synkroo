@@ -16,32 +16,29 @@ export const enviarMensagem = defineAction({
     channel: z.enum(['whatsapp', 'instagram', 'web']).optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    // Resolve channel from conversation if not provided
+    // Resolve channel and verify ownership via tenant-scoped lookup
+    const convScoped = await repo.findByIdForClinic(input.conversationId, ctx.clinicId);
+    if (!convScoped) throw new ActionError('not_found', 'Conversa não encontrada.');
+
     let channel = input.channel;
     if (!channel) {
-      const conv = await repo.findByIdWithJoins(input.conversationId, ctx.clinicId);
-      if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
-      channel = conv.channel as 'whatsapp' | 'instagram' | 'web';
+      const convWithJoins = await repo.findByIdWithJoins(input.conversationId, ctx.clinicId);
+      if (!convWithJoins) throw new ActionError('not_found', 'Conversa não encontrada.');
+      channel = convWithJoins.channel as 'whatsapp' | 'instagram' | 'web';
     }
 
-    // Get the externalId (phone number for WhatsApp, IG ID for Instagram) from the conversation
-    const conv = await repo.findById(input.conversationId);
-    if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
-    if (conv.clinicId !== ctx.clinicId) throw new ActionError('forbidden', 'Acesso negado.');
-
-    // Send via channel service
-    const sendResult = await sendByChannel(channel, conv.externalId, input.message);
+    // Send via channel service using scoped conversation's externalId
+    const sendResult = await sendByChannel(channel, convScoped.externalId, input.message);
     if (!sendResult.success) {
       throw new ActionError('internal', sendResult.error ?? 'Falha ao enviar mensagem.');
     }
 
-    // Store the outbound message
-    const message = await repo.createMessage({
+    // Store the outbound message — tenant-scoped append
+    const message = await repo.appendOutboundMessage(ctx.clinicId, {
       conversationId: input.conversationId,
-      direction: 'outbound',
       content: input.message,
     });
-    await repo.updateConversation(input.conversationId, {
+    await repo.updateConversation(ctx.clinicId, input.conversationId, {
       lastMessageAt: new Date(),
       messageCountIncrement: 1,
     });

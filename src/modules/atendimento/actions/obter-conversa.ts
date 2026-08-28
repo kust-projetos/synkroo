@@ -13,7 +13,7 @@ export const obterConversa = defineAction({
   handler: async (input, ctx: ActionContext) => {
     const conversation = await repo.findByIdWithJoins(input.id, ctx.clinicId);
     if (!conversation) throw new ActionError('not_found', 'Conversa não encontrada.');
-    const messages = await repo.findMessagesByConversation(input.id);
+    const messages = await repo.findMessagesByConversation(ctx.clinicId, input.id);
     return { conversation, messages };
   },
 });

@@ -45,7 +45,7 @@ const FOREIGN_CLINIC_ID = '00000000-0000-0000-0000-000000000002'
 describe('Financeiro Actions — Tenancy fail-closed boundary (RED)', () => {
   beforeEach(() => jest.clearAllMocks())
 
-  it('criarOrcamento rejects foreign clinicId with forbidden', async () => {
+  it('criarOrcamento rejects foreign clinicId with invalid_input (guard before parse)', async () => {
     const res = await runAction(criarOrcamento, {
       clinicId: FOREIGN_CLINIC_ID,
       patientId: '00000000-0000-0000-0000-000000000010',
@@ -54,12 +54,12 @@ describe('Financeiro Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(budgetService.createBudget).not.toHaveBeenCalled()
   })
 
-  it('gerarCobranca rejects foreign clinicId with forbidden', async () => {
+  it('gerarCobranca rejects foreign clinicId with invalid_input', async () => {
     const res = await runAction(gerarCobranca, {
       clinicId: FOREIGN_CLINIC_ID,
       budgetId: '00000000-0000-0000-0000-000000000020',
@@ -69,12 +69,12 @@ describe('Financeiro Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(chargeService.createCharge).not.toHaveBeenCalled()
   })
 
-  it('aceitarOrcamento rejects foreign clinicId with forbidden', async () => {
+  it('aceitarOrcamento rejects foreign clinicId with invalid_input', async () => {
     const res = await runAction(aceitarOrcamento, {
       clinicId: FOREIGN_CLINIC_ID,
       id: '00000000-0000-0000-0000-000000000020',
@@ -82,12 +82,12 @@ describe('Financeiro Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(budgetService.acceptBudget).not.toHaveBeenCalled()
   })
 
-  it('rejeitarOrcamento rejects foreign clinicId with forbidden', async () => {
+  it('rejeitarOrcamento rejects foreign clinicId with invalid_input', async () => {
     const res = await runAction(rejeitarOrcamento, {
       clinicId: FOREIGN_CLINIC_ID,
       id: '00000000-0000-0000-0000-000000000020',
@@ -95,12 +95,12 @@ describe('Financeiro Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(budgetService.rejectBudget).not.toHaveBeenCalled()
   })
 
-  it('salvarGateway rejects foreign clinicId with forbidden', async () => {
+  it('salvarGateway rejects foreign clinicId with invalid_input', async () => {
     const res = await runAction(salvarGateway, {
       clinicId: FOREIGN_CLINIC_ID,
       provider: 'asaas',
@@ -110,12 +110,12 @@ describe('Financeiro Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(gatewayConfigService.saveGateway).not.toHaveBeenCalled()
   })
 
-  it('salvarRegraRoteamento rejects foreign clinicId with forbidden', async () => {
+  it('salvarRegraRoteamento rejects foreign clinicId with invalid_input', async () => {
     const res = await runAction(salvarRegraRoteamento, {
       clinicId: FOREIGN_CLINIC_ID,
       gatewayId: '00000000-0000-0000-0000-000000000030',
@@ -124,7 +124,7 @@ describe('Financeiro Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(gatewayConfigService.saveRoutingRule).not.toHaveBeenCalled()
   })

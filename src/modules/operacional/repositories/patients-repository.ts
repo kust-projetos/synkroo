@@ -203,6 +203,11 @@ export async function updatePatientTags(
 
 // ─── Merge helpers ──────────────────────────────────────────────────────────
 
+export async function updatePatientLastVisit(clinicId: string, patientId: string, at: Date) {
+  const db = getDb();
+  await db.update(patients).set({ lastVisitAt: at, updatedAt: new Date() } as any).where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)));
+}
+
 export async function mergePatients(
   winnerId: string,
   loserId: string,

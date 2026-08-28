@@ -17,12 +17,10 @@ export const agendarMensagem = defineAction({
     channel: z.enum(['whatsapp', 'instagram', 'web']).optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    const conv = await repo.findById(input.conversationId);
+    const conv = await repo.findByIdForClinic(input.conversationId, ctx.clinicId);
     if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
-    if (conv.clinicId !== ctx.clinicId) throw new ActionError('forbidden', 'Acesso negado.');
 
     // Store the scheduled message metadata on the conversation for later pickup by a cron/queue.
-    // This is a minimal scheduling seam — a real queue runner will be added in W5.
     const metadata = {
       ...((conv.metadata ?? {}) as Record<string, unknown>),
       scheduledMessages: [
@@ -36,7 +34,7 @@ export const agendarMensagem = defineAction({
         },
       ],
     };
-    await repo.updateConversation(input.conversationId, { metadata });
+    await repo.updateConversation(ctx.clinicId, input.conversationId, { metadata });
 
     return { success: true, scheduledAt: input.scheduledAt };
   },

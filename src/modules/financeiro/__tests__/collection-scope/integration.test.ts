@@ -222,11 +222,9 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
         .from(sql`payment_charges`)
         .where(sql`id = ${chargeId}`);
 
-      // ctx is CLINIC_A, input says CLINIC_B — action must use ctx.clinicId
+      // ctx is CLINIC_A, charge is from B — action must use ctx.clinicId (no clinicId in input after W1.4)
       const result = await runAction(enviarLembreteCobranca, {
-        clinicId: CLINIC_B,
         chargeId,
-        patientPhone: '11999999999',  // valid phone — would proceed if scope passed
       }, ctx);
 
       // After fix: ctx.clinicId (A) doesn't own CHARGE_B (B) -> missing_patient_phone
@@ -258,9 +256,8 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
       expect(before).toBeDefined();
       expect(before.clinicId).toBe(CLINIC_A);
 
-      // Action entry with clinicId falseado no input — ctx.clinicId (A) used
+      // Action entry without clinicId — uses ctx.clinicId (A) (W1.4)
       const result = await runAction(enviarLembreteCobranca, {
-        clinicId: CLINIC_B,  // forged — action ignores, uses ctx.clinicId
         chargeId,
       }, ctx);
 

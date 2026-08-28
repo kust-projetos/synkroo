@@ -45,5 +45,14 @@ export const drizzleManifestRepo: ModuleManifestRepo = {
   },
 };
 
-// Instância padrão (uma por request; criar nova quando precisar invalidar cache).
-export const moduleManifest = makeManifest(drizzleManifestRepo);
+// Factory para manifesto por escopo (request/batch) — sem cache global stale entre requests/isolates (W9.1)
+// Uso: const manifest = createManifest(); // uma por request/cron batch
+export function createManifest(): ModuleManifest {
+  return makeManifest(drizzleManifestRepo);
+}
+// Legado: singleton removido em W9.1 — manter alias para compatibilidade de testes que ainda importam, mas sem cache cross-request
+// Cada import do singleton agora cria nova instância por invocação via getter
+export const moduleManifest: ModuleManifest = {
+  async isEnabled(id: string) { return createManifest().isEnabled(id); },
+  async enabledModules() { return createManifest().enabledModules(); },
+};

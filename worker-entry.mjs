@@ -3,19 +3,15 @@ export { DOQueueHandler } from './.open-next/.build/durable-objects/queue.js';
 
 const OUTBOX_PATH = '/api/cron/outbox?limit=25';
 
-function outboxEndpoint(env) {
-  const baseUrl = env.OUTBOX_WORKER_URL;
-  if (!baseUrl) throw new Error('OUTBOX_WORKER_URL is required');
-  return new URL(OUTBOX_PATH, baseUrl).toString();
-}
-
 async function runOutboxCron(env) {
   const cronSecret = env.CRON_SECRET;
   if (!cronSecret) throw new Error('CRON_SECRET is required for outbox cron');
-  const response = await fetch(outboxEndpoint(env), {
+  // W9.3: service binding roteia ao Worker via env.WORKER_SELF_REFERENCE.fetch com URL absoluta sintética
+  const url = 'https://synkroo.internal' + OUTBOX_PATH;
+  const response = await env.WORKER_SELF_REFERENCE.fetch(new Request(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${cronSecret}` },
-  });
+  }));
   if (!response.ok) throw new Error(`OUTBOX_CRON_FAILED:${response.status}`);
 }
 

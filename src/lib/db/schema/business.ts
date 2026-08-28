@@ -61,6 +61,7 @@ export const budgets = pgTable('budgets', {
 // ──────────────────────────────────────────────
 export const budgetItems = pgTable('budget_items', {
   id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').references(() => clinics.id, { onDelete: 'cascade' }),
   budgetId: uuid('budget_id').notNull().references(() => budgets.id, { onDelete: 'cascade' }),
   procedureId: uuid('procedure_id').references(() => procedures.id, { onDelete: 'set null' }),
   procedureName: text('procedure_name').notNull(),
@@ -77,6 +78,7 @@ export const budgetItems = pgTable('budget_items', {
 // ──────────────────────────────────────────────
 export const budgetInstallments = pgTable('budget_installments', {
   id: uuid('id').primaryKey().defaultRandom(),
+  clinicId: uuid('clinic_id').references(() => clinics.id, { onDelete: 'cascade' }),
   budgetId: uuid('budget_id').notNull().references(() => budgets.id, { onDelete: 'cascade' }),
   amount: numeric('amount', { precision: 12, scale: 2 }).notNull(),
   dueDate: date('due_date').notNull(),

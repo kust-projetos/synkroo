@@ -86,7 +86,21 @@ test.describe('Authentication Flow', () => {
   })
 
   test('should logout successfully', async ({ page }) => {
-    await login(page)
+    // Use a disposable signup user so that session revocation (revokeUserSession)
+    // does not invalidate the shared admin storageState (e2e/.auth/admin.json)
+    // used by all other authenticated tests. Creating a new clinic isolates the DB side-effect.
+    const suffix = Date.now()
+    const email = `logout-test-${suffix}@synkroo-e2e.com`
+    await page.goto(`${BASE_URL}/signup`)
+    await page.fill('#clinicName', `Clinica Logout ${suffix}`)
+    await page.fill('#name', `Logout User ${suffix}`)
+    await page.fill('#email', email)
+    await page.fill('#password', 'Test123456')
+    await Promise.all([
+      page.waitForURL('**/dashboard**', { timeout: 15000 }),
+      page.click('button[type="submit"]'),
+    ])
+    await page.waitForLoadState('networkidle')
 
     const logoutButton = page.getByRole('button', { name: 'Sair', exact: true })
     await expect(logoutButton).toBeVisible()

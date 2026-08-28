@@ -8,12 +8,8 @@
  * Shared helper: ensurePatientForLead resolves or creates a patient from lead data.
  */
 
-import { runAction } from '@/core/actions/run';
-import { buildSystemContext } from '@/core/actions/context';
 import { findLeadByIdForClinic, updateLead } from '../repositories/leads-repository';
 import { insertActivity } from '../repositories/activities-repository';
-
-import { criarPaciente, atualizarPaciente, obterPaciente, agendarConsulta } from '@/modules/operacional/actions';
 
 // ─── Shared types ──────────────────────────────────────────────────────────────
 
@@ -57,33 +53,27 @@ export async function ensurePatientForLead(
   if (lead.status === 'converted') throw new Error('Lead already converted');
 
   let patientId = lead.patientId as string | null;
+  const { criarPaciente, obterPaciente, atualizarPaciente } = await import('../../operacional/public');
 
   if (!patientId) {
-    const ctx = await buildSystemContext(clinicId);
-    const createResult = await runAction(criarPaciente, {
+    const created = await criarPaciente({
+      clinicId,
       name: lead.name as string,
       phone: (lead.phoneNormalized as string) || (lead.phone as string),
       email: (lead.email as string) || undefined,
-    }, ctx);
-
-    if (!createResult.ok) throw new Error(createResult.error.message);
-    patientId = (createResult.data as { id: string }).id;
+    });
+    patientId = created.id;
   } else {
-    // Check if lead data changed compared to current patient
-    const ctx = await buildSystemContext(clinicId);
-    const patientResult = await runAction(obterPaciente, { id: patientId }, ctx);
-    if (patientResult.ok) {
-      const patientData = patientResult.data as { name?: string; phone?: string; email?: string | null };
+    const patient: any = await obterPaciente(clinicId, patientId);
+    if (patient) {
       const needsUpdate =
-        (lead.name != null && lead.name !== patientData.name) ||
-        (lead.phoneNormalized != null && lead.phoneNormalized !== patientData.phone);
-
+        (lead.name != null && lead.name !== patient.name) ||
+        (lead.phoneNormalized != null && lead.phoneNormalized !== patient.phone);
       if (needsUpdate) {
         const patch: Record<string, unknown> = {};
-        if (lead.name != null && lead.name !== patientData.name) patch.name = lead.name;
-        if (lead.phoneNormalized != null && lead.phoneNormalized !== patientData.phone) patch.phone = lead.phoneNormalized;
-
-        await runAction(atualizarPaciente, { id: patientId, ...patch }, ctx);
+        if (lead.name != null && lead.name !== patient.name) patch.name = lead.name as string;
+        if (lead.phoneNormalized != null && lead.phoneNormalized !== patient.phone) patch.phone = lead.phoneNormalized as string;
+        await atualizarPaciente(clinicId, patientId, patch);
       }
     }
   }
@@ -96,22 +86,13 @@ export async function ensurePatientForLead(
 export async function agendarAvaliacao(input: AgendarAvaliacaoInput) {
   const { leadId, clinicId, scheduledAt, dentistId, procedureId, durationMinutes, notes } = input;
 
-  // 1-2. Resolve patient (extracted helper)
+  // 1-2. Resolve patient via public seam (no buildSystemContext, no runAction)
   const { lead, patientId } = await ensurePatientForLead(leadId, clinicId);
 
-  // 3. Schedule appointment
-  const ctx = await buildSystemContext(clinicId);
-  const scheduleResult = await runAction(agendarConsulta, {
-    patientId,
-    dentistId,
-    procedureId,
-    scheduledAt,
-    durationMinutes: durationMinutes ?? 30,
-    notes,
-  }, ctx);
-
-  if (!scheduleResult.ok) throw new Error(scheduleResult.error.message);
-  const appointmentId = (scheduleResult.data as { id: string }).id;
+  // 3. Schedule appointment via operacional public seam (tenant-scoped)
+  const { agendarConsulta: agendarPublic } = await import('../../operacional/public');
+  const res = await agendarPublic({ clinicId, patientId, dentistId: dentistId ?? null, procedureId: procedureId ?? null, scheduledAt, durationMinutes: durationMinutes ?? 30, notes });
+  const appointmentId = res.id;
 
   // 4. Convert lead only after successful scheduling
   await updateLead(leadId, clinicId, {

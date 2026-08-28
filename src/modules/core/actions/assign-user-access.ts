@@ -8,9 +8,8 @@ export const assignUserAccess = defineAction({
   module: 'core',
   requires: 'core:manage_users',
   label: 'Conceder acesso de usuário a uma clínica',
-  input: z.object({ userId: z.string().min(1), clinicId: z.string().min(1), roleId: z.string().min(1) }),
+  input: z.object({ userId: z.string().min(1), roleId: z.string().min(1) }),
   handler: async (input, ctx) => {
-    assertClinicScope(input.clinicId, ctx);
-    return accessService.assignUserAccess(input);
+    return accessService.assignUserAccess({ userId: input.userId, clinicId: ctx.clinicId, roleId: input.roleId });
   },
 });

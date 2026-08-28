@@ -7,8 +7,6 @@ export interface ResolvedAccess {
 }
 
 export async function resolveAccess(userId: string, clinicId: string, repo: RbacRepo): Promise<ResolvedAccess> {
-  if (await repo.isMaster(userId)) return { role: 'master', can: () => true };
-
   const access = await repo.getAccess(userId, clinicId);
   if (!access) return { role: null, can: () => false };
 

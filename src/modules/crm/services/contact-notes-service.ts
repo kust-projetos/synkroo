@@ -13,10 +13,8 @@ import {
   type ContactType,
   type NoteEntry,
 } from '../repositories/contact-read-repository';
-// eslint-disable-next-line boundaries/dependencies
-import { registrarObservacaoPaciente } from '@/modules/operacional/actions/registrar-observacao-paciente';
-// eslint-disable-next-line boundaries/dependencies
-import { registrarNotaLead } from '@/modules/comercial/actions/registrar-nota-lead';
+import { registrarObservacaoPaciente as registrarObservacaoPublic } from '@/modules/operacional/public';
+import { registrarNotaLead as registrarNotaLeadPublic } from '@/modules/comercial/public';
 
 export async function listContactNotesService(
   ctx: Pick<ActionContext, 'clinicId'>,
@@ -33,17 +31,13 @@ export async function addContactNoteService(
   id: string,
   content: string,
 ): Promise<{ id: string }> {
+  const clinicId = ctx.clinicId;
+  const actorUserId = ctx.user?.id ?? null;
   if (type === 'patient') {
-    return registrarObservacaoPaciente.handler(
-      { patientId: id, content },
-      ctx as ActionContext,
-    );
+    return registrarObservacaoPublic({ clinicId, patientId: id, content, actorUserId });
   }
   if (type === 'lead') {
-    return registrarNotaLead.handler(
-      { leadId: id, description: content },
-      ctx as ActionContext,
-    );
+    return registrarNotaLeadPublic({ clinicId, leadId: id, content, actorUserId });
   }
   // type desconhecido — quem chama converte para not_found.
   throw new Error('unknown_contact_type');

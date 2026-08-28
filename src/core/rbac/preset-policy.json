@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Canonical RBAC preset policy for Synkroo CRM — single source of truth for SYSTEM_PRESETS in presets.ts.",
   "modulePermissions": {
     "core": [
@@ -49,13 +49,22 @@
       { "key": "financeiro:manage_collections", "module": "financeiro", "label": "Gerenciar cobranças" },
       { "key": "financeiro:manage_gateways", "module": "financeiro", "label": "Gerenciar gateways" }
     ],
-    "analytics": []
+    "analytics": [
+      { "key": "analytics:export", "module": "analytics", "label": "Exportar relatórios" }
+    ],
+    "lgpd": [
+      { "key": "lgpd:export", "module": "lgpd", "label": "Exportar dados LGPD" },
+      { "key": "lgpd:anonymize", "module": "lgpd", "label": "Anonimizar paciente" },
+      { "key": "lgpd:view_consents", "module": "lgpd", "label": "Visualizar consentimentos" },
+      { "key": "lgpd:manage_consents", "module": "lgpd", "label": "Gerenciar consentimentos" }
+    ]
   },
   "presets": [
     {
       "name": "Administrador",
       "description": "Acesso amplo de gestão da clínica.",
-      "modules": ["core", "operacional", "atendimento", "comercial", "crm", "financeiro", "analytics", "followup", "ia"]
+      "modules": ["core", "operacional", "atendimento", "comercial", "crm", "financeiro", "analytics", "followup", "ia"],
+      "extraKeys": ["analytics:export", "lgpd:export", "lgpd:anonymize", "lgpd:view_consents", "lgpd:manage_consents"]
     },
     {
       "name": "Recepcionista",

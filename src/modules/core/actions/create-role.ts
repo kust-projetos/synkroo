@@ -9,13 +9,11 @@ export const createRole = defineAction({
   requires: 'core:manage_users',
   label: 'Criar perfil de acesso',
   input: z.object({
-    clinicId: z.string().min(1),
     name: z.string().min(1),
     description: z.string().optional(),
     permissionKeys: z.array(z.string()).default([]),
   }),
   handler: async (input, ctx) => {
-    assertClinicScope(input.clinicId, ctx);
-    return rolesService.createRole(input);
+    return rolesService.createRole({ clinicId: ctx.clinicId, name: input.name, description: input.description, permissionKeys: input.permissionKeys });
   },
 });

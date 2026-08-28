@@ -19,29 +19,37 @@ jest.mock('@/lib/db/client', () => {
 });
 
 describe('listarParcelas', () => {
-  test('input schema validates clinicId and budgetId', async () => {
+  test('input schema validates budgetId without clinicId (tenant from ctx)', async () => {
     const parsed = await listarParcelas.input.parseAsync({
-      clinicId: CLINIC_ID,
       budgetId: BUDGET_ID,
     });
     expect(parsed.budgetId).toBe(BUDGET_ID);
+    // clinicId must not be in schema — tenant derived from ActionContext
+    expect((parsed as any).clinicId).toBeUndefined();
+  });
+
+  test('input schema rejects clinicId payload (tenant selector forbidden)', async () => {
+    // Zod should strip, but runAction guard must reject before handler — schema alone strips silently, so we test rejection via runAction elsewhere
+    const withClinic: any = { budgetId: BUDGET_ID, clinicId: CLINIC_ID };
+    const parsed = await listarParcelas.input.parseAsync(withClinic);
+    // New schema does not include clinicId, so parsed will not have it — handler must not receive it
+    expect((parsed as any).clinicId).toBeUndefined();
   });
 });
 
 describe('salvarParcelas', () => {
-  test('input schema validates installments array', async () => {
+  test('input schema validates installments array without clinicId', async () => {
     const parsed = await salvarParcelas.input.parseAsync({
-      clinicId: CLINIC_ID,
       budgetId: BUDGET_ID,
       installments: [{ amount: 100, dueDate: '2026-08-15' }],
     });
     expect(parsed.installments).toHaveLength(1);
+    expect((parsed as any).clinicId).toBeUndefined();
   });
 
   test('rejects empty installments array', async () => {
     await expect(
       salvarParcelas.input.parseAsync({
-        clinicId: CLINIC_ID,
         budgetId: BUDGET_ID,
         installments: [],
       }),

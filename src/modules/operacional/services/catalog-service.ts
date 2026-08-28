@@ -31,8 +31,7 @@ export async function listarDentistas(clinicId: string, opts?: { activeOnly?: bo
 }
 
 export async function obterDentista(clinicId: string, id: string) {
-  const dentist = await repo.findDentistById(id);
-  if (!dentist || dentist.clinicId !== clinicId) return null;
+  const dentist = await repo.findDentistById(clinicId, id);
   return dentist;
 }
 
@@ -48,8 +47,8 @@ export async function atualizarDentista(
     isActive: boolean;
   }>,
 ) {
-  const existing = await repo.findDentistById(id);
-  if (!existing || existing.clinicId !== clinicId) return null;
+  const existing = await repo.findDentistById(clinicId, id);
+  if (!existing) return null;
   return repo.updateDentist(id, data);
 }
 
@@ -80,8 +79,7 @@ export async function listarProcedimentos(clinicId: string, opts?: { activeOnly?
 }
 
 export async function obterProcedimento(clinicId: string, id: string) {
-  const procedure = await repo.findProcedureById(id);
-  if (!procedure || procedure.clinicId !== clinicId) return null;
+  const procedure = await repo.findProcedureById(clinicId, id);
   return procedure;
 }
 
@@ -97,7 +95,7 @@ export async function atualizarProcedimento(
     isActive: boolean;
   }>,
 ) {
-  const existing = await repo.findProcedureById(id);
-  if (!existing || existing.clinicId !== clinicId) return null;
+  const existing = await repo.findProcedureById(clinicId, id);
+  if (!existing) return null;
   return repo.updateProcedure(id, data);
 }

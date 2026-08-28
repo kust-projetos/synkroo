@@ -33,13 +33,12 @@ export function createActionRoute<T>(
       response.headers.set('x-request-id', requestId)
       return response
     } catch (error) {
-      const message = options.message ?? (error instanceof Error ? error.message : 'Internal server error')
-      const response = apiFailure(
-        options.code ?? 'INTERNAL_ERROR',
-        message,
-        requestId,
-        options.status ?? 500,
-      )
+      // Nunca leaking error.message bruto para cliente em erro inesperado
+      const isOperational = error instanceof Error && (error as any).code && typeof (error as any).code === 'string';
+      const message = options.message ?? (isOperational ? (error as Error).message : 'Internal server error');
+      const code = options.code ?? (isOperational ? (error as any).code : 'INTERNAL_ERROR');
+      const status = options.status ?? (isOperational ? 400 : 500);
+      const response = apiFailure(code, message, requestId, status)
       response.headers.set('x-request-id', requestId)
       return response
     }

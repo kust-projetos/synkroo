@@ -238,7 +238,7 @@ describeOrSkip('Installments tenant scope — route + DB real', () => {
 
   it('replaceInstallmentsAtomic atomically replaces installments', async () => {
     const db = getDb();
-    const rows = await replaceInstallmentsAtomic(BUDGET_A, [
+    const rows = await replaceInstallmentsAtomic(CLINIC_A, BUDGET_A, [
       { budgetId: BUDGET_A, amount: '88.00', dueDate: '2026-12-01', status: 'pending' },
     ]);
     expect(rows).toHaveLength(1);

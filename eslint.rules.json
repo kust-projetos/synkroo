@@ -32,6 +32,16 @@
           "from": { "type": "module" },
           "allow": { "to": { "type": "module", "internalPath": "**/index.ts" } },
           "message": "Importe apenas o index.ts de outro módulo"
+        },
+        {
+          "from": { "type": "module" },
+          "allow": { "to": { "type": "module", "internalPath": "**/public.ts" } },
+          "message": "Cross-module via public.ts permitido"
+        },
+        {
+          "from": { "type": "module" },
+          "allow": { "to": { "type": "module", "internalPath": "**/schema/**" } },
+          "message": "Cross-module schema permitido"
         }
       ]
     }]

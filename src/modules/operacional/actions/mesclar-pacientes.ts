@@ -3,7 +3,6 @@ import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
 import { mergePatients } from '../repositories/patients-repository';
-import { registerOwnerMerge } from '@/modules/crm';
 
 export const mesclarPacientes = defineAction({
   name: 'operacional.mesclarPacientes',
@@ -13,7 +12,6 @@ export const mesclarPacientes = defineAction({
   input: z.object({
     winnerId: z.string().uuid(),
     loserId: z.string().uuid(),
-    clinicId: z.string().uuid().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
     const success = await mergePatients(
@@ -24,9 +22,4 @@ export const mesclarPacientes = defineAction({
     if (!success) throw new ActionError('not_found', 'Registros não encontrados.');
     return { success: true };
   },
-});
-
-// Register with the CRM execution coordinator at import time
-registerOwnerMerge('patient', async (winnerId, loserId, clinicId) => {
-  return mergePatients(winnerId, loserId, clinicId);
 });

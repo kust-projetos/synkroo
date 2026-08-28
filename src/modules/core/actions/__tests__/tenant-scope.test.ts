@@ -33,24 +33,18 @@ describe('Core Actions tenant boundary — handler unit tests', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it.each([
-    ['assignUserAccess', assignUserAccess, { userId: 'user-1', clinicId: 'clinic-b', roleId: 'role-1' }],
-    ['removeUserAccess', removeUserAccess, { userId: 'user-1', clinicId: 'clinic-b' }],
-    ['deactivateUser', deactivateUser, { userId: 'user-1', clinicId: 'clinic-b' }],
-    ['createRole', createRole, { clinicId: 'clinic-b', name: 'Role', permissionKeys: [] }],
-  ])('%s rejects a payload clinic different from trusted context', async (_name, action, input) => {
-    await expect(action.handler(input as never, ctx)).rejects.toMatchObject({
-      code: 'forbidden',
-      message: 'A clínica informada não corresponde ao contexto ativo.',
-    });
-    expect(accessService.assignUserAccess).not.toHaveBeenCalled();
-    expect(accessService.removeUserAccess).not.toHaveBeenCalled();
-    expect(accessService.deactivateUser).not.toHaveBeenCalled();
-    expect(rolesService.createRole).not.toHaveBeenCalled();
+    ['assignUserAccess', assignUserAccess, { userId: 'user-1', roleId: 'role-1' }],
+    ['removeUserAccess', removeUserAccess, { userId: 'user-1' }],
+    ['deactivateUser', deactivateUser, { userId: 'user-1' }],
+    ['createRole', createRole, { name: 'Role', permissionKeys: [] }],
+  ])('%s uses trusted context clinicId (no clinicId in payload after W1.4)', async (_name, action, input) => {
+    // After W1.4, handler should use ctx.clinicId, not input clinicId; no clinicId in input, so no forbidden check
+    await expect((action as any).handler(input as never, ctx)).resolves.toBeDefined();
   });
 
   it('passes the trusted clinic to assignUserAccess for matching scope', async () => {
     await expect(assignUserAccess.handler(
-      { userId: 'user-1', clinicId: 'clinic-a', roleId: 'role-1' },
+      { userId: 'user-1', roleId: 'role-1' },
       ctx,
     )).resolves.toEqual({ id: 'access-1' });
     expect(accessService.assignUserAccess).toHaveBeenCalledWith({
@@ -60,7 +54,7 @@ describe('Core Actions tenant boundary — handler unit tests', () => {
 
   it('passes matching scope to createRole without widening the payload', async () => {
     await expect(createRole.handler(
-      { clinicId: 'clinic-a', name: 'Role', permissionKeys: ['core:manage_users'] },
+      { name: 'Role', permissionKeys: ['core:manage_users'] },
       ctx,
     )).resolves.toEqual({ id: 'role-1' });
     expect(rolesService.createRole).toHaveBeenCalledWith({
@@ -70,7 +64,7 @@ describe('Core Actions tenant boundary — handler unit tests', () => {
 
   it('passes matching scope to removeUserAccess', async () => {
     await expect(removeUserAccess.handler(
-      { userId: 'user-1', clinicId: 'clinic-a' },
+      { userId: 'user-1' },
       ctx,
     )).resolves.toEqual({ removed: true });
     expect(accessService.removeUserAccess).toHaveBeenCalledWith({
@@ -80,7 +74,7 @@ describe('Core Actions tenant boundary — handler unit tests', () => {
 
   it('passes matching scope to deactivateUser', async () => {
     await expect(deactivateUser.handler(
-      { userId: 'user-1', clinicId: 'clinic-a' },
+      { userId: 'user-1' },
       ctx,
     )).resolves.toEqual({ deactivated: true });
     expect(accessService.deactivateUser).toHaveBeenCalledWith({
@@ -111,7 +105,7 @@ describe('Core Actions tenant boundary — runAction execution pipeline', () => 
   it('fails closed when action context is missing clinicId', async () => {
     const badCtx = { ...ctx, clinicId: '' };
     const res = await runAction(assignUserAccess, {
-      userId: 'user-1', clinicId: 'clinic-a', roleId: 'role-1',
+      userId: 'user-1', roleId: 'role-1',
     }, badCtx);
 
     expect(res.ok).toBe(false);
@@ -124,7 +118,7 @@ describe('Core Actions tenant boundary — runAction execution pipeline', () => 
   it('fails closed when caller lacks core:manage_users permission', async () => {
     const noPermCtx = { ...ctx, can: () => false };
     const res = await runAction(assignUserAccess, {
-      userId: 'user-1', clinicId: 'clinic-a', roleId: 'role-1',
+      userId: 'user-1', roleId: 'role-1',
     }, noPermCtx);
 
     expect(res.ok).toBe(false);
@@ -137,7 +131,7 @@ describe('Core Actions tenant boundary — runAction execution pipeline', () => 
   it('fails closed when core module is not enabled', async () => {
     const noModCtx = { ...ctx, hasModule: () => false };
     const res = await runAction(createRole, {
-      clinicId: 'clinic-a', name: 'Test Role', permissionKeys: [],
+      name: 'Test Role', permissionKeys: [],
     }, noModCtx);
 
     expect(res.ok).toBe(false);
@@ -147,23 +141,22 @@ describe('Core Actions tenant boundary — runAction execution pipeline', () => 
     expect(rolesService.createRole).not.toHaveBeenCalled();
   });
 
-  it('fails closed with forbidden error code when input.clinicId differs from ctx.clinicId via runAction', async () => {
+  it('fails closed with invalid_input when clinicId is present in input (guard W1.4)', async () => {
     const res = await runAction(assignUserAccess, {
       userId: 'user-1', clinicId: 'clinic-foreign', roleId: 'role-1',
-    }, ctx);
+    } as any, ctx);
 
     expect(res.ok).toBe(false);
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden');
-      expect(res.error.message).toBe('A clínica informada não corresponde ao contexto ativo.');
+      expect(res.error.code).toBe('invalid_input');
     }
     expect(accessService.assignUserAccess).not.toHaveBeenCalled();
   });
 
   it('rejects invalid schema inputs fail-closed before tenant check', async () => {
     const res = await runAction(assignUserAccess, {
-      clinicId: 'clinic-a',
-    }, ctx);
+      userId: 'user-1',
+    } as any, ctx);
 
     expect(res.ok).toBe(false);
     if (!res.ok) {
@@ -174,7 +167,7 @@ describe('Core Actions tenant boundary — runAction execution pipeline', () => 
 
   it('executes nominally through runAction with valid input and matching clinicId', async () => {
     const res = await runAction(assignUserAccess, {
-      userId: 'user-1', clinicId: 'clinic-a', roleId: 'role-1',
+      userId: 'user-1', roleId: 'role-1',
     }, ctx);
 
     expect(res.ok).toBe(true);

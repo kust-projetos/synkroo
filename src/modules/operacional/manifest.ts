@@ -1,6 +1,7 @@
 export const operacionalManifest = {
   id: 'operacional' as const,
   name: 'Operacional',
+  dependsOn: [] as const,
   alwaysOn: false,
   menu: [
     {

@@ -27,7 +27,7 @@ export const receberMensagem = defineAction({
       content: input.message,
       metadata: input.metadata,
     });
-    await repo.updateConversation(conversationId, {
+    await repo.updateConversation(clinicId, conversationId, {
       lastMessageAt: new Date(),
       messageCountIncrement: 1,
     });

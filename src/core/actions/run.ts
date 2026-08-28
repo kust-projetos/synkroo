@@ -36,6 +36,16 @@ export async function runAction<O>(
   if (!ctx.hasModule(action.module)) { await logErr('module_disabled'); return fail('module_disabled', 'Módulo não disponível.'); }
   // 3. Gate RBAC
   if (!ctx.can(action.requires)) { await logErr('forbidden'); return fail('forbidden', 'Sem permissão.'); }
+  // 4. Tenant selector guard — reject untrusted clinicId/clinic_id before Zod strips it
+  if (rawInput !== null && typeof rawInput === 'object' && !Array.isArray(rawInput)) {
+    const hasClinicId = Object.prototype.hasOwnProperty.call(rawInput as Record<string, unknown>, 'clinicId');
+    const hasClinicIdSnake = Object.prototype.hasOwnProperty.call(rawInput as Record<string, unknown>, 'clinic_id');
+    if (hasClinicId || hasClinicIdSnake) {
+      await logErr('invalid_input');
+      return fail('invalid_input', 'Dados inválidos.');
+    }
+  }
+
   // 4. Input
   const parsed = action.input.safeParse(rawInput);
   if (!parsed.success) { await logErr('invalid_input'); return fail('invalid_input', 'Dados inválidos.'); }

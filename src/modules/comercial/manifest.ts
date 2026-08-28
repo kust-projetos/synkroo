@@ -4,6 +4,7 @@
 export const comercialManifest = {
   id: 'comercial' as const,
   name: 'Comercial',
+  dependsOn: ['operacional'] as const,
   alwaysOn: false,
   menu: [
     {

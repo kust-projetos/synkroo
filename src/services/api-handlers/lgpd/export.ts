@@ -16,57 +16,23 @@ import { eq, and } from 'drizzle-orm'
 
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
-    if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error?.message || 'Unauthorized' },
-        { status: authResult.error?.status || 401 },
-      )
-    }
-
-    const clinicId = authResult.profile!.clinic_id
-
-    const body = await request.json()
-    const { patientId } = body
-
+    const { buildUserContext } = await import('@/core/actions/context');
+    const { runAction } = await import('@/core/actions/run');
+    const { exportarDadosPaciente } = await import('@/modules/operacional/actions/exportar-dados-paciente');
+    const ctx = await buildUserContext();
+    const body = await request.json();
+    const { patientId } = body;
     if (!patientId) {
-      return NextResponse.json({ error: 'Missing required field: patientId' }, { status: 400 })
+      return NextResponse.json({ error: 'Missing required field: patientId' }, { status: 400 });
     }
-
-    const db = getDb()
-
-    const [patientResult, appointmentsResult, budgetsResult, paymentsResult, consentsResult] =
-      await Promise.all([
-        db.select().from(patients)
-          .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
-          .limit(1),
-
-        db.select().from(appointments)
-          .where(and(eq(appointments.patientId, patientId), eq(appointments.clinicId, clinicId))),
-
-        db.select().from(budgets)
-          .where(and(eq(budgets.patientId, patientId), eq(budgets.clinicId, clinicId))),
-
-        db.select().from(payments)
-          .where(and(eq(payments.patientId, patientId), eq(payments.clinicId, clinicId))),
-
-        db.select().from(consents)
-          .where(and(
-            eq(consents.contactId, patientId),
-            eq(consents.contactType, 'patient'),
-          )),
-      ])
-
-    return NextResponse.json({
-      exportedAt: new Date().toISOString(),
-      patient: patientResult[0] || null,
-      appointments: appointmentsResult,
-      budgets: budgetsResult,
-      payments: paymentsResult,
-      consents: consentsResult,
-    })
+    const result = await runAction(exportarDadosPaciente, { patientId }, ctx);
+    if (!result.ok) {
+      const status = result.error.code === 'not_found' ? 404 : result.error.code === 'forbidden' ? 403 : 400;
+      return NextResponse.json({ error: result.error.message }, { status });
+    }
+    return NextResponse.json(result.data);
   } catch (error) {
-    console.error('LGPD export error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    console.error('LGPD export error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

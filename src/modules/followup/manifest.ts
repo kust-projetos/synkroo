@@ -4,6 +4,7 @@
 export const followupManifest = {
   id: 'followup' as const,
   name: 'Follow-up',
+  dependsOn: ['operacional', 'atendimento', 'financeiro'] as const,
   alwaysOn: false,
   menu: [
     {

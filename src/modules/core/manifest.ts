@@ -1,6 +1,7 @@
 export const coreManifest = {
   id: 'core',
   name: 'Núcleo',
+  dependsOn: [] as const,
   alwaysOn: true, // Core nunca é desativável
   menu: [
     // Configurações — sempre visível para usuário autenticado (RBAC: core:view)

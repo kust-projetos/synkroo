@@ -15,7 +15,6 @@ export const processarWebhookInstagram = defineAction({
   requires: 'atendimento:manage_webhooks',
   label: 'Processar webhook Instagram DM',
   input: z.object({
-    clinicId: z.string(),
     senderId: z.string(),
     content: z.string(),
     messageType: z.enum(['text', 'image', 'audio', 'video']).optional().default('text'),
@@ -23,12 +22,12 @@ export const processarWebhookInstagram = defineAction({
     conversationId: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    assertClinicScope(input.clinicId, ctx);
-    // If a conversationId is provided, verify it belongs to the clinic
+    const clinicId = ctx.clinicId;
+    // If a conversationId is provided, verify it belongs to the clinic via tenant-scoped lookup
     if (input.conversationId) {
-      const { findById } = await import('../repositories/conversations-repository');
-      const conv = await findById(input.conversationId);
-      if (!conv || conv.clinicId !== input.clinicId) {
+      const { findByIdForClinic } = await import('../repositories/conversations-repository');
+      const conv = await findByIdForClinic(input.conversationId, clinicId);
+      if (!conv) {
         return { success: false, error: 'Conversa não encontrada ou acesso negado.' };
       }
     }

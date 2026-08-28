@@ -19,6 +19,6 @@ Toda entrada de negócio (UI e IA) passa por uma Action Layer unificada. Actions
 
 - Regra de negócio em route handler: duplicação, bypass de policy
 
-## Gap
+## Gap (2026-08-28 W5 em progresso)
 
-Nenhum. Action Layer implementada conforme spec.
+Remoção de `.handler` direto e `buildSystemContext` em workflows humanos concluída parcialmente (CRM services via public seam, comercial lead-conversion sem buildSystemContext, financeiro parcialmente). Bootstrap determinístico com Promise memoizada, validação pré-commit e rollback implementado. Marcar Implementado após W5 completo (todos os workflows sem .handler/system substitution).

@@ -47,9 +47,8 @@ export const responderInstagram = defineAction({
     accountId: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    const conv = await repo.findById(input.conversationId);
+    const conv = await repo.findByIdForClinic(input.conversationId, ctx.clinicId);
     if (!conv) throw new ActionError('not_found', 'Conversa não encontrada.');
-    if (conv.clinicId !== ctx.clinicId) throw new ActionError('forbidden', 'Acesso negado.');
 
     const accountId = input.accountId ?? INSTAGRAM_ACCOUNT_ID;
     if (!accountId) throw new ActionError('internal', 'Instagram account ID not configured.');
@@ -57,13 +56,12 @@ export const responderInstagram = defineAction({
     const sent = await sendInstagramMessage(accountId, conv.externalId, input.message);
     if (!sent) throw new ActionError('internal', 'Falha ao enviar DM Instagram.');
 
-    // Store outbound message
-    const message = await repo.createMessage({
+    // Store outbound message — tenant-scoped
+    const message = await repo.appendOutboundMessage(ctx.clinicId, {
       conversationId: input.conversationId,
-      direction: 'outbound',
       content: input.message,
     });
-    await repo.updateConversation(input.conversationId, {
+    await repo.updateConversation(ctx.clinicId, input.conversationId, {
       lastMessageAt: new Date(),
       messageCountIncrement: 1,
     });

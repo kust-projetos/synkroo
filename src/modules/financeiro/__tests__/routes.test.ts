@@ -32,6 +32,7 @@ jest.mock('@/core/modules/manifest', () => ({
 // Mock budget-service for legacy route tests
 const mockListBudgets = jest.fn().mockResolvedValue([]);
 const mockGetBudget = jest.fn().mockResolvedValue(undefined);
+const mockGetBudgetForClinic = jest.fn().mockResolvedValue({ id: 'b1', clinicId: '00000000-0000-0000-0000-000000000001', finalValue: '900' });
 const mockMarkBudgetSent = jest.fn().mockResolvedValue({ id: 'b1', status: 'pending' });
 const mockAcceptBudget = jest.fn().mockResolvedValue({ id: 'b1', status: 'accepted', acceptedAt: new Date().toISOString() });
 const mockRejectBudget = jest.fn().mockResolvedValue({ id: 'b1', status: 'rejected', rejectedAt: new Date().toISOString() });
@@ -45,6 +46,12 @@ jest.mock('@/modules/financeiro/services/budget-service', () => ({
   acceptBudget: (...args: any[]) => mockAcceptBudget(...args),
   rejectBudget: (...args: any[]) => mockRejectBudget(...args),
   calculateBudgetTotals: jest.fn(),
+}));
+
+jest.mock('@/modules/financeiro/services/budget-scope-service', () => ({
+  getBudgetForClinic: (...args: any[]) => mockGetBudgetForClinic(...args),
+  updateInstallmentForBudget: jest.fn(),
+  deleteInstallmentForBudget: jest.fn(),
 }));
 
 jest.mock('@/modules/financeiro/services/payment-service', () => ({
@@ -202,7 +209,7 @@ describe('GET /api/budgets/[id]/payments (legacy)', () => {
 
 describe('GET /api/budgets/[id]/installments (legacy)', () => {
   test('returns { installments, remaining_balance } shape', async () => {
-    mockGetBudget.mockResolvedValueOnce({ id: 'b1', clinicId: '00000000-0000-0000-0000-000000000001', finalValue: '900' });
+    mockGetBudgetForClinic.mockResolvedValueOnce({ id: 'b1', clinicId: '00000000-0000-0000-0000-000000000001', finalValue: '900' });
     const res = await legacyInstallmentsGET(
       makeNextRequest('http://localhost/api/budgets/'),
       { params: Promise.resolve({ id: 'b1' }) },

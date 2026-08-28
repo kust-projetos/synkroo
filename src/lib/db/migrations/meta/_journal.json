@@ -169,6 +169,34 @@
       "when": 1786816971314,
       "tag": "0024_clinic_timezone",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1787941260344,
+      "tag": "0025_tenant-relational-integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1787942365556,
+      "tag": "0026_conversation-unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1787946031844,
+      "tag": "0027_drop-is-master",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1787947000000,
+      "tag": "0028_remove-legacy-fks",
+      "breakpoints": true
     }
   ]
 }

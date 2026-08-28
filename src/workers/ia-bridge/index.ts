@@ -48,6 +48,19 @@ function validateBridgeEnv(env: Env): void {
   setDbConnectionString(env.HYPERDRIVE.connectionString);
 }
 
+export class HandleIssuerService extends WorkerEntrypoint<Env> {
+  async issueHandle(input: {
+    clinicId: string;
+    conversationId: string;
+    principalRef: string;
+    source: 'system' | 'agent_delegated';
+    ttlSeconds?: number;
+  }) {
+    validateBridgeEnv(this.env);
+    return issueHandle(this.env.HANDLE_SECRET, input);
+  }
+}
+
 export class AppService extends WorkerEntrypoint<Env> {
   private deps(): BridgeDeps {
     validateBridgeEnv(this.env);
@@ -72,6 +85,7 @@ export class AppService extends WorkerEntrypoint<Env> {
     return runDbHealthCheck(() => getDb().execute(sql`SELECT 1`));
   }
 
+  // Compat: manter issueHandle em AppService temporariamente para rollout compatível (primeiro deploy)
   async issueHandle(input: {
     clinicId: string;
     conversationId: string;

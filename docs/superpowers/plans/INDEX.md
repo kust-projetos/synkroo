@@ -21,6 +21,7 @@ This index is the navigation authority for planning documents. It does not dupli
 - [`2026-08-16-roadmap-143-wave-3-channels-ai.md`](2026-08-16-roadmap-143-wave-3-channels-ai.md)
 - [`2026-08-16-roadmap-143-wave-4-business-lgpd.md`](2026-08-16-roadmap-143-wave-4-business-lgpd.md)
 - [`2026-08-16-roadmap-143-wave-5-release-pilot.md`](2026-08-16-roadmap-143-wave-5-release-pilot.md)
+- [`2026-08-27-synkroo-teste-producao-plan.md`](2026-08-27-synkroo-teste-producao-plan.md) — Teste em produção W11/W12 (child de Wave 5, baseado em resume 22:07 92/100)
 
 ## Historical
 
