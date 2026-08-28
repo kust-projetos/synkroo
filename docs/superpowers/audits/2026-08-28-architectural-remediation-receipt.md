@@ -90,13 +90,13 @@ Status possíveis: `OPEN` → `IN_PROGRESS` → `RED` → `GREEN` → `VERIFIED`
 | W5.1 portas públicas owner | — | — | — | — | — |
 | W5.2 remover .handler CRM | — | — | — | — | — |
 | W5.3 preservar caller workflows | — | — | spy runAction/buildSystemContext/.handler | — | — |
-| W5.4 eliminar side effect registry | — | — | reintroduzir registerActions em barrel | — | — |
-| W5.5 owner-merge composition root | — | — | remover adapter → OWNER_MERGE_ADAPTER_MISSING | — | — |
-| W6.1 unicidade conversa | — | — | — | — | — |
-| W6.2 primitive transacional única | — | — | — | — | — |
-| W6.3 corrida real | — | — | 10x Promise.all | — | — |
-| W6.4 boundaries Evolution/widget | — | — | — | — | — |
-| W7.1 catálogo dependências | — | — | — | — | — |
+| W5.4 eliminar side effect registry | — | VERIFIED Promise memoizada, validação pré-commit, rollback | reintroduzir registerActions em barrel → RED | `src/core/actions/bootstrap.ts`, `registry.ts`, `catalog.ts` | Baixo. W5.4 completo. |
+| W5.5 owner-merge composition root | — | VERIFIED side-effect removido, clinicId via ctx, bootstrap registra | remover adapter → RED | `src/modules/operacional/actions/mesclar-pacientes.ts`, `src/modules/comercial/actions/mesclar-leads.ts`, `src/modules/crm/services/owner-merge-registry.ts` | Baixo. W5.5 completo. |
+| W6.1 unicidade conversa | — | VERIFIED índice único `conversations_clinic_channel_external_unique`, audit duplicatas | — | `src/modules/atendimento/schema/conversations.ts`, `migrations/0026_conversation-unique.sql` | Baixo. W6.1 completo. |
+| W6.2 primitive transacional única | — | VERIFIED `persistInboundMessage` tx upsert+dedup+aggregate | — | `src/modules/atendimento/repositories/conversations-repository.ts` | Baixo. W6.2 completo. |
+| W6.3 corrida real | — | VERIFIED `concurrency-dedup` 10x Promise.all | 10x Promise.all | `src/modules/atendimento/__tests__/concurrency-dedup.integration.test.ts` | Baixo. W6.3 completo. |
+| W6.4 boundaries Evolution/widget | — | VERIFIED `findOrCreate` tenant-scoped, dedup, update aggregate | — | — | Baixo. W6.4 completo. |
+| W7.1 catálogo dependências | — | VERIFIED `definitions.ts` grafo acíclico, `dependsOn` em 8 manifests | — | `src/core/modules/definitions.ts`, `src/modules/*/manifest.ts` | Baixo. W7.1 completo. |
 | W7.2 remover deps legadas | — | — | — | — | — |
 | W7.3 boundary fail-closed | — | — | import operacional em outro módulo | — | — |
 | W7.4 quebrar ciclos schema | — | — | reintroduzir import barrel | — | — |
