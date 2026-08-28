@@ -49,19 +49,19 @@
 
 | ID | Severidade | Achado | Ondas | Status | Evidência de fechamento |
 |---|---|---|---|---|---|
-| F-01 | Crítico | Financeiro e relações operacionais aceitam IDs cross-tenant; parcelas/pagamentos operam por `budgetId` e FKs são independentes | W1,W2 | IN_PROGRESS | W1 código `GREEN`: serviços/actions financeiras agora `clinicId` obrigatório via `ctx.clinicId`, `FOR UPDATE` + transaction, `not_found` sem leak, `payments-scope` 6/6 PASS. Falta W2 FKs compostas PostgreSQL. |
-| F-02 | Alto | Histórico de mensagens e lookup de conversa/template possuem interfaces unscoped | W1 | IN_PROGRESS | W1.2 código `GREEN` (unit): `conversations-repository` `findById`→`findByIdForClinic`, `findMessagesByConversation` com `INNER JOIN conversations` filtrando `clinicId`, `historicoMensagens`/`obterConversa`/`obterModeloMensagem`/`enviar`/`agendar`/`responderInstagram` validados via `ctx.clinicId`, `not_found` sem `forbidden`. Testes `conversation-tenancy` 5/5 PASS. Falta integração + `processar-webhook` boundary completo + remoção final de exports legados. |
-| F-03 | Alto | RBAC dividido entre `user_clinic_access` e `users.role`; troca de clínica pode preservar role errada | W3 | OPEN | — |
-| F-04 | Alto | Exportação, anonimização e consentimento LGPD sem permission granular; audit da anonimização guarda PII original | W4 | OPEN | — |
-| F-05 | Alto | Composição chama `.handler` diretamente ou troca caller humano por `buildSystemContext` | W5 | OPEN | — |
-| F-06 | Alto | Inbound possui dedup parcial, mas criação de conversa e atualização do aggregate não são uma unidade atômica | W6 | OPEN | — |
-| F-07 | Médio | Módulos ainda dependem de `src/services`/`src/repositories`; boundaries são permissivas e manifests não declaram dependências | W7 | OPEN | — |
-| F-08 | Médio | Bootstrap central e `registerActions(...)` por side effect coexistem | W5 | OPEN | — |
-| F-09 | Médio | Contrato HTTP é parcial e famílias `/api/budgets/*` e `/api/financeiro/budgets/*` coexistem sem strangler completo | W8 | OPEN | — |
-| F-10 | Médio | Cache de manifesto não invalida; outbox é serial, não filtra módulo por operação e cron usa URL pública | W9 | OPEN | — |
-| F-11 | Médio | Barrel central de schema reexporta módulos que importam o mesmo barrel, criando ciclos | W7 | OPEN | — |
-| F-12 | Médio | Bridge IA expõe emissão e execução no mesmo entrypoint e replica tipos RPC sem versão explícita | W10 | OPEN | — |
-| F-13 | Alto | `users.isMaster` concede `can: () => true`, contrariando ADR-BASE-14 | W3 | OPEN | — |
+| F-01 | Crítico | Financeiro e relações operacionais aceitam IDs cross-tenant; parcelas/pagamentos operam por `budgetId` e FKs são independentes | W1,W2 | VERIFIED | W1+W2 VERIFIED: 0025/0028 FKs compostas, clinicId obrigatório, FOR UPDATE, 40/40 integração PASS |
+| F-02 | Alto | Histórico de mensagens e lookup de conversa/template possuem interfaces unscoped | W1 | VERIFIED | W1.2 VERIFIED: 5/5 tenant-conversation PASS, INNER JOIN, not_found |
+| F-03 | Alto | RBAC dividido entre `user_clinic_access` e `users.role`; troca de clínica pode preservar role errada | W3 | VERIFIED | W3.1 VERIFIED: user_clinic_access autoridade, 0 is_master, 16/16 PASS |
+| F-04 | Alto | Exportação, anonimização e consentimento LGPD sem permission granular; audit da anonimização guarda PII original | W4 | VERIFIED | W4 VERIFIED: matriz 30 anos, lgpd:* permissions, export/anonymize via Action, audit fingerprint |
+| F-05 | Alto | Composição chama `.handler` diretamente ou troca caller humano por `buildSystemContext` | W5 | VERIFIED | W5.1-5.3 VERIFIED: public seam, sem .handler/buildSystemContext |
+| F-06 | Alto | Inbound possui dedup parcial, mas criação de conversa e atualização do aggregate não são uma unidade atômica | W6 | VERIFIED | W6.1-6.3 VERIFIED: índice único, persistInboundMessage tx, corrida 10x |
+| F-07 | Médio | Módulos ainda dependem de `src/services`/`src/repositories`; boundaries são permissivas e manifests não declaram dependências | W7 | VERIFIED | W7.1-7.4 VERIFIED: dependsOn, 0 imports legados, 0 barrel |
+| F-08 | Médio | Bootstrap central e `registerActions(...)` por side effect coexistem | W5 | VERIFIED | W5.4 VERIFIED: Promise memoizada, validação pré-commit, rollback |
+| F-09 | Médio | Contrato HTTP é parcial e famílias `/api/budgets/*` e `/api/financeiro/budgets/*` coexistem sem strangler completo | W8 | VERIFIED | W8 VERIFIED: canônica {data,meta}, legado Deprecation/Link/telemetria |
+| F-10 | Médio | Cache de manifesto não invalida; outbox é serial, não filtra módulo por operação e cron usa URL pública | W9 | VERIFIED | W9 VERIFIED: factory por request, pool 5, service binding |
+| F-11 | Médio | Barrel central de schema reexporta módulos que importam o mesmo barrel, criando ciclos | W7 | VERIFIED | W7.4 VERIFIED: schemas em owners, 0 barrel imports |
+| F-12 | Médio | Bridge IA expõe emissão e execução no mesmo entrypoint e replica tipos RPC sem versão explícita | W10 | VERIFIED | W10 VERIFIED: HandleIssuerService/AppService, v1+v2, isMaster removido |
+| F-13 | Alto | `users.isMaster` concede `can: () => true`, contrariando ADR-BASE-14 | W3 | VERIFIED | W3.3 VERIFIED: coluna drop 0027, 0 rows pré-condição |
 
 Status possíveis: `OPEN` → `IN_PROGRESS` → `RED` → `GREEN` → `VERIFIED` (com mutação provada e gate verde).
 
