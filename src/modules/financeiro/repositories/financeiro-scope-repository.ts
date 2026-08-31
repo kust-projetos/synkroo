@@ -9,7 +9,7 @@
 
 import { eq, and } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { budgets, budgetInstallments, paymentCharges } from '@/lib/db/schema';
+import { budgets, budgetInstallments, paymentCharges } from '@/modules/financeiro/schema';
 import type { InferSelectModel } from 'drizzle-orm';
 
 export type BudgetRow = InferSelectModel<typeof budgets>;

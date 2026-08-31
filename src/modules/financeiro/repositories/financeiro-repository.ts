@@ -18,7 +18,7 @@ import {
   gatewayRoutingRules,
   gatewayEvents,
   collectionAttempts,
-} from '@/lib/db/schema';
+} from '@/modules/financeiro/schema';
 import type { InferSelectModel } from 'drizzle-orm';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -344,6 +344,12 @@ export async function createPaymentGateway(data: {
 export async function getPaymentGateway(id: string): Promise<PaymentGatewayRow | undefined> {
   const db = getDb();
   const [row] = await db.select().from(paymentGateways).where(eq(paymentGateways.id, id)).limit(1);
+  return row;
+}
+
+export async function getPaymentGatewayForClinic(gatewayId: string, clinicId: string): Promise<PaymentGatewayRow | undefined> {
+  const db = getDb();
+  const [row] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.id, gatewayId), eq(paymentGateways.clinicId, clinicId))).limit(1);
   return row;
 }
 
