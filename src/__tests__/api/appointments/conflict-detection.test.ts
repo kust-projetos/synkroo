@@ -32,10 +32,21 @@ jest.mock('@/repositories/procedures', () => ({
 
 // Mock operacional appointments repository
 const mockCreateAppointment = jest.fn()
+const mockFindPatient = jest.fn().mockResolvedValue({ id: 'patient-1' })
+const mockFindDentist = jest.fn().mockResolvedValue({ id: 'dentist-1' })
 jest.mock('@/modules/operacional/repositories/appointments-repository', () => ({
   createAppointment: (...args: unknown[]) => mockCreateAppointment(...args),
   findById: jest.fn().mockResolvedValue(null),
   findByClinicWithJoins: jest.fn().mockResolvedValue([]),
+}));
+
+jest.mock('@/modules/operacional/repositories/patients-repository', () => ({
+  findById: (...args: unknown[]) => mockFindPatient(...args),
+}));
+
+jest.mock('@/modules/operacional/repositories/catalog-repository', () => ({
+  findDentistById: (...args: unknown[]) => mockFindDentist(...args),
+  findProcedureById: jest.fn().mockResolvedValue({ id: 'procedure-1' }),
 }));
 
 // Mock manifest so buildUserContext → enabledModules() resolves without hitting DB
@@ -46,10 +57,10 @@ jest.mock('@/core/modules/manifest', () => {
     drizzleManifestRepo: {
       getEnabledModuleIds: jest.fn().mockResolvedValue(['operacional']),
     },
-    moduleManifest: {
+    createManifest: () => ({
       isEnabled: jest.fn().mockResolvedValue(true),
       enabledModules: jest.fn().mockResolvedValue(new Set(['core', 'operacional'])),
-    },
+  }),
   }
 });
 
@@ -57,7 +68,6 @@ jest.mock('@/core/modules/manifest', () => {
 // RESERVED_ROLE_OWNER = 'Owner' (capital O) — must match exactly for owner branch
 jest.mock('@/core/rbac/repository', () => ({
   drizzleRbacRepo: {
-    isMaster: jest.fn().mockResolvedValue(false),
     getAccess: jest.fn().mockResolvedValue({
       isSystem: true,
       roleName: 'Owner',
@@ -123,7 +133,8 @@ describe('Appointment Conflict Detection', () => {
     const res = await POST(req as unknown as NextRequest)
     expect(res.status).toBe(409)  // action system: conflict → 409
     const json = await res.json()
-    expect(json.error).toMatch(/indisponível|conflito|horário/i)
+    expect(typeof json.error).toBe('object')
+    expect(JSON.stringify(json.error)).toMatch(/indisponível|conflito|horário/i)
   })
 
   it('deve conflitar quando existente CONTMÉM novo (existing 09:00-10:30, new 09:30-10:00)', async () => {

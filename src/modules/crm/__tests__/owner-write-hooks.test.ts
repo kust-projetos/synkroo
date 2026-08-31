@@ -47,19 +47,9 @@ const context: ActionContext = {
   audit: { actor: 'staff' },
 };
 
-const inputClinicId = '00000000-0000-4000-8000-000000000099';
-
-describe('duplicate detection owner write hooks', () => {
+describe('owner write actions delegate tenant scope', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockRecalculateDuplicatesForPatient.mockResolvedValue({
-      evaluated: 0,
-      persisted: 0,
-    });
-    mockRecalculateDuplicatesForLead.mockResolvedValue({
-      evaluated: 0,
-      persisted: 0,
-    });
   });
 
   it('accepts capture input without a client-provided clinic', () => {
@@ -77,7 +67,7 @@ describe('duplicate detection owner write hooks', () => {
     }).success).toBe(true);
   });
 
-  it('recalculates after creating a patient', async () => {
+  it('delegates patient creation with the context clinic', async () => {
     mockCreatePatient.mockResolvedValue({ id: 'patient-new' });
 
     const result = await criarPaciente.handler(
@@ -88,7 +78,6 @@ describe('duplicate detection owner write hooks', () => {
     expect({
       result,
       write: mockCreatePatient.mock.calls[0][0],
-      hook: mockRecalculateDuplicatesForPatient.mock.calls[0]?.[0],
     }).toEqual({
       result: { id: 'patient-new' },
       write: {
@@ -96,11 +85,11 @@ describe('duplicate detection owner write hooks', () => {
         name: 'Ana',
         phone: '11999990000',
       },
-      hook: { clinicId: context.clinicId, patientId: 'patient-new' },
     });
+    expect(mockRecalculateDuplicatesForPatient).not.toHaveBeenCalled();
   });
 
-  it('recalculates after updating a patient', async () => {
+  it('delegates patient updates with the context clinic', async () => {
     mockUpdatePatient.mockResolvedValue({ id: 'patient-existing' });
 
     const result = await atualizarPaciente.handler(
@@ -110,19 +99,17 @@ describe('duplicate detection owner write hooks', () => {
 
     expect({
       result,
-      hook: mockRecalculateDuplicatesForPatient.mock.calls[0]?.[0],
     }).toEqual({
       result: { id: 'patient-existing' },
-      hook: { clinicId: context.clinicId, patientId: 'patient-existing' },
     });
+    expect(mockRecalculateDuplicatesForPatient).not.toHaveBeenCalled();
   });
 
-  it('recalculates after capturing a lead using context clinic', async () => {
+  it('delegates lead capture with the context clinic', async () => {
     mockCaptureLead.mockResolvedValue({ leadId: 'lead-new' });
 
     const result = await capturarLead.handler(
       {
-        clinicId: inputClinicId,
         name: 'Lead Ana',
         phone: '11999990000',
         source: 'web',
@@ -133,7 +120,6 @@ describe('duplicate detection owner write hooks', () => {
     expect({
       result,
       write: mockCaptureLead.mock.calls[0][0],
-      hook: mockRecalculateDuplicatesForLead.mock.calls[0]?.[0],
     }).toEqual({
       result: { leadId: 'lead-new' },
       write: {
@@ -142,18 +128,17 @@ describe('duplicate detection owner write hooks', () => {
         phone: '11999990000',
         source: 'web',
       },
-      hook: { clinicId: context.clinicId, leadId: 'lead-new' },
     });
+    expect(mockRecalculateDuplicatesForLead).not.toHaveBeenCalled();
   });
 
-  it('recalculates after updating a lead using context clinic', async () => {
+  it('delegates lead updates with the context clinic', async () => {
     mockFindLead.mockResolvedValue({ id: 'lead-existing' });
     mockUpdateLead.mockResolvedValue({ id: 'lead-existing' });
 
     const result = await atualizarLead.handler(
       {
         leadId: 'lead-existing',
-        clinicId: inputClinicId,
         name: 'Lead Ana Silva',
       },
       context,
@@ -163,7 +148,6 @@ describe('duplicate detection owner write hooks', () => {
       result,
       lookup: mockFindLead.mock.calls[0],
       write: mockUpdateLead.mock.calls[0],
-      hook: mockRecalculateDuplicatesForLead.mock.calls[0]?.[0],
     }).toEqual({
       result: { id: 'lead-existing' },
       lookup: ['lead-existing', context.clinicId],
@@ -172,7 +156,7 @@ describe('duplicate detection owner write hooks', () => {
         context.clinicId,
         { name: 'Lead Ana Silva' },
       ],
-      hook: { clinicId: context.clinicId, leadId: 'lead-existing' },
     });
+    expect(mockRecalculateDuplicatesForLead).not.toHaveBeenCalled();
   });
 });

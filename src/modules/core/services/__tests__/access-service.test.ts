@@ -14,9 +14,11 @@ const mockRemoveUserAccess = jest.fn();
 const mockDeactivateUser = jest.fn();
 const mockGetUserInClinic = jest.fn();
 const mockGetUserRoleScope = jest.fn();
+const mockHasMasterPermission = jest.fn();
 
 jest.mock('@/modules/core/repositories/roles-repository', () => ({
   getOwnerRole: (...args: unknown[]) => mockGetOwnerRole(...args),
+  hasMasterPermission: (...args: unknown[]) => mockHasMasterPermission(...args),
 }));
 
 jest.mock('@/modules/core/repositories/access-repository', () => ({
@@ -52,7 +54,8 @@ beforeEach(() => {
   jest.resetAllMocks();
   // default: Owner role existe na clínica
   mockGetOwnerRole.mockResolvedValue({ id: OWNER_ROLE_ID });
-  mockGetUserRoleScope.mockResolvedValue({ userClinicId: CLINIC_ID, roleClinicId: CLINIC_ID });
+  mockGetUserRoleScope.mockResolvedValue({ userId: USER_ID, userClinicId: CLINIC_ID, roleClinicId: CLINIC_ID });
+  mockHasMasterPermission.mockResolvedValue(false);
   mockGetUserInClinic.mockResolvedValue({ id: USER_ID, clinicId: CLINIC_ID });
 });
 
@@ -71,6 +74,7 @@ describe('assignUserAccess — tenancy and cross-tenant entity boundaries', () =
 
   it('rejects when user belongs to a foreign clinic', async () => {
     mockGetUserRoleScope.mockResolvedValue({
+      userId: USER_ID,
       userClinicId: OTHER_CLINIC_ID,
       roleClinicId: CLINIC_ID,
     });
@@ -86,6 +90,7 @@ describe('assignUserAccess — tenancy and cross-tenant entity boundaries', () =
 
   it('rejects when role belongs to a foreign clinic', async () => {
     mockGetUserRoleScope.mockResolvedValue({
+      userId: USER_ID,
       userClinicId: CLINIC_ID,
       roleClinicId: OTHER_CLINIC_ID,
     });
@@ -101,6 +106,7 @@ describe('assignUserAccess — tenancy and cross-tenant entity boundaries', () =
 
   it('rejects when both user and role belong to a foreign clinic', async () => {
     mockGetUserRoleScope.mockResolvedValue({
+      userId: USER_ID,
       userClinicId: OTHER_CLINIC_ID,
       roleClinicId: OTHER_CLINIC_ID,
     });
@@ -116,6 +122,7 @@ describe('assignUserAccess — tenancy and cross-tenant entity boundaries', () =
 
   it('succeeds nominally when both user and role belong to the target clinic', async () => {
     mockGetUserRoleScope.mockResolvedValue({
+      userId: USER_ID,
       userClinicId: CLINIC_ID,
       roleClinicId: CLINIC_ID,
     });

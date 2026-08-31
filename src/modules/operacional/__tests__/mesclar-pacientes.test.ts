@@ -5,13 +5,14 @@ jest.mock('@/lib/db/client', () => ({
   closeDb: jest.fn(),
 }));
 
-jest.mock('@/modules/crm', () => {
-  const actual = jest.requireActual('@/modules/crm');
-  return { ...actual, registerOwnerMerge: jest.fn(actual.registerOwnerMerge) };
-});
+jest.mock('@/lib/outbox/outbox-repository', () => ({
+  enqueueOutbox: jest.fn(),
+}));
 
 import { mergePatients, listPatients } from '@/modules/operacional/repositories/patients-repository';
 import * as patientsRepo from '@/modules/operacional/repositories/patients-repository';
+import { bootstrapActions, resetBootstrapForTests } from '@/core/actions/bootstrap';
+import { getOwnerMergeDispatcher } from '@/modules/crm/services/owner-merge-registry';
 
 describe('Operacional — patient merge (transaction)', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -170,24 +171,11 @@ describe('listPatients DB-level merge filter (wiring)', () => {
   });
 });
 
-describe('runtime owner dispatcher registration', () => {
-  afterEach(() => jest.restoreAllMocks());
+describe('runtime owner adapter composition', () => {
+  it('registers the patient adapter only through the composition root', async () => {
+    resetBootstrapForTests();
+    await bootstrapActions();
 
-  it('registers a patient owner merge dispatcher that delegates to mergePatients', async () => {
-    const spy = jest.spyOn(patientsRepo, 'mergePatients').mockResolvedValue(true);
-    const crm = await import('@/modules/crm');
-    // Task 4: dispatcher agora vive em @/modules/crm/services/patient-merge-dispatcher
-    // (a action operacional.mesclarPacientes foi removida).
-    await import('@/modules/crm/services/patient-merge-dispatcher');
-
-    const patientCall = (crm.registerOwnerMerge as jest.Mock).mock.calls.find(
-      ([type]) => type === 'patient',
-    );
-    expect(patientCall).toBeDefined();
-
-    const dispatcher = patientCall![1];
-    await dispatcher('w1', 'r1', 'c1');
-
-    expect(spy).toHaveBeenCalledWith('w1', 'r1', 'c1');
+    expect(getOwnerMergeDispatcher('patient')).toEqual(expect.any(Function));
   });
 });

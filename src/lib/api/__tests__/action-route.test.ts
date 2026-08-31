@@ -49,7 +49,7 @@ describe('action route adapter contract', () => {
     await expect(response.json()).resolves.toEqual({
       error: {
         code: 'INTERNAL_ERROR',
-        message: 'permission denied',
+        message: 'Internal server error',
         requestId: 'req-error-1',
       },
     })

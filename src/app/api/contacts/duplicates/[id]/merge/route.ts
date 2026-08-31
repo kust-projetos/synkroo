@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { runCrmAction } from '@/modules/crm/ui/route-adapter';
 import {
@@ -44,4 +44,4 @@ async function handlePOST(
   return runCrmAction(mergeAction, { id });
 }
 
-export const POST = withModuleRoute('crm', moduleManifest)(handlePOST);
+export const POST = withModuleRoute('crm')(handlePOST);

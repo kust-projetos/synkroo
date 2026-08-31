@@ -69,11 +69,13 @@ describeOrSkip('Signup — provisiona RBAC (DB real)', () => {
     expect(resolved.can('core:manage_users')).toBe(true)
 
     // 4. Profile and lookup helpers preserve the complete tenant-scoped shape.
-    expect(await findUserProfileById(ownerId)).toEqual(expect.objectContaining({
+    expect(await findUserProfileById(ownerId, clinicId)).toEqual(expect.objectContaining({
       id: ownerId,
       email,
       name: 'Dr. Owner',
-      role: 'owner',
+      role: RESERVED_ROLE_OWNER,
+      roleId: ownerRole.id,
+      roleName: RESERVED_ROLE_OWNER,
       isActive: true,
       sessionVersion: 0,
       clinicId,
@@ -90,7 +92,7 @@ describeOrSkip('Signup — provisiona RBAC (DB real)', () => {
         }),
       }),
     }))
-    expect(await findUserProfileById('00000000-0000-4000-8000-000000000000')).toBeNull()
+    expect(await findUserProfileById('00000000-0000-4000-8000-000000000000', clinicId)).toBeNull()
     expect(await hasUserClinicAccess(ownerId, clinicId)).toBe(true)
     expect(await hasUserClinicAccess(ownerId, '00000000-0000-4000-8000-000000000001')).toBe(false)
     expect(await findUserByEmail(email.toUpperCase())).toEqual({ id: ownerId })

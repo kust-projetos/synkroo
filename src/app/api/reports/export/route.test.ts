@@ -1,11 +1,9 @@
 import { NextRequest } from 'next/server'
 
 const mockValidateApiAuth = jest.fn()
-const mockHasRequiredRole = jest.fn()
 
 jest.mock('@/lib/auth/session', () => ({
   validateApiAuth: (...args: unknown[]) => mockValidateApiAuth(...args),
-  hasRequiredRole: (...args: unknown[]) => mockHasRequiredRole(...args),
 }))
 jest.mock('@/lib/db/client', () => ({ getDb: jest.fn() }))
 
@@ -16,10 +14,9 @@ import { redactPII } from '@/lib/reports/redact-pii'
 beforeEach(() => {
   jest.clearAllMocks()
   mockValidateApiAuth.mockResolvedValue({
-    success: true,
-    profile: { id: 'user-1', clinic_id: 'clinic-1', name: 'Admin', role: 'receptionist' },
+    success: false,
+    error: { message: 'Insufficient permissions', status: 403 },
   })
-  mockHasRequiredRole.mockReturnValue(false)
 })
 
 describe('GET /api/reports/export', () => {
@@ -43,6 +40,6 @@ describe('GET /api/reports/export', () => {
     const response = await GET(new NextRequest('http://localhost/api/reports/export'))
 
     expect(response.status).toBe(403)
-    expect(mockHasRequiredRole).toHaveBeenCalled()
+    expect(mockValidateApiAuth).toHaveBeenCalledWith('analytics:export')
   })
 })

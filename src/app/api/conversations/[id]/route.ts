@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runAtendimentoAction } from '@/modules/atendimento/ui/route-adapter';
 import { obterConversa } from '@/modules/atendimento/actions/obter-conversa';
 
@@ -11,5 +11,5 @@ async function handleGET(_request: NextRequest, { params }: RouteParams): Promis
   return runAtendimentoAction(obterConversa, { id });
 }
 
-const wrapped = withModuleRoute('atendimento', moduleManifest)(handleGET);
+const wrapped = withModuleRoute('atendimento')(handleGET);
 export { wrapped as GET };

@@ -7,9 +7,11 @@
 
 import { and, eq, ne, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
+import { OUTBOX_OPERATIONS } from '@/lib/outbox/operations';
 import { patients, patientObservations, patientPreferences, patientRiskScores, patientFeedback } from '@/modules/operacional/schema/patients';
 import { appointments, waitlist } from '@/modules/operacional/schema';
-import { budgets, payments, treatmentPlans, campaignRecipients, followUps, pendingActions, decisionLogs, smartTriggerLog } from '@/lib/db/schema';
+import { treatmentPlans } from '@/modules/operacional/schema/treatments';
 
 // ─── Normalizers ─────────────────────────────────────────────────────────────
 
@@ -43,6 +45,15 @@ export function normalizeTags(tags: readonly string[]): string[] {
   return out;
 }
 
+async function enqueuePatientChanged(tx: unknown, clinicId: string, patientId: string) {
+  await enqueueOutbox(tx, {
+    clinicId,
+    operation: OUTBOX_OPERATIONS.CRM_CONTACT_CHANGED,
+    businessKey: `patient:${patientId}:${globalThis.crypto.randomUUID()}`,
+    payload: { ownerType: 'patient', ownerId: patientId },
+  });
+}
+
 // ─── Query helpers ───────────────────────────────────────────────────────────
 
 export async function findById(clinicId: string, id: string) {
@@ -58,7 +69,7 @@ export async function findById(clinicId: string, id: string) {
 export async function findByPhone(clinicId: string, phone: string) {
   const db = getDb();
   const [row] = await db
-    .select({ id: patients.id })
+    .select({ id: patients.id, name: patients.name })
     .from(patients)
     .where(and(eq(patients.clinicId, clinicId), eq(patients.phone, phone)))
     .limit(1);
@@ -128,9 +139,12 @@ export async function insertPatient(input: {
   notes?: string | null;
 }) {
   const db = getDb();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [row] = await db.insert(patients).values(input as any).returning({ id: patients.id });
-  return { id: row.id };
+  return db.transaction(async (tx: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [row] = await tx.insert(patients).values(input as any).returning({ id: patients.id });
+    await enqueuePatientChanged(tx, input.clinicId, row.id);
+    return { id: row.id };
+  });
 }
 
 export async function updatePatient(
@@ -146,13 +160,17 @@ export async function updatePatient(
   },
 ) {
   const db = getDb();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [row] = await db
-    .update(patients)
-    .set({ ...patch, updatedAt: new Date() } as any)
-    .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)))
-    .returning({ id: patients.id });
-  return row ?? null;
+  return db.transaction(async (tx: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [row] = await tx
+      .update(patients)
+      .set({ ...patch, updatedAt: new Date() } as any)
+      .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)))
+      .returning({ id: patients.id });
+    if (!row) return null;
+    await enqueuePatientChanged(tx, clinicId, row.id);
+    return row;
+  });
 }
 
 // ─── Owner-bridge helpers (Task 2 — CRM Integration Closure) ────────────────
@@ -192,13 +210,17 @@ export async function updatePatientTags(
   tags: string[],
 ) {
   const db = getDb();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [row] = await db
-    .update(patients)
-    .set({ tags, updatedAt: new Date() } as any)
-    .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
-    .returning({ id: patients.id });
-  return row ?? null;
+  return db.transaction(async (tx: any) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [row] = await tx
+      .update(patients)
+      .set({ tags, updatedAt: new Date() } as any)
+      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+      .returning({ id: patients.id });
+    if (!row) return null;
+    await enqueuePatientChanged(tx, clinicId, row.id);
+    return row;
+  });
 }
 
 // ─── Merge helpers ──────────────────────────────────────────────────────────
@@ -238,30 +260,9 @@ export async function mergePatients(
     await tx.update(patientFeedback)
       .set({ patientId: winnerId } as any)
       .where(and(eq(patientFeedback.patientId, loserId), eq(patientFeedback.clinicId, clinicId)));
-    await tx.update(budgets)
-      .set({ patientId: winnerId } as any)
-      .where(and(eq(budgets.patientId, loserId), eq(budgets.clinicId, clinicId)));
-    await tx.update(payments)
-      .set({ patientId: winnerId } as any)
-      .where(and(eq(payments.patientId, loserId), eq(payments.clinicId, clinicId)));
     await tx.update(treatmentPlans)
       .set({ patientId: winnerId } as any)
       .where(eq(treatmentPlans.patientId, loserId));
-    await tx.update(campaignRecipients)
-      .set({ patientId: winnerId } as any)
-      .where(eq(campaignRecipients.patientId, loserId));
-    await tx.update(followUps)
-      .set({ patientId: winnerId } as any)
-      .where(and(eq(followUps.patientId, loserId), eq(followUps.clinicId, clinicId)));
-    await tx.update(pendingActions)
-      .set({ patientId: winnerId } as any)
-      .where(eq(pendingActions.patientId, loserId));
-    await tx.update(decisionLogs)
-      .set({ patientId: winnerId } as any)
-      .where(eq(decisionLogs.patientId, loserId));
-    await tx.update(smartTriggerLog)
-      .set({ patientId: winnerId } as any)
-      .where(eq(smartTriggerLog.patientId, loserId));
 
     // Fill loser gaps into winner
     const gapFill: Record<string, unknown> = {};
@@ -287,6 +288,8 @@ export async function mergePatients(
         updatedAt: new Date(),
       } as any)
       .where(eq(patients.id, loserId));
+
+    await enqueuePatientChanged(tx, clinicId, winnerId);
   });
 
   return true;

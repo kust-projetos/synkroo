@@ -5,7 +5,7 @@ import { runAtendimentoSystemAction } from '@/modules/atendimento/ui/route-adapt
 import { checkRateLimit } from '@/lib/rate-limit';
 
 jest.mock('@/core/modules/gates', () => ({ withModuleRoute: () => (handler: unknown) => handler }));
-jest.mock('@/core/modules/manifest', () => ({ moduleManifest: {} }));
+jest.mock('@/core/modules/manifest', () => ({ createManifest: () => ({}) }));
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn().mockReturnValue({ allowed: true }),
   getClientIdentifier: () => 'test-client',
@@ -119,9 +119,10 @@ describe('inbound webhook tenant boundary and fail-closed validation', () => {
       headers: { 'x-webhook-secret': 'secret', 'content-type': 'application/json' },
       body: JSON.stringify({
         installationId: 'victim-installation',
-        clinicId: 'attacker-clinic',
-        from: '+5511999999999',
-        message: 'Olá',
+         clinicId: 'attacker-clinic',
+         from: '+5511999999999',
+         externalMessageId: 'inbound-1',
+         message: 'Olá',
         channel: 'whatsapp',
         metadata: { customField: 'value' },
       }),
@@ -132,9 +133,12 @@ describe('inbound webhook tenant boundary and fail-closed validation', () => {
     expect(runAtendimentoSystemAction).toHaveBeenCalledWith(
       expect.anything(),
       {
-        from: '+5511999999999',
+        externalConversationId: '+5511999999999',
+        externalProvider: 'webhook',
+        externalMessageId: 'inbound-1',
         message: 'Olá',
         channel: 'whatsapp',
+        messageType: 'text',
         metadata: { customField: 'value' },
       },
       'victim-clinic',

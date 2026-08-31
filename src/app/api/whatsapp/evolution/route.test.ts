@@ -1,21 +1,21 @@
 import { NextRequest } from 'next/server';
 
-const mockProcessEvolutionMessage = jest.fn();
 const mockResolveChannelInstallation = jest.fn();
-
-jest.mock('@/modules/atendimento/services/webhook-processor-service', () => ({
-  processEvolutionMessage: (...args: unknown[]) => mockProcessEvolutionMessage(...args),
-}));
+const mockRunAtendimentoSystemAction = jest.fn();
 
 jest.mock('@/modules/atendimento/integrations/resolve-channel-installation', () => ({
   resolveChannelInstallation: (...args: unknown[]) => mockResolveChannelInstallation(...args),
+}));
+
+jest.mock('@/modules/atendimento/ui/route-adapter', () => ({
+  runAtendimentoSystemAction: (...args: unknown[]) => mockRunAtendimentoSystemAction(...args),
 }));
 
 jest.mock('@/core/modules/gates', () => ({
   withModuleRoute: () => (handler: unknown) => handler,
 }));
 
-jest.mock('@/core/modules/manifest', () => ({ moduleManifest: {} }));
+jest.mock('@/core/modules/manifest', () => ({ createManifest: () => ({}) }));
 
 import { POST } from './route';
 
@@ -34,9 +34,10 @@ describe('Evolution webhook authentication', () => {
   beforeEach(() => {
     (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
     process.env.EVOLUTION_WEBHOOK_SECRET = 'test-evolution-secret';
-    mockProcessEvolutionMessage.mockReset();
     mockResolveChannelInstallation.mockReset();
+    mockRunAtendimentoSystemAction.mockReset();
     mockResolveChannelInstallation.mockResolvedValue({ installationId: 'ted', clinicId: 'clinic-1' });
+    mockRunAtendimentoSystemAction.mockResolvedValue(new Response(JSON.stringify({ ok: true }), { status: 200 }));
   });
   afterAll(() => {
     (process.env as Record<string, string | undefined>).NODE_ENV = originalNodeEnv;
@@ -63,7 +64,6 @@ describe('Evolution webhook authentication', () => {
   });
 
   it('normalizes an Evolution Go Message event before processing', async () => {
-    mockProcessEvolutionMessage.mockResolvedValue([{ from: '5511999999999', action: 'received' }]);
     const response = await POST(new NextRequest(
       'http://localhost/api/whatsapp/evolution?token=test-evolution-secret',
       {
@@ -81,17 +81,23 @@ describe('Evolution webhook authentication', () => {
     ));
 
     expect(response.status).toBe(200);
-    expect(mockProcessEvolutionMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        key: expect.objectContaining({ id: 'go-message-1', remoteJid: '5511999999999@s.whatsapp.net' }),
-        message: { conversation: 'Oi do Evolution Go' },
-      }),
-      'ted',
+    expect(mockRunAtendimentoSystemAction).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        externalConversationId: '5511999999999',
+        externalProvider: 'evolution',
+        externalMessageId: 'go-message-1',
+        message: 'Oi do Evolution Go',
+        channel: 'whatsapp',
+        messageType: 'text',
+        metadata: { instance: 'ted', whatsapp_message_id: 'go-message-1' },
+      },
+      'clinic-1',
+      { okStatus: 200 },
     );
   });
 
   it('accepts Evolution Go SendMessage callbacks for outbound delivery', async () => {
-    mockProcessEvolutionMessage.mockResolvedValue([]);
     const response = await POST(new NextRequest(
       'http://localhost/api/whatsapp/evolution?token=test-evolution-secret',
       {
@@ -109,10 +115,8 @@ describe('Evolution webhook authentication', () => {
     ));
 
     expect(response.status).toBe(200);
-    expect(mockProcessEvolutionMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ key: expect.objectContaining({ id: 'go-send-1', fromMe: true }) }),
-      'ted',
-    );
+    await expect(response.json()).resolves.toEqual({ success: true, processed: false, reason: 'outbound_callback' });
+    expect(mockRunAtendimentoSystemAction).not.toHaveBeenCalled();
   });
 
   it('rejects invalid Evolution Go query tokens in production', async () => {
@@ -150,7 +154,7 @@ describe('Evolution webhook authentication', () => {
     ));
 
     expect(response.status).toBe(403);
-    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
+    expect(mockRunAtendimentoSystemAction).not.toHaveBeenCalled();
   });
 
   it('rejects cross-installation spoofing', async () => {
@@ -166,7 +170,7 @@ describe('Evolution webhook authentication', () => {
     ));
 
     expect(response.status).toBe(403);
-    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
+    expect(mockRunAtendimentoSystemAction).not.toHaveBeenCalled();
   });
   it('rejects messages.upsert without a provider message ID', async () => {
     const response = await POST(makeRequest(
@@ -177,7 +181,7 @@ describe('Evolution webhook authentication', () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: 'Missing provider event ID' });
-    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
+    expect(mockRunAtendimentoSystemAction).not.toHaveBeenCalled();
   });
 
   it('rejects Evolution Go callbacks without Info.ID', async () => {
@@ -196,6 +200,6 @@ describe('Evolution webhook authentication', () => {
 
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ error: 'Missing provider event ID' });
-    expect(mockProcessEvolutionMessage).not.toHaveBeenCalled();
+    expect(mockRunAtendimentoSystemAction).not.toHaveBeenCalled();
   });
 });

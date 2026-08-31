@@ -36,7 +36,7 @@ jest.mock('@/core/modules/gates', () => ({
   assertModuleForJob: jest.fn().mockResolvedValue(undefined),
 }));
 
-jest.mock('@/core/modules/manifest', () => ({ moduleManifest: {} }));
+jest.mock('@/core/modules/manifest', () => ({ createManifest: () => ({}) }));
 
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn().mockReturnValue({ allowed: true, retryAfter: 0 }),

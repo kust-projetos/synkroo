@@ -4,7 +4,7 @@ import type { ActionContext } from '@/core/actions/types';
 import {
   detectIncompleteTreatments,
   getIncompleteTreatmentAlerts,
-} from '@/services/appointments/incomplete-treatment.service';
+} from '../services/incomplete-treatment-service';
 
 export const listarTratamentosIncompletos = defineAction({
   name: 'operacional.listarTratamentosIncompletos',

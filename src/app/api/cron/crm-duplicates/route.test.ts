@@ -3,7 +3,7 @@
  *
  * Task 4 / Eixo 2 Integration Closure:
  *  - Bearer CRON_SECRET via timingSafeEqual → 401 quando inválido.
- *  - assertModuleForJob('crm', moduleManifest) lança ModuleDisabledError →
+ *  - assertModuleForJob('crm', createManifest()) lança ModuleDisabledError →
  *    responder { skipped: true } com 200.
  *  - Para cada clinicId retornado por listClinicIdsWithPendingSuggestions:
  *    construir system context, chamar runAction(reprocessarSugestoesDuplicidade).
@@ -46,7 +46,7 @@ jest.mock('@/core/modules/gates', () => ({
 }));
 
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: mockModuleManifest,
+  createManifest: () => mockModuleManifest,
 }));
 
 // Real action import (sem register side-effect relevante para os testes).
@@ -142,7 +142,7 @@ describe('POST /api/cron/crm-duplicates — module gate', () => {
     expect(body).toMatchObject({ skipped: true });
   });
 
-  it('moduleManifest.isEnabled é consultado via assertModuleForJob("crm", ...)', async () => {
+  it('createManifest().isEnabled é consultado via assertModuleForJob("crm", ...)', async () => {
     await POST(makeRequest(VALID_BEARER) as any);
     expect(mockAssertModuleForJob).toHaveBeenCalledWith('crm', mockModuleManifest);
   });
@@ -162,7 +162,7 @@ describe('POST /api/cron/crm-duplicates — sem clinics pendentes', () => {
 });
 
 describe('POST /api/cron/crm-duplicates — execução per-clinic', () => {
-  it('uma clinic: buildSystemContext + runAction com action+input {clinicId}', async () => {
+  it('uma clinic: buildSystemContext + runAction com input de negócio vazio', async () => {
     mockListClinicIds.mockResolvedValue(['c-aaaa']);
     const res = await POST(makeRequest(VALID_BEARER) as any);
     expect(res.status).toBe(200);
@@ -170,7 +170,7 @@ describe('POST /api/cron/crm-duplicates — execução per-clinic', () => {
     expect(mockRunAction).toHaveBeenCalledTimes(1);
     const [action, input] = mockRunAction.mock.calls[0];
     expect(action.name).toBe('crm.reprocessarSugestoesDuplicidade');
-    expect(input).toEqual({ clinicId: 'c-aaaa' });
+    expect(input).toEqual({});
     const body = await res.json();
     expect(body.processed).toBe(1);
     expect(body.results).toHaveLength(1);

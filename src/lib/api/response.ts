@@ -109,3 +109,20 @@ export function generateRequestId(): string {
     return `req_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   }
 }
+
+// ── ActionErrorCode → HTTP mapping (canonical) ────────────────
+import type { ActionErrorCode } from '@/core/actions/types';
+
+const actionErrorMap: Record<ActionErrorCode, { status: number; code: string }> = {
+  unauthenticated: { status: 401, code: 'UNAUTHORIZED' },
+  forbidden: { status: 403, code: 'FORBIDDEN' },
+  not_found: { status: 404, code: 'NOT_FOUND' },
+  conflict: { status: 409, code: 'CONFLICT' },
+  invalid_input: { status: 422, code: 'INVALID_INPUT' },
+  module_disabled: { status: 404, code: 'MODULE_DISABLED' },
+  internal: { status: 500, code: 'INTERNAL_ERROR' },
+};
+
+export function mapActionError(code: ActionErrorCode): { status: number; code: string } {
+  return actionErrorMap[code] ?? { status: 500, code: 'INTERNAL_ERROR' };
+}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
@@ -59,4 +59,4 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   return NextResponse.json(result);
 }
 
-export const POST = withModuleRoute('ia', moduleManifest)(handlePOST);
+export const POST = withModuleRoute('ia')(handlePOST);

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import * as repo from '../repositories/conversations-repository';
+import { persistInboundMessage } from '../repositories/conversations-repository';
 
 export const receberMensagem = defineAction({
   name: 'atendimento.receberMensagem',
@@ -9,28 +9,24 @@ export const receberMensagem = defineAction({
   requires: 'atendimento:manage_webhooks',
   label: 'Receber mensagem inbound',
   input: z.object({
-    from: z.string(),
-    message: z.string(),
-    channel: z.enum(['whatsapp', 'instagram', 'web', 'telegram']).optional().default('whatsapp'),
+    externalConversationId: z.string().trim().min(1).max(255),
+    externalProvider: z.string().trim().min(1).max(64),
+    externalMessageId: z.string().trim().min(1).max(255),
+    message: z.string().min(1).max(32_000),
+    channel: z.enum(['whatsapp', 'web']),
+    messageType: z.enum(['text', 'image', 'audio', 'document']).default('text'),
     metadata: z.record(z.unknown()).optional(),
   }).strict(),
   handler: async (input, ctx: ActionContext) => {
-    const clinicId = ctx.clinicId;
-    const conversationId = await repo.getOrCreateConversation(
-      clinicId,
-      input.channel,
-      input.from,
-    );
-    const message = await repo.createMessage({
-      conversationId,
-      direction: 'inbound',
+    return persistInboundMessage({
+      clinicId: ctx.clinicId,
+      externalConversationId: input.externalConversationId,
+      externalProvider: input.externalProvider,
+      externalMessageId: input.externalMessageId,
       content: input.message,
-      metadata: input.metadata,
+      channel: input.channel,
+      messageType: input.messageType,
+      metadata: input.metadata ?? {},
     });
-    await repo.updateConversation(clinicId, conversationId, {
-      lastMessageAt: new Date(),
-      messageCountIncrement: 1,
-    });
-    return { messageId: message.id, conversationId };
   },
 });

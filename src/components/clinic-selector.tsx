@@ -20,7 +20,11 @@ export function ClinicSelector({ clinics: propClinics, className }: ClinicSelect
   const { profile, switchClinic } = useAuth()
   const queryClient = useQueryClient()
 
-  const availableClinics = propClinics ?? (profile?.clinics ? [{ id: profile.clinic_id, name: profile.clinics.name, role: profile.role }] : [])
+  const availableClinics = propClinics ?? profile?.available_clinics?.map((clinic) => ({
+    id: clinic.id,
+    name: clinic.name,
+    role: clinic.role,
+  })) ?? (profile?.clinics ? [{ id: profile.clinic_id, name: profile.clinics.name, role: profile.role }] : [])
 
   // F4.09: hidden for single clinic or empty
   if (availableClinics.length <= 1) {

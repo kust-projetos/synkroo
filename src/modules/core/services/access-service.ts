@@ -2,7 +2,7 @@ import { ActionError } from '@/core/actions/types';
 import * as usersRepo from '../repositories/users-repository';
 import * as rolesRepo from '../repositories/roles-repository';
 import * as accessRepo from '../repositories/access-repository';
-import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
+import { RESERVED_ROLE_OPERATOR, RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 
 export { listClinicUsers } from '../repositories/users-repository';
 
@@ -40,9 +40,20 @@ export async function assignUserAccess(input: {
   clinicId: string;
   roleId: string;
 }) {
-  const scope = await accessRepo.getUserRoleScope(input.userId, input.roleId);
-  if (!scope || scope.userClinicId !== input.clinicId || scope.roleClinicId !== input.clinicId) {
+  const scope = await accessRepo.getUserRoleScope(input.userId, input.clinicId, input.roleId);
+  if (
+    !scope
+    || scope.userId !== input.userId
+    || scope.userClinicId !== input.clinicId
+    || scope.roleClinicId !== input.clinicId
+  ) {
     throw new ActionError('forbidden', 'Usuário ou perfil pertence a outra clínica.');
+  }
+  if (scope.roleIsSystem && scope.roleName === RESERVED_ROLE_OPERATOR) {
+    throw new ActionError('forbidden', 'A role operacional é reservada à plataforma.');
+  }
+  if (await rolesRepo.hasMasterPermission(input.roleId, input.clinicId)) {
+    throw new ActionError('forbidden', 'Permissões master não podem ser atribuídas por uma clínica.');
   }
 
   await assertOwnerInvariant({

@@ -9,7 +9,6 @@ export const atualizarTaskComercial = defineAction({
   requires: 'comercial:manage_tasks',
   label: 'Atualizar task comercial',
   input: z.object({
-    clinicId: z.string().uuid(),
     taskId: z.string().uuid(),
     title: z.string().optional(),
     description: z.string().nullable().optional(),
@@ -18,7 +17,7 @@ export const atualizarTaskComercial = defineAction({
     status: z.string().optional(),
     assignedTo: z.string().uuid().nullable().optional(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
     const patch: Record<string, unknown> = {};
     if (input.title !== undefined) patch.title = input.title;
     if (input.description !== undefined) patch.description = input.description;
@@ -27,6 +26,6 @@ export const atualizarTaskComercial = defineAction({
     if (input.status !== undefined) patch.status = input.status;
     if (input.assignedTo !== undefined) patch.assignedTo = input.assignedTo;
 
-    return atualizarTask(input.clinicId, input.taskId, patch);
+    return atualizarTask(ctx.clinicId, input.taskId, patch);
   },
 });

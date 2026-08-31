@@ -7,17 +7,18 @@
  * - scheduling fails → lead not converted
  */
 
-// Mock the action system
-const mockRunAction = jest.fn();
-jest.mock('@/core/actions/run', () => ({ runAction: mockRunAction }));
-
-const mockBuildSystemContext = jest.fn().mockResolvedValue({
-  clinicId: 'clinic-1',
-  can: () => true,
-  hasModule: () => true,
-  audit: { actor: 'test' },
-});
-jest.mock('@/core/actions/context', () => ({ buildSystemContext: mockBuildSystemContext }));
+// Mock the operacional public seam. The workflow must call these ports
+// directly, never build a system context or invoke another Action.
+const mockCreatePatient = jest.fn();
+const mockGetPatient = jest.fn();
+const mockUpdatePatient = jest.fn();
+const mockScheduleAppointment = jest.fn();
+jest.mock('@/modules/operacional/public', () => ({
+  criarPaciente: (...args: unknown[]) => mockCreatePatient(...args),
+  obterPaciente: (...args: unknown[]) => mockGetPatient(...args),
+  atualizarPaciente: (...args: unknown[]) => mockUpdatePatient(...args),
+  agendarConsulta: (...args: unknown[]) => mockScheduleAppointment(...args),
+}));
 
 jest.mock('../../repositories/leads-repository', () => ({
   findLeadByIdForClinic: jest.fn(),
@@ -38,6 +39,7 @@ const mockInsertActivity = jest.mocked(activitiesRepo.insertActivity);
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockGetPatient.mockResolvedValue(null);
 });
 
 describe('agendarAvaliacao', () => {
@@ -81,8 +83,8 @@ describe('agendarAvaliacao', () => {
 
   it('creates patient and schedules when lead has no patientId', async () => {
     mockFindLead.mockResolvedValue(baseLead as any);
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: appointmentId } });
+    mockCreatePatient.mockResolvedValue({ id: patientId });
+    mockScheduleAppointment.mockResolvedValue({ id: appointmentId });
     mockUpdateLead.mockResolvedValue({ id: leadId });
     mockInsertActivity.mockResolvedValue({ id: 'act-1' });
 
@@ -92,16 +94,12 @@ describe('agendarAvaliacao', () => {
       scheduledAt: new Date('2026-07-10T14:00:00Z'),
     });
 
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.criarPaciente' }),
-      expect.objectContaining({ name: 'Maria', phone: '11999990000' }),
-      expect.any(Object),
+    expect(mockCreatePatient).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId, name: 'Maria', phone: '11999990000' }),
     );
 
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.agendarConsulta' }),
-      expect.objectContaining({ patientId }),
-      expect.any(Object),
+    expect(mockScheduleAppointment).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId, patientId }),
     );
 
     expect(result).toEqual({ leadId, patientId, appointmentId, status: 'converted' });
@@ -110,8 +108,8 @@ describe('agendarAvaliacao', () => {
   it('updates patient and schedules when lead has existing patientId (no data change)', async () => {
     mockFindLead.mockResolvedValue({ ...baseLead, patientId, name: 'Maria', phoneNormalized: '11999990000' } as any);
     // obterPaciente returns same data → no update needed
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId, name: 'Maria', phone: '11999990000' } });
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: appointmentId } });
+    mockGetPatient.mockResolvedValue({ id: patientId, name: 'Maria', phone: '11999990000' });
+    mockScheduleAppointment.mockResolvedValue({ id: appointmentId });
     mockUpdateLead.mockResolvedValue({ id: leadId });
     mockInsertActivity.mockResolvedValue({ id: 'act-1' });
 
@@ -121,29 +119,17 @@ describe('agendarAvaliacao', () => {
       scheduledAt: new Date('2026-07-10T14:00:00Z'),
     });
 
-    expect(mockRunAction).not.toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.criarPaciente' }),
-      expect.anything(),
-      expect.anything(),
-    );
-    expect(mockRunAction).not.toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.atualizarPaciente' }),
-      expect.anything(),
-      expect.anything(),
-    );
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.agendarConsulta' }),
-      expect.anything(),
-      expect.anything(),
-    );
+    expect(mockCreatePatient).not.toHaveBeenCalled();
+    expect(mockUpdatePatient).not.toHaveBeenCalled();
+    expect(mockScheduleAppointment).toHaveBeenCalledWith(expect.objectContaining({ patientId }));
     expect(result.status).toBe('converted');
   });
 
   it('calls atualizarPaciente when lead data differs from patient', async () => {
     mockFindLead.mockResolvedValue({ ...baseLead, patientId, name: 'Maria Updated', phoneNormalized: '11999991111', phone: '11999991111' } as any);
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId, name: 'Maria', phone: '11999990000' } });
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: appointmentId } });
+    mockGetPatient.mockResolvedValue({ id: patientId, name: 'Maria', phone: '11999990000' });
+    mockUpdatePatient.mockResolvedValue({ id: patientId });
+    mockScheduleAppointment.mockResolvedValue({ id: appointmentId });
     mockUpdateLead.mockResolvedValue({ id: leadId });
     mockInsertActivity.mockResolvedValue({ id: 'act-1' });
 
@@ -153,18 +139,18 @@ describe('agendarAvaliacao', () => {
       scheduledAt: new Date('2026-07-10T14:00:00Z'),
     });
 
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.atualizarPaciente' }),
+    expect(mockUpdatePatient).toHaveBeenCalledWith(
+      clinicId,
+      patientId,
       expect.objectContaining({ name: 'Maria Updated', phone: '11999991111' }),
-      expect.any(Object),
     );
     expect(result.status).toBe('converted');
   });
 
   it('does not convert lead when scheduling fails', async () => {
     mockFindLead.mockResolvedValue(baseLead as any);
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
-    mockRunAction.mockResolvedValueOnce({ ok: false, error: { code: 'conflict', message: 'Horário indisponível' } });
+    mockCreatePatient.mockResolvedValue({ id: patientId });
+    mockScheduleAppointment.mockRejectedValue(new Error('Horário indisponível'));
 
     await expect(agendarAvaliacao({
       leadId,
@@ -217,44 +203,38 @@ describe('converterLeadSemAgendar', () => {
 
   it('converts lead to patient without appointment', async () => {
     mockFindLead.mockResolvedValue(baseLead as any);
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
+    mockCreatePatient.mockResolvedValue({ id: patientId });
     mockUpdateLead.mockResolvedValue({ id: leadId });
     mockInsertActivity.mockResolvedValue({ id: 'act-1' });
 
     const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
-    const result = await converterLeadSemAgendar({ leadId, clinicId });
+    const result = await converterLeadSemAgendar({ leadId, clinicId, actorUserId: null });
 
     // Creates patient from lead data
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.criarPaciente' }),
-      expect.objectContaining({ name: 'Maria', phone: '11999990000' }),
-      expect.any(Object),
+    expect(mockCreatePatient).toHaveBeenCalledWith(
+      expect.objectContaining({ clinicId, name: 'Maria', phone: '11999990000' }),
     );
 
     // No scheduling call
-    expect(mockRunAction).not.toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.agendarConsulta' }),
-      expect.anything(),
-      expect.anything(),
-    );
+    expect(mockScheduleAppointment).not.toHaveBeenCalled();
 
     expect(result).toMatchObject({ leadId, status: 'converted' });
   });
 
   it('updates patient data when lead differs from existing patient', async () => {
     mockFindLead.mockResolvedValue({ ...baseLead, patientId, name: 'Maria Updated', phoneNormalized: '11999991111', phone: '11999991111' } as any);
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId, name: 'Maria', phone: '11999990000' } });
-    mockRunAction.mockResolvedValueOnce({ ok: true, data: { id: patientId } });
+    mockGetPatient.mockResolvedValue({ id: patientId, name: 'Maria', phone: '11999990000' });
+    mockUpdatePatient.mockResolvedValue({ id: patientId });
     mockUpdateLead.mockResolvedValue({ id: leadId });
     mockInsertActivity.mockResolvedValue({ id: 'act-1' });
 
     const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
-    const result = await converterLeadSemAgendar({ leadId, clinicId });
+    const result = await converterLeadSemAgendar({ leadId, clinicId, actorUserId: null });
 
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'operacional.atualizarPaciente' }),
+    expect(mockUpdatePatient).toHaveBeenCalledWith(
+      clinicId,
+      patientId,
       expect.objectContaining({ name: 'Maria Updated', phone: '11999991111' }),
-      expect.any(Object),
     );
     expect(result).toMatchObject({ leadId, status: 'converted' });
   });
@@ -264,7 +244,7 @@ describe('converterLeadSemAgendar', () => {
 
     const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
 
-    await expect(converterLeadSemAgendar({ leadId, clinicId })).rejects.toThrow('Lead already converted');
+    await expect(converterLeadSemAgendar({ leadId, clinicId, actorUserId: null })).rejects.toThrow('Lead already converted');
     expect(mockUpdateLead).not.toHaveBeenCalled();
   });
 
@@ -273,7 +253,7 @@ describe('converterLeadSemAgendar', () => {
 
     const { converterLeadSemAgendar } = await import('../../services/lead-conversion-service');
 
-    await expect(converterLeadSemAgendar({ leadId, clinicId })).rejects.toThrow('Lead not found');
+    await expect(converterLeadSemAgendar({ leadId, clinicId, actorUserId: null })).rejects.toThrow('Lead not found');
     expect(mockUpdateLead).not.toHaveBeenCalled();
   });
 });

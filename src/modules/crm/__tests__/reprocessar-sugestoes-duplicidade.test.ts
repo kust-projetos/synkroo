@@ -79,7 +79,7 @@ describe('CRM duplicate reprocess', () => {
     mockFindDuplicateSource.mockResolvedValue(record('left-a'));
 
     const result = await reprocessarSugestoesDuplicidade.handler(
-      { clinicId: anyClinic },
+      {},
       { source: 'system', clinicId: anyClinic, can: () => true, hasModule: () => true, audit: { actor: 'system' } } as any,
     );
 
@@ -92,7 +92,7 @@ describe('CRM duplicate reprocess', () => {
     mockTransitionSuggestionStatus.mockResolvedValue(true);
 
     const result = await reprocessarSugestoesDuplicidade.handler(
-      { clinicId: anyClinic },
+      {},
       { source: 'system', clinicId: anyClinic, can: () => true, hasModule: () => true, audit: { actor: 'system' } } as any,
     );
 

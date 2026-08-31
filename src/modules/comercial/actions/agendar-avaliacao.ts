@@ -17,6 +17,6 @@ export const agendarAvaliacao = defineAction({
     notes: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    return service({ clinicId: ctx.clinicId, ...input });
+    return service({ clinicId: ctx.clinicId, actorUserId: ctx.user?.id ?? null, ...input });
   },
 });

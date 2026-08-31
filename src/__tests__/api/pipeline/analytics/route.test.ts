@@ -48,7 +48,7 @@ describe('pipeline/analytics', () => {
     })
     const r = await GET(new NextRequest('http://localhost?action=conversion_by_stage'))
     const b = await r.json()
-    expect(b.stages).toHaveLength(1)
+    expect(b.data.stages).toHaveLength(1)
   })
   it('returns avg_conversion_time', async () => {
     authOk()
@@ -58,7 +58,7 @@ describe('pipeline/analytics', () => {
     })
     const r = await GET(new NextRequest('http://localhost?action=avg_conversion_time'))
     const b = await r.json()
-    expect(b.avgDays).toBe(5.5)
+    expect(b.data.avgDays).toBe(5.5)
   })
   it('returns inactive_patients', async () => {
     authOk()
@@ -68,7 +68,7 @@ describe('pipeline/analytics', () => {
     })
     const r = await GET(new NextRequest('http://localhost?action=inactive_patients'))
     const b = await r.json()
-    expect(b.patients).toHaveLength(1)
+    expect(b.data.patients).toHaveLength(1)
   })
   it('returns upsell_opportunities', async () => {
     authOk()
@@ -78,6 +78,6 @@ describe('pipeline/analytics', () => {
     })
     const r = await GET(new NextRequest('http://localhost?action=upsell_opportunities'))
     const b = await r.json()
-    expect(b.opportunities).toHaveLength(1)
+    expect(b.data.opportunities).toHaveLength(1)
   })
 })

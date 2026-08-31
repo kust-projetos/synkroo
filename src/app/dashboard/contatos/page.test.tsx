@@ -4,8 +4,8 @@
  * page.test.tsx — Server component /api/crm/contatos (Task 6).
  *
  * Cobertura:
- *  - moduleManifest.isEnabled('crm') === true → renderiza <ContactsClient/>.
- *  - moduleManifest.isEnabled('crm') === false → chama notFound().
+ *  - createManifest().isEnabled('crm') === true → renderiza <ContactsClient/>.
+ *  - createManifest().isEnabled('crm') === false → chama notFound().
  *  - Sem side-effects em CRM desabilitado (não tenta renderizar client).
  */
 
@@ -16,7 +16,7 @@ const mockNotFound = jest.fn(() => {
 const mockContactsClient: jest.Mock = jest.fn();
 
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: mockModuleManifest,
+  createManifest: () => mockModuleManifest,
 }));
 
 jest.mock('next/navigation', () => ({

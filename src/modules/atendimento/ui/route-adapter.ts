@@ -1,65 +1,41 @@
 /**
- * Atendimento — route adapter.
- *
- * Bridges Next.js route handlers → action system.
- * Reuses the same buildUserContext() / runAction / error mapping pattern
- * as src/modules/operacional/ui/route-adapter.ts.
+ * Atendimento — route adapter (T4 canonical).
  */
 import { NextResponse } from 'next/server';
+import type { ActionDefinition, ActionContext, ActionResult } from '@/core/actions/types';
+import { handleCanonicalAction } from '@/lib/api/action-route';
 import { runAction } from '@/core/actions/run';
-import { buildUserContext, buildDelegatedContext } from '@/core/actions/context';
-import type { ActionDefinition } from '@/core/actions/types';
 
-const errorCodeToStatus: Record<string, number> = {
-  unauthenticated: 401,
-  forbidden: 403,
-  not_found: 404,
-  conflict: 409,
-  invalid_input: 422,
-  internal: 500,
-};
-
-/**
- * Run an action with user context (authenticated routes).
- */
 export async function runAtendimentoAction(
   action: ActionDefinition<any, any>,
   input: unknown,
-  opts?: { okStatus?: number },
+  opts?: { okStatus?: number; request?: Request },
 ): Promise<NextResponse> {
-  let ctx;
-  try {
-    ctx = await buildUserContext();
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === 'unauthenticated') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    return NextResponse.json({ error: 'Authentication error' }, { status: 500 });
-  }
-  const result = await runAction(action, input, ctx);
-  if (result.ok) return NextResponse.json(result.data, { status: opts?.okStatus ?? 200 });
-  const status = errorCodeToStatus[result.error.code] ?? 500;
-  return NextResponse.json({ error: result.error.message }, { status });
+  const request = (opts as any)?.request as Request | undefined;
+  return handleCanonicalAction(request, action, input, { okStatus: opts?.okStatus }) as Promise<NextResponse>;
 }
 
-/**
- * Run an action with system context (webhook/public routes).
- * @param clinicId - resolved clinic ID (from webhook payload or fallback)
- */
 export async function runAtendimentoSystemAction(
   action: ActionDefinition<any, any>,
   input: unknown,
   clinicId: string,
-  opts?: { okStatus?: number },
+  opts?: { okStatus?: number; request?: Request },
 ): Promise<NextResponse> {
-  const ctx = {
+  const request = (opts as any)?.request as Request | undefined;
+  return handleCanonicalAction(request, action, input, { okStatus: opts?.okStatus, isSystem: true, systemClinicId: clinicId }) as Promise<NextResponse>;
+}
+
+export async function runAtendimentoSystemActionResult(
+  action: ActionDefinition<any, any>,
+  input: unknown,
+  clinicId: string,
+): Promise<ActionResult<unknown>> {
+  const ctx: ActionContext = {
     source: 'system' as const,
     clinicId,
     can: () => true,
     hasModule: () => true,
     audit: { actor: 'webhook' },
   };
-  const result = await runAction(action, input, ctx);
-  if (result.ok) return NextResponse.json(result.data, { status: opts?.okStatus ?? 200 });
-  const status = errorCodeToStatus[result.error.code] ?? 500;
-  return NextResponse.json({ error: result.error.message }, { status });
+  return runAction(action, input, ctx);
 }

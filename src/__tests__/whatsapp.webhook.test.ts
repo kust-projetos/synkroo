@@ -22,7 +22,22 @@ jest.mock('@/lib/logger', () => ({
 }))
 
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: { isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() },
+  createManifest: () => ({
+      isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() }),
+}))
+
+jest.mock('@/modules/atendimento/integrations/resolve-channel-installation', () => ({
+  resolveMetaInstallation: jest.fn().mockResolvedValue({
+    installationId: '123456789',
+    clinicId: 'clinic-123',
+  }),
+}))
+
+jest.mock('@/modules/atendimento/ui/route-adapter', () => ({
+  runAtendimentoSystemActionResult: jest.fn().mockResolvedValue({
+    ok: true,
+    data: { deduped: false, conversationId: 'conv-123', messageId: 'msg-123' },
+  }),
 }))
 
 // Mock getDb for Drizzle — proper chain simulation

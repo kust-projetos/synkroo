@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { createManifest } from './manifest';
 
 interface ManifestLike { isEnabled(id: string): Promise<boolean>; }
 
@@ -7,10 +8,12 @@ export class ModuleDisabledError extends Error {
 }
 
 // Gate 1 — rotas/API: embrulha um route handler; 404 quando o módulo está desativado.
-export function withModuleRoute(moduleId: string, manifest: ManifestLike) {
+// T6: snapshot por request — cria novo manifesto por invocação, sem cache global.
+export function withModuleRoute(moduleId: string, manifest?: ManifestLike) {
   return function <H extends (...args: any[]) => Promise<Response>>(handler: H): H {
     return (async (...args: Parameters<H>) => {
-      if (!(await manifest.isEnabled(moduleId))) {
+      const m = manifest ?? createManifest();
+      if (!(await m.isEnabled(moduleId))) {
         return NextResponse.json({ error: 'not_found' }, { status: 404 });
       }
       return handler(...args);

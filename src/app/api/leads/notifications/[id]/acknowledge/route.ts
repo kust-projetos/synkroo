@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { reconhecerNotificacao } from '@/modules/comercial/actions/reconhecer-notificacao';
 
@@ -12,4 +12,4 @@ const handlePut = async (_request: NextRequest, { params }: { params: Promise<{ 
   return runComercialAction(reconhecerNotificacao, { notificationId: id });
 };
 
-export const PUT = withModuleRoute('comercial', moduleManifest)(handlePut);
+export const PUT = withModuleRoute('comercial')(handlePut);

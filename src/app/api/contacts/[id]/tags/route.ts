@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runCrmAction } from '@/modules/crm/ui/route-adapter';
 import { atualizarTagsContato } from '@/modules/crm/actions';
 
@@ -39,4 +39,4 @@ async function handlePUT(
   });
 }
 
-export const PUT = withModuleRoute('crm', moduleManifest)(handlePUT);
+export const PUT = withModuleRoute('crm')(handlePUT);

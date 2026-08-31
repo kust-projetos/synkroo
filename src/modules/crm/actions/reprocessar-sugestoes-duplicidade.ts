@@ -13,10 +13,8 @@ export const reprocessarSugestoesDuplicidade = defineAction({
   module: 'crm',
   requires: 'system',
   label: 'Reprocessar sugestões de duplicidade',
-  input: z.object({
-    clinicId: z.string().uuid(),
-  }),
-  handler: async (input, ctx: ActionContext) => {
+  input: z.object({}),
+  handler: async (_input, ctx: ActionContext) => {
     const suggestions = await listSuggestions(ctx.clinicId, {
       status: 'pending',
     });

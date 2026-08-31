@@ -14,7 +14,7 @@ import {
   rateLimitPresets,
 } from "@/lib/rate-limit";
 import { withModuleRoute } from "@/core/modules/gates";
-import { moduleManifest } from "@/core/modules/manifest";
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from "@/modules/operacional/ui/route-adapter";
 import { agendarConsulta } from "@/modules/operacional/actions/agendar-consulta";
 import { listarConsultas } from "@/modules/operacional/actions/listar-consultas";
@@ -81,11 +81,11 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
 const wrappedGET = withModuleRoute(
   OPERACIONAL_MODULE,
-  moduleManifest,
+  createManifest(),
 )(handleGET);
 const wrappedPOST = withModuleRoute(
   OPERACIONAL_MODULE,
-  moduleManifest,
+  createManifest(),
 )(handlePOST);
 
 export { wrappedGET as GET, wrappedPOST as POST };

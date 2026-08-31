@@ -9,7 +9,6 @@ export const listarSugestoesDuplicidade = defineAction({
   requires: 'crm:review_duplicates',
   label: 'Listar sugestões de duplicidade',
   input: z.object({
-    clinicId: z.string().uuid().optional(),
     status: z.string().optional(),
     ownerType: z.enum(['patient', 'lead']).optional(),
     limit: z.number().int().min(1).max(100).optional(),

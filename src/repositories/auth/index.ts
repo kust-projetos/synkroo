@@ -1,4 +1,4 @@
-import { eq, sql, and } from "drizzle-orm";
+import { and, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { normalizeEmail } from "@/lib/validations/common";
 import { getDb } from "@/lib/db/client";
 import { clinics, users, userCredentials } from "@/lib/db/schema";
@@ -11,6 +11,8 @@ export interface AuthUserRow {
   email: string;
   name: string;
   role: string;
+  roleId: string;
+  roleName: string;
   phone: string | null;
   avatarUrl: string | null;
   isActive: boolean;
@@ -26,72 +28,40 @@ export interface AuthUserRow {
   } | null;
 }
 
+export interface UserClinicOption {
+  id: string;
+  name: string;
+  slug: string;
+  roleId: string;
+  role: string;
+}
+
+function activeMembership(clinicId: string, now = new Date()) {
+  return and(
+    eq(userClinicAccess.clinicId, clinicId),
+    isNull(userClinicAccess.revokedAt),
+    or(isNull(userClinicAccess.expiresAt), gt(userClinicAccess.expiresAt, now)),
+  );
+}
+
 /**
  * Fetch the full user profile (with clinic) by user ID and active clinic.
  * Now authoritative via user_clinic_access — role comes from access row, not users.role.
  */
 export async function findUserProfileById(
   userId: string,
-  activeClinicId?: string,
+  activeClinicId: string,
 ): Promise<AuthUserRow | null> {
   const db = getDb();
 
-  // Legacy fallback: if no activeClinicId, use users.clinicId (only for login bootstrap)
-  if (!activeClinicId) {
-    const rows = await db
-      .select({
-        id: users.id,
-        email: users.email,
-        name: users.name,
-        role: users.role,
-        phone: users.phone,
-        avatarUrl: users.avatarUrl,
-        isActive: users.isActive,
-        sessionVersion: users.sessionVersion,
-        clinicId: users.clinicId,
-        clinicIdJson: clinics.id,
-        clinicName: clinics.name,
-        clinicSlug: clinics.slug,
-        clinicPhone: clinics.phone,
-        clinicEmail: clinics.email,
-        clinicSettings: clinics.settings,
-      })
-      .from(users)
-      .innerJoin(clinics, eq(clinics.id, users.clinicId))
-      .where(eq(users.id, userId))
-      .limit(1);
-    if (rows.length === 0) return null;
-    const row = rows[0];
-    return {
-      id: row.id,
-      email: row.email,
-      name: row.name,
-      role: row.role,
-      phone: row.phone,
-      avatarUrl: row.avatarUrl,
-      isActive: row.isActive,
-      sessionVersion: row.sessionVersion,
-      clinicId: row.clinicId,
-      clinics: {
-        id: row.clinicIdJson,
-        name: row.clinicName,
-        slug: row.clinicSlug,
-        phone: row.clinicPhone,
-        email: row.clinicEmail,
-        settings: (row.clinicSettings || {}) as Record<string, unknown>,
-      },
-    };
-  }
-
-  // Authoritative path: require access row for active clinic, join roles for effective role
+  // The active clinic is always explicit. The access row is the authority for
+  // both membership and role; users.role is legacy bootstrap data only.
   const rows = await db
     .select({
       id: users.id,
       email: users.email,
       name: users.name,
-      // role efetiva vem de roles.name via access, fallback para users.role se access não tem role (legado)
       role: roles.name,
-      legacyRole: users.role,
       phone: users.phone,
       avatarUrl: users.avatarUrl,
       isActive: users.isActive,
@@ -108,19 +78,26 @@ export async function findUserProfileById(
     .from(users)
     .innerJoin(userClinicAccess, and(eq(userClinicAccess.userId, users.id), eq(userClinicAccess.clinicId, activeClinicId)))
     .innerJoin(clinics, eq(clinics.id, userClinicAccess.clinicId))
-    .leftJoin(roles, eq(roles.id, userClinicAccess.roleId))
-    .where(and(eq(users.id, userId), eq(users.isActive, true)))
+    .innerJoin(roles, and(
+      eq(roles.id, userClinicAccess.roleId),
+      eq(roles.clinicId, userClinicAccess.clinicId),
+    ))
+    .where(and(
+      eq(users.id, userId),
+      eq(users.isActive, true),
+      activeMembership(activeClinicId),
+    ))
     .limit(1);
 
   if (rows.length === 0) return null;
-  const row: any = rows[0];
-  // If access revoked or role missing, fail closed
-  if (!row.roleId || !row.role) return null;
+  const row = rows[0];
   return {
     id: row.id,
     email: row.email,
     name: row.name,
-    role: row.role ?? row.legacyRole,
+    role: row.role,
+    roleId: row.roleId,
+    roleName: row.roleName,
     phone: row.phone,
     avatarUrl: row.avatarUrl,
     isActive: row.isActive,
@@ -134,7 +111,34 @@ export async function findUserProfileById(
       email: row.clinicEmail,
       settings: (row.clinicSettings || {}) as Record<string, unknown>,
     },
-  } as AuthUserRow;
+  };
+}
+
+/** List only active memberships, including clinics whose default user.clinic_id differs. */
+export async function listUserClinics(userId: string): Promise<UserClinicOption[]> {
+  const now = new Date();
+  const rows = await getDb()
+    .select({
+      id: clinics.id,
+      name: clinics.name,
+      slug: clinics.slug,
+      roleId: roles.id,
+      role: roles.name,
+    })
+    .from(userClinicAccess)
+    .innerJoin(users, eq(users.id, userClinicAccess.userId))
+    .innerJoin(clinics, eq(clinics.id, userClinicAccess.clinicId))
+    .innerJoin(roles, and(
+      eq(roles.id, userClinicAccess.roleId),
+      eq(roles.clinicId, userClinicAccess.clinicId),
+    ))
+    .where(and(
+      eq(userClinicAccess.userId, userId),
+      eq(users.isActive, true),
+      isNull(userClinicAccess.revokedAt),
+      or(isNull(userClinicAccess.expiresAt), gt(userClinicAccess.expiresAt, now)),
+    ));
+  return rows;
 }
 
 export async function hasUserClinicAccess(
@@ -145,12 +149,12 @@ export async function hasUserClinicAccess(
   const [access] = await db
     .select({ userId: userClinicAccess.userId })
     .from(userClinicAccess)
-    .where(
-      and(
-        eq(userClinicAccess.userId, userId),
-        eq(userClinicAccess.clinicId, clinicId),
-      ),
-    )
+      .where(
+        and(
+          eq(userClinicAccess.userId, userId),
+          activeMembership(clinicId),
+        ),
+      )
     .limit(1);
   return Boolean(access);
 }

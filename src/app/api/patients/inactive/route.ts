@@ -3,13 +3,13 @@
  * POST /api/patients/inactive
  *
  * Uses followup module actions backed by buildUserContext() + runAction().
- * Module gate: withModuleRoute('followup', moduleManifest).
+ * Module gate: withModuleRoute('followup').
  *
  * Authorization: actions/RBAC via runAction — no hasRequiredRole bypass.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
 import { detectarInativos, listarInativos, reativarPaciente } from '@/modules/followup/actions';
@@ -160,7 +160,7 @@ async function handlePOST(_request: NextRequest): Promise<NextResponse> {
 
 // ─── Export ──────────────────────────────────────────────────────────────────
 
-const wrappedGET = withModuleRoute('followup', moduleManifest)(handleGET);
-const wrappedPOST = withModuleRoute('followup', moduleManifest)(handlePOST);
+const wrappedGET = withModuleRoute('followup')(handleGET);
+const wrappedPOST = withModuleRoute('followup')(handlePOST);
 
 export { wrappedGET as GET, wrappedPOST as POST };

@@ -1,10 +1,8 @@
 import { and, eq, inArray, ne, sql, type SQLWrapper } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import {
-  crmDuplicateSuggestions,
-  leads,
-  patients,
-} from '@/lib/db/schema';
+import { crmDuplicateSuggestions } from '@/modules/crm/schema/duplicates';
+import { patients } from '@/modules/operacional/schema/patients';
+import { leads } from '@/modules/comercial/schema/leads';
 import type {
   DuplicateConfidence,
   DuplicateDetectionRecord,

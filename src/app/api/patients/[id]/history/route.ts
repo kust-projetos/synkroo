@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 
 const OPERACIONAL_MODULE = 'operacional';
 
@@ -17,5 +17,5 @@ const DEPRECATED = NextResponse.json(
 );
 
 async function handle(): Promise<NextResponse> { return DEPRECATED; }
-const wrapped = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handle);
+const wrapped = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handle);
 export { wrapped as GET };

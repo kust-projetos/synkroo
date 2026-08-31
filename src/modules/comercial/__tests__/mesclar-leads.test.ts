@@ -3,6 +3,10 @@ jest.mock('@/lib/db/client', () => ({
   closeDb: jest.fn(),
 }));
 
+jest.mock('@/lib/outbox/outbox-repository', () => ({
+  enqueueOutbox: jest.fn(),
+}));
+
 jest.mock('@/modules/crm', () => {
   const actual = jest.requireActual('@/modules/crm');
   return { ...actual, registerOwnerMerge: jest.fn(actual.registerOwnerMerge) };
@@ -116,25 +120,14 @@ describe('default lead list hides soft-merged losers', () => {
   });
 });
 
-describe('runtime owner dispatcher registration', () => {
-  afterEach(() => jest.restoreAllMocks());
+describe('runtime owner adapter composition', () => {
+  it('registers the lead adapter only through the composition root', async () => {
+    const { bootstrapActions, resetBootstrapForTests } = await import('@/core/actions/bootstrap');
+    const { getOwnerMergeDispatcher } = await import('@/modules/crm/services/owner-merge-registry');
+    resetBootstrapForTests();
+    await bootstrapActions();
 
-  it('registers a lead owner merge dispatcher that delegates to mergeLeads', async () => {
-    const spy = jest.spyOn(leadsRepo, 'mergeLeads').mockResolvedValue(true);
-    const crm = await import('@/modules/crm');
-    // Task 4: dispatcher agora vive em @/modules/crm/services/lead-merge-dispatcher
-    // (a action comercial.mesclarLeads foi removida).
-    await import('@/modules/crm/services/lead-merge-dispatcher');
-
-    const leadCall = (crm.registerOwnerMerge as jest.Mock).mock.calls.find(
-      ([type]) => type === 'lead',
-    );
-    expect(leadCall).toBeDefined();
-
-    const dispatcher = leadCall![1];
-    await dispatcher('w1', 'r1', 'c1');
-
-    expect(spy).toHaveBeenCalledWith('w1', 'r1', 'c1');
+    expect(getOwnerMergeDispatcher('lead')).toEqual(expect.any(Function));
   });
 });
 

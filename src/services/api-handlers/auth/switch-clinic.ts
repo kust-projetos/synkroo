@@ -8,10 +8,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getDb } from '@/lib/db/client';
-import { userClinicAccess } from '@/modules/core/schema/rbac';
-import { and, eq } from 'drizzle-orm';
 import { requireActiveProfile } from '@/lib/auth/session';
+import { findUserProfileById } from '@/repositories/auth';
 import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';
 
 const switchSchema = z.object({
@@ -30,24 +28,18 @@ export async function POST(request: NextRequest) {
     }
     const { clinicId } = parsed.data;
 
-    const db = getDb();
-    const [access] = await db
-      .select({ roleId: userClinicAccess.roleId })
-      .from(userClinicAccess)
-      .where(
-        and(
-          eq(userClinicAccess.userId, profile.id),
-          eq(userClinicAccess.clinicId, clinicId),
-        ),
-      )
-      .limit(1);
-
-    if (!access) {
+    const targetProfile = await findUserProfileById(profile.id, clinicId);
+    if (!targetProfile) {
       return apiFailure('FORBIDDEN', 'No access to this clinic', requestId, 403);
     }
 
     return NextResponse.json(
-      apiSuccess({ clinicId, switchedAt: new Date().toISOString() }).body,
+      apiSuccess({
+        clinicId: targetProfile.clinicId,
+        role: targetProfile.role,
+        roleId: targetProfile.roleId,
+        switchedAt: new Date().toISOString(),
+      }).body,
       { status: 200 },
     );
   } catch (error) {

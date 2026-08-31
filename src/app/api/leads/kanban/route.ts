@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { listarLeadsKanban } from '@/modules/comercial/actions/listar-leads-kanban';
 
@@ -13,4 +13,4 @@ const handleGet = async (req: NextRequest) => {
   return runComercialAction(listarLeadsKanban, { stageId });
 };
 
-export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
+export const GET = withModuleRoute('comercial')(handleGet);

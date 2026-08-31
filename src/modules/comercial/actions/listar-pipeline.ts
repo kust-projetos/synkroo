@@ -8,11 +8,9 @@ export const listarPipeline = defineAction({
   module: 'comercial',
   requires: 'comercial:view',
   label: 'Listar pipeline',
-  input: z.object({
-    clinicId: z.string().uuid(),
-  }),
-  handler: async (input, _ctx: ActionContext) => {
-    const stages = await listPipeline(input.clinicId);
+  input: z.object({}),
+  handler: async (_input, ctx: ActionContext) => {
+    const stages = await listPipeline(ctx.clinicId);
     return { stages };
   },
 });

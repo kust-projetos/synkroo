@@ -3,7 +3,8 @@
 // Mock module manifest
 const mockIsEnabled = jest.fn().mockResolvedValue(true)
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: { isEnabled: mockIsEnabled, enabledModules: jest.fn() },
+  createManifest: () => ({
+      isEnabled: mockIsEnabled, enabledModules: jest.fn() }),
 }))
 
 // Mock auth context (replaces old validateApiAuth)

@@ -3,7 +3,7 @@ jest.mock('@/core/ia-channel/agent-invoker', () => ({ invokeAgent: (...a: unknow
 const mockBuildCtx = jest.fn();
 jest.mock('@/core/actions/context', () => ({ buildUserContext: () => mockBuildCtx() }));
 jest.mock('@/core/modules/gates', () => ({ withModuleRoute: () => (h: unknown) => h }));
-jest.mock('@/core/modules/manifest', () => ({ moduleManifest: {} }));
+jest.mock('@/core/modules/manifest', () => ({ createManifest: () => ({}) }));
 
 import { NextRequest } from 'next/server';
 import { POST } from '../chat/route';

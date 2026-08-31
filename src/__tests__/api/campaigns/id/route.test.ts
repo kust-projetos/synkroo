@@ -1,6 +1,5 @@
 const mockValidateApiAuth = jest.fn()
-const mockHasRequiredRole = jest.fn()
-jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth, hasRequiredRole: mockHasRequiredRole }))
+jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth }))
 jest.mock('@/lib/errors', () => ({ handleApiError: jest.fn((e: any) => new Response(JSON.stringify({ error: 'Internal' }), { status: 500 })), ValidationError: class extends Error { constructor(msg: string, c?: any) { super(msg) } } }))
 jest.mock('@/lib/validations', () => ({ updateCampaignSchema: { parse: jest.fn((b: any) => b) } }))
 jest.mock('@/repositories/campaigns', () => ({ getCampaignById: jest.fn(), updateCampaign: jest.fn(), deleteCampaign: jest.fn() }))

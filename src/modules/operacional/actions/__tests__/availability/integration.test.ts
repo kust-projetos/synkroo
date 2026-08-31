@@ -22,6 +22,7 @@ const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 
 // Bootstrap actions
 import '@/modules/operacional/actions';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { runAction } from '@/core/actions/run';
 import { consultarDisponibilidade } from '../../consultar-disponibilidade';
 import { getAction } from '@/core/actions/registry';
@@ -83,6 +84,7 @@ function makeCtx(clinicId = CLINIC_ID) {
 
 beforeAll(async () => {
   if (SKIP) return;
+  await bootstrapActions();
   pool = await waitForSchemaReady();
 
   // Clean slate

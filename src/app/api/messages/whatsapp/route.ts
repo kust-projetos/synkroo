@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runAtendimentoAction } from '@/modules/atendimento/ui/route-adapter';
 import { historicoMensagens } from '@/modules/atendimento/actions/historico-mensagens';
 
@@ -15,5 +15,5 @@ async function handleGET(request: NextRequest): Promise<NextResponse> {
   });
 }
 
-const wrapped = withModuleRoute('atendimento', moduleManifest)(handleGET);
+const wrapped = withModuleRoute('atendimento')(handleGET);
 export { wrapped as GET };

@@ -21,7 +21,6 @@ export function RoleForm({ clinicId, groups }: Props) {
     setError(null);
     setResult(null);
     const res = await createRoleAction(clinicId, {
-      clinicId,
       name,
       description: description || undefined,
       permissionKeys: [...selected],

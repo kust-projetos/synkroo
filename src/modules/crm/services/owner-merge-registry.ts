@@ -1,11 +1,8 @@
 /**
  * owner-merge-registry.ts — Leaf registry for owner-merge dispatchers.
  *
- * Intentionally imports nothing from other modules (pure leaf) so it can be
- * loaded safely during the CRM ↔ operacional/comercial module-init cycle:
- * mesclar-pacientes / mesclar-leads import registerOwnerMerge from CRM, and
- * CRM now re-exports it from this leaf, avoiding the previous TDZ on
- * ownerMergeRegistry.
+ * Intentionally imports nothing from other modules. The composition root is
+ * the only production writer; module imports must leave this registry empty.
  */
 
 export type OwnerMergeDispatcher = (
@@ -24,8 +21,32 @@ export function registerOwnerMerge(
   ownerMergeRegistry.set(ownerType, dispatcher);
 }
 
+export function replaceOwnerMergeAdapters(entries: Array<{
+  ownerType: 'patient' | 'lead';
+  dispatcher: OwnerMergeDispatcher;
+}>): void {
+  const next = new Map<string, OwnerMergeDispatcher>();
+  for (const entry of entries) {
+    if (typeof entry.dispatcher !== 'function') {
+      throw new Error(`invalid owner merge adapter: ${entry.ownerType}`);
+    }
+    if (next.has(entry.ownerType)) {
+      throw new Error(`duplicate owner merge adapter: ${entry.ownerType}`);
+    }
+    next.set(entry.ownerType, entry.dispatcher);
+  }
+  ownerMergeRegistry.clear();
+  for (const [ownerType, dispatcher] of next) {
+    ownerMergeRegistry.set(ownerType, dispatcher);
+  }
+}
+
 export function clearOwnerMergeRegistryForTests(): void {
   ownerMergeRegistry.clear();
+}
+
+export function getRegisteredOwnerMergeTypes(): Array<'patient' | 'lead'> {
+  return [...ownerMergeRegistry.keys()] as Array<'patient' | 'lead'>;
 }
 
 export function getOwnerMergeDispatcher(

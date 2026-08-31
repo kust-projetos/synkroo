@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { recalculateDuplicatesForLead } from '@/modules/crm';
 import { ActionError } from '@/core/actions/types';
 import { updateLead, findLeadByIdForClinic } from '../repositories/leads-repository';
 
@@ -12,7 +11,6 @@ export const atualizarLead = defineAction({
   label: 'Atualizar lead',
   input: z.object({
     leadId: z.string().uuid(),
-    clinicId: z.string().uuid().optional(),
     name: z.string().optional(),
     email: z.string().nullable().optional(),
     notes: z.string().nullable().optional(),
@@ -32,10 +30,6 @@ export const atualizarLead = defineAction({
 
     const updated = await updateLead(input.leadId, ctx.clinicId, patch);
     if (!updated) throw new ActionError('not_found', 'Lead não encontrado.');
-    await recalculateDuplicatesForLead({
-      clinicId: ctx.clinicId,
-      leadId: updated.id,
-    });
     return { id: updated.id };
   },
 });

@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runCrmAction, crmReadOnlyResponse } from '@/modules/crm/ui/route-adapter';
 import { obterContato } from '@/modules/crm/actions';
 
@@ -31,6 +31,6 @@ async function handleGET(
   return runCrmAction(obterContato, { type, id });
 }
 
-export const GET = withModuleRoute('crm', moduleManifest)(handleGET);
-export const PUT = withModuleRoute('crm', moduleManifest)(crmReadOnlyResponse);
-export const PATCH = withModuleRoute('crm', moduleManifest)(crmReadOnlyResponse);
+export const GET = withModuleRoute('crm')(handleGET);
+export const PUT = withModuleRoute('crm')(crmReadOnlyResponse);
+export const PATCH = withModuleRoute('crm')(crmReadOnlyResponse);

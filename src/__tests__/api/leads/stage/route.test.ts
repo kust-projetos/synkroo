@@ -71,6 +71,6 @@ describe('leads/[id]/stage', () => {
       { params: Promise.resolve({ id: 'l1' }) },
     )
     const b = await r.json()
-    expect(b.lead.stageId).toBe('s1')
+    expect(b.data.lead.stageId).toBe('s1')
   })
 })

@@ -18,10 +18,10 @@ jest.mock('@/core/actions/context', () => ({
 
 // Task 5: routes gated por withModuleRoute — mock manifest como enabled.
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: {
-    isEnabled: jest.fn().mockResolvedValue(true),
+  createManifest: () => ({
+      isEnabled: jest.fn().mockResolvedValue(true),
     enabledModules: jest.fn().mockResolvedValue(new Set(['core', 'crm'])),
-  },
+  }),
 }));
 
 jest.mock('@/modules/crm/repositories/duplicate-suggestions-repository', () => ({
@@ -32,9 +32,6 @@ jest.mock('@/modules/crm/repositories/duplicate-suggestions-repository', () => (
 // Mock do service de execução para tornar os testes de dispatch determinísticos.
 // Sem este mock, o handler dispara executeMerge que tenta tocar o DB e falha
 // com status dependente da ordem das chamadas — não-determinístico.
-// NOTA: preservar a re-export de registerOwnerMerge (vinda de owner-merge-registry
-// via duplicate-execution-service) — caso contrário, `@/modules/crm.registerOwnerMerge`
-// quebra no describe "owner merge registry exposure".
 const mockExecuteMerge = jest.fn();
 jest.mock('@/modules/crm/services/duplicate-execution-service', () => {
   const actual = jest.requireActual('@/modules/crm/services/duplicate-execution-service');
@@ -201,8 +198,7 @@ describe('CRM duplicate routes', () => {
       expect(exported).not.toContain('ownerMergeRegistry');
       expect(exported).not.toContain('getOwnerMergeRegistry');
       expect(exported).not.toContain('listOwnerMerges');
-      // Registration hook exists but never leaks the dispatcher map.
-      expect(typeof crm.registerOwnerMerge).toBe('function');
+      expect(exported).not.toContain('registerOwnerMerge');
     });
   });
 });

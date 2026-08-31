@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
-import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { deleteStage, findStageById } from '../repositories/pipeline-repository';
 
 export const removerEtapaPipeline = defineAction({
@@ -12,14 +11,12 @@ export const removerEtapaPipeline = defineAction({
   label: 'Remover etapa pipeline',
   input: z.object({
     stageId: z.string().uuid(),
-    clinicId: z.string().uuid(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    assertClinicScope(input.clinicId, ctx);
-    const existing = await findStageById(input.clinicId, input.stageId);
+    const existing = await findStageById(ctx.clinicId, input.stageId);
     if (!existing) throw new ActionError('not_found', 'Etapa não encontrada.');
 
-    const deleted = await deleteStage(input.clinicId, input.stageId);
+    const deleted = await deleteStage(ctx.clinicId, input.stageId);
     if (!deleted) throw new ActionError('not_found', 'Etapa não encontrada.');
     return { success: true };
   },

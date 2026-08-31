@@ -59,7 +59,9 @@ describe('Catalog Service - Dentistas (F5.02)', () => {
   });
 
   it('obtem dentista por id garantindo tenant isolado', async () => {
-    mockedRepo.findDentistById.mockResolvedValue({ id: 'd1', clinicId: 'c1', name: 'Dr. Silva' });
+    mockedRepo.findDentistById.mockImplementation(async (clinicId: string) =>
+      clinicId === 'c1' ? { id: 'd1', clinicId: 'c1', name: 'Dr. Silva' } : null,
+    );
 
     const result = await service.obterDentista('c1', 'd1');
     expect(result).toEqual(expect.objectContaining({ id: 'd1', name: 'Dr. Silva' }));

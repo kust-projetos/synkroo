@@ -2,7 +2,7 @@
  * Synkroo Chat Widget - Embed Script
  *
  * Usage:
- * <script src="https://your-domain.com/widget.js" data-clinic-id="YOUR_CLINIC_ID"></script>
+ * <script src="https://your-domain.com/widget.js" data-installation-id="PUBLIC_INSTALLATION_ID"></script>
  *
  * Optional attributes:
  * - data-clinic-name="Sua Clínica"
@@ -14,19 +14,35 @@
 (function() {
   // Get script attributes
   const script = document.currentScript
-  const clinicId = script.getAttribute('data-clinic-id')
+  const installationId = script.getAttribute('data-installation-id')
   const clinicName = script.getAttribute('data-clinic-name') || 'Clínica'
   const primaryColor = script.getAttribute('data-primary-color') || '#4F46E5'
   const position = script.getAttribute('data-position') || 'bottom-right'
   const greeting = script.getAttribute('data-greeting') || 'Olá! Como posso ajudar?'
 
-  if (!clinicId) {
-    console.error('Synkroo Widget: Missing data-clinic-id attribute')
+  if (!installationId) {
+    console.error('Synkroo Widget: Missing data-installation-id attribute')
     return
   }
 
   // Get base URL from script src
   const baseUrl = script.src.replace('/widget.js', '')
+  const endpoint = path => baseUrl + path + '?installationId=' + encodeURIComponent(installationId)
+  let sessionToken = null
+
+  async function getSession() {
+    if (sessionToken) return sessionToken
+    const response = await fetch(endpoint('/api/widget/session'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+    if (!response.ok) throw new Error('Widget session rejected')
+    const payload = await response.json()
+    sessionToken = payload.data && payload.data.token
+    if (!sessionToken) throw new Error('Widget session missing token')
+    return sessionToken
+  }
 
   // Create container
   const container = document.createElement('div')
@@ -61,7 +77,6 @@
         const [messages, setMessages] = useState([])
         const [input, setInput] = useState('')
         const [isLoading, setIsLoading] = useState(false)
-        const [conversationId, setConversationId] = useState(null)
         const messagesEndRef = useRef(null)
         const inputRef = useRef(null)
 
@@ -89,33 +104,12 @@
           }
         }, [isOpen])
 
-        // Load history on open
+        // The v1 widget is ingress-only; history is intentionally unavailable.
         useEffect(() => {
-          if (isOpen) loadHistory()
-        }, [isOpen])
-
-        const loadHistory = async () => {
-          try {
-            const res = await fetch(
-              baseUrl + '/api/widget/messages?clinic_id=' + clinicId + '&visitor_id=' + visitorId
-            )
-            if (res.ok) {
-              const data = await res.json()
-              if (data.conversation_id) setConversationId(data.conversation_id)
-              if (data.messages && data.messages.length > 0) {
-                setMessages(data.messages.map(m => ({
-                  id: m.id,
-                  content: m.content,
-                  direction: m.direction,
-                })))
-              } else {
-                setMessages([{ id: 'greeting', content: greeting, direction: 'outbound' }])
-              }
-            }
-          } catch (e) {
-            console.error('Error loading history:', e)
+          if (isOpen && messages.length === 0) {
+            setMessages([{ id: 'greeting', content: greeting, direction: 'outbound' }])
           }
-        }
+        }, [isOpen])
 
         const sendMessage = useCallback(async () => {
           if (!input.trim() || isLoading) return
@@ -126,34 +120,31 @@
           setIsLoading(true)
 
           try {
-            const res = await fetch(baseUrl + '/api/widget/messages', {
+            const token = await getSession()
+            const idempotencyKey = (crypto.randomUUID
+              ? crypto.randomUUID()
+              : 'widget_' + Date.now() + '_' + Math.random().toString(36).slice(2))
+            const res = await fetch(endpoint('/api/widget/messages'), {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: 'Bearer ' + token,
+                'Idempotency-Key': idempotencyKey,
+              },
               body: JSON.stringify({
-                clinic_id: clinicId,
-                visitor_id: visitorId,
                 message: text,
-                conversation_id: conversationId,
+                visitorId: visitorId,
+                idempotencyKey: idempotencyKey,
               }),
             })
 
-            if (res.ok) {
-              const data = await res.json()
-              if (data.conversation_id) setConversationId(data.conversation_id)
-              if (data.bot_response) {
-                setMessages(prev => [...prev, {
-                  id: data.bot_response.id,
-                  content: data.bot_response.content,
-                  direction: 'outbound',
-                }])
-              }
-            }
+            if (!res.ok) throw new Error('Widget message rejected')
           } catch (e) {
             console.error('Error sending message:', e)
           } finally {
             setIsLoading(false)
           }
-        }, [input, isLoading, conversationId])
+        }, [input, isLoading])
 
         const positionClass = position === 'bottom-left' ? 'left-4' : 'right-4'
 

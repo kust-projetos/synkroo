@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { listarPipeline } from '@/modules/comercial/actions/listar-pipeline';
 import { criarEtapaPipeline } from '@/modules/comercial/actions/criar-etapa-pipeline';
@@ -19,5 +19,5 @@ const handlePost = async (request: NextRequest) => {
   });
 };
 
-export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
-export const POST = withModuleRoute('comercial', moduleManifest)(handlePost);
+export const GET = withModuleRoute('comercial')(handleGet);
+export const POST = withModuleRoute('comercial')(handlePost);

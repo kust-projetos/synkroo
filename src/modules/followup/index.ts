@@ -6,9 +6,6 @@
  * the exported followupActions array.
  */
 
-// Import barrel triggers action registration
-import './actions';
-
 import { executarFollowup } from './actions/executar-followup';
 import { registrarFollowup } from './actions/registrar-followup';
 import { listarPendentes } from './actions/listar-pendentes';
@@ -39,4 +36,3 @@ export const followupActions = [
 export { followupManifest } from './manifest';
 export { followupAccessPermissions } from './permissions';
 export * from './services/phone-resolver';
-

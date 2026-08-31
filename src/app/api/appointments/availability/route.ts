@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { consultarDisponibilidade } from '@/modules/operacional/actions/consultar-disponibilidade';
 
@@ -33,5 +33,5 @@ async function handleGET(request: NextRequest): Promise<NextResponse> {
   return runActionRoute(consultarDisponibilidade, input);
 }
 
-const wrapped = withModuleRoute('operacional', moduleManifest)(handleGET);
+const wrapped = withModuleRoute('operacional')(handleGET);
 export { wrapped as GET };

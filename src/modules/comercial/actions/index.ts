@@ -1,10 +1,9 @@
 /**
  * Comercial module — action exports.
- * Actions are self-registering via the action registry.
- * Import here to trigger registration; do not call handlers directly from routes.
+ * This barrel only exports Action definitions. Registration belongs exclusively
+ * to the composition root in src/core/actions/bootstrap.ts.
  */
 
-import { registerActions } from '@/core/actions/registry';
 import { capturarLead } from './capturar-lead';
 import { qualificarLead } from './qualificar-lead';
 import { listarLeads } from './listar-leads';
@@ -60,33 +59,3 @@ export * from './fechar-task-comercial';
 export * from './listar-notificacoes';
 export * from './reconhecer-notificacao';
 export * from './processar-notificacoes-leads-quentes';
-
-// Bootstrap registration — idempotent
-registerActions([
-  arquivarLead,
-  obterEstatisticasLeads,
-  listarLeadsQuentes,
-  listarLeadsKanban,
-  obterAnalyticsPipeline,
-  capturarLead,
-  qualificarLead,
-  listarLeads,
-  obterLead,
-  atualizarLead,
-  moverLeadEtapaAction,
-  converterLead,
-  converterLeadSemAgendarAction,
-  agendarAvaliacao,
-  listarPipeline,
-  criarEtapaPipeline,
-  atualizarEtapaPipeline,
-  removerEtapaPipeline,
-  reordenarEtapasPipeline,
-  criarTaskComercial,
-  listarTasksComerciais,
-  atualizarTaskComercial,
-  fecharTaskComercial,
-  listarNotificacoes,
-  reconhecerNotificacao,
-  processarNotificacoesLeadsQuentes,
-]);

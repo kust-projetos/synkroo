@@ -7,6 +7,7 @@ declare module 'next-auth' {
       id: string;
       clinicId: string;
       role: string;
+      roleId: string;
       isActive: boolean;
       sessionVersion: number;
       name: string;
@@ -19,6 +20,7 @@ declare module 'next-auth' {
     id: string;
     clinicId?: string;
     role?: string;
+    roleId?: string;
     isActive?: boolean;
     sessionVersion?: number;
     name?: string;
@@ -31,6 +33,7 @@ declare module 'next-auth/jwt' {
     id?: string;
     clinicId?: string;
     role?: string;
+    roleId?: string;
     isActive?: boolean;
     sessionVersion?: number;
   }

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { recordPatientFeedback } from '@/services/followup/followup.service';
+import { registrarFeedback } from '../services/followup-service';
 
 export const registrarFollowup = defineAction({
   name: 'followup.registrarFollowup',
@@ -17,7 +17,7 @@ export const registrarFollowup = defineAction({
     comments: z.string().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    await recordPatientFeedback({
+    await registrarFeedback({
       clinicId: ctx.clinicId,
       patientId: input.patientId,
       appointmentId: input.appointmentId,

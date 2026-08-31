@@ -1,5 +1,5 @@
 import type { RbacRepo } from './repository';
-import { RESERVED_ROLE_OWNER } from './presets';
+import { RESERVED_ROLE_OPERATOR, RESERVED_ROLE_OWNER } from './presets';
 
 export interface ResolvedAccess {
   role: string | null;          // 'master' | 'owner' | nome do perfil | null
@@ -15,11 +15,21 @@ export async function resolveAccess(userId: string, clinicId: string, repo: Rbac
     return { role: 'owner', can: (key) => !key.startsWith('master:') };
   }
 
-  const perms = new Set(await repo.getRolePermissions(access.roleId));
-  const overrides = new Map((await repo.getOverrides(userId, clinicId)).map((o) => [o.permissionKey, o.granted]));
+  const isOperator = access.isSystem && access.roleName === RESERVED_ROLE_OPERATOR;
+  const perms = new Set(
+    (await repo.getRolePermissions(access.roleId)).filter((key) => isOperator || !key.startsWith('master:')),
+  );
+  const overrides = new Map(
+    (await repo.getOverrides(userId, clinicId))
+      .filter((o) => !o.permissionKey.startsWith('master:'))
+      .map((o) => [o.permissionKey, o.granted]),
+  );
 
   return {
     role: access.roleName,
-    can: (key) => (overrides.has(key) ? overrides.get(key)! : perms.has(key)),
+    can: (key) => {
+      if (key.startsWith('master:')) return isOperator && perms.has(key);
+      return overrides.has(key) ? overrides.get(key)! : perms.has(key);
+    },
   };
 }

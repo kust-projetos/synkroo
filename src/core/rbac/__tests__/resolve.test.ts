@@ -48,4 +48,32 @@ describe('resolveAccess', () => {
     expect(a.can('operacional:create')).toBe(false);
     expect(a.can('financeiro:view')).toBe(true);
   });
+
+  it('does not allow master permissions from a regular role or override', async () => {
+    const a = await resolveAccess('u', 'c', repo({
+      getRolePermissions: async () => ['master:manage_modules'],
+      getOverrides: async () => [{ permissionKey: 'master:manage_modules', granted: true }],
+    }));
+
+    expect(a.can('master:manage_modules')).toBe(false);
+  });
+
+  it('allows only role_permissions master grants for a system operator role', async () => {
+    const a = await resolveAccess('u', 'c', repo({
+      getAccess: async () => ({ roleId: 'operator', roleName: 'Synkroo Operator', isSystem: true }),
+      getRolePermissions: async () => ['master:manage_modules'],
+      getOverrides: async () => [{ permissionKey: 'master:manage_modules', granted: false }],
+    }));
+
+    expect(a.can('master:manage_modules')).toBe(true);
+  });
+
+  it('does not treat a custom role named like the operator as operational', async () => {
+    const a = await resolveAccess('u', 'c', repo({
+      getAccess: async () => ({ roleId: 'custom', roleName: 'Synkroo Operator', isSystem: false }),
+      getRolePermissions: async () => ['master:manage_modules'],
+    }));
+
+    expect(a.can('master:manage_modules')).toBe(false);
+  });
 });

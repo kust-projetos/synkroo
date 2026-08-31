@@ -21,7 +21,8 @@ jest.mock('@/lib/logger', () => ({
 }))
 
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: { isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() },
+  createManifest: () => ({
+      isEnabled: jest.fn().mockResolvedValue(true), enabledModules: jest.fn() }),
 }))
 
 // Mock getDb for Drizzle — proper chain simulation

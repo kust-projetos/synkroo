@@ -7,17 +7,16 @@
  * All DB access delegated to conversations-repository; no direct getDb() usage.
  */
 import { sendWhatsAppMessage } from './channel-service';
-import { processConfirmationResponse, processWaitlistConfirmation } from '@/services/appointments/confirmation-handler.service';
+import { processConfirmationResponse, processWaitlistConfirmation, buscarPacientePorTelefone } from '@/modules/operacional/public';
 import { whatsappLogger } from '@/lib/logger';
 import * as repo from '../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
-import { findPatientByPhone } from '@/repositories/patients';
-import { findLeadByPhone } from '@/modules/comercial/repositories';
+import { buscarLeadPorTelefone } from '@/modules/comercial/public';
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
 import { enviarMensagem } from '../actions/enviar-mensagem';
-import { capturarLead } from '@/modules/comercial/actions';
+import { capturarLeadInbound } from '@/modules/comercial/public';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 
 export async function processMetaWebhookEntry(entry: Record<string, unknown>, clinicId?: string) {
@@ -98,14 +97,20 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
 
   // Lead capture via comercial action layer (best-effort)
   try {
-    const capCtx = await buildSystemContext(clinicId);
-    await runAction(capturarLead, { phone, name: phone, source: 'whatsapp' }, capCtx);
+    await capturarLeadInbound({
+      clinicId,
+      phone,
+      name: phone,
+      source: 'whatsapp',
+    });
   } catch { /* non-fatal */ }
 
   // Roteia para o agente IA
   const agentResult = await routeInboundToAgent({
-    resolveInterlocutor: (cId, ph) =>
-      resolveInterlocutor({ findPatientByPhone, findLeadByPhone }, cId, ph),
+    resolveInterlocutor: (cId, ph) => resolveInterlocutor({
+      findPatientByPhone: (value, id) => buscarPacientePorTelefone(id, value),
+      findLeadByPhone: (value, id) => buscarLeadPorTelefone(id, value),
+    }, cId, ph),
     invokeAgent,
     sendReply: async (convId, msg) => {
       const ctx = await buildSystemContext(clinicId);
@@ -207,8 +212,10 @@ async function storeAndProcessMetaMessage(
 
   // Roteia para o agente IA
   const agentResult = await routeInboundToAgent({
-    resolveInterlocutor: (cId, ph) =>
-      resolveInterlocutor({ findPatientByPhone, findLeadByPhone }, cId, ph),
+    resolveInterlocutor: (cId, ph) => resolveInterlocutor({
+      findPatientByPhone: (value, id) => buscarPacientePorTelefone(id, value),
+      findLeadByPhone: (value, id) => buscarLeadPorTelefone(id, value),
+    }, cId, ph),
     invokeAgent,
     sendReply: async (convId, msg) => {
       const ctx = await buildSystemContext(cId);

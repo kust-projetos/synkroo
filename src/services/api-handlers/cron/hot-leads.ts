@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { assertModuleForJob } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
 import { runAction } from '@/core/actions/run';
 import { getDb } from '@/lib/db/client';
@@ -32,7 +32,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   // Module gate — skip if comercial module is not contracted
   try {
-    await assertModuleForJob('comercial', moduleManifest);
+    await assertModuleForJob('comercial', createManifest());
   } catch {
     return NextResponse.json(
       { success: true, skipped: 'comercial module disabled', timestamp: new Date().toISOString() },
@@ -59,7 +59,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
         hasModule: () => true,
         audit: { actor: 'cron' },
       };
-      const result = await runAction(processarNotificacoesLeadsQuentes, { clinicId: clinic.id }, ctx);
+      const result = await runAction(processarNotificacoesLeadsQuentes, {}, ctx);
       if (result.ok) {
         totalNotified += (result.data as { notified?: number }).notified ?? 0;
         totalSkipped += (result.data as { skipped?: number }).skipped ?? 0;

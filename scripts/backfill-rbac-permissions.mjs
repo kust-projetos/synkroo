@@ -17,10 +17,6 @@ const DEFAULT_CONNECTION_STRING =
   process.env.DATABASE_URL ||
   'postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo';
 
-function sqlLiteral(value) {
-  return `'${String(value).replaceAll("'", "''")}'`;
-}
-
 function policyPermissionEntries() {
   return Object.values(POLICY.modulePermissions)
     .flat()
@@ -43,11 +39,14 @@ async function getCatalogRows(client) {
 async function seedPolicyPermissions(client) {
   const entries = policyPermissionEntries();
   if (entries.length === 0) return;
-  const values = entries.map((entry) =>
-    `(${sqlLiteral(entry.key)}, ${sqlLiteral(entry.module)}, ${sqlLiteral(entry.label)})`,
-  ).join(', ');
+  const values = entries.map((_, index) => {
+    const offset = index * 3;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3})`;
+  }).join(', ');
   await client.query(
-    `INSERT INTO permissions (key, module, label) VALUES ${values} ON CONFLICT (key) DO NOTHING`,
+    `INSERT INTO permissions (key, module, label) VALUES ${values}
+     ON CONFLICT (key) DO UPDATE SET module = EXCLUDED.module, label = EXCLUDED.label`,
+    entries.flatMap((entry) => [entry.key, entry.module, entry.label]),
   );
 }
 
@@ -80,12 +79,22 @@ function permissionsForRole(roleName, catalog) {
 }
 
 async function applyRolePermissions(client, roleId, keys, dryRun) {
-  if (dryRun || keys.length === 0) return 0;
-  const values = keys.map((key) => `(${sqlLiteral(roleId)}, ${sqlLiteral(key)})`).join(', ');
+  if (keys.length === 0) return { inserted: 0, missing: [] };
+  const existing = roleId.startsWith('dry-run:')
+    ? []
+    : (await client.query(
+      'SELECT permission_key FROM role_permissions WHERE role_id = $1',
+      [roleId],
+    )).rows.map((row) => row.permission_key);
+  const existingSet = new Set(existing);
+  const missing = keys.filter((key) => !existingSet.has(key));
+  if (dryRun || missing.length === 0) return { inserted: 0, missing };
+  const values = missing.map((_, index) => `($1, $${index + 2})`).join(', ');
   const result = await client.query(
     `INSERT INTO role_permissions (role_id, permission_key) VALUES ${values} ON CONFLICT DO NOTHING`,
+    [roleId, ...missing],
   );
-  return result.rowCount || 0;
+  return { inserted: result.rowCount || 0, missing };
 }
 
 export async function backfill(client, { dryRun = false } = {}) {
@@ -100,8 +109,8 @@ export async function backfill(client, { dryRun = false } = {}) {
     for (const roleName of roleNames) {
       const roleId = await ensureRole(client, clinic.id, roleName, dryRun);
       const keys = permissionsForRole(roleName, catalog);
-      const inserted = await applyRolePermissions(client, roleId, keys, dryRun);
-      clinicResult.roles.push({ role: roleName, inserted, dryRun });
+      const permissionResult = await applyRolePermissions(client, roleId, keys, dryRun);
+      clinicResult.roles.push({ role: roleName, ...permissionResult, dryRun });
     }
     results.push(clinicResult);
   }

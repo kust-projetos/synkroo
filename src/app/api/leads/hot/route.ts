@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { listarLeadsQuentes } from '@/modules/comercial/actions/listar-leads-quentes';
 
@@ -13,4 +13,4 @@ const handleGet = async (request: NextRequest) => {
   return runComercialAction(listarLeadsQuentes, { limit });
 };
 
-export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
+export const GET = withModuleRoute('comercial')(handleGet);

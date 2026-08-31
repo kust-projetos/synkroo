@@ -28,6 +28,7 @@ const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 
 // Bootstrap actions (registers them)
 import '@/modules/operacional/actions';
+import { bootstrapActions } from '@/core/actions/bootstrap';
 import { runAction } from '@/core/actions/run';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { agendarConsulta } from '../../agendar-consulta';
@@ -84,6 +85,7 @@ function makeCtx(clinicId = CLINIC_ID) {
 
 beforeAll(async () => {
   if (SKIP) return;
+  await bootstrapActions();
   pool = await waitForSchemaReady();
 
   // Ensure clinic exists — delete first to handle cross-test pollution

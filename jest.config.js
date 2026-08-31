@@ -37,6 +37,8 @@ module.exports = {
     '!src/**/*.d.ts',
     '!src/**/__tests__/**',
     '!src/**/*.tsx',
+    // HTTP transport is covered by route/contract and integration suites.
+    '!src/app/**',
     '!src/repositories/**',
     '!src/**/repositories/**',
     '!src/lib/db/**',

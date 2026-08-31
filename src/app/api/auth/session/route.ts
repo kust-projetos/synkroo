@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { requireActiveProfile } from '@/lib/auth/session'
+import { listUserClinics } from '@/repositories/auth'
 
 /**
  * GET /api/auth/session
@@ -9,6 +10,7 @@ import { requireActiveProfile } from '@/lib/auth/session'
 export async function GET() {
   try {
     const profile = await requireActiveProfile()
+    const availableClinics = await listUserClinics(profile.id)
 
     return NextResponse.json({
       authenticated: true,
@@ -16,7 +18,7 @@ export async function GET() {
         id: profile.id,
         email: profile.email,
       },
-      profile,
+      profile: { ...profile, available_clinics: availableClinics },
     })
   } catch {
     return NextResponse.json(

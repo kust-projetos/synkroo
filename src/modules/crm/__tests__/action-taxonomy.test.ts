@@ -25,8 +25,8 @@ import {
 } from '@/core/agent-bridge/tool-policy';
 
 describe('crmActions — public human actions taxonomy', () => {
-  it('contém exatamente 12 ações humanas (6 contatos + 4 review + 2 merge)', () => {
-    expect(crmActions).toHaveLength(12);
+  it('contém exatamente 15 ações humanas (6 contatos + 4 review + 2 merge + 3 consent)', () => {
+    expect(crmActions).toHaveLength(15);
   });
 
   it('NÃO contém crm.reprocessarSugestoesDuplicidade (system-only, não-humano)', () => {
@@ -47,6 +47,8 @@ describe('crmActions — public human actions taxonomy', () => {
       'crm:review_duplicates',
       'crm:merge_patients',
       'crm:merge_leads',
+      'lgpd:view_consents',
+      'lgpd:manage_consents',
     ]);
     for (const a of crmActions) {
       expect(a.module).toBe('crm');

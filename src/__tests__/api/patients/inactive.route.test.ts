@@ -39,10 +39,10 @@ jest.mock('@/lib/rate-limit', () => ({
 
 // Module manifest — always enabled so withModuleRoute passes through
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: {
-    isEnabled: jest.fn().mockResolvedValue(true),
+  createManifest: () => ({
+      isEnabled: jest.fn().mockResolvedValue(true),
     enabledModules: jest.fn().mockResolvedValue(new Set(['followup', 'core'])),
-  },
+  }),
 }));
 
 // ── Action handler mocks ───────────────────────────────────────────────────────

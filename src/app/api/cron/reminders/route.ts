@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { processAllReminders } from '@/modules/operacional/services/reminders-service';
 import { assertModuleForJob } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
@@ -35,7 +35,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   // Module gate — skip if disabled (200, not error)
   try {
-    await assertModuleForJob('operacional', moduleManifest);
+    await assertModuleForJob('operacional', createManifest());
   } catch {
     return NextResponse.json(
       { success: true, skipped: 'operacional module disabled', timestamp: new Date().toISOString() },

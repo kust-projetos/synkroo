@@ -6,7 +6,7 @@
  */
 
 import { getDb } from '@/lib/db/client';
-import { appointmentStatusLog } from '@/lib/db/schema/business';
+import { appointmentStatusLog } from '@/modules/operacional/schema/treatments';
 import { dbLogger } from '@/lib/logger';
 
 export interface StatusTransition {

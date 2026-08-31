@@ -9,10 +9,14 @@ export const listarLeads = defineAction({
   requires: 'comercial:view',
   label: 'Listar leads',
   input: z.object({
-    clinicId: z.string().uuid(),
+    status: z.string().optional(),
+    temperature: z.string().optional(),
+    source: z.string().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+    offset: z.number().int().min(0).optional(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const rows = await listLeadsByClinic(input.clinicId);
+  handler: async (input, ctx: ActionContext) => {
+    const rows = await listLeadsByClinic(ctx.clinicId);
     return { leads: rows, total: rows.length };
   },
 });

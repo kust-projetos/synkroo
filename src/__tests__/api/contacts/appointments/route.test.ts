@@ -14,22 +14,24 @@ const mockModuleManifest = { isEnabled: jest.fn() };
 const mockRunCrmAction = jest.fn();
 
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: mockModuleManifest,
+  createManifest: () => mockModuleManifest,
 }));
 
 jest.mock('@/core/modules/gates', () => ({
   withModuleRoute: jest.fn(
-    (moduleId: string, manifest: { isEnabled: (id: string) => Promise<boolean> }) =>
-      <H extends (...args: any[]) => Promise<Response>>(handler: H): H =>
+    (moduleId: string, manifest?: { isEnabled: (id: string) => Promise<boolean> }) => {
+      const m = manifest ?? require('@/core/modules/manifest').createManifest();
+      return <H extends (...args: any[]) => Promise<Response>>(handler: H): H =>
         (async (...args: Parameters<H>) => {
-          if (!(await manifest.isEnabled(moduleId))) {
+          if (!(await m.isEnabled(moduleId))) {
             return new Response(JSON.stringify({ error: 'not_found' }), {
               status: 404,
               headers: { 'content-type': 'application/json' },
             });
           }
           return handler(...args);
-        }) as H,
+        }) as H;
+    },
   ),
   ModuleDisabledError: class ModuleDisabledError extends Error {},
 }));

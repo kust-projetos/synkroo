@@ -11,10 +11,9 @@ export const obterLead = defineAction({
   label: 'Obter lead',
   input: z.object({
     leadId: z.string().uuid(),
-    clinicId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const lead = await findLeadByIdForClinic(input.leadId, input.clinicId);
+  handler: async (input, ctx: ActionContext) => {
+    const lead = await findLeadByIdForClinic(input.leadId, ctx.clinicId);
     if (!lead) throw new ActionError('not_found', 'Lead não encontrado.');
     return lead;
   },

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { getDb } from '@/lib/db/client';
-import { crmDuplicateSuggestions } from '@/lib/db/schema';
+import { crmDuplicateSuggestions } from '@/modules/crm/schema/duplicates';
 import { and, eq, ne, inArray, sql } from 'drizzle-orm';
 import {
   findDuplicateSource,
@@ -17,8 +17,13 @@ import {
 } from '../services/duplicate-scoring-service';
 import { ActionError } from '@/core/actions/types';
 import type { ActionContext } from '@/core/actions/types';
-import { isPatientMerged } from '@/modules/operacional/services';
-import { isLeadMerged } from '@/modules/comercial/services';
+import { isMergedPatient } from '@/modules/operacional/public';
+import { isMergedLead } from '@/modules/comercial/public';
+import {
+  getOwnerMergeDispatcher,
+} from './owner-merge-registry';
+
+export { getOwnerMergeDispatcher, registerOwnerMerge, clearOwnerMergeRegistryForTests } from './owner-merge-registry';
 
 // ── Lease constants ──────────────────────────────────────────────────────────
 
@@ -30,28 +35,6 @@ export const MERGE_LEASE_MS = 30_000;
  */
 export function isLeaseActive(executedAt: Date, nowMs: number = Date.now()): boolean {
   return nowMs - executedAt.getTime() < MERGE_LEASE_MS;
-}
-
-// ── Owner merge dispatcher ───────────────────────────────────────────────────
-
-export interface OwnerMergeDispatcher {
-  (winnerId: string, loserId: string, clinicId: string): Promise<boolean>;
-}
-
-const ownerMergeRegistry = new Map<string, OwnerMergeDispatcher>();
-
-export function registerOwnerMerge(
-  ownerType: 'patient' | 'lead',
-  dispatcher: OwnerMergeDispatcher,
-): void {
-  // Map.set silently overwrites — safe post-Tier-3 (only one registrant per key).
-  // If a second registrant appears later, consider throwing on duplicate key.
-  ownerMergeRegistry.set(ownerType, dispatcher);
-}
-
-/** Leitura de diagnóstico — exposto para guard tests. */
-export function getOwnerMergeDispatcher(ownerType: 'patient' | 'lead'): OwnerMergeDispatcher | undefined {
-  return ownerMergeRegistry.get(ownerType);
 }
 
 // ── Document conflict check ─────────────────────────────────────────────────
@@ -86,8 +69,8 @@ export async function executeMerge(
     }
     // Lease expired — check if owner merge already applied
     const merged = ownerType === 'patient'
-      ? await isPatientMerged(suggestion.leftId, ctx.clinicId)
-      : await isLeadMerged(suggestion.leftId, ctx.clinicId);
+      ? await isMergedPatient(ctx.clinicId, suggestion.leftId)
+      : await isMergedLead(ctx.clinicId, suggestion.leftId);
 
     if (merged) {
       // Applied recovery: finalize exactly once WITHOUT dispatcher
@@ -203,14 +186,16 @@ export async function executeMerge(
   const loserId = winnerId === suggestion.leftId ? suggestion.rightId : suggestion.leftId;
 
   // ── Dispatch owner merge ─────────────────────────────────────────────────
-  const dispatcher = ownerMergeRegistry.get(ownerType);
+  const dispatcher = getOwnerMergeDispatcher(ownerType);
   let ownerSuccess = false;
-  if (dispatcher) {
-    try {
-      ownerSuccess = await dispatcher(winnerId, loserId, ctx.clinicId);
-    } catch {
-      ownerSuccess = false;
-    }
+  if (!dispatcher) {
+    await markSuggestionFailed(id, ctx.clinicId, mergeOperationKey, 'owner_merge_adapter_missing');
+    throw new ActionError('internal', `OWNER_MERGE_ADAPTER_MISSING:${ownerType}`);
+  }
+  try {
+    ownerSuccess = await dispatcher(winnerId, loserId, ctx.clinicId);
+  } catch {
+    ownerSuccess = false;
   }
 
   if (ownerSuccess) {

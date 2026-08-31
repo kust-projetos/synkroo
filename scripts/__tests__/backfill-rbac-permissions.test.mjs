@@ -45,11 +45,14 @@ function makeFakeClient() {
         const valuePart = cleanText.split('VALUES')[1];
         if (!valuePart) return { rows: [], rowCount: 0 };
         let insertedCount = 0;
-        const tuples = valuePart.match(/\([^)]+\)/g) || [];
-        for (const tuple of tuples) {
-          const arr = tuple.match(/'([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']*)'/);
-          if (!arr) continue;
-          const [, key, module, label] = arr;
+        const entries = params
+          ? Array.from({ length: params.length / 3 }, (_, index) => params.slice(index * 3, index * 3 + 3))
+          : (valuePart.match(/\([^)]+\)/g) || []).map((tuple) => {
+            const arr = tuple.match(/'([^']+)'\s*,\s*'([^']+)'\s*,\s*'([^']*)'/);
+            return arr ? arr.slice(1) : [];
+          });
+        for (const [key, module, label] of entries) {
+          if (!key) continue;
           if (!tables.permissions.find((p) => p.key === key)) {
             tables.permissions.push({ key, module, label });
             insertedCount++;
@@ -78,7 +81,15 @@ function makeFakeClient() {
         const cleanText = text.replace(/\s+ON CONFLICT.*$/i, '');
         let insertedCount = 0;
         const valuePart = cleanText.split('VALUES')[1];
-        if (valuePart) {
+        if (params?.length > 1) {
+          const roleId = params[0];
+          for (const permKey of params.slice(1)) {
+            if (!tables.role_permissions.find((rp) => rp.role_id === roleId && rp.permission_key === permKey)) {
+              tables.role_permissions.push({ role_id: roleId, permission_key: permKey });
+              insertedCount++;
+            }
+          }
+        } else if (valuePart) {
           const tuples = valuePart.match(/\([^)]+\)/g) || [];
           for (const tuple of tuples) {
             const [roleId, permKey] = tuple.replace(/[\s'()]/g, '').split(',');
@@ -89,6 +100,16 @@ function makeFakeClient() {
           }
         }
         return { rows: [], rowCount: insertedCount };
+      }
+
+      // SELECT permissions already granted to a role
+      if (text.match(/FROM role_permissions/i) && text.includes('SELECT')) {
+        const roleId = params?.[0];
+        return {
+          rows: tables.role_permissions
+            .filter((rp) => rp.role_id === roleId)
+            .map((rp) => ({ permission_key: rp.permission_key })),
+        };
       }
 
       // SELECT * FROM permissions (catálogo canônico)

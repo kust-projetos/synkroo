@@ -1,9 +1,10 @@
 jest.mock('../channel-service', () => ({
   sendWhatsAppMessage: jest.fn(),
 }));
-jest.mock('@/services/appointments/confirmation-handler.service', () => ({
+jest.mock('@/modules/operacional/public', () => ({
   processConfirmationResponse: jest.fn(),
   processWaitlistConfirmation: jest.fn(),
+  buscarPacientePorTelefone: jest.fn(),
 }));
 jest.mock('@/lib/logger', () => ({
   whatsappLogger: { info: jest.fn(), error: jest.fn() },
@@ -27,6 +28,10 @@ jest.mock('@/core/ia-channel/interlocutor', () => ({
 }));
 jest.mock('@/repositories/patients', () => ({ findPatientByPhone: jest.fn() }));
 jest.mock('@/modules/comercial/repositories', () => ({ findLeadByPhone: jest.fn() }));
+jest.mock('@/modules/comercial/public', () => ({
+  buscarLeadPorTelefone: jest.fn(),
+  capturarLeadInbound: jest.fn().mockResolvedValue({ id: 'lead-1' }),
+}));
 jest.mock('@/core/actions/run', () => ({ runAction: jest.fn() }));
 jest.mock('@/core/actions/context', () => ({ buildSystemContext: jest.fn() }));
 jest.mock('../../actions/enviar-mensagem', () => ({ enviarMensagem: { name: 'enviarMensagem' } }));
@@ -40,7 +45,7 @@ import {
 } from '../webhook-processor-service';
 import * as repo from '../../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
-import { processConfirmationResponse, processWaitlistConfirmation } from '@/services/appointments/confirmation-handler.service';
+import { processConfirmationResponse, processWaitlistConfirmation } from '@/modules/operacional/public';
 
 const mockRepo = repo as jest.Mocked<typeof repo>;
 const mockRouteInboundToAgent = routeInboundToAgent as jest.MockedFunction<typeof routeInboundToAgent>;
@@ -108,7 +113,11 @@ describe('processEvolutionMessage', () => {
       content: 'oi',
       messageType: 'text',
     }));
-    expect(mockRepo.updateConversationTimestamp).toHaveBeenCalledWith('conversation-1');
+    expect(mockRepo.updateConversationTimestamp).toHaveBeenCalledWith(
+      'clinic-1',
+      'conversation-1',
+      expect.any(Date),
+    );
   });
   it('handles button confirmation and cancellation responses', async () => {
     mockRepo.getClinicByInstance.mockResolvedValue('clinic-1' as never);

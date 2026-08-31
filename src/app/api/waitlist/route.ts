@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { listarWaitlist } from '@/modules/operacional/actions/listar-waitlist';
 import { obterWaitlist } from '@/modules/operacional/actions/obter-waitlist';
@@ -61,10 +61,10 @@ async function handleDELETE(request: NextRequest): Promise<NextResponse> {
   return runActionRoute(cancelarWaitlist, { id, reason: sp.get('reason') ?? undefined });
 }
 
-const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);
-const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePOST);
-const wrappedPATCH = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePATCH);
-const wrappedDELETE = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleDELETE);
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleGET);
+const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePOST);
+const wrappedPATCH = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePATCH);
+const wrappedDELETE = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleDELETE);
 
 export {
   wrappedGET as GET,

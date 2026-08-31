@@ -1,11 +1,9 @@
 /**
  * Atendimento module — action exports.
- * Actions are self-registering via the action registry.
- * Import here to trigger registration; do not call handlers directly from routes —
- * use runActionRoute from ../ui/route-adapter.ts instead.
+ * This barrel only exports Action definitions. Registration belongs exclusively
+ * to the composition root in src/core/actions/bootstrap.ts.
  */
 
-import { registerActions } from '@/core/actions/registry';
 import { iniciarConversa } from './iniciar-conversa';
 import { listarConversas } from './listar-conversas';
 import { obterConversa } from './obter-conversa';
@@ -49,28 +47,3 @@ export * from './processar-webhook-instagram';
 export * from './responder-instagram';
 export * from './receber-widget-mensagem';
 export * from './obter-qrcode';
-
-// Bootstrap registration — idempotent
-registerActions([
-  iniciarConversa,
-  listarConversas,
-  obterConversa,
-  arquivarConversa,
-  escalarConversa,
-  receberMensagem,
-  classificarIntencao,
-  extrairEntidades,
-  historicoMensagens,
-  enviarMensagem,
-  agendarMensagem,
-  obterModeloMensagem,
-  verificarWebhook,
-  processarWebhookWhatsApp,
-  statusEvolution,
-  verificarWebhookInstagram,
-  processarWebhookInstagram,
-  responderInstagram,
-  receberWidgetMensagem,
-  obterQRCode,
-  enviarMensagemDireta,
-]);
