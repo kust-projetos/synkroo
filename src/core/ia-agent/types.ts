@@ -1,3 +1,8 @@
+import type {
+  AppBinding as SharedAppBinding,
+  RemoteTool as SharedRemoteTool,
+} from '@/core/agent-bridge/rpc-contract';
+
 export type PersonaType = 'vendas' | 'paciente' | 'recepcao' | 'funcionario';
 
 export interface ChatMessage {
@@ -31,36 +36,10 @@ export interface LlmProvider {
   complete(messages: ChatMessage[], tools: LlmTool[]): Promise<LlmCompletion>;
 }
 
-export interface RemoteTool {
-  name: string;
-  alias: string;
-  description: string;
-  inputSchemaJson: Record<string, unknown>;
-  module: string;
-  permissions: string[];
-}
-
-// Espelha a superfície RPC do ia-bridge (Plano 1 + Task 0).
-export interface AppBinding {
-  listTools(input: {
-    handle: string;
-    conversationId: string;
-  }): Promise<
-    | { ok: true; catalog: { version: string; tools: RemoteTool[] } }
-    | { ok: false; error: string }
-  >;
-  executeAction(input: {
-    handle: string;
-    conversationId: string;
-    idempotencyKey: string;
-    alias: string;
-    input: unknown;
-    flags: { confirmed: boolean; identityVerified?: boolean };
-  }): Promise<
-    | { ok: true; data: unknown }
-    | { ok: false; error: string; level?: string; message?: string }
-  >;
-}
+// RPC types are owned by the bridge contract; the agent only re-exports the
+// two DTOs it consumes so there is no second hand-written surface here.
+export type RemoteTool = SharedRemoteTool;
+export type AppBinding = SharedAppBinding;
 
 export interface PendingAction {
   alias: string;

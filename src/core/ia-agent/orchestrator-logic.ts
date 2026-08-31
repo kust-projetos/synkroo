@@ -6,6 +6,7 @@ import type {
   RunTurnInput,
   RunTurnResult,
 } from './types';
+import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 import { personaSystemPrompt } from './personas';
 import { analyzeClinicalSafety } from './clinical-safety';
 
@@ -23,6 +24,15 @@ function errorReply(error: string): string {
   if (error === 'escalate_human')
     return 'Vou encaminhar você para um atendente da clínica para concluir isso. Um instante.';
   return 'Não consegui concluir agora. Posso ajudar de outra forma?';
+}
+
+async function hasCurrentBridgeContract(app: AppBinding): Promise<boolean> {
+  try {
+    const ping = await app.ping({ contractVersion: BRIDGE_RPC_VERSION });
+    return ping.ok && ping.contractVersion === BRIDGE_RPC_VERSION;
+  } catch {
+    return false;
+  }
 }
 
 export async function runTurn(
@@ -51,6 +61,12 @@ export async function runTurn(
     }
   }
 
+  // O handshake é por turno para não deixar uma versão de bridge presa no
+  // isolate. Nenhuma operação de tool é enviada sem confirmar v2.
+  if (!(await hasCurrentBridgeContract(deps.app))) {
+    return { reply: FALLBACK, turnsUsed: 0 };
+  }
+
   // ── Caminho de confirmação ────────────────────────────────────────────────
   // Reexecuta os args ORIGINAIS (não os do modelo). Vincula alias+args.
   if (
@@ -63,6 +79,7 @@ export async function runTurn(
       !!input.identityVerifiedToken &&
       input.identityVerifiedToken === pa.token;
     const exec = await deps.app.executeAction({
+      contractVersion: BRIDGE_RPC_VERSION,
       handle: input.handle,
       conversationId: input.conversationId,
       idempotencyKey: pa.token,
@@ -70,6 +87,9 @@ export async function runTurn(
       input: pa.args,
       flags: { confirmed: true, identityVerified },
     });
+    if (exec.contractVersion !== BRIDGE_RPC_VERSION) {
+      return { reply: FALLBACK, turnsUsed: 0 };
+    }
     if (!exec.ok) {
       // needs_identity / needs_confirmation: preserva pendingAction (não limpa o estado)
       if (exec.error === 'needs_identity' || exec.error === 'needs_confirmation') {
@@ -95,10 +115,11 @@ export async function runTurn(
 
   // ── 1. Catálogo ──────────────────────────────────────────────────────────
   const toolsResp = await deps.app.listTools({
+    contractVersion: BRIDGE_RPC_VERSION,
     handle: input.handle,
     conversationId: input.conversationId,
   });
-  if (!toolsResp.ok)
+  if (!toolsResp.ok || toolsResp.contractVersion !== BRIDGE_RPC_VERSION)
     return { reply: FALLBACK, turnsUsed: 0 };
 
   const llmTools: LlmTool[] = toolsResp.catalog.tools.map((t) => ({
@@ -156,6 +177,7 @@ export async function runTurn(
       }
 
       const exec = await deps.app.executeAction({
+        contractVersion: BRIDGE_RPC_VERSION,
         handle: input.handle,
         conversationId: input.conversationId,
         idempotencyKey: call.id, // key crua (tool_call_id)
@@ -164,6 +186,9 @@ export async function runTurn(
         flags: { confirmed: false },
       });
 
+      if (exec.contractVersion !== BRIDGE_RPC_VERSION) {
+        return { reply: FALLBACK, turnsUsed: 0 };
+      }
       if (!exec.ok) {
         if (
           exec.error === 'needs_confirmation' ||

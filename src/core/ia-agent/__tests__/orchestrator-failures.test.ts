@@ -1,5 +1,6 @@
 import { runTurn } from '../orchestrator-logic';
 import type { AppBinding, LlmProvider, RemoteTool } from '../types';
+import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
 const tool: RemoteTool = {
   name: 'operacional.consultarDisponibilidade',
@@ -11,11 +12,19 @@ const tool: RemoteTool = {
 };
 
 const okApp: AppBinding = {
+  ping: async () => ({
+    ok: true,
+    contractVersion: BRIDGE_RPC_VERSION,
+    from: 'ia-bridge',
+    now: 0,
+  }),
+  dbHealth: async () => ({ ok: true, contractVersion: BRIDGE_RPC_VERSION }),
   listTools: async () => ({
     ok: true,
+    contractVersion: BRIDGE_RPC_VERSION,
     catalog: { version: 'v1', tools: [tool] },
   }),
-  executeAction: async () => ({ ok: true, data: {} }),
+  executeAction: async () => ({ ok: true, contractVersion: BRIDGE_RPC_VERSION, data: {} }),
 };
 
 const callTool = (args = '{}') => ({
@@ -62,6 +71,7 @@ describe('runTurn — robustez', () => {
           ...okApp,
           executeAction: async () => ({
             ok: false,
+            contractVersion: BRIDGE_RPC_VERSION,
             error: 'forbidden',
             level: 'proibido',
             message: 'Sem permissão.',

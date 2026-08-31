@@ -6,8 +6,9 @@
  * 2. kvSeenStore: wasSeen (true/false) and markSeen (TTL clamping with Math.max(ttl, 60))
  * 3. Runtime environment validation and connection string propagation
  * 4. AppService RPC methods: ping, dbHealth, issueHandle, listTools, executeAction
- * 5. Dependency wiring: buildSystemContext, buildDelegatedContext, getActions, runAction
- * 6. Default export fetch handler (404 binding-only response)
+ * 5. Capability separation and version mismatch fail-closed behavior
+ * 6. Dependency wiring: buildSystemContext, buildDelegatedContext, getActions, runAction
+ * 7. Default export fetch handler (404 binding-only response)
  */
 
 // ── Mocks ────────────────────────────────────────────────────────
@@ -46,7 +47,17 @@ jest.mock('@/core/actions/bootstrap', () => ({
 }));
 
 jest.mock('@/core/agent-bridge/handle', () => ({
-  issueHandle: jest.fn().mockResolvedValue('issued-handle-token-123'),
+  issueHandle: jest.fn().mockResolvedValue({
+    handle: 'issued-handle-token-123',
+    payload: {
+      clinicId: 'clinic-123',
+      conversationId: 'conv-456',
+      principalRef: 'user-789',
+      source: 'system',
+      jti: 'jti-123',
+      exp: Date.parse('2026-08-29T12:00:00.000Z'),
+    },
+  }),
 }));
 
 jest.mock('@/core/agent-bridge/bridge-service', () => ({
@@ -97,12 +108,17 @@ jest.mock('@/core/actions/registry', () => ({
 
 // ── Imports after mocks ──────────────────────────────────────────
 
-import defaultExport, { AppService, type Env } from '../index';
+import defaultExport, { AppService, HandleIssuerService, type Env } from '../index';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
 import { setDbConnectionString } from '@/lib/db/client';
 import { bootstrapActions } from '@/core/actions/bootstrap';
 import { issueHandle } from '@/core/agent-bridge/handle';
-import { listToolsLogic, executeActionLogic, type ListToolsInput, type ExecuteInput } from '@/core/agent-bridge/bridge-service';
+import { listToolsLogic, executeActionLogic } from '@/core/agent-bridge/bridge-service';
+import {
+  BRIDGE_RPC_VERSION,
+  type ExecuteInput,
+  type ListToolsInput,
+} from '@/core/agent-bridge/rpc-contract';
 import { runDbHealthCheck } from '@/core/agent-bridge/db-health';
 import { buildSystemContext, buildDelegatedContext } from '@/core/actions/context';
 
@@ -146,7 +162,7 @@ describe('ia-bridge WorkerEntrypoint', () => {
 
   describe('validateBridgeEnv and runtime configuration', () => {
     it('validates bridge env and propagates Hyperdrive connection string', async () => {
-      await service.ping();
+      await service.ping({ contractVersion: BRIDGE_RPC_VERSION });
 
       expect(parseRuntimeEnv).toHaveBeenCalledWith('bridge', mockEnv);
       expect(setDbConnectionString).toHaveBeenCalledWith('postgres://user:pass@hyperdrive.local:5432/db');
@@ -156,10 +172,11 @@ describe('ia-bridge WorkerEntrypoint', () => {
   describe('ping RPC method', () => {
     it('validates env and returns pong response with timestamp', async () => {
       const before = Date.now();
-      const res = await service.ping();
+      const res = await service.ping({ contractVersion: BRIDGE_RPC_VERSION });
       const after = Date.now();
 
       expect(res.ok).toBe(true);
+      expect(res.contractVersion).toBe(BRIDGE_RPC_VERSION);
       expect(res.from).toBe('ia-bridge');
       expect(res.now).toBeGreaterThanOrEqual(before);
       expect(res.now).toBeLessThanOrEqual(after);
@@ -168,34 +185,78 @@ describe('ia-bridge WorkerEntrypoint', () => {
 
   describe('dbHealth RPC method', () => {
     it('validates env and runs db health check with select 1 query', async () => {
-      const res = await service.dbHealth();
+      const res = await service.dbHealth({ contractVersion: BRIDGE_RPC_VERSION });
 
       expect(runDbHealthCheck).toHaveBeenCalledTimes(1);
-      expect(res).toEqual({ status: 'healthy', latencyMs: 2 });
+      expect(res).toEqual({
+        status: 'healthy',
+        latencyMs: 2,
+        contractVersion: BRIDGE_RPC_VERSION,
+      });
       expect(mockExecute).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('issueHandle RPC method', () => {
-    it('validates env and delegates to issueHandle helper with HANDLE_SECRET', async () => {
+    it('keeps issuer and executor entrypoint surfaces distinct', () => {
+      const issuer = new (HandleIssuerService as any)({} as any, mockEnv);
+
+      expect(typeof issuer.issueHandle).toBe('function');
+      expect(issuer.listTools).toBeUndefined();
+      expect(issuer.executeAction).toBeUndefined();
+      expect(typeof service.issueHandle).toBe('function');
+      expect(typeof service.listTools).toBe('function');
+      expect(typeof service.executeAction).toBe('function');
+    });
+
+    it('exposes issueHandle through the dedicated issuer entrypoint', async () => {
       const input = {
+        contractVersion: BRIDGE_RPC_VERSION,
         clinicId: 'clinic-123',
         conversationId: 'conv-456',
         principalRef: 'user-789',
         source: 'system' as const,
         ttlSeconds: 120,
       };
+      const issuer = new (HandleIssuerService as any)({} as any, mockEnv);
 
-      const handle = await service.issueHandle(input);
+      const result = await issuer.issueHandle(input);
 
-      expect(issueHandle).toHaveBeenCalledWith('test-handle-secret-32-chars-long!', input);
-      expect(handle).toBe('issued-handle-token-123');
+      expect(issueHandle).toHaveBeenCalledWith('test-handle-secret-32-chars-long!', {
+        clinicId: input.clinicId,
+        conversationId: input.conversationId,
+        principalRef: input.principalRef,
+        source: input.source,
+        ttlSeconds: input.ttlSeconds,
+      });
+      expect(result).toEqual({
+        contractVersion: BRIDGE_RPC_VERSION,
+        handle: 'issued-handle-token-123',
+        expiresAt: '2026-08-29T12:00:00.000Z',
+      });
+    });
+
+    it('keeps the legacy AppService.issueHandle surface during the first deploy', async () => {
+      const result = await service.issueHandle({
+        clinicId: 'clinic-123',
+        conversationId: 'conv-456',
+        principalRef: 'user-789',
+        source: 'system',
+        ttlSeconds: 120,
+      });
+
+      expect(result).toMatchObject({
+        contractVersion: 'v1',
+        handle: 'issued-handle-token-123',
+      });
+      expect(result).not.toHaveProperty('payload');
     });
   });
 
   describe('listTools and executeAction (bootstrap memoization & deps wiring)', () => {
     it('ensures bootstrapActions is called and delegates to listToolsLogic', async () => {
       const input: ListToolsInput = {
+        contractVersion: BRIDGE_RPC_VERSION,
         handle: 'valid-handle-token',
         conversationId: 'conv-123',
       };
@@ -209,10 +270,14 @@ describe('ia-bridge WorkerEntrypoint', () => {
           getActions: expect.any(Function),
           runAction: expect.any(Function),
         }),
-        input,
+        {
+          handle: input.handle,
+          conversationId: input.conversationId,
+        },
       );
       expect(res).toEqual({
         ok: true,
+        contractVersion: BRIDGE_RPC_VERSION,
         catalog: {
           tools: [{ name: 'pacientes_listar', description: 'Listar pacientes' }],
         },
@@ -224,8 +289,9 @@ describe('ia-bridge WorkerEntrypoint', () => {
 
       // Run multiple concurrent calls
       await Promise.all([
-        service.listTools({ handle: 'token-1', conversationId: 'c1' }),
+        service.listTools({ contractVersion: BRIDGE_RPC_VERSION, handle: 'token-1', conversationId: 'c1' }),
         service.executeAction({
+          contractVersion: BRIDGE_RPC_VERSION,
           handle: 'token-2',
           conversationId: 'c1',
           idempotencyKey: 'idemp-1',
@@ -233,7 +299,7 @@ describe('ia-bridge WorkerEntrypoint', () => {
           input: {},
           flags: { confirmed: true },
         }),
-        service.listTools({ handle: 'token-3', conversationId: 'c1' }),
+        service.listTools({ contractVersion: BRIDGE_RPC_VERSION, handle: 'token-3', conversationId: 'c1' }),
       ]);
 
       const callsAfter = (bootstrapActions as jest.Mock).mock.calls.length;
@@ -243,6 +309,7 @@ describe('ia-bridge WorkerEntrypoint', () => {
 
     it('delegates executeAction to executeActionLogic with full bridge deps', async () => {
       const input: ExecuteInput = {
+        contractVersion: BRIDGE_RPC_VERSION,
         handle: 'valid-handle-token',
         conversationId: 'conv-123',
         idempotencyKey: 'idemp-2',
@@ -260,10 +327,18 @@ describe('ia-bridge WorkerEntrypoint', () => {
           getActions: expect.any(Function),
           runAction: expect.any(Function),
         }),
-        input,
+        {
+          handle: input.handle,
+          conversationId: input.conversationId,
+          idempotencyKey: input.idempotencyKey,
+          alias: input.alias,
+          input: input.input,
+          flags: input.flags,
+        },
       );
       expect(res).toEqual({
         ok: true,
+        contractVersion: BRIDGE_RPC_VERSION,
         data: { id: 'act-result-1' },
       });
     });
@@ -279,6 +354,43 @@ describe('ia-bridge WorkerEntrypoint', () => {
       const delCtx = await deps.buildDelegatedContext('user-1', 'clinic-test');
       expect(buildDelegatedContext).toHaveBeenCalledWith('user-1', 'clinic-test');
       expect(delCtx).toEqual({ userId: 'user-1', clinicId: 'clinic-test', role: 'delegated' });
+    });
+  });
+
+  describe('contract version guard', () => {
+    it('rejects an unsupported execute version before bootstrap, idempotency, or Action', async () => {
+      const res = await service.executeAction({
+        contractVersion: 'v99',
+        handle: 'valid-handle-token',
+        conversationId: 'conv-123',
+        idempotencyKey: 'idemp-mismatch',
+        alias: 'pacientes_listar',
+        input: {},
+        flags: { confirmed: true },
+      });
+
+      expect(res).toEqual({
+        ok: false,
+        error: 'contract_version_mismatch',
+        contractVersion: BRIDGE_RPC_VERSION,
+      });
+      expect(executeActionLogic).not.toHaveBeenCalled();
+      expect(mockKV.put).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unsupported list version before reading the catalog', async () => {
+      const res = await service.listTools({
+        contractVersion: 'v99',
+        handle: 'valid-handle-token',
+        conversationId: 'conv-123',
+      });
+
+      expect(res).toEqual({
+        ok: false,
+        error: 'contract_version_mismatch',
+        contractVersion: BRIDGE_RPC_VERSION,
+      });
+      expect(listToolsLogic).not.toHaveBeenCalled();
     });
   });
 

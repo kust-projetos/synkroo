@@ -1,5 +1,6 @@
 import { runTurn } from '../orchestrator-logic';
 import type { AppBinding, LlmProvider, RemoteTool } from '../types';
+import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
 const tool: RemoteTool = {
   name: 'operacional.consultarDisponibilidade',
@@ -12,11 +13,23 @@ const tool: RemoteTool = {
 
 function app(o: Partial<AppBinding> = {}): AppBinding {
   return {
+    ping: async () => ({
+      ok: true,
+      contractVersion: BRIDGE_RPC_VERSION,
+      from: 'ia-bridge',
+      now: 0,
+    }),
+    dbHealth: async () => ({ ok: true, contractVersion: BRIDGE_RPC_VERSION }),
     listTools: async () => ({
       ok: true,
+      contractVersion: BRIDGE_RPC_VERSION,
       catalog: { version: 'v1', tools: [tool] },
     }),
-    executeAction: async () => ({ ok: true, data: { slots: ['09:00'] } }),
+    executeAction: async () => ({
+      ok: true,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: { slots: ['09:00'] },
+    }),
     ...o,
   };
 }
@@ -60,16 +73,49 @@ const base = {
 describe('runTurn', () => {
   it('tool then final answer; passes tool_call_id as idempotencyKey', async () => {
     let seenKey = '';
+    let seenVersion = '';
     const p = provider([callTool(), { text: 'Temos 09:00 livre.' }]);
     const a = app({
       executeAction: async (i) => {
         seenKey = i.idempotencyKey;
-        return { ok: true, data: {} };
+        seenVersion = i.contractVersion;
+        return { ok: true, contractVersion: BRIDGE_RPC_VERSION, data: {} };
       },
     });
     const r = await runTurn({ provider: p, app: a, now: new Date() }, base);
     expect(r.reply).toBe('Temos 09:00 livre.');
     expect(seenKey).toBe('call-1');
+    expect(seenVersion).toBe(BRIDGE_RPC_VERSION);
+  });
+
+  it('fails closed on an old or mismatched bridge before listing tools', async () => {
+    let listCalls = 0;
+    const r = await runTurn(
+      {
+        provider: provider([{ text: 'should not run' }]),
+        app: app({
+          ping: async () => ({
+            ok: true,
+            contractVersion: 'v1',
+            from: 'old-bridge',
+            now: 0,
+          }),
+          listTools: async () => {
+            listCalls++;
+            return {
+              ok: true,
+              contractVersion: BRIDGE_RPC_VERSION,
+              catalog: { version: 'v1', tools: [tool] },
+            };
+          },
+        }),
+        now: new Date(),
+      },
+      base,
+    );
+
+    expect(r.turnsUsed).toBe(0);
+    expect(listCalls).toBe(0);
   });
 
   it('includes prior history in the prompt', async () => {
@@ -101,6 +147,7 @@ describe('runTurn', () => {
         app: app({
           executeAction: async () => ({
             ok: false,
+            contractVersion: BRIDGE_RPC_VERSION,
             error: 'needs_confirmation',
           }),
         }),
@@ -125,7 +172,7 @@ describe('runTurn', () => {
     const a = app({
       executeAction: async (i) => {
         executedArgs = i.input;
-        return { ok: true, data: {} };
+        return { ok: true, contractVersion: BRIDGE_RPC_VERSION, data: {} };
       },
     });
     // provider não deve nem ser chamado para gerar nova tool call de execução
@@ -152,8 +199,8 @@ describe('runTurn', () => {
       executeAction: async (i) => {
         gotFlags = i.flags;
         return i.flags.identityVerified
-          ? { ok: true, data: {} }
-          : { ok: false, error: 'needs_identity' };
+          ? { ok: true, contractVersion: BRIDGE_RPC_VERSION, data: {} }
+          : { ok: false, contractVersion: BRIDGE_RPC_VERSION, error: 'needs_identity' };
       },
     });
     const r = await runTurn(
@@ -182,8 +229,8 @@ describe('runTurn', () => {
     const a = app({
       executeAction: async (i) =>
         i.flags.identityVerified
-          ? { ok: true, data: {} }
-          : { ok: false, error: 'needs_identity' },
+          ? { ok: true, contractVersion: BRIDGE_RPC_VERSION, data: {} }
+          : { ok: false, contractVersion: BRIDGE_RPC_VERSION, error: 'needs_identity' },
     });
     const r = await runTurn(
       {
@@ -209,6 +256,7 @@ describe('runTurn', () => {
         app: app({
           executeAction: async () => ({
             ok: false,
+            contractVersion: BRIDGE_RPC_VERSION,
             error: 'escalate_human',
           }),
         }),
@@ -237,6 +285,7 @@ describe('runTurn', () => {
         app: app({
           executeAction: async () => ({
             ok: false,
+            contractVersion: BRIDGE_RPC_VERSION,
             error: 'forbidden',
             level: 'proibido',
             message: 'Sem permissão.',
@@ -255,7 +304,11 @@ describe('runTurn', () => {
       {
         provider: provider([{ text: 'x' }]),
         app: app({
-          listTools: async () => ({ ok: false, error: 'down' }),
+          listTools: async () => ({
+            ok: false,
+            contractVersion: BRIDGE_RPC_VERSION,
+            error: 'down',
+          }),
         }),
         now: new Date(),
       },
