@@ -4,6 +4,12 @@ import { buildToolCatalogFromList, normalizeToolName } from './tool-catalog';
 import { assertSystemAllowed } from './security-matrix';
 import { isAgentSafeAction } from './tool-policy';
 import type { ToolCatalog } from './types';
+import type {
+  ListToolsInput as RpcListToolsInput,
+  ListToolsResult as RpcListToolsResult,
+  ExecuteInput as RpcExecuteInput,
+  ExecuteResult as RpcExecuteResult,
+} from './rpc-contract';
 
 export interface BridgeDeps {
   secret: string;
@@ -21,13 +27,13 @@ export interface BridgeDeps {
   ) => Promise<ActionContext>;
 }
 
-// ─── listTools ────────────────────────────────────────────────────────────────
+// ─── listTools — DTOs owned by rpc-contract, local type is Omit<..., 'contractVersion'> ──
 
-export type ListToolsInput = { handle: string; conversationId: string };
+export type ListToolsInput = Omit<RpcListToolsInput, 'contractVersion'>;
 
 export type ListToolsResult =
-  | { ok: true; catalog: ToolCatalog }
-  | { ok: false; error: string };
+  | Omit<Extract<RpcListToolsResult, { ok: true }>, 'contractVersion'>
+  | Omit<Extract<RpcListToolsResult, { ok: false }>, 'contractVersion'>;
 
 export async function listToolsLogic(
   deps: BridgeDeps,
@@ -51,20 +57,13 @@ export async function listToolsLogic(
   return { ok: true, catalog: buildToolCatalogFromList(allowed) };
 }
 
-// ─── executeAction ────────────────────────────────────────────────────────────
+// ─── executeAction — DTOs owned by rpc-contract ───────────────────────────────
 
-export type ExecuteInput = {
-  handle: string;
-  conversationId: string;
-  idempotencyKey: string;
-  alias: string;
-  input: unknown;
-  flags: { confirmed: boolean; identityVerified?: boolean };
-};
+export type ExecuteInput = Omit<RpcExecuteInput, 'contractVersion'>;
 
 export type ExecuteResult =
-  | { ok: true; data: unknown }
-  | { ok: false; error: string; level?: string; message?: string };
+  | Omit<Extract<RpcExecuteResult, { ok: true }>, 'contractVersion'>
+  | Omit<Extract<RpcExecuteResult, { ok: false }>, 'contractVersion'>;
 
 export async function executeActionLogic(
   deps: BridgeDeps,

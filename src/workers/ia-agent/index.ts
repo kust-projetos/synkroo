@@ -2,8 +2,8 @@ import { DurableObject } from 'cloudflare:workers';
 import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
+import type { AppBinding } from '@/core/agent-bridge/rpc-contract';
 import type {
-  AppBinding,
   RunTurnInput,
   RunTurnResult,
   ChatMessage,
@@ -71,8 +71,9 @@ export class AgentOrchestrator extends DurableObject<Env> {
       baseUrl: this.env.IA_LLM_BASE_URL,
     });
 
+    const app = this.env.APP as unknown as AppBinding;
     const result = await runAgentTurn(
-      { provider, app: this.env.APP as unknown as AppBinding, now: new Date() },
+      { provider, app, now: new Date() },
       {
         ...input,
         history,

@@ -12,9 +12,21 @@ import {
   listToolsLogic,
   executeActionLogic,
   type BridgeDeps,
-  type ListToolsInput,
-  type ExecuteInput,
 } from '@/core/agent-bridge/bridge-service';
+import {
+  contractVersionMismatch,
+  resolveContractVersion,
+  type CompatibleDbHealthInput,
+  type CompatibleExecuteInput,
+  type CompatibleIssueHandleInput,
+  type CompatibleListToolsInput,
+  type CompatiblePingInput,
+  type DbHealthResult,
+  type ExecuteResult,
+  type IssueHandleResult,
+  type ListToolsResult,
+  type PingResult,
+} from '@/core/agent-bridge/rpc-contract';
 
 export interface Env {
   HANDLE_SECRET: string;
@@ -48,16 +60,35 @@ function validateBridgeEnv(env: Env): void {
   setDbConnectionString(env.HYPERDRIVE.connectionString);
 }
 
+function withoutContractVersion<T extends { contractVersion?: unknown }>(
+  input: T,
+): Omit<T, 'contractVersion'> {
+  const { contractVersion: _contractVersion, ...withoutVersion } = input;
+  return withoutVersion;
+}
+
+async function issueHandleRpc(
+  env: Env,
+  input: CompatibleIssueHandleInput,
+): Promise<IssueHandleResult> {
+  const contractVersion = resolveContractVersion(input);
+  if (!contractVersion) return contractVersionMismatch();
+
+  validateBridgeEnv(env);
+  const { handle, payload } = await issueHandle(
+    env.HANDLE_SECRET,
+    withoutContractVersion(input),
+  );
+  return {
+    contractVersion,
+    handle,
+    expiresAt: new Date(payload.exp).toISOString(),
+  };
+}
+
 export class HandleIssuerService extends WorkerEntrypoint<Env> {
-  async issueHandle(input: {
-    clinicId: string;
-    conversationId: string;
-    principalRef: string;
-    source: 'system' | 'agent_delegated';
-    ttlSeconds?: number;
-  }) {
-    validateBridgeEnv(this.env);
-    return issueHandle(this.env.HANDLE_SECRET, input);
+  async issueHandle(input: CompatibleIssueHandleInput): Promise<IssueHandleResult> {
+    return issueHandleRpc(this.env, input);
   }
 }
 
@@ -75,36 +106,58 @@ export class AppService extends WorkerEntrypoint<Env> {
     };
   }
 
-  async ping() {
+  async ping(input: CompatiblePingInput = {}): Promise<PingResult> {
+    const contractVersion = resolveContractVersion(input);
+    if (!contractVersion) return contractVersionMismatch();
+
     validateBridgeEnv(this.env);
-    return { ok: true as const, from: 'ia-bridge', now: Date.now() };
+    return {
+      ok: true,
+      contractVersion,
+      from: 'ia-bridge',
+      now: Date.now(),
+    };
   }
 
-  async dbHealth() {
+  async dbHealth(input: CompatibleDbHealthInput = {}): Promise<DbHealthResult> {
+    const contractVersion = resolveContractVersion(input);
+    if (!contractVersion) return contractVersionMismatch();
+
     validateBridgeEnv(this.env);
-    return runDbHealthCheck(() => getDb().execute(sql`SELECT 1`));
+    const result = await runDbHealthCheck(() => getDb().execute(sql`SELECT 1`));
+    return { ...result, contractVersion };
   }
 
   // Compat: manter issueHandle em AppService temporariamente para rollout compatível (primeiro deploy)
-  async issueHandle(input: {
-    clinicId: string;
-    conversationId: string;
-    principalRef: string;
-    source: 'system' | 'agent_delegated';
-    ttlSeconds?: number;
-  }) {
-    validateBridgeEnv(this.env);
-    return issueHandle(this.env.HANDLE_SECRET, input);
+  async issueHandle(input: CompatibleIssueHandleInput): Promise<IssueHandleResult> {
+    return issueHandleRpc(this.env, input);
   }
 
-  async listTools(input: ListToolsInput) {
+  async listTools(input: CompatibleListToolsInput): Promise<ListToolsResult> {
+    const contractVersion = resolveContractVersion(input);
+    if (!contractVersion) return contractVersionMismatch();
+
     await ensureBootstrap();
-    return listToolsLogic(this.deps(), input);
+    const result = await listToolsLogic(this.deps(), withoutContractVersion(input));
+    if (result.ok) {
+      return { ok: true, contractVersion, catalog: result.catalog };
+    }
+    return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
   }
 
-  async executeAction(input: ExecuteInput) {
+  async executeAction(input: CompatibleExecuteInput): Promise<ExecuteResult> {
+    const contractVersion = resolveContractVersion(input);
+    if (!contractVersion) return contractVersionMismatch();
+
     await ensureBootstrap();
-    return executeActionLogic(this.deps(), input);
+    const result = await executeActionLogic(
+      this.deps(),
+      withoutContractVersion(input),
+    );
+    if (result.ok) {
+      return { ok: true, contractVersion, data: result.data };
+    }
+    return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
   }
 }
 

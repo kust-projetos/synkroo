@@ -54,6 +54,7 @@ jest.mock('@/lib/runtime-env', () => ({
 import worker, { AgentOrchestrator, type Env } from '../index';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
 import type { ChatMessage, PendingAction, AppBinding } from '@/core/ia-agent/types';
+import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
 // ── Helpers ──────────────────────────────────────────────────────
 
@@ -79,9 +80,18 @@ function createMockCtx() {
 
 function createMockEnv(): Env {
   const mockAppBinding: AppBinding = {
+    ping: jest.fn().mockResolvedValue({
+      ok: true,
+      contractVersion: BRIDGE_RPC_VERSION,
+      from: 'ia-bridge',
+      now: 0,
+    }),
+    dbHealth: jest.fn().mockResolvedValue({
+      ok: true,
+      contractVersion: BRIDGE_RPC_VERSION,
+    }),
     listTools: jest.fn(),
     executeAction: jest.fn(),
-    issueHandle: jest.fn(),
   };
 
   return {

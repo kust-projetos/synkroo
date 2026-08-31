@@ -5,6 +5,7 @@
 import { analyzeClinicalSafety } from '../clinical-safety';
 import { runTurn } from '../orchestrator-logic';
 import type { AppBinding, LlmProvider } from '../types';
+import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
 describe('Clinical Safety & AI Takeover / Escalation (F6.08)', () => {
   describe('analyzeClinicalSafety rule engine', () => {
@@ -114,8 +115,19 @@ describe('Clinical Safety & AI Takeover / Escalation (F6.08)', () => {
 
   describe('runTurn safety integration in orchestrator', () => {
     const mockApp: AppBinding = {
-      listTools: async () => ({ ok: true, catalog: { version: 'v1', tools: [] } }),
-      executeAction: async () => ({ ok: true, data: {} }),
+      ping: async () => ({
+        ok: true,
+        contractVersion: BRIDGE_RPC_VERSION,
+        from: 'ia-bridge',
+        now: 0,
+      }),
+      dbHealth: async () => ({ ok: true, contractVersion: BRIDGE_RPC_VERSION }),
+      listTools: async () => ({
+        ok: true,
+        contractVersion: BRIDGE_RPC_VERSION,
+        catalog: { version: 'v1', tools: [] },
+      }),
+      executeAction: async () => ({ ok: true, contractVersion: BRIDGE_RPC_VERSION, data: {} }),
     };
 
     const mockProvider: LlmProvider = {

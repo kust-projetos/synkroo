@@ -9,11 +9,6 @@ directory = ".open-next/assets"
 binding = "ASSETS"
 
 [[services]]
-binding = "IA_BRIDGE"
-service = "synkroo-ia-bridge"
-entrypoint = "AppService"
-
-[[services]]
 binding = "IA_HANDLE_ISSUER"
 service = "synkroo-ia-bridge"
 entrypoint = "HandleIssuerService"
@@ -36,7 +31,7 @@ tag = "v1"
 new_sqlite_classes = ["DOQueueHandler"]
 
 [[kv_namespaces]]
-binding = "SYNKROO_CACHE"
+binding = "NEXT_INC_CACHE_KV"
 id = "8f2a4d355686427585f665688d1cc082"
 
 [[hyperdrive]]
@@ -53,11 +48,6 @@ name = "synkroo-staging"
 [env.staging.vars]
 NODE_ENV = "production"
 ENVIRONMENT = "staging"
-[[env.staging.services]]
-binding = "IA_BRIDGE"
-service = "synkroo-ia-bridge-staging"
-entrypoint = "AppService"
-
 [[env.staging.services]]
 binding = "IA_HANDLE_ISSUER"
 service = "synkroo-ia-bridge-staging"
@@ -81,7 +71,7 @@ tag = "v1"
 new_sqlite_classes = ["DOQueueHandler"]
 
 [[env.staging.kv_namespaces]]
-binding = "SYNKROO_CACHE"
+binding = "NEXT_INC_CACHE_KV"
 id = "f2ad31b71d484e0ba3fc6df1814d7d8e"
 
 [[env.staging.hyperdrive]]
