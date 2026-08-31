@@ -3,7 +3,7 @@
 > **Data:** 2026-08-31  
 > **Autoridade e Fontes:** `docs/superpowers/plans/`, `docs/superpowers/specs/`, `scripts/roadmap-ledger.mjs`, `docs/superpowers/audits/`  
 > **Baseline Git:** HEAD `212e0200a763a658fbfd8232efa4ff42f3ac7c9f` na branch `main`  
-> **Status de Execução:** Auditoria e particionamento atômico das 465 entradas Git do worktree.
+> **Status de Execução:** Auditoria e particionamento atômico das 471 entradas Git do inventário.
 
 ---
 
@@ -19,12 +19,9 @@ Esta auditoria realizou o levantamento exaustivo de todos os planos de execuçã
    - `npm run lint`: **EXIT 0** (`--max-warnings=0`, zero warnings em todo o repositório).
    - Suite focada T9 (20 suites, 173 testes): **100% PASS** (boundary rules, definitions, manifest factory, action-route, parity, outbox hardening, IA agent bridge).
    - `npm run test:security`: **9 suites, 129 testes PASS**, cobertura acima dos thresholds (97.95% Stmts / 90.32% Branch / 95.45% Funcs / 98.9% Lines).
-3. **Inventário do Estado Git (465 entradas no total):** O worktree contém **465 entradas Git** (`git status --porcelain`):
-   - **379 arquivos modificados** (adaptações de rotas para `withModuleRoute`, remoção de singletons, Actions e repositórios).
-   - **4 arquivos deletados** (`src/modules/operacional/actions/mesclar-pacientes.ts` e artefatos de testes legados substituídos).
-   - **82 arquivos untracked** (novas Actions, repositórios de escopo, testes de contrato, schemas, migrações, scripts de acesso e documentação).
-   - **21 artefatos gerados/sessões** (`.opencode/opencode-loop/**` - 20 arquivos, `autoresearch/loop-20260828-2000/**` - 1 arquivo) que **não devem ser commitados**.
-   - **444 arquivos de produto** a serem agrupados em 8 commits lógicos e atômicos.
+3. **Inventário do Estado Git (471 entradas verificadas):** O inventário real do worktree compreende **471 entradas**:
+   - **450 arquivos de produto, testes e documentação** comitados nos 8 commits atômicos (`206b07d4`, `85426fe5`, `45001514`, `f5e16a20`, `c48e7ace`, `646b44d1`, `6e61d1d0`, `c4ac6a7a`).
+   - **21 artefatos gerados/sessões** (`.opencode/opencode-loop/**` - 20 arquivos, `autoresearch/loop-20260828-2000/**` - 1 arquivo) segregados e **não incluídos nos commits de produto**.
 4. **Bloqueio Externo Remanescente:** O bundle do app Next.js via OpenNext compactado gera `gzip: 4092.89 KiB`, o que ultrapassa o limite de 3 MiB do plano Cloudflare Workers Free (requer plano Workers Paid ou otimizações de *tree-shaking/bundle-splitting* antes do deploy final em produção). Os workers `ia-bridge` (1175 KiB) e `ia-agent` (26 KiB) estão totalmente dentro dos limites.
 
 ---
@@ -193,74 +190,74 @@ Exit Code: 0
 
 ---
 
-## 5. Inventário e Mapeamento Exaustivo das 465 Entradas Git
+## 5. Inventário e Mapeamento Exaustivo das 471 Entradas Git
 
-O worktree contém exatamente **465 entradas**, classificadas em:
+O inventário verificado do worktree contém exatamente **471 entradas**, divididas em:
 - **21 artefatos gerados/sessões** (não commitados).
-- **444 arquivos de produto, testes e infraestrutura** distribuídos nos 8 commits atômicos.
+- **450 arquivos de produto, testes e infraestrutura** distribuídos e confirmados via `git show --format= --name-only` nos 8 commits atômicos.
 
 ```
-Distribuição das 465 entradas:
+Distribuição das 471 entradas:
 ┌────────────────────────────────────────────────────────┬────────┐
 │ Categoria / Destino                                    │ Qtd    │
 ├────────────────────────────────────────────────────────┼────────┤
 │ [Excluídos] .opencode/opencode-loop/**                 │ 20     │
 │ [Excluídos] autoresearch/loop-20260828-2000/**         │ 1      │
-│ [Commit 1] refactor(arch)                              │ 21     │
-│ [Commit 2] feat(core)                                  │ 287    │
-│ [Commit 3] fix(financeiro)                             │ 5      │
-│ [Commit 4] feat(financeiro)                            │ 70     │
-│ [Commit 5] feat(lgpd)                                  │ 18     │
-│ [Commit 6] fix(outbox)                                 │ 8      │
-│ [Commit 7] feat(ia)                                    │ 18     │
-│ [Commit 8] docs(audits)                                │ 17     │
+│ [Commit 1] refactor(arch) (SHA: 206b07d4)              │ 21     │
+│ [Commit 2] feat(core) (SHA: 85426fe5)                  │ 288    │
+│ [Commit 3] fix(financeiro) (SHA: 45001514)             │ 5      │
+│ [Commit 4] feat(financeiro) (SHA: f5e16a20)            │ 71     │
+│ [Commit 5] feat(lgpd) (SHA: c48e7ace)                  │ 18     │
+│ [Commit 6] fix(outbox) (SHA: 646b44d1)                 │ 8      │
+│ [Commit 7] feat(ia) (SHA: 6e61d1d0)                    │ 20     │
+│ [Commit 8] docs(audits) (SHA: c4ac6a7a)                │ 19     │
 ├────────────────────────────────────────────────────────┼────────┤
-│ TOTAL                                                  │ 465    │
+│ TOTAL                                                  │ 471    │
 └────────────────────────────────────────────────────────┴────────┘
 ```
 
 ---
 
-## 6. Proposta e Execução dos 8 Commits Lógicos
+## 6. Registro dos 8 Commits Lógicos Executados
 
-Para integrar todas as mudanças acumuladas de forma atômica, reversível e com histórico limpo (*bisect-safe*), as alterações foram organizadas na seguinte sequência estrita:
+As alterações foram integradas ao repositório local nos seguintes 8 commits atômicos:
 
 ```
-[Commit 1] refactor(arch): isolate modules, normalize path discovery and remove schema barrel imports
-[Commit 2] feat(core): migrate module manifest from global singleton to request-scoped factory
-[Commit 3] fix(financeiro): enforce clinic-scoped operations on charge jobs and budget entities
-[Commit 4] feat(financeiro): complete budget strangler HTTP actions and route parity
-[Commit 5] feat(lgpd): decouple lgpd data traversal via module provider registry
-[Commit 6] fix(outbox): harden operation registry, concurrency handling and cron authorization
-[Commit 7] feat(ia): separate handle issuer from tool executor capabilities and version rpc contract
-[Commit 8] docs(audits): add w7-w10 remediation plan, receipts and rollout runbooks
+[206b07d4] refactor(arch): isolate modules, normalize path discovery and remove schema barrel imports
+[85426fe5] feat(core): migrate module manifest from global singleton to request-scoped factory and standardize canonical routes
+[45001514] fix(financeiro): enforce clinic-scoped operations on charge jobs and payment gateways
+[f5e16a20] feat(financeiro): complete budget strangler HTTP actions, installment routes and parity contracts
+[c48e7ace] feat(lgpd): decouple lgpd data traversal via module provider registry and audit redaction
+[646b44d1] fix(outbox): harden operation registry, concurrency handling and cron authorization
+[6e61d1d0] feat(ia): separate handle issuer from tool executor capabilities and version rpc contract
+[c4ac6a7a] docs(audits): add w7-w10 remediation plan, receipts, audit reports and rollout runbooks
 ```
 
-### Detalhamento por Commit:
+### Detalhamento por Commit (Contagens Reais via `git show --format= --name-only`):
 
-1. **Commit 1 — `refactor(arch)` (21 arquivos):**
+1. **Commit 1 — `refactor(arch)` (`206b07d4`, 21 arquivos):**
    - *Escopo:* `src/__tests__/architecture/`, `eslint.rules.json`, `src/core/modules/definitions.ts`, schemas descentralizados (`src/modules/*/schema/`, `src/core/schema/`).
    - *Justificativa:* Garante que o guard arquitetural valide arestas reais em Windows/POSIX e elimine imports circulares de schema.
-2. **Commit 2 — `feat(core)` (287 arquivos):**
-   - *Escopo:* `src/core/modules/manifest.ts`, `src/core/modules/gates.ts`, `src/core/actions/bootstrap.ts`, `src/core/actions/context.ts`, `src/lib/api/action-route.ts`, rotas de API em `src/app/api/`, adapters `route-adapter.ts`, migração `0029_rbac_membership_integrity.sql`, actions de atendimento/crm/comercial/operacional/followup e testes associados.
+2. **Commit 2 — `feat(core)` (`85426fe5`, 288 arquivos):**
+   - *Escopo:* `src/core/modules/manifest.ts`, `src/core/modules/gates.ts`, `src/core/actions/bootstrap.ts`, `src/core/actions/context.ts`, `src/lib/api/action-route.ts`, rotas de API em `src/app/api/`, adapters `route-adapter.ts`, migrações SQL (`0029_rbac_membership_integrity.sql`, `0030_widget_installation_origins.sql`), actions de atendimento/crm/comercial/operacional/followup e testes associados.
    - *Justificativa:* Elimina estado global compartilhado entre *isolates* da Cloudflare e padroniza a execução de ações em todas as rotas de negócio.
-3. **Commit 3 — `fix(financeiro)` (5 arquivos):**
+3. **Commit 3 — `fix(financeiro)` (`45001514`, 5 arquivos):**
    - *Escopo:* `src/modules/financeiro/services/dispatch-charge-job.ts`, `financeiro-repository.ts`, `financeiro-scope-repository.ts`, `dispatch-charge-job.test.ts`, `dispatch-charge-job.integration.test.ts`.
    - *Justificativa:* Garante que nenhuma operação de gateway ou cobrança execute sem validação explícita de `job.clinicId`.
-4. **Commit 4 — `feat(financeiro)` (70 arquivos):**
+4. **Commit 4 — `feat(financeiro)` (`f5e16a20`, 71 arquivos):**
    - *Escopo:* `src/modules/financeiro/actions/` (`atualizarOrcamento`, `arquivarOrcamento`, `atualizarParcela`, `deletarParcela`), rotas canônicas e legadas de orçamentos/parcelas em `src/app/api/financeiro/budgets/` e `src/app/api/budgets/`, `usePayments.ts`, `budget-route-parity.test.ts` e testes unitários/segurança.
    - *Justificativa:* Fecha o padrão strangler HTTP de orçamentos e parcelas.
-5. **Commit 5 — `feat(lgpd)` (18 arquivos):**
+5. **Commit 5 — `feat(lgpd)` (`c48e7ace`, 18 arquivos):**
    - *Escopo:* `src/modules/operacional/services/lgpd-registry.ts`, `src/modules/*/services/lgpd-*.ts`, `src/lib/consent.ts`, rotas de exportação/anonimização LGPD e testes associados.
    - *Justificativa:* Desacopla a exportação e anonimização de dados sem criar dependências circulares entre módulos.
-6. **Commit 6 — `fix(outbox)` (8 arquivos):**
+6. **Commit 6 — `fix(outbox)` (`646b44d1`, 8 arquivos):**
    - *Escopo:* `src/lib/outbox/operations.ts`, `worker.ts`, `dispatch-outbox.ts`, `outbox-repository.ts`, `worker.hardening.test.ts`, `src/app/api/cron/outbox/route.ts` e testes.
    - *Justificativa:* Validação de `knownOps` vs `allowedOps`, tratamento de concorrência (`SKIP LOCKED`) e proteção por secret no cron.
-7. **Commit 7 — `feat(ia)` (18 arquivos):**
-   - *Escopo:* `src/core/agent-bridge/rpc-contract.ts`, `bridge-service.ts`, `src/workers/ia-bridge/`, `src/workers/ia-agent/`, `worker-configuration.d.ts`, `wrangler.toml` e testes.
+7. **Commit 7 — `feat(ia)` (`6e61d1d0`, 20 arquivos):**
+   - *Escopo:* `src/core/agent-bridge/rpc-contract.ts`, `bridge-service.ts`, `src/workers/ia-bridge/`, `src/workers/ia-agent/`, `worker-configuration.d.ts`, `wrangler.toml`, schemas e services de IA e testes.
    - *Justificativa:* Separação estrita de superfícies RPC, suporte a versionamento v1/v2 e types regenerados.
-8. **Commit 8 — `docs(audits)` (17 arquivos):**
-   - *Escopo:* `docs/ops/*`, `docs/runbooks/ia-rpc-rollout.md`, `docs/superpowers/audits/2026-08-30-*`, `docs/superpowers/plans/2026-08-30-*`, `scripts/grant-operator-access.mjs`, etc.
+8. **Commit 8 — `docs(audits)` (`c4ac6a7a`, 19 arquivos):**
+   - *Escopo:* `docs/ops/*`, `docs/runbooks/ia-rpc-rollout.md`, `docs/superpowers/audits/2026-08-30-*`, `docs/superpowers/plans/2026-08-30-*`, scripts de operador e relatórios de auditoria.
    - *Justificativa:* Registra recibos de verificação, runbooks de rollout e relatórios de auditoria.
 
 ---
