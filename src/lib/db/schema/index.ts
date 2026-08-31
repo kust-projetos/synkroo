@@ -7,16 +7,15 @@
 
 export * from './enums';
 export * from './core';
-// Appointments schema moved to modules/operacional/schema
-// (maintained as deprecated re-export for backward compat)
+// Compatibility barrel. New module code must import its owning schema seam.
 export * from '../../../modules/operacional/schema';
-export * from './conversations';
-export * from './crm';
+export * from '../../../modules/atendimento/schema';
+export * from '../../../modules/comercial/schema';
+export * from '../../../modules/followup/schema';
 export * from '../../../modules/crm/schema';
-export * from './business';
-export * from './agent';
-export * from './infra';
+export * from '../../../modules/financeiro/schema';
+export * from '../../../modules/ia/schema';
+export * from '../../../core/schema/infra';
 export * from './audit';
 export * from '../../../modules/core/schema/rbac';
 export * from './modules';
-export * from '../../../modules/comercial/schema';

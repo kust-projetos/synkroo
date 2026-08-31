@@ -25,8 +25,8 @@
       "rules": [
         {
           "from": { "type": "module" },
-          "disallow": { "to": { "type": "module" } },
-          "message": "Importe apenas o index.ts de outro módulo"
+          "allow": { "to": { "type": ["core", "lib"] } },
+          "message": "Módulos só podem depender de Core e libs compartilhadas"
         },
         {
           "from": { "type": "module" },
@@ -48,6 +48,31 @@
   },
   "overrides": [
     {
+      "files": ["src/modules/**/*.{ts,tsx}"],
+      "rules": {
+        "boundaries/dependencies": ["error", {
+          "default": "disallow",
+          "rules": [
+            {
+              "from": { "type": "module" },
+              "allow": { "to": { "type": ["core", "lib"] } },
+              "message": "Módulos só podem depender de Core e libs compartilhadas"
+            },
+            {
+              "from": { "type": "module" },
+              "allow": { "to": { "type": "module", "internalPath": "**/public.ts" } },
+              "message": "Cross-module via public.ts permitido"
+            },
+            {
+              "from": { "type": "module" },
+              "allow": { "to": { "type": "module", "internalPath": "**/schema/**" } },
+              "message": "Cross-module schema permitido"
+            }
+          ]
+        }]
+      }
+    },
+    {
       "files": ["**/__tests__/**/*.ts", "**/*.test.ts", "**/__tests__/**/*.tsx", "**/*.test.tsx"],
       "rules": {
         "no-console": "off",
@@ -60,12 +85,6 @@
       "files": ["src/lib/logger.ts"],
       "rules": {
         "no-console": "off"
-      }
-    },
-    {
-      "files": ["src/modules/financeiro/services/collection-service.ts"],
-      "rules": {
-        "boundaries/dependencies": "off"
       }
     },
     {

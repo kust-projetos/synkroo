@@ -6,3 +6,4 @@
  */
 
 export * from './conversations';
+export * from './integrations';
