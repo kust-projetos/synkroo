@@ -9,10 +9,9 @@ export const enviarOrcamento = defineAction({
   requires: 'financeiro:manage_budget',
   label: 'Enviar orçamento',
   input: z.object({
-    clinicId: z.string().uuid(),
     id: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    return markBudgetSent(input.id, input.clinicId);
+  handler: async (input, ctx: ActionContext) => {
+    return markBudgetSent(input.id, ctx.clinicId);
   },
 });

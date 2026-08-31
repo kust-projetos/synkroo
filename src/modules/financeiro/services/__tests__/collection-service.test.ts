@@ -10,15 +10,12 @@ import {
   sendReminder,
 } from '../collection-service';
 
-// Mock Atendimento for sendReminder tests
-const mockRunAction = jest.fn();
-jest.mock('@/core/actions/run', () => ({ runAction: mockRunAction }));
-jest.mock('@/core/actions/context', () => ({
-  buildSystemContext: jest.fn().mockResolvedValue({
-    clinicId: '00000000-0000-0000-0000-000000000001',
-    can: () => true, hasModule: () => true, audit: { actor: 'system' },
-  }),
+jest.mock('@/lib/db/client', () => ({
+  getDb: jest.fn(() => ({
+    transaction: jest.fn(async (callback: (tx: unknown) => unknown) => callback({})),
+  })),
 }));
+jest.mock('@/lib/outbox/outbox-repository', () => ({ enqueueOutbox: jest.fn() }));
 
 jest.mock('../../repositories/financeiro-scope-repository', () => ({
   getPaymentChargeForClinic: jest.fn(),
@@ -28,14 +25,17 @@ import * as scopeRepo from '../../repositories/financeiro-scope-repository';
 const mockGetPaymentChargeForClinic = scopeRepo.getPaymentChargeForClinic as jest.Mock;
 const mockGetBudgetForClinic = scopeRepo.getBudgetForClinic as jest.Mock;
 
-jest.mock('@/modules/operacional/services/patients-service', () => ({
+jest.mock('@/modules/operacional/public', () => ({
   obterPaciente: jest.fn(),
 }));
-import * as patientsSvc from '@/modules/operacional/services/patients-service';
+import * as patientsSvc from '@/modules/operacional/public';
 const mockObterPaciente = patientsSvc.obterPaciente as jest.Mock;
+import * as outboxRepo from '@/lib/outbox/outbox-repository';
+const mockEnqueueOutbox = outboxRepo.enqueueOutbox as jest.Mock;
 
 beforeEach(() => {
   storeReset();
+    mockEnqueueOutbox.mockResolvedValue(undefined);
 });
 
 const CLINIC_ID = '00000000-0000-0000-0000-000000000001';
@@ -171,9 +171,7 @@ describe('sendReminder', () => {
     });
   });
 
-  test('returns sent=true when Atendimento action succeeds with phone', async () => {
-    mockRunAction.mockResolvedValue({ ok: true, data: { messageId: 'msg-1' } });
-
+  test('returns sent=true when the Atendimento delivery is queued', async () => {
     const result = await sendReminder({
       clinicId: CLINIC_ID,
       chargeId: 'ch1',
@@ -182,10 +180,13 @@ describe('sendReminder', () => {
 
     expect(result.sent).toBe(true);
     expect(mockGetPaymentChargeForClinic).toHaveBeenCalledWith('ch1', CLINIC_ID);
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'atendimento.enviarMensagemDireta' }),
-      expect.objectContaining({ channel: 'whatsapp', externalId: '11999990000' }),
+    expect(mockEnqueueOutbox).toHaveBeenCalledWith(
       expect.any(Object),
+      expect.objectContaining({
+        clinicId: CLINIC_ID,
+        operation: 'atendimento.outbound.message',
+        payload: expect.objectContaining({ channel: 'whatsapp', externalId: '11999990000' }),
+      }),
     );
   });
 
@@ -204,11 +205,8 @@ describe('sendReminder', () => {
     expect(mockGetPaymentChargeForClinic).toHaveBeenCalledWith('ch1', CLINIC_ID);
   });
 
-  test('returns sent=false when Atendimento action fails', async () => {
-    mockRunAction.mockResolvedValue({
-      ok: false,
-      error: { code: 'error', message: 'WhatsApp API error' },
-    });
+  test('returns sent=false when outbox enqueue fails', async () => {
+    mockEnqueueOutbox.mockRejectedValueOnce(new Error('outbox unavailable'));
 
     const result = await sendReminder({
       clinicId: CLINIC_ID,
@@ -217,7 +215,7 @@ describe('sendReminder', () => {
     });
 
     expect(result.sent).toBe(false);
-    expect(result.error).toBe('WhatsApp API error');
+    expect(result.error).toBe('outbox unavailable');
   });
 
   // ── Foreign charge tests (REQ04) ───────────────────
@@ -234,7 +232,7 @@ describe('sendReminder', () => {
     expect(result.sent).toBe(false);
     expect(result.error).toBe('missing_patient_phone');
     // Must NOT attempt to send
-    expect(mockRunAction).not.toHaveBeenCalled();
+    expect(mockEnqueueOutbox).not.toHaveBeenCalled();
   });
 
   test('returns missing_patient_phone for foreign charge with no phone', async () => {
@@ -247,7 +245,7 @@ describe('sendReminder', () => {
 
     expect(result.sent).toBe(false);
     expect(result.error).toBe('missing_patient_phone');
-    expect(mockRunAction).not.toHaveBeenCalled();
+    expect(mockEnqueueOutbox).not.toHaveBeenCalled();
   });
 
   test('returns missing_patient_phone when obterPaciente returns patient with no phone', async () => {
@@ -264,11 +262,11 @@ describe('sendReminder', () => {
     expect(result.error).toBe('missing_patient_phone');
   });
 
-  test('handles Atendimento action throwing an error (catch path)', async () => {
+  test('handles outbox enqueue throwing an error (catch path)', async () => {
     mockObterPaciente.mockResolvedValue({
       id: 'patient-3', clinicId: CLINIC_ID, name: 'Test', phone: '11999990001',
     });
-    mockRunAction.mockImplementation(() => { throw new Error('connection refused'); });
+    mockEnqueueOutbox.mockRejectedValueOnce(new Error('connection refused'));
 
     const result = await sendReminder({
       clinicId: CLINIC_ID,

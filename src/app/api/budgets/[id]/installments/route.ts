@@ -1,23 +1,51 @@
 /**
- * Budget Installments API — legacy adapter.
- * Uses Drizzle-backed Financeiro repositories.
- * Preserves { installments, remaining_balance } shape.
+ * Budget Installments API — legacy adapter (T5 strangler).
+ * Delegates to Financeiro Actions, preserves { installments, remaining_balance } snake_case,
+ * adds Deprecation/Link/X-Synkroo-Legacy-Route and telemetry without PII.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { validateApiAuth } from '@/lib/auth/session';
-import {
-  listInstallments,
-  calculateRemainingBalance,
-  replaceInstallments,
-} from '@/modules/financeiro/services/installment-service';
-import {
-  getBudgetForClinic,
-  updateInstallmentForBudget,
-  deleteInstallmentForBudget,
-} from '@/modules/financeiro/services/budget-scope-service';
-import { handleApiError, ValidationError } from '@/lib/errors';
+import { handleCanonicalAction } from '@/lib/api/action-route';
+import { listarParcelas } from '@/modules/financeiro/actions/listar-parcelas';
+import { salvarParcelas } from '@/modules/financeiro/actions/salvar-parcelas';
+import { atualizarParcela } from '@/modules/financeiro/actions/atualizar-parcela';
+import { deletarParcela } from '@/modules/financeiro/actions/deletar-parcela';
+import { logger } from '@/lib/logger';
+
+function legacyHeaders(res: NextResponse, route: string): NextResponse {
+  res.headers.set('Deprecation', 'true');
+  res.headers.set('Link', '</api/financeiro/budgets>; rel="successor-version"');
+  res.headers.set('X-Synkroo-Legacy-Route', '1');
+  logger.info('legacy route request', { legacyRoute: route });
+  return res;
+}
+
+type RouteParams = { params: Promise<{ id: string }> };
+
+function withRequestId(res: NextResponse, canonical: NextResponse): NextResponse {
+  res.headers.set('x-request-id', canonical.headers.get('x-request-id') ?? '');
+  return res;
+}
+
+function legacyErrorBody(body: any): unknown {
+  return { error: body.error?.message ?? 'Erro interno' };
+}
+
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  const canonical = await handleCanonicalAction(request, listarParcelas, { budgetId: id });
+  const body: any = await canonical.clone().json();
+  let res: NextResponse;
+  if (canonical.ok && body.data) {
+    const installments = body.data;
+    const remaining = body.meta?.remaining_balance ?? 0;
+    res = NextResponse.json({ installments, remaining_balance: remaining }, { status: canonical.status });
+  } else {
+    res = NextResponse.json(legacyErrorBody(body), { status: canonical.status });
+  }
+  return legacyHeaders(withRequestId(res, canonical), 'GET /api/budgets/[id]/installments');
+}
 
 const createInstallmentsSchema = z.object({
   installments: z.array(
@@ -25,53 +53,29 @@ const createInstallmentsSchema = z.object({
   ).min(1),
 });
 
-type RouteParams = { params: Promise<{ id: string }> };
-
-export async function GET(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth();
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
-    const clinicId = authResult.profile!.clinic_id;
-    const { id } = await params;
-
-    const budget = await getBudgetForClinic(id, clinicId);
-    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-
-    const installments = await listInstallments(clinicId, id);
-    const remainingBalance = await calculateRemainingBalance(clinicId, id);
-
-    return NextResponse.json({ installments, remaining_balance: remainingBalance });
-  } catch (error) {
-    return handleApiError(error);
-  }
-}
-
 export async function POST(request: NextRequest, { params }: RouteParams) {
+  const { id } = await params;
+  let parsed: any;
   try {
-    const authResult = await validateApiAuth();
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
-    const clinicId = authResult.profile!.clinic_id;
-    const { id } = await params;
-
-    const budget = await getBudgetForClinic(id, clinicId);
-    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-
-    const rawBody = await request.json();
-    const body = createInstallmentsSchema.parse(rawBody);
-
-    // Map legacy snake_case to Financeiro camelCase
-    const installments = body.installments.map(i => ({
-      amount: i.amount,
-      dueDate: i.due_date,
-    }));
-
-    const saved = await replaceInstallments(clinicId, id, installments);
-
-    return NextResponse.json({ installments: saved }, { status: 201 });
-  } catch (error) {
-    if (error instanceof z.ZodError) return handleApiError(new ValidationError('Validation failed', { issues: error.issues }));
-    return handleApiError(error);
+    parsed = createInstallmentsSchema.parse(await request.json());
+  } catch (e) {
+    // Contrato legado: entrada inválida no POST retorna 400 (sem delegar à Action)
+    const res = NextResponse.json({ error: 'Validation failed' }, { status: 400 });
+    const rid = request.headers.get('x-request-id');
+    if (rid) res.headers.set('x-request-id', rid);
+    return legacyHeaders(res, 'POST /api/budgets/[id]/installments');
   }
+  const installments = parsed.installments.map((i: any) => ({ amount: i.amount, dueDate: i.due_date }));
+  const canonical = await handleCanonicalAction(request, salvarParcelas, { budgetId: id, installments });
+  const body: any = await canonical.clone().json();
+  let res: NextResponse;
+  if (canonical.ok) {
+    const data = body.data ?? body;
+    res = NextResponse.json({ installments: Array.isArray(data) ? data : [] }, { status: 201 });
+  } else {
+    res = NextResponse.json(legacyErrorBody(body), { status: canonical.status });
+  }
+  return legacyHeaders(withRequestId(res, canonical), 'POST /api/budgets/[id]/installments');
 }
 
 const updateInstallmentSchema = z.object({
@@ -80,56 +84,52 @@ const updateInstallmentSchema = z.object({
 });
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth();
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
-    const clinicId = authResult.profile!.clinic_id;
-    const { id: budgetId } = await params;
-
-    const { searchParams } = new URL(request.url);
-    const installmentId = searchParams.get('installment_id');
-    if (!installmentId) return NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
-
-    // Scope: budget must belong to caller's clinic
-    const budget = await getBudgetForClinic(budgetId, clinicId);
-    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-
-    const body = updateInstallmentSchema.parse(await request.json());
-
-    const patch: Record<string, unknown> = {};
-    if (body.amount !== undefined) patch.amount = String(body.amount);
-    if (body.due_date !== undefined) patch.dueDate = body.due_date;
-
-    const updated = await updateInstallmentForBudget(installmentId, budgetId, patch);
-
-    if (!updated) return NextResponse.json({ error: 'Installment not found' }, { status: 404 });
-    return NextResponse.json({ installment: updated });
-  } catch (error) {
-    if (error instanceof z.ZodError) return handleApiError(new ValidationError('Validation failed', { issues: error.issues }));
-    return handleApiError(error);
+  const { id: budgetId } = await params;
+  const { searchParams } = new URL(request.url);
+  const installmentId = searchParams.get('installment_id');
+  if (!installmentId) {
+    const res = NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
+    return legacyHeaders(res, 'PATCH /api/budgets/[id]/installments');
   }
+  let parsed: any;
+  try {
+    parsed = updateInstallmentSchema.parse(await request.json());
+  } catch (e) {
+    // Contrato legado: entrada inválida no PATCH retorna 400 (sem delegar à Action)
+    const res = NextResponse.json({ error: 'Validation failed' }, { status: 400 });
+    const rid = request.headers.get('x-request-id');
+    if (rid) res.headers.set('x-request-id', rid);
+    return legacyHeaders(res, 'PATCH /api/budgets/[id]/installments');
+  }
+  const input: any = { budgetId, installmentId };
+  if (parsed.amount !== undefined) input.amount = parsed.amount;
+  if (parsed.due_date !== undefined) input.dueDate = parsed.due_date;
+  const canonical = await handleCanonicalAction(request, atualizarParcela, input);
+  const body: any = await canonical.clone().json();
+  let res: NextResponse;
+  if (canonical.ok && body.data) {
+    res = NextResponse.json({ installment: body.data }, { status: canonical.status });
+  } else {
+    res = NextResponse.json(legacyErrorBody(body), { status: canonical.status });
+  }
+  return legacyHeaders(withRequestId(res, canonical), 'PATCH /api/budgets/[id]/installments');
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  try {
-    const authResult = await validateApiAuth();
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status });
-    const clinicId = authResult.profile!.clinic_id;
-    const { id: budgetId } = await params;
-
-    const { searchParams } = new URL(request.url);
-    const installmentId = searchParams.get('installment_id');
-    if (!installmentId) return NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
-
-    // Scope: budget must belong to caller's clinic
-    const budget = await getBudgetForClinic(budgetId, clinicId);
-    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-
-    const deleted = await deleteInstallmentForBudget(installmentId, budgetId);
-
-    if (!deleted) return NextResponse.json({ error: 'Installment not found' }, { status: 404 });
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    return handleApiError(error);
+  const { id: budgetId } = await params;
+  const { searchParams } = new URL(request.url);
+  const installmentId = searchParams.get('installment_id');
+  if (!installmentId) {
+    const res = NextResponse.json({ error: 'installment_id query parameter is required' }, { status: 400 });
+    return legacyHeaders(res, 'DELETE /api/budgets/[id]/installments');
   }
+  const canonical = await handleCanonicalAction(request, deletarParcela, { budgetId, installmentId });
+  const body: any = await canonical.clone().json();
+  let res: NextResponse;
+  if (canonical.ok) {
+    res = NextResponse.json({ success: true }, { status: canonical.status });
+  } else {
+    res = NextResponse.json(legacyErrorBody(body), { status: canonical.status });
+  }
+  return legacyHeaders(withRequestId(res, canonical), 'DELETE /api/budgets/[id]/installments');
 }

@@ -7,6 +7,10 @@
 
 import { listOverdueCharges as repoListOverdue, type PaymentChargeRow } from '../repositories/financeiro-repository';
 import { getPaymentChargeForClinic } from '../repositories/financeiro-scope-repository';
+import { obterPaciente } from '@/modules/operacional/public';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
+import { OUTBOX_OPERATIONS } from '@/lib/outbox/operations';
+import { getDb } from '@/lib/db/client';
 
 export function getCollectionStage(daysOverdue: number): 'none' | 'light' | 'firm' | 'internal' {
   if (daysOverdue >= 7) return 'internal';
@@ -55,10 +59,8 @@ async function resolvePatientPhone(clinicId: string, chargeId: string): Promise<
     const budget = await getBudgetForClinic(charge.budgetId, clinicId);
     if (!budget?.patientId) return null;
 
-    // Use existing obterPaciente (operacional service) for scoped patient lookup
-    const { obterPaciente } = await import('@/modules/operacional/services/patients-service');
-    const patient = await obterPaciente(clinicId, budget.patientId);
-    return patient.phone || null;
+     const patient = await obterPaciente(clinicId, budget.patientId);
+     return patient?.phone || null;
   } catch {
     return null;
   }
@@ -68,8 +70,8 @@ async function resolvePatientPhone(clinicId: string, chargeId: string): Promise<
  * Send a collection reminder via WhatsApp through the Atendimento subsystem.
  *
  * 1. If `patientPhone` is not provided, resolves from charge → budget → patient.
- * 2. Calls `atendimento.enviarMensagemDireta` with the phone and reminder message.
- * 3. Returns result with sent status and optional error.
+ * 2. Enqueues the external effect for Atendimento.
+ * 3. Returns result with accepted status and optional error.
  */
 export async function sendReminder(input: {
   clinicId: string;
@@ -95,21 +97,18 @@ export async function sendReminder(input: {
   }
 
   try {
-    const { enviarMensagemDireta } = await import('@/modules/atendimento/actions/enviar-mensagem-direta');
-    const { runAction } = await import('@/core/actions/run');
-    const { buildSystemContext } = await import('@/core/actions/context');
-
-    const ctx = await buildSystemContext(clinicId);
     const message = 'Lembrete: sua cobrança está pendente. Entre em contato para regularizar.';
-
-    const result = await runAction(enviarMensagemDireta, {
-      channel: 'whatsapp',
-      externalId: patientPhone,
-      message,
-    }, ctx);
-
-    if (result.ok) return { sent: true };
-    return { sent: false, error: result.error.message };
+    await getDb().transaction((tx) => enqueueOutbox(tx, {
+      clinicId,
+      operation: OUTBOX_OPERATIONS.ATENDIMENTO_OUTBOUND_MESSAGE,
+      businessKey: `collection:${chargeId}:${new Date().toISOString()}`,
+      payload: {
+        channel: 'whatsapp',
+        externalId: patientPhone,
+        message,
+      },
+    }));
+    return { sent: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { sent: false, error: msg };

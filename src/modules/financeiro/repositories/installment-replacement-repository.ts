@@ -7,7 +7,7 @@
  */
 
 import { getDb } from '@/lib/db/client';
-import { budgets, budgetInstallments } from '@/lib/db/schema';
+import { budgets, budgetInstallments } from '@/modules/financeiro/schema';
 import { eq, and } from 'drizzle-orm';
 import { ActionError } from '@/core/actions/types';
 import type { InferSelectModel } from 'drizzle-orm';
@@ -39,8 +39,7 @@ export async function replaceInstallmentsAtomic(
     // The predicate must be in the query that protects the mutation — not an in-memory comparison.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const lockedQuery: any = tx.select().from(budgets).where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId))).limit(1);
-    // Drizzle's `for('update')` exists on PgSelect; use it when available for row-level lock.
-    const [locked] = typeof lockedQuery.for === 'function' ? await lockedQuery.for('update') : await lockedQuery;
+    const [locked] = await lockedQuery.for('update');
     if (!locked) {
       throw new ActionError('not_found', 'Budget not found');
     }

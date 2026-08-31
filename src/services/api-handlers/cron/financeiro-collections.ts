@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { assertModuleForJob } from "@/core/modules/gates";
-import { moduleManifest } from "@/core/modules/manifest";
+import { createManifest } from '@/core/modules/manifest';
 import { getDb } from "@/lib/db/client";
 import { clinics } from "@/lib/db/schema/core";
 import { isNull } from "drizzle-orm";
@@ -35,7 +35,7 @@ export async function POST(_request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    await assertModuleForJob("financeiro", moduleManifest);
+    await assertModuleForJob("financeiro", createManifest());
 
     const db = getDb();
     const activeClinics = await db

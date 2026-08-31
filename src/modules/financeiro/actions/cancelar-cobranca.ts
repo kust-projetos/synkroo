@@ -9,12 +9,11 @@ export const cancelarCobranca = defineAction({
   requires: 'financeiro:manage_budget',
   label: 'Cancelar cobrança',
   input: z.object({
-    clinicId: z.string().uuid(),
     id: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
+  handler: async (input, ctx: ActionContext) => {
     const result = await cancelCharge({
-      clinicId: input.clinicId,
+      clinicId: ctx.clinicId,
       chargeId: input.id,
     });
 

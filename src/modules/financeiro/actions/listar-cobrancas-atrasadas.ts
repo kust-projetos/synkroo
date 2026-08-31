@@ -9,12 +9,11 @@ export const listarCobrancasAtrasadas = defineAction({
   requires: 'financeiro:manage_collections',
   label: 'Listar cobranças atrasadas',
   input: z.object({
-    clinicId: z.string().uuid(),
     page: z.number().int().min(1).default(1),
     limit: z.number().int().min(1).max(100).default(50),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const charges = await listOverdueCharges(input.clinicId);
+  handler: async (input, ctx: ActionContext) => {
+    const charges = await listOverdueCharges(ctx.clinicId);
     const enriched = enrichOverdueCharges(charges);
 
     const start = (input.page - 1) * input.limit;

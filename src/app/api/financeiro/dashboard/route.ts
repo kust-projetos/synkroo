@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { listGateways } from '@/modules/financeiro/services/gateway-config-service';
 import { listOverdueCharges, enrichOverdueCharges } from '@/modules/financeiro/services/collection-service';
@@ -16,4 +16,4 @@ async function handleGET(request: NextRequest) {
   };
   return runFinanceiroAction(obterDashboard, input);
 }
-export const GET = withModuleRoute('financeiro', moduleManifest)(handleGET);
+export const GET = withModuleRoute('financeiro')(handleGET);

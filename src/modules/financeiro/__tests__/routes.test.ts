@@ -22,11 +22,29 @@ jest.mock('@/lib/auth/session', () => ({
   }),
 }));
 
+jest.mock('@/core/actions/context', () => ({
+  buildUserContext: jest.fn().mockResolvedValue({
+    clinicId: '00000000-0000-0000-0000-000000000001',
+    user: { id: '00000000-0000-0000-0000-000000000099', email: 'test@test.local', name: 'Test' },
+    can: () => true,
+    hasModule: () => true,
+    audit: { actor: 'test' },
+    source: 'user',
+  }),
+  buildSystemContext: jest.fn().mockResolvedValue({
+    clinicId: '00000000-0000-0000-0000-000000000001',
+    can: () => true,
+    hasModule: () => true,
+    audit: { actor: 'system' },
+    source: 'system',
+  }),
+}));
+
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: {
-    isEnabled: jest.fn().mockResolvedValue(true),
+  createManifest: () => ({
+      isEnabled: jest.fn().mockResolvedValue(true),
     enabledModules: jest.fn().mockResolvedValue(new Set(['core', 'financeiro'])),
-  },
+  }),
 }));
 
 // Mock budget-service for legacy route tests
@@ -192,9 +210,10 @@ describe('GET /api/budgets (legacy)', () => {
 describe('GET /api/budgets/[id]/payments (legacy)', () => {
   test('preserves { payments } key shape', async () => {
     mockListPayments.mockResolvedValueOnce([]);
+    const validId = '00000000-0000-0000-0000-000000000001';
     const res = await legacyPaymentsGET(
-      makeNextRequest('http://localhost/api/budgets/b1/payments'),
-      { params: Promise.resolve({ id: 'b1' }) },
+      makeNextRequest(`http://localhost/api/budgets/${validId}/payments`),
+      { params: Promise.resolve({ id: validId }) },
     );
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -209,10 +228,11 @@ describe('GET /api/budgets/[id]/payments (legacy)', () => {
 
 describe('GET /api/budgets/[id]/installments (legacy)', () => {
   test('returns { installments, remaining_balance } shape', async () => {
-    mockGetBudgetForClinic.mockResolvedValueOnce({ id: 'b1', clinicId: '00000000-0000-0000-0000-000000000001', finalValue: '900' });
+    const validId = '00000000-0000-0000-0000-000000000001';
+    mockGetBudgetForClinic.mockResolvedValueOnce({ id: validId, clinicId: '00000000-0000-0000-0000-000000000001', finalValue: '900' });
     const res = await legacyInstallmentsGET(
       makeNextRequest('http://localhost/api/budgets/'),
-      { params: Promise.resolve({ id: 'b1' }) },
+      { params: Promise.resolve({ id: validId }) },
     );
     expect(res.status).toBe(200);
     const body = await res.json();

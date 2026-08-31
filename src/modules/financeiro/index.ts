@@ -25,6 +25,10 @@ import { listarGateways } from './actions/listar-gateways';
 import { listarRegrasRoteamento } from './actions/listar-regras-roteamento';
 import { salvarGateway } from './actions/salvar-gateway';
 import { salvarRegraRoteamento } from './actions/salvar-regra-roteamento';
+import { atualizarOrcamento } from './actions/atualizar-orcamento';
+import { arquivarOrcamento } from './actions/arquivar-orcamento';
+import { atualizarParcela } from './actions/atualizar-parcela';
+import { deletarParcela } from './actions/deletar-parcela';
 
 export const financeiroActions = [
   listarOrcamentos,
@@ -47,6 +51,10 @@ export const financeiroActions = [
   listarRegrasRoteamento,
   salvarGateway,
   salvarRegraRoteamento,
+  atualizarOrcamento,
+  arquivarOrcamento,
+  atualizarParcela,
+  deletarParcela,
 ];
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────

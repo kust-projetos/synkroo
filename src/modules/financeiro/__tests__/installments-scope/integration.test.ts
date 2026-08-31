@@ -253,6 +253,24 @@ describeOrSkip('Installments tenant scope — route + DB real', () => {
     expect(remaining[0].amount).toBe('88.00');
   });
 
+  it('replaceInstallmentsAtomic rejects a budget from another clinic before deleting', async () => {
+    await expect(replaceInstallmentsAtomic(CLINIC_A, BUDGET_B, [
+      { budgetId: BUDGET_B, amount: '77.00', dueDate: '2026-12-02', status: 'pending' },
+    ])).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('replaceInstallmentsAtomic clears installments when replacement is empty', async () => {
+    const db = getDb();
+    const rows = await replaceInstallmentsAtomic(CLINIC_A, BUDGET_A, []);
+    expect(rows).toEqual([]);
+
+    const remaining = await db
+      .select({ id: sql`id` })
+      .from(sql`budget_installments`)
+      .where(sql`budget_id = ${BUDGET_A}`);
+    expect(remaining).toHaveLength(0);
+  });
+
   // ── DELETE route ─────────────────────────────────────
 
   it('DELETE route returns 404 for foreign budget (wrong tenant)', async () => {

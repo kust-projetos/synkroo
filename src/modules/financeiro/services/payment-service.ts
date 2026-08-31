@@ -14,7 +14,7 @@ import {
 } from '../repositories/financeiro-repository';
 import { getBudgetForClinic } from '../repositories/financeiro-scope-repository';
 import { getDb } from '@/lib/db/client';
-import { payments, paymentCharges, budgets } from '@/lib/db/schema';
+import { payments, paymentCharges, budgets } from '@/modules/financeiro/schema';
 import { eq, and } from 'drizzle-orm';
 import { ActionError } from '@/core/actions/types';
 

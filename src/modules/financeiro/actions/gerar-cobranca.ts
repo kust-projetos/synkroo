@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { createCharge } from '../services/charge-service';
 
 export const gerarCobranca = defineAction({
@@ -10,14 +9,12 @@ export const gerarCobranca = defineAction({
   requires: 'financeiro:manage_budget',
   label: 'Gerar cobrança',
   input: z.object({
-    clinicId: z.string().uuid(),
     budgetId: z.string().uuid(),
     dueDate: z.string(),
     amount: z.number().positive(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    assertClinicScope(input.clinicId, ctx);
-    const result = await createCharge(input);
+    const result = await createCharge({ ...input, clinicId: ctx.clinicId });
     return {
       charge: result.charge,
       paymentUrl: result.gatewayResponse.paymentUrl,

@@ -8,11 +8,9 @@ export const listarGateways = defineAction({
   module: 'financeiro',
   requires: 'financeiro:view',
   label: 'Listar gateways',
-  input: z.object({
-    clinicId: z.string().uuid(),
-  }),
-  handler: async (input, _ctx: ActionContext) => {
-    const gateways = await listGateways(input.clinicId);
+  input: z.object({}),
+  handler: async (_input, ctx: ActionContext) => {
+    const gateways = await listGateways(ctx.clinicId);
     return { data: gateways };
   },
 });

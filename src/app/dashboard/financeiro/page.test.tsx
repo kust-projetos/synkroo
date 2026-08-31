@@ -4,15 +4,15 @@
  * page.test.tsx — Server component /dashboard/financeiro (Task 7).
  *
  * Cobertura:
- *  - moduleManifest.isEnabled('financeiro') === true → renderiza <FinanceiroDashboardClient/>.
- *  - moduleManifest.isEnabled('financeiro') === false → chama notFound().
+ *  - createManifest().isEnabled('financeiro') === true → renderiza <FinanceiroDashboardClient/>.
+ *  - createManifest().isEnabled('financeiro') === false → chama notFound().
  */
 
 const mockModuleManifest = { isEnabled: jest.fn() };
 const mockNotFound = jest.fn(() => { throw new Error('NEXT_NOT_FOUND'); });
 
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: mockModuleManifest,
+  createManifest: () => mockModuleManifest,
 }));
 
 jest.mock('next/navigation', () => ({

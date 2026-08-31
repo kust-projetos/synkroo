@@ -9,12 +9,11 @@ export const obterDashboard = defineAction({
   requires: 'financeiro:view',
   label: 'Obter dashboard',
   input: z.object({
-    clinicId: z.string().uuid(),
     from: z.string().optional(),
     to: z.string().optional(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const overdue = await listOverdueCharges(input.clinicId);
+  handler: async (input, ctx: ActionContext) => {
+    const overdue = await listOverdueCharges(ctx.clinicId);
     const enriched = enrichOverdueCharges(overdue);
     const totalOverdue = enriched.reduce((sum, c) => sum + parseFloat(c.amount), 0);
 

@@ -180,7 +180,7 @@ describe('POST /api/financeiro/webhooks/[provider] — ungated', () => {
     expect(body).toMatchObject({ received: true, settled: false });
   });
 
-  it('NÃO verifica module gate (webhook ungated) — source não importa moduleManifest', async () => {
+  it('NÃO verifica module gate (webhook ungated) — source não importa createManifest()', async () => {
     const res = await POST(makeRequest(), context());
     expect(res.status).toBe(200);
   });
