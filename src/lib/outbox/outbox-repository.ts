@@ -1,20 +1,28 @@
 import { and, eq, inArray, lte, or, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { outboxJobs } from '@/lib/db/schema';
+import type { OutboxOperation } from './operations';
 
 export type OutboxStatus = 'pending' | 'processing' | 'delivered' | 'failed' | 'dead_letter';
 export type OutboxJob = typeof outboxJobs.$inferSelect;
 
 type OutboxInsert = {
   clinicId: string;
-  operation: string;
+  operation: OutboxOperation;
   businessKey: string;
   payload: Record<string, unknown>;
 };
 
+type TestOutboxInsert = Omit<OutboxInsert, 'operation'> & { operation: string };
+
 export async function enqueueOutbox(db: any, job: OutboxInsert): Promise<OutboxJob | undefined> {
   const [row] = await db.insert(outboxJobs).values(job).onConflictDoNothing().returning();
   return row;
+}
+
+/** Test-only escape hatch for exercising generic dispatch behavior. */
+export async function enqueueOutboxForTests(db: any, job: TestOutboxInsert): Promise<OutboxJob | undefined> {
+  return enqueueOutbox(db, job as OutboxInsert);
 }
 
 const OUTBOX_LEASE_MS = 5 * 60 * 1000;

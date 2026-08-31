@@ -1,6 +1,6 @@
 import { Pool } from 'pg'
 import { getDb, closeDb } from '@/lib/db/client'
-import { enqueueOutbox, claimOutboxJob, markOutboxRetry } from '@/lib/outbox/outbox-repository'
+import { enqueueOutboxForTests, claimOutboxJob, markOutboxRetry } from '@/lib/outbox/outbox-repository'
 
 const describeIntegration = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip
 let clinicId: string
@@ -34,7 +34,7 @@ describeIntegration('transactional outbox against PostgreSQL', () => {
       payload: { attempt: 1 },
     }
 
-    const rows = await Promise.all([enqueueOutbox(db, job), enqueueOutbox(db, job)])
+    const rows = await Promise.all([enqueueOutboxForTests(db, job), enqueueOutboxForTests(db, job)])
 
     expect(rows.filter(Boolean)).toHaveLength(1)
     await expect(pool.query('SELECT COUNT(*) FROM outbox_jobs WHERE business_key = $1', [job.businessKey]))
@@ -44,19 +44,25 @@ describeIntegration('transactional outbox against PostgreSQL', () => {
   it('claims one pending job and retries it with bounded backoff', async () => {
     const db = getDb()
     const businessKey = `${keyPrefix}:claim`
-    await enqueueOutbox(db, {
+    await enqueueOutboxForTests(db, {
       clinicId: clinicId,
       operation: 'integration.test',
       businessKey,
       payload: { safe: true },
     })
 
-    let claims = await Promise.all([claimOutboxJob(), claimOutboxJob()])
+    let claims = await Promise.all([
+      claimOutboxJob({ operations: ['integration.test'] }),
+      claimOutboxJob({ operations: ['integration.test'] }),
+    ])
     let claimed = claims.filter(Boolean) as NonNullable<typeof claims[number]>[]
     // CI flaky: ambos podem retornar null por race + visibility; retry uma vez
     if (claimed.length === 0) {
       await new Promise((r) => setTimeout(r, 120))
-      claims = await Promise.all([claimOutboxJob(), claimOutboxJob()])
+      claims = await Promise.all([
+        claimOutboxJob({ operations: ['integration.test'] }),
+        claimOutboxJob({ operations: ['integration.test'] }),
+      ])
       claimed = claims.filter(Boolean) as NonNullable<typeof claims[number]>[]
     }
     // Aceita 0 (flaky visibilidade) como skip sem falhar suite — registra retry se houver claim
