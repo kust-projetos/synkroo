@@ -10,7 +10,7 @@
 
 /** @jest-environment node */
 
-import { sql, eq, and } from 'drizzle-orm';
+import { sql, eq, and, inArray } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import {
   getBudgetForClinic,
@@ -25,7 +25,7 @@ import { enviarLembreteCobranca } from '@/modules/financeiro/actions/enviar-lemb
 import { seedRbacForClinic } from '@/core/rbac/seed';
 import { bootstrapActions } from '@/core/actions/bootstrap';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
-import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
+import { roles, rolePermissions, userClinicAccess } from '@/modules/core/schema/rbac';
 import { users } from '@/lib/db/schema/core';
 import { instanceModules } from '@/lib/db/schema/modules';
 
@@ -45,6 +45,43 @@ const INSTALLMENT_A = '00000000-0000-0000-0000-00000000d002';
 const USER_ID = '00000000-0000-0000-0000-00000000f002';
 
 let ctx: Awaited<ReturnType<typeof buildDelegatedContext>>;
+
+const REQUIRED_MODULES = ['operacional', 'comercial', 'financeiro'] as const;
+let previousModuleState: Array<{ moduleId: string; enabled: boolean }> = [];
+let moduleStateCaptured = false;
+
+async function enableRequiredModules() {
+  const db = getDb();
+  if (!moduleStateCaptured) {
+    previousModuleState = await db
+      .select({ moduleId: instanceModules.moduleId, enabled: instanceModules.enabled })
+      .from(instanceModules)
+      .where(inArray(instanceModules.moduleId, [...REQUIRED_MODULES]));
+    moduleStateCaptured = true;
+  }
+  for (const moduleId of REQUIRED_MODULES) {
+    await db
+      .insert(instanceModules)
+      .values({ moduleId, enabled: true })
+      .onConflictDoUpdate({ target: instanceModules.moduleId, set: { enabled: true } });
+  }
+}
+
+async function restoreModuleState() {
+  if (!moduleStateCaptured) return;
+  const db = getDb();
+  const previous = new Map(previousModuleState.map((row) => [row.moduleId, row.enabled]));
+  for (const moduleId of REQUIRED_MODULES) {
+    if (previous.has(moduleId)) {
+      await db.update(instanceModules).set({ enabled: previous.get(moduleId)! })
+        .where(inArray(instanceModules.moduleId, [moduleId]));
+    } else {
+      await db.delete(instanceModules).where(inArray(instanceModules.moduleId, [moduleId]));
+    }
+  }
+  previousModuleState = [];
+  moduleStateCaptured = false;
+}
 
 /** Snapshot a charge row for before/after comparison. */
 async function snapshotCharge(db: any, chargeId: string) {
@@ -92,8 +129,7 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
     }).onConflictDoNothing();
 
     // Enable financeiro module
-    await db.insert(instanceModules).values({ moduleId: 'financeiro', enabled: true })
-      .onConflictDoUpdate({ target: instanceModules.moduleId, set: { enabled: true } });
+    await enableRequiredModules();
 
     // Build delegated context (user has financeiro:manage_collections via Owner role)
     ctx = await buildDelegatedContext(USER_ID, CLINIC_A);
@@ -150,18 +186,27 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
 
   afterAll(async () => {
     const db = getDb();
-    await db.update(instanceModules).set({ enabled: false }).where(eq(instanceModules.moduleId, 'financeiro'));
-    await db.execute(sql`DELETE FROM payment_charges WHERE id IN (${CHARGE_A}, ${CHARGE_B})`);
-    await db.execute(sql`DELETE FROM budget_installments WHERE id IN (${INSTALLMENT_A})`);
-    await db.execute(sql`DELETE FROM payment_gateways WHERE id IN (${GATEWAY_A}, ${GATEWAY_B})`);
-    await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_A}, ${BUDGET_B})`);
-    await db.execute(sql`DELETE FROM patients WHERE id IN (${PATIENT_A}, ${PATIENT_B})`);
-    await db.delete(userClinicAccess).where(eq(userClinicAccess.userId, USER_ID));
-    await db.delete(users).where(eq(users.id, USER_ID));
-    await db.delete(roles).where(eq(roles.clinicId, CLINIC_A));
-    await db.delete(roles).where(eq(roles.clinicId, CLINIC_B));
-    await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
-    await closeDb();
+    try {
+      await db.execute(sql`DELETE FROM outbox_jobs WHERE clinic_id IN (${CLINIC_A}, ${CLINIC_B})`);
+      await db.execute(sql`DELETE FROM payment_charges WHERE id IN (${CHARGE_A}, ${CHARGE_B})`);
+      await db.execute(sql`DELETE FROM budget_installments WHERE id IN (${INSTALLMENT_A})`);
+      await db.execute(sql`DELETE FROM payment_gateways WHERE id IN (${GATEWAY_A}, ${GATEWAY_B})`);
+      await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_A}, ${BUDGET_B})`);
+      await db.execute(sql`DELETE FROM patients WHERE id IN (${PATIENT_A}, ${PATIENT_B})`);
+      await db.delete(userClinicAccess).where(eq(userClinicAccess.clinicId, CLINIC_A));
+      await db.delete(users).where(eq(users.id, USER_ID));
+      const roleRows = await db.select({ id: roles.id }).from(roles)
+        .where(inArray(roles.clinicId, [CLINIC_A, CLINIC_B]));
+      const roleIds = roleRows.map((row) => row.id);
+      if (roleIds.length) {
+        await db.delete(rolePermissions).where(inArray(rolePermissions.roleId, roleIds));
+      }
+      await db.delete(roles).where(inArray(roles.clinicId, [CLINIC_A, CLINIC_B]));
+      await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
+    } finally {
+      await restoreModuleState();
+      await closeDb();
+    }
   });
 
   // ── Raw SQL scope checks ─────────────────────────────
@@ -261,13 +306,11 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
         chargeId,
       }, ctx);
 
-      // ctx.clinicId (A) owns CHARGE_A (A) → scope passes
-      // Fails later on phone resolution/WhatsApp send
+      // ctx.clinicId (A) owns CHARGE_A (A) → scope passes and queues the effect
       expect(result.ok).toBe(true);
       const data = (result as any).data as { sent: boolean; error?: string };
-      expect(data.sent).toBe(false);
-      // Error is NOT missing_patient_phone — scope passed
-      expect(data.error).not.toBe('missing_patient_phone');
+      expect(data.sent).toBe(true);
+      expect(data.error).toBeUndefined();
 
       const after = await snapshotCharge(db, chargeId);
       expect(after).toEqual(before);
@@ -323,8 +366,8 @@ describeOrSkip('Collection charge tenant scope (DB real)', () => {
         chargeId: CHARGE_A,
       });
 
-      expect(result.sent).toBe(false);
-      expect(result.error).not.toBe('missing_patient_phone');
+      expect(result.sent).toBe(true);
+      expect(result.error).toBeUndefined();
     } finally {
       // afterAll cleans up
     }

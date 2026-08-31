@@ -1,9 +1,8 @@
 /**
  * Financeiro — action exports.
- * Actions are self-registering via the action registry.
+ * This barrel only exports Action definitions. Registration belongs exclusively
+ * to the composition root in src/core/actions/bootstrap.ts.
  */
-
-import { registerActions } from '@/core/actions/registry';
 
 import { listarOrcamentos } from './listar-orcamentos';
 import { obterOrcamento } from './obter-orcamento';
@@ -25,6 +24,10 @@ import { listarGateways } from './listar-gateways';
 import { listarRegrasRoteamento } from './listar-regras-roteamento';
 import { salvarGateway } from './salvar-gateway';
 import { salvarRegraRoteamento } from './salvar-regra-roteamento';
+import { atualizarOrcamento } from './atualizar-orcamento';
+import { arquivarOrcamento } from './arquivar-orcamento';
+import { atualizarParcela } from './atualizar-parcela';
+import { deletarParcela } from './deletar-parcela';
 
 export * from './criar-orcamento';
 export * from './listar-orcamentos';
@@ -46,27 +49,7 @@ export * from './listar-gateways';
 export * from './listar-regras-roteamento';
 export * from './salvar-gateway';
 export * from './salvar-regra-roteamento';
-
-// Bootstrap registration — idempotent
-registerActions([
-  listarOrcamentos,
-  obterOrcamento,
-  criarOrcamento,
-  enviarOrcamento,
-  aceitarOrcamento,
-  rejeitarOrcamento,
-  listarParcelas,
-  salvarParcelas,
-  listarPagamentos,
-  registrarPagamento,
-  gerarCobranca,
-  obterCobranca,
-  cancelarCobranca,
-  listarCobrancasAtrasadas,
-  enviarLembreteCobranca,
-  obterDashboard,
-  listarGateways,
-  listarRegrasRoteamento,
-  salvarGateway,
-  salvarRegraRoteamento,
-]);
+export * from './atualizar-orcamento';
+export * from './arquivar-orcamento';
+export * from './atualizar-parcela';
+export * from './deletar-parcela';

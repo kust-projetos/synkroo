@@ -15,6 +15,6 @@ export const listarParcelas = defineAction({
     const clinicId = ctx.clinicId;
     const installments = await listInstallments(clinicId, input.budgetId);
     const remainingBalance = await calculateRemainingBalance(clinicId, input.budgetId);
-    return { data: installments, remaining_balance: remainingBalance };
+    return { data: installments, meta: { remaining_balance: remainingBalance } } as any;
   },
 });

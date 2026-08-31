@@ -11,6 +11,7 @@ import {
   updateBudget as repoUpdateBudget,
   listBudgets as repoListBudgets,
   createBudgetItems,
+  getBudgetForClinic as repoGetBudgetForClinic,
   type BudgetRow,
 } from '../repositories/financeiro-repository';
 
@@ -106,14 +107,17 @@ export async function getBudget(id: string): Promise<BudgetRow | undefined> {
   return repoGetBudget(id);
 }
 
+export async function getBudgetForClinic(id: string, clinicId: string): Promise<BudgetRow | undefined> {
+  return repoGetBudgetForClinic(id, clinicId);
+}
+
 export async function listBudgets(clinicId: string, status?: string): Promise<BudgetRow[]> {
   return repoListBudgets(clinicId, status);
 }
 
 export async function acceptBudget(id: string, clinicId: string, opts?: { patientId?: string; convertedFromLeadId?: string }): Promise<BudgetRow> {
-  const budget = await repoGetBudget(id);
+  const budget = await repoGetBudgetForClinic(id, clinicId);
   if (!budget) throw new Error('Budget not found');
-  if (budget.clinicId !== clinicId) throw new Error('Budget not found');
   if (budget.status !== 'pending') throw new Error(`Budget cannot be accepted in status: ${budget.status}`);
 
   const patch: Partial<BudgetRow> = {

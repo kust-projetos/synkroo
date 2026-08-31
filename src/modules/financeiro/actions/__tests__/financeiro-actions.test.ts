@@ -66,7 +66,6 @@ describe('criarOrcamento', () => {
   test('action input validates: rejects both patientId and leadId', async () => {
     await expect(
       criarOrcamento.input.parseAsync({
-        clinicId: CLINIC_ID,
         patientId: PATIENT_ID,
         leadId: LEAD_ID,
         items: [{ procedureName: 'Teste', quantity: 1, unitPrice: 100 }],
@@ -77,7 +76,6 @@ describe('criarOrcamento', () => {
   test('action input validates: rejects neither patientId nor leadId', async () => {
     await expect(
       criarOrcamento.input.parseAsync({
-        clinicId: CLINIC_ID,
         items: [{ procedureName: 'Teste', quantity: 1, unitPrice: 100 }],
       }),
     ).rejects.toBeTruthy();
@@ -85,7 +83,6 @@ describe('criarOrcamento', () => {
 
   test('action input validates: accepts only patientId', async () => {
     const parsed = await criarOrcamento.input.parseAsync({
-      clinicId: CLINIC_ID,
       patientId: PATIENT_ID,
       items: [{ procedureName: 'Teste', quantity: 1, unitPrice: 100 }],
     });
@@ -104,10 +101,9 @@ describe('criarOrcamento', () => {
     expect(result.finalValue).toBe(270);
   });
 
-  test('action handler throws for missing budget items', async () => {
+  test('action input rejects missing budget items', async () => {
     await expect(
       criarOrcamento.input.parseAsync({
-        clinicId: CLINIC_ID,
         patientId: PATIENT_ID,
         items: [],
       }),
@@ -120,12 +116,10 @@ describe('criarOrcamento', () => {
 // ══════════════════════════════════════════════
 
 describe('aceitarOrcamento', () => {
-  test('input schema validates clinicId and id', async () => {
+  test('input schema accepts only the budget id', async () => {
     const parsed = await aceitarOrcamento.input.parseAsync({
-      clinicId: CLINIC_ID,
       id: '00000000-0000-0000-0000-000000000099',
     });
-    expect(parsed.clinicId).toBe(CLINIC_ID);
     expect(parsed.id).toBeTruthy();
   });
 });
@@ -137,7 +131,6 @@ describe('aceitarOrcamento', () => {
 describe('gerarCobranca', () => {
   test('input schema validates required fields', async () => {
     const parsed = await gerarCobranca.input.parseAsync({
-      clinicId: CLINIC_ID,
       budgetId: '00000000-0000-0000-0000-000000000099',
       dueDate: '2026-08-15',
       amount: 500,
@@ -151,9 +144,8 @@ describe('gerarCobranca', () => {
 // ══════════════════════════════════════════════
 
 describe('cancelarCobranca', () => {
-  test('input schema validates clinicId and id', async () => {
+  test('input schema validates id without a tenant selector', async () => {
     const parsed = await cancelarCobranca.input.parseAsync({
-      clinicId: CLINIC_ID,
       id: '00000000-0000-0000-0000-000000000099',
     });
     expect(parsed.id).toBeTruthy();
@@ -167,7 +159,7 @@ describe('cancelarCobranca', () => {
 describe('salvarGateway', () => {
   test('maskApiKey works correctly', () => {
     expect(maskApiKey('abc123')).toBe('**c123');
-    expect(maskApiKey('sk_live_abcdef1234567890')).toBe('********************7890');
+    expect(maskApiKey('mock_key_abcdef1234567890')).toBe('********************7890');
     expect(maskApiKey('ab')).toBe('****');
   });
 });
@@ -183,7 +175,6 @@ describe('salvarRegraRoteamento', () => {
     // Two scopes → reject
     await expect(
       salvarRegraRoteamento.input.parseAsync({
-        clinicId: CLINIC_ID,
         gatewayId: GATEWAY_ID,
         campaignId: '00000000-0000-0000-0000-000000000030',
         patientId: '00000000-0000-0000-0000-000000000040',
@@ -193,7 +184,6 @@ describe('salvarRegraRoteamento', () => {
     // Zero scopes → reject
     await expect(
       salvarRegraRoteamento.input.parseAsync({
-        clinicId: CLINIC_ID,
         gatewayId: GATEWAY_ID,
       }),
     ).rejects.toBeTruthy();
@@ -201,7 +191,6 @@ describe('salvarRegraRoteamento', () => {
 
   test('valid: only one scope', async () => {
     const parsed = await salvarRegraRoteamento.input.parseAsync({
-      clinicId: CLINIC_ID,
       gatewayId: '00000000-0000-0000-0000-000000000020',
       campaignId: '00000000-0000-0000-0000-000000000030',
     });
@@ -216,7 +205,6 @@ describe('salvarRegraRoteamento', () => {
 describe('listarCobrancasAtrasadas', () => {
   test('input schema validates page and limit', async () => {
     const parsed = await listarCobrancasAtrasadas.input.parseAsync({
-      clinicId: CLINIC_ID,
       page: 1,
       limit: 50,
     });

@@ -1,45 +1,66 @@
 /**
- * Unit tests for budget-followup-service — budget follow-up bridge.
- *
- * Tests service layer only (no DB, no Docker). Legacy imports are mocked.
+ * Unit tests for the Drizzle-backed budget follow-up service.
  */
 
 import { listarOrcamentosPendentes, executarFollowupOrcamentos, listarTratamentosIncompletos } from '../budget-followup-service';
 
-const mockFindUnconverted = jest.fn();
-const mockProcessBudgets = jest.fn();
 const mockDetectIncomplete = jest.fn();
 const mockGetAlerts = jest.fn();
+const mockDb = {
+  select: jest.fn(),
+  update: jest.fn(() => ({
+    set: jest.fn(() => ({ where: jest.fn(() => Promise.resolve([])) })),
+  })),
+};
 
-jest.mock('@/services/followup/budget-followup.service', () => ({
-  findUnconvertedBudgets: (...a: unknown[]) => mockFindUnconverted(...a),
-  processBudgetFollowups: (...a: unknown[]) => mockProcessBudgets(...a),
-}));
+jest.mock('@/lib/db/client', () => ({ getDb: jest.fn(() => mockDb) }));
 
-jest.mock('@/services/appointments/incomplete-treatment.service', () => ({
+jest.mock('@/modules/operacional/public', () => ({
   detectIncompleteTreatments: (...a: unknown[]) => mockDetectIncomplete(...a),
   getIncompleteTreatmentAlerts: (...a: unknown[]) => mockGetAlerts(...a),
 }));
 
+function query(result: unknown[], terminal: 'orderBy' | 'limit'): any {
+  const chain: any = {
+    from: jest.fn(() => chain),
+    leftJoin: jest.fn(() => chain),
+    where: jest.fn(() => chain),
+    orderBy: jest.fn(() => terminal === 'orderBy' ? Promise.resolve(result) : chain),
+    limit: jest.fn(() => terminal === 'limit' ? Promise.resolve(result) : chain),
+  };
+  return chain;
+}
+
+const pendingBudgetRow = {
+  budgets: {
+    id: 'b1',
+    patientId: 'p1',
+    clinicId: 'c1',
+    totalValue: '500.00',
+    createdAt: new Date(Date.now() - 8 * 86_400_000),
+    notes: null,
+    status: 'sent',
+  },
+  patients: { name: 'Paciente A', phone: '11999990000' },
+};
+
 describe('budget-followup-service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockDb.select.mockReset();
   });
 
   describe('listarOrcamentosPendentes', () => {
-    it('calls findUnconvertedBudgets with clinicId and returns result', async () => {
-      mockFindUnconverted.mockResolvedValueOnce([
-        { id: 'b1', patientName: 'Paciente A', value: 500 },
-      ]);
+    it('lists pending budgets scoped to clinicId', async () => {
+      mockDb.select.mockReturnValue(query([pendingBudgetRow], 'orderBy'));
       const result = await listarOrcamentosPendentes('c1');
-      expect(mockFindUnconverted).toHaveBeenCalledWith('c1');
       expect(result.budgets).toHaveLength(1);
       expect(result.budgets[0].id).toBe('b1');
       expect(result.total).toBe(1);
     });
 
     it('returns empty when no pending budgets', async () => {
-      mockFindUnconverted.mockResolvedValueOnce([]);
+      mockDb.select.mockReturnValue(query([], 'orderBy'));
       const result = await listarOrcamentosPendentes('c1');
       expect(result.budgets).toHaveLength(0);
       expect(result.total).toBe(0);
@@ -47,11 +68,13 @@ describe('budget-followup-service', () => {
   });
 
   describe('executarFollowupOrcamentos', () => {
-    it('calls processBudgetFollowups with clinicId and returns result', async () => {
-      mockProcessBudgets.mockResolvedValueOnce({ processed: 2, errors: 0 });
+    it('processes an eligible budget with clinic-scoped writes', async () => {
+      mockDb.select
+        .mockReturnValueOnce(query([pendingBudgetRow], 'orderBy'))
+        .mockReturnValueOnce(query([{ notes: null }], 'limit'));
       const result = await executarFollowupOrcamentos('c1');
-      expect(mockProcessBudgets).toHaveBeenCalledWith('c1');
-      expect(result).toEqual({ processed: 2, errors: 0 });
+      expect(result).toEqual({ processed: 1, errors: 0 });
+      expect(mockDb.update).toHaveBeenCalled();
     });
   });
 

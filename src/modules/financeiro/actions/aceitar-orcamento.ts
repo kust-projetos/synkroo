@@ -1,11 +1,8 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { runAction } from '@/core/actions/run';
-import { buildSystemContext } from '@/core/actions/context';
-import { assertClinicScope } from '@/core/actions/tenant-scope';
-import { acceptBudget, getBudget } from '../services/budget-service';
-import { converterLeadSemAgendarAction } from '@/modules/comercial/actions';
+import { acceptBudget, getBudgetForClinic } from '../services/budget-service';
+import { converterLeadSemAgendar } from '@/modules/comercial/public';
 
 export const aceitarOrcamento = defineAction({
   name: 'financeiro.aceitarOrcamento',
@@ -13,15 +10,14 @@ export const aceitarOrcamento = defineAction({
   requires: 'financeiro:manage_budget',
   label: 'Aceitar orçamento',
   input: z.object({
-    clinicId: z.string().uuid(),
     id: z.string().uuid(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    assertClinicScope(input.clinicId, ctx);
-    const { clinicId, id } = input;
+    const { clinicId } = ctx;
+    const { id } = input;
 
     // Load budget to check lead context
-    const budget = await getBudget(id);
+    const budget = await getBudgetForClinic(id, clinicId);
     if (!budget) throw new Error('Budget not found');
 
     let patientId = budget.patientId;
@@ -29,17 +25,13 @@ export const aceitarOrcamento = defineAction({
 
     // If budget has leadId (no patient yet), convert lead first
     if (budget.leadId && !budget.patientId) {
-      const ctx = await buildSystemContext(clinicId);
-      const result = await runAction(converterLeadSemAgendarAction, {
+      const result = await converterLeadSemAgendar({
         leadId: budget.leadId,
         clinicId,
-      }, ctx);
+        actorUserId: ctx.user?.id ?? null,
+      });
 
-      if (!result.ok) {
-        throw new Error(`Lead conversion failed: ${result.error.message}`);
-      }
-
-      patientId = (result.data as { patientId: string }).patientId;
+      patientId = result.patientId;
       convertedFromLeadId = budget.leadId;
     }
 

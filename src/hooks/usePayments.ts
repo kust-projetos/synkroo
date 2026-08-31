@@ -23,12 +23,13 @@ export interface RecordPaymentInput {
 }
 
 async function fetchPayments(budgetId: string): Promise<Payment[]> {
-  const response = await fetch(`/api/budgets/${budgetId}/payments`)
+  const response = await fetch(`/api/financeiro/budgets/${budgetId}/payments`)
   if (!response.ok) {
     throw new Error('Failed to fetch payments')
   }
   const data = await response.json()
-  return data.payments
+  // Canonical returns { data: [...] }, legacy { payments: [...] }
+  return data.data ?? data.payments
 }
 
 async function recordPayment(input: RecordPaymentInput): Promise<{
@@ -36,15 +37,26 @@ async function recordPayment(input: RecordPaymentInput): Promise<{
   sessions_completed: number
   remaining_balance: number
 }> {
-  const response = await fetch(`/api/budgets/${input.budget_id}/payments`, {
+  const response = await fetch(`/api/financeiro/budgets/${input.budget_id}/payments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      budgetId: input.budget_id,
+      amount: input.amount,
+      paymentMethod: input.payment_method,
+      notes: input.notes,
+    }),
   })
   if (!response.ok) {
     throw new Error('Failed to record payment')
   }
-  return response.json()
+  const data = await response.json()
+  const payment = data.data ?? data.payment
+  return {
+    payment,
+    sessions_completed: data.sessions_completed ?? 0,
+    remaining_balance: data.remaining_balance ?? 0,
+  }
 }
 
 export function usePayments(budgetId: string | null) {

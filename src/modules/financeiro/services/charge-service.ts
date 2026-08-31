@@ -16,6 +16,7 @@ import {
   type PaymentChargeRow,
 } from '../repositories/financeiro-repository';
 import { buildChargeInsert, findPaymentChargeByBudget } from '../repositories/financeiro-repository';
+import { getPaymentChargeForClinic } from '../repositories/financeiro-scope-repository';
 import { withIdempotency } from '@/lib/idempotency';
 import type { CreateChargeResult, GatewayProvider } from '../gateways/contracts';
 
@@ -120,6 +121,10 @@ export async function cancelCharge(input: {
 
 export async function getCharge(id: string): Promise<PaymentChargeRow | undefined> {
   return repoGetCharge(id);
+}
+
+export async function getChargeForClinic(id: string, clinicId: string): Promise<PaymentChargeRow | undefined> {
+  return getPaymentChargeForClinic(id, clinicId);
 }
 
 export async function listOverdueCharges(clinicId: string): Promise<PaymentChargeRow[]> {

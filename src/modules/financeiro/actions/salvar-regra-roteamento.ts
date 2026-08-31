@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { saveRoutingRule } from '../services/gateway-config-service';
 
 export const salvarRegraRoteamento = defineAction({
@@ -10,7 +9,6 @@ export const salvarRegraRoteamento = defineAction({
   requires: 'financeiro:manage_gateways',
   label: 'Salvar regra de roteamento',
   input: z.object({
-    clinicId: z.string().uuid(),
     id: z.string().uuid().optional(),
     gatewayId: z.string().uuid(),
     campaignId: z.string().uuid().optional(),
@@ -24,8 +22,7 @@ export const salvarRegraRoteamento = defineAction({
     { message: 'Exactly one scope target is required: campaignId, patientId, or leadId' },
   ),
   handler: async (input, ctx: ActionContext) => {
-    assertClinicScope(input.clinicId, ctx);
-    const rule = await saveRoutingRule(input);
+    const rule = await saveRoutingRule({ ...input, clinicId: ctx.clinicId });
     return rule;
   },
 });

@@ -8,11 +8,9 @@ export const listarRegrasRoteamento = defineAction({
   module: 'financeiro',
   requires: 'financeiro:view',
   label: 'Listar regras de roteamento',
-  input: z.object({
-    clinicId: z.string().uuid(),
-  }),
-  handler: async (input, _ctx: ActionContext) => {
-    const rules = await listRoutingRules(input.clinicId);
+  input: z.object({}),
+  handler: async (_input, ctx: ActionContext) => {
+    const rules = await listRoutingRules(ctx.clinicId);
     return { data: rules };
   },
 });

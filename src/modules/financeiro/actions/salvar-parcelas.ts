@@ -18,6 +18,6 @@ export const salvarParcelas = defineAction({
   handler: async (input, ctx: ActionContext) => {
     const clinicId = ctx.clinicId;
     const saved = await replaceInstallments(clinicId, input.budgetId, input.installments);
-    return { saved: true, count: saved.length };
+    return { data: saved, meta: { count: saved.length } } as any;
   },
 });
