@@ -17,6 +17,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true, processed: results.filter((result) => result.status !== 'empty').length, results });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  if (!isAuthorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   return NextResponse.json({ status: 'ok', message: 'Outbox worker is active', operations: outboxOperations });
 }
