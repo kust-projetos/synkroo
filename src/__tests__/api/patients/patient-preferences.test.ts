@@ -66,17 +66,16 @@ jest.mock('@/core/modules/manifest', () => {
     drizzleManifestRepo: {
       getEnabledModuleIds: jest.fn().mockResolvedValue(['operacional']),
     },
-    moduleManifest: {
+    createManifest: () => ({
       isEnabled: jest.fn().mockResolvedValue(true),
       enabledModules: jest.fn().mockResolvedValue(new Set(['core', 'operacional'])),
-    },
+  }),
   }
 });
 
 // Mock RBAC so buildUserContext → resolveAccess doesn't fail
 jest.mock('@/core/rbac/repository', () => ({
   drizzleRbacRepo: {
-    isMaster: jest.fn().mockResolvedValue(false),
     getAccess: jest.fn().mockResolvedValue({ isSystem: true, roleName: 'Owner', roleId: 'r1' }),
     getRolePermissions: jest.fn().mockResolvedValue([]),
     getOverrides: jest.fn().mockResolvedValue([]),

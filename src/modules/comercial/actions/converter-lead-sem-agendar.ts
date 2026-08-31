@@ -18,10 +18,13 @@ export const converterLeadSemAgendarAction = defineAction({
   label: 'Converter lead sem agendar',
   input: z.object({
     leadId: z.string().uuid(),
-    clinicId: z.string().uuid(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const result = await converterLeadSemAgendar(input);
+  handler: async (input, ctx: ActionContext) => {
+    const result = await converterLeadSemAgendar({
+      ...input,
+      clinicId: ctx.clinicId,
+      actorUserId: ctx.user?.id ?? null,
+    });
     return result;
   },
 });

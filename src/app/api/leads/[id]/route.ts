@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { obterLead } from '@/modules/comercial/actions/obter-lead';
 import { atualizarLead } from '@/modules/comercial/actions/atualizar-lead';
@@ -22,6 +22,6 @@ const handleDelete = async (_request: NextRequest, { params }: { params: Promise
   return runComercialAction(arquivarLead, { leadId: id });
 };
 
-export const GET = withModuleRoute('comercial', moduleManifest)(handleGet);
-export const PUT = withModuleRoute('comercial', moduleManifest)(handlePut);
-export const DELETE = withModuleRoute('comercial', moduleManifest)(handleDelete);
+export const GET = withModuleRoute('comercial')(handleGet);
+export const PUT = withModuleRoute('comercial')(handlePut);
+export const DELETE = withModuleRoute('comercial')(handleDelete);

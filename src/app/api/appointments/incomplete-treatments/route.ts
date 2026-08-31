@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/followup/ui/route-adapter';
 import { listarTratamentosIncompletos } from '@/modules/followup/actions';
 
@@ -17,5 +17,5 @@ async function handleGET(request: NextRequest): Promise<NextResponse> {
   });
 }
 
-const wrapped = withModuleRoute('followup', moduleManifest)(handleGET);
+const wrapped = withModuleRoute('followup')(handleGET);
 export { wrapped as GET };

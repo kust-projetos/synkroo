@@ -1,13 +1,16 @@
 import { getServerSession } from "next-auth";
 import type { Session } from "next-auth";
 import { authOptions } from "./auth";
-import { findUserProfileById, hasUserClinicAccess } from "@/repositories/auth";
+import { findUserProfileById } from "@/repositories/auth";
+import { drizzleRbacRepo } from "@/core/rbac/repository";
+import { resolveAccess } from "@/core/rbac/resolve";
 
 export interface ServerUserProfile {
   id: string;
   email: string;
   name: string;
   role: string;
+  role_id: string;
   phone: string | null;
   avatar_url: string | null;
   is_active: boolean;
@@ -21,6 +24,13 @@ export interface ServerUserProfile {
     email: string;
     settings: Record<string, unknown>;
   } | null;
+  available_clinics?: Array<{
+    id: string;
+    name: string;
+    slug: string;
+    roleId: string;
+    role: string;
+  }>;
 }
 
 function toProfileCamel(row: any): ServerUserProfile {
@@ -30,12 +40,14 @@ function toProfileCamel(row: any): ServerUserProfile {
     email: row.email,
     name: row.name,
     role: row.role,
+    role_id: row.roleId,
     phone: row.phone,
     avatar_url: row.avatarUrl,
     is_active: row.isActive,
     session_version: row.sessionVersion,
     clinic_id: row.clinicId,
     clinics: row.clinics,
+    ...(row.availableClinics ? { available_clinics: row.availableClinics } : {}),
   };
 }
 
@@ -74,6 +86,7 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
   try {
     // W3.1: autoridade é user_clinic_access — role efetiva vem da clínica ativa
     const activeClinicId = (session.user as any).clinicId as string | undefined;
+    if (!activeClinicId) return null;
     const profile = await findUserProfileById(session.user.id, activeClinicId);
     if (!profile || !profile.isActive) return null;
     const sessionVersion = (session.user as any).sessionVersion;
@@ -82,8 +95,7 @@ export async function getUserProfile(): Promise<ServerUserProfile | null> {
       sessionVersion !== profile.sessionVersion
     )
       return null;
-    // findUserProfileById já validou membership da clínica ativa; não precisa hasUserClinicAccess separado
-    // Mas mantemos fallback para sessão sem clinicId (primeiro login) — já resolvido via legacy branch
+    // findUserProfileById ja validou a membership da clinica ativa.
     return toProfileCamel(profile);
   } catch {
     return null;
@@ -120,6 +132,14 @@ export async function requireRole(roles: string[]): Promise<ServerUserProfile> {
   return profile;
 }
 
+/** Require a permission resolved from the active membership, never users.role. */
+export async function requirePermission(permissionKey: string): Promise<ServerUserProfile> {
+  const profile = await requireActiveProfile();
+  const access = await resolveAccess(profile.id, profile.clinic_id, drizzleRbacRepo);
+  if (!access.can(permissionKey)) throw new Error("Forbidden");
+  return profile;
+}
+
 /**
  * API Authentication Response.
  */
@@ -133,7 +153,7 @@ export interface AuthResult {
 /**
  * Validate API authentication.
  */
-export async function validateApiAuth(): Promise<AuthResult> {
+export async function validateApiAuth(requiredPermission?: string): Promise<AuthResult> {
   try {
     const profile = await getUserProfile();
     if (!profile) {
@@ -147,6 +167,15 @@ export async function validateApiAuth(): Promise<AuthResult> {
         success: false,
         error: { message: "User account is inactive", status: 403 },
       };
+    }
+    if (requiredPermission) {
+      const access = await resolveAccess(profile.id, profile.clinic_id, drizzleRbacRepo);
+      if (!access.can(requiredPermission)) {
+        return {
+          success: false,
+          error: { message: "Insufficient permissions", status: 403 },
+        };
+      }
     }
     return {
       success: true,

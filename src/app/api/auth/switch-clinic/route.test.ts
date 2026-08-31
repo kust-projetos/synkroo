@@ -1,23 +1,20 @@
 import { NextRequest } from 'next/server';
 import { POST } from './route';
 import { requireActiveProfile } from '@/lib/auth/session';
-
-const limit = jest.fn();
+import { findUserProfileById } from '@/repositories/auth';
 
 jest.mock('@/lib/auth/session', () => ({ requireActiveProfile: jest.fn() }));
-jest.mock('@/lib/db/client', () => ({
-  getDb: () => ({
-    select: () => ({ from: () => ({ where: () => ({ limit }) }) }),
-  }),
-}));
+jest.mock('@/repositories/auth', () => ({ findUserProfileById: jest.fn() }));
 
 const mockRequireActiveProfile = requireActiveProfile as jest.MockedFunction<typeof requireActiveProfile>;
+const mockFindUserProfileById = findUserProfileById as jest.MockedFunction<typeof findUserProfileById>;
 
 const activeProfile = {
   id: 'user-1',
   email: 'user@example.com',
   name: 'User',
   role: 'owner',
+  role_id: 'owner-role',
   phone: null,
   avatar_url: null,
   is_active: true,
@@ -29,7 +26,20 @@ const activeProfile = {
 beforeEach(() => {
   jest.clearAllMocks();
   mockRequireActiveProfile.mockResolvedValue(activeProfile);
-  limit.mockResolvedValue([{ roleId: 'owner-role' }]);
+  mockFindUserProfileById.mockResolvedValue({
+    id: 'user-1',
+    email: 'user@example.com',
+    name: 'User',
+    role: 'receptionist',
+    roleId: 'receptionist-role',
+    roleName: 'receptionist',
+    phone: null,
+    avatarUrl: null,
+    isActive: true,
+    sessionVersion: 3,
+    clinicId: '00000000-0000-0000-0000-000000000002',
+    clinics: null,
+  });
 });
 
 test('validates access without issuing a parallel JWT cookie', async () => {
@@ -43,6 +53,10 @@ test('validates access without issuing a parallel JWT cookie', async () => {
   expect(response.status).toBe(200);
   expect(response.headers.get('set-cookie')).toBeNull();
   expect(mockRequireActiveProfile).toHaveBeenCalledTimes(1);
+  expect(mockFindUserProfileById).toHaveBeenCalledWith(
+    'user-1',
+    targetClinicId,
+  );
 });
 
 test('rejects revoked sessions before checking clinic access', async () => {
@@ -55,5 +69,5 @@ test('rejects revoked sessions before checking clinic access', async () => {
   const response = await POST(request);
 
   expect(response.status).toBe(401);
-  expect(limit).not.toHaveBeenCalled();
+  expect(mockFindUserProfileById).not.toHaveBeenCalled();
 });

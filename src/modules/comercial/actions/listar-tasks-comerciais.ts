@@ -9,12 +9,11 @@ export const listarTasksComerciais = defineAction({
   requires: 'comercial:view',
   label: 'Listar tasks comerciais',
   input: z.object({
-    clinicId: z.string().uuid(),
     leadId: z.string().uuid().optional(),
     status: z.string().optional(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    const tasks = await listarTasks(input.clinicId, {
+  handler: async (input, ctx: ActionContext) => {
+    const tasks = await listarTasks(ctx.clinicId, {
       leadId: input.leadId,
       status: input.status,
     });

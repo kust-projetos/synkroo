@@ -97,6 +97,8 @@ describeOrSkip('assignUserAccess — anti-lockout (DB real)', () => {
     await db.delete(userClinicAccess).where(eq(userClinicAccess.userId, otherOwnerId));
     await db.delete(users).where(eq(users.id, soloOwnerId));
     await db.delete(users).where(eq(users.id, otherOwnerId));
+    await db.insert(userClinicAccess).values({ userId: ownerUserId, clinicId: CLINIC, roleId: ownerRoleId })
+      .onConflictDoUpdate({ target: [userClinicAccess.userId, userClinicAccess.clinicId], set: { roleId: ownerRoleId, revokedAt: null, expiresAt: null } });
   });
 
   it('bloqueia rebaixar o último Owner', async () => {

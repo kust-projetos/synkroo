@@ -36,7 +36,7 @@ describe('Core UI Server Actions', () => {
   });
 
   it('assignUserAccessAction builds context with activeClinicId and runs action', async () => {
-    const input = { userId: 'u1', clinicId: 'clinic-1', roleId: 'r1' };
+    const input = { userId: 'u1', roleId: 'r1' };
     await assignUserAccessAction('clinic-1', input);
 
     expect(buildUserContext).toHaveBeenCalledWith('clinic-1');
@@ -48,7 +48,7 @@ describe('Core UI Server Actions', () => {
   });
 
   it('createRoleAction builds context with activeClinicId and runs action', async () => {
-    const input = { clinicId: 'clinic-1', name: 'Role 1', permissionKeys: [] };
+    const input = { name: 'Role 1', permissionKeys: [] };
     await createRoleAction('clinic-1', input);
 
     expect(buildUserContext).toHaveBeenCalledWith('clinic-1');
@@ -82,7 +82,7 @@ describe('Core UI Server Actions', () => {
   });
 
   it('removeUserAccessAction builds context with activeClinicId and runs action', async () => {
-    const input = { userId: 'u1', clinicId: 'clinic-1' };
+    const input = { userId: 'u1' };
     await removeUserAccessAction('clinic-1', input);
 
     expect(buildUserContext).toHaveBeenCalledWith('clinic-1');
@@ -94,7 +94,7 @@ describe('Core UI Server Actions', () => {
   });
 
   it('deactivateUserAction builds context with activeClinicId and runs action', async () => {
-    const input = { userId: 'u1', clinicId: 'clinic-1' };
+    const input = { userId: 'u1' };
     await deactivateUserAction('clinic-1', input);
 
     expect(buildUserContext).toHaveBeenCalledWith('clinic-1');

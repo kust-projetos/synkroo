@@ -21,7 +21,7 @@ export function UserAccessForm({ clinicId, users, roles }: Props) {
     e.preventDefault();
     setError(null);
     setResult(null);
-    const res = await assignUserAccessAction(clinicId, { userId, clinicId, roleId });
+    const res = await assignUserAccessAction(clinicId, { userId, roleId });
     if (res.ok) {
       setResult('Acesso concedido com sucesso.');
       setUserId('');

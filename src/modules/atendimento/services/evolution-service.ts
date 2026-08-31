@@ -11,7 +11,7 @@
 import { EventEmitter } from 'events';
 import { dbLogger, whatsappLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db/client';
-import { whatsappInstances } from '@/lib/db/schema';
+import { whatsappInstances } from '@/modules/atendimento/schema/integrations';
 import { eq } from 'drizzle-orm';
 
 export interface EvolutionInstance {

@@ -14,7 +14,7 @@ import { roles, userClinicAccess, rolePermissions } from '@/modules/core/schema/
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { registerActions } from '@/core/actions/registry';
 import { registerAccessPermissions } from '@/core/rbac/catalog';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 const CLINIC = '00000000-0000-0000-0000-000000000001';
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -40,6 +40,11 @@ beforeAll(async () => {
   // Remove stale roles so seedRbacForClinic recreates them with current catalog
   const existingRoles = await db.select({ id: roles.id, name: roles.name }).from(roles)
     .where(eq(roles.clinicId, CLINIC));
+  const existingRoleIds = existingRoles.map((role) => role.id);
+  if (existingRoleIds.length) {
+    // The tenant-composite FK is RESTRICT: clear stale memberships before recreating roles.
+    await db.delete(userClinicAccess).where(inArray(userClinicAccess.roleId, existingRoleIds));
+  }
   for (const role of existingRoles) {
     await db.delete(rolePermissions).where(eq(rolePermissions.roleId, role.id));
   }

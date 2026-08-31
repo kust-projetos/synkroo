@@ -2,10 +2,9 @@ import type { NextAuthOptions, Session, User } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import { getDb } from '@/lib/db/client';
-import { revokeUserSession } from '@/repositories/auth';
+import { findUserProfileById, revokeUserSession } from '@/repositories/auth';
 import { normalizeEmail } from '@/lib/validations/common';
 import { users, userCredentials } from '@/lib/db/schema';
-import { userClinicAccess } from '@/modules/core/schema/rbac';
 import { eq, and } from 'drizzle-orm';
 
 /**
@@ -47,14 +46,21 @@ export const authOptions: NextAuthOptions = {
           const { verifyPassword } = await import('@/lib/auth/password');
           if (!verifyPassword(plainPassword, passwordHash)) return null;
 
+          // The default clinic is only the initial candidate. Authorization
+          // still requires an active membership and resolves the effective
+          // role from user_clinic_access.
+          const profile = await findUserProfileById(user.id, user.clinicId);
+          if (!profile) return null;
+
           return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            clinicId: user.clinicId,
-            role: user.role,
-            isActive: user.isActive,
-            sessionVersion: user.sessionVersion,
+            id: profile.id,
+            email: profile.email,
+            name: profile.name,
+            clinicId: profile.clinicId,
+            role: profile.role,
+            roleId: profile.roleId,
+            isActive: profile.isActive,
+            sessionVersion: profile.sessionVersion,
           };
         } catch {
           return null;
@@ -80,29 +86,23 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.clinicId = user.clinicId;
         token.role = user.role;
+        token.roleId = user.roleId;
         token.isActive = user.isActive;
         token.sessionVersion = user.sessionVersion;
       }
       if (trigger === 'update') {
         try {
-          const db = getDb();
-          const [freshUser] = await db
-            .select()
-            .from(users)
-            .where(eq(users.id, token.id!))
-            .limit(1);
-          if (freshUser) {
-            token.clinicId = freshUser.clinicId ?? undefined;
-            if (session?.user?.clinicId) {
-              const [access] = await db.select({ clinicId: userClinicAccess.clinicId })
-                .from(userClinicAccess)
-                .where(and(eq(userClinicAccess.userId, token.id!), eq(userClinicAccess.clinicId, session.user.clinicId)))
-                .limit(1);
-              if (access) token.clinicId = access.clinicId;
+          const requestedClinicId = session?.user?.clinicId;
+          const targetClinicId = requestedClinicId || token.clinicId;
+          if (token.id && targetClinicId) {
+            const freshProfile = await findUserProfileById(token.id, targetClinicId);
+            if (freshProfile) {
+              token.clinicId = freshProfile.clinicId;
+              token.role = freshProfile.role;
+              token.roleId = freshProfile.roleId;
+              token.isActive = freshProfile.isActive;
+              token.sessionVersion = freshProfile.sessionVersion;
             }
-            token.role = freshUser.role ?? undefined;
-            token.isActive = freshUser.isActive ?? undefined;
-            token.sessionVersion = freshUser.sessionVersion ?? undefined;
           }
         } catch {
           // Swallow
@@ -115,6 +115,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id || '';
         session.user.clinicId = token.clinicId || '';
         session.user.role = token.role || '';
+        session.user.roleId = token.roleId || '';
         session.user.isActive = token.isActive ?? true;
         session.user.sessionVersion = token.sessionVersion ?? 0;
       }

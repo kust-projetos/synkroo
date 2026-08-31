@@ -4,7 +4,7 @@ import { runAtendimentoSystemAction } from '@/modules/atendimento/ui/route-adapt
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { resolveChannelInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 
 async function handlePOST(request: NextRequest) {
   const clientId = getClientIdentifier(request);
@@ -21,14 +21,21 @@ async function handlePOST(request: NextRequest) {
 
   const from = typeof body?.from === 'string' ? body.from : '';
   const message = typeof body?.message === 'string' ? body.message : '';
-  if (!from || !message) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+  const externalMessageId = typeof body?.externalMessageId === 'string' ? body.externalMessageId : '';
+  const channel = body?.channel === 'whatsapp' || body?.channel === 'web' ? body.channel : null;
+  if (!from || !message || !externalMessageId || !channel) {
+    return NextResponse.json({ error: 'Missing or invalid inbound fields' }, { status: 400 });
+  }
 
   return runAtendimentoSystemAction(receberMensagem, {
-    from,
+    externalConversationId: from,
+    externalProvider: 'webhook',
+    externalMessageId,
     message,
-    channel: typeof body?.channel === 'string' ? body.channel : 'web',
+    channel,
+    messageType: 'text',
     metadata: typeof body?.metadata === 'object' && body.metadata !== null ? body.metadata : undefined,
   }, installation.clinicId, { okStatus: 201 });
 }
 
-export const POST = withModuleRoute('atendimento', moduleManifest)(handlePOST);
+export const POST = withModuleRoute('atendimento')(handlePOST);

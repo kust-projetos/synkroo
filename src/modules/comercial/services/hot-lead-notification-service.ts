@@ -1,8 +1,7 @@
 /**
  * Comercial module — hot lead notification service.
  *
- * Resolves recipients and dispatches notifications via
- * atendimento.enviarMensagemDireta (not sendWhatsAppMessage).
+ * Resolves recipients and enqueues notifications for Atendimento.
  *
  * Recipient resolution:
  * 1. Lead's assigned user (if active and has phone)
@@ -18,36 +17,31 @@ interface HotLeadRow {
   status?: string | null;
 }
 
-import { runAction } from '@/core/actions/run';
-import { buildSystemContext } from '@/core/actions/context';
 import { listLeadsByClinic } from '../repositories/leads-repository';
 import { createTask } from '../repositories/tasks-repository';
 import { insertActivity } from '../repositories/activities-repository';
 import { dbLogger } from '@/lib/logger';
 import { listActivitiesByLead } from '../repositories/activities-repository';
-import { enviarMensagemDireta } from '@/modules/atendimento/actions';
-import { listClinicUsers } from '@/modules/core/actions';
+import { listClinicUsers } from '@/modules/core/public';
+import { getDb } from '@/lib/db/client';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
+import { OUTBOX_OPERATIONS } from '@/lib/outbox/operations';
 
 async function findRecipientPhone(clinicId: string, assignedTo?: string | null): Promise<string | null> {
-  const ctx = await buildSystemContext(clinicId);
+  const users = await listClinicUsers(clinicId);
 
   // 1. Try assigned user
   if (assignedTo) {
-    const userResult = await runAction(listClinicUsers, {}, ctx);
-    if (userResult.ok) {
-      const users = (userResult.data as unknown as { users: Array<{ id: string; phone: string | null; isActive: boolean }> }).users;
-      const assigned = users.find((u: { id: string; phone: string | null; isActive: boolean }) => u.id === assignedTo && u.isActive && u.phone);
-      if (assigned?.phone) return assigned.phone;
-    }
+    const assigned = users.find((user) => user.id === assignedTo && user.isActive && user.phone);
+    if (assigned?.phone) return assigned.phone;
   }
 
   // 2. Fallback: find first active Owner/Admin with phone
-  const usersResult = await runAction(listClinicUsers, {}, ctx);
-  if (usersResult.ok) {
-    const users = (usersResult.data as unknown as { users: Array<{ id: string; role: string; phone: string | null; isActive: boolean }> }).users;
-    const admin = users.find((u: { role: string; isActive: boolean; phone: string | null }) => (u.role === 'owner' || u.role === 'admin') && u.isActive && u.phone);
-    if (admin?.phone) return admin.phone;
-  }
+  const admin = users.find((user) => {
+    const role = (user.roleName ?? '').toLowerCase();
+    return (role === 'owner' || role === 'admin' || role === 'administrador') && user.isActive && user.phone;
+  });
+  if (admin?.phone) return admin.phone;
 
   return null;
 }
@@ -55,7 +49,7 @@ async function findRecipientPhone(clinicId: string, assignedTo?: string | null):
 async function hasRecentNotification(leadId: string): Promise<boolean> {
   const activities = await listActivitiesByLead(leadId);
   const recent = activities.find((a) => {
-    if (a.activityType !== 'hot_lead_notified') return false;
+    if (a.activityType !== 'hot_lead_notified' && a.activityType !== 'hot_lead_notification_queued') return false;
     const diff = Date.now() - new Date(a.createdAt!).getTime();
     return diff < 24 * 60 * 60 * 1000; // 24h
   });
@@ -72,7 +66,6 @@ export async function processarNotificacoesLeadsQuentesHandler(input: {
 }): Promise<HotNotificationResult> {
   const { clinicId } = input;
   const leads = await listLeadsByClinic(clinicId);
-  const ctx = await buildSystemContext(clinicId);
 
   let notified = 0;
   let skipped = 0;
@@ -110,24 +103,28 @@ export async function processarNotificacoesLeadsQuentesHandler(input: {
       continue;
     }
 
-    // Send notification via atendimento.enviarMensagemDireta
+    // Queue the external effect; Atendimento owns delivery.
     const msg = `🔥 Lead quente! ${lead.name} (${lead.score}pts). Fonte: ${lead.source}`;
-    const result = await runAction(enviarMensagemDireta, {
-      channel: 'whatsapp',
-      externalId: phone,
-      message: msg,
-    }, ctx);
-
-    if (result.ok) {
+    try {
+      await getDb().transaction((tx) => enqueueOutbox(tx, {
+        clinicId,
+        operation: OUTBOX_OPERATIONS.ATENDIMENTO_OUTBOUND_MESSAGE,
+        businessKey: `hot-lead:${lead.id}:${new Date().toISOString().slice(0, 10)}`,
+        payload: {
+          channel: 'whatsapp',
+          externalId: phone,
+          message: msg,
+        },
+      }));
       await insertActivity({
         leadId: lead.id,
-        activityType: 'hot_lead_notified',
-        description: `Notified via WhatsApp to ${phone}`,
-        metadata: { phone, score: lead.score },
+        activityType: 'hot_lead_notification_queued',
+        description: 'Hot lead notification queued for WhatsApp delivery',
+        metadata: { score: lead.score },
       });
       notified++;
-    } else {
-      dbLogger.error('hot_lead_notification_failed', { leadId: lead.id, error: result.error });
+    } catch (error) {
+      dbLogger.error('hot_lead_notification_queue_failed', { leadId: lead.id, error });
       skipped++;
     }
   }

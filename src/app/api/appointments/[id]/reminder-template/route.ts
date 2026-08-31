@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { obterModeloLembrete } from '@/modules/operacional/actions/obter-modelo-lembrete';
 
@@ -16,7 +16,7 @@ async function handlePOST(request: NextRequest, { params }: RouteParams): Promis
   return runActionRoute(obterModeloLembrete, { id, mode: 'preview' });
 }
 
-const wrappedGET = withModuleRoute('operacional', moduleManifest)(handleGET);
-const wrappedPOST = withModuleRoute('operacional', moduleManifest)(handlePOST);
+const wrappedGET = withModuleRoute('operacional')(handleGET);
+const wrappedPOST = withModuleRoute('operacional')(handlePOST);
 
 export { wrappedGET as GET, wrappedPOST as POST };

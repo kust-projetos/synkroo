@@ -8,10 +8,8 @@ export const processarNotificacoesLeadsQuentes = defineAction({
   module: 'comercial',
   requires: 'comercial:manage_hot_leads',
   label: 'Processar notificações de leads quentes',
-  input: z.object({
-    clinicId: z.string().uuid(),
-  }),
-  handler: async (input, _ctx: ActionContext) => {
-    return processarNotificacoesLeadsQuentesHandler({ clinicId: input.clinicId });
+  input: z.object({}),
+  handler: async (_input, ctx: ActionContext) => {
+    return processarNotificacoesLeadsQuentesHandler({ clinicId: ctx.clinicId });
   },
 });

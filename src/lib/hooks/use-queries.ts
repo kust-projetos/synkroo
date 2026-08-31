@@ -555,19 +555,20 @@ export function useFinanceDashboard() {
 }
 
 /**
- * Budget status update mutation
+ * Budget status update mutation — canonical (T5): PUT budgets id (no status phantom)
  */
 export function useUpdateBudgetStatus() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: async (input: { id: string; status: string }) => {
-      const res = await fetch(`/api/financeiro/budgets/${input.id}/status`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/financeiro/budgets/${input.id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: input.status }),
       })
       if (!res.ok) throw new Error('Failed to update budget status')
-      return res.json()
+      const json: any = await res.json()
+      return json.data ?? json
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['financeiro', 'budgets'] })

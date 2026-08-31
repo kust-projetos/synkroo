@@ -1,7 +1,12 @@
-// Aciona o ia-agent (DO) e o ia-bridge a partir do app OpenNext.
+// Aciona o ia-agent (DO) e o issuer do ia-bridge a partir do app OpenNext.
 // NÃO importar 'agents' (não existe no bundle do app — spike P4-A NO-GO).
-// Caminho validado: env.IA_BRIDGE.issueHandle + env.AGENT.idFromName().get().runTurn() (spike P4-B GO).
-import type { RunTurnResult, PersonaType } from '@/core/ia-agent/types';
+// O app só recebe o capability de emitir handles; o executor fica no agent.
+import {
+  BRIDGE_RPC_VERSION,
+  type HandleIssuerBinding,
+  type IssueHandleResult,
+} from '@/core/agent-bridge/rpc-contract';
+import type { PersonaType, RunTurnInput, RunTurnResult } from '@/core/ia-agent/types';
 
 // Fallback quando o DO/bridge falha ou estoura o timeout (anti-hang / worker-cancel).
 // Contrato: invokeAgentWithEnv SEMPRE resolve com um RunTurnResult controlado;
@@ -26,32 +31,12 @@ function resolveRpcTimeoutMs(): number {
   return DEFAULT_MS;
 }
 
-interface IaBridgeRpc {
-  issueHandle(input: {
-    clinicId: string;
-    conversationId: string;
-    principalRef: string;
-    source: 'system' | 'agent_delegated';
-    ttlSeconds?: number;
-  }): Promise<{ handle: string }>;
-}
-
 interface AgentStub {
-  runTurn(input: {
-    handle: string;
-    conversationId: string;
-    source: 'system' | 'agent_delegated';
-    personaType: PersonaType;
-    context: string;
-    timezone: string;
-    userMessage: string;
-    confirmedToken?: string;
-    identityVerifiedToken?: string;
-  }): Promise<RunTurnResult>;
+  runTurn(input: Omit<RunTurnInput, 'history' | 'pendingAction'>): Promise<RunTurnResult>;
 }
 
 export interface AgentEnv {
-  IA_BRIDGE: IaBridgeRpc;
+  IA_HANDLE_ISSUER: HandleIssuerBinding;
   AGENT: {
     idFromName(name: string): unknown;
     get(id: unknown): AgentStub;
@@ -87,13 +72,18 @@ export async function invokeAgentWithEnv(
 
   const runOnce = async (): Promise<RunTurnResult> => {
     // 1. handle (ia-bridge é a autoridade do principal)
-    const { handle } = await env.IA_BRIDGE.issueHandle({
+    const issued: IssueHandleResult = await env.IA_HANDLE_ISSUER.issueHandle({
+      contractVersion: BRIDGE_RPC_VERSION,
       clinicId: input.clinicId,
       conversationId: input.conversationId,
       principalRef: input.principalRef,
       source: input.source,
       ttlSeconds: 120,
     });
+    if (!('handle' in issued) || issued.contractVersion !== BRIDGE_RPC_VERSION) {
+      throw new Error('[agent-invoker] handle issuer contract version mismatch');
+    }
+    const { handle } = issued;
 
     // 2. DO por CONVERSA (shard por conversationId — não por peerId; senão o mesmo usuário
     //    em 2 conversas compartilharia history/pendingAction no DO).

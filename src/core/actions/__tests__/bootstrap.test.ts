@@ -248,28 +248,72 @@ it('every module with an actions/ directory contributes at least 1 action to the
 
 // ─── CRM actions composition lock ────────────────────────────────────────────
 
-it('registers exactly 12 crm.* actions and excludes system-only reprocessarSugestoesDuplicidade', async () => {
+it('registers exactly 15 crm.* actions and excludes system-only reprocessarSugestoesDuplicidade', async () => {
   await bootstrapActions();
   const names = getActions().map((a) => a.name);
 
   const crmActionNames = names.filter((n) => n.startsWith('crm.')).sort();
 
-  expect(crmActionNames).toHaveLength(12);
+  expect(crmActionNames).toHaveLength(15);
   expect(crmActionNames).toEqual([
     'crm.adicionarNotaContato',
     'crm.aprovarSugestaoDuplicidade',
     'crm.atualizarTagsContato',
+    'crm.concederConsentimento',
     'crm.dispensarSugestaoDuplicidade',
     'crm.executarMergeLead',
     'crm.executarMergePatient',
+    'crm.listarConsentimentos',
     'crm.listarContatos',
     'crm.listarNotasContato',
     'crm.listarSugestoesDuplicidade',
     'crm.listarTimelineContato',
     'crm.obterContato',
     'crm.obterSugestaoDuplicidade',
+    'crm.revogarConsentimento',
   ]);
 
   // system-only: NÃO pode estar registrada como ação humana
   expect(names).not.toContain('crm.reprocessarSugestoesDuplicidade');
+});
+
+it('module action barrels are side-effect-free before explicit bootstrap', async () => {
+  resetBootstrapForTests();
+
+  await Promise.all([
+    import('@/modules/core/actions'),
+    import('@/modules/operacional/actions'),
+    import('@/modules/atendimento/actions'),
+    import('@/modules/followup/actions'),
+    import('@/modules/comercial/actions'),
+    import('@/modules/crm/actions'),
+    import('@/modules/financeiro/actions'),
+  ]);
+
+  expect(getActions()).toEqual([]);
+});
+
+it('concurrent bootstrap calls publish the same complete action set once', async () => {
+  resetBootstrapForTests();
+
+  await Promise.all(Array.from({ length: 5 }, () => bootstrapActions()));
+
+  const modules = await Promise.all([
+    import('@/modules/core'),
+    import('@/modules/operacional'),
+    import('@/modules/atendimento'),
+    import('@/modules/followup'),
+    import('@/modules/ia'),
+    import('@/modules/comercial'),
+    import('@/modules/crm'),
+    import('@/modules/financeiro'),
+  ]);
+  const expectedNames = modules.flatMap((module) => {
+    const actions = Object.entries(module).find(([key]) => key.endsWith('Actions'))?.[1];
+    return Array.isArray(actions) ? actions.map((action: { name: string }) => action.name) : [];
+  });
+  const actualNames = getActions().map((action) => action.name);
+
+  expect(new Set(expectedNames).size).toBe(expectedNames.length);
+  expect(actualNames.sort()).toEqual(expectedNames.sort());
 });

@@ -15,10 +15,10 @@
 
 // Shared mock bodies — used by jest.mock factories in each route test.
 export const manifestMock = {
-  moduleManifest: {
-    isEnabled: jest.fn().mockResolvedValue(true),
+  createManifest: () => ({
+      isEnabled: jest.fn().mockResolvedValue(true),
     enabledModules: jest.fn().mockResolvedValue(new Set<string>()),
-  },
+  }),
 };
 
 export const contextMock = {

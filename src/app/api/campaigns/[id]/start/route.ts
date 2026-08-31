@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { startCampaign } from '@/services/followup/campaign.service'
-import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import * as campaignRepo from '@/repositories/campaigns'
 
@@ -16,18 +16,11 @@ export async function POST(
   try {
     const { id: campaignId } = await params
 
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('followup:manage_campaigns')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },
         { status: authResult.error!.status }
-      )
-    }
-
-    if (!hasRequiredRole(authResult.profile!, ['owner', 'admin'])) {
-      return NextResponse.json(
-        { error: 'Only owners and admins can start campaigns' },
-        { status: 403 }
       )
     }
 

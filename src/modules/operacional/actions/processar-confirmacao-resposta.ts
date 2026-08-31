@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { processConfirmationResponse } from '@/services/appointments/confirmation-handler.service';
+import { processConfirmationResponse } from '../services/confirmation-service';
 
 export const processarConfirmacaoResposta = defineAction({
   name: 'operacional.processarConfirmacaoResposta',

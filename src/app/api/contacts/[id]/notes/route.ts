@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runCrmAction } from '@/modules/crm/ui/route-adapter';
 import {
   listarNotasContato,
@@ -59,5 +59,5 @@ async function handlePOST(
   });
 }
 
-export const GET = withModuleRoute('crm', moduleManifest)(handleGET);
-export const POST = withModuleRoute('crm', moduleManifest)(handlePOST);
+export const GET = withModuleRoute('crm')(handleGET);
+export const POST = withModuleRoute('crm')(handlePOST);

@@ -10,6 +10,12 @@
 
 import { findLeadByIdForClinic, updateLead } from '../repositories/leads-repository';
 import { insertActivity } from '../repositories/activities-repository';
+import {
+  agendarConsulta,
+  atualizarPaciente,
+  criarPaciente,
+  obterPaciente,
+} from '@/modules/operacional/public';
 
 // ─── Shared types ──────────────────────────────────────────────────────────────
 
@@ -26,11 +32,19 @@ export interface AgendarAvaliacaoInput {
   procedureId?: string;
   durationMinutes?: number;
   notes?: string;
+  actorUserId?: string | null;
 }
 
 export interface ConverterLeadSemAgendarInput {
   leadId: string;
   clinicId: string;
+  actorUserId?: string | null;
+}
+
+export interface EnsurePatientForLeadInput {
+  leadId: string;
+  clinicId: string;
+  actorUserId: string | null;
 }
 
 // ─── Shared helper: ensure patient exists from lead data ────────────────────────
@@ -45,15 +59,14 @@ export interface ConverterLeadSemAgendarInput {
  * Throws if lead is missing or already converted.
  */
 export async function ensurePatientForLead(
-  leadId: string,
-  clinicId: string,
+  input: EnsurePatientForLeadInput,
 ): Promise<EnsurePatientResult> {
+  const { leadId, clinicId, actorUserId } = input;
   const lead = await findLeadByIdForClinic(leadId, clinicId);
   if (!lead) throw new Error('Lead not found');
   if (lead.status === 'converted') throw new Error('Lead already converted');
 
   let patientId = lead.patientId as string | null;
-  const { criarPaciente, obterPaciente, atualizarPaciente } = await import('../../operacional/public');
 
   if (!patientId) {
     const created = await criarPaciente({
@@ -62,22 +75,23 @@ export async function ensurePatientForLead(
       phone: (lead.phoneNormalized as string) || (lead.phone as string),
       email: (lead.email as string) || undefined,
     });
+    void actorUserId;
     patientId = created.id;
   } else {
     const patient: any = await obterPaciente(clinicId, patientId);
-    if (patient) {
-      const needsUpdate =
-        (lead.name != null && lead.name !== patient.name) ||
-        (lead.phoneNormalized != null && lead.phoneNormalized !== patient.phone);
-      if (needsUpdate) {
-        const patch: Record<string, unknown> = {};
-        if (lead.name != null && lead.name !== patient.name) patch.name = lead.name as string;
-        if (lead.phoneNormalized != null && lead.phoneNormalized !== patient.phone) patch.phone = lead.phoneNormalized as string;
-        await atualizarPaciente(clinicId, patientId, patch);
-      }
+    if (!patient) throw new Error('Patient not found');
+    const needsUpdate =
+      (lead.name != null && lead.name !== patient.name) ||
+      (lead.phoneNormalized != null && lead.phoneNormalized !== patient.phone);
+    if (needsUpdate) {
+      const patch: Record<string, unknown> = {};
+      if (lead.name != null && lead.name !== patient.name) patch.name = lead.name as string;
+      if (lead.phoneNormalized != null && lead.phoneNormalized !== patient.phone) patch.phone = lead.phoneNormalized as string;
+      await atualizarPaciente(clinicId, patientId, patch);
     }
   }
 
+  if (!patientId) throw new Error('Patient resolution failed');
   return { lead, patientId };
 }
 
@@ -85,13 +99,13 @@ export async function ensurePatientForLead(
 
 export async function agendarAvaliacao(input: AgendarAvaliacaoInput) {
   const { leadId, clinicId, scheduledAt, dentistId, procedureId, durationMinutes, notes } = input;
+  const actorUserId = input.actorUserId ?? null;
 
   // 1-2. Resolve patient via public seam (no buildSystemContext, no runAction)
-  const { lead, patientId } = await ensurePatientForLead(leadId, clinicId);
+  const { patientId } = await ensurePatientForLead({ leadId, clinicId, actorUserId });
 
   // 3. Schedule appointment via operacional public seam (tenant-scoped)
-  const { agendarConsulta: agendarPublic } = await import('../../operacional/public');
-  const res = await agendarPublic({ clinicId, patientId, dentistId: dentistId ?? null, procedureId: procedureId ?? null, scheduledAt, durationMinutes: durationMinutes ?? 30, notes });
+  const res = await agendarConsulta({ clinicId, patientId, dentistId: dentistId ?? null, procedureId: procedureId ?? null, scheduledAt, durationMinutes: durationMinutes ?? 30, notes });
   const appointmentId = res.id;
 
   // 4. Convert lead only after successful scheduling
@@ -123,9 +137,10 @@ export async function agendarAvaliacao(input: AgendarAvaliacaoInput) {
  */
 export async function converterLeadSemAgendar(input: ConverterLeadSemAgendarInput) {
   const { leadId, clinicId } = input;
+  const actorUserId = input.actorUserId ?? null;
 
   // 1-2. Resolve patient (shared helper)
-  const { lead, patientId } = await ensurePatientForLead(leadId, clinicId);
+  const { patientId } = await ensurePatientForLead({ leadId, clinicId, actorUserId });
 
   // 3. Convert lead
   await updateLead(leadId, clinicId, {

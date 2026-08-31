@@ -4,7 +4,7 @@ import { handleApiError } from '@/lib/errors'
 import { setPreference, getPreferences } from '@/services/patients/patient-preferences.service'
 import * as patientRepo from '@/repositories/patients'
 import { withModuleRoute } from '@/core/modules/gates'
-import { moduleManifest } from '@/core/modules/manifest'
+import { createManifest } from '@/core/modules/manifest'
 
 const OPERACIONAL_MODULE = 'operacional'
 
@@ -99,9 +99,9 @@ async function handlePUT(request: NextRequest, ctx: RouteParams) {
   return handlePOST(request, ctx)
 }
 
-const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET)
-const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePOST)
-const wrappedPUT = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePUT)
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleGET)
+const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePOST)
+const wrappedPUT = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePUT)
 
 export async function GET(request: NextRequest, ctx: RouteParams) {
   return wrappedGET(request as any, ctx as any)

@@ -8,17 +8,6 @@
  * - already notified in 24h → no send
  */
 
-// All mocks must use inline jest.fn() — no variable references (hoisting)
-jest.mock('@/core/actions/context', () => ({
-  buildSystemContext: jest.fn().mockResolvedValue({
-    clinicId: 'clinic-1',
-    can: () => true,
-    hasModule: () => true,
-    audit: { actor: 'test' },
-  }),
-}));
-jest.mock('@/core/actions/run', () => ({ runAction: jest.fn() }));
-
 jest.mock('../../repositories/leads-repository', () => ({
   listLeadsByClinic: jest.fn(),
 }));
@@ -32,20 +21,28 @@ jest.mock('../../repositories/activities-repository', () => ({
 jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
+jest.mock('@/modules/core/public', () => ({ listClinicUsers: jest.fn() }));
+jest.mock('@/lib/db/client', () => ({
+  getDb: jest.fn(() => ({
+    transaction: jest.fn(async (callback: (tx: unknown) => unknown) => callback({})),
+  })),
+}));
+jest.mock('@/lib/outbox/outbox-repository', () => ({ enqueueOutbox: jest.fn() }));
 
 import { processarNotificacoesLeadsQuentesHandler } from '../../services/hot-lead-notification-service';
 import * as leadsRepo from '../../repositories/leads-repository';
 import * as tasksRepo from '../../repositories/tasks-repository';
 import * as activitiesRepo from '../../repositories/activities-repository';
 
-// Grab mock refs after imports
-const mockRunAction = require('@/core/actions/run').runAction as jest.Mock;
 const mockListLeads = leadsRepo.listLeadsByClinic as jest.Mock;
 const mockCreateTask = tasksRepo.createTask as jest.Mock;
 const mockListActivitiesByLead = activitiesRepo.listActivitiesByLead as jest.Mock;
+const mockListClinicUsers = require('@/modules/core/public').listClinicUsers as jest.Mock;
+const mockEnqueueOutbox = require('@/lib/outbox/outbox-repository').enqueueOutbox as jest.Mock;
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockEnqueueOutbox.mockResolvedValue(undefined);
 });
 
 describe('processarNotificacoesLeadsQuentesHandler', () => {
@@ -70,33 +67,33 @@ describe('processarNotificacoesLeadsQuentesHandler', () => {
   it('notifies when lead has assigned user with active phone', async () => {
     mockListLeads.mockResolvedValue([{ ...hotLead, assignedTo: 'user-1' }]);
     mockListActivitiesByLead.mockResolvedValue([]);
-    // listClinicUsers returns assigned user with phone
-    mockRunAction
-      .mockResolvedValueOnce({ ok: true, data: { users: [{ id: 'user-1', phone: '5511999991111', isActive: true }] } })
-      .mockResolvedValueOnce({ ok: true, data: { success: true } });
+    mockListClinicUsers.mockResolvedValue([
+      { id: 'user-1', phone: '5511999991111', isActive: true, roleName: null },
+    ]);
 
     const result = await processarNotificacoesLeadsQuentesHandler({ clinicId });
 
     expect(result.notified).toBe(1);
-    expect(mockRunAction).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'atendimento.enviarMensagemDireta' }),
-      expect.objectContaining({ externalId: '5511999991111' }),
+    expect(mockEnqueueOutbox).toHaveBeenCalledWith(
       expect.any(Object),
+      expect.objectContaining({
+        operation: 'atendimento.outbound.message',
+        payload: expect.objectContaining({ externalId: '5511999991111' }),
+      }),
     );
   });
 
   it('falls back to first active owner/admin phone', async () => {
     mockListLeads.mockResolvedValue([{ ...hotLead, assignedTo: 'user-1' }]);
     mockListActivitiesByLead.mockResolvedValue([]);
-    // assigned user exists but has no phone → fallback to admin
-    mockRunAction
-      .mockResolvedValueOnce({ ok: true, data: { users: [{ id: 'user-1', phone: null, isActive: true }] } })
-      .mockResolvedValueOnce({ ok: true, data: { users: [{ id: 'admin-1', role: 'admin', phone: '5511999992222', isActive: true }] } })
-      .mockResolvedValueOnce({ ok: true, data: { success: true } });
+    // assigned user exists but has no phone -> fallback to admin
+    mockListClinicUsers.mockResolvedValue([
+      { id: 'user-1', phone: null, isActive: true, roleName: null },
+      { id: 'admin-1', phone: '5511999992222', isActive: true, roleName: 'Admin' },
+    ]);
 
     const result = await processarNotificacoesLeadsQuentesHandler({ clinicId });
 
-    expect(mockRunAction.mock.calls.length).toBeGreaterThanOrEqual(3);
     expect(result.notified).toBe(1);
   });
 
@@ -105,9 +102,9 @@ describe('processarNotificacoesLeadsQuentesHandler', () => {
     mockListActivitiesByLead.mockResolvedValue([]);
     mockCreateTask.mockResolvedValue({ id: 'task-1' });
     // assigned user found but no phone, fallback also empty
-    mockRunAction
-      .mockResolvedValueOnce({ ok: true, data: { users: [{ id: 'user-1', phone: null, isActive: true }] } })
-      .mockResolvedValueOnce({ ok: true, data: { users: [] } });
+    mockListClinicUsers.mockResolvedValue([
+      { id: 'user-1', phone: null, isActive: true, roleName: null },
+    ]);
 
     const result = await processarNotificacoesLeadsQuentesHandler({ clinicId });
 
@@ -124,10 +121,6 @@ describe('processarNotificacoesLeadsQuentesHandler', () => {
     const result = await processarNotificacoesLeadsQuentesHandler({ clinicId });
 
     expect(result.skipped).toBe(1);
-    expect(mockRunAction).not.toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'atendimento.enviarMensagemDireta' }),
-      expect.anything(),
-      expect.anything(),
-    );
+    expect(mockEnqueueOutbox).not.toHaveBeenCalled();
   });
 });

@@ -52,7 +52,7 @@ describe('Comercial Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(pipelineRepo.updateStage).not.toHaveBeenCalled()
   })
@@ -66,7 +66,7 @@ describe('Comercial Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(tasksService.criarTask).not.toHaveBeenCalled()
   })
@@ -80,7 +80,7 @@ describe('Comercial Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
   })
 
@@ -93,7 +93,7 @@ describe('Comercial Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(leadsRepo.updateLead).not.toHaveBeenCalled()
   })
@@ -107,7 +107,7 @@ describe('Comercial Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(tasksService.fecharTask).not.toHaveBeenCalled()
   })
@@ -120,7 +120,7 @@ describe('Comercial Actions — Tenancy fail-closed boundary (RED)', () => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.error.code).toBe('forbidden')
+      expect(res.error.code).toBe('invalid_input')
     }
     expect(pipelineRepo.deleteStage).not.toHaveBeenCalled()
   })

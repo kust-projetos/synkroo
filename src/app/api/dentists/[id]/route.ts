@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { obterDentista } from '@/modules/operacional/actions/obter-dentista';
 import { atualizarDentista } from '@/modules/operacional/actions/atualizar-dentista';
@@ -36,8 +36,8 @@ async function handleDELETE(): Promise<NextResponse> {
   );
 }
 
-const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);
-const wrappedPATCH = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePATCH);
-const wrappedDELETE = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleDELETE);
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleGET);
+const wrappedPATCH = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePATCH);
+const wrappedDELETE = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleDELETE);
 
 export { wrappedGET as GET, wrappedPATCH as PATCH, wrappedDELETE as DELETE };

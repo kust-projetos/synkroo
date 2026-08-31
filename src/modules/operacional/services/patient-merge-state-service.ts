@@ -5,13 +5,13 @@
  * No dispatcher dependency.
  */
 
-import { eq, and, or, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { crmDuplicateSuggestions } from '@/lib/db/schema';
+import { patients } from '@/modules/operacional/schema/patients';
 
 /**
- * Check whether a patient has been merged (has a 'merged' suggestion referencing it).
- * Returns true if a merged suggestion exists where patientId is leftId or rightId.
+ * Check the owner record directly. The CRM suggestion is not the source of
+ * truth for the patient merge state.
  */
 export async function isPatientMerged(
   patientId: string,
@@ -19,16 +19,12 @@ export async function isPatientMerged(
 ): Promise<boolean> {
   const db = getDb();
   const [row] = await db
-    .select({ id: crmDuplicateSuggestions.id })
-    .from(crmDuplicateSuggestions)
+    .select({ id: patients.id })
+    .from(patients)
     .where(and(
-      eq(crmDuplicateSuggestions.clinicId, clinicId),
-      eq(crmDuplicateSuggestions.ownerType, 'patient'),
-      eq(crmDuplicateSuggestions.status, 'merged'),
-      or(
-        eq(crmDuplicateSuggestions.leftId, patientId),
-        eq(crmDuplicateSuggestions.rightId, patientId),
-      ),
+      eq(patients.clinicId, clinicId),
+      eq(patients.id, patientId),
+      sql`${patients.mergeStatus} = 'merged'`,
     ))
     .limit(1);
   return !!row;

@@ -10,48 +10,17 @@
 jest.unmock('@/lib/db/client');
 
 import { resolveAccess } from '../../resolve';
-import type { RbacRepo } from '../../repository';
+import { drizzleRbacRepo } from '../../repository';
 import { seedRbacForClinic } from '@/core/rbac/seed';
 import { bootstrapActions } from '@/core/actions/bootstrap';
 import { getDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema';
-import { roles, userClinicAccess, rolePermissions } from '@/modules/core/schema/rbac';
+import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { eq, and } from 'drizzle-orm';
 
 const CLINIC = '00000000-0000-0000-0000-000000000001';
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
-
-const drizzleRbacRepo: RbacRepo = {
-  getAccess: async (userId: string, clinicId: string) => {
-    const db = getDb();
-    const [row] = await db
-      .select({
-        roleId: userClinicAccess.roleId,
-        roleName: roles.name,
-        isSystem: roles.isSystem,
-      })
-      .from(userClinicAccess)
-      .innerJoin(roles, eq(roles.id, userClinicAccess.roleId))
-      .innerJoin(users, eq(users.id, userClinicAccess.userId))
-      .where(and(
-        eq(userClinicAccess.userId, userId),
-        eq(userClinicAccess.clinicId, clinicId),
-        eq(users.isActive, true), // ← filtro anti-lockout
-      ))
-      .limit(1);
-    if (!row) return null;
-    return { roleId: row.roleId, roleName: row.roleName, isSystem: row.isSystem ?? false };
-  },
-  getRolePermissions: async (roleId: string) => {
-    const db = getDb();
-    const rows = await db.select({ key: rolePermissions.permissionKey })
-      .from(rolePermissions)
-      .where(eq(rolePermissions.roleId, roleId));
-    return rows.map((r) => r.key);
-  },
-  getOverrides: async () => [],
-};
 
 describeOrSkip('resolve-access — usuário inativo com access row (DB real)', () => {
   const ts = String(Date.now()).slice(-8);

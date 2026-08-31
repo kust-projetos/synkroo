@@ -1,5 +1,6 @@
 // 'Owner' é role reservado (bypass total via resolveAccess); aqui só nomeamos.
 export const RESERVED_ROLE_OWNER = 'Owner';
+export const RESERVED_ROLE_OPERATOR = 'Synkroo Operator';
 
 export interface PresetDef {
   name: string;

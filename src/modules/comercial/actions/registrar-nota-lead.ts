@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { ActionError } from '@/core/actions/types';
-import { findLeadByIdForClinic } from '../repositories/leads-repository';
-import { insertActivity } from '../repositories/activities-repository';
+import { registerLeadNote } from '../services/lead-owner-service';
 
 /**
  * Owner-bridge CRM → comercial: registra uma nota na timeline do lead
@@ -22,16 +20,10 @@ export const registrarNotaLead = defineAction({
     leadId: z.string().uuid(),
     description: z.string().min(1),
   }),
-  handler: async (input, ctx: ActionContext) => {
-    const lead = await findLeadByIdForClinic(input.leadId, ctx.clinicId);
-    if (!lead) {
-      throw new ActionError('not_found', 'Lead não encontrado.');
-    }
-    const result = await insertActivity({
-      leadId: input.leadId,
-      activityType: 'note',
-      description: input.description,
-    });
-    return result;
-  },
+  handler: async (input, ctx: ActionContext) => registerLeadNote({
+    clinicId: ctx.clinicId,
+    leadId: input.leadId,
+    content: input.description,
+    actorUserId: ctx.user?.id ?? null,
+  }),
 });

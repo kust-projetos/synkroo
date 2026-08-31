@@ -852,20 +852,20 @@ describe('Financeiro Hooks', () => {
   it('useUpdateBudgetStatus updates status on success and throws on error', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
-      json: async () => ({ success: true }),
+      json: async () => ({ data: { id: 'b-1', status: 'approved' } }),
     });
 
     const { result } = renderHook(() => useUpdateBudgetStatus(), { wrapper: createWrapper() });
 
     await act(async () => {
       const res = await result.current.mutateAsync({ id: 'b-1', status: 'approved' });
-      expect(res).toEqual({ success: true });
+      expect(res).toEqual({ id: 'b-1', status: 'approved' });
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
-      '/api/financeiro/budgets/b-1/status',
+      '/api/financeiro/budgets/b-1',
       expect.objectContaining({
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'approved' }),
       }),

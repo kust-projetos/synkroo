@@ -6,12 +6,10 @@
 import { getDb } from '@/lib/db/client';
 import { appointments, appointmentReminders } from '../schema/appointments';
 import { patients } from '../schema/patients';
-import { conversations } from '@/lib/db/schema';
-import { eq, and, gte, lte } from 'drizzle-orm';
-import { createReminder } from '@/repositories/reminders';
+import { eq, and, gte, lte, or } from 'drizzle-orm';
+import { createQueuedReminder, findAppointmentWithJoins, markReminderTriggered } from '../repositories/reminders-repository';
 import { whatsappLogger } from '@/lib/logger';
-import { getEffectiveConfig, replacePlaceholders } from '@/services/reminders/procedure-reminder-config.service';
-import { findAppointmentWithJoins, markReminderTriggered } from '../repositories/reminders-repository';
+import { getEffectiveConfig, replacePlaceholders } from './procedure-reminder-config-service';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -63,7 +61,7 @@ export async function hasReminderBeenSent(appointmentId: string, reminderType: s
       and(
         eq(appointmentReminders.appointmentId, appointmentId),
         eq(appointmentReminders.reminderType, reminderType),
-        eq(appointmentReminders.status, 'sent'),
+        or(eq(appointmentReminders.status, 'sent'), eq(appointmentReminders.status, 'queued')),
       ),
     )
     .limit(1);
@@ -87,13 +85,6 @@ export async function markReminderSent(
 }
 
 export async function processAllReminders(): Promise<{ processed: number; errors: number }> {
-  const { getAction } = await import('@/core/actions/registry');
-  const { runAction } = await import('@/core/actions/run');
-  const enviarMensagem = getAction('atendimento.enviarMensagem');
-  if (!enviarMensagem) {
-    whatsappLogger.error('processAllReminders: atendimento.enviarMensagem not registered');
-    return { processed: 0, errors: 0 };
-  }
   let processed = 0;
   let errors = 0;
 
@@ -106,47 +97,24 @@ export async function processAllReminders(): Promise<{ processed: number; errors
         if (alreadySent) continue;
 
         const db = getDb();
-        const [patient] = await db.select({ phone: patients.phone }).from(patients).where(eq(patients.id, appt.patientId)).limit(1);
+        const [patient] = await db.select({ phone: patients.phone }).from(patients).where(and(
+          eq(patients.id, appt.patientId),
+          eq(patients.clinicId, appt.clinicId),
+        )).limit(1);
         if (!patient?.phone) {
           whatsappLogger.warn(`No phone for patient ${appt.patientId}, skipping reminder`);
           continue;
         }
 
         const message = `Lembrete: você tem uma consulta agendada em ${hoursBefore}h.`;
-        const systemCtx = {
-          source: 'system' as const,
+        await createQueuedReminder({
           clinicId: appt.clinicId,
-          can: () => true,
-          hasModule: () => true,
-          audit: { actor: 'reminders-cron' },
-        };
-
-        // 1. Get or create conversation for this patient phone
-        const convId = await getOrCreateConversationId(db, appt.clinicId, patient.phone);
-
-        // 2. Send via Action Layer
-        const sendResult = await runAction(enviarMensagem, {
-          conversationId: convId,
-          message,
-          channel: 'whatsapp',
-        }, systemCtx);
-
-        const success = sendResult.ok;
-        const msgId = sendResult.ok ? (sendResult as any).data?.messageId as string | undefined : undefined;
-        const errorMsg = !sendResult.ok ? (sendResult as any).error?.message as string | undefined : undefined;
-
-        await createReminder({
           appointmentId: appt.id,
           reminderType: `h${hoursBefore}`,
-          channel: 'whatsapp',
-          status: success ? 'sent' : 'failed',
-          messageId: success ? msgId : undefined,
-          errorMessage: success ? undefined : errorMsg,
-          sentAt: success ? new Date() : undefined,
+          phone: patient.phone,
+          message,
         });
-
-        if (success) processed++;
-        else errors++;
+        processed++;
       } catch (err) {
         errors++;
         whatsappLogger.error(`Failed to send reminder for appointment ${appt.id}`, { error: err });
@@ -208,34 +176,4 @@ export async function triggerManualReminder(id: string, clinicId: string) {
   const result = await markReminderTriggered(id, clinicId);
   if (!result) return null;
   return { success: true };
-}
-
-// ─── Helper: get-or-create conversation via @/lib/db/schema (no module import) ──
-
-async function getOrCreateConversationId(
-  db: ReturnType<typeof getDb>,
-  clinicId: string,
-  phone: string,
-): Promise<string> {
-  const existing = await db
-    .select({ id: conversations.id })
-    .from(conversations)
-    .where(and(
-      eq(conversations.clinicId, clinicId),
-      eq(conversations.channel, 'whatsapp'),
-      eq(conversations.externalId, phone),
-    ))
-    .limit(1);
-  if (existing.length > 0) return existing[0].id;
-
-  const [conv] = await db
-    .insert(conversations)
-    .values({
-      clinicId,
-      channel: 'whatsapp',
-      externalId: phone,
-      status: 'active',
-    })
-    .returning({ id: conversations.id });
-  return conv.id;
 }

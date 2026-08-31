@@ -7,11 +7,22 @@
 
 import { eq, and, sql, desc } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
+import { OUTBOX_OPERATIONS } from '@/lib/outbox/operations';
 import { leads } from '@/modules/comercial/schema/leads';
 import { pipelineStages } from '@/modules/comercial/schema/pipeline';
 
 export function normalizePhone(v: string): string {
   return v.replace(/\D/g, '');
+}
+
+async function enqueueLeadChanged(tx: unknown, clinicId: string, leadId: string) {
+  await enqueueOutbox(tx, {
+    clinicId,
+    operation: OUTBOX_OPERATIONS.CRM_CONTACT_CHANGED,
+    businessKey: `lead:${leadId}:${globalThis.crypto.randomUUID()}`,
+    payload: { ownerType: 'lead', ownerId: leadId },
+  });
 }
 
 export async function upsertLeadByPhoneNormalized(input: {
@@ -22,30 +33,33 @@ export async function upsertLeadByPhoneNormalized(input: {
   source: string;
 }) {
   const db = getDb();
-  // INSERT with ON CONFLICT using the partial unique index
-  const [row] = await db
-    .insert(leads)
-    .values({
-      clinicId: input.clinicId,
-      name: input.name,
-      phone: input.phone,
-      phoneNormalized: input.phoneNormalized,
-      source: input.source,
-    })
-    .onConflictDoUpdate({
-      target: [leads.clinicId, leads.phoneNormalized],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      targetWhere: sql`${leads.phoneNormalized} IS NOT NULL AND ${leads.phoneNormalized} <> ''` as any,
-      set: {
+  return db.transaction(async (tx: any) => {
+    // INSERT with ON CONFLICT using the partial unique index.
+    const [row] = await tx
+      .insert(leads)
+      .values({
+        clinicId: input.clinicId,
         name: input.name,
         phone: input.phone,
+        phoneNormalized: input.phoneNormalized,
         source: input.source,
-        updatedAt: new Date(),
-      },
-    })
-    .returning({ id: leads.id });
+      })
+      .onConflictDoUpdate({
+        target: [leads.clinicId, leads.phoneNormalized],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        targetWhere: sql`${leads.phoneNormalized} IS NOT NULL AND ${leads.phoneNormalized} <> ''` as any,
+        set: {
+          name: input.name,
+          phone: input.phone,
+          source: input.source,
+          updatedAt: new Date(),
+        },
+      })
+      .returning({ id: leads.id });
 
-  return { id: row.id };
+    await enqueueLeadChanged(tx, input.clinicId, row.id);
+    return { id: row.id };
+  });
 }
 
 export async function findLeadByIdForClinic(leadId: string, clinicId: string) {
@@ -81,13 +95,16 @@ export async function updateLead(
   }>,
 ) {
   const db = getDb();
-  const [row] = await db
-    .update(leads)
-    .set({ ...patch, updatedAt: new Date() })
-    .where(and(eq(leads.id, leadId), eq(leads.clinicId, clinicId)))
-    .returning({ id: leads.id });
-
-  return row ?? null;
+  return db.transaction(async (tx: any) => {
+    const [row] = await tx
+      .update(leads)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(and(eq(leads.id, leadId), eq(leads.clinicId, clinicId)))
+      .returning({ id: leads.id });
+    if (!row) return null;
+    await enqueueLeadChanged(tx, clinicId, row.id);
+    return row;
+  });
 }
 
 export async function findLeadByPhone(phone: string, clinicId: string) {
@@ -151,12 +168,16 @@ export async function updateLeadTags(
   tags: string[],
 ) {
   const db = getDb();
-  const [row] = await db
-    .update(leads)
-    .set({ tags, updatedAt: new Date() })
-    .where(and(eq(leads.id, leadId), eq(leads.clinicId, clinicId)))
-    .returning({ id: leads.id });
-  return row ?? null;
+  return db.transaction(async (tx: any) => {
+    const [row] = await tx
+      .update(leads)
+      .set({ tags, updatedAt: new Date() })
+      .where(and(eq(leads.id, leadId), eq(leads.clinicId, clinicId)))
+      .returning({ id: leads.id });
+    if (!row) return null;
+    await enqueueLeadChanged(tx, clinicId, row.id);
+    return row;
+  });
 }
 
 // ─── Kanban / Stage-joined queries ──────────────────────────────────────────────
@@ -196,7 +217,6 @@ export async function listAllLeadsWithStage(clinicId: string, stageId?: string) 
 // ─── Merge helpers ──────────────────────────────────────────────────────────
 
 import { leadActivities, tasks } from '@/modules/comercial/schema';
-import { budgets, gatewayRoutingRules } from '@/lib/db/schema';
 
 export async function mergeLeads(
   winnerId: string,
@@ -221,17 +241,6 @@ export async function mergeLeads(
       .set({ leadId: winnerId } as any)
       .where(eq(tasks.leadId, loserId));
 
-    // Repoint external FKs
-    await tx.update(budgets)
-      .set({ leadId: winnerId } as any)
-      .where(and(eq(budgets.leadId, loserId), eq(budgets.clinicId, clinicId)));
-    await tx.update(budgets)
-      .set({ convertedFromLeadId: winnerId } as any)
-      .where(and(eq(budgets.convertedFromLeadId, loserId), eq(budgets.clinicId, clinicId)));
-    await tx.update(gatewayRoutingRules)
-      .set({ leadId: winnerId } as any)
-      .where(and(eq(gatewayRoutingRules.leadId, loserId), eq(gatewayRoutingRules.clinicId, clinicId)));
-
     // Soft-merge loser
     await tx.update(leads)
       .set({
@@ -244,6 +253,8 @@ export async function mergeLeads(
         updatedAt: new Date(),
       } as any)
       .where(eq(leads.id, loserId));
+
+    await enqueueLeadChanged(tx, clinicId, winnerId);
   });
 
   return true;

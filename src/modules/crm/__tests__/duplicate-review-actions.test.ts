@@ -81,7 +81,7 @@ describe('CRM duplicate review actions', () => {
     mockListSuggestions.mockResolvedValue([suggestionFixture]);
 
     const result = await listarSugestoesDuplicidade.handler(
-      { clinicId: anyClinic },
+      {},
       context,
     );
 

@@ -4,7 +4,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runCrmAction } from '@/modules/crm/ui/route-adapter';
 import { listarTimelineContato } from '@/modules/crm/actions';
 
@@ -24,4 +24,4 @@ async function handleGET(
   return runCrmAction(listarTimelineContato, { type: typeRaw, id });
 }
 
-export const GET = withModuleRoute('crm', moduleManifest)(handleGET);
+export const GET = withModuleRoute('crm')(handleGET);

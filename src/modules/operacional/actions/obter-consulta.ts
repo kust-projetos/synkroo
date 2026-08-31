@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
-import * as repo from '@/repositories/appointments';
+import * as repo from '../repositories/appointments-repository';
 
 export const obterConsulta = defineAction({
   name: 'operacional.obterConsulta',

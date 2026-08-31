@@ -1,7 +1,6 @@
 import { buildUserContext, buildDelegatedContext, buildSystemContext, buildCronContext } from '../context';
 
 const rbac = {
-  isMaster: async () => false,
   getAccess: async () => ({ roleId: 'r', roleName: 'Recepcionista', isSystem: true }),
   getRolePermissions: async () => ['operacional:create'],
   getOverrides: async () => [],

@@ -20,8 +20,8 @@ export function ClinicUsersTable({ clinicId, users }: { clinicId: string; users:
     setMessage(null);
     setError(null);
     const result = action === 'remove'
-      ? await removeUserAccessAction(clinicId, { userId, clinicId })
-      : await deactivateUserAction(clinicId, { userId, clinicId });
+      ? await removeUserAccessAction(clinicId, { userId })
+      : await deactivateUserAction(clinicId, { userId });
     if (result.ok) setMessage(action === 'remove' ? 'Acesso removido.' : 'Usuário desativado.');
     else setError(result.error.message);
   }

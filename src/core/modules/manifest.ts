@@ -15,7 +15,26 @@ export const ALWAYS_ON_MODULES = new Set<string>(['core']);
 export function makeManifest(repo: ModuleManifestRepo): ModuleManifest {
   let cache: Set<string> | null = null;
   async function load(): Promise<Set<string>> {
-    if (!cache) cache = new Set([...ALWAYS_ON_MODULES, ...(await repo.getEnabledModuleIds())]);
+    if (!cache) {
+      const { moduleDependencies } = await import('./definitions');
+      const configured = new Set([...ALWAYS_ON_MODULES, ...(await repo.getEnabledModuleIds())]);
+      const effective = new Set<string>(ALWAYS_ON_MODULES);
+      const visiting = new Set<string>();
+      const canEnable = (moduleId: string): boolean => {
+        if (ALWAYS_ON_MODULES.has(moduleId)) return true;
+        if (!configured.has(moduleId)) return false;
+        if (effective.has(moduleId)) return true;
+        if (visiting.has(moduleId)) return false;
+        visiting.add(moduleId);
+        const dependencies = moduleDependencies[moduleId] ?? [];
+        const enabled = dependencies.every(canEnable);
+        visiting.delete(moduleId);
+        if (enabled) effective.add(moduleId);
+        return enabled;
+      };
+      for (const moduleId of configured) canEnable(moduleId);
+      cache = effective;
+    }
     return cache;
   }
   return {
@@ -45,14 +64,8 @@ export const drizzleManifestRepo: ModuleManifestRepo = {
   },
 };
 
-// Factory para manifesto por escopo (request/batch) — sem cache global stale entre requests/isolates (W9.1)
+// Factory para manifesto por escopo (request/batch) — sem cache global stale entre requests/isolates (W9.1/T6)
 // Uso: const manifest = createManifest(); // uma por request/cron batch
 export function createManifest(): ModuleManifest {
   return makeManifest(drizzleManifestRepo);
 }
-// Legado: singleton removido em W9.1 — manter alias para compatibilidade de testes que ainda importam, mas sem cache cross-request
-// Cada import do singleton agora cria nova instância por invocação via getter
-export const moduleManifest: ModuleManifest = {
-  async isEnabled(id: string) { return createManifest().isEnabled(id); },
-  async enabledModules() { return createManifest().enabledModules(); },
-};

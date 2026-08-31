@@ -28,10 +28,12 @@ export async function syncRolePermissions(
   keys: string[],
 ): Promise<void> {
   if (!keys.length) return;
+  const safeKeys = keys.filter((key) => !key.startsWith('master:'));
+  if (!safeKeys.length) return;
   await db
     .insert(rolePermissions)
     .values(
-      keys.map((permissionKey) => ({ roleId, permissionKey })),
+      safeKeys.map((permissionKey) => ({ roleId, permissionKey })),
     )
     .onConflictDoNothing();
 }

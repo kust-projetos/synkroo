@@ -10,7 +10,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { assertClinicScope } from '@/core/actions/tenant-scope';
 
 export const processarWebhookWhatsApp = defineAction({
   name: 'atendimento.processarWebhookWhatsApp',

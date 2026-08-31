@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { reordenarEtapasPipeline } from '@/modules/comercial/actions/reordenar-etapas-pipeline';
 
@@ -14,4 +14,4 @@ const handlePatch = async (request: NextRequest) => {
   return runComercialAction(reordenarEtapasPipeline, { stages });
 };
 
-export const PATCH = withModuleRoute('comercial', moduleManifest)(handlePatch);
+export const PATCH = withModuleRoute('comercial')(handlePatch);

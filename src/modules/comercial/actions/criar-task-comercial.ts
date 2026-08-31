@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { assertClinicScope } from '@/core/actions/tenant-scope';
 import { criarTask } from '../services/tasks-service';
 
 export const criarTaskComercial = defineAction({
@@ -10,7 +9,6 @@ export const criarTaskComercial = defineAction({
   requires: 'comercial:manage_tasks',
   label: 'Criar task comercial',
   input: z.object({
-    clinicId: z.string().uuid(),
     leadId: z.string().uuid().optional(),
     title: z.string().min(1),
     description: z.string().optional(),
@@ -19,9 +17,9 @@ export const criarTaskComercial = defineAction({
     assignedTo: z.string().uuid().optional(),
   }),
   handler: async (input, ctx: ActionContext) => {
-    assertClinicScope(input.clinicId, ctx);
     return criarTask({
       ...input,
+      clinicId: ctx.clinicId,
       leadId: input.leadId ?? null,
       description: input.description ?? null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,

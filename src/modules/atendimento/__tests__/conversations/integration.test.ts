@@ -348,7 +348,12 @@ describeOrSkip('Atendimento — conversation actions (F3)', () => {
     const { receberMensagem } = await import('../../actions/receber-mensagem');
     const { runAction } = await import('@/core/actions/run');
     const result = await runAction(receberMensagem, {
-      from: '+5511999998888', message: 'Olá, preciso agendar', channel: 'whatsapp',
+      externalConversationId: '+5511999998888',
+      externalProvider: 'test',
+      externalMessageId: 'conversation-inbound-1',
+      message: 'Olá, preciso agendar',
+      channel: 'whatsapp',
+      messageType: 'text',
     }, ctx);
     expect(result.ok).toBe(true);
     const data = (result as any).data;

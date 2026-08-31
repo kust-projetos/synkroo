@@ -10,6 +10,7 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: [
     '**/modules/followup/__tests__/inactive/integration.test.ts',
+    '**/modules/followup/services/__tests__/inactive-service.test.ts',
     '**/modules/financeiro/__tests__/installments-scope/integration.test.ts',
     '**/modules/financeiro/__tests__/collection-scope/integration.test.ts',
     '**/modules/crm/__tests__/duplicate-execution.integration.test.ts',

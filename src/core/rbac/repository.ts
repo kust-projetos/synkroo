@@ -9,7 +9,7 @@ export interface RbacRepo {
 // ── Drizzle implementation ──
 
 import { getDb } from '@/lib/db/client';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, gt, isNull, or } from 'drizzle-orm';
 import { users } from '@/lib/db/schema/core';
 import { roles, rolePermissions, userClinicAccess, userPermissionOverrides } from '@/modules/core/schema/rbac';
 
@@ -18,12 +18,17 @@ export const drizzleRbacRepo: RbacRepo = {
     const r = await getDb()
       .select({ roleId: roles.id, roleName: roles.name, isSystem: roles.isSystem })
       .from(userClinicAccess)
-      .innerJoin(roles, eq(roles.id, userClinicAccess.roleId))
+      .innerJoin(roles, and(
+        eq(roles.id, userClinicAccess.roleId),
+        eq(roles.clinicId, userClinicAccess.clinicId),
+      ))
       .innerJoin(users, eq(users.id, userClinicAccess.userId))
       .where(and(
         eq(userClinicAccess.userId, userId),
         eq(userClinicAccess.clinicId, clinicId),
         eq(users.isActive, true),
+        isNull(userClinicAccess.revokedAt),
+        or(isNull(userClinicAccess.expiresAt), gt(userClinicAccess.expiresAt, new Date())),
       ))
       .limit(1);
     return r[0] ?? null;

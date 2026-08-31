@@ -6,7 +6,7 @@ import {
   createReactivationCampaign,
 } from '@/services/followup/campaign.service'
 import { getInactivityStats } from '@/services/followup/inactive-patient.service'
-import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
+import { validateApiAuth } from '@/lib/auth/session'
 import { createCampaignSchema } from '@/lib/validations'
 import { handleApiError, ValidationError } from '@/lib/errors'
 
@@ -16,18 +16,11 @@ import { handleApiError, ValidationError } from '@/lib/errors'
  */
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('followup:view')
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
     const clinicId = authResult.profile!.clinic_id
-
-    if (!hasRequiredRole(authResult.profile!, ['owner', 'admin', 'dentist', 'receptionist'])) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions' },
-        { status: 403 }
-      )
-    }
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || undefined
@@ -46,18 +39,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('followup:manage_campaigns')
     if (!authResult.success) {
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     }
     const clinicId = authResult.profile!.clinic_id
-
-    if (!hasRequiredRole(authResult.profile!, ['owner', 'admin'])) {
-      return NextResponse.json(
-        { error: 'Only owners and admins can create campaigns' },
-        { status: 403 }
-      )
-    }
 
     const rawBody = await request.json()
     const body = createCampaignSchema.parse(rawBody)

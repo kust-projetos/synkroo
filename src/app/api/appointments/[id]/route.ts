@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { withModuleRoute } from '@/core/modules/gates'
-import { moduleManifest } from '@/core/modules/manifest'
+import { createManifest } from '@/core/modules/manifest'
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter'
 import { obterConsulta } from '@/modules/operacional/actions/obter-consulta'
 import { atualizarConsulta } from '@/modules/operacional/actions/atualizar-consulta'
@@ -27,9 +27,9 @@ async function handlePATCH(request: NextRequest, ctx: RouteParams) {
   return handlePUT(request, ctx)
 }
 
-const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET)
-const wrappedPUT = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePUT)
-const wrappedPATCH = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePATCH)
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleGET)
+const wrappedPUT = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePUT)
+const wrappedPATCH = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePATCH)
 
 export function GET(request: NextRequest, ctx: RouteParams) {
   return wrappedGET(request as any, ctx as any)
@@ -46,7 +46,7 @@ async function handleDELETE(_request: NextRequest, { params }: RouteParams) {
   return runActionRoute(cancelarConsulta, { id })
 }
 
-const wrappedDELETE = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleDELETE)
+const wrappedDELETE = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleDELETE)
 
 export function DELETE(request: NextRequest, ctx: RouteParams) {
   return wrappedDELETE(request as any, ctx as any)

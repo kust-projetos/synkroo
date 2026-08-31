@@ -1,9 +1,9 @@
 /**
  * Follow-up module — action exports.
- * Actions are self-registering via the action registry.
+ * This barrel only exports Action definitions. Registration belongs exclusively
+ * to the composition root in src/core/actions/bootstrap.ts.
  */
 
-import { registerActions } from '@/core/actions/registry';
 import { executarFollowup } from './executar-followup';
 import { registrarFollowup } from './registrar-followup';
 import { listarPendentes } from './listar-pendentes';
@@ -27,17 +27,3 @@ export * from './listar-segmentos';
 export * from './listar-orcamentos-pendentes';
 export * from './executar-followup-orcamentos';
 export * from './listar-tratamentos-incompletos';
-
-registerActions([
-  executarFollowup,
-  registrarFollowup,
-  listarPendentes,
-  detectarInativos,
-  listarInativos,
-  reativarPaciente,
-  executarCampanhas,
-  listarSegmentos,
-  listarOrcamentosPendentes,
-  executarFollowupOrcamentos,
-  listarTratamentosIncompletos,
-]);

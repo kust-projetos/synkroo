@@ -9,7 +9,12 @@
 
 import { eq, and, desc, asc, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { conversations, messages, patients, users, clinics, whatsappInstances, channelInstallations, appointments } from '@/lib/db/schema';
+import { conversations, messages } from '@/modules/atendimento/schema/conversations';
+import { whatsappInstances, channelInstallations } from '@/modules/atendimento/schema/integrations';
+import { patients } from '@/modules/operacional/schema/patients';
+import { appointments } from '@/modules/operacional/schema/appointments';
+import { users, clinics } from '@/lib/db/schema/core';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -756,8 +761,25 @@ export async function persistInboundMessage(input: {
       lastMessageAt: new Date(),
       updatedAt: new Date(),
     } as any).where(and(eq(conversations.id, conversationId), eq(conversations.clinicId, input.clinicId)));
-    // 5. Enfileirar eventos pós-persistência (placeholder — W9 outbox)
-    // Nota: producer/handler idempotente será criado no mesmo task; por enquanto apenas log
+
+    // 5. Publish the post-commit work in the same transaction. Consumers may
+    // safely retry because the business key is the provider event identity.
+    await enqueueOutbox(tx, {
+      clinicId: input.clinicId,
+      operation: 'atendimento.inbound.message',
+      businessKey: `${input.externalProvider}:${input.externalMessageId}`,
+      payload: {
+        clinicId: input.clinicId,
+        conversationId,
+        channel: input.channel,
+        externalConversationId: input.externalConversationId,
+        externalProvider: input.externalProvider,
+        externalMessageId: input.externalMessageId,
+        content: input.content,
+        messageType: input.messageType,
+        metadata: input.metadata,
+      },
+    });
     return { deduped: false as const, conversationId, messageId: msg.id };
   });
 }

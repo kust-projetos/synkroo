@@ -3,7 +3,7 @@
  */
 import { NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runCrmAction } from '@/modules/crm/ui/route-adapter';
 import { obterSugestaoDuplicidade } from '@/modules/crm/actions';
 
@@ -15,4 +15,4 @@ async function handleGET(
   return runCrmAction(obterSugestaoDuplicidade, { id });
 }
 
-export const GET = withModuleRoute('crm', moduleManifest)(handleGET);
+export const GET = withModuleRoute('crm')(handleGET);

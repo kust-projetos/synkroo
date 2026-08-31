@@ -29,6 +29,9 @@ import { atualizarProcedimento } from './actions/atualizar-procedimento';
 import { listarWaitlist } from './actions/listar-waitlist';
 import { entrarWaitlist } from './actions/entrar-waitlist';
 import { cancelarWaitlist } from './actions/cancelar-waitlist';
+import { obterWaitlist } from './actions/obter-waitlist';
+import { atualizarWaitlist } from './actions/atualizar-waitlist';
+import { preencherWaitlist } from './actions/preencher-waitlist';
 import { listarConfigsLembrete } from './actions/listar-configs-lembrete';
 import { salvarConfigLembrete } from './actions/salvar-config-lembrete';
 import { obterConsulta } from './actions/obter-consulta';
@@ -40,6 +43,8 @@ import { processarConfirmacaoResposta } from './actions/processar-confirmacao-re
 import { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
 import { registrarObservacaoPaciente } from './actions/registrar-observacao-paciente';
 import { atualizarTagsPaciente } from './actions/atualizar-tags-paciente';
+import { exportarDadosPaciente } from './actions/exportar-dados-paciente';
+import { anonimizarPaciente } from './actions/anonimizar-paciente';
 
 export const operacionalActions = [
   agendarConsulta,
@@ -64,6 +69,9 @@ export const operacionalActions = [
   listarWaitlist,
   entrarWaitlist,
   cancelarWaitlist,
+  obterWaitlist,
+  atualizarWaitlist,
+  preencherWaitlist,
   listarConfigsLembrete,
   salvarConfigLembrete,
   obterConsulta,
@@ -75,6 +83,8 @@ export const operacionalActions = [
   listarTratamentosIncompletos,
   registrarObservacaoPaciente,
   atualizarTagsPaciente,
+  exportarDadosPaciente,
+  anonimizarPaciente,
 ];
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
@@ -89,10 +99,6 @@ export { processarConfirmacaoResposta } from './actions/processar-confirmacao-re
 export { listarTratamentosIncompletos } from './actions/listar-tratamentos-incompletos';
 export { registrarObservacaoPaciente } from './actions/registrar-observacao-paciente';
 export { atualizarTagsPaciente } from './actions/atualizar-tags-paciente';
+export { exportarDadosPaciente } from './actions/exportar-dados-paciente';
+export { anonimizarPaciente } from './actions/anonimizar-paciente';
 export { operacionalAccessPermissions } from './permissions';
-
-// Import de efeito colateral: registra mergePatients no ownerMergeRegistry do CRM.
-// NÃO remover — nenhum símbolo exportado, mas sem este import o owner-merge
-// de patient falha silenciosamente em runtime (dispatcher não encontrado).
-// eslint-disable-next-line boundaries/dependencies
-import '@/modules/crm/services/patient-merge-dispatcher';

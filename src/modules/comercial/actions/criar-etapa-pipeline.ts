@@ -9,13 +9,12 @@ export const criarEtapaPipeline = defineAction({
   requires: 'comercial:manage_pipeline',
   label: 'Criar etapa pipeline',
   input: z.object({
-    clinicId: z.string().uuid(),
     name: z.string().min(1),
     position: z.number().int().min(0),
     color: z.string().optional(),
     winProbability: z.number().int().min(0).max(100).optional(),
   }),
-  handler: async (input, _ctx: ActionContext) => {
-    return createStage(input);
+  handler: async (input, ctx: ActionContext) => {
+    return createStage({ ...input, clinicId: ctx.clinicId });
   },
 });

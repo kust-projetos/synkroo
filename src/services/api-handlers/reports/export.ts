@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { eq, and, gte, lte, inArray, desc, asc, isNull, sql } from 'drizzle-orm'
-import { hasRequiredRole, validateApiAuth } from '@/lib/auth/session'
+import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { getDb } from '@/lib/db/client'
 import { appointments, patients, leads, conversations, dentists, procedures } from '@/lib/db/schema'
@@ -21,15 +21,9 @@ const COLORS = {
 
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('analytics:export')
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
-    const canExport = typeof hasRequiredRole === 'function'
-      ? hasRequiredRole(authResult.profile!, ['owner', 'admin'])
-      : ['owner', 'admin'].includes(authResult.profile!.role)
-    if (!canExport) {
-      return NextResponse.json({ error: 'Insufficient report permission' }, { status: 403 })
-    }
     const sp = new URL(request.url).searchParams
     const type = sp.get('type') || 'appointments'
     const format = sp.get('format') || 'csv'

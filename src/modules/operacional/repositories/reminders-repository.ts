@@ -4,7 +4,9 @@
  */
 
 import { getDb } from '@/lib/db/client';
-import { appointmentReminderConfigs, procedureTypes, appointments } from '../schema/appointments';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
+import { OUTBOX_OPERATIONS } from '@/lib/outbox/operations';
+import { appointmentReminderConfigs, appointmentReminders, procedureTypes, appointments } from '../schema/appointments';
 import { patients } from '../schema/patients';
 import { dentists, procedures } from '../schema/clinical';
 import { clinics } from '@/lib/db/schema/core';
@@ -17,6 +19,68 @@ export async function findReminderConfigById(id: string) {
     .from(appointmentReminderConfigs)
     .where(and(eq(appointmentReminderConfigs.id, id), isNull(appointmentReminderConfigs.clinicId)))
     .limit(1);
+  return row ?? null;
+}
+
+export async function createReminder(params: {
+  appointmentId: string;
+  reminderType: string;
+  channel: string;
+  status: string;
+  messageId?: string;
+  errorMessage?: string;
+  sentAt?: Date;
+}): Promise<void> {
+  await getDb().insert(appointmentReminders).values({
+    appointmentId: params.appointmentId,
+    reminderType: params.reminderType,
+    channel: params.channel,
+    status: params.status,
+    messageId: params.messageId ?? null,
+    errorMessage: params.errorMessage ?? null,
+    sentAt: params.sentAt ?? null,
+  } as any);
+}
+
+export async function createQueuedReminder(params: {
+  clinicId: string;
+  appointmentId: string;
+  reminderType: string;
+  phone: string;
+  message: string;
+}) {
+  return getDb().transaction(async (tx: any) => {
+    const [reminder] = await tx.insert(appointmentReminders).values({
+      appointmentId: params.appointmentId,
+      reminderType: params.reminderType,
+      channel: 'whatsapp',
+      status: 'queued',
+    }).returning({ id: appointmentReminders.id });
+
+    await enqueueOutbox(tx, {
+      clinicId: params.clinicId,
+      operation: OUTBOX_OPERATIONS.ATENDIMENTO_OUTBOUND_MESSAGE,
+      businessKey: `appointment-reminder:${reminder.id}`,
+      payload: {
+        channel: 'whatsapp',
+        externalId: params.phone,
+        message: params.message,
+        reminderId: reminder.id,
+      },
+    });
+    return reminder;
+  });
+}
+
+export async function markReminderDelivered(reminderId: string, messageId?: string) {
+  const [row] = await getDb().update(appointmentReminders).set({
+    status: 'sent',
+    messageId: messageId ?? null,
+    sentAt: new Date(),
+  }).where(and(
+    eq(appointmentReminders.id, reminderId),
+    eq(appointmentReminders.status, 'queued'),
+  )).returning({ id: appointmentReminders.id });
   return row ?? null;
 }
 

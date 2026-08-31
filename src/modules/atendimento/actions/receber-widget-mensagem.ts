@@ -1,27 +1,29 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { assertClinicScope } from '@/core/actions/tenant-scope';
+import { persistInboundMessage } from '../repositories/conversations-repository';
 
-/**
- * Retired widget action. The HTTP endpoint returns 410 until a replacement channel is introduced.
- */
 export const receberWidgetMensagem = defineAction({
   name: 'atendimento.receberWidgetMensagem',
   module: 'atendimento',
-  requires: 'atendimento:manage_messages',
+  requires: 'atendimento:manage_webhooks',
   label: 'Receber mensagem do widget web',
   input: z.object({
-    name: z.string().optional(),
-    phone: z.string().optional(),
-    message: z.string(),
-    clinicId: z.string().optional(),
-  }),
+    externalConversationId: z.string().trim().min(1).max(255),
+    externalMessageId: z.string().trim().min(1).max(255),
+    message: z.string().trim().min(1).max(32_000),
+    metadata: z.record(z.unknown()).optional(),
+  }).strict(),
   handler: async (input, ctx: ActionContext) => {
-    if (input.clinicId) assertClinicScope(input.clinicId, ctx);
-    return {
-      success: false,
-      code: 'WIDGET_MESSAGING_RETIRED',
-    };
+    return persistInboundMessage({
+      clinicId: ctx.clinicId,
+      channel: 'web',
+      externalConversationId: input.externalConversationId,
+      externalProvider: 'widget',
+      externalMessageId: input.externalMessageId,
+      content: input.message,
+      messageType: 'text',
+      metadata: input.metadata ?? {},
+    });
   },
 });

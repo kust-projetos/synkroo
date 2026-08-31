@@ -1,11 +1,15 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { channelInstallations } from '@/lib/db/schema';
+import { channelInstallations } from '@/modules/atendimento/schema/integrations';
 
 export type ChannelInstallation = {
   installationId: string;
   clinicId: string;
+};
+
+export type WidgetInstallation = ChannelInstallation & {
+  allowedOrigins: string[];
 };
 
 type ResolveInput = {
@@ -37,6 +41,84 @@ export async function resolveChannelInstallation(input: ResolveInput): Promise<C
     .limit(1);
   if (!row || !row.secretHash || !matchesSecret(input.providedSecret, row.secretHash)) return null;
   return { installationId: row.installationId, clinicId: row.clinicId };
+}
+
+/** Resolve an enabled installation when authentication was verified externally. */
+export async function resolveEnabledChannelInstallation(input: {
+  installationId: string;
+  provider: string;
+}): Promise<ChannelInstallation | null> {
+  if (!input.installationId || !input.provider) return null;
+  const [row] = await getDb()
+    .select({ installationId: channelInstallations.installationId, clinicId: channelInstallations.clinicId })
+    .from(channelInstallations)
+    .where(and(
+      eq(channelInstallations.installationId, input.installationId),
+      eq(channelInstallations.provider, input.provider),
+      eq(channelInstallations.enabled, true),
+    ))
+    .limit(1);
+  return row ? { installationId: row.installationId, clinicId: row.clinicId } : null;
+}
+
+export function isAllowedWidgetOrigin(origin: string): boolean {
+  if (!origin) return false;
+  try {
+    const parsed = new URL(origin);
+    return parsed.protocol === 'https:' && parsed.origin === origin;
+  } catch {
+    return false;
+  }
+}
+
+/** Public widget lookup. The opaque installation ID is not a clinic selector. */
+export async function resolveWidgetInstallation(
+  installationId: string,
+  origin: string,
+): Promise<WidgetInstallation | null> {
+  if (!installationId || !isAllowedWidgetOrigin(origin)) return null;
+  const [row] = await getDb()
+    .select({
+      installationId: channelInstallations.installationId,
+      clinicId: channelInstallations.clinicId,
+      allowedOrigins: channelInstallations.allowedOrigins,
+    })
+    .from(channelInstallations)
+    .where(and(
+      eq(channelInstallations.installationId, installationId),
+      eq(channelInstallations.provider, 'widget'),
+      eq(channelInstallations.enabled, true),
+    ))
+    .limit(1);
+  if (!row) return null;
+  const allowedOrigins = Array.isArray(row.allowedOrigins) ? row.allowedOrigins : [];
+  if (!allowedOrigins.includes(origin)) return null;
+  return { installationId: row.installationId, clinicId: row.clinicId, allowedOrigins };
+}
+
+/** Meta resolves its installation from the signed app webhook and phone ID. */
+export async function resolveMetaInstallation(phoneNumberId: string): Promise<ChannelInstallation | null> {
+  if (!phoneNumberId) return null;
+  const [installation] = await getDb().select({
+    installationId: channelInstallations.installationId,
+    clinicId: channelInstallations.clinicId,
+  })
+    .from(channelInstallations)
+    .where(and(
+      eq(channelInstallations.installationId, phoneNumberId),
+      eq(channelInstallations.provider, 'meta'),
+      eq(channelInstallations.enabled, true),
+    ))
+    .limit(1);
+  if (installation) return installation;
+
+  const rows = await getDb().execute(
+    // The phone number ID is provider metadata, never a tenant selector from the body.
+    // It is resolved against server-side clinic settings after HMAC validation.
+    sql`SELECT id AS clinic_id FROM clinics WHERE settings->>'whatsapp_phone_number_id' = ${phoneNumberId} LIMIT 1`,
+  ) as any;
+  const clinicId = rows?.rows?.[0]?.clinic_id;
+  return clinicId ? { installationId: phoneNumberId, clinicId } : null;
 }
 
 export function hashChannelSecret(secret: string): string {

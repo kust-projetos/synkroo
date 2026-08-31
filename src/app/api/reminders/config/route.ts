@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { listarConfigsLembrete } from '@/modules/operacional/actions/listar-configs-lembrete';
 import { salvarConfigLembrete } from '@/modules/operacional/actions/salvar-config-lembrete';
@@ -24,7 +24,7 @@ async function handlePUT(request: NextRequest): Promise<NextResponse> {
   return runActionRoute(salvarConfigLembrete, body);
 }
 
-const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);
-const wrappedPUT = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePUT);
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleGET);
+const wrappedPUT = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePUT);
 
 export { wrappedGET as GET, wrappedPUT as PUT };

@@ -90,9 +90,12 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      from: '+5511999998888',
+      externalConversationId: '+5511999998888',
+      externalProvider: 'test',
+      externalMessageId: 'inbound-flow-1',
       message: 'Olá, gostaria de agendar',
       channel: 'whatsapp',
+      messageType: 'text',
     }, systemCtx);
 
     expect(result.ok).toBe(true);
@@ -128,18 +131,24 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
 
     // First inbound
     const r1 = await runAction(receberMensagem, {
-      from: '+5511999997777',
+      externalConversationId: '+5511999997777',
+      externalProvider: 'test',
+      externalMessageId: 'inbound-flow-2a',
       message: 'Primeira mensagem',
       channel: 'whatsapp',
+      messageType: 'text',
     }, systemCtx);
     expect(r1.ok).toBe(true);
     const convId1 = (r1 as any).data.conversationId;
 
     // Second inbound — same phone, same clinic
     const r2 = await runAction(receberMensagem, {
-      from: '+5511999997777',
+      externalConversationId: '+5511999997777',
+      externalProvider: 'test',
+      externalMessageId: 'inbound-flow-2b',
       message: 'Segunda mensagem',
       channel: 'whatsapp',
+      messageType: 'text',
     }, systemCtx);
     expect(r2.ok).toBe(true);
     const convId2 = (r2 as any).data.conversationId;
@@ -165,17 +174,23 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
 
     // Clinic A
     const rA = await runAction(receberMensagem, {
-      from: '+5511999996666',
+      externalConversationId: '+5511999996666',
+      externalProvider: 'test',
+      externalMessageId: 'inbound-flow-3a',
       message: 'Mensagem clinica A',
       channel: 'whatsapp',
+      messageType: 'text',
     }, systemCtx);
     expect(rA.ok).toBe(true);
 
     // Clinic B — same phone, different clinic
     const rB = await runAction(receberMensagem, {
-      from: '+5511999996666',
+      externalConversationId: '+5511999996666',
+      externalProvider: 'test',
+      externalMessageId: 'inbound-flow-3b',
       message: 'Mensagem clinica B',
       channel: 'whatsapp',
+      messageType: 'text',
     }, ctxB);
     expect(rB.ok).toBe(true);
 
@@ -201,9 +216,12 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      from: `+5511${randomUUID().slice(0, 8)}`,
+      externalConversationId: `+5511${randomUUID().slice(0, 8)}`,
+      externalProvider: 'test',
+      externalMessageId: 'inbound-flow-4',
       message: 'Mensagem com metadata',
       channel: 'whatsapp',
+      messageType: 'text',
       metadata: { source: 'web', externalMessageId: 'ext-123' },
     }, systemCtx);
 
@@ -219,13 +237,17 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     expect(rows[0].metadata.externalMessageId).toBe('ext-123');
   });
 
-  it('receberMensagem: defaults channel to whatsapp when omitted', async () => {
+  it('receberMensagem: requires the channel and provider event identity', async () => {
     const { receberMensagem } = await import('../../receber-mensagem');
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      from: '+5511999995555',
+      externalConversationId: '+5511999995555',
+      externalProvider: 'test',
+      externalMessageId: 'inbound-flow-5',
       message: 'Sem canal explícito',
+      channel: 'whatsapp',
+      messageType: 'text',
     }, systemCtx);
 
     expect(result.ok).toBe(true);
@@ -243,9 +265,12 @@ describeOrSkip('Atendimento — inbound flow (P4)', () => {
     const { runAction } = await import('@/core/actions/run');
 
     const result = await runAction(receberMensagem, {
-      from: 'widget-user-abc',
+      externalConversationId: 'widget-user-abc',
+      externalProvider: 'widget',
+      externalMessageId: 'inbound-flow-6',
       message: 'Mensagem do widget',
       channel: 'web',
+      messageType: 'text',
     }, systemCtx);
 
     expect(result.ok).toBe(true);

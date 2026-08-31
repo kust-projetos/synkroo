@@ -18,10 +18,10 @@ describe('Core Actions definition and input schema matrix', () => {
     });
 
     it('validates schema correctly', () => {
-      expect(assignUserAccess.input.safeParse({ userId: 'u1', clinicId: 'c1', roleId: 'r1' }).success).toBe(true);
-      expect(assignUserAccess.input.safeParse({ userId: '', clinicId: 'c1', roleId: 'r1' }).success).toBe(false);
-      expect(assignUserAccess.input.safeParse({ userId: 'u1', clinicId: '', roleId: 'r1' }).success).toBe(false);
-      expect(assignUserAccess.input.safeParse({ userId: 'u1', clinicId: 'c1', roleId: '' }).success).toBe(false);
+      expect(assignUserAccess.input.safeParse({ userId: 'u1', roleId: 'r1' }).success).toBe(true);
+      expect(assignUserAccess.input.safeParse({ userId: 'u1', clinicId: 'c1', roleId: 'r1' }).success).toBe(false);
+      expect(assignUserAccess.input.safeParse({ userId: '', roleId: 'r1' }).success).toBe(false);
+      expect(assignUserAccess.input.safeParse({ userId: 'u1', roleId: '' }).success).toBe(false);
       expect(assignUserAccess.input.safeParse({}).success).toBe(false);
     });
   });
@@ -36,7 +36,6 @@ describe('Core Actions definition and input schema matrix', () => {
 
     it('validates schema and applies default empty array for permissions', () => {
       const parsedWithoutPerms = createRole.input.safeParse({
-        clinicId: 'c1',
         name: 'Recepcionista Senior',
       });
       expect(parsedWithoutPerms.success).toBe(true);
@@ -45,15 +44,14 @@ describe('Core Actions definition and input schema matrix', () => {
       }
 
       const parsedWithPerms = createRole.input.safeParse({
-        clinicId: 'c1',
         name: 'Financeiro',
         description: 'Perfil de finanças',
         permissionKeys: ['financeiro:view', 'financeiro:edit'],
       });
       expect(parsedWithPerms.success).toBe(true);
 
-      expect(createRole.input.safeParse({ clinicId: '', name: 'Role' }).success).toBe(false);
-      expect(createRole.input.safeParse({ clinicId: 'c1', name: '' }).success).toBe(false);
+      expect(createRole.input.safeParse({ clinicId: 'c1', name: 'Role' }).success).toBe(false);
+      expect(createRole.input.safeParse({ name: '' }).success).toBe(false);
       expect(createRole.input.safeParse({}).success).toBe(false);
     });
   });
@@ -67,9 +65,9 @@ describe('Core Actions definition and input schema matrix', () => {
     });
 
     it('validates schema correctly', () => {
-      expect(deactivateUser.input.safeParse({ userId: 'u1', clinicId: 'c1' }).success).toBe(true);
-      expect(deactivateUser.input.safeParse({ userId: '', clinicId: 'c1' }).success).toBe(false);
-      expect(deactivateUser.input.safeParse({ userId: 'u1', clinicId: '' }).success).toBe(false);
+      expect(deactivateUser.input.safeParse({ userId: 'u1' }).success).toBe(true);
+      expect(deactivateUser.input.safeParse({ userId: 'u1', clinicId: 'c1' }).success).toBe(false);
+      expect(deactivateUser.input.safeParse({ userId: '' }).success).toBe(false);
       expect(deactivateUser.input.safeParse({}).success).toBe(false);
     });
   });
@@ -109,9 +107,9 @@ describe('Core Actions definition and input schema matrix', () => {
     });
 
     it('validates schema correctly', () => {
-      expect(removeUserAccess.input.safeParse({ userId: 'u1', clinicId: 'c1' }).success).toBe(true);
-      expect(removeUserAccess.input.safeParse({ userId: '', clinicId: 'c1' }).success).toBe(false);
-      expect(removeUserAccess.input.safeParse({ userId: 'u1', clinicId: '' }).success).toBe(false);
+      expect(removeUserAccess.input.safeParse({ userId: 'u1' }).success).toBe(true);
+      expect(removeUserAccess.input.safeParse({ userId: 'u1', clinicId: 'c1' }).success).toBe(false);
+      expect(removeUserAccess.input.safeParse({ userId: '' }).success).toBe(false);
       expect(removeUserAccess.input.safeParse({}).success).toBe(false);
     });
   });

@@ -15,7 +15,7 @@ import { reprocessarSugestoesDuplicidade } from '@/modules/crm/actions';
 import { buildSystemContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
 import { assertModuleForJob, ModuleDisabledError } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
@@ -37,7 +37,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    await assertModuleForJob('crm', moduleManifest);
+    await assertModuleForJob('crm', createManifest());
   } catch (err) {
     if (err instanceof ModuleDisabledError) {
       return NextResponse.json({ skipped: true }, { status: 200 });
@@ -56,7 +56,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   for (const clinicId of clinicIds) {
     try {
       const ctx = await buildSystemContext(clinicId);
-      const result = await runAction(reprocessarSugestoesDuplicidade, { clinicId }, ctx);
+      const result = await runAction(reprocessarSugestoesDuplicidade, {}, ctx);
       results.push({
         clinicId,
         ok: result.ok,

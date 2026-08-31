@@ -9,7 +9,8 @@ import { NextRequest } from 'next/server';
 
 const mockIsEnabled = jest.fn().mockResolvedValue(true);
 jest.mock('@/core/modules/manifest', () => ({
-  moduleManifest: { isEnabled: mockIsEnabled, enabledModules: jest.fn() },
+  createManifest: () => ({
+      isEnabled: mockIsEnabled, enabledModules: jest.fn() }),
 }));
 
 jest.mock('@/lib/logger', () => ({

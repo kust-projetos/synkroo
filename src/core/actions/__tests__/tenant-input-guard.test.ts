@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join, sep } from 'node:path';
 import { defineAction } from '@/core/actions';
 import { runAction } from '@/core/actions/run';
 import type { ActionContext } from '@/core/actions/types';
@@ -22,6 +24,18 @@ const ctxA: ActionContext = {
 };
 
 const CLINIC_B = '00000000-0000-0000-0000-00000000b001';
+
+function findActionFiles(directory: string): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      return entry.name === '__tests__' ? [] : findActionFiles(path);
+    }
+    return entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')
+      ? [path]
+      : [];
+  });
+}
 
 describe('runAction tenant selector guard (W1.4)', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -72,5 +86,18 @@ describe('runAction tenant selector guard (W1.4)', () => {
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.code).toBe('invalid_input');
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('keeps production Action schemas free of tenant selectors', () => {
+    const actionsRoot = join(process.cwd(), 'src', 'modules');
+    const files = findActionFiles(actionsRoot).filter((file) => file.split(sep).includes('actions'));
+    expect(files.length).toBeGreaterThan(0);
+
+    const violations = files.flatMap((file) => {
+      const source = readFileSync(file, 'utf8');
+      return /(^|\n)\s*(clinicId|clinic_id)\s*:\s*z\./m.test(source) ? [file] : [];
+    });
+
+    expect(violations).toEqual([]);
   });
 });

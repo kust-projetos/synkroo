@@ -58,7 +58,7 @@ describe('leads/[id]/convert', () => {
       { params: Promise.resolve({ id: 'l1' }) },
     )
     const b = await r.json()
-    expect(b.success).toBe(true)
+    expect(b.data.success).toBe(true)
   })
 
   it('returns 500 on internal failure', async () => {

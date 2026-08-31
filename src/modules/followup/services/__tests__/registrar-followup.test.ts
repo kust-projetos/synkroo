@@ -11,7 +11,7 @@ const mockFindPatient = jest.fn();
 const mockFindAppointment = jest.fn();
 const mockCreateFeedback = jest.fn();
 
-jest.mock('@/repositories/followup', () => ({
+jest.mock('@/modules/followup/repositories/followup-repository', () => ({
   findPatientForClinic: (...a: unknown[]) => mockFindPatient(...a),
   findAppointmentForClinicPatient: (...a: unknown[]) => mockFindAppointment(...a),
   createFeedback: (...a: unknown[]) => mockCreateFeedback(...a),

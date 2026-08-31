@@ -1,17 +1,23 @@
 import { GET } from './route'
 import { requireActiveProfile } from '@/lib/auth/session'
+import { listUserClinics } from '@/repositories/auth'
 
 jest.mock('@/lib/auth/session', () => ({
   requireActiveProfile: jest.fn(),
 }))
+jest.mock('@/repositories/auth', () => ({
+  listUserClinics: jest.fn(),
+}))
 
 const mockRequireActiveProfile = requireActiveProfile as jest.MockedFunction<typeof requireActiveProfile>
+const mockListUserClinics = listUserClinics as jest.MockedFunction<typeof listUserClinics>
 
 const activeProfile = {
   id: 'u1',
   email: 'user@example.com',
   name: 'User',
   role: 'owner',
+  role_id: 'owner-role',
   phone: null,
   avatar_url: null,
   is_active: true,
@@ -21,7 +27,10 @@ const activeProfile = {
 }
 
 describe('GET /api/auth/session', () => {
-  beforeEach(() => jest.clearAllMocks())
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockListUserClinics.mockResolvedValue([])
+  })
 
   it('returns the active profile from the canonical server guard', async () => {
     mockRequireActiveProfile.mockResolvedValue(activeProfile)

@@ -42,7 +42,7 @@ describe('leads/kanban', () => {
     })
     const r = await GET(new NextRequest('http://localhost'))
     const b = await r.json()
-    expect(b.leads).toHaveLength(2)
+    expect(b.data.leads).toHaveLength(2)
   })
 
   it('filters by stage', async () => {
@@ -55,6 +55,6 @@ describe('leads/kanban', () => {
     })
     const r = await GET(new NextRequest('http://localhost?stage_id=s1'))
     const b = await r.json()
-    expect(b.leads).toHaveLength(1)
+    expect(b.data.leads).toHaveLength(1)
   })
 })

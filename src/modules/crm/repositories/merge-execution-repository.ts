@@ -7,7 +7,7 @@
 
 import { eq, and, inArray, ne, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { crmDuplicateSuggestions } from '@/lib/db/schema';
+import { crmDuplicateSuggestions } from '@/modules/crm/schema/duplicates';
 
 /**
  * Claim a suggestion for execution via CAS.

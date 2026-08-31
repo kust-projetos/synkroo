@@ -2,14 +2,14 @@ import { NextRequest } from 'next/server';
 import { POST as legacyLogin } from '../login/route';
 import { POST as legacyLogout } from '../logout/route';
 import { authOptions } from '@/lib/auth/auth';
+import { findUserProfileById } from '@/repositories/auth';
 
-const limit = jest.fn();
-
-jest.mock('@/lib/db/client', () => ({
-  getDb: () => ({
-    select: () => ({ from: () => ({ where: () => ({ limit }) }) }),
-  }),
+jest.mock('@/repositories/auth', () => ({
+  findUserProfileById: jest.fn(),
+  revokeUserSession: jest.fn(),
 }));
+
+const mockFindUserProfileById = findUserProfileById as jest.MockedFunction<typeof findUserProfileById>;
 
 describe('canonical Auth.js session boundary', () => {
   beforeEach(() => jest.clearAllMocks());
@@ -30,9 +30,20 @@ describe('canonical Auth.js session boundary', () => {
   });
 
   it('accepts a clinic update only when the user has explicit access', async () => {
-    limit
-      .mockResolvedValueOnce([{ clinicId: 'clinic-a', role: 'owner', isActive: true, sessionVersion: 3 }])
-      .mockResolvedValueOnce([{ clinicId: 'clinic-b' }]);
+    mockFindUserProfileById.mockResolvedValue({
+      id: 'user-1',
+      email: 'u@test.local',
+      name: 'User',
+      role: 'receptionist',
+      roleId: 'role-b',
+      roleName: 'receptionist',
+      phone: null,
+      avatarUrl: null,
+      isActive: true,
+      sessionVersion: 3,
+      clinicId: 'clinic-b',
+      clinics: null,
+    });
 
     const callback = authOptions.callbacks?.jwt;
     const token = await callback!({
@@ -45,9 +56,7 @@ describe('canonical Auth.js session boundary', () => {
   });
 
   it('does not accept a forged clinic update', async () => {
-    limit
-      .mockResolvedValueOnce([{ clinicId: 'clinic-a', role: 'owner', isActive: true, sessionVersion: 3 }])
-      .mockResolvedValueOnce([]);
+    mockFindUserProfileById.mockResolvedValue(null);
 
     const callback = authOptions.callbacks?.jwt;
     const token = await callback!({

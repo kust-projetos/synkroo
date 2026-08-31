@@ -10,8 +10,13 @@ export function registerAccessPermissions(entries: PermissionEntry[]): void {
     if (!accessPermissions.has(e.key)) accessPermissions.set(e.key, e);
   }
 }
-export function clearPermissionsForTests(): void {
+
+export function resetPermissionCatalog(): void {
   accessPermissions.clear();
+}
+
+export function clearPermissionsForTests(): void {
+  resetPermissionCatalog();
 }
 
 export function getPermissionCatalog(): PermissionEntry[] {

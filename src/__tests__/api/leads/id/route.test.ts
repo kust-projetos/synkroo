@@ -38,7 +38,7 @@ describe('leads/[id]', () => {
       })
       const r = await GET(new NextRequest('http://localhost'), { params: Promise.resolve({ id: 'l1' }) })
       const b = await r.json()
-      expect(b.lead.id).toBe('l1')
+      expect(b.data.lead.id).toBe('l1')
     })
     it('returns 404', async () => {
       authOk()
@@ -64,7 +64,7 @@ describe('leads/[id]', () => {
       })
       const r = await PUT(new NextRequest('http://localhost', { method: 'PUT', body: JSON.stringify({ status: 'qualified' }) }), { params: Promise.resolve({ id: 'l1' }) })
       const b = await r.json()
-      expect(b.lead.status).toBe('qualified')
+      expect(b.data.lead.status).toBe('qualified')
     })
   })
   describe('DELETE', () => {
@@ -81,7 +81,7 @@ describe('leads/[id]', () => {
       })
       const r = await DELETE(new NextRequest('http://localhost'), { params: Promise.resolve({ id: 'l1' }) })
       const b = await r.json()
-      expect(b.success).toBe(true)
+      expect(b.data.success).toBe(true)
     })
   })
 })

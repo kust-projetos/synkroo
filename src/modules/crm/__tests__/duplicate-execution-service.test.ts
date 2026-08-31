@@ -28,12 +28,12 @@ jest.mock('@/modules/crm/repositories/merge-execution-repository', () => ({
     mockFinalizeMergeAndDismissSiblings(...args),
 }));
 
-jest.mock('@/modules/operacional/services/patient-merge-state-service', () => ({
-  isPatientMerged: (...args: unknown[]) => mockIsPatientMerged(...args),
+jest.mock('@/modules/operacional/public', () => ({
+  isMergedPatient: (...args: unknown[]) => mockIsPatientMerged(...args),
 }));
 
-jest.mock('@/modules/comercial/services/merge-state-service', () => ({
-  isLeadMerged: (...args: unknown[]) => mockIsLeadMerged(...args),
+jest.mock('@/modules/comercial/public', () => ({
+  isMergedLead: (...args: unknown[]) => mockIsLeadMerged(...args),
 }));
 
 jest.mock('@/modules/crm/services/duplicate-scoring-service', () => ({
@@ -54,7 +54,12 @@ import {
   executarMergeLead,
 } from '@/modules/crm/actions';
 import { crmDuplicateReviewActions } from '@/modules/crm/actions';
-import { isLeaseActive, MERGE_LEASE_MS, registerOwnerMerge } from '../services/duplicate-execution-service';
+import {
+  isLeaseActive,
+  MERGE_LEASE_MS,
+  registerOwnerMerge,
+  clearOwnerMergeRegistryForTests,
+} from '../services/duplicate-execution-service';
 
 const clinicId = '00000000-0000-4000-8000-000000000001';
 const suggestionId = '00000000-0000-4000-8000-000000000010';
@@ -137,6 +142,7 @@ describe('isLeaseActive', () => {
 describe('CRM duplicate execution', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    clearOwnerMergeRegistryForTests();
     // Default scoring: high confidence, no drift (duplicateScore 85 vs score 85)
     mockScoreDuplicatePair.mockReturnValue({ score: 85, signals: {} });
     mockClassifyDuplicateScore.mockReturnValue('high');
@@ -165,7 +171,7 @@ describe('CRM duplicate execution', () => {
     const result = await executarMergePatient.handler({ id: suggestionId }, context);
 
     expect(result).toMatchObject({ status: 'merged' });
-    expect(mockIsPatientMerged).toHaveBeenCalledWith(leftId, clinicId);
+    expect(mockIsPatientMerged).toHaveBeenCalledWith(clinicId, leftId);
     expect(mockFinalizeMergeAndDismissSiblings).toHaveBeenCalled();
     // Must NOT attempt to claim or dispatch
     expect(mockClaimSuggestion).not.toHaveBeenCalled();
@@ -191,7 +197,7 @@ describe('CRM duplicate execution', () => {
     const result = await executarMergeLead.handler({ id: suggestionId }, context);
 
     expect(result).toMatchObject({ status: 'merged' });
-    expect(mockIsLeadMerged).toHaveBeenCalledWith(leftId, clinicId);
+    expect(mockIsLeadMerged).toHaveBeenCalledWith(clinicId, leftId);
     expect(mockFinalizeMergeAndDismissSiblings).toHaveBeenCalled();
     expect(mockClaimSuggestion).not.toHaveBeenCalled();
   });
@@ -486,6 +492,7 @@ describe('CRM duplicate execution', () => {
   // ── Failure CAS loss → reread → merged ──────────
 
   it('failure CAS loss: rereads merged and returns idempotent', async () => {
+    clearOwnerMergeRegistryForTests();
     registerOwnerMerge('patient', async () => false); // dispatcher returns false
 
     mockFindSuggestionById
@@ -506,6 +513,7 @@ describe('CRM duplicate execution', () => {
   });
 
   it('failure CAS loss: reread not merged throws conflict', async () => {
+    clearOwnerMergeRegistryForTests();
     registerOwnerMerge('patient', async () => false); // dispatcher returns false
 
     mockFindSuggestionById
@@ -592,6 +600,7 @@ describe('CRM duplicate execution', () => {
   // ── Dispatcher throws → owner merge fails ───────
 
   it('dispatcher error → marks failed and throws internal', async () => {
+    clearOwnerMergeRegistryForTests();
     registerOwnerMerge('patient', async () => {
       throw new Error('boom');
     });
@@ -619,7 +628,7 @@ describe('CRM duplicate execution', () => {
   // ── No dispatcher registered → owner merge fails ─
 
   it('no registered dispatcher → marks failed and throws internal', async () => {
-    registerOwnerMerge('patient', undefined as unknown as () => Promise<boolean>);
+    clearOwnerMergeRegistryForTests();
     mockFindSuggestionById.mockResolvedValue(suggestionFixture());
     mockFindDuplicateSource.mockResolvedValue(detectionRecord('left-id'));
     mockClaimSuggestion.mockResolvedValue(true);
@@ -629,7 +638,7 @@ describe('CRM duplicate execution', () => {
       executarMergePatient.handler({ id: suggestionId }, context),
     ).rejects.toMatchObject({
       code: 'internal',
-      message: 'Falha na execução do merge pelo owner.',
+      message: 'OWNER_MERGE_ADAPTER_MISSING:patient',
     });
 
     expect(mockMarkSuggestionFailed).toHaveBeenCalled();

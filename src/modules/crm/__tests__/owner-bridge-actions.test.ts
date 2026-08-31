@@ -28,13 +28,23 @@ const mockInsertActivity = jest.fn();
 const mockDbUpdate = Object.assign(jest.fn(), { where: jest.fn() });
 const mockDbInsert = Object.assign(jest.fn(), { values: jest.fn() });
 
-const mockDb = {
-  update: jest.fn(() => ({ set: jest.fn(() => mockDbUpdate) })),
-  insert: jest.fn(() => mockDbInsert),
+type MockDb = {
+  update: jest.Mock;
+  insert: jest.Mock;
+  transaction: jest.Mock;
 };
+
+const mockDb = {} as MockDb;
+mockDb.update = jest.fn(() => ({ set: jest.fn(() => mockDbUpdate) }));
+mockDb.insert = jest.fn(() => mockDbInsert);
+mockDb.transaction = jest.fn(async (callback: (tx: MockDb) => unknown) => callback(mockDb));
 
 jest.mock('@/lib/db/client', () => ({
   getDb: jest.fn(() => mockDb),
+}));
+
+jest.mock('@/lib/outbox/outbox-repository', () => ({
+  enqueueOutbox: jest.fn(),
 }));
 
 jest.mock('@/modules/operacional/repositories/patients-repository', () => {

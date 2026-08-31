@@ -1,11 +1,9 @@
 /**
  * Operacional module — action exports.
- * Actions are self-registering via the action registry.
- * Import here to trigger registration; do not call handlers directly from routes —
- * use runActionRoute from ../ui/route-adapter.ts instead.
+ * This barrel only exports Action definitions. Registration belongs exclusively
+ * to the composition root in src/core/actions/bootstrap.ts.
  */
 
-import { registerActions } from '@/core/actions/registry';
 import { agendarConsulta } from './agendar-consulta';
 import { confirmarConsulta } from './confirmar-consulta';
 import { remarcarConsulta } from './remarcar-consulta';
@@ -77,41 +75,3 @@ export * from './gatilho-lembrete';
 export * from './obter-modelo-lembrete';
 export * from './processar-confirmacao-resposta';
 export * from './listar-tratamentos-incompletos';
-
-// Bootstrap registration — idempotent
-registerActions([
-  agendarConsulta,
-  confirmarConsulta,
-  remarcarConsulta,
-  cancelarConsulta,
-  registrarNoShow,
-  listarConsultas,
-  consultarDisponibilidade,
-  criarPaciente,
-  atualizarPaciente,
-  listarPacientes,
-  obterPaciente,
-  criarDentista,
-  listarDentistas,
-  obterDentista,
-  atualizarDentista,
-  criarProcedimento,
-  listarProcedimentos,
-  obterProcedimento,
-  atualizarProcedimento,
-  listarWaitlist,
-  entrarWaitlist,
-  cancelarWaitlist,
-  obterWaitlist,
-  atualizarWaitlist,
-  preencherWaitlist,
-  listarConfigsLembrete,
-  salvarConfigLembrete,
-  obterConsulta,
-  atualizarConsulta,
-  reativarConsulta,
-  gatilhoLembrete,
-  obterModeloLembrete,
-  processarConfirmacaoResposta,
-  listarTratamentosIncompletos,
-]);

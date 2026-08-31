@@ -1,26 +1,31 @@
 import { invokeAgentWithEnv, type AgentEnv } from '../agent-invoker';
+import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
 function makeEnv() {
   const calls: Record<string, unknown> = {};
   const env: AgentEnv = {
-    IA_BRIDGE: {
-      issueHandle: async (i: { conversationId: string; clinicId: string; principalRef: string; source: string }) => {
+    IA_HANDLE_ISSUER: {
+      issueHandle: async (i) => {
         calls.issue = i;
-        return { handle: 'H' };
+        return {
+          contractVersion: BRIDGE_RPC_VERSION,
+          handle: 'H',
+          expiresAt: '2026-08-29T12:00:00.000Z',
+        };
       },
-    } as unknown as AgentEnv['IA_BRIDGE'],
+    },
     AGENT: {
       idFromName: (name: string) => {
         calls.idName = name;
         return { name };
       },
       get: (_id: unknown) => ({
-        runTurn: async (i: { handle: string }) => {
+        runTurn: async (i) => {
           calls.runTurn = i;
           return { reply: 'oi', turnsUsed: 1 };
         },
       }),
-    } as unknown as AgentEnv['AGENT'],
+    },
   };
   return { env, calls };
 }
@@ -42,6 +47,7 @@ describe('invokeAgentWithEnv', () => {
     });
     expect(out.reply).toBe('oi');
     expect((calls.issue as { conversationId: string }).conversationId).toBe('conv-1');
+    expect((calls.issue as { contractVersion: string }).contractVersion).toBe(BRIDGE_RPC_VERSION);
     expect(calls.idName).toBe('c1:whatsapp:conv-1');
     expect((calls.runTurn as { handle: string }).handle).toBe('H');
   });
@@ -89,7 +95,13 @@ describe('invokeAgentWithEnv — robustez (anti-hang / worker-cancel)', () => {
 
   it('returns fallback when runTurn throws (DO bootstrap / PartyServer name)', async () => {
     const env: AgentEnv = {
-      IA_BRIDGE: { issueHandle: async () => ({ handle: 'H' }) } as AgentEnv['IA_BRIDGE'],
+      IA_HANDLE_ISSUER: {
+        issueHandle: async () => ({
+          contractVersion: BRIDGE_RPC_VERSION,
+          handle: 'H',
+          expiresAt: '2026-08-29T12:00:00.000Z',
+        }),
+      },
       AGENT: {
         idFromName: () => ({ name: 'x' }),
         get: () => ({
@@ -109,7 +121,28 @@ describe('invokeAgentWithEnv — robustez (anti-hang / worker-cancel)', () => {
 
   it('returns fallback when issueHandle throws (ia-bridge indisponível)', async () => {
     const env: AgentEnv = {
-      IA_BRIDGE: { issueHandle: async () => { throw new Error('HMAC: bad secret'); } } as AgentEnv['IA_BRIDGE'],
+      IA_HANDLE_ISSUER: {
+        issueHandle: async () => { throw new Error('issuer unavailable'); },
+      },
+      AGENT: {
+        idFromName: () => ({ name: 'x' }),
+        get: () => ({ runTurn: async () => ({ reply: 'should not reach', turnsUsed: 1 }) }),
+      },
+    } as unknown as AgentEnv;
+    const out = await invokeAgentWithEnv(env, baseInput);
+    expect(out.reply).toBeTruthy();
+    expect(out.turnsUsed).toBe(0);
+  });
+
+  it('returns fallback when the issuer responds with an incompatible contract', async () => {
+    const env: AgentEnv = {
+      IA_HANDLE_ISSUER: {
+        issueHandle: async () => ({
+          ok: false,
+          error: 'contract_version_mismatch',
+          contractVersion: 'v2',
+        }),
+      },
       AGENT: {
         idFromName: () => ({ name: 'x' }),
         get: () => ({ runTurn: async () => ({ reply: 'should not reach', turnsUsed: 1 }) }),
@@ -122,7 +155,13 @@ describe('invokeAgentWithEnv — robustez (anti-hang / worker-cancel)', () => {
 
   it('returns fallback when idFromName throws (binding ausente)', async () => {
     const env: AgentEnv = {
-      IA_BRIDGE: { issueHandle: async () => ({ handle: 'H' }) } as AgentEnv['IA_BRIDGE'],
+      IA_HANDLE_ISSUER: {
+        issueHandle: async () => ({
+          contractVersion: BRIDGE_RPC_VERSION,
+          handle: 'H',
+          expiresAt: '2026-08-29T12:00:00.000Z',
+        }),
+      },
       AGENT: {
         idFromName: () => { throw new Error('AGENT binding missing'); },
         get: () => ({ runTurn: async () => ({ reply: 'should not reach', turnsUsed: 1 }) }),
@@ -135,7 +174,13 @@ describe('invokeAgentWithEnv — robustez (anti-hang / worker-cancel)', () => {
 
   it('returns fallback when stub.runTurn never resolves (DO hang — anti-worker-cancel)', async () => {
     const env: AgentEnv = {
-      IA_BRIDGE: { issueHandle: async () => ({ handle: 'H' }) } as AgentEnv['IA_BRIDGE'],
+      IA_HANDLE_ISSUER: {
+        issueHandle: async () => ({
+          contractVersion: BRIDGE_RPC_VERSION,
+          handle: 'H',
+          expiresAt: '2026-08-29T12:00:00.000Z',
+        }),
+      },
       AGENT: {
         idFromName: () => ({ name: 'x' }),
         get: () => ({

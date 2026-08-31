@@ -46,7 +46,7 @@ jest.mock('@/core/modules/manifest', () => {
   return {
     __esModule: true,
     ...actual,
-    moduleManifest: uncached,
+    createManifest: () => uncached,
   };
 });
 
@@ -68,12 +68,17 @@ jest.mock('@/modules/comercial/services/hot-lead-notification-service', () => ({
 
 // ── Imports ───────────────────────────────────────────────────────────────────
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { POST } from '@/app/api/cron/followups/route';
 import { getDb, closeDb } from '@/lib/db/client';
 import { instanceModules } from '@/lib/db/schema/modules';
+import { inArray } from 'drizzle-orm';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
+
+const REQUIRED_MODULES = ['operacional', 'comercial', 'atendimento', 'financeiro', 'followup'] as const;
+let previousModuleState: Array<{ moduleId: string; enabled: boolean }> = [];
+let moduleStateCaptured = false;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -82,6 +87,39 @@ function makeCronReq(secret?: string, tasks?: string): NextRequest {
   if (secret) headers['Authorization'] = `Bearer ${secret}`;
   const url = tasks ? `http://localhost/api/cron/followups?tasks=${tasks}` : 'http://localhost/api/cron/followups';
   return new Request(url, { method: 'POST', headers }) as unknown as NextRequest;
+}
+
+async function enableRequiredModules() {
+  const db = getDb();
+  if (!moduleStateCaptured) {
+    previousModuleState = await db
+      .select({ moduleId: instanceModules.moduleId, enabled: instanceModules.enabled })
+      .from(instanceModules)
+      .where(inArray(instanceModules.moduleId, [...REQUIRED_MODULES]));
+    moduleStateCaptured = true;
+  }
+  for (const moduleId of REQUIRED_MODULES) {
+    await db
+      .insert(instanceModules)
+      .values({ moduleId, enabled: true })
+      .onConflictDoUpdate({ target: instanceModules.moduleId, set: { enabled: true } });
+  }
+}
+
+async function restoreModuleState() {
+  if (!moduleStateCaptured) return;
+  const db = getDb();
+  const previous = new Map(previousModuleState.map((row) => [row.moduleId, row.enabled]));
+  for (const moduleId of REQUIRED_MODULES) {
+    if (previous.has(moduleId)) {
+      await db.update(instanceModules).set({ enabled: previous.get(moduleId)! })
+        .where(inArray(instanceModules.moduleId, [moduleId]));
+    } else {
+      await db.delete(instanceModules).where(inArray(instanceModules.moduleId, [moduleId]));
+    }
+  }
+  previousModuleState = [];
+  moduleStateCaptured = false;
 }
 
 /** UPSERT instanceModules state for the followup module. */
@@ -93,30 +131,28 @@ async function setModuleEnabled(enabled: boolean) {
     .onConflictDoUpdate({ target: instanceModules.moduleId, set: { enabled } });
 }
 
-/** Restore neutral state: module enabled=false (not deleted). */
-async function restoreModuleNeutral() {
-  await setModuleEnabled(false);
-}
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
 
   beforeAll(async () => {
     // Ensure row exists (enabled=true) so valid tests see followup as contracted.
-    await setModuleEnabled(true);
+    await enableRequiredModules();
     process.env.CRON_SECRET = MOCK_CRON_SECRET;
   });
 
   afterAll(async () => {
-    await restoreModuleNeutral();
-    delete process.env.CRON_SECRET;
-    await closeDb();
+    try {
+      await restoreModuleState();
+      delete process.env.CRON_SECRET;
+    } finally {
+      await closeDb();
+    }
   });
 
   beforeEach(async () => {
     // Restore enabled=true before each test (tests that need disabled toggle locally).
-    await setModuleEnabled(true);
+    await enableRequiredModules();
     process.env.CRON_SECRET = MOCK_CRON_SECRET;
   });
 

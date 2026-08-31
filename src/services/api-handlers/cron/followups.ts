@@ -22,7 +22,7 @@ import { eq, isNull } from 'drizzle-orm';
 import { clinics } from '@/lib/db/schema/core';
 import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
 import { assertModuleForJob } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { executarFollowup } from '@/modules/followup/actions/executar-followup';
@@ -57,7 +57,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   // Module gate — skip if followup module is not contracted
   try {
-    await assertModuleForJob('followup', moduleManifest);
+    await assertModuleForJob('followup', createManifest());
   } catch (_e) {
     return NextResponse.json(
       { success: true, skipped: 'followup module disabled', timestamp: new Date().toISOString() },

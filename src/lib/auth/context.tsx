@@ -9,7 +9,8 @@ export interface UserProfile {
   id: string
   email: string
   name: string
-  role: 'owner' | 'admin' | 'dentist' | 'receptionist'
+  role: string
+  role_id: string
   phone: string | null
   avatar_url: string | null
   is_active: boolean
@@ -22,6 +23,13 @@ export interface UserProfile {
     email: string
     settings: Record<string, unknown>
   } | null
+  available_clinics?: Array<{
+    id: string
+    name: string
+    slug: string
+    roleId: string
+    role: string
+  }>
 }
 
 type AuthResult = { error?: string }

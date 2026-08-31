@@ -9,7 +9,7 @@
 
 import { eq, and, desc } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { messageTemplates } from '@/lib/db/schema';
+import { messageTemplates } from '@/modules/atendimento/schema/integrations';
 import { dbLogger } from '@/lib/logger';
 
 export interface MessageTemplate {

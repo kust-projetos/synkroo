@@ -6,11 +6,11 @@
  * Tests:
  *  - withModuleRoute returns 404 when atendimento is disabled (stub manifest)
  *  - withModuleRoute passes through when atendimento is enabled
- *  - Route handlers tested via dynamic import + jest.spyOn on moduleManifest
+ *  - Route handlers tested via dynamic import + jest.spyOn on createManifest()
  *  - P3: invalid signature/secret → 403
  *  - P3: malformed payload → 200 no-op
  *  - P3: duplicate externalMessageId → single message persisted
- *  - P3: handshake GET ok
+ *  - Instagram remains explicitly disabled in v1
  */
 
 /** @jest-environment node */
@@ -24,7 +24,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 import { Pool } from 'pg';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { hashChannelSecret } from '@/modules/atendimento/integrations/resolve-channel-installation';
 jest.mock('@/core/ia-channel/webhook-router', () => ({
   routeInboundToAgent: jest.fn().mockResolvedValue({ from: 'integration', action: 'agent_replied' }),
@@ -144,7 +144,7 @@ describe('withModuleRoute — atendimento module gate (P0)', () => {
 describeOrSkip('Atendimento routes — module enabled (P0)', () => {
 
   beforeEach(() => {
-    jest.spyOn(moduleManifest, 'isEnabled').mockResolvedValue(true);
+    jest.spyOn(createManifest(), 'isEnabled').mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -165,8 +165,8 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
     expect(text).toBe('ch123');
   });
 
-  // ── instagram/webhook GET handshake ──
-  it('instagram/webhook GET returns challenge text when valid token', async () => {
+  // ── instagram/webhook is outside the v1 scope ──
+  it('instagram/webhook GET remains disabled in v1', async () => {
     const { GET } = await import('@/app/api/instagram/webhook/route');
     const url = new URL('http://localhost/api/instagram/webhook');
     url.searchParams.set('hub.mode', 'subscribe');
@@ -174,9 +174,7 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
     url.searchParams.set('hub.challenge', 'ch456');
     const req = new NextRequest(url);
     const res = await GET(req);
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    expect(text).toBe('ch456');
+    expect(res.status).toBe(404);
   });
 
   // ── messages/inbound unknown installation → 403 (fail-closed tenant resolution) ──
@@ -240,7 +238,7 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
   // ── widget/messages GET passes through gate ──
   it('widget/messages GET returns JSON when enabled', async () => {
     const { GET } = await import('@/app/api/widget/messages/route');
-    const res = await GET();
+    const res = await GET(new NextRequest('http://localhost/api/widget/messages'));
     expect(res.status).not.toBe(404);
   });
 });
@@ -250,7 +248,7 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
 describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => {
 
   beforeEach(() => {
-    jest.spyOn(moduleManifest, 'isEnabled').mockResolvedValue(false);
+    jest.spyOn(createManifest(), 'isEnabled').mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -270,7 +268,7 @@ describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => 
 
   it('widget/messages GET returns 404', async () => {
     const { GET } = await import('@/app/api/widget/messages/route');
-    const res = await GET();
+    const res = await GET(new NextRequest('http://localhost/api/widget/messages'));
     expect(res.status).toBe(404);
   });
 
@@ -321,7 +319,7 @@ describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => 
     expect(res.status).toBe(404);
   });
 
-  it('whatsapp/evolution POST remains reachable when atendimento is disabled', async () => {
+  it('whatsapp/evolution POST returns 404 when atendimento is disabled', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -329,7 +327,7 @@ describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => 
       body: JSON.stringify({ event: 'messages.upsert', instance: 'test', data: { key: { remoteJid: 't', id: 'm1' } } }),
     });
     const res = await POST(req);
-    expect(res.status).not.toBe(404);
+    expect(res.status).toBe(404);
   });
 });
 
@@ -357,6 +355,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (SKIP || !pool) return;
   try {
+    await pool.query(`DELETE FROM outbox_jobs WHERE clinic_id = $1`, [P3_CLINIC_ID]);
     await pool.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [P3_CLINIC_ID]);
     await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [P3_CLINIC_ID]);
     await pool!.query(`DELETE FROM channel_installations WHERE installation_id = $1`, [P3_EVOLUTION_INSTANCE]);
@@ -373,7 +372,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
   }
 
   beforeEach(() => {
-    jest.spyOn(moduleManifest, 'isEnabled').mockResolvedValue(true);
+    jest.spyOn(createManifest(), 'isEnabled').mockResolvedValue(true);
   });
 
   afterEach(() => {

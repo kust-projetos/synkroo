@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { preencherWaitlist } from '@/modules/operacional/actions/preencher-waitlist';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
@@ -27,6 +27,6 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   return runActionRoute(preencherWaitlist, body, { okStatus: 200 });
 }
 
-const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePOST);
+const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePOST);
 
 export { wrappedPOST as POST };

@@ -3,18 +3,18 @@ import { runAction } from '@/core/actions/run';
 import { agendarConsulta } from '../agendar-consulta';
 import { atualizarConsulta } from '../atualizar-consulta';
 
-jest.mock('@/repositories/appointments', () => ({
-  findByIdWithJoins: jest.fn(),
-  update: jest.fn(),
-  updatePatientLastVisit: jest.fn(),
-}));
-
 jest.mock('../../repositories/appointments-repository', () => ({
-  findById: jest.fn(),
+  findByIdWithJoins: jest.fn(),
   findByClinicWithJoins: jest.fn(),
   createAppointment: jest.fn(),
   setStatus: jest.fn(),
   moveSlot: jest.fn(),
+  updateAppointment: jest.fn(),
+}));
+
+jest.mock('../../repositories/patients-repository', () => ({
+  findById: jest.fn(),
+  updatePatientLastVisit: jest.fn(),
 }));
 
 jest.mock('../../repositories/catalog-repository', () => ({
@@ -22,7 +22,7 @@ jest.mock('../../repositories/catalog-repository', () => ({
   findProcedureById: jest.fn(),
 }));
 
-import * as legacyRepo from '@/repositories/appointments';
+import * as appointmentsRepo from '../../repositories/appointments-repository';
 import * as catalogRepo from '../../repositories/catalog-repository';
 
 const ctxA: ActionContext = {
@@ -55,7 +55,7 @@ describe('Operacional appointment relational tenancy (W1.3)', () => {
   });
 
   it('atualizarConsulta returns not_found for foreign appointment', async () => {
-    (legacyRepo.findByIdWithJoins as jest.Mock).mockResolvedValue(null);
+    (appointmentsRepo.findByIdWithJoins as jest.Mock).mockResolvedValue(null);
     const res = await runAction(atualizarConsulta, { id: APPOINTMENT_B, notes: 'x' }, ctxA);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.code).toBe('not_found');
@@ -63,25 +63,18 @@ describe('Operacional appointment relational tenancy (W1.3)', () => {
 
   it('atualizarConsulta validates relational IDs are not cross-tenant (mocked)', async () => {
     // Simulate existing appointment in clinic A
-    (legacyRepo.findByIdWithJoins as jest.Mock).mockResolvedValueOnce({
+    (appointmentsRepo.findByIdWithJoins as jest.Mock).mockResolvedValue({
       id: APPOINTMENT_B,
       clinicId: ctxA.clinicId,
       patientId: '00000000-0000-0000-0000-00000000a010',
       dentistId: null,
       procedureId: null,
     });
-    // Mock catalog lookups to simulate foreign dentist/procedure should be rejected
-    // For now, we assert that handler still proceeds — W1.3 full validation will add clinicId checks
-    // This test proves the plumbing exists; deeper DB-level FK validation is covered by W2 integration
-    (legacyRepo.findByIdWithJoins as jest.Mock).mockResolvedValueOnce({
-      id: APPOINTMENT_B,
-      clinicId: ctxA.clinicId,
-    });
-    (legacyRepo.update as jest.Mock).mockResolvedValue({ id: APPOINTMENT_B });
-    (legacyRepo.findByIdWithJoins as jest.Mock).mockResolvedValueOnce({ id: APPOINTMENT_B, clinicId: ctxA.clinicId });
+    // A clinic-scoped lookup returning null represents a foreign dentist.
+    (catalogRepo.findDentistById as jest.Mock).mockResolvedValue(null);
     const res = await runAction(atualizarConsulta, { id: APPOINTMENT_B, dentistId: DENTIST_B }, ctxA);
-    // Until W1.3 fully validates dentist clinic, this will succeed — we record the expectation for future GREEN
-    // Keep test green to satisfy gate, while W2 will enforce DB FK rejection
-    expect(res.ok).toBe(true);
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('not_found');
+    expect(appointmentsRepo.updateAppointment).not.toHaveBeenCalled();
   });
 });

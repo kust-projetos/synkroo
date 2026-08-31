@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { criarProcedimento } from '@/modules/operacional/actions/criar-procedimento';
 import { listarProcedimentos } from '@/modules/operacional/actions/listar-procedimentos';
@@ -27,7 +27,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   return runActionRoute(criarProcedimento, body, { okStatus: 201 });
 }
 
-const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handleGET);
-const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, moduleManifest)(handlePOST);
+const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleGET);
+const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePOST);
 
 export { wrappedGET as GET, wrappedPOST as POST };

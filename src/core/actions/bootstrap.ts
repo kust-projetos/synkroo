@@ -1,6 +1,9 @@
 // Lazy imports: evita que o instrumentation.ts em edge runtime puxe pg (Node nativo).
 // Apenas ./registry (leve, sem dependência de DB) fica no top-level.
-import { registerActions, getAction, clearRegistryForTests } from './registry';
+import { replaceRegistry, clearRegistryForTests } from './registry';
+import { resetPermissionCatalog, registerAccessPermissions } from '@/core/rbac/catalog';
+import { clearOwnerMergeRegistryForTests, replaceOwnerMergeAdapters } from '@/modules/crm/services/owner-merge-registry';
+import { clearLGPDContributionsForTests, replaceLGPDContributions } from '@/modules/operacional/services/lgpd-registry';
 
 let bootstrapPromise: Promise<void> | null = null;
 
@@ -8,8 +11,9 @@ let bootstrapPromise: Promise<void> | null = null;
 export function resetBootstrapForTests(): void {
   bootstrapPromise = null;
   clearRegistryForTests();
-  // also clear permission catalog
-  import('@/core/rbac/catalog').then((m) => m.clearPermissionsForTests?.());
+  resetPermissionCatalog();
+  clearOwnerMergeRegistryForTests();
+  clearLGPDContributionsForTests();
 }
 
 /**
@@ -21,7 +25,6 @@ export async function bootstrapActions(): Promise<void> {
   if (bootstrapPromise) return bootstrapPromise;
   bootstrapPromise = (async () => {
     const [
-      { registerAccessPermissions },
       { coreActions, coreAccessPermissions },
       { operacionalActions, operacionalAccessPermissions },
       { atendimentoActions, atendimentoAccessPermissions },
@@ -31,7 +34,6 @@ export async function bootstrapActions(): Promise<void> {
       { crmActions, crmAccessPermissions },
       { financeiroActions, financeiroAccessPermissions },
     ] = await Promise.all([
-      import('@/core/rbac/catalog'),
       import('@/modules/core'),
       import('@/modules/operacional'),
       import('@/modules/atendimento'),
@@ -43,7 +45,7 @@ export async function bootstrapActions(): Promise<void> {
     ]);
 
     // Preparar e validar catálogo completo antes de publicar estado global
-    const allActions: any[] = [
+    const allActions = [
       ...coreActions,
       ...operacionalActions,
       ...atendimentoActions,
@@ -53,52 +55,83 @@ export async function bootstrapActions(): Promise<void> {
       ...crmActions,
       ...financeiroActions,
     ];
-    // Validação: nomes únicos, sem undefined, e mapa versionado
+    // Validação: nomes únicos, sem undefined, antes de publicar qualquer estado.
     const seen = new Set<string>();
     for (const a of allActions) {
       if (!a?.name) throw new Error(`bootstrap: action sem nome em módulo ${(a as any)?.module}`);
       if (seen.has(a.name)) throw new Error(`duplicate action name: ${a.name}`);
       seen.add(a.name);
     }
-    // iaActions = [] é a única contribuição vazia aprovada; demais módulos com actions/ devem contribuir >=1
-    // Essa validação é feita no teste bootstrap, não aqui para evitar lock em dev.
+    const allPermissions = [
+      ...coreAccessPermissions,
+      ...operacionalAccessPermissions,
+      ...atendimentoAccessPermissions,
+      ...followupAccessPermissions,
+      ...iaAccessPermissions,
+      ...comercialAccessPermissions,
+      ...crmAccessPermissions,
+      ...financeiroAccessPermissions,
+    ];
+    const permissionKeys = new Set<string>();
+    for (const permission of allPermissions) {
+      if (!permission?.key) throw new Error('bootstrap: permissão sem chave');
+      if (permissionKeys.has(permission.key)) {
+        throw new Error(`duplicate permission key: ${permission.key}`);
+      }
+      permissionKeys.add(permission.key);
+    }
 
     try {
-      // Commit atômico: registra tudo de uma vez; se falhar, limpar estado parcial
-      // Só registra os ainda ausentes (idempotente em dev/HMR) mas trata iaActions uniformemente
-      registerActions(coreActions.filter((a) => !getAction(a.name)));
-      registerActions(operacionalActions.filter((a) => !getAction(a.name)));
-      registerActions(atendimentoActions.filter((a) => !getAction(a.name)));
-      registerActions(followupActions.filter((a) => !getAction(a.name)));
-      // iaActions é [] — registro uniforme, sem exceção
-      registerActions((iaActions as any[]).filter((a) => !getAction(a.name)));
-      registerActions(comercialActions.filter((a) => !getAction(a.name)));
-      registerActions(crmActions.filter((a) => !getAction(a.name)));
-      registerActions(financeiroActions.filter((a) => !getAction(a.name)));
-      registerAccessPermissions(coreAccessPermissions);
-      registerAccessPermissions(operacionalAccessPermissions);
-      registerAccessPermissions(atendimentoAccessPermissions);
-      registerAccessPermissions(followupAccessPermissions);
-      registerAccessPermissions(iaAccessPermissions);
-      registerAccessPermissions(comercialAccessPermissions);
-      registerAccessPermissions(crmAccessPermissions);
-      registerAccessPermissions(financeiroAccessPermissions);
-      // W5.5: composition root registra adapters owner-merge explicitamente (sem side effect de import)
-      const { registerOwnerMerge } = await import('@/modules/crm/services/owner-merge-registry');
-      const { mergePatients } = await import('@/modules/operacional/repositories/patients-repository');
-      const { mergeLeads } = await import('@/modules/comercial/repositories/leads-repository');
-      // limpar antes de registrar (idempotente para HMR)
-      const { clearOwnerMergeRegistryForTests } = await import('@/modules/crm/services/owner-merge-registry');
-      try { clearOwnerMergeRegistryForTests(); } catch {}
-      registerOwnerMerge('patient', (w, l, c) => mergePatients(w, l, c));
-      registerOwnerMerge('lead', (w, l, c) => mergeLeads(w, l, c));
+      // Commit atômico: todas as estruturas são preparadas antes da publicação.
+      replaceRegistry(allActions);
+      resetPermissionCatalog();
+      registerAccessPermissions(allPermissions);
+
+      const [{ mergePatients }, { mergeLeads }] = await Promise.all([
+        import('@/modules/operacional/public'),
+        import('@/modules/comercial/public'),
+      ]);
+      replaceOwnerMergeAdapters([
+        {
+          ownerType: 'patient',
+          dispatcher: (winnerId, loserId, clinicId) => mergePatients({ clinicId, winnerId, loserId }),
+        },
+        {
+          ownerType: 'lead',
+          dispatcher: (winnerId, loserId, clinicId) => mergeLeads({ clinicId, winnerId, loserId }),
+        },
+      ]);
+
+      // LGPD contributions — tenant-safe, owner-controlled, mounted at composition root
+      const [
+        { exportFinanceiroForPatient, anonymizeFinanceiroForPatient },
+        { exportComercialForPatient, anonymizeComercialForPatient },
+        { exportFollowupForPatient, anonymizeFollowupForPatient },
+        { exportCrmForPatient, anonymizeCrmForPatient },
+        { exportIaForPatient, anonymizeIaForPatient },
+        { exportAtendimentoForPatient, anonymizeAtendimentoForPatient },
+      ] = await Promise.all([
+        import('@/modules/financeiro/services/lgpd-financeiro'),
+        import('@/modules/comercial/services/lgpd-comercial'),
+        import('@/modules/followup/services/lgpd-followup'),
+        import('@/modules/crm/services/lgpd-crm'),
+        import('@/modules/ia/services/lgpd-ia'),
+        import('@/modules/atendimento/services/lgpd-atendimento'),
+      ]);
+      replaceLGPDContributions([
+        { moduleId: 'financeiro', exportData: exportFinanceiroForPatient, anonymizeData: anonymizeFinanceiroForPatient },
+        { moduleId: 'comercial', exportData: exportComercialForPatient, anonymizeData: anonymizeComercialForPatient },
+        { moduleId: 'followup', exportData: exportFollowupForPatient, anonymizeData: anonymizeFollowupForPatient },
+        { moduleId: 'crm', exportData: exportCrmForPatient, anonymizeData: anonymizeCrmForPatient },
+        { moduleId: 'ia', exportData: exportIaForPatient, anonymizeData: anonymizeIaForPatient },
+        { moduleId: 'atendimento', exportData: exportAtendimentoForPatient, anonymizeData: anonymizeAtendimentoForPatient },
+      ]);
     } catch (err) {
       // Rollback: limpar registries e promise para permitir retry explícito sem estado parcial
       try { clearRegistryForTests(); } catch {}
-      try {
-        const cat = await import('@/core/rbac/catalog');
-        (cat as any).clearPermissionsForTests?.();
-      } catch {}
+      try { resetPermissionCatalog(); } catch {}
+      try { clearOwnerMergeRegistryForTests(); } catch {}
+      try { clearLGPDContributionsForTests(); } catch {}
       bootstrapPromise = null;
       throw err;
     }

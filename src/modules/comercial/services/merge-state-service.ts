@@ -5,13 +5,13 @@
  * No dispatcher dependency.
  */
 
-import { eq, and, or } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { crmDuplicateSuggestions } from '@/lib/db/schema';
+import { leads } from '@/modules/comercial/schema/leads';
 
 /**
- * Check whether a lead has been merged (has a 'merged' suggestion referencing it).
- * Returns true if a merged suggestion exists where leadId is leftId or rightId.
+ * Check the owner record directly. The CRM suggestion is not the source of
+ * truth for the lead merge state.
  */
 export async function isLeadMerged(
   leadId: string,
@@ -19,16 +19,12 @@ export async function isLeadMerged(
 ): Promise<boolean> {
   const db = getDb();
   const [row] = await db
-    .select({ id: crmDuplicateSuggestions.id })
-    .from(crmDuplicateSuggestions)
+    .select({ id: leads.id })
+    .from(leads)
     .where(and(
-      eq(crmDuplicateSuggestions.clinicId, clinicId),
-      eq(crmDuplicateSuggestions.ownerType, 'lead'),
-      eq(crmDuplicateSuggestions.status, 'merged'),
-      or(
-        eq(crmDuplicateSuggestions.leftId, leadId),
-        eq(crmDuplicateSuggestions.rightId, leadId),
-      ),
+      eq(leads.clinicId, clinicId),
+      eq(leads.id, leadId),
+      sql`${leads.mergeStatus} = 'merged'`,
     ))
     .limit(1);
   return !!row;

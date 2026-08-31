@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { validateApiAuth, hasRequiredRole } from '@/lib/auth/session'
+import { validateApiAuth } from '@/lib/auth/session'
 import { updateCampaignSchema } from '@/lib/validations'
 import { handleApiError, ValidationError } from '@/lib/errors'
 import * as campaignRepo from '@/repositories/campaigns'
@@ -37,7 +37,7 @@ function repoCampaignToApi(c: campaignRepo.CampaignRow) {
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: campaignId } = await params
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('followup:view')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },
@@ -113,18 +113,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: campaignId } = await params
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('followup:manage_campaigns')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },
         { status: authResult.error!.status }
-      )
-    }
-
-    if (!hasRequiredRole(authResult.profile!, ['owner', 'admin'])) {
-      return NextResponse.json(
-        { error: 'Only owners and admins can update campaigns' },
-        { status: 403 }
       )
     }
 
@@ -177,18 +170,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     const { id: campaignId } = await params
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('followup:manage_campaigns')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },
         { status: authResult.error!.status }
-      )
-    }
-
-    if (!hasRequiredRole(authResult.profile!, ['owner', 'admin'])) {
-      return NextResponse.json(
-        { error: 'Only owners and admins can delete campaigns' },
-        { status: 403 }
       )
     }
 

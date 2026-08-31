@@ -13,14 +13,14 @@ import { getDb, closeDb } from '@/lib/db/client';
 import { clinics, users } from '@/lib/db/schema/core';
 import { patients } from '@/modules/operacional/schema';
 import { instanceModules } from '@/lib/db/schema/modules';
-import { roles, userClinicAccess } from '@/modules/core/schema/rbac';
+import { roles, rolePermissions, userClinicAccess } from '@/modules/core/schema/rbac';
 import { seedRbacForClinic } from '@/core/rbac/seed';
 import { bootstrapActions } from '@/core/actions/bootstrap';
 import { RESERVED_ROLE_OWNER } from '@/core/rbac/presets';
 import { buildDelegatedContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
 import { detectarInativos, listarInativos, reativarPaciente } from '@/modules/followup/actions';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -33,6 +33,43 @@ const PATIENT_B = `e0000000-0000-4000-8000-${ts.padStart(12, '0')}` as const;
 
 const LONG_AGO = new Date(Date.UTC(2024, 0, 1)); // ~2.5 years ago
 const RECENT = new Date(); // today
+
+const REQUIRED_MODULES = ['operacional', 'comercial', 'atendimento', 'financeiro', 'followup'] as const;
+let previousModuleState: Array<{ moduleId: string; enabled: boolean }> = [];
+let moduleStateCaptured = false;
+
+async function enableRequiredModules() {
+  const db = getDb();
+  if (!moduleStateCaptured) {
+    previousModuleState = await db
+      .select({ moduleId: instanceModules.moduleId, enabled: instanceModules.enabled })
+      .from(instanceModules)
+      .where(inArray(instanceModules.moduleId, [...REQUIRED_MODULES]));
+    moduleStateCaptured = true;
+  }
+  for (const moduleId of REQUIRED_MODULES) {
+    await db
+      .insert(instanceModules)
+      .values({ moduleId, enabled: true })
+      .onConflictDoUpdate({ target: instanceModules.moduleId, set: { enabled: true } });
+  }
+}
+
+async function restoreModuleState() {
+  if (!moduleStateCaptured) return;
+  const db = getDb();
+  const previous = new Map(previousModuleState.map((row) => [row.moduleId, row.enabled]));
+  for (const moduleId of REQUIRED_MODULES) {
+    if (previous.has(moduleId)) {
+      await db.update(instanceModules).set({ enabled: previous.get(moduleId)! })
+        .where(inArray(instanceModules.moduleId, [moduleId]));
+    } else {
+      await db.delete(instanceModules).where(inArray(instanceModules.moduleId, [moduleId]));
+    }
+  }
+  previousModuleState = [];
+  moduleStateCaptured = false;
+}
 
 describeOrSkip('inactive actions — runAction (DB real)', () => {
   let ownerRoleId: string;
@@ -51,19 +88,13 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
     await bootstrapActions();
     await seedRbacForClinic(CLINIC_ID);
     await seedRbacForClinic(OTHER_CLINIC_ID);
+    await enableRequiredModules();
 
     const [ownerRow] = await db.select({ id: roles.id })
       .from(roles)
       .where(and(eq(roles.clinicId, CLINIC_ID), eq(roles.name, RESERVED_ROLE_OWNER)))
       .limit(1);
     ownerRoleId = ownerRow!.id;
-
-    // 3. Enable followup module in instance_modules (required by hasModule gate)
-    // UPSERT + DO UPDATE: safe for shared row across suites; never deletes.
-    await db
-      .insert(instanceModules)
-      .values({ moduleId: 'followup', enabled: true })
-      .onConflictDoUpdate({ target: instanceModules.moduleId, set: { enabled: true } });
 
     // 4. Create test user
     await db.insert(users).values({
@@ -87,19 +118,22 @@ describeOrSkip('inactive actions — runAction (DB real)', () => {
 
   afterAll(async () => {
     const db = getDb();
-    // Restore instanceModules to neutral (enabled=false, not deleted)
-    await db
-      .update(instanceModules)
-      .set({ enabled: false })
-      .where(eq(instanceModules.moduleId, 'followup'));
-    await db.delete(patients).where(eq(patients.clinicId, CLINIC_ID));
-    await db.delete(userClinicAccess).where(eq(userClinicAccess.userId, USER_ID));
-    await db.delete(users).where(eq(users.id, USER_ID));
-    await db.delete(roles).where(eq(roles.clinicId, CLINIC_ID));
-    await db.delete(roles).where(eq(roles.clinicId, OTHER_CLINIC_ID));
-    await db.delete(clinics).where(eq(clinics.id, CLINIC_ID));
-    await db.delete(clinics).where(eq(clinics.id, OTHER_CLINIC_ID));
-    await closeDb();
+    try {
+      await db.delete(patients).where(eq(patients.clinicId, CLINIC_ID));
+      await db.delete(userClinicAccess).where(inArray(userClinicAccess.clinicId, [CLINIC_ID, OTHER_CLINIC_ID]));
+      await db.delete(users).where(inArray(users.clinicId, [CLINIC_ID, OTHER_CLINIC_ID]));
+      const roleRows = await db.select({ id: roles.id }).from(roles)
+        .where(inArray(roles.clinicId, [CLINIC_ID, OTHER_CLINIC_ID]));
+      const roleIds = roleRows.map((row) => row.id);
+      if (roleIds.length) {
+        await db.delete(rolePermissions).where(inArray(rolePermissions.roleId, roleIds));
+      }
+      await db.delete(roles).where(inArray(roles.clinicId, [CLINIC_ID, OTHER_CLINIC_ID]));
+      await db.delete(clinics).where(inArray(clinics.id, [CLINIC_ID, OTHER_CLINIC_ID]));
+    } finally {
+      await restoreModuleState();
+      await closeDb();
+    }
   });
 
   // ── detectarInativos ──────────────────────────────────────────────────────

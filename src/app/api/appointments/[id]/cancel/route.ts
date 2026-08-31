@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { moduleManifest } from '@/core/modules/manifest';
+import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { cancelarConsulta } from '@/modules/operacional/actions/cancelar-consulta';
 
@@ -20,5 +20,5 @@ async function handlePOST(request: NextRequest, { params }: RouteParams): Promis
   return runActionRoute(cancelarConsulta, { id, ...body });
 }
 
-const wrapped = withModuleRoute('operacional', moduleManifest)(handlePOST);
+const wrapped = withModuleRoute('operacional')(handlePOST);
 export { wrapped as POST };
