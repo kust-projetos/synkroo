@@ -1,102 +1,125 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getConsentsForContact, grantConsent, revokeConsent } from '@/services/contacts/consents.service'
-import type { ConsentPurpose, ConsentChannel } from '@/services/contacts/consents.service'
-import { z } from 'zod'
+import { z } from 'zod';
+import { apiFailure, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { ActionError } from '@/core/actions/types';
 
-const consentPurposeSchema = z.enum(['data_collection', 'marketing', 'whatsapp_communication'])
-const consentChannelSchema = z.enum(['web', 'whatsapp', 'manual'])
+const contactType = z.enum(['patient', 'lead']);
+const purpose = z.enum(['data_collection', 'marketing', 'whatsapp_communication']);
+const channel = z.enum(['web', 'whatsapp', 'manual']);
 
-const grantConsentSchema = z.object({
+const contactQuerySchema = z.object({
   contact_id: z.string().uuid(),
-  contact_type: z.enum(['patient', 'lead']),
-  purpose: consentPurposeSchema,
-  channel: consentChannelSchema.optional(),
-  notes: z.string().optional(),
-})
+  contact_type: contactType,
+}).strict();
 
-const revokeConsentSchema = z.object({
+const grantSchema = z.object({
   contact_id: z.string().uuid(),
-  contact_type: z.enum(['patient', 'lead']),
-  purpose: consentPurposeSchema,
-  channel: consentChannelSchema.optional(),
-  notes: z.string().optional(),
-})
+  contact_type: contactType,
+  purpose,
+  channel: channel.optional(),
+  version: z.string().min(1).max(50).optional(),
+  notes: z.string().max(2000).nullable().optional(),
+}).strict();
 
-export async function GET(request: NextRequest) {
+const revokeSchema = z.object({
+  consent_id: z.string().uuid().optional(),
+  contact_id: z.string().uuid().optional(),
+  contact_type: contactType.optional(),
+  purpose: purpose.optional(),
+  channel: channel.optional(),
+  notes: z.string().max(2000).nullable().optional(),
+}).strict().superRefine((input, ctx) => {
+  if (input.consent_id) {
+    if (input.contact_id || input.contact_type || input.purpose) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'consent_id cannot be combined with contact selector' });
+    return;
+  }
+  if (!input.contact_id || !input.contact_type || !input.purpose) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'contact_id, contact_type and purpose are required' });
+  }
+});
+
+function statusFor(code: string): number {
+  if (code === 'unauthenticated') return 401;
+  if (code === 'forbidden') return 403;
+  if (code === 'not_found') return 404;
+  if (code === 'internal') return 500;
+  return 400;
+}
+
+function responseWithId(response: Response, requestId: string) {
+  response.headers.set('x-request-id', requestId);
+  return response;
+}
+
+function failure(result: { ok: false; error: { code: string; message: string } }, requestId: string) {
+  return responseWithId(apiFailure(result.error.code.toUpperCase(), result.error.message, requestId, statusFor(result.error.code)), requestId);
+}
+
+async function contextAndAction() {
   const { buildUserContext } = await import('@/core/actions/context');
   const { runAction } = await import('@/core/actions/run');
-  const { listarConsentimentos } = await import('@/modules/crm/actions/listar-consentimentos');
+  return { ctx: await buildUserContext(), runAction };
+}
+
+export async function GET(request: Request) {
+  const requestId = request.headers.get('x-request-id') ?? generateRequestId();
   try {
-    const ctx = await buildUserContext();
-    const { searchParams } = new URL(request.url);
-    const contactId = searchParams.get('contact_id');
-    const contactType = searchParams.get('contact_type') as 'patient' | 'lead' | null;
-    if (!contactId || !contactType) {
-      return NextResponse.json({ error: 'contact_id and contact_type query parameters are required' }, { status: 400 });
-    }
-    const result = await runAction(listarConsentimentos, contactType === 'patient' ? { patientId: contactId } : { leadId: contactId } as any, ctx);
-    if (!result.ok) {
-      const status = result.error.code === 'not_found' ? 404 : result.error.code === 'forbidden' ? 403 : 400;
-      return NextResponse.json({ error: result.error.message }, { status });
-    }
-    return NextResponse.json({ data: (result.data as any).data ?? result.data });
+    const parsed = contactQuerySchema.safeParse(Object.fromEntries(new URL(request.url).searchParams));
+    if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'contact_id e contact_type são obrigatórios.', requestId, 400), requestId);
+    const { listarConsentimentos } = await import('@/modules/crm/actions/listar-consentimentos');
+    const { ctx, runAction } = await contextAndAction();
+    const result = await runAction(listarConsentimentos, { contactId: parsed.data.contact_id, contactType: parsed.data.contact_type }, ctx);
+    if (!result.ok) return failure(result, requestId);
+    return responseWithId(apiSuccess(result.data), requestId);
   } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch consents' }, { status: 500 });
+    if ((error instanceof ActionError && error.code === 'unauthenticated') || (error instanceof Error && error.message === 'unauthenticated')) return responseWithId(apiFailure('UNAUTHENTICATED', 'Não autenticado.', requestId, 401), requestId);
+    return responseWithId(apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500), requestId);
   }
 }
 
-export async function POST(request: NextRequest) {
-  const { buildUserContext } = await import('@/core/actions/context');
-  const { runAction } = await import('@/core/actions/run');
-  const { concederConsentimento } = await import('@/modules/crm/actions/conceder-consentimento');
+export async function POST(request: Request) {
+  const requestId = request.headers.get('x-request-id') ?? generateRequestId();
   try {
-    const ctx = await buildUserContext();
-    const body = await request.json();
-    const validated = grantConsentSchema.parse(body);
+    const parsed = grantSchema.safeParse(await request.json());
+    if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
+    const { concederConsentimento } = await import('@/modules/crm/actions/conceder-consentimento');
+    const { ctx, runAction } = await contextAndAction();
     const result = await runAction(concederConsentimento, {
-      patientId: validated.contact_type === 'patient' ? validated.contact_id : undefined,
-      leadId: validated.contact_type === 'lead' ? validated.contact_id : undefined,
-      purpose: validated.purpose,
-    } as any, ctx);
-    if (!result.ok) {
-      const status = result.error.code === 'not_found' ? 404 : result.error.code === 'forbidden' ? 403 : 400;
-      return NextResponse.json({ error: result.error.message }, { status });
-    }
-    return NextResponse.json(result.data);
+      contactId: parsed.data.contact_id,
+      contactType: parsed.data.contact_type,
+      purpose: parsed.data.purpose,
+      channel: parsed.data.channel,
+      version: parsed.data.version,
+      notes: parsed.data.notes,
+    }, ctx);
+    if (!result.ok) return failure(result, requestId);
+    return responseWithId(apiSuccess(result.data), requestId);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
-    }
-    return NextResponse.json({ error: 'Failed to grant consent' }, { status: 500 });
+    if ((error instanceof ActionError && error.code === 'unauthenticated') || (error instanceof Error && error.message === 'unauthenticated')) return responseWithId(apiFailure('UNAUTHENTICATED', 'Não autenticado.', requestId, 401), requestId);
+    return responseWithId(apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500), requestId);
   }
 }
 
-export async function PATCH(request: NextRequest) {
-  const { buildUserContext } = await import('@/core/actions/context');
-  const { runAction } = await import('@/core/actions/run');
-  const { revogarConsentimento } = await import('@/modules/crm/actions/revogar-consentimento');
+export async function PATCH(request: Request) {
+  const requestId = request.headers.get('x-request-id') ?? generateRequestId();
   try {
-    const ctx = await buildUserContext();
-    const body = await request.json();
-    const validated = revokeConsentSchema.parse(body);
-    // revogarConsentimento expects consentId, but legacy uses contact_id+purpose — lookup first via listar
-    const { getDb } = await import('@/lib/db/client');
-    const { consents } = await import('@/lib/db/schema/infra');
-    const { eq, and } = await import('drizzle-orm');
-    const db = getDb();
-    const [existing] = await db.select().from(consents).where(and(eq(consents.contactId, validated.contact_id), eq(consents.contactType, validated.contact_type), eq(consents.purpose, validated.purpose))).limit(1);
-    if (!existing) return NextResponse.json({ error: 'Consent not found' }, { status: 404 });
-    const result = await runAction(revogarConsentimento, { consentId: existing.id }, ctx);
-    if (!result.ok) {
-      const status = result.error.code === 'not_found' ? 404 : 403;
-      return NextResponse.json({ error: result.error.message }, { status });
-    }
-    return NextResponse.json(result.data);
+    const parsed = revokeSchema.safeParse(await request.json());
+    if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
+    const { revogarConsentimento } = await import('@/modules/crm/actions/revogar-consentimento');
+    const { ctx, runAction } = await contextAndAction();
+    const input = parsed.data.consent_id
+      ? { consentId: parsed.data.consent_id }
+      : {
+        contactId: parsed.data.contact_id!,
+        contactType: parsed.data.contact_type!,
+        purpose: parsed.data.purpose!,
+        channel: parsed.data.channel,
+        notes: parsed.data.notes,
+      };
+    const result = await runAction(revogarConsentimento, input, ctx);
+    if (!result.ok) return failure(result, requestId);
+    return responseWithId(apiSuccess(result.data), requestId);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
-    }
-    return NextResponse.json({ error: 'Failed to revoke consent' }, { status: 500 });
+    if ((error instanceof ActionError && error.code === 'unauthenticated') || (error instanceof Error && error.message === 'unauthenticated')) return responseWithId(apiFailure('UNAUTHENTICATED', 'Não autenticado.', requestId, 401), requestId);
+    return responseWithId(apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500), requestId);
   }
 }

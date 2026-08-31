@@ -1,38 +1,37 @@
-/**
- * LGPD Data Export API Route
- * POST /api/lgpd/export
- * LGPD-02: Provides patient data portability
- * Migrated from Supabase to Drizzle ORM.
- */
+import { z } from 'zod';
+import { apiFailure, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { ActionError } from '@/core/actions/types';
 
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getDb } from '@/lib/db/client'
-import { patients } from '@/modules/operacional/schema'
-import { appointments } from '@/lib/db/schema/appointments'
-import { budgets, payments } from '@/lib/db/schema/business'
-import { consents } from '@/lib/db/schema/infra'
-import { eq, and } from 'drizzle-orm'
+const inputSchema = z.object({ patientId: z.string().uuid() }).strict();
 
-export async function POST(request: NextRequest) {
+function statusFor(code: string): number {
+  if (code === 'unauthenticated') return 401;
+  if (code === 'forbidden') return 403;
+  if (code === 'not_found') return 404;
+  if (code === 'internal') return 500;
+  return 400;
+}
+
+function responseWithId(response: Response, requestId: string) {
+  response.headers.set('x-request-id', requestId);
+  return response;
+}
+
+export async function POST(request: Request) {
+  const requestId = request.headers.get('x-request-id') ?? generateRequestId();
   try {
     const { buildUserContext } = await import('@/core/actions/context');
     const { runAction } = await import('@/core/actions/run');
     const { exportarDadosPaciente } = await import('@/modules/operacional/actions/exportar-dados-paciente');
-    const ctx = await buildUserContext();
-    const body = await request.json();
-    const { patientId } = body;
-    if (!patientId) {
-      return NextResponse.json({ error: 'Missing required field: patientId' }, { status: 400 });
-    }
-    const result = await runAction(exportarDadosPaciente, { patientId }, ctx);
-    if (!result.ok) {
-      const status = result.error.code === 'not_found' ? 404 : result.error.code === 'forbidden' ? 403 : 400;
-      return NextResponse.json({ error: result.error.message }, { status });
-    }
-    return NextResponse.json(result.data);
+    const parsed = inputSchema.safeParse(await request.json());
+    if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
+    const result = await runAction(exportarDadosPaciente, parsed.data, await buildUserContext());
+    if (!result.ok) return responseWithId(apiFailure(result.error.code.toUpperCase(), result.error.message, requestId, statusFor(result.error.code)), requestId);
+    return responseWithId(apiSuccess(result.data), requestId);
   } catch (error) {
-    console.error('LGPD export error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    if ((error instanceof ActionError && error.code === 'unauthenticated') || (error instanceof Error && error.message === 'unauthenticated')) {
+      return responseWithId(apiFailure('UNAUTHENTICATED', 'Não autenticado.', requestId, 401), requestId);
+    }
+    return responseWithId(apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500), requestId);
   }
 }

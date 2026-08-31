@@ -1,39 +1,38 @@
-/**
- * LGPD Anonymize API Route
- * POST /api/lgpd/anonymize
- * LGPD-03: Anonymizes patient data with audit trail
- * Migrated from Supabase to Drizzle ORM.
- */
+import { z } from 'zod';
+import { apiFailure, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { ActionError } from '@/core/actions/types';
 
-import { NextRequest, NextResponse } from 'next/server'
-import { validateApiAuth } from '@/lib/auth/session'
-import { getDb } from '@/lib/db/client'
-import { patients } from '@/modules/operacional/schema'
-import { appointments } from '@/lib/db/schema/appointments'
-import { budgets } from '@/lib/db/schema/business'
-import { leads } from '@/lib/db/schema/crm'
-import { auditLogs } from '@/lib/db/schema/infra'
-import { eq, and } from 'drizzle-orm'
+const inputSchema = z.object({ patientId: z.string().uuid() }).strict();
 
-export async function POST(request: NextRequest) {
+function statusFor(code: string): number {
+  if (code === 'unauthenticated') return 401;
+  if (code === 'forbidden') return 403;
+  if (code === 'not_found') return 404;
+  if (code === 'conflict') return 423;
+  if (code === 'internal') return 500;
+  return 400;
+}
+
+function responseWithId(response: Response, requestId: string) {
+  response.headers.set('x-request-id', requestId);
+  return response;
+}
+
+export async function POST(request: Request) {
+  const requestId = request.headers.get('x-request-id') ?? generateRequestId();
   try {
     const { buildUserContext } = await import('@/core/actions/context');
     const { runAction } = await import('@/core/actions/run');
     const { anonimizarPaciente } = await import('@/modules/operacional/actions/anonimizar-paciente');
-    const ctx = await buildUserContext();
-    const body = await request.json();
-    const { patientId } = body;
-    if (!patientId) {
-      return NextResponse.json({ error: 'Missing required field: patientId' }, { status: 400 });
-    }
-    const result = await runAction(anonimizarPaciente, { patientId }, ctx);
-    if (!result.ok) {
-      const status = result.error.code === 'not_found' ? 404 : result.error.code === 'forbidden' ? 403 : result.error.code === 'conflict' ? 423 : 400;
-      return NextResponse.json({ error: result.error.message }, { status });
-    }
-    return NextResponse.json({ success: true, data: result.data });
+    const parsed = inputSchema.safeParse(await request.json());
+    if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
+    const result = await runAction(anonimizarPaciente, parsed.data, await buildUserContext());
+    if (!result.ok) return responseWithId(apiFailure(result.error.code.toUpperCase(), result.error.message, requestId, statusFor(result.error.code)), requestId);
+    return responseWithId(apiSuccess(result.data), requestId);
   } catch (error) {
-    console.error('LGPD anonymize error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    if ((error instanceof ActionError && error.code === 'unauthenticated') || (error instanceof Error && error.message === 'unauthenticated')) {
+      return responseWithId(apiFailure('UNAUTHENTICATED', 'Não autenticado.', requestId, 401), requestId);
+    }
+    return responseWithId(apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500), requestId);
   }
 }
