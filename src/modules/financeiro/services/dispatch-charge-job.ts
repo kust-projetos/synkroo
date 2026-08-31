@@ -1,16 +1,32 @@
 import { getGatewayProvider } from '../gateways/registry';
-import { getPaymentGateway, updatePaymentCharge } from '../repositories/financeiro-repository';
+import {
+  getPaymentGatewayForClinic,
+  getPaymentChargeForClinic,
+  getBudgetForClinic,
+  updatePaymentChargeForClinic,
+} from '../repositories/financeiro-repository';
 import { dispatchNextOutbox } from '@/lib/outbox/dispatch-outbox';
 import type { OutboxJob } from '@/lib/outbox/outbox-repository';
 import type { GatewayProvider } from '../gateways/contracts';
 
 export async function dispatchChargeJob(job: OutboxJob): Promise<void> {
+  const clinicId = job.clinicId;
+  if (!clinicId) throw new Error('PAYMENT_CHARGE_NOT_FOUND');
   const payload = job.payload as Record<string, unknown>;
   const chargeId = String(payload.chargeId ?? '');
-  const clinicId = String(payload.clinicId ?? job.clinicId);
   const gatewayId = String(payload.gatewayId ?? '');
-  const gateway = await getPaymentGateway(gatewayId);
+  if (!chargeId || !gatewayId) throw new Error('PAYMENT_CHARGE_NOT_FOUND');
+
+  // Gateway / charge / budget devem pertencer à mesma clínica do job antes de qualquer chamada externa.
+  // Falha fechada: não revela se vítima existe, não chama provider, não muta outra clínica.
+  const charge = await getPaymentChargeForClinic(chargeId, clinicId);
+  if (!charge) throw new Error('PAYMENT_CHARGE_NOT_FOUND');
+  const gateway = await getPaymentGatewayForClinic(gatewayId, clinicId);
   if (!gateway) throw new Error('PAYMENT_GATEWAY_NOT_FOUND');
+  if (charge.gatewayId !== gateway.id) throw new Error('PAYMENT_GATEWAY_NOT_FOUND');
+  const budget = await getBudgetForClinic(charge.budgetId, clinicId);
+  if (!budget) throw new Error('PAYMENT_CHARGE_NOT_FOUND');
+
   const provider = getGatewayProvider(gateway.provider as GatewayProvider);
   if (!provider) throw new Error('PAYMENT_GATEWAY_PROVIDER_NOT_REGISTERED');
 
@@ -22,7 +38,7 @@ export async function dispatchChargeJob(job: OutboxJob): Promise<void> {
       customerName: 'Cliente',
       idempotencyKey: job.businessKey,
     });
-    const updated = await updatePaymentCharge(chargeId, {
+    const updated = await updatePaymentChargeForClinic(chargeId, clinicId, {
       externalChargeId: result.externalChargeId,
       paymentUrl: result.paymentUrl,
       pixQrCode: result.pixQrCode,
@@ -40,7 +56,7 @@ export async function dispatchChargeJob(job: OutboxJob): Promise<void> {
         idempotencyKey: job.businessKey,
       });
     }
-    await updatePaymentCharge(chargeId, { status: 'cancelled' }, ['cancellation_pending']);
+    await updatePaymentChargeForClinic(chargeId, clinicId, { status: 'cancelled' }, ['cancellation_pending']);
     return;
   }
 
