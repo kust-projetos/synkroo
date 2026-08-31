@@ -1,123 +1,63 @@
-/**
- * LGPD Anonymize Route — behavioral tests (with audit log)
- */
+import { POST } from '@/app/api/lgpd/anonymize/route';
+import { buildUserContext } from '@/core/actions/context';
+import { runAction } from '@/core/actions/run';
 
-jest.mock('@/lib/auth/session', () => ({
-  validateApiAuth: jest.fn(),
-}))
+jest.mock('@/core/actions/context', () => ({ buildUserContext: jest.fn() }));
+jest.mock('@/core/actions/run', () => ({ runAction: jest.fn() }));
+jest.mock('@/modules/operacional/actions/anonimizar-paciente', () => ({
+  anonimizarPaciente: { name: 'operacional.anonimizarPaciente' },
+}));
 
-import { validateApiAuth } from '@/lib/auth/session'
-
-let queryResults: any[] = []
-let queryIndex = 0
-
-function createMockDb() {
-  const chain: any = {
-    select: jest.fn().mockReturnThis(),
-    from: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    set: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    values: jest.fn().mockReturnThis(),
-    transaction: jest.fn(async (cb: any) => cb(chain)),
-    then: jest.fn((resolve: any) => {
-      const result = queryResults[queryIndex++] ?? queryResults[queryResults.length - 1] ?? []
-      return resolve(result)
-    }),
-  }
-  return chain
-}
-
-let mdb = createMockDb()
-
-jest.mock('@/lib/db/client', () => ({
-  getDb: jest.fn(() => mdb),
-}))
-
-import { POST } from '@/app/api/lgpd/anonymize/route'
-
-function seed(...results: any[][]) {
-  queryResults = results
-  queryIndex = 0
-}
-
-function mockAuth(clinicId = 'c1', success = true) {
-  ;(validateApiAuth as jest.Mock).mockResolvedValue(
-    success
-      ? { success: true, profile: { id: 'user-1', clinic_id: clinicId, is_active: true } }
-      : { success: false, error: { message: 'Unauthorized', status: 401 } },
-  )
-}
-
-function mockReq(body: any, headers: Record<string, string> = {}) {
+function mockRequest(body: unknown, headers: Record<string, string> = {}): Request {
   return {
     json: () => Promise.resolve(body),
-    headers: new Map(Object.entries(headers)),
-  } as any
+    headers: { get: (key: string) => headers[key] ?? null },
+  } as unknown as Request;
 }
 
 beforeEach(() => {
-  mdb = createMockDb()
-  queryResults = []
-  queryIndex = 0
-  mdb.set = jest.fn().mockReturnValue({ where: jest.fn().mockResolvedValue(undefined) })
-  mdb.update = jest.fn().mockReturnValue({ set: mdb.set })
-  mdb.values = jest.fn().mockResolvedValue(undefined)
-  mdb.insert = jest.fn().mockReturnValue({ values: mdb.values })
-  mdb.transaction = jest.fn(async (cb: any) => cb(mdb))
-})
+  jest.clearAllMocks();
+  (buildUserContext as jest.Mock).mockResolvedValue({
+    source: 'user', clinicId: 'c1', user: { id: 'u1', email: 'u@example.com', name: 'User' },
+    can: () => true, hasModule: () => true, audit: { actor: 'u1' },
+  });
+});
 
 describe('POST /api/lgpd/anonymize', () => {
   it('returns 401 when not authenticated', async () => {
-    mockAuth('c1', false)
-    const res = await POST(mockReq({ patientId: 'p1' }))
-    expect(res.status).toBe(401)
-  })
+    (buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'));
+    const res = await POST(mockRequest({ patientId: '00000000-0000-4000-8000-000000000001' }));
+    expect(res.status).toBe(401);
+  });
 
   it('returns 400 when patientId is missing', async () => {
-    mockAuth('c1')
-    const res = await POST(mockReq({}))
-    expect(res.status).toBe(400)
-  })
+    const res = await POST(mockRequest({}));
+    expect(res.status).toBe(400);
+    expect(runAction).not.toHaveBeenCalled();
+  });
 
-  it('captures snapshot and inserts audit log', async () => {
-    mockAuth('c1')
-    seed([{
-      id: 'p1', name: 'João', phone: '123', email: 'j@j.com',
-      cpf: '111.222.333-44', birthDate: '1990-01-01', clinicId: 'c1',
-    }])
+  it('returns the action result and request id', async () => {
+    (runAction as jest.Mock).mockResolvedValue({ ok: true, data: { anonymized: true, auditId: 'audit-1' } });
+    const res = await POST(mockRequest(
+      { patientId: '00000000-0000-4000-8000-000000000001' },
+      { 'x-request-id': 'req-test' },
+    ));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-request-id')).toBe('req-test');
+    const body = await res.json();
+    expect(body.data.anonymized).toBe(true);
+    expect(body.data.auditId).toBe('audit-1');
+  });
 
-    const res = await POST(mockReq(
-      { patientId: 'p1' },
-      { 'x-forwarded-for': '10.0.0.1', 'user-agent': 'TestAgent/1.0' },
-    ))
-    expect(res.status).toBe(200)
+  it('maps legal hold to a conflict without inventing a success', async () => {
+    (runAction as jest.Mock).mockResolvedValue({ ok: false, error: { code: 'conflict', message: 'Paciente em legal hold.' } });
+    const res = await POST(mockRequest({ patientId: '00000000-0000-4000-8000-000000000001' }));
+    expect(res.status).toBe(423);
+  });
 
-    const data = await res.json()
-    expect(data.success).toBe(true)
-    expect(data.auditId).toBeDefined()
-
-    // Verify audit log insert was called
-    expect(mdb.insert).toHaveBeenCalled()
-    expect(mdb.values).toHaveBeenCalled()
-  })
-
-  it('handles missing snapshot gracefully', async () => {
-    mockAuth('c1')
-    seed([]) // no patient found
-
-    const res = await POST(mockReq({ patientId: 'p-missing' }))
-    expect(res.status).toBe(404)
-  })
-
-  it('returns 500 on DB error', async () => {
-    mockAuth('c1')
-    seed([{ id: 'p1', name: 'X', clinicId: 'c1' }])
-    mdb.update = jest.fn().mockImplementation(() => { throw new Error('DB error') })
-
-    const res = await POST(mockReq({ patientId: 'p1' }))
-    expect(res.status).toBe(500)
-  })
-})
+  it('maps internal action failures to 500', async () => {
+    (runAction as jest.Mock).mockResolvedValue({ ok: false, error: { code: 'internal', message: 'Erro interno.' } });
+    const res = await POST(mockRequest({ patientId: '00000000-0000-4000-8000-000000000001' }));
+    expect(res.status).toBe(500);
+  });
+});
