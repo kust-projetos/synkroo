@@ -22,7 +22,7 @@ function patternRoot(pattern: string): string {
 }
 
 function isIgnored(file: string, rules: string[]): boolean {
-  const normalized = file.replaceAll("\\\\", "/");
+  const normalized = file.replaceAll("\\", "/");
   return rules.some((rule) => {
     if (rule.includes("__tests__")) return normalized.includes("/__tests__/");
     if (rule.includes(".test.")) return normalized.includes(".test.");
@@ -42,7 +42,7 @@ export function discoverRequiredFiles(
     .filter((file) => SOURCE_EXTENSIONS.test(file))
     .filter((file) => !isIgnored(file, options.ignore ?? []));
   if (!result.length) throw new Error("ARCH_SCAN_EMPTY");
-  return result.map((file) => relative(process.cwd(), file));
+  return result.map((file) => relative(process.cwd(), file).replaceAll("\\", "/"));
 }
 
 export function discoverProductionRouteEntrypoints(): string[] {
@@ -57,6 +57,14 @@ export function discoverProductionApiSourceFiles(): string[] {
   const files = discoverRequiredFiles("src/app/api/**/*.ts").filter(
     (file) => !file.includes("/__tests__/") && !file.endsWith(".test.ts"),
   );
+  if (!files.length) throw new Error("ARCH_SCAN_EMPTY");
+  return files.sort();
+}
+
+export function discoverProductionModuleSourceFiles(): string[] {
+  const files = discoverRequiredFiles("src/modules/**/*.ts", {
+    ignore: ["**/__tests__"],
+  }).filter((file) => !file.includes("/__tests__/") && !file.endsWith(".test.ts"));
   if (!files.length) throw new Error("ARCH_SCAN_EMPTY");
   return files.sort();
 }

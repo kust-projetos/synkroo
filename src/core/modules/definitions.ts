@@ -24,6 +24,9 @@ const manifests: Manifest[] = [
   iaManifest,
 ];
 
+export const moduleDependencies: Readonly<Record<string, readonly string[]>> =
+  Object.fromEntries(manifests.map((manifest) => [manifest.id, manifest.dependsOn]));
+
 export const approvedGraph: Record<string, string[]> = {
   core: [],
   operacional: [],
@@ -51,19 +54,28 @@ export function validateDefinitions(): { ok: true } | { ok: false; error: string
       if (!ids.has(dep)) return { ok: false, error: `manifest ${m.id} depends on unknown ${dep}` };
     }
   }
-  // checa ciclo via DFS
+  // checa ciclo via DFS com caminho completo para diagnóstico fail-closed
   const visited = new Set<string>();
-  const stack = new Set<string>();
+  const stack: string[] = [];
+  const onStack = new Set<string>();
   const graph = new Map<string, string[]>(manifests.map((m) => [m.id, [...m.dependsOn]] as [string, string[]]));
+  let cyclePath: string | null = null;
   function dfs(id: string): boolean {
-    if (stack.has(id)) return true;
+    if (onStack.has(id)) {
+      const idx = stack.indexOf(id);
+      const cycle = [...stack.slice(idx), id].join(' -> ');
+      cyclePath = cycle;
+      return true;
+    }
     if (visited.has(id)) return false;
     visited.add(id);
-    stack.add(id);
+    stack.push(id);
+    onStack.add(id);
     for (const dep of graph.get(id) || []) if (dfs(dep)) return true;
-    stack.delete(id);
+    stack.pop();
+    onStack.delete(id);
     return false;
   }
-  for (const m of manifests) if (dfs(m.id)) return { ok: false, error: `cycle detected at ${m.id}` };
+  for (const m of manifests) if (dfs(m.id)) return { ok: false, error: `cycle detected: ${cyclePath ?? m.id}` };
   return { ok: true };
 }
