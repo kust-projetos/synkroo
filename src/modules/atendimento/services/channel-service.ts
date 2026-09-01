@@ -5,13 +5,11 @@
  * @/services/whatsapp/index.ts (sendWhatsAppMessage facade).
  *
  * Provides:
- *  - WhatsAppService (Playwright browser automation)
+ *  - WhatsAppService (HTTP client for VPS Playwright fallback sidecar)
  *  - sendWhatsAppMessage (provider-dispatching facade)
  *  - sendByChannel (channel abstraction for actions)
  */
 
-import type { Browser, Page, BrowserContext } from 'playwright';
-import QRCode from 'qrcode-terminal';
 import { EventEmitter } from 'events';
 import { dbLogger } from '@/lib/logger';
 import { getEvolutionService } from './evolution-service';
@@ -67,9 +65,7 @@ export async function sendWhatsAppMessage(
 
   if (provider === 'playwright') {
     const service = getWhatsAppService();
-    if (service?.isConnected) {
-      return service.sendMessage(phone, message);
-    }
+    return service.sendMessage(phone, message);
   }
 
   return { success: false, error: 'No WhatsApp provider available' };
@@ -131,19 +127,16 @@ export async function sendInstagram(to: string, text: string): Promise<SendResul
   }
 }
 
-// ─── WhatsAppService (Playwright browser automation) ────────────
+// ─── WhatsAppService (Client for VPS Playwright Fallback Sidecar) ────────────
 
 export class WhatsAppService extends EventEmitter {
-  private browser: Browser | null = null;
-  private context: BrowserContext | null = null;
-  private page: Page | null = null;
   private _isConnected: boolean = false;
   private sessionPath: string;
-  private messageQueue: WhatsAppMessage[] = [];
   private currentQRCode: string | null = null;
   private phoneNumber: string | null = null;
+  private lastActivity: Date | null = null;
 
-  constructor(sessionPath: string = './.whatsapp-session') {
+  constructor(sessionPath: string = process.env.WHATSAPP_SESSION_PATH || './.whatsapp-session') {
     super();
     this.sessionPath = sessionPath;
   }
@@ -151,153 +144,97 @@ export class WhatsAppService extends EventEmitter {
   get isConnected(): boolean { return this._isConnected; }
 
   async initialize(): Promise<void> {
-    const headless = process.env.WHATSAPP_HEADLESS === 'true';
-    const { chromium } = await import('playwright');
-    this.context = await chromium.launchPersistentContext(this.sessionPath, {
-      headless,
-      viewport: { width: 1280, height: 800 },
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
-    });
-    this.page = await this.context.newPage();
-    await this.page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle' });
-    const isLoggedIn = await this.checkLoginStatus();
-    if (!isLoggedIn) {
-      await this.waitForQRCode();
-    } else {
-      this._isConnected = true;
-      this.emit('connected');
-      dbLogger.info('channel-service: WhatsApp already connected');
+    const fallbackUrl = process.env.WHATSAPP_FALLBACK_URL;
+    const fallbackSecret = process.env.WHATSAPP_FALLBACK_SECRET;
+
+    if (!fallbackUrl || !fallbackSecret) {
+      dbLogger.warn('channel-service: WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET not configured');
+      return;
     }
-    this.startMessageListener();
-  }
 
-  private async checkLoginStatus(): Promise<boolean> {
-    if (!this.page) return false;
     try {
-      const chatList = await this.page.$('[data-testid="chat-list"]');
-      return chatList !== null;
-    } catch { return false; }
-  }
-
-  private async waitForQRCode(): Promise<void> {
-    if (!this.page) return;
-    dbLogger.info('channel-service: waiting for QR code scan');
-    await this.page.waitForSelector('canvas[alt="Scan this QR code to link a device!"]', { timeout: 30000 });
-    const qrCanvas = await this.page.$('canvas[alt="Scan this QR code to link a device!"]');
-    if (qrCanvas) {
-      const qrDataUrl = await qrCanvas.evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL());
-      QRCode.generate(qrDataUrl, { small: true }, (qr: string) => {
-        dbLogger.info('channel-service: scan this QR code with your WhatsApp app');
-        dbLogger.info(qr);
+      const res = await fetch(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/session/status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${fallbackSecret}`,
+        },
       });
-      this.currentQRCode = qrDataUrl;
-      this.emit('qrcode', qrDataUrl);
-    }
-    try {
-      await this.page.waitForSelector('[data-testid="chat-list"]', { timeout: 120000 });
-      this._isConnected = true;
-      this.currentQRCode = null;
-      await this.extractPhoneNumber();
-      this.emit('connected');
-      dbLogger.info('channel-service: WhatsApp connected successfully');
-    } catch (error) {
-      this.emit('error', new Error('QR code scan timeout'));
-      throw new Error('Timeout waiting for QR code scan');
-    }
-  }
 
-  private startMessageListener(): void {
-    if (!this.page) return;
-    setInterval(async () => {
-      if (!this.page || !this._isConnected) return;
-      try {
-        const unreadChats = await this.page.$$('[data-testid="chat-list"] [aria-label*="unread"]');
-        for (const chat of unreadChats) {
-          await chat.click();
-          await this.page.waitForTimeout(500);
-          const messages = await this.page.$$eval(
-            '[data-testid="msg-container"]',
-            (elements) => elements.slice(-5).map((el) => ({
-              id: el.getAttribute('data-id') || '',
-              body: el.textContent || '',
-              isFromMe: el.closest('[data-testid="msg-container"]')?.classList.contains('message-out') || false,
-            })),
-          );
-          for (const msg of messages) {
-            if (!msg.isFromMe) {
-              this.emit('message', {
-                id: msg.id, from: await this.getCurrentChatPhone(), to: 'me',
-                body: msg.body, timestamp: new Date(), type: 'text', isFromMe: false,
-              } as WhatsAppMessage);
-            }
-          }
+      if (res.ok) {
+        const data = await res.json() as { isConnected?: boolean; phoneNumber?: string | null };
+        this._isConnected = Boolean(data.isConnected);
+        this.phoneNumber = data.phoneNumber || null;
+        if (this._isConnected) {
+          this.emit('connected');
+          dbLogger.info('channel-service: WhatsApp sidecar connected');
         }
-      } catch (error) { console.error('Error checking messages:', error); }
-    }, 5000);
-  }
-
-  private async getCurrentChatPhone(): Promise<string> {
-    if (!this.page) return '';
-    try {
-      const phoneElement = await this.page.$('[data-testid="header"] span[title]');
-      const title = await phoneElement?.getAttribute('title');
-      return title || '';
-    } catch { return ''; }
-  }
-
-  async sendMessage(to: string, message: string): Promise<{ success: boolean; messageId?: string }> {
-    if (!this.page || !this._isConnected) return { success: false };
-    try {
-      const searchInput = await this.page.$('[data-testid="chat-list-search"]');
-      if (!searchInput) throw new Error('Search input not found');
-      await searchInput.fill(to);
-      await this.page.waitForTimeout(1000);
-      const contactResult = await this.page.$(`[title="${to}"]`);
-      if (!contactResult) {
-        await this.page.keyboard.press('Enter');
-        await this.page.waitForTimeout(500);
-      } else {
-        await contactResult.click();
       }
-      await this.page.waitForSelector('[data-testid="conversation-compose-box-input"]', { timeout: 5000 });
-      const messageInput = await this.page.$('[data-testid="conversation-compose-box-input"]');
-      if (!messageInput) throw new Error('Message input not found');
-      await messageInput.fill(message);
-      await this.page.waitForTimeout(300);
-      await this.page.keyboard.press('Enter');
-      return { success: true, messageId: Date.now().toString() };
-    } catch (error) {
-      console.error('Error sending message:', error);
-      return { success: false };
+    } catch (err) {
+      dbLogger.error('channel-service: failed to connect to WhatsApp sidecar', err);
+      this.emit('error', err instanceof Error ? err : new Error(String(err)));
     }
   }
 
-  private async extractPhoneNumber(): Promise<void> {
-    if (!this.page) return;
+  async sendMessage(to: string, message: string): Promise<SendResult> {
+    const fallbackUrl = process.env.WHATSAPP_FALLBACK_URL;
+    const fallbackSecret = process.env.WHATSAPP_FALLBACK_SECRET;
+
+    if (!fallbackUrl || !fallbackSecret) {
+      return { success: false, error: 'WhatsApp fallback not configured: missing WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET' };
+    }
+
     try {
-      const profileButton = await this.page.$('[data-testid="menu-bar"] button[aria-label]');
-      if (profileButton) {
-        await profileButton.click();
-        await this.page.waitForTimeout(500);
-        const phoneElement = await this.page.$('span[title*="+"]');
-        if (phoneElement) {
-          const title = await phoneElement.getAttribute('title');
-          if (title) this.phoneNumber = title.replace(/\s/g, '');
-        }
-        await this.page.keyboard.press('Escape');
+      const res = await fetch(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/messages/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${fallbackSecret}`,
+        },
+        body: JSON.stringify({ phone: to, message }),
+      });
+
+      if (!res.ok) {
+        const errPayload = await res.json().catch(() => ({})) as { error?: string };
+        return { success: false, error: errPayload.error || `HTTP ${res.status}` };
       }
-    } catch (error) { console.error('Error extracting phone number:', error); }
+
+      const result = await res.json() as SendResult;
+      this.lastActivity = new Date();
+      return result;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      dbLogger.error('channel-service: sidecar sendMessage failed', err);
+      return { success: false, error: msg };
+    }
   }
 
   getSession(): WhatsAppSession {
-    return { isConnected: this._isConnected, phoneNumber: this.phoneNumber, lastActivity: new Date() };
+    return { isConnected: this._isConnected, phoneNumber: this.phoneNumber, lastActivity: this.lastActivity || new Date() };
   }
 
-  getQRCode(): string | null { return this.currentQRCode; }
+  async getQRCode(): Promise<string | null> {
+    const fallbackUrl = process.env.WHATSAPP_FALLBACK_URL;
+    const fallbackSecret = process.env.WHATSAPP_FALLBACK_SECRET;
+    if (!fallbackUrl || !fallbackSecret) {
+      return null;
+    }
+    try {
+      const res = await fetch(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/session/qrcode`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${fallbackSecret}`,
+        },
+      });
+      if (!res.ok) return null;
+      const data = await res.json() as { qrcode?: string | null };
+      return data.qrcode ?? null;
+    } catch {
+      return null;
+    }
+  }
 
   async disconnect(): Promise<void> {
-    if (this.context) await this.context.close();
     this._isConnected = false;
     this.emit('disconnected');
   }
