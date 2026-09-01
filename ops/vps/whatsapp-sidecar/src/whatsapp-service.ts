@@ -78,8 +78,8 @@ export class WhatsAppService extends EventEmitter {
 
   private async waitForQRCode(): Promise<void> {
     if (!this.page) return;
-    await this.page.waitForSelector('canvas[alt="Scan this QR code to link a device!"]', { timeout: 30000 });
-    const qrCanvas = await this.page.$('canvas[alt="Scan this QR code to link a device!"]');
+    await this.page.waitForSelector('canvas', { timeout: 30000 });
+    const qrCanvas = await this.page.$('canvas');
     if (qrCanvas) {
       const qrDataUrl = await qrCanvas.evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL());
       QRCode.generate(qrDataUrl, { small: true }, (qr: string) => {
