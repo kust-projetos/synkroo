@@ -14,6 +14,15 @@ services:
       - synkroo_whatsapp_session:/app/.whatsapp-session
     ports:
       - "127.0.0.1:3030:3030"
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.synkroo-whatsapp-sidecar.rule=Host(`whatsapp-sidecar.synkroo.com.br`)
+      - traefik.http.routers.synkroo-whatsapp-sidecar.entrypoints=websecure
+      - traefik.http.routers.synkroo-whatsapp-sidecar.tls.certresolver=cf
+      - traefik.http.services.synkroo-whatsapp-sidecar.loadbalancer.server.port=3030
+      - traefik.docker.network=proxy
+    networks:
+      - proxy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:3030/health || exit 1"]
       interval: 15s
@@ -23,3 +32,7 @@ services:
 
 volumes:
   synkroo_whatsapp_session:
+
+networks:
+  proxy:
+    external: true
