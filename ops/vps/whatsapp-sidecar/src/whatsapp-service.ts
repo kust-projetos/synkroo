@@ -1,6 +1,5 @@
 import type { BrowserContext, Page } from 'playwright';
 import { chromium } from 'playwright';
-import QRCode from 'qrcode-terminal';
 import { EventEmitter } from 'node:events';
 
 export interface WhatsAppMessage {
@@ -82,10 +81,6 @@ export class WhatsAppService extends EventEmitter {
     const qrCanvas = await this.page.$('canvas');
     if (qrCanvas) {
       const qrDataUrl = await qrCanvas.evaluate((canvas: HTMLCanvasElement) => canvas.toDataURL());
-      QRCode.generate(qrDataUrl, { small: true }, (qr: string) => {
-        console.warn('Scan this QR code with WhatsApp:');
-        console.warn(qr);
-      });
       this.currentQRCode = qrDataUrl;
       this.emit('qrcode', qrDataUrl);
     }
