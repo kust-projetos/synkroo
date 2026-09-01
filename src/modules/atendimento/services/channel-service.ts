@@ -48,6 +48,10 @@ function detectProvider(): WhatsAppProvider {
   return 'playwright';
 }
 
+function isFallbackConfigured(): boolean {
+  return Boolean(process.env.WHATSAPP_FALLBACK_URL && process.env.WHATSAPP_FALLBACK_SECRET);
+}
+
 // ─── Unified send facade ───────────────────────────────────────
 
 /** Send a WhatsApp message using the configured provider. */
@@ -59,8 +63,20 @@ export async function sendWhatsAppMessage(
   if (provider === 'evolution') {
     const evolutionService = getEvolutionService();
     if (evolutionService) {
-      return evolutionService.sendTextMessage(phone, message);
+      try {
+        const result = await evolutionService.sendTextMessage(phone, message);
+        if (result.success || !isFallbackConfigured()) return result;
+        dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
+        return getWhatsAppService().sendMessage(phone, message);
+      } catch (err) {
+        if (!isFallbackConfigured()) throw err;
+        dbLogger.error('channel-service: evolution send failed', err);
+        dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
+        return getWhatsAppService().sendMessage(phone, message);
+      }
     }
+
+    if (isFallbackConfigured()) return getWhatsAppService().sendMessage(phone, message);
   }
 
   if (provider === 'playwright') {
@@ -92,12 +108,22 @@ export async function sendByChannel(
 export async function sendWhatsApp(to: string, text: string): Promise<SendResult> {
   try {
     const evolution = getEvolutionService();
-    if (!evolution) return { success: false, error: 'Evolution service not available' };
+    if (!evolution) {
+      return isFallbackConfigured()
+        ? getWhatsAppService().sendMessage(to, text)
+        : { success: false, error: 'Evolution service not available' };
+    }
     const result = await evolution.sendTextMessage(to, text);
-    return result;
+    if (result.success || !isFallbackConfigured()) return result;
+    dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
+    return getWhatsAppService().sendMessage(to, text);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     dbLogger.error('channel-service: evolution send failed', err);
+    if (isFallbackConfigured()) {
+      dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
+      return getWhatsAppService().sendMessage(to, text);
+    }
     return { success: false, error: msg };
   }
 }
