@@ -1,13 +1,24 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import { StatsGrid } from '@/components/ui/stats-grid'
-import { HourlyChartRecharts } from '@/components/charts/hourly-chart'
-import { DayOfWeekChartRecharts } from '@/components/charts/day-of-week-chart'
-import { TrendsChartRecharts } from '@/components/charts/trends-chart'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CalendarDaysIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { isMockMode, getMockForUrl } from '@/lib/mocks'
+
+const HourlyChartRecharts = dynamic(
+  () => import('@/components/charts/hourly-chart').then((m) => m.HourlyChartRecharts),
+  { ssr: false, loading: () => <div className="h-48 bg-muted rounded-xl animate-pulse" /> }
+)
+const DayOfWeekChartRecharts = dynamic(
+  () => import('@/components/charts/day-of-week-chart').then((m) => m.DayOfWeekChartRecharts),
+  { ssr: false, loading: () => <div className="h-48 bg-muted rounded-xl animate-pulse" /> }
+)
+const TrendsChartRecharts = dynamic(
+  () => import('@/components/charts/trends-chart').then((m) => m.TrendsChartRecharts),
+  { ssr: false, loading: () => <div className="h-64 bg-muted rounded-xl animate-pulse" /> }
+)
 
 interface AppointmentTrend {
   date: string

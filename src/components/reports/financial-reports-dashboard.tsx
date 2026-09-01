@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { EmptyState } from '@/components/ui/empty-state'
 import { ReportExportButton } from './report-export-button'
+
+const FinancialOverviewChart = dynamic(
+  () => import('./financial-overview-chart').then((m) => m.FinancialOverviewChart),
+  { ssr: false, loading: () => <div className="h-72 bg-muted rounded-xl animate-pulse" /> }
+)
 
 type PeriodType = 'month' | 'quarter' | 'year'
 
@@ -82,33 +87,7 @@ export function FinancialReportsDashboard() {
       },
     ]
 
-    return (
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `R$ ${v}`} />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-              fontSize: '12px',
-            }}
-            formatter={(value, name) => {
-              const num = typeof value === 'number' ? value : 0
-              if (name === 'receita') return [formatCurrency(num), 'Receita']
-              if (name === 'pagamentos') return [formatCurrency(num), 'Pagamentos']
-              if (name === 'receber') return [formatCurrency(num), 'Em Aberto']
-              return [String(value ?? ''), String(name ?? '')]
-            }}
-          />
-          <Bar dataKey="receita" fill="#16a34a" name="Receita" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="pagamentos" fill="#3b82f6" name="Pagamentos" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="receber" fill="#f59e0b" name="Em Aberto" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    )
+    return <FinancialOverviewChart data={chartData} formatCurrency={formatCurrency} />
   }
 
   const renderSummaryCards = () => {

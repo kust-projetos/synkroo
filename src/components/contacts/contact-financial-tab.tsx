@@ -6,10 +6,18 @@ import { useFinancialSummary, type PlanFinancialSummary } from '@/hooks/useFinan
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import dynamic from 'next/dynamic'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
-import { FinancialCharts } from './financial-charts'
 import { BudgetDetailPanel } from './budget-detail-panel'
+
+const FinancialCharts = dynamic(
+  () => import('./financial-charts').then((mod) => mod.FinancialCharts),
+  {
+    ssr: false,
+    loading: () => <Skeleton className="h-64 w-full" />,
+  }
+)
 
 interface ContactFinancialTabProps {
   contactId: string

@@ -10,8 +10,10 @@ import {
 import { Button } from '@/components/ui/button'
 import { Download, FileText, FileSpreadsheet } from 'lucide-react'
 
+import { generateAndDownloadClientPDF } from '@/lib/reports/client-pdf'
+
 interface ReportExportButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  reportType: 'appointments' | 'patients' | 'leads' | 'financial' | 'pipeline'
+  reportType: 'appointments' | 'patients' | 'leads' | 'financial' | 'conversations' | 'pipeline'
   defaultFormat?: 'csv' | 'pdf'
   startDate?: string
   endDate?: string
@@ -31,18 +33,31 @@ export function ReportExportButton({
   const handleExport = async (format: 'csv' | 'pdf') => {
     setLoading(true)
     try {
-      const params = new URLSearchParams({
-        type: reportType,
-        format,
-      })
+      if (format === 'pdf') {
+        const params = new URLSearchParams({
+          type: reportType,
+          format: 'json',
+        })
+        if (startDate) params.set('start_date', startDate)
+        if (endDate) params.set('end_date', endDate)
 
-      if (startDate) params.set('start_date', startDate)
-      if (endDate) params.set('end_date', endDate)
+        const res = await fetch(`/api/reports/export?${params.toString()}`)
+        if (!res.ok) {
+          throw new Error('Falha ao obter dados para exportação')
+        }
+        const payload = await res.json()
+        await generateAndDownloadClientPDF(payload)
+      } else {
+        const params = new URLSearchParams({
+          type: reportType,
+          format: 'csv',
+        })
+        if (startDate) params.set('start_date', startDate)
+        if (endDate) params.set('end_date', endDate)
 
-      const url = `/api/reports/export?${params.toString()}`
-
-      // Trigger browser download
-      window.location.href = url
+        const url = `/api/reports/export?${params.toString()}`
+        window.location.href = url
+      }
     } catch (err) {
       console.error('Export error:', err)
     } finally {
