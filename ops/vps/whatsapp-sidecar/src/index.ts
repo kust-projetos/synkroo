@@ -3,16 +3,19 @@ import { getWhatsAppService } from './whatsapp-service.js';
 
 const port = parseInt(process.env.PORT || '3030', 10);
 const server = createServer();
+const whatsapp = getWhatsAppService();
 
 server.listen(port, () => {
   console.warn(`Synkroo WhatsApp Sidecar listening on port ${port}`);
+  void whatsapp.initialize().catch((error: unknown) => {
+    console.error('WhatsApp sidecar initialization failed:', error);
+  });
 });
 
 // Graceful shutdown
 const shutdown = async () => {
   console.warn('Shutting down WhatsApp Sidecar...');
-  const wa = getWhatsAppService();
-  await wa.disconnect().catch(() => {});
+  await whatsapp.disconnect().catch(() => {});
   server.close(() => {
     process.exit(0);
   });
