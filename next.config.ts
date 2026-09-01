@@ -2,12 +2,25 @@ import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
   // Externalizar deps com APIs Node (fs/path/stream) — Workers fornece polyfills via nodejs_compat
-  serverExternalPackages: ['playwright', 'playwright-core', 'chromium-bidi', 'pg', 'pg-connection-string', 'pgpass'],
+  serverExternalPackages: ['pg', 'pg-connection-string', 'pgpass'],
 
   experimental: {
     serverActions: {
       bodySizeLimit: '2mb',
     },
+    optimizePackageImports: [
+      'recharts',
+      'lucide-react',
+      'date-fns',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-select',
+      '@radix-ui/react-slot',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-toast',
+      '@radix-ui/react-tooltip',
+    ],
   },
 
   env: {
@@ -46,9 +59,6 @@ const nextConfig: NextConfig = {
       // Externizar deps com APIs Node — Workers fornece polyfills via nodejs_compat
       config.externals = [
         ...config.externals,
-        'playwright',
-        'playwright-core',
-        'chromium-bidi',
         'pg',
         'pg-connection-string',
         'pgpass',

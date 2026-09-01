@@ -2,12 +2,12 @@
  * Unit Test Suite for channel-service.ts (src/modules/atendimento/services/channel-service.ts)
  *
  * Covers:
- * 1. Provider detection & sendWhatsAppMessage facade (Evolution, Playwright, Business-API, fallback)
+ * 1. Provider detection & sendWhatsAppMessage facade (Evolution, Playwright sidecar, Business-API, fail-closed)
  * 2. sendByChannel dispatching (whatsapp, instagram, web)
  * 3. sendWhatsApp error handling (null evolution, Error throw, string throw)
  * 4. sendInstagram validation & network flow (missing envs, success, HTTP failure, network rejection)
- * 5. WhatsAppService lifecycle (initialize logged in vs QR code, QR scan timeout, extract phone, message listener)
- * 6. WhatsAppService methods (constructor, isConnected, getSession, getQRCode, disconnect, sendMessage)
+ * 5. WhatsAppService client lifecycle & HTTP calls (initialize, status, sendMessage with Bearer auth, error handling, fail-closed)
+ * 6. getQRCode authenticated sidecar fetch
  * 7. getWhatsAppService singleton instance caching
  */
 
@@ -21,16 +21,8 @@ import {
 } from '../channel-service';
 import { getEvolutionService } from '../evolution-service';
 import { dbLogger } from '@/lib/logger';
-import QRCode from 'qrcode-terminal';
 
 // ─── Mocks ─────────────────────────────────────────────────────
-
-const mockLaunchPersistentContext = jest.fn();
-jest.mock('playwright', () => ({
-  chromium: {
-    launchPersistentContext: (...args: any[]) => mockLaunchPersistentContext(...args),
-  },
-}));
 
 jest.mock('../evolution-service', () => ({
   getEvolutionService: jest.fn(),
@@ -44,31 +36,11 @@ jest.mock('@/lib/logger', () => ({
   },
 }));
 
-jest.mock('qrcode-terminal', () => ({
-  generate: jest.fn((_url, _opts, cb) => {
-    if (typeof cb === 'function') cb('mock-ascii-qr');
-  }),
-}));
-
 const mockEvolution = getEvolutionService as jest.MockedFunction<typeof getEvolutionService>;
 
 describe('channel-service unit tests', () => {
   const originalEnv = process.env;
   const originalFetch = global.fetch;
-  const activeIntervals: NodeJS.Timeout[] = [];
-
-  beforeAll(() => {
-    const originalSetInterval = global.setInterval;
-    jest.spyOn(global, 'setInterval').mockImplementation(((callback: any, ms?: number, ...args: any[]) => {
-      const interval = originalSetInterval(callback, ms, ...args);
-      activeIntervals.push(interval);
-      return interval;
-    }) as any);
-  });
-
-  afterAll(() => {
-    (global.setInterval as unknown as jest.Mock).mockRestore();
-  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -81,13 +53,13 @@ describe('channel-service unit tests', () => {
     delete process.env.INSTAGRAM_ACCESS_TOKEN;
     delete process.env.WHATSAPP_SESSION_PATH;
     delete process.env.WHATSAPP_HEADLESS;
+    delete process.env.WHATSAPP_FALLBACK_URL;
+    delete process.env.WHATSAPP_FALLBACK_SECRET;
   });
 
   afterEach(() => {
     process.env = originalEnv;
     global.fetch = originalFetch;
-    activeIntervals.forEach((id) => clearInterval(id));
-    activeIntervals.length = 0;
   });
 
   describe('sendWhatsAppMessage facade & provider detection', () => {
@@ -122,25 +94,51 @@ describe('channel-service unit tests', () => {
       expect(res).toEqual({ success: false, error: 'No WhatsApp provider available' });
     });
 
-    it('uses playwright provider when no API env vars are set and WhatsAppService is connected', async () => {
-      const service = getWhatsAppService();
-      (service as any)._isConnected = true;
-      const sendSpy = jest.spyOn(service, 'sendMessage').mockResolvedValue({
-        success: true,
-        messageId: 'pw-123',
-      });
+    it('uses playwright sidecar provider when no API env vars are set and sidecar URL is configured', async () => {
+      process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+      process.env.WHATSAPP_FALLBACK_SECRET = 'secret-sidecar';
 
-      const res = await sendWhatsAppMessage('5511999999999', 'Olá via Playwright');
-      expect(res).toEqual({ success: true, messageId: 'pw-123' });
-      expect(sendSpy).toHaveBeenCalledWith('5511999999999', 'Olá via Playwright');
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, messageId: 'sidecar-123' }),
+      } as Response);
+
+      const res = await sendWhatsAppMessage('5511999999999', 'Olá via Sidecar');
+      expect(res).toEqual({ success: true, messageId: 'sidecar-123' });
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://whatsapp-sidecar.example.com/api/v1/messages/send',
+        expect.objectContaining({
+          method: 'POST',
+          headers: expect.objectContaining({
+            Authorization: 'Bearer secret-sidecar',
+            'Content-Type': 'application/json',
+          }),
+          body: JSON.stringify({ phone: '5511999999999', message: 'Olá via Sidecar' }),
+        }),
+      );
     });
 
-    it('returns error when playwright provider is default but WhatsAppService is disconnected', async () => {
+    it('returns config error when playwright provider is default and sidecar is not configured', async () => {
       const service = getWhatsAppService();
       (service as any)._isConnected = false;
 
       const res = await sendWhatsAppMessage('5511999999999', 'Olá');
-      expect(res).toEqual({ success: false, error: 'No WhatsApp provider available' });
+      expect(res).toEqual({
+        success: false,
+        error: 'WhatsApp fallback not configured: missing WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET',
+      });
+      expect(res.messageId).toBeUndefined();
+    });
+
+    it('never returns simulated messageId when sidecar config is missing even if instance reports connected', async () => {
+      const service = getWhatsAppService();
+      (service as any)._isConnected = true;
+
+      const res = await sendWhatsAppMessage('5511999999999', 'Olá fail-closed');
+      expect(res.success).toBe(false);
+      expect(res.messageId).toBeUndefined();
+      expect(res.error).toMatch(/not configured/i);
+      (service as any)._isConnected = false;
     });
   });
 
@@ -277,11 +275,11 @@ describe('channel-service unit tests', () => {
     });
   });
 
-  describe('WhatsAppService class methods & browser automation', () => {
-    it('initializes with default session path and returns initial session state', () => {
+  describe('WhatsAppService client methods & HTTP sidecar integration', () => {
+    it('initializes with default session path and returns initial session state', async () => {
       const service = new WhatsAppService();
       expect(service.isConnected).toBe(false);
-      expect(service.getQRCode()).toBeNull();
+      expect(await service.getQRCode()).toBeNull();
 
       const session = service.getSession();
       expect(session.isConnected).toBe(false);
@@ -294,10 +292,8 @@ describe('channel-service unit tests', () => {
       expect((service as any).sessionPath).toBe('/custom/session/path');
     });
 
-    it('disconnects and closes browser context if present, emitting disconnected', async () => {
+    it('disconnects and emits disconnected', async () => {
       const service = new WhatsAppService();
-      const mockContext = { close: jest.fn().mockResolvedValue(undefined) };
-      (service as any).context = mockContext;
       (service as any)._isConnected = true;
 
       const disconnectedListener = jest.fn();
@@ -305,410 +301,230 @@ describe('channel-service unit tests', () => {
 
       await service.disconnect();
 
-      expect(mockContext.close).toHaveBeenCalledTimes(1);
       expect(service.isConnected).toBe(false);
       expect(disconnectedListener).toHaveBeenCalledTimes(1);
     });
 
-    it('disconnects cleanly when context is null', async () => {
-      const service = new WhatsAppService();
-      (service as any).context = null;
-      (service as any)._isConnected = true;
+    describe('initialize lifecycle via sidecar', () => {
+      it('returns early when WHATSAPP_FALLBACK_URL is not set (fail-closed)', async () => {
+        const service = new WhatsAppService();
+        await service.initialize();
+        expect(service.isConnected).toBe(false);
+        expect(dbLogger.warn).toHaveBeenCalledWith(
+          'channel-service: WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET not configured',
+        );
+      });
 
-      await service.disconnect();
-      expect(service.isConnected).toBe(false);
-    });
+      it('returns early when WHATSAPP_FALLBACK_SECRET is missing (fail-closed)', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        const service = new WhatsAppService();
+        await service.initialize();
+        expect(service.isConnected).toBe(false);
+        expect(dbLogger.warn).toHaveBeenCalledWith(
+          'channel-service: WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET not configured',
+        );
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
 
-    describe('initialize lifecycle', () => {
-      it('initializes and detects already logged in status', async () => {
+      it('connects to sidecar and updates status when sidecar reports connected', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
+
+        global.fetch = jest.fn().mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ isConnected: true, phoneNumber: '+5511999990000' }),
+        } as Response);
+
         const service = new WhatsAppService();
         const connectedListener = jest.fn();
         service.on('connected', connectedListener);
 
-        const mockPage = {
-          goto: jest.fn().mockResolvedValue(undefined),
-          $: jest.fn().mockImplementation(async (sel: string) => {
-            if (sel === '[data-testid="chat-list"]') return {};
-            return null;
-          }),
-          $$: jest.fn().mockResolvedValue([]),
-        };
-
-        const mockContext = {
-          newPage: jest.fn().mockResolvedValue(mockPage),
-        };
-
-        mockLaunchPersistentContext.mockResolvedValueOnce(mockContext);
-
         await service.initialize();
 
-        expect(mockLaunchPersistentContext).toHaveBeenCalledWith(
-          './.whatsapp-session',
-          expect.objectContaining({ headless: false }),
-        );
-        expect(mockPage.goto).toHaveBeenCalledWith('https://web.whatsapp.com', { waitUntil: 'networkidle' });
         expect(service.isConnected).toBe(true);
+        expect(service.getSession().phoneNumber).toBe('+5511999990000');
         expect(connectedListener).toHaveBeenCalled();
-        expect(dbLogger.info).toHaveBeenCalledWith('channel-service: WhatsApp already connected');
+        expect(dbLogger.info).toHaveBeenCalledWith('channel-service: WhatsApp sidecar connected');
+        expect(global.fetch).toHaveBeenCalledWith(
+          'https://whatsapp-sidecar.example.com/api/v1/session/status',
+          expect.objectContaining({
+            method: 'GET',
+            headers: expect.objectContaining({
+              Authorization: 'Bearer secret-123',
+            }),
+          }),
+        );
       });
 
-      it('initializes with QR code scan flow when not initially logged in', async () => {
-        process.env.WHATSAPP_HEADLESS = 'true';
-        const service = new WhatsAppService('./custom-sess');
-        const qrcodeListener = jest.fn();
-        const connectedListener = jest.fn();
-        service.on('qrcode', qrcodeListener);
-        service.on('connected', connectedListener);
+      it('emits error and logs when sidecar request throws', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
+        global.fetch = jest.fn().mockRejectedValueOnce(new Error('Connection refused'));
 
-        let chatListFound = false;
-        const mockCanvas = {
-          evaluate: jest.fn().mockImplementation((fn: any) => {
-            if (typeof fn === 'function') {
-              return fn({ toDataURL: () => 'data:image/png;base64,mockqrdata' });
-            }
-            return 'data:image/png;base64,mockqrdata';
-          }),
-        };
-
-        const mockProfileBtn = { click: jest.fn().mockResolvedValue(undefined) };
-        const mockPhoneElem = { getAttribute: jest.fn().mockResolvedValue('+55 11 98888 7777') };
-
-        const mockPage = {
-          goto: jest.fn().mockResolvedValue(undefined),
-          $: jest.fn().mockImplementation(async (sel: string) => {
-            if (sel === '[data-testid="chat-list"]') return chatListFound ? {} : null;
-            if (sel === 'canvas[alt="Scan this QR code to link a device!"]') return mockCanvas;
-            if (sel === '[data-testid="menu-bar"] button[aria-label]') return mockProfileBtn;
-            if (sel === 'span[title*="+"]') return mockPhoneElem;
-            return null;
-          }),
-          $$: jest.fn().mockResolvedValue([]),
-          waitForSelector: jest.fn().mockImplementation(async (sel: string) => {
-            if (sel === '[data-testid="chat-list"]') {
-              chatListFound = true;
-            }
-            return {};
-          }),
-          waitForTimeout: jest.fn().mockResolvedValue(undefined),
-          keyboard: { press: jest.fn().mockResolvedValue(undefined) },
-        };
-
-        const mockContext = {
-          newPage: jest.fn().mockResolvedValue(mockPage),
-        };
-
-        mockLaunchPersistentContext.mockResolvedValueOnce(mockContext);
-
-        await service.initialize();
-
-        expect(QRCode.generate).toHaveBeenCalledWith(
-          'data:image/png;base64,mockqrdata',
-          { small: true },
-          expect.any(Function),
-        );
-        expect(qrcodeListener).toHaveBeenCalledWith('data:image/png;base64,mockqrdata');
-        expect(service.isConnected).toBe(true);
-        expect(service.getSession().phoneNumber).toBe('+5511988887777');
-        expect(connectedListener).toHaveBeenCalled();
-      });
-
-      it('emits error and throws when QR code scan times out', async () => {
         const service = new WhatsAppService();
         const errorListener = jest.fn();
         service.on('error', errorListener);
 
-        const mockPage = {
-          goto: jest.fn().mockResolvedValue(undefined),
-          $: jest.fn().mockResolvedValue(null),
-          waitForSelector: jest.fn().mockImplementation(async (sel: string) => {
-            if (sel === 'canvas[alt="Scan this QR code to link a device!"]') return {};
-            if (sel === '[data-testid="chat-list"]') throw new Error('Timeout');
-            return null;
-          }),
-          $$: jest.fn().mockResolvedValue([]),
-        };
+        await service.initialize();
 
-        const mockContext = {
-          newPage: jest.fn().mockResolvedValue(mockPage),
-        };
-
-        mockLaunchPersistentContext.mockResolvedValueOnce(mockContext);
-
-        await expect(service.initialize()).rejects.toThrow('Timeout waiting for QR code scan');
+        expect(service.isConnected).toBe(false);
         expect(errorListener).toHaveBeenCalledWith(expect.any(Error));
+        expect(dbLogger.error).toHaveBeenCalledWith('channel-service: failed to connect to WhatsApp sidecar', expect.any(Error));
       });
     });
 
-    describe('private helper branch coverage', () => {
-      it('checkLoginStatus returns false when page is null or throws', async () => {
+    describe('sendMessage via sidecar (fail-closed)', () => {
+      it('returns config error when fallback URL is not configured', async () => {
         const service = new WhatsAppService();
-        (service as any).page = null;
-        expect(await (service as any).checkLoginStatus()).toBe(false);
-
-        (service as any).page = {
-          $: jest.fn().mockRejectedValue(new Error('Page crashed')),
-        };
-        expect(await (service as any).checkLoginStatus()).toBe(false);
+        const res = await service.sendMessage('11999999999', 'Oi');
+        expect(res).toEqual({
+          success: false,
+          error: 'WhatsApp fallback not configured: missing WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET',
+        });
+        expect(res.messageId).toBeUndefined();
       });
 
-      it('waitForQRCode returns early when page is null', async () => {
+      it('returns config error when fallback SECRET is missing (fail-closed)', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
         const service = new WhatsAppService();
-        (service as any).page = null;
-        await expect((service as any).waitForQRCode()).resolves.toBeUndefined();
+        // even if marked connected, must not simulate success
+        (service as any)._isConnected = true;
+        const res = await service.sendMessage('11999999999', 'Oi');
+        expect(res).toEqual({
+          success: false,
+          error: 'WhatsApp fallback not configured: missing WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET',
+        });
+        expect(res.messageId).toBeUndefined();
+        expect(global.fetch).not.toHaveBeenCalled();
       });
 
-      it('getCurrentChatPhone handles missing page, title element, and exceptions', async () => {
-        const service = new WhatsAppService();
-        (service as any).page = null;
-        expect(await (service as any).getCurrentChatPhone()).toBe('');
-
-        (service as any).page = {
-          $: jest.fn().mockResolvedValue({ getAttribute: jest.fn().mockResolvedValue('+5511999999999') }),
-        };
-        expect(await (service as any).getCurrentChatPhone()).toBe('+5511999999999');
-
-        (service as any).page = {
-          $: jest.fn().mockResolvedValue({ getAttribute: jest.fn().mockResolvedValue(null) }),
-        };
-        expect(await (service as any).getCurrentChatPhone()).toBe('');
-
-        (service as any).page = {
-          $: jest.fn().mockRejectedValue(new Error('Crash')),
-        };
-        expect(await (service as any).getCurrentChatPhone()).toBe('');
-      });
-
-      it('extractPhoneNumber handles null page, missing elements, and exceptions', async () => {
-        const service = new WhatsAppService();
-        (service as any).page = null;
-        await (service as any).extractPhoneNumber();
-        expect(service.getSession().phoneNumber).toBeNull();
-
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-        (service as any).page = {
-          $: jest.fn().mockRejectedValue(new Error('Crash')),
-        };
-        await (service as any).extractPhoneNumber();
-        expect(consoleSpy).toHaveBeenCalledWith('Error extracting phone number:', expect.any(Error));
-
-        consoleSpy.mockRestore();
-      });
-
-      it('startMessageListener returns early when page is null or service is disconnected', () => {
-        const service = new WhatsAppService();
-        (service as any).page = null;
-        (service as any).startMessageListener();
-
-        (service as any).page = {};
-        (service as any)._isConnected = false;
-        // Interval created but inside interval check returns early
-        (service as any).startMessageListener();
-      });
-
-      it('startMessageListener processes messages and exercises element evaluation callback', async () => {
-        jest.useFakeTimers();
+      it('returns config error when both URL and secret missing and does not simulate messageId', async () => {
         const service = new WhatsAppService();
         (service as any)._isConnected = true;
+        const res = await service.sendMessage('11999999999', 'Oi fail-closed');
+        expect(res.success).toBe(false);
+        expect(res.messageId).toBeUndefined();
+        expect(res.error).toMatch(/not configured/i);
+      });
 
-        const messageListener = jest.fn();
-        service.on('message', messageListener);
+      it('returns success when sidecar returns 200', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'token-abc';
 
-        const mockChat = { click: jest.fn().mockResolvedValue(undefined) };
-        const mockPage = {
-          $$: jest.fn().mockResolvedValue([mockChat]),
-          waitForTimeout: jest.fn().mockResolvedValue(undefined),
-          $$eval: jest.fn().mockImplementation((_sel: string, callback: (elems: any[]) => any) => {
-            const rawElems = [
-              {
-                getAttribute: (attr: string) => (attr === 'data-id' ? 'msg-in-1' : null),
-                textContent: 'Olá Dr.',
-                closest: () => ({ classList: { contains: (cls: string) => cls === 'message-out' && false } }),
-              },
-              {
-                getAttribute: () => '',
-                textContent: '',
-                closest: () => null,
-              },
-              {
-                getAttribute: (attr: string) => (attr === 'data-id' ? 'msg-out-2' : null),
-                textContent: 'Resposta Dr.',
-                closest: () => ({ classList: { contains: (cls: string) => cls === 'message-out' } }),
-              },
-            ];
-            return callback(rawElems);
-          }),
-          $: jest.fn().mockResolvedValue({
-            getAttribute: jest.fn().mockResolvedValue('+5511988880000'),
-          }),
-        };
+        global.fetch = jest.fn().mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ success: true, messageId: 'msg-999' }),
+        } as Response);
 
-        (service as any).page = mockPage;
-        (service as any).startMessageListener();
+        const service = new WhatsAppService();
+        const res = await service.sendMessage('11999999999', 'Mensagem teste');
 
-        // Advance timer to trigger interval
-        await jest.advanceTimersByTimeAsync(5000);
+        expect(res).toEqual({ success: true, messageId: 'msg-999' });
+        expect(global.fetch).toHaveBeenCalledWith(
+          'https://whatsapp-sidecar.example.com/api/v1/messages/send',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: 'Bearer token-abc',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ phone: '11999999999', message: 'Mensagem teste' }),
+          },
+        );
+      });
 
-        expect(mockChat.click).toHaveBeenCalled();
-        expect(messageListener).toHaveBeenCalledWith(
+      it('returns sidecar error when sidecar returns HTTP error (e.g. 503)', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
+
+        global.fetch = jest.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 503,
+          json: async () => ({ success: false, error: 'WhatsApp session disconnected' }),
+        } as Response);
+
+        const service = new WhatsAppService();
+        const res = await service.sendMessage('11999999999', 'Oi');
+
+        expect(res).toEqual({ success: false, error: 'WhatsApp session disconnected' });
+      });
+
+      it('returns error when fetch throws network exception', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
+        global.fetch = jest.fn().mockRejectedValueOnce(new Error('Network timeout'));
+
+        const service = new WhatsAppService();
+        const res = await service.sendMessage('11999999999', 'Oi');
+
+        expect(res).toEqual({ success: false, error: 'Network timeout' });
+        expect(dbLogger.error).toHaveBeenCalledWith('channel-service: sidecar sendMessage failed', expect.any(Error));
+      });
+    });
+
+    describe('getQRCode via authenticated sidecar', () => {
+      it('returns null when fallback URL/secret not configured (fail-closed)', async () => {
+        const service = new WhatsAppService();
+        const qr = await service.getQRCode();
+        expect(qr).toBeNull();
+        expect(global.fetch).not.toHaveBeenCalled();
+      });
+
+      it('returns null when secret missing even if URL present', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        const service = new WhatsAppService();
+        const qr = await service.getQRCode();
+        expect(qr).toBeNull();
+      });
+
+      it('fetches QR code from authenticated sidecar endpoint', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'qr-secret-123';
+
+        global.fetch = jest.fn().mockResolvedValueOnce({
+          ok: true,
+          json: async () => ({ qrcode: 'data:image/png;base64,QR123', qrcode_available: true }),
+        } as Response);
+
+        const service = new WhatsAppService();
+        const qr = await service.getQRCode();
+
+        expect(qr).toBe('data:image/png;base64,QR123');
+        expect(global.fetch).toHaveBeenCalledWith(
+          'https://whatsapp-sidecar.example.com/api/v1/session/qrcode',
           expect.objectContaining({
-            id: 'msg-in-1',
-            from: '+5511988880000',
-            to: 'me',
-            body: 'Olá Dr.',
-            isFromMe: false,
+            method: 'GET',
+            headers: expect.objectContaining({
+              Authorization: 'Bearer qr-secret-123',
+            }),
           }),
         );
-        // Outgoing message should not be emitted, but elements with isFromMe=false are emitted
-        expect(messageListener).toHaveBeenCalledTimes(2);
-
-        // Test branch where _isConnected becomes false during interval
-        (service as any)._isConnected = false;
-        await jest.advanceTimersByTimeAsync(5000);
-        // Count should remain 2
-        expect(messageListener).toHaveBeenCalledTimes(2);
-
-        jest.useRealTimers();
       });
 
-      it('startMessageListener logs error when checking messages throws', async () => {
-        jest.useFakeTimers();
+      it('returns null when sidecar returns non-ok status', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'qr-secret-123';
+
+        global.fetch = jest.fn().mockResolvedValueOnce({
+          ok: false,
+          status: 401,
+          json: async () => ({ error: 'Unauthorized' }),
+        } as Response);
+
         const service = new WhatsAppService();
-        (service as any)._isConnected = true;
-
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-        const mockPage = {
-          $$: jest.fn().mockRejectedValue(new Error('DOM query failed')),
-        };
-
-        (service as any).page = mockPage;
-        (service as any).startMessageListener();
-
-        await jest.advanceTimersByTimeAsync(5000);
-
-        expect(consoleSpy).toHaveBeenCalledWith('Error checking messages:', expect.any(Error));
-        consoleSpy.mockRestore();
-        jest.useRealTimers();
-      });
-    });
-
-    describe('sendMessage', () => {
-      it('returns { success: false } when page or isConnected is false', async () => {
-        const service = new WhatsAppService();
-        (service as any).page = null;
-        (service as any)._isConnected = false;
-
-        const res1 = await service.sendMessage('11999999999', 'Oi');
-        expect(res1).toEqual({ success: false });
-
-        (service as any).page = {};
-        (service as any)._isConnected = false;
-        const res2 = await service.sendMessage('11999999999', 'Oi');
-        expect(res2).toEqual({ success: false });
+        const qr = await service.getQRCode();
+        expect(qr).toBeNull();
       });
 
-      it('successfully sends message when contactResult is found', async () => {
+      it('returns null when fetch throws', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'qr-secret-123';
+
+        global.fetch = jest.fn().mockRejectedValueOnce(new Error('Network failure'));
+
         const service = new WhatsAppService();
-        (service as any)._isConnected = true;
-
-        const mockSearchInput = { fill: jest.fn().mockResolvedValue(undefined) };
-        const mockContactResult = { click: jest.fn().mockResolvedValue(undefined) };
-        const mockMessageInput = { fill: jest.fn().mockResolvedValue(undefined) };
-
-        const mockPage = {
-          $: jest.fn().mockImplementation(async (selector: string) => {
-            if (selector === '[data-testid="chat-list-search"]') return mockSearchInput;
-            if (selector === '[title="11999999999"]') return mockContactResult;
-            if (selector === '[data-testid="conversation-compose-box-input"]') return mockMessageInput;
-            return null;
-          }),
-          waitForTimeout: jest.fn().mockResolvedValue(undefined),
-          waitForSelector: jest.fn().mockResolvedValue(undefined),
-          keyboard: { press: jest.fn().mockResolvedValue(undefined) },
-        };
-
-        (service as any).page = mockPage;
-
-        const res = await service.sendMessage('11999999999', 'Mensagem enviada com sucesso');
-
-        expect(mockSearchInput.fill).toHaveBeenCalledWith('11999999999');
-        expect(mockContactResult.click).toHaveBeenCalled();
-        expect(mockMessageInput.fill).toHaveBeenCalledWith('Mensagem enviada com sucesso');
-        expect(mockPage.keyboard.press).toHaveBeenCalledWith('Enter');
-        expect(res.success).toBe(true);
-        expect(res.messageId).toBeDefined();
-      });
-
-      it('successfully sends message pressing Enter when contactResult is not found in search', async () => {
-        const service = new WhatsAppService();
-        (service as any)._isConnected = true;
-
-        const mockSearchInput = { fill: jest.fn().mockResolvedValue(undefined) };
-        const mockMessageInput = { fill: jest.fn().mockResolvedValue(undefined) };
-
-        const mockPage = {
-          $: jest.fn().mockImplementation(async (selector: string) => {
-            if (selector === '[data-testid="chat-list-search"]') return mockSearchInput;
-            if (selector === '[title="11999999999"]') return null; // not found
-            if (selector === '[data-testid="conversation-compose-box-input"]') return mockMessageInput;
-            return null;
-          }),
-          waitForTimeout: jest.fn().mockResolvedValue(undefined),
-          waitForSelector: jest.fn().mockResolvedValue(undefined),
-          keyboard: { press: jest.fn().mockResolvedValue(undefined) },
-        };
-
-        (service as any).page = mockPage;
-
-        const res = await service.sendMessage('11999999999', 'Mensagem sem contato prévio');
-
-        expect(mockPage.keyboard.press).toHaveBeenCalledWith('Enter');
-        expect(res.success).toBe(true);
-      });
-
-      it('returns { success: false } when search input is not found', async () => {
-        const service = new WhatsAppService();
-        (service as any)._isConnected = true;
-
-        const mockPage = {
-          $: jest.fn().mockResolvedValue(null),
-          waitForTimeout: jest.fn(),
-          waitForSelector: jest.fn(),
-          keyboard: { press: jest.fn() },
-        };
-
-        (service as any).page = mockPage;
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-        const res = await service.sendMessage('11999999999', 'Oi');
-        expect(res).toEqual({ success: false });
-        expect(consoleSpy).toHaveBeenCalled();
-        consoleSpy.mockRestore();
-      });
-
-      it('returns { success: false } when message input is not found', async () => {
-        const service = new WhatsAppService();
-        (service as any)._isConnected = true;
-
-        const mockSearchInput = { fill: jest.fn().mockResolvedValue(undefined) };
-
-        const mockPage = {
-          $: jest.fn().mockImplementation(async (selector: string) => {
-            if (selector === '[data-testid="chat-list-search"]') return mockSearchInput;
-            return null; // message input is null
-          }),
-          waitForTimeout: jest.fn().mockResolvedValue(undefined),
-          waitForSelector: jest.fn().mockResolvedValue(undefined),
-          keyboard: { press: jest.fn().mockResolvedValue(undefined) },
-        };
-
-        (service as any).page = mockPage;
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-
-        const res = await service.sendMessage('11999999999', 'Oi');
-        expect(res).toEqual({ success: false });
-        consoleSpy.mockRestore();
+        const qr = await service.getQRCode();
+        expect(qr).toBeNull();
       });
     });
   });

@@ -14,6 +14,7 @@ const eslintConfig = [
       'next-env.d.ts',
       'playwright-report/**',
       'test-results/**',
+      'ops/vps/whatsapp-sidecar/dist/**',
     ],
   },
   {

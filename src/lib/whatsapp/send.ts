@@ -35,16 +35,14 @@ export async function sendWhatsAppMessage(
     }
   }
 
-  // Playwright fallback: import lazily to avoid bundling in non-playwright paths
+  // Playwright fallback: delegate to channel-service sidecar client
   if (provider === 'playwright') {
     try {
       const { getWhatsAppService } = await import('@/modules/atendimento/services/channel-service');
       const service = getWhatsAppService();
-      if (service?.isConnected) {
-        return service.sendMessage(phone, message);
-      }
+      return service.sendMessage(phone, message);
     } catch {
-      // Playwright not available
+      // Fallback service not available
     }
   }
 
