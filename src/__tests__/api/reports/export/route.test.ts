@@ -14,4 +14,6 @@ describe('GET /api/reports/export',()=>{
   it('returns CSV for patients',async()=>{auth();const r=await GET(new Request('http://x?type=patients')as any);expect(r.headers.get('Content-Type')).toContain('text/csv')})
   it('returns CSV for leads',async()=>{auth();const r=await GET(new Request('http://x?type=leads')as any);expect(r.headers.get('Content-Type')).toContain('text/csv')})
   it('returns CSV for conversations',async()=>{auth();const r=await GET(new Request('http://x?type=conversations')as any);expect(r.headers.get('Content-Type')).toContain('text/csv')})
+  it('returns JSON payload for format=json',async()=>{auth();const r=await GET(new Request('http://x?type=appointments&format=json')as any);expect(r.status).toBe(200);const b=await r.json();expect(b.data).toBeDefined();expect(b.headers).toBeDefined();expect(b.filename).toContain('agendamentos')})
+  it('returns JSON payload for format=pdf',async()=>{auth();const r=await GET(new Request('http://x?type=leads&format=pdf')as any);expect(r.status).toBe(200);const b=await r.json();expect(b.data).toBeDefined();expect(b.headers).toBeDefined();expect(b.filename).toContain('leads')})
 })

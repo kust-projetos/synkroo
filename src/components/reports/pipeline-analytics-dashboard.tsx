@@ -1,12 +1,17 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import dynamic from 'next/dynamic'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Clock, Users, TrendingUp, Activity } from 'lucide-react'
+
+const PipelineFunnelChart = dynamic(
+  () => import('./pipeline-funnel-chart').then((m) => m.PipelineFunnelChart),
+  { ssr: false, loading: () => <div className="h-64 bg-muted rounded-xl animate-pulse" /> }
+)
 
 interface StageConversion {
   stage_name: string
@@ -162,31 +167,7 @@ export function PipelineAnalyticsDashboard() {
       convertido: stage.converted_leads,
     }))
 
-    return (
-      <ResponsiveContainer width="100%" height={280}>
-        <BarChart data={chartData} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-          <YAxis tick={{ fontSize: 11 }} unit="%" />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--card))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '8px',
-              fontSize: '12px',
-            }}
-            formatter={(value, name) => {
-              const num = typeof value === 'number' ? value : 0
-              if (name === 'taxa') return [`${num}%`, 'Taxa de Conversao']
-              if (name === 'total') return [num, 'Total Leads']
-              if (name === 'convertido') return [num, 'Convertidos']
-              return [String(value ?? ''), String(name ?? '')]
-            }}
-          />
-          <Bar dataKey="taxa" fill="#3b82f6" name="Taxa de Conversao %" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    )
+    return <PipelineFunnelChart data={chartData} />
   }
 
   // Avg Conversion Time Card
