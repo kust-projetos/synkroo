@@ -52,8 +52,9 @@ export class WhatsAppService extends EventEmitter {
       args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-setuid-sandbox'],
     });
 
-    this.page = await this.context.newPage();
-    await this.page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle' });
+    this.page = this.context.pages()[0] ?? (await this.context.newPage());
+    await this.page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded' });
+    await this.page.waitForTimeout(3_000);
 
     const isLoggedIn = await this.checkLoginStatus();
     if (!isLoggedIn) {
@@ -68,8 +69,11 @@ export class WhatsAppService extends EventEmitter {
   private async checkLoginStatus(): Promise<boolean> {
     if (!this.page) return false;
     try {
-      const chatList = await this.page.$('[data-testid="chat-list"]');
-      return chatList !== null;
+      await this.page.waitForSelector(
+        '#pane-side, [data-testid="chat-list"], [data-testid="chat-list-search"], [aria-label="Search or start a new chat"], input[placeholder="Search or start a new chat"]',
+        { timeout: 10_000 },
+      );
+      return true;
     } catch {
       return false;
     }
@@ -85,7 +89,7 @@ export class WhatsAppService extends EventEmitter {
       this.emit('qrcode', qrDataUrl);
     }
     try {
-      await this.page.waitForSelector('[data-testid="chat-list"]', { timeout: 120000 });
+      await this.page.waitForSelector('#pane-side, [data-testid="chat-list"]', { timeout: 120000 });
       this._isConnected = true;
       this.currentQRCode = null;
       this.lastActivity = new Date();
