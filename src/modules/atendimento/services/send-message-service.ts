@@ -1,31 +1,18 @@
 /**
  * Atendimento — send message service (P2 — delegates to module channel service).
  *
- * Thin re-export layer. All channel logic lives in channel-service.ts.
- * Kept for backward compatibility with actions that already import from here
- * (enviar-mensagem, responder-instagram).
+ * Compatibility layer for actions that import this service. WhatsApp sending
+ * delegates to channel-service for provider failover; other channel contracts
+ * remain local to this legacy-facing module.
  */
 
 import { dbLogger } from '@/lib/logger';
-import { getEvolutionService } from './evolution-service';
+import { sendWhatsApp as channelSendWhatsApp, type SendResult } from './channel-service';
 
-export interface SendResult {
-  success: boolean;
-  messageId?: string;
-  error?: string;
-}
+export type { SendResult };
 
 export async function sendWhatsApp(to: string, text: string): Promise<SendResult> {
-  try {
-    const evolution = getEvolutionService();
-    if (!evolution) return { success: false, error: 'Evolution service not available' };
-    const result = await evolution.sendTextMessage(to, text);
-    return result;
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    dbLogger.error('send-message-service: evolution send failed', err);
-    return { success: false, error: msg };
-  }
+  return channelSendWhatsApp(to, text);
 }
 
 export async function sendInstagram(_to: string, _text: string): Promise<SendResult> {
