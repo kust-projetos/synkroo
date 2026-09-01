@@ -9,7 +9,7 @@ services:
     environment:
       PORT: 3030
       WHATSAPP_SESSION_PATH: /app/.whatsapp-session
-      WHATSAPP_HEADLESS: "true"
+      WHATSAPP_HEADLESS: "${WHATSAPP_HEADLESS:-true}"
     volumes:
       - synkroo_whatsapp_session:/app/.whatsapp-session
     ports:
