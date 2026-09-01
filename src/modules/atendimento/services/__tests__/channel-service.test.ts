@@ -77,6 +77,46 @@ describe('channel-service unit tests', () => {
       expect(mockSend).toHaveBeenCalledWith('5511999999999', 'Olá via Evolution');
     });
 
+    it('falls back to the sidecar when Evolution reports a failed send', async () => {
+      process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
+      process.env.EVOLUTION_API_KEY = 'secret-key';
+      process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+      process.env.WHATSAPP_FALLBACK_SECRET = 'secret-sidecar';
+
+      mockEvolution.mockReturnValue({
+        sendTextMessage: jest.fn().mockResolvedValue({ success: false, error: 'Evolution unavailable' }),
+      } as any);
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, messageId: 'sidecar-123' }),
+      } as Response);
+
+      await expect(sendWhatsAppMessage('5511999999999', 'Olá via fallback')).resolves.toEqual({
+        success: true,
+        messageId: 'sidecar-123',
+      });
+    });
+
+    it('falls back to the sidecar when Evolution throws', async () => {
+      process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
+      process.env.EVOLUTION_API_KEY = 'secret-key';
+      process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+      process.env.WHATSAPP_FALLBACK_SECRET = 'secret-sidecar';
+
+      mockEvolution.mockReturnValue({
+        sendTextMessage: jest.fn().mockRejectedValue(new Error('Evolution timed out')),
+      } as any);
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true, messageId: 'sidecar-456' }),
+      } as Response);
+
+      await expect(sendWhatsAppMessage('5511999999999', 'Olá via fallback')).resolves.toEqual({
+        success: true,
+        messageId: 'sidecar-456',
+      });
+    });
+
     it('returns error when evolution provider is configured but getEvolutionService returns null', async () => {
       process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
       process.env.EVOLUTION_API_KEY = 'secret-key';
