@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server'
-import { eq, and, not, inArray } from 'drizzle-orm'
+import { eq, and, not, inArray, sql } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
-import { listLeadsByClinic } from '@/modules/comercial/repositories/leads-repository'
 import { getCampaigns } from '@/services/followup/campaign.service'
 import { getDb } from '@/lib/db/client'
 import { leads } from '@/lib/db/schema'
@@ -11,6 +10,10 @@ import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rat
 /**
  * GET /api/crm/stats
  * Cross-module CRM stats for hub page
+ *
+ * Escala: estatísticas de leads calculadas no Postgres via agregação SQL
+ * (count(*), FILTER, avg, sum, GROUP BY). Nenhuma listagem bruta de leads
+ * é carregada em memória.
  */
 export async function GET(request: Request) {
   try {
@@ -35,26 +38,84 @@ export async function GET(request: Request) {
     const clinicId = authResult.profile!.clinic_id
     const db = getDb()
 
-    // Get lead stats via comercial repository
-    const allLeads = await listLeadsByClinic(clinicId);
-    const total = allLeads.length;
-    const byStatus: Record<string, number> = {};
-    const byTemperature: Record<string, number> = {};
-    let hotCount = 0;
-    let totalScore = 0;
-    for (const l of allLeads) {
-      byStatus[l.status || 'unknown'] = (byStatus[l.status || 'unknown'] || 0) + 1;
-      byTemperature[l.temperature || 'cold'] = (byTemperature[l.temperature || 'cold'] || 0) + 1;
-      if (l.temperature === 'hot') hotCount++;
-      totalScore += l.score || 0;
+    // Escopo base: leads da clínica, excluindo perdedores de merge (paridade
+    // com o filtro aplicado por listLeadsByClinic).
+    const leadScope = and(
+      eq(leads.clinicId, clinicId),
+      sql`(${leads.mergeStatus} is null or ${leads.mergeStatus} != 'merged')`
+    )
+
+    // Agregados de leads + distribuições por status/temperatura em paralelo.
+    // 1) Totais: total, hot_leads via FILTER e soma de scores (avg calculada
+    //    no JS para paridade exata: avg no SQL ignora nulls na divisão,
+    //    enquanto o original somava score || 0 sobre todos os leads).
+    // 2-3) GROUP BY status / temperature para os breakdowns.
+    const [leadAgg, statusRows, temperatureRows] = await Promise.all([
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          hotLeads: sql<number>`count(*) filter (where ${leads.temperature} = 'hot')::int`,
+          totalScore: sql<number>`coalesce(sum(coalesce(${leads.score}, 0)), 0)::int`,
+        })
+        .from(leads)
+        .where(leadScope)
+        .then(([r]) => r ?? { total: 0, hotLeads: 0, totalScore: 0 }),
+      db
+        .select({
+          status: leads.status,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(leads)
+        .where(leadScope)
+        .groupBy(leads.status),
+      db
+        .select({
+          temperature: leads.temperature,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(leads)
+        .where(leadScope)
+        .groupBy(leads.temperature),
+    ])
+
+    const total = leadAgg.total ?? 0
+    const totalScore = leadAgg.totalScore ?? 0
+    const byStatus: Record<string, number> = {}
+    for (const row of statusRows) {
+      const key = row.status || 'unknown'
+      byStatus[key] = (byStatus[key] || 0) + (row.count ?? 0)
+    }
+    const byTemperature: Record<string, number> = {}
+    for (const row of temperatureRows) {
+      const key = row.temperature || 'cold'
+      byTemperature[key] = (byTemperature[key] || 0) + (row.count ?? 0)
     }
     const leadStats = {
       total,
       byStatus,
       byTemperature,
-      hotLeads: hotCount,
+      hotLeads: leadAgg.hotLeads ?? 0,
       avgScore: total > 0 ? Math.round(totalScore / total) : 0,
-    };
+    }
+
+    // Pipeline value (soma de deal_value do pipeline aberto) em consulta
+    // isolada com fallback 0 — preserva o filtro original exato (só
+    // clinicId + status, sem mergeStatus) e nunca derruba o endpoint.
+    let pipelineValue = 0
+    try {
+      const [pipelineRow] = await db
+        .select({
+          value: sql<string | number>`coalesce(sum(${leads.dealValue}), 0)`,
+        })
+        .from(leads)
+        .where(and(
+          eq(leads.clinicId, clinicId),
+          not(inArray(leads.status, ['converted', 'lost']))
+        ))
+      pipelineValue = Number(pipelineRow?.value) || 0
+    } catch {
+      // Pipeline value calculation optional
+    }
 
     // Get campaign stats
     let campaignStats = {
@@ -74,25 +135,6 @@ export async function GET(request: Request) {
       }
     } catch {
       // Campaign stats optional, continue without
-    }
-
-    // Calculate pipeline value (sum of deal values from leads not converted/lost)
-    let pipelineValue = 0
-    try {
-      const leadsWithValue = await db
-        .select({ dealValue: leads.dealValue })
-        .from(leads)
-        .where(and(
-          eq(leads.clinicId, clinicId),
-          not(inArray(leads.status, ['converted', 'lost']))
-        ))
-
-      pipelineValue = leadsWithValue.reduce(
-        (sum, lead) => sum + (Number(lead.dealValue) || 0),
-        0
-      )
-    } catch {
-      // Pipeline value calculation optional
     }
 
     // Calculate campaign ROI (conversions * avg patient value / campaign cost)

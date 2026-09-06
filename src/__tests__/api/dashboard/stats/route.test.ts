@@ -4,18 +4,36 @@
  * Validates the shape of the response from GET /api/dashboard/stats
  * without requiring a real database connection.
  *
- * Mock pattern: factory uses jest.requireActual to avoid hoisting issues.
+ * A implementação usa agregação SQL direta (count(*) + FILTER); o mock de
+ * db devolve linhas agregadas enlatadas na ordem dos selects:
+ * 1) hoje { total, confirmed, pending }, 2) 30 dias { total, confirmed },
+ * 3) campanhas { count }, 4) conversas { count }, 5) pacientes { count }.
  */
 
 jest.mock('@/lib/auth/session', () => ({
   validateApiAuth: jest.fn(),
 }))
 
+const cannedRows: any[][] = [
+  [{ total: 10, confirmed: 4, pending: 5 }],
+  [{ total: 100, confirmed: 60 }],
+  [{ count: 2 }],
+  [{ count: 7 }],
+  [{ count: 500 }],
+]
+let selectCall = 0
+
 const mockDb = {
-  select: jest.fn().mockReturnThis(),
-  from: jest.fn().mockReturnThis(),
-  where: jest.fn().mockReturnThis(),
-  then: jest.fn((fn: any) => Promise.resolve(fn([{ count: 500 }]))),
+  select: jest.fn(() => {
+    const rows = cannedRows[selectCall++] ?? [{ count: 0 }]
+    return {
+      from: jest.fn(() => ({
+        where: jest.fn(() => ({
+          then: (fn: any) => Promise.resolve().then(() => fn(rows)),
+        })),
+      })),
+    }
+  }),
 }
 
 jest.mock('@/lib/db/client', () => ({
@@ -42,22 +60,6 @@ jest.mock('@/lib/errors', () => {
     DatabaseError: cls,
   }
 })
-
-// Mock repositories
-// Mock repositories — always return simple data regardless of params
-jest.mock('@/repositories/appointments', () => ({
-  findByDateRange: jest.fn().mockResolvedValue([
-    { status: 'scheduled' },
-    { status: 'confirmed' },
-    { status: 'completed' },
-  ]),
-}))
-
-jest.mock('@/repositories/campaigns', () => ({
-  findCampaignsByClinic: jest.fn().mockResolvedValue([
-    { id: 'c1', status: 'running' },
-  ]),
-}))
 
 jest.mock('@/lib/db/schema', () => {
   const actual = jest.requireActual('@/lib/db/schema');
@@ -87,7 +89,10 @@ function makeReq(): Request {
   return new Request('http://localhost:3000/api/dashboard/stats')
 }
 
-beforeEach(() => jest.clearAllMocks())
+beforeEach(() => {
+  jest.clearAllMocks()
+  selectCall = 0
+})
 
 describe('GET /api/dashboard/stats', () => {
   it('returns 401 when not authenticated', async () => {
@@ -96,11 +101,8 @@ describe('GET /api/dashboard/stats', () => {
     expect(res.status).toBe(401)
   })
 
-  it('returns the expected response shape with live mock data', async () => {
+  it('returns the expected response shape with aggregated SQL data', async () => {
     mockAuth()
-
-    // Repositories already return default data via jest.mock above.
-    // No need to override per-test unless testing specific edge cases.
 
     const res = await GET(makeReq() as any)
     const body = await res.json()
@@ -110,18 +112,21 @@ describe('GET /api/dashboard/stats', () => {
     expect(body).toHaveProperty('metrics')
     expect(body).toHaveProperty('inactivePatients')
 
-    // today shape (3 appointments from mock)
+    // today shape (agregado SQL enlatado: total 10, confirmed 4, pending 5)
     expect(body.today).toMatchObject({
-      appointments: 3,
-      confirmed: 1,
-      pending: 1,
+      appointments: 10,
+      confirmed: 4,
+      pending: 5,
     })
 
-    // metrics shape
-    expect(body.metrics.confirmationRate).toBeGreaterThanOrEqual(0)
-    expect(body.metrics.activeCampaigns).toBe(1) // 1 running from mock
-    expect(typeof body.metrics.totalPatients).toBe('number')
-    expect(typeof body.metrics.openConversations).toBe('number')
+    // metrics shape (confirmationRate = 60/100 = 60%)
+    expect(body.metrics.confirmationRate).toBe(60)
+    expect(body.metrics.activeCampaigns).toBe(2)
+    expect(body.metrics.openConversations).toBe(7)
+    expect(body.metrics.totalPatients).toBe(500)
+
+    // nenhuma linha bruta: implementação não usa findByDateRange/findCampaignsByClinic
+    expect(mockDb.select).toHaveBeenCalledTimes(5)
 
     // inactive shape
     expect(body.inactivePatients.totalInactive).toBe(42)

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import { StatsGrid } from '@/components/ui/stats-grid'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -57,45 +57,29 @@ interface ClinicInsights {
 }
 
 export function useAnalytics(clinicId: string | undefined) {
-  const [insights, setInsights] = useState<ClinicInsights | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!clinicId) {
-      setLoading(false)
-      return
-    }
-
-    fetchInsights()
-  }, [clinicId])
-
-  const fetchInsights = async () => {
-    try {
-      setLoading(true)
+  const query = useQuery({
+    queryKey: ['analytics', 'insights', clinicId],
+    queryFn: async (): Promise<ClinicInsights> => {
       if (isMockMode()) {
         const data = getMockForUrl('/api/analytics/insights') as ClinicInsights | null
-        if (data) {
-          setInsights(data)
-          setError(null)
-          return
-        }
+        if (data) return data
       }
       const response = await fetch('/api/analytics/insights')
       if (!response.ok) {
         throw new Error('Failed to fetch analytics')
       }
-      const data = await response.json()
-      setInsights(data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoading(false)
-    }
-  }
+      return response.json()
+    },
+    enabled: !!clinicId,
+    staleTime: 60 * 1000,
+  })
 
-  return { insights, loading, error, refetch: fetchInsights }
+  return {
+    insights: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error instanceof Error ? query.error.message : query.error ? 'Unknown error' : null,
+    refetch: query.refetch,
+  }
 }
 
 export function AnalyticsMetrics({ insights, loading }: { insights: ClinicInsights | null; loading: boolean }) {
@@ -210,45 +194,29 @@ export interface ROIMetricsData {
 }
 
 export function useROI(clinicId: string | undefined) {
-  const [roiData, setRoiData] = useState<ROIMetricsData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!clinicId) {
-      setLoading(false)
-      return
-    }
-
-    fetchROI()
-  }, [clinicId])
-
-  const fetchROI = async () => {
-    try {
-      setLoading(true)
+  const query = useQuery({
+    queryKey: ['analytics', 'roi', clinicId],
+    queryFn: async (): Promise<ROIMetricsData> => {
       if (isMockMode()) {
         const data = getMockForUrl('/api/analytics/roi?period=month') as ROIMetricsData | null
-        if (data) {
-          setRoiData(data)
-          setError(null)
-          return
-        }
+        if (data) return data
       }
       const response = await fetch('/api/analytics/roi?period=month')
       if (!response.ok) {
         throw new Error('Failed to fetch ROI data')
       }
-      const data = await response.json()
-      setRoiData(data)
-      setError(null)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error')
-    } finally {
-      setLoading(false)
-    }
-  }
+      return response.json()
+    },
+    enabled: !!clinicId,
+    staleTime: 60 * 1000,
+  })
 
-  return { roiData, loading, error, refetch: fetchROI }
+  return {
+    roiData: query.data ?? null,
+    loading: query.isLoading,
+    error: query.error instanceof Error ? query.error.message : query.error ? 'Unknown error' : null,
+    refetch: query.refetch,
+  }
 }
 
 function formatCurrency(value: number): string {

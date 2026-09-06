@@ -1,5 +1,5 @@
 /** Analytics Service — migrated to Drizzle */
-import { eq, and, gte, lt, isNotNull, asc, desc, inArray } from 'drizzle-orm'
+import { eq, and, gte, lt, isNotNull, asc, desc, inArray, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { appointments, patients } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
@@ -19,16 +19,26 @@ export async function getAppointmentTrends(clinicId: string, days = 30): Promise
   const db = getDb()
   const startDate = new Date(); startDate.setDate(startDate.getDate() - days)
   try {
-    const rows = await db.select({ scheduledAt: appointments.scheduledAt, status: appointments.status })
-      .from(appointments).where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate))).orderBy(asc(appointments.scheduledAt))
-    const trends = new Map<string, AppointmentTrend>()
-    for (const a of rows) {
-      const date = a.scheduledAt.toISOString().split('T')[0]
-      const t = trends.get(date) || { date, total: 0, confirmed: 0, cancelled: 0, no_show: 0, completed: 0 }
-      t.total++; if (a.status === 'confirmed') t.confirmed++; else if (a.status === 'cancelled') t.cancelled++; else if (a.status === 'no_show') t.no_show++; else if (a.status === 'completed') t.completed++
-      trends.set(date, t)
-    }
-    return Array.from(trends.values())
+    // Agregação no banco: 1 query com DATE() + FILTER por status em vez de
+    // trazer todas as linhas e agrupar em JS.
+    const day = sql<string>`DATE(${appointments.scheduledAt})`
+    const rows = await db.select({
+      date: day,
+      total: sql<number>`count(*)::int`,
+      confirmed: sql<number>`count(*) filter (where ${appointments.status} = 'confirmed')::int`,
+      cancelled: sql<number>`count(*) filter (where ${appointments.status} = 'cancelled')::int`,
+      no_show: sql<number>`count(*) filter (where ${appointments.status} = 'no_show')::int`,
+      completed: sql<number>`count(*) filter (where ${appointments.status} = 'completed')::int`,
+    })
+      .from(appointments).where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate))).groupBy(day).orderBy(asc(day))
+    return rows.map((r) => ({
+      date: typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0],
+      total: Number(r.total ?? 0),
+      confirmed: Number(r.confirmed ?? 0),
+      cancelled: Number(r.cancelled ?? 0),
+      no_show: Number(r.no_show ?? 0),
+      completed: Number(r.completed ?? 0),
+    }))
   } catch (e) { dbLogger.error('Error fetching appointment trends', e); return [] }
 }
 
@@ -36,10 +46,12 @@ export async function getHourlyDistribution(clinicId: string, days = 90): Promis
   const db = getDb()
   const startDate = new Date(); startDate.setDate(startDate.getDate() - days)
   try {
-    const rows = await db.select({ scheduledAt: appointments.scheduledAt }).from(appointments)
-      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate)))
+    // Agregação no banco: EXTRACT(HOUR) + GROUP BY; JS só monta os 24 buckets.
+    const hour = sql<number>`EXTRACT(HOUR FROM ${appointments.scheduledAt})::int`
+    const rows = await db.select({ hour, count: sql<number>`count(*)::int` }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate))).groupBy(hour)
     const counts = new Array(24).fill(0); let total = 0
-    for (const a of rows) { counts[a.scheduledAt.getHours()]++; total++ }
+    for (const r of rows) { const h = Number(r.hour); const c = Number(r.count ?? 0); if (h >= 0 && h < 24) { counts[h] += c; total += c } }
     return counts.map((c, h) => ({ hour: h, count: c, percentage: total > 0 ? Math.round((c / total) * 100) : 0 }))
   } catch (e) { dbLogger.error('Error fetching hourly distribution', e); return [] }
 }
@@ -49,10 +61,12 @@ export async function getDayOfWeekDistribution(clinicId: string, days = 90): Pro
   const startDate = new Date(); startDate.setDate(startDate.getDate() - days)
   const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
   try {
-    const rows = await db.select({ scheduledAt: appointments.scheduledAt }).from(appointments)
-      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate)))
+    // Agregação no banco: EXTRACT(DOW) + GROUP BY; JS só monta os 7 buckets.
+    const dow = sql<number>`EXTRACT(DOW FROM ${appointments.scheduledAt})::int`
+    const rows = await db.select({ dow, count: sql<number>`count(*)::int` }).from(appointments)
+      .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate))).groupBy(dow)
     const counts = new Array(7).fill(0); let total = 0
-    for (const a of rows) { counts[a.scheduledAt.getDay()]++; total++ }
+    for (const r of rows) { const d = Number(r.dow); const c = Number(r.count ?? 0); if (d >= 0 && d < 7) { counts[d] += c; total += c } }
     return counts.map((c, i) => ({ day: dayNames[i], dayIndex: i, count: c, percentage: total > 0 ? Math.round((c / total) * 100) : 0 }))
   } catch (e) { dbLogger.error('Error fetching day of week distribution', e); return [] }
 }
@@ -93,11 +107,22 @@ export async function getDemandForecast(clinicId: string, days = 14): Promise<De
   try {
     const startDate = new Date(); startDate.setDate(startDate.getDate() - historicalWeeks * 7 - days)
     const endDate = new Date()
-    const rows = await db.select({ scheduledAt: appointments.scheduledAt }).from(appointments)
+    // Agregação no banco: contagens por dia/dow via GROUP BY; JS só calcula
+    // média/variância por dia da semana sobre os buckets já agregados.
+    const day = sql<string>`DATE(${appointments.scheduledAt})`
+    const dow = sql<number>`EXTRACT(DOW FROM ${appointments.scheduledAt})::int`
+    const rows = await db.select({ date: day, dow, count: sql<number>`count(*)::int` }).from(appointments)
       .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, startDate), lt(appointments.scheduledAt, endDate)))
+      .groupBy(day, dow)
     const byDow = new Map<number, Map<string, number>>()
     for (let d = 0; d < 7; d++) byDow.set(d, new Map())
-    for (const a of rows) { const dow = a.scheduledAt.getDay(); const ds = a.scheduledAt.toISOString().split('T')[0]; const m = byDow.get(dow)!; m.set(ds, (m.get(ds) || 0) + 1) }
+    for (const r of rows) {
+      const d = Number(r.dow)
+      const ds = typeof r.date === 'string' ? r.date : new Date(r.date).toISOString().split('T')[0]
+      const m = byDow.get(d)
+      if (!m) continue
+      m.set(ds, (m.get(ds) || 0) + Number(r.count ?? 0))
+    }
     const forecasts: DemandForecast[] = []
     for (let i = 0; i < days; i++) {
       const target = new Date(); target.setDate(target.getDate() + i)
@@ -116,15 +141,14 @@ async function calculateAvgConfirmationTime(clinicId: string): Promise<number> {
   const db = getDb()
   try {
     const ninetyDaysAgo = new Date(); ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
-    const rows = await db.select({ scheduledAt: appointments.scheduledAt, confirmationSentAt: appointments.confirmationSentAt }).from(appointments)
+    // AVG no SQL (horas entre envio da confirmação e agendamento, só diffs
+    // positivos); o banco escaneia sem materializar linhas em JS.
+    const [row] = await db.select({
+      avgHours: sql<number | null>`avg(case when ${appointments.scheduledAt} > ${appointments.confirmationSentAt} then extract(epoch from (${appointments.scheduledAt} - ${appointments.confirmationSentAt})) / 3600 end)`,
+    }).from(appointments)
       .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, ninetyDaysAgo), isNotNull(appointments.confirmationSentAt)))
-    if (!rows.length) return 0
-    let total = 0; let count = 0
-    for (const a of rows) {
-      const diff = (a.scheduledAt.getTime() - a.confirmationSentAt!.getTime()) / 3600000
-      if (diff > 0) { total += diff; count++ }
-    }
-    return count > 0 ? Math.round((total / count) * 10) / 10 : 0
+    const avg = Number(row?.avgHours ?? 0)
+    return avg > 0 ? Math.round(avg * 10) / 10 : 0
   } catch (e) { dbLogger.error('Error calculating avg confirmation time', e); return 0 }
 }
 

@@ -112,12 +112,11 @@ function getPreviousPeriodRange(period: string, referenceDate: string): PeriodRa
 async function countAIHandledMessages(clinicId: string, start: string, end: string): Promise<number> {
   const db = getDb()
   try {
-    const convRows = await db.select({ id: conversations.id }).from(conversations)
-      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end))))
-    if (!convRows.length) return 0
-    const convIds = convRows.map(c => c.id)
+    // Query única com innerJoin em conversations: evita buscar convIds e usar
+    // inArray (que estoura limite de parâmetros/round-trips em escala).
     const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(messages)
-      .where(and(inArray(messages.conversationId, convIds), eq(messages.direction, 'outbound'), isNotNull(messages.intent), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end)), eq(messages.direction, 'outbound'), isNotNull(messages.intent), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
     return row?.count ?? 0
   } catch (e) { dbLogger.error('Error counting AI-handled messages', e); return 0 }
 }
@@ -128,12 +127,10 @@ async function countAIHandledMessages(clinicId: string, start: string, end: stri
 async function countAIBookedAppointments(clinicId: string, start: string, end: string): Promise<number> {
   const db = getDb()
   try {
-    const convRows = await db.select({ id: conversations.id }).from(conversations)
-      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end))))
-    if (!convRows.length) return 0
-    const convIds = convRows.map(c => c.id)
+    // Query única com innerJoin em conversations (mesmo motivo acima).
     const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(messages)
-      .where(and(inArray(messages.conversationId, convIds), inArray(messages.intent as any, ['schedule_appointment', 'book', 'reschedule', 'confirm_appointment']), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
+      .innerJoin(conversations, eq(messages.conversationId, conversations.id))
+      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end)), inArray(messages.intent as any, ['schedule_appointment', 'book', 'reschedule', 'confirm_appointment']), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
     return row?.count ?? 0
   } catch (e) { dbLogger.error('Error counting AI-booked appointments', e); return 0 }
 }

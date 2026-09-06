@@ -4,15 +4,22 @@ import { validateApiAuth } from '@/lib/auth/session'
 import { handleApiError } from '@/lib/errors'
 import { dbLogger } from '@/lib/logger'
 import { getDb } from '@/lib/db/client'
-import { patients as patientsTable, conversations } from '@/lib/db/schema'
-import * as apptRepo from '@/repositories/appointments'
-import * as campRepo from '@/repositories/campaigns'
+import {
+  appointments as appointmentsTable,
+  campaigns as campaignsTable,
+  patients as patientsTable,
+  conversations,
+} from '@/lib/db/schema'
 import { getInactivityStats } from '@/services/followup/inactive-patient.service'
 
 /**
  * GET /api/dashboard/stats
  * Get dashboard statistics for a clinic — migrated from Supabase to Drizzle.
  * All independent queries run in parallel via Promise.all().
+ *
+ * Escala: nenhum endpoint traz linhas brutas para a memória. Contagens e
+ * taxas são calculadas no Postgres via count(*) + FILTER, inclusive para as
+ * janelas de hoje e de 30 dias.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -33,26 +40,59 @@ export async function GET(request: NextRequest) {
 
     const thirtyDaysAgo = new Date(todayStart.getTime() - 30 * 24 * 3600 * 1000)
 
+    const notDeleted = sql`${appointmentsTable.deletedAt} IS NULL`
+
     // Run all independent queries in parallel
     const [
-      todayAppointments,
-      recentAppointments,
+      todayAgg,
+      recentAgg,
       inactiveStats,
       activeCampaignsCount,
       openConversationsCount,
       totalPatientsCount,
     ] = await Promise.all([
-      // 1. Today's appointments
-      apptRepo.findByDateRange(clinicId, undefined, todayStart, todayEnd).catch((err) => {
-        dbLogger.error('Dashboard stats: todayAppointments failed', { error: String(err) })
-        return null
-      }),
+      // 1. Today's appointments — agregação SQL direta (total, confirmed, pending)
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          confirmed: sql<number>`count(*) filter (where ${appointmentsTable.status} = 'confirmed')::int`,
+          pending: sql<number>`count(*) filter (where ${appointmentsTable.status} in ('scheduled', 'pending'))::int`,
+        })
+        .from(appointmentsTable)
+        .where(
+          and(
+            eq(appointmentsTable.clinicId, clinicId),
+            gte(appointmentsTable.scheduledAt, todayStart),
+            lt(appointmentsTable.scheduledAt, todayEnd),
+            notDeleted
+          )
+        )
+        .then(([r]) => r ?? { total: 0, confirmed: 0, pending: 0 })
+        .catch((err) => {
+          dbLogger.error('Dashboard stats: todayAppointments failed', { error: String(err) })
+          return { total: 0, confirmed: 0, pending: 0 }
+        }),
 
-      // 2. Last 30 days for confirmation rate
-      apptRepo.findByDateRange(clinicId, undefined, thirtyDaysAgo, todayEnd).catch((err) => {
-        dbLogger.error('Dashboard stats: recentAppointments failed', { error: String(err) })
-        return null
-      }),
+      // 2. Last 30 days for confirmation rate — agregação SQL direta
+      db
+        .select({
+          total: sql<number>`count(*)::int`,
+          confirmed: sql<number>`count(*) filter (where ${appointmentsTable.status} in ('confirmed', 'completed'))::int`,
+        })
+        .from(appointmentsTable)
+        .where(
+          and(
+            eq(appointmentsTable.clinicId, clinicId),
+            gte(appointmentsTable.scheduledAt, thirtyDaysAgo),
+            lt(appointmentsTable.scheduledAt, todayEnd),
+            notDeleted
+          )
+        )
+        .then(([r]) => r ?? { total: 0, confirmed: 0 })
+        .catch((err) => {
+          dbLogger.error('Dashboard stats: recentAppointments failed', { error: String(err) })
+          return { total: 0, confirmed: 0 }
+        }),
 
       // 3. Inactive patients (isolated from failures)
       getInactivityStats(clinicId).catch((err) => {
@@ -60,28 +100,37 @@ export async function GET(request: NextRequest) {
         return { totalInactive: 0, bySegment: {}, atRiskRevenue: 0 }
       }),
 
-      // 4. Active campaigns (running or scheduled)
-      campRepo.findCampaignsByClinic(clinicId).then((campaigns) =>
-        (campaigns || []).filter((c: any) => c.status === 'running' || c.status === 'scheduled').length
-      ).catch((err) => {
-        dbLogger.error('Dashboard stats: campaigns failed', { error: String(err) })
-        return 0
-      }),
+      // 4. Active campaigns (running or scheduled) — contagem direta SQL
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(campaignsTable)
+        .where(
+          and(
+            eq(campaignsTable.clinicId, clinicId),
+            inArray(campaignsTable.status, ['running', 'scheduled'])
+          )
+        )
+        .then(([r]) => r?.count ?? 0)
+        .catch((err) => {
+          dbLogger.error('Dashboard stats: campaigns failed', { error: String(err) })
+          return 0
+        }),
 
-      // 5. Open conversations (active + waiting)
-      Promise.all([
-        db.select({ count: sql<number>`count(*)::int` })
-          .from(conversations)
-          .where(and(eq(conversations.clinicId, clinicId), eq(conversations.status, 'active')))
-          .then(([r]) => r?.count ?? 0),
-        db.select({ count: sql<number>`count(*)::int` })
-          .from(conversations)
-          .where(and(eq(conversations.clinicId, clinicId), eq(conversations.status, 'waiting')))
-          .then(([r]) => r?.count ?? 0),
-      ]).then(([a, w]) => (a ?? 0) + (w ?? 0)).catch((err) => {
-        dbLogger.error('Dashboard stats: conversations failed', { error: String(err) })
-        return 0
-      }),
+      // 5. Open conversations (active + waiting) — contagem direta SQL única
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(conversations)
+        .where(
+          and(
+            eq(conversations.clinicId, clinicId),
+            inArray(conversations.status, ['active', 'waiting'] as any)
+          )
+        )
+        .then(([r]) => r?.count ?? 0)
+        .catch((err) => {
+          dbLogger.error('Dashboard stats: conversations failed', { error: String(err) })
+          return 0
+        }),
 
       // 6. Total patients count
       db
@@ -95,16 +144,14 @@ export async function GET(request: NextRequest) {
         }),
     ])
 
-    // Process today's appointments
-    const todayCount = todayAppointments?.length || 0
-    const confirmedCount = todayAppointments?.filter((a: any) => a.status === 'confirmed').length || 0
-    const pendingCount = todayAppointments?.filter((a: any) => a.status === 'pending' || a.status === 'scheduled').length || 0
+    // Valores já agregados no banco — nenhuma linha bruta em memória
+    const todayCount = todayAgg.total ?? 0
+    const confirmedCount = todayAgg.confirmed ?? 0
+    const pendingCount = todayAgg.pending ?? 0
 
-    // Process confirmation rate
-    const totalRecent = recentAppointments?.length || 0
-    const confirmedRecent = recentAppointments?.filter(
-      (a: any) => a.status === 'confirmed' || a.status === 'completed'
-    ).length || 0
+    // Confirmation rate a partir dos agregados de 30 dias
+    const totalRecent = recentAgg.total ?? 0
+    const confirmedRecent = recentAgg.confirmed ?? 0
     const confirmationRate = totalRecent > 0 ? Math.round((confirmedRecent / totalRecent) * 100) : 0
 
     return NextResponse.json({
