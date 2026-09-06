@@ -18,6 +18,16 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        {/* Shim para scripts gerados por esbuild/next-themes que referenciam
+            __name no escopo global no Cloudflare Workers (ReferenceError:
+            __name is not defined). Preserva implementacao existente se houver. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: 'window.__name=window.__name||function(t,v){return t};',
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>

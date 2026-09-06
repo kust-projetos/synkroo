@@ -1,14 +1,16 @@
 import { GET } from './route'
-import { requireActiveProfile } from '@/lib/auth/session'
+import { getSession, requireActiveProfile } from '@/lib/auth/session'
 import { listUserClinics } from '@/repositories/auth'
 
 jest.mock('@/lib/auth/session', () => ({
+  getSession: jest.fn(),
   requireActiveProfile: jest.fn(),
 }))
 jest.mock('@/repositories/auth', () => ({
   listUserClinics: jest.fn(),
 }))
 
+const mockGetSession = getSession as jest.MockedFunction<typeof getSession>
 const mockRequireActiveProfile = requireActiveProfile as jest.MockedFunction<typeof requireActiveProfile>
 const mockListUserClinics = listUserClinics as jest.MockedFunction<typeof listUserClinics>
 
@@ -26,16 +28,23 @@ const activeProfile = {
   clinics: null,
 }
 
+function requestWithCookie(cookie: string | null): Request {
+  const headers = new Headers()
+  if (cookie !== null) headers.set('cookie', cookie)
+  return new Request('http://localhost/api/auth/session', { headers })
+}
+
 describe('GET /api/auth/session', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     mockListUserClinics.mockResolvedValue([])
+    mockGetSession.mockResolvedValue(null)
   })
 
   it('returns the active profile from the canonical server guard', async () => {
     mockRequireActiveProfile.mockResolvedValue(activeProfile)
 
-    const response = await GET()
+    const response = await GET(requestWithCookie(null))
     const body = await response.json()
 
     expect(response.status).toBe(200)
@@ -47,13 +56,66 @@ describe('GET /api/auth/session', () => {
     expect(mockRequireActiveProfile).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['inactive', 'stale', 'database failure'])('fails closed for %s sessions', async () => {
+  it('returns 200 unauthenticated when there is no session and no session cookie (avoids CLIENT_FETCH_ERROR)', async () => {
     mockRequireActiveProfile.mockRejectedValue(new Error('Unauthorized'))
+    mockGetSession.mockResolvedValue(null)
 
-    const response = await GET()
+    const response = await GET(requestWithCookie(null))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ authenticated: false, user: null, profile: null })
+  })
+
+  it('returns 401 when the session object is non-null but has no user id', async () => {
+    mockRequireActiveProfile.mockRejectedValue(new Error('Unauthorized'))
+    mockGetSession.mockResolvedValue({ user: {} } as never)
+
+    const response = await GET(requestWithCookie(null))
     const body = await response.json()
 
     expect(response.status).toBe(401)
     expect(body).toEqual({ authenticated: false, user: null, profile: null })
   })
+
+  it.each([
+    'next-auth.session-token=expired-token',
+    '__Secure-next-auth.session-token=expired-token',
+  ])('returns 401 when session is null but cookie %s is present', async (cookie) => {
+    mockRequireActiveProfile.mockRejectedValue(new Error('Unauthorized'))
+    mockGetSession.mockResolvedValue(null)
+
+    const response = await GET(requestWithCookie(cookie))
+    const body = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(body).toEqual({ authenticated: false, user: null, profile: null })
+  })
+
+  it('returns 200 when session is null and only unrelated cookies are present', async () => {
+    mockRequireActiveProfile.mockRejectedValue(new Error('Unauthorized'))
+    mockGetSession.mockResolvedValue(null)
+
+    const response = await GET(requestWithCookie('theme=dark; foo=bar'))
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body).toEqual({ authenticated: false, user: null, profile: null })
+  })
+
+  it.each(['inactive', 'stale', 'database failure'])(
+    'fails closed with 401 for %s sessions when a session exists',
+    async () => {
+      mockRequireActiveProfile.mockRejectedValue(new Error('Unauthorized'))
+      mockGetSession.mockResolvedValue({
+        user: { id: 'u1', email: 'user@example.com' },
+      } as never)
+
+      const response = await GET(requestWithCookie(null))
+      const body = await response.json()
+
+      expect(response.status).toBe(401)
+      expect(body).toEqual({ authenticated: false, user: null, profile: null })
+    },
+  )
 })
