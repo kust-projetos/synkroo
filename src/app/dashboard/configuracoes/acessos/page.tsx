@@ -1,11 +1,17 @@
 import { redirect } from 'next/navigation';
 import { buildUserContext } from '@/core/actions/context';
+import { runAction } from '@/core/actions/run';
+import { listClinicUsers } from '@/modules/core/actions/list-clinic-users';
+import { listClinicRoles } from '@/modules/core/actions/list-clinic-roles';
 import { getGroupedCatalog } from '@/core/rbac/grouped-catalog';
 import { UserAccessForm } from '@/modules/core/ui/UserAccessForm';
 import { ClinicUsersTable } from '@/modules/core/ui/ClinicUsersTable';
-import { listClinicRolesAction, listClinicUsersAction } from '@/modules/core/ui/actions';
 
 export const dynamic = 'force-dynamic';
+
+function isAuthFailure(code: string) {
+  return code === 'unauthenticated' || code === 'forbidden';
+}
 
 export default async function AcessosPage() {
   const ctx = await buildUserContext();
@@ -13,11 +19,17 @@ export default async function AcessosPage() {
 
   const groups = getGroupedCatalog();
   const [usersResult, rolesResult] = await Promise.all([
-    listClinicUsersAction(ctx.clinicId),
-    listClinicRolesAction(ctx.clinicId),
+    runAction(listClinicUsers, {}, ctx),
+    runAction(listClinicRoles, {}, ctx),
   ]);
 
-  if (!usersResult.ok || !rolesResult.ok) redirect('/dashboard');
+  if (!usersResult.ok || !rolesResult.ok) {
+    const code = !usersResult.ok ? usersResult.error.code : (rolesResult as { ok: false; error: { code: string } }).error.code;
+    // Falhas de auth/permissão voltam ao dashboard; demais erros sobem para
+    // o error boundary em vez de redirect silencioso que mascara a causa.
+    if (isAuthFailure(code)) redirect('/dashboard');
+    throw new Error('Não foi possível carregar usuários e perfis da clínica.');
+  }
 
   return (
     <main className="max-w-2xl mx-auto p-6 space-y-6">
