@@ -214,29 +214,31 @@ export async function getInactivityStats(clinicId: string): Promise<{
 }> {
   const db = getDb()
   const now = new Date()
-  const cutoffs = [30, 60, 90, 180] as const
-  const bySegment: Record<string, number> = {}
-  let atRiskRevenue = 0
+  const cutoff30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000)
+  const cutoff60 = new Date(now.getTime() - 60 * 24 * 3600 * 1000)
+  const cutoff90 = new Date(now.getTime() - 90 * 24 * 3600 * 1000)
+  const cutoff180 = new Date(now.getTime() - 180 * 24 * 3600 * 1000)
   const avgVisitValue = 250
 
-  for (const days of cutoffs) {
-    const cutoff = new Date(now.getTime() - days * 24 * 3600 * 1000)
-    const [cnt] = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(patients)
-      .where(
-        and(
-          eq(patients.clinicId, clinicId),
-          or(
-            isNull(patients.lastVisitAt),
-            lt(patients.lastVisitAt, cutoff),
-          ),
-        ),
-      )
-    const segment = `inactive_${days}`
-    bySegment[segment] = cnt?.count ?? 0
-    atRiskRevenue += (cnt?.count ?? 0) * 2 * avgVisitValue
+  // Query única com COUNT(*) FILTER por faixa (cumulativas, como antes:
+  // lastVisitAt < cutoff OU NULL) em vez de 1 round-trip por cutoff.
+  const [row] = await db
+    .select({
+      inactive30: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff30})::int`,
+      inactive60: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff60})::int`,
+      inactive90: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff90})::int`,
+      inactive180: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff180})::int`,
+    })
+    .from(patients)
+    .where(eq(patients.clinicId, clinicId))
+
+  const bySegment: Record<string, number> = {
+    inactive_30: Number(row?.inactive30 ?? 0),
+    inactive_60: Number(row?.inactive60 ?? 0),
+    inactive_90: Number(row?.inactive90 ?? 0),
+    inactive_180: Number(row?.inactive180 ?? 0),
   }
+  const atRiskRevenue = (bySegment['inactive_30'] + bySegment['inactive_60'] + bySegment['inactive_90'] + bySegment['inactive_180']) * 2 * avgVisitValue
 
   // totalInactive = inactive_30 (users inactive for >= 30 days)
   return {
