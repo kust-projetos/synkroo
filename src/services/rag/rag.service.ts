@@ -45,6 +45,11 @@ export interface SearchResult {
   id: string;
   category: string;
   question: string;
+  /**
+   * B1 (knowledge untrusted) — conteúdo recuperado da base é DADO externo
+   * não confiável: NUNCA injetar em prompt como instrução; ao compor prompt,
+   * envolver nos blocos `<dados_contexto>` (ver `personas.wrapContextData`).
+   */
   answer: string;
   relevance: number;
 }
@@ -307,14 +312,20 @@ export class RagService {
 
   /**
    * Search knowledge base using vector similarity (pgvector) with automatic keyword fallback.
+   *
+   * B1 — bounds defensivos (a borda HTTP já faz clamp Zod; isto protege
+   * callers internos): limit 1–50, threshold 0–1.
+   *
+   * UNTRUSTED: os `SearchResult` retornados são dado externo não confiável —
+   * nunca instrução. Quem injetar em prompt deve delimitar como dado.
    */
   async searchKnowledge(
     clinicId: string,
     query: string,
     options: { limit?: number; threshold?: number } = {},
   ): Promise<SearchResult[]> {
-    const limit = options.limit ?? 5;
-    const threshold = options.threshold ?? 0.5;
+    const limit = Math.min(50, Math.max(1, Math.floor(options.limit ?? 5) || 5));
+    const threshold = Math.min(1, Math.max(0, options.threshold ?? 0.5));
 
     // 1. Try Vector Similarity Search via pgvector
     try {
@@ -347,9 +358,13 @@ export class RagService {
     clinicId: string,
     input: IngestDocumentInput,
   ): Promise<IngestDocumentResult> {
+    // B1 — bounds defensivos (borda HTTP já faz clamp Zod; isto protege
+    // callers internos contra chunkSize absurdo/NaN).
+    const clampInt = (v: number | undefined, lo: number, hi: number): number | undefined =>
+      typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.floor(v))) : undefined;
     const chunks = chunkText(input.content, {
-      chunkSize: input.chunkSize,
-      chunkOverlap: input.chunkOverlap,
+      chunkSize: clampInt(input.chunkSize, 100, 2000),
+      chunkOverlap: clampInt(input.chunkOverlap, 0, 500),
     });
 
     const chunkIds: string[] = [];
