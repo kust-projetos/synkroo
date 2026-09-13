@@ -33,7 +33,11 @@ export interface LlmCompletion {
 }
 
 export interface LlmProvider {
-  complete(messages: ChatMessage[], tools: LlmTool[]): Promise<LlmCompletion>;
+  complete(
+    messages: ChatMessage[],
+    tools: LlmTool[],
+    opts?: { correlationId?: string },
+  ): Promise<LlmCompletion>;
 }
 
 // RPC types are owned by the bridge contract; the agent only re-exports the
@@ -61,6 +65,8 @@ export interface RunTurnInput {
   pendingAction?: PendingAction;
   confirmedToken?: string;
   identityVerifiedToken?: string;
+  /** B1: rastreio fim-a-fim (x-request-id do route). Opcional, só observabilidade. */
+  correlationId?: string;
 }
 
 export interface RunTurnResult {

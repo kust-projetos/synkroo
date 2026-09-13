@@ -45,6 +45,13 @@ export type IssueHandleInput = VersionedInput & {
   principalRef: string;
   source: 'system' | 'agent_delegated';
   ttlSeconds?: number;
+  /**
+   * B1: rastreio fim-a-fim (x-request-id do route → invoker → DO).
+   * OPCIONAL e aditivo: servidores antigos ignoram o campo, e o
+   * fail-closed de versão (`resolveContractVersion`) não dispara por ele.
+   * Nunca entra no payload assinado do handle.
+   */
+  correlationId?: string;
 };
 export type CompatibleIssueHandleInput = Omit<IssueHandleInput, 'contractVersion'> & {
   contractVersion?: unknown;

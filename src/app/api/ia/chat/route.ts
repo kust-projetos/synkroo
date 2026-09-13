@@ -105,6 +105,8 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       userMessage: message,
       confirmedToken: asOptionalToken(body.confirmedToken),
       identityVerifiedToken: asOptionalToken(body.identityVerifiedToken),
+      // B1: x-request-id (header ou gerado) vira correlation fim-a-fim.
+      correlationId: requestId,
     });
   } catch {
     return withRequestId(

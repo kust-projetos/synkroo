@@ -58,13 +58,20 @@ describe('POST /api/ia/chat', () => {
     expect(res.status).toBe(422);
   });
 
-  it('500 when invokeAgent throws (hardening)', async () => {
+  it('500 with canonical envelope when invokeAgent throws (hardening)', async () => {
     mockBuildCtx.mockResolvedValueOnce(ctxWith((k) => k === 'ia:chat'));
     mockInvoke.mockRejectedValueOnce(new Error('bridge RPC failed'));
     const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body).toEqual({ error: 'Internal server error', turnsUsed: 0 });
+    expect(body).toEqual({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Internal server error',
+        requestId: expect.any(String),
+      },
+    });
+    expect(res.headers.get('x-request-id')).toBe(body.error.requestId);
   });
   it('resolves configured timezone and falls back safely', () => {
     expect(resolveIaTimezone('Europe/Lisbon')).toBe('Europe/Lisbon');
