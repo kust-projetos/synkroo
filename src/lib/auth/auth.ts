@@ -50,7 +50,7 @@ export const authOptions: NextAuthOptions = {
 
           if (needsRehash(passwordHash)) {
             try {
-              await updateUserPasswordHash(user.id, await hashPassword(plainPassword));
+              await updateUserPasswordHash(user.id, await hashPassword(plainPassword), passwordHash);
             } catch {
               // Best-effort: login succeeds even when the re-hash write fails
             }
