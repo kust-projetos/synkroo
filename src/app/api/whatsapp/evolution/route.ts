@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveChannelInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
+import { assertWebhookFreshness, extractEvolutionTimestampMs } from '@/modules/atendimento/integrations/webhook-freshness';
+import { whatsappLogger } from '@/lib/logger';
 import { runAtendimentoSystemAction } from '@/modules/atendimento/ui/route-adapter';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { withModuleRoute } from '@/core/modules/gates';
@@ -90,6 +92,18 @@ async function handlePOST(request: NextRequest) {
 
   if (normalizedKey.fromMe === true) {
     return NextResponse.json({ success: true, processed: false, reason: 'outbound_callback' });
+  }
+
+  // A4 replay guard: reject well-formed but out-of-window events after auth
+  // and validation, before any side effect. Missing/unparseable timestamp is
+  // fail-open with a warn (dedup downstream remains the protection); a
+  // parseable but stale/future timestamp is rejected with generic 409.
+  const eventTimestampMs = extractEvolutionTimestampMs(body);
+  if (eventTimestampMs === null) {
+    whatsappLogger.warn('evolution webhook without timestamp, skipping freshness check', { event });
+  } else if (!assertWebhookFreshness({ timestampMs: eventTimestampMs })) {
+    whatsappLogger.warn('evolution webhook stale event rejected', { event });
+    return NextResponse.json({ error: 'Stale webhook event' }, { status: 409 });
   }
 
   const phone = extractPhone(normalizedKey);

@@ -6,6 +6,24 @@ import { resolveChannelInstallation } from '@/modules/atendimento/integrations/r
 import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 
+/**
+ * Generic inbound webhook transport.
+ *
+ * Replay/freshness note (A4): this contract carries no trustworthy event
+ * timestamp — `receberMensagem` input is strict (`externalConversationId`,
+ * `externalProvider`, `externalMessageId`, `message`, `channel`,
+ * `messageType`, `metadata`) with no timestamp field, so no freshness window
+ * is enforced here by design. Replay protection for this transport is the
+ * combination of compensating controls:
+ * - per-installation shared secret (`resolveChannelInstallation`, fail-closed
+ *   with timing-safe compare; checked before rate limiting);
+ * - dedup by provider event identity (`persistInboundMessage` →
+ *   `onConflictDoNothing` on unique `(externalProvider, externalMessageId)`,
+ *   no aggregate or side-effect change on duplicates);
+ * - tenant-scoped rate limiting after successful auth.
+ * See `webhook-freshness.ts` for the freshness guard applied to transports
+ * that do carry a timestamp (e.g. Evolution `date_time`/`messageTimestamp`).
+ */
 async function handlePOST(request: NextRequest) {
   // Authenticate before rate limiting: unauthenticated/invalid requests must
   // never consume the legitimate tenant's rate-limit quota. The tenant bucket
