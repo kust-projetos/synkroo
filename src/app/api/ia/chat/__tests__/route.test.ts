@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server';
-import { POST, IA_CHAT_MAX_MESSAGE_LENGTH } from '../route';
+import { POST } from '../route';
+import { IA_CHAT_MAX_MESSAGE_LENGTH } from '@/core/ia-channel/chat-limits';
 
 jest.mock('@/core/modules/gates', () => ({
   withModuleRoute: () => (h: unknown) => h,
