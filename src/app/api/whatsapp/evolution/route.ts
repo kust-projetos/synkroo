@@ -94,6 +94,14 @@ async function handlePOST(request: NextRequest) {
     return NextResponse.json({ success: true, processed: false, reason: 'outbound_callback' });
   }
 
+  // Malformed payloads stay 400 (pre-existing contract): validate shape
+  // before the freshness gate so an invalid payload never surfaces as 409.
+  const phone = extractPhone(normalizedKey);
+  const { content, messageType } = extractContent(data);
+  if (!phone || phone.length < 10 || !content) {
+    return NextResponse.json({ error: 'Invalid Evolution message payload' }, { status: 400 });
+  }
+
   // A4 replay guard: reject well-formed but out-of-window events after auth
   // and validation, before any side effect. Missing/unparseable timestamp is
   // fail-open with a warn (dedup downstream remains the protection); a
@@ -104,12 +112,6 @@ async function handlePOST(request: NextRequest) {
   } else if (!assertWebhookFreshness({ timestampMs: eventTimestampMs })) {
     whatsappLogger.warn('evolution webhook stale event rejected', { event });
     return NextResponse.json({ error: 'Stale webhook event' }, { status: 409 });
-  }
-
-  const phone = extractPhone(normalizedKey);
-  const { content, messageType } = extractContent(data);
-  if (!phone || phone.length < 10 || !content) {
-    return NextResponse.json({ error: 'Invalid Evolution message payload' }, { status: 400 });
   }
 
   return runAtendimentoSystemAction(receberMensagem, {

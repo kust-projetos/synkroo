@@ -123,6 +123,16 @@ describe('evolution webhook freshness / replay guard (A4)', () => {
     expect(runAtendimentoSystemAction).not.toHaveBeenCalled();
   });
 
+  it('returns 400 (not 409) for an invalid payload even with a stale timestamp', async () => {
+    const payload = evolutionPayload({ messageTimestamp: NOW / 1000 - 3_600 });
+    // Valid key/id but no usable content → fails the pre-existing 400 validation.
+    (payload.data as Record<string, unknown>).message = {};
+    const res = await POST(buildRequest(payload));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'Invalid Evolution message payload' });
+    expect(runAtendimentoSystemAction).not.toHaveBeenCalled();
+  });
+
   it('keeps invalid auth rejected (403, existing contract) without processing', async () => {
     jest.mocked(resolveChannelInstallation).mockResolvedValue(null);
     const res = await POST(

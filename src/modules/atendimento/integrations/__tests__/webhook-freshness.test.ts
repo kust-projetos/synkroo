@@ -95,6 +95,25 @@ describe('webhook-freshness', () => {
         assertWebhookFreshness({ timestampMs: NOW - 30_000 }, { nowMs: NOW, maxAgeSec: 60 }),
       ).toBe(true);
     });
+
+    it.each(['0.5', '0', 'abc', '-10'])(
+      'falls back to the default when WEBHOOK_MAX_AGE_SEC=%p',
+      (raw) => {
+        const prev = process.env.WEBHOOK_MAX_AGE_SEC;
+        process.env.WEBHOOK_MAX_AGE_SEC = raw;
+        try {
+          // 30s old: stale under a floored-0 window, fresh under the 600s default.
+          expect(assertWebhookFreshness({ timestampMs: NOW - 30_000 }, { nowMs: NOW })).toBe(true);
+          // Sanity: an actually-stale event is still rejected with the default window.
+          expect(
+            assertWebhookFreshness({ timestampMs: NOW - 3_600_000 }, { nowMs: NOW }),
+          ).toBe(false);
+        } finally {
+          if (prev === undefined) delete process.env.WEBHOOK_MAX_AGE_SEC;
+          else process.env.WEBHOOK_MAX_AGE_SEC = prev;
+        }
+      },
+    );
   });
 
   describe('parseIsoTimestampToMs', () => {
