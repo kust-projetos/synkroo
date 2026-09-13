@@ -56,16 +56,37 @@ export interface RunTurnDeps {
   now: Date;
   maxIterations?: number;
   newToken?: () => string;
+  /**
+   * B1-review — deadline real do turno (default TURN_BUDGET_MS) e relógio
+   * injetável (default Date.now) para testes determinísticos.
+   */
+  turnBudgetMs?: number;
+  nowMs?: () => number;
+  /**
+   * B1-review — reserva atômica da pendingAction no DO storage (get+delete
+   * transacional por shard). Quando presente, o confirm consome por aqui em
+   * vez de `input.pendingAction`.
+   */
+  consumePendingAction?: () => Promise<PendingAction | undefined>;
 }
 
 /**
- * B1 (timeout budget) — budget documental do turno: 20s. O pior caso do
- * provider com 1 retry (2 × ZEN_CALL_TIMEOUT_MS = 18s) cabe aqui, e este
- * budget cabe no RPC total do invoker (INVOKER_RPC_TIMEOUT_MS = 25s), que
- * por sua vez fica abaixo do cancel do workerd (~30s). Ver a cadeia completa
- * no JSDoc de ZEN_CALL_TIMEOUT_MS (provider-zen). NÃO aumentar o invoker.
+ * B1 (timeout budget) — budget ENFORÇADO do turno: 20s. Antes de cada
+ * iteração o loop verifica o restante; sem budget, encerra com fallback sem
+ * chamar o provider nem executar tool. A chamada em curso recebe um
+ * AbortSignal amarrado ao deadline. O pior caso do provider com 1 retry
+ * (2 × ZEN_CALL_TIMEOUT_MS = 18s) cabe aqui, que cabe no RPC total do
+ * invoker (INVOKER_RPC_TIMEOUT_MS = 25s), abaixo do cancel do workerd (~30s).
+ * NÃO aumentar o invoker.
  */
 export const TURN_BUDGET_MS = 20_000;
+
+function isAbortError(err: unknown): boolean {
+  // DOMException de abort NÃO é instanceof Error — checar por nome.
+  const name = (err as { name?: unknown })?.name;
+  const message = (err as { message?: unknown })?.message;
+  return name === 'AbortError' || (typeof message === 'string' && message.includes('aborted'));
+}
 
 const FALLBACK = 'Só um momento — vou verificar e já te retorno.';
 
@@ -202,15 +223,47 @@ export async function runTurn(
   ];
 
   // ── 3. Loop LLM↔tools ───────────────────────────────────────────────────
+  // B1-review: deadline real — sem budget restante, encerra com fallback sem
+  // iniciar nova chamada ao provider nem executar tool.
+  const turnBudgetMs = deps.turnBudgetMs ?? TURN_BUDGET_MS;
+  const nowMs = deps.nowMs ?? Date.now;
+  const deadline = nowMs() + turnBudgetMs;
   let turnsUsed = 0;
   for (let i = 0; i < maxIterations; i++) {
+    if (nowMs() >= deadline) {
+      // eslint-disable-next-line no-console
+      console.error('[ia-agent] turn budget exhausted, stopping loop', {
+        correlationId: input.correlationId,
+        conversationId: input.conversationId,
+        iteration: i,
+        turnsUsed,
+      });
+      return { reply: FALLBACK, turnsUsed };
+    }
     turnsUsed = i + 1;
+    // Aborta a chamada em curso ao estourar o deadline.
+    const iterController = new AbortController();
+    const abortTimer = setTimeout(
+      () => iterController.abort(),
+      Math.max(0, deadline - nowMs()),
+    );
     let completion;
     try {
       completion = await deps.provider.complete(messages, llmTools, {
         correlationId: input.correlationId,
+        signal: iterController.signal,
       });
     } catch (err) {
+      // Abort do deadline → erro estruturado do turno (fallback), não crash.
+      if (isAbortError(err)) {
+        // eslint-disable-next-line no-console
+        console.error('[ia-agent] provider call aborted by turn deadline', {
+          correlationId: input.correlationId,
+          conversationId: input.conversationId,
+          iteration: i,
+        });
+        return { reply: FALLBACK, turnsUsed };
+      }
       // B1: correlation presente no log de erro do orchestrator; o erro
       // sobe para o DO → invoker, que devolve o fallback ao caller HTTP.
       // eslint-disable-next-line no-console
@@ -221,6 +274,8 @@ export async function runTurn(
         error: err instanceof Error ? err.message : String(err),
       });
       throw err;
+    } finally {
+      clearTimeout(abortTimer);
     }
 
     // Sem tool calls → resposta final

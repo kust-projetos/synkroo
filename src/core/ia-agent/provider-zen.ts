@@ -5,8 +5,9 @@ import type { ChatMessage, LlmCompletion, LlmProvider, LlmTool } from './types';
  *
  *   provider call (este arquivo):  ZEN_CALL_TIMEOUT_MS (9s)
  *   provider complete() c/ 1 retry: ≤ 2 × 9s = 18s  < TURN_BUDGET_MS (20s)
- *   orchestrator turn budget:       TURN_BUDGET_MS (20s, documental — o retry
- *                                   do provider cabe dentro de um turno)
+ *   orchestrator turn budget:       TURN_BUDGET_MS (20s, ENFORÇADO — deadline
+ *                                   checado antes de cada iteração + abort da
+ *                                   chamada em curso via AbortSignal)
  *   invoker RPC total:              INVOKER_RPC_TIMEOUT_MS (25s, fallback)
  *   workerd cancel:                 ~30s
  *
@@ -35,9 +36,17 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
   async function call(
     messages: ChatMessage[],
     tools: LlmTool[],
+    signal?: AbortSignal,
   ): Promise<LlmCompletion> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), cfg.timeoutMs ?? ZEN_CALL_TIMEOUT_MS);
+    // B1-review: propaga o abort externo (deadline do turno) para a chamada
+    // em curso — sem isto o fetch pendurado sobrevive ao budget do turno.
+    const onExternalAbort = () => controller.abort();
+    if (signal) {
+      if (signal.aborted) controller.abort();
+      else signal.addEventListener('abort', onExternalAbort, { once: true });
+    }
     try {
       const res = await doFetch(endpoint, {
         method: 'POST',
@@ -62,6 +71,7 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
       return { text: m.content ?? null, toolCalls: m.tool_calls ?? [] };
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener('abort', onExternalAbort);
     }
   }
 
@@ -70,25 +80,31 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
     (e.name === 'AbortError' || /HTTP (408|409|429|5\d\d)/.test(e.message));
 
   return {
-    async complete(messages, tools, opts?: { correlationId?: string }) {
+    async complete(messages, tools, opts?: { correlationId?: string; signal?: AbortSignal }) {
       // B1: correlation no texto do erro para rastreio (o abort do
       // AbortController não carrega contexto — o invoker loga o resto).
       const corr = opts?.correlationId ?? 'none';
+      const annotate = (e: unknown): void => {
+        if (e instanceof Error && !e.message.includes('[corr=')) {
+          e.message = `${e.message} [corr=${corr}]`;
+        }
+      };
       try {
-        return await call(messages, tools);
+        return await call(messages, tools, opts?.signal);
       } catch (e) {
+        // Deadline do turno já estourou → sem retry, propaga o abort.
+        if (opts?.signal?.aborted) {
+          annotate(e);
+          throw e;
+        }
         if (!retryable(e)) {
-          if (e instanceof Error && !e.message.includes('[corr=')) {
-            e.message = `${e.message} [corr=${corr}]`;
-          }
+          annotate(e);
           throw e;
         }
         try {
-          return await call(messages, tools);
+          return await call(messages, tools, opts?.signal);
         } catch (e2) {
-          if (e2 instanceof Error && !e2.message.includes('[corr=')) {
-            e2.message = `${e2.message} [corr=${corr}]`;
-          }
+          annotate(e2);
           throw e2;
         }
       }
