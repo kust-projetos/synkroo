@@ -212,14 +212,27 @@ export async function changeUserPassword(
 }
 
 /**
- * Replace the stored password hash without requiring the current password.
+ * Replace the stored password hash guarded by the currently expected hash
+ * (compare-and-swap: concurrent writers only win when nothing changed).
  * Used for transparent re-hash to the versioned format after login.
+ * Returns true when a row was actually updated.
  */
-export async function updateUserPasswordHash(userId: string, nextHash: string): Promise<void> {
-  await getDb()
+export async function updateUserPasswordHash(
+  userId: string,
+  nextHash: string,
+  expectedCurrentHash: string,
+): Promise<boolean> {
+  const rows = await getDb()
     .update(userCredentials)
     .set({ passwordHash: nextHash, updatedAt: new Date() })
-    .where(eq(userCredentials.userId, userId));
+    .where(
+      and(
+        eq(userCredentials.userId, userId),
+        eq(userCredentials.passwordHash, expectedCurrentHash),
+      ),
+    )
+    .returning({ userId: userCredentials.userId });
+  return rows.length > 0;
 }
 
 export async function revokeUserSession(userId: string): Promise<void> {

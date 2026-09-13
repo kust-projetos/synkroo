@@ -91,4 +91,60 @@ describe('password hash/verify', () => {
     const tamperedParams = `scrypt$v1$16384$8$1$${salt}$${derived}`;
     await expect(verifyPassword(password, tamperedParams)).resolves.toBe(false);
   });
+
+  it('verifyPassword rejects v1 params outside the cost policy without deriving', async () => {
+    const salt = randomBytes(16).toString('hex');
+    const hash = randomBytes(64).toString('hex');
+    const outsidePolicy = [
+      `scrypt$v1$10000$8$1$${salt}$${hash}`,
+      `scrypt$v1$1073741824$8$1$${salt}$${hash}`,
+      `scrypt$v1$512$8$1$${salt}$${hash}`,
+      `scrypt$v1$16384$65$1$${salt}$${hash}`,
+      `scrypt$v1$16384$8$9$${salt}$${hash}`,
+      `scrypt$v1$16384$8$0$${salt}$${hash}`,
+      `scrypt$v1$016384$8$1$${salt}$${hash}`,
+      `scrypt$v1$+16384$8$1$${salt}$${hash}`,
+    ];
+    for (const stored of outsidePolicy) {
+      await expect(verifyPassword('anything', stored)).resolves.toBe(false);
+    }
+  });
+
+  it('verifyPassword accepts a hash at the upper policy edge (N=2^16, r=8, p=1)', async () => {
+    const password = 'upper-edge';
+    const salt = randomBytes(16).toString('hex');
+    const derived = scryptSync(password, Buffer.from(salt, 'hex'), 64, {
+      N: 65536,
+      r: 8,
+      p: 1,
+      maxmem: 128 * 65536 * 8 * 2,
+    }).toString('hex');
+    const stored = `scrypt$v1$65536$8$1$${salt}$${derived}`;
+    await expect(verifyPassword(password, stored)).resolves.toBe(true);
+    await expect(verifyPassword('wrong', stored)).resolves.toBe(false);
+  });
+
+  it('verifyPassword rejects v1 hashes breaching the 128*N*r memory bound', async () => {
+    const salt = randomBytes(16).toString('hex');
+    const hash = randomBytes(64).toString('hex');
+    await expect(
+      verifyPassword('anything', `scrypt$v1$1048576$8$1$${salt}$${hash}`),
+    ).resolves.toBe(false);
+  });
+
+  it('verifyPassword rejects non-canonical v1 salt/hash encoding', async () => {
+    const salt = randomBytes(16).toString('hex');
+    const hash = randomBytes(64).toString('hex');
+    const nonCanonical = [
+      `scrypt$v1$16384$8$1$${salt.slice(1)}$${hash}`,
+      `scrypt$v1$16384$8$1$${salt}$${hash.slice(2)}`,
+      `scrypt$v1$16384$8$1$${salt}00$${hash}`,
+      `scrypt$v1$16384$8$1$${salt}$${hash}00`,
+      `scrypt$v1$16384$8$1$${salt.toUpperCase()}$${hash}`,
+      `scrypt$v1$16384$8$1$${salt}$${hash.toUpperCase()}`,
+    ];
+    for (const stored of nonCanonical) {
+      await expect(verifyPassword('anything', stored)).resolves.toBe(false);
+    }
+  });
 });
