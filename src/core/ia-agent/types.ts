@@ -36,7 +36,7 @@ export interface LlmProvider {
   complete(
     messages: ChatMessage[],
     tools: LlmTool[],
-    opts?: { correlationId?: string },
+    opts?: { correlationId?: string; signal?: AbortSignal },
   ): Promise<LlmCompletion>;
 }
 

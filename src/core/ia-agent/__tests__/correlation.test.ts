@@ -43,7 +43,7 @@ describe('runTurn — correlation id (B1)', () => {
       },
     };
     await runTurn({ provider: p, app: okApp, now: new Date() }, { ...base, correlationId: 'req-xyz' });
-    expect(seen).toEqual({ correlationId: 'req-xyz' });
+    expect(seen).toEqual(expect.objectContaining({ correlationId: 'req-xyz' }));
   });
 
   it('falha do provider loga com correlationId e propaga (invoker dá fallback)', async () => {
