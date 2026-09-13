@@ -1,11 +1,30 @@
 import type { ChatMessage, LlmCompletion, LlmProvider, LlmTool } from './types';
 
+/**
+ * B1 (timeout budget) — cadeia única de budgets (pior caso → melhor caso):
+ *
+ *   provider call (este arquivo):  ZEN_CALL_TIMEOUT_MS (9s)
+ *   provider complete() c/ 1 retry: ≤ 2 × 9s = 18s  < TURN_BUDGET_MS (20s)
+ *   orchestrator turn budget:       TURN_BUDGET_MS (20s, documental — o retry
+ *                                   do provider cabe dentro de um turno)
+ *   invoker RPC total:              INVOKER_RPC_TIMEOUT_MS (25s, fallback)
+ *   workerd cancel:                 ~30s
+ *
+ * O provider (30s default anterior) era MAIOR que o invoker (25s): o abort do
+ * provider chegava depois do fallback do invoker, e 5 iterações × 2 retries
+ * amplificavam o estouro. Com 9s por call, o pior caso de complete() (18s)
+ * cabe no budget do turno (20s), que por sua vez cabe no RPC total (25s).
+ * NÃO aumentar o invoker: o limite de ~30s do workerd é rígido.
+ */
+export const ZEN_CALL_TIMEOUT_MS = 9_000;
+
 export interface ZenConfig {
   apiKey: string;
   model: string;
   baseUrl: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
+  correlationId?: string;
 }
 
 export function createZenProvider(cfg: ZenConfig): LlmProvider {
@@ -19,7 +38,7 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
     tools: LlmTool[],
   ): Promise<LlmCompletion> {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), cfg.timeoutMs ?? 30000);
+    const timeout = setTimeout(() => controller.abort(), cfg.timeoutMs ?? ZEN_CALL_TIMEOUT_MS);
     try {
       const res = await doFetch(endpoint, {
         method: 'POST',
