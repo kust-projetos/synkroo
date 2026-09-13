@@ -18,6 +18,15 @@ export interface RunTurnDeps {
   newToken?: () => string;
 }
 
+/**
+ * B1 (timeout budget) — budget documental do turno: 20s. O pior caso do
+ * provider com 1 retry (2 × ZEN_CALL_TIMEOUT_MS = 18s) cabe aqui, e este
+ * budget cabe no RPC total do invoker (INVOKER_RPC_TIMEOUT_MS = 25s), que
+ * por sua vez fica abaixo do cancel do workerd (~30s). Ver a cadeia completa
+ * no JSDoc de ZEN_CALL_TIMEOUT_MS (provider-zen). NÃO aumentar o invoker.
+ */
+export const TURN_BUDGET_MS = 20_000;
+
 const FALLBACK = 'Só um momento — vou verificar e já te retorno.';
 
 function errorReply(error: string): string {

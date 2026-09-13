@@ -18,10 +18,13 @@ const FALLBACK_REPLY =
 // padrão de cancel do workerd (~30s) para que o invokeAgentWithEnv consiga
 // devolver o fallback ao caller antes do runtime matar o request.
 // Configurável por injeção (env.RPC_TIMEOUT_MS / window.__RPC_TIMEOUT_MS / default).
+// B1: exportado para o assert de budget (TURN_BUDGET_MS < INVOKER_RPC_TIMEOUT_MS).
+// NÃO aumentar: o limite do workerd (~30s) é rígido.
+export const INVOKER_RPC_TIMEOUT_MS = 25_000;
 function resolveRpcTimeoutMs(): number {
   // SSR/edge runtime: não há window; o limite é o que o caller passar ou o default.
   // Mantemos a função pura para testabilidade — unit test sobrescreve via spy.
-  const DEFAULT_MS = 25_000;
+  const DEFAULT_MS = INVOKER_RPC_TIMEOUT_MS;
   try {
     if (typeof process !== 'undefined' && process.env?.RPC_TIMEOUT_MS) {
       const n = Number(process.env.RPC_TIMEOUT_MS);
