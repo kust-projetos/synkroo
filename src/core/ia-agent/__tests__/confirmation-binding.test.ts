@@ -1,4 +1,4 @@
-import { runTurn } from '../orchestrator-logic';
+import { runTurn, safeTokenEquals } from '../orchestrator-logic';
 import type { AppBinding, LlmProvider } from '../types';
 import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
@@ -73,5 +73,15 @@ describe('runTurn — tokens do body não autorizam execução (B1)', () => {
     );
     expect(r.reply).toBe('ok');
     expect(exec).not.toHaveBeenCalled();
+  });
+});
+
+describe('safeTokenEquals (B1, timing-safe)', () => {
+  it('iguais → true; diferentes e vazios → false', () => {
+    expect(safeTokenEquals('tok-1', 'tok-1')).toBe(true);
+    expect(safeTokenEquals('tok-1', 'tok-2')).toBe(false);
+    expect(safeTokenEquals('', 'tok-1')).toBe(false);
+    expect(safeTokenEquals('tok-1', '')).toBe(false);
+    expect(safeTokenEquals('curto', 'bem-mais-longo-que-curto')).toBe(false);
   });
 });
