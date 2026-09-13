@@ -168,6 +168,38 @@ describe('fetchWithRetry (A2)', () => {
     expect(delays).toEqual([200, 400]);
   });
 
+  it('abort do signal externo NÃO retrya (1 tentativa, aborted:true)', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const fetchImpl = (async (_url: unknown, init?: RequestInit) => {
+      calls += 1;
+      const signal = init?.signal as AbortSignal | undefined;
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => {
+          const e = new Error('This operation was aborted');
+          e.name = 'AbortError';
+          reject(e);
+        });
+        // Aborta pelo lado do chamador logo após o início.
+        setTimeout(() => controller.abort(), 5);
+      });
+    }) as unknown as typeof fetch;
+
+    const err = await fetchWithRetry('https://provider.example.com/status', {
+      method: 'GET',
+      signal: controller.signal,
+    }, {
+      fetchImpl,
+      timeoutMs: 1000,
+      maxRetries: 2,
+      sleep: async () => {},
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ExternalHttpError);
+    expect(err as ExternalHttpError).toMatchObject({ aborted: true, timeout: false, retryable: false });
+    expect(calls).toBe(1);
+  });
+
   it('mensagem de erro NÃO vaza segredos (headers/body/query)', async () => {
     const secret = 'super-secret-api-key-123';
     const fetchImpl = jest.fn().mockRejectedValueOnce(new Error('fetch failed'));

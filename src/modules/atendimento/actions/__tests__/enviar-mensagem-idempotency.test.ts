@@ -5,20 +5,13 @@
  * retry duplicado da mesma operação lógica → provider (fetch) 1 chamada.
  */
 
-const claimed = new Set<string>();
-const completed = new Set<string>();
+const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> = [];
 
 jest.mock('@/lib/idempotency', () => ({
-  tryClaimIdempotencyKey: jest.fn(async (key: string) => {
-    if (claimed.has(key) || completed.has(key)) return false;
-    claimed.add(key);
-    return true;
-  }),
-  markIdempotencyKeyCompleted: jest.fn(async (key: string) => {
-    completed.add(key);
-  }),
+  claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
+  markIdempotencyKeyCompleted: jest.fn(async () => undefined),
   markIdempotencyKeyFailed: jest.fn(async () => undefined),
-  isIdempotencyKeyProcessed: jest.fn(async (key: string) => completed.has(key)),
+  isIdempotencyKeyProcessed: jest.fn(async () => false),
   withIdempotency: jest.fn(),
 }));
 
@@ -48,6 +41,8 @@ jest.mock('../../repositories/conversations-repository', () => ({
 }));
 
 import { enviarMensagem, buildOutboundPayloadFingerprint } from '../enviar-mensagem';
+import { claimIdempotencyKey } from '@/lib/idempotency';
+import { ActionError } from '@/core/actions/types';
 
 const ctx: any = {
   clinicId: 'clinic-1',
@@ -60,8 +55,7 @@ describe('enviar-mensagem idempotency wiring (A3)', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    claimed.clear();
-    completed.clear();
+    outcomes.length = 0;
     messageSeq = 0;
     jest.clearAllMocks();
     process.env = { ...originalEnv };
@@ -81,6 +75,7 @@ describe('enviar-mensagem idempotency wiring (A3)', () => {
   });
 
   it('retry duplicado (mesmo input) → provider chamado 1 vez', async () => {
+    outcomes.push('claimed', 'completed');
     const input = { conversationId: '11111111-1111-4111-8111-111111111111', message: 'Olá!' };
 
     const first = await enviarMensagem.handler(input, ctx);
@@ -89,9 +84,16 @@ describe('enviar-mensagem idempotency wiring (A3)', () => {
     expect((first as { messageId: string }).messageId).toBeDefined();
     expect((dup as { messageId: string }).messageId).toBeDefined();
     expect(global.fetch).toHaveBeenCalledTimes(1);
+    // Âncora fingerprint expira `completed` em 10min (reenvio tardio legítimo).
+    expect(claimIdempotencyKey).toHaveBeenCalledWith(
+      expect.stringContaining('whatsapp:send:clinic-1:'),
+      'whatsapp:outbound',
+      expect.objectContaining({ completedTtlMs: 10 * 60 * 1000 }),
+    );
   });
 
   it('idempotencyKey próprio ancora a operação (chaves distintas reenviam)', async () => {
+    outcomes.push('claimed', 'completed', 'claimed');
     const base = { conversationId: '11111111-1111-4111-8111-111111111111', message: 'Olá!' };
 
     await enviarMensagem.handler({ ...base, idempotencyKey: 'op-1' }, ctx);
@@ -100,6 +102,16 @@ describe('enviar-mensagem idempotency wiring (A3)', () => {
 
     await enviarMensagem.handler({ ...base, idempotencyKey: 'op-2' }, ctx);
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('conflito (outra execução ativa) → ActionError code conflict', async () => {
+    outcomes.push('retry_after');
+    const input = { conversationId: '11111111-1111-4111-8111-111111111111', message: 'Olá!' };
+
+    const err = await enviarMensagem.handler(input, ctx).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ActionError);
+    expect((err as ActionError).code).toBe('conflict');
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('fingerprint é determinístico por payload e sensível ao texto', () => {

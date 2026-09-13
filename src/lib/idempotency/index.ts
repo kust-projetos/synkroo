@@ -135,3 +135,153 @@ export async function withIdempotency<T>(
     throw err; // Re-throw for Queue retry
   }
 }
+
+// ─── Structured claim (Trilha A — review A2A3) ───────────────────────────────
+// ADITIVO: não altera o comportamento das funções acima. Diferencia conflito
+// legítimo de falha de infra e expõe estados finos para envio outbound.
+
+/** Falha de infra no claim (DB indisponível) — distinta de conflito legítimo. */
+export class IdempotencyInfraError extends Error {
+  constructor(message: string, opts?: { cause?: unknown }) {
+    super(message);
+    this.name = 'IdempotencyInfraError';
+    if (opts?.cause !== undefined) (this as { cause?: unknown }).cause = opts.cause;
+  }
+}
+
+/**
+ * Resultado fino do claim:
+ * - `claimed`: esta execução conquistou a chave (pode executar);
+ * - `completed`: já executada com sucesso (deduplicar);
+ * - `in_progress`: outra execução ativa (NÃO executar, NÃO reportar sucesso);
+ * - `retry_after`: falhou e o TTL ainda não expirou (NÃO executar ainda).
+ */
+export type ClaimOutcome = 'claimed' | 'completed' | 'in_progress' | 'retry_after';
+
+export interface ClaimKeyOptions {
+  /** TTL do claim in_progress/failed em segundos (default 3600). */
+  ttlSeconds?: number;
+  /**
+   * TTL opcional do estado `completed` em ms (default undefined = permanente,
+   * comportamento histórico). Quando definido e expirado, um `completed`
+   * pode ser reclaimado (ex.: âncoras de conteúdo com reenvio legítimo tardio).
+   */
+  completedTtlMs?: number;
+}
+
+interface ClaimRow {
+  status: string | null;
+  expiresAt: Date | null;
+}
+
+/**
+ * Claim estruturado de chave de idempotência.
+ * Lança `IdempotencyInfraError` em falha de infra (nunca retorna `false`
+ * silencioso — ver `tryClaimIdempotencyKey` legado). Conflito legítimo volta
+ * como outcome (`completed`/`in_progress`/`retry_after`).
+ */
+export async function claimIdempotencyKey(
+  key: string,
+  jobType: string,
+  opts: ClaimKeyOptions = {},
+): Promise<ClaimOutcome> {
+  const ttlSeconds = opts.ttlSeconds ?? 3600;
+  let db: ReturnType<typeof getDb>;
+  try {
+    db = getDb();
+  } catch (err) {
+    throw new IdempotencyInfraError(`Idempotency store unavailable for key ${jobType}`, {
+      cause: err,
+    });
+  }
+
+  try {
+    const rows = await db
+      .select({ status: idempotencyKeys.status, expiresAt: idempotencyKeys.expiresAt })
+      .from(idempotencyKeys)
+      .where(eq(idempotencyKeys.key, key))
+      .limit(1);
+    const row = (rows[0] ?? null) as ClaimRow | null;
+
+    if (!row) {
+      const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
+      const inserted = await db
+        .insert(idempotencyKeys)
+        .values({ key, jobType, status: 'in_progress', expiresAt })
+        .onConflictDoNothing()
+        .returning({ key: idempotencyKeys.key });
+      if (inserted.length === 1) return 'claimed';
+      // Corrida: outro inseriu entre o SELECT e o INSERT — relê e classifica.
+      const [reread] = await db
+        .select({ status: idempotencyKeys.status, expiresAt: idempotencyKeys.expiresAt })
+        .from(idempotencyKeys)
+        .where(eq(idempotencyKeys.key, key))
+        .limit(1);
+      return reread
+        ? settleClaim(db, key, reread as ClaimRow, ttlSeconds, opts.completedTtlMs)
+        : 'in_progress';
+    }
+
+    return settleClaim(db, key, row, ttlSeconds, opts.completedTtlMs);
+  } catch (err) {
+    if (err instanceof IdempotencyInfraError) throw err;
+    throw new IdempotencyInfraError(`Idempotency claim failed for key ${jobType}`, {
+      cause: err,
+    });
+  }
+}
+
+/** Classifica uma linha existente, tentando reclaim quando o TTL permite. */
+async function settleClaim(
+  db: ReturnType<typeof getDb>,
+  key: string,
+  row: ClaimRow,
+  ttlSeconds: number,
+  completedTtlMs: number | undefined,
+): Promise<ClaimOutcome> {
+  const now = new Date();
+  const expired = !row.expiresAt || row.expiresAt <= now;
+
+  if (row.status === 'completed') {
+    if (completedTtlMs === undefined || !expired) return 'completed';
+    // completed expirado com TTL configurado → reclaim condicional (um vencedor).
+    const reclaimed = await db
+      .update(idempotencyKeys)
+      .set({ status: 'in_progress', error: null, expiresAt: new Date(Date.now() + ttlSeconds * 1000) })
+      .where(and(
+        eq(idempotencyKeys.key, key),
+        eq(idempotencyKeys.status, 'completed'),
+        lte(idempotencyKeys.expiresAt, now),
+      ))
+      .returning({ key: idempotencyKeys.key });
+    return reclaimed.length === 1 ? 'claimed' : 'completed';
+  }
+
+  if (row.status === 'failed') {
+    if (!expired) return 'retry_after';
+    return (await reclaimExpired(db, key, now, ttlSeconds)) ? 'claimed' : 'retry_after';
+  }
+
+  // in_progress (ou status desconhecido — fail-closed: não executa).
+  if (!expired) return 'in_progress';
+  return (await reclaimExpired(db, key, now, ttlSeconds)) ? 'claimed' : 'in_progress';
+}
+
+/** Reclaim condicional de in_progress/failed expirado. Um vencedor por UPDATE. */
+async function reclaimExpired(
+  db: ReturnType<typeof getDb>,
+  key: string,
+  now: Date,
+  ttlSeconds: number,
+): Promise<boolean> {
+  const reclaimed = await db
+    .update(idempotencyKeys)
+    .set({ status: 'in_progress', error: null, expiresAt: new Date(now.getTime() + ttlSeconds * 1000) })
+    .where(and(
+      eq(idempotencyKeys.key, key),
+      lte(idempotencyKeys.expiresAt, now),
+      or(eq(idempotencyKeys.status, 'failed'), eq(idempotencyKeys.status, 'in_progress')),
+    ))
+    .returning({ key: idempotencyKeys.key });
+  return reclaimed.length === 1;
+}

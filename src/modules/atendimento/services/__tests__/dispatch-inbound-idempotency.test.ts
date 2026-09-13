@@ -5,20 +5,13 @@
  * redelivery do mesmo job (`whatsapp:send:<clinic>:inbox:<jobId>`) → provider 1 chamada.
  */
 
-const claimed = new Set<string>();
-const completed = new Set<string>();
+const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> = [];
 
 jest.mock('@/lib/idempotency', () => ({
-  tryClaimIdempotencyKey: jest.fn(async (key: string) => {
-    if (claimed.has(key) || completed.has(key)) return false;
-    claimed.add(key);
-    return true;
-  }),
-  markIdempotencyKeyCompleted: jest.fn(async (key: string) => {
-    completed.add(key);
-  }),
+  claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
+  markIdempotencyKeyCompleted: jest.fn(async () => undefined),
   markIdempotencyKeyFailed: jest.fn(async () => undefined),
-  isIdempotencyKeyProcessed: jest.fn(async (key: string) => completed.has(key)),
+  isIdempotencyKeyProcessed: jest.fn(async () => false),
   withIdempotency: jest.fn(),
 }));
 
@@ -60,6 +53,7 @@ jest.mock('../../repositories/conversations-repository', () => ({
 
 import { dispatchInboundMessageJob } from '../dispatch-inbound-message';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
+import { OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
 
 function makeJob(id: string): any {
   return {
@@ -83,8 +77,7 @@ describe('dispatch-inbound sendReply idempotency wiring (A3)', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    claimed.clear();
-    completed.clear();
+    outcomes.length = 0;
     jest.clearAllMocks();
     // Re-arj o mock de roteamento (clearAllMocks preserva implementação base).
     (routeInboundToAgent as jest.Mock).mockImplementation(async (deps: any, jobCtx: any) => {
@@ -108,19 +101,29 @@ describe('dispatch-inbound sendReply idempotency wiring (A3)', () => {
   });
 
   it('redelivery do mesmo job → provider chamado 1 vez', async () => {
+    outcomes.push('claimed', 'completed');
     const job = makeJob('job-1');
 
     await dispatchInboundMessageJob(job);
     await dispatchInboundMessageJob(job);
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(completed.has('whatsapp:send:clinic-1:inbox:job-1')).toBe(true);
   });
 
   it('jobs distintos → envios independentes', async () => {
+    outcomes.push('claimed', 'claimed');
     await dispatchInboundMessageJob(makeJob('job-a'));
     await dispatchInboundMessageJob(makeJob('job-b'));
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('job com outra execução ativa → ConflictError, provider NÃO chamado (job falha p/ retry)', async () => {
+    outcomes.push('in_progress');
+
+    await expect(dispatchInboundMessageJob(makeJob('job-busy'))).rejects.toBeInstanceOf(
+      OutboundSendConflictError,
+    );
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 });

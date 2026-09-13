@@ -48,16 +48,13 @@ describe('asaas client resilience (A2)', () => {
     jest.clearAllMocks();
   });
 
-  it('createCharge COM idempotencyKey: 500 → retrya e sucede (header mantido)', async () => {
-    (global.fetch as unknown) = jest
-      .fn()
-      .mockResolvedValueOnce(errRes(500))
-      .mockResolvedValueOnce(okCharge());
+  it('createCharge COM idempotencyKey: 500 → SEM retry HTTP (single attempt; retry vive no outbox)', async () => {
+    (global.fetch as unknown) = jest.fn().mockResolvedValueOnce(errRes(500));
 
-    const out = await asaasClient.createCharge({ ...baseCreate, idempotencyKey: 'idem-1' });
-
-    expect(out.externalChargeId).toBe('ch_123');
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    await expect(
+      asaasClient.createCharge({ ...baseCreate, idempotencyKey: 'idem-1' }),
+    ).rejects.toThrow('Asaas createCharge failed: 500');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
     const [, init] = (global.fetch as jest.Mock).mock.calls[0] as [string, RequestInit];
     expect((init.headers as Record<string, string>)['Idempotency-Key']).toBe('idem-1');
     expect(init.signal).toBeDefined(); // timeout explícito
@@ -84,7 +81,7 @@ describe('asaas client resilience (A2)', () => {
     expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
-  it('cancelCharge COM idempotencyKey: erro de rede → retrya (3 tentativas) sem vazar apiKey', async () => {
+  it('cancelCharge: erro de rede → SEM retry HTTP (1 tentativa) sem vazar apiKey', async () => {
     (global.fetch as unknown) = jest.fn().mockRejectedValue(new Error('fetch failed'));
 
     const err = await asaasClient
@@ -98,6 +95,6 @@ describe('asaas client resilience (A2)', () => {
     expect(err).toBeInstanceOf(Error);
     expect((err as Error).message).toMatch(/External request/);
     expect((err as Error).message).not.toContain('asaas-api-key-xyz');
-    expect(global.fetch).toHaveBeenCalledTimes(3); // 1 + 2 retries (backoff real curto: ~600ms)
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });
