@@ -1,3 +1,5 @@
+import { createHash, timingSafeEqual } from 'node:crypto';
+import { z } from 'zod';
 import type {
   AppBinding,
   ChatMessage,
@@ -9,6 +11,34 @@ import type {
 import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 import { personaSystemPrompt, wrapUserData } from './personas';
 import { analyzeClinicalSafety } from './clinical-safety';
+
+/**
+ * B1 — comparação constant-time de tokens (padrão `matchesSecret` do repo:
+ * sha256 dos dois lados + `timingSafeEqual`, sem early-exit em tamanho).
+ * Troca o `===` do caminho de confirmação: UUID opaco não é segredo de alta
+ * entropia exposta, mas a comparação barata elimina oráculo de timing.
+ */
+export function safeTokenEquals(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length === 0 || b.length === 0) {
+    return false;
+  }
+  const ha = createHash('sha256').update(a, 'utf8').digest();
+  const hb = createHash('sha256').update(b, 'utf8').digest();
+  return ha.length === hb.length && timingSafeEqual(ha, hb);
+}
+
+/**
+ * B1 — forma válida de um tool_call vindo do LLM: id e nome presentes,
+ * arguments como string (parse JSON feito abaixo). Fora disso → erro
+ * estruturado realimentado ao modelo, sem executar ação.
+ */
+const LlmToolCallSchema = z.object({
+  id: z.string().min(1),
+  function: z.object({
+    name: z.string().min(1),
+    arguments: z.string(),
+  }),
+});
 
 export interface RunTurnDeps {
   provider: LlmProvider;
@@ -78,15 +108,16 @@ export async function runTurn(
 
   // ── Caminho de confirmação ────────────────────────────────────────────────
   // Reexecuta os args ORIGINAIS (não os do modelo). Vincula alias+args.
+  // Comparação timing-safe (B1): nunca `===` em token.
   if (
     input.pendingAction &&
     input.confirmedToken &&
-    input.confirmedToken === input.pendingAction.token
+    safeTokenEquals(input.confirmedToken, input.pendingAction.token)
   ) {
     const pa = input.pendingAction;
     const identityVerified =
       !!input.identityVerifiedToken &&
-      input.identityVerifiedToken === pa.token;
+      safeTokenEquals(input.identityVerifiedToken, pa.token);
     const exec = await deps.app.executeAction({
       contractVersion: BRIDGE_RPC_VERSION,
       handle: input.handle,
@@ -198,12 +229,52 @@ export async function runTurn(
     });
 
     for (const call of completion.toolCalls) {
-      const alias = call.function.name;
-      let args: unknown = {};
+      // B1: valida a forma do tool_call ANTES de qualquer execução.
+      const parsedCall = LlmToolCallSchema.safeParse({
+        id: call.id,
+        function: { name: call.function?.name, arguments: call.function?.arguments },
+      });
+      if (!parsedCall.success) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: typeof call.id === 'string' ? call.id : 'unknown',
+          content: JSON.stringify({
+            error: 'invalid_tool_call',
+            level: 'proibido',
+            message: 'Tool call malformada ignorada: id/nome/arguments inválidos.',
+          }),
+        });
+        continue;
+      }
+      const alias = parsedCall.data.function.name;
+      let args: unknown;
       try {
-        args = JSON.parse(call.function.arguments || '{}');
+        args = JSON.parse(parsedCall.data.function.arguments || '{}');
       } catch {
-        /* argumento malformado → args vazio */
+        messages.push({
+          role: 'tool',
+          tool_call_id: parsedCall.data.id,
+          content: JSON.stringify({
+            error: 'invalid_tool_call',
+            level: 'proibido',
+            message: 'Argumentos da tool call não são JSON válido; nada foi executado.',
+          }),
+        });
+        continue;
+      }
+      // Args precisam ser objeto (o bridge revalida via Zod no runAction —
+      // ver teste de confirm-revalidation; aqui barramos escalar/array).
+      if (typeof args !== 'object' || args === null || Array.isArray(args)) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: parsedCall.data.id,
+          content: JSON.stringify({
+            error: 'invalid_tool_call',
+            level: 'proibido',
+            message: 'Argumentos da tool call precisam ser um objeto JSON; nada foi executado.',
+          }),
+        });
+        continue;
       }
 
       const exec = await deps.app.executeAction({
