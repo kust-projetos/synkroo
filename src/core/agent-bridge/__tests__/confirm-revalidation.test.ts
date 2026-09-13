@@ -20,7 +20,7 @@ const SECRET = 'secret-confirm-revalidation';
 
 const handler = jest.fn(async (input: { data: string }) => ({ agendado: input.data }));
 
-const agendar: ActionDefinition<{ data: string }, unknown> = {
+const agendar = {
   name: 'operacional.agendarConsulta',
   module: 'operacional',
   requires: 'operacional:manage_appointments',
