@@ -23,6 +23,30 @@ function withRequestId(res: NextResponse, requestId: string): NextResponse {
   return res;
 }
 
+/**
+ * B1 (tokens): o body só transporta os tokens de confirmação quando são
+ * strings não-vazias. Valores não-string (número, array, objeto) são
+ * descartados aqui — o comparador do orchestrator (`===` contra o
+ * `pendingAction.token` do DO) já os rejeitaria, mas descartar na borda
+ * impede que tipo inesperado chegue ao fluxo IA.
+ *
+ * Desenho (decisão B1 — ver FINDINGS do coder): os tokens CONTINUAM sendo
+ * repassados, porque o path de chat é o único canal de confirmação
+ * ("sim, confirmo") — não há endpoint separado de confirm, e remover os
+ * campos quebraria o fluxo legítimo. Segurança vem de outro lugar:
+ *  - o token é opaco e server-issued (randomUUID por pendingAction);
+ *  - a comparação é feita contra o pendingAction que o DO injeta do
+ *    próprio storage (o caller NÃO pode injetar pendingAction: a assinatura
+ *    do DO é `Omit<RunTurnInput, 'history' | 'pendingAction'>`);
+ *  - o DO é shardado por `clinicId:channel:conversationId`, e clinicId vem
+ *    da sessão autenticada (RBAC `ia:chat`), não do body — token de outra
+ *    conversa/clínica não encontra pendingAction correspondente.
+ * HMAC emissor+conversationId+exp seria redundante com esse binding.
+ */
+function asOptionalToken(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const requestId = request.headers.get('x-request-id') ?? generateRequestId();
   // buildUserContext lança 'unauthenticated' sem sessão; dá user + can (RBAC real).
@@ -79,8 +103,8 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       context: who.context,
       timezone: resolveIaTimezone(),
       userMessage: message,
-      confirmedToken: body.confirmedToken,
-      identityVerifiedToken: body.identityVerifiedToken,
+      confirmedToken: asOptionalToken(body.confirmedToken),
+      identityVerifiedToken: asOptionalToken(body.identityVerifiedToken),
     });
   } catch {
     return withRequestId(

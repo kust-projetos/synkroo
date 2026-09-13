@@ -92,4 +92,36 @@ describe('POST /api/ia/chat — cap de payload (B1)', () => {
     expect(res.status).toBe(401);
     expect(invokeAgent).not.toHaveBeenCalled();
   });
+
+  it('tokens não-string do body são descartados na borda', async () => {
+    const res = await POST(
+      req({
+        conversationId: 'conv-1',
+        message: 'sim, confirmo',
+        confirmedToken: ['tok-atk'],
+        identityVerifiedToken: 12345,
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(invokeAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        confirmedToken: undefined,
+        identityVerifiedToken: undefined,
+      }),
+    );
+  });
+
+  it('tokens string válidos continuam repassados (fluxo legítimo de confirmação)', async () => {
+    const res = await POST(
+      req({
+        conversationId: 'conv-1',
+        message: 'sim, confirmo',
+        confirmedToken: 'tok-servidor',
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(invokeAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ confirmedToken: 'tok-servidor' }),
+    );
+  });
 });
