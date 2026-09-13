@@ -62,8 +62,8 @@ describeOrSkip('Password change — DB real', () => {
       .where(eq(userCredentials.userId, userId))
 
     expect(after.sessionVersion).toBe(before.sessionVersion + 1)
-    expect(verifyPassword('next-password-456', credential.passwordHash)).toBe(true)
-    expect(verifyPassword(initialPassword, credential.passwordHash)).toBe(false)
+    expect(await verifyPassword('next-password-456', credential.passwordHash)).toBe(true)
+    expect(await verifyPassword(initialPassword, credential.passwordHash)).toBe(false)
   })
 
   it('increments session version for explicit session revocation', async () => {
