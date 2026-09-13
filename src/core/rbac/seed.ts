@@ -102,6 +102,31 @@ export async function seedRbacForClinic(
     { name: AGENT_ROLE_NAME, description: 'Agente de IA (autônomo).', keys: DEFAULT_AGENT_PERMISSIONS },
     ...SYSTEM_PRESETS.map((p) => ({ name: p.name, description: p.description, keys: buildPresetPermissions(p) })),
   ];
+
+  // Garante que permissões base referenciadas nos presets/agente existam na tabela permissions
+  // antes de vincular role_permissions (evita violação de FK caso alguma chave venha de extraKeys).
+  const catalogKeys = new Set(catalog.map((p) => p.key));
+  const missingKeys = new Set<string>();
+  for (const preset of presets) {
+    for (const k of preset.keys) {
+      if (!catalogKeys.has(k) && !k.startsWith('master:')) {
+        missingKeys.add(k);
+      }
+    }
+  }
+  if (missingKeys.size > 0) {
+    await db
+      .insert(permissions)
+      .values(
+        [...missingKeys].map((k) => ({
+          key: k,
+          module: k.split(':')[0] || 'core',
+          label: k,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
   for (const preset of presets) {
     // Resolve roleId: usa existente ou cria novo
     const existingId = await findRole(preset.name);

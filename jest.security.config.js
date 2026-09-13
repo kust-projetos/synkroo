@@ -11,6 +11,7 @@ module.exports = {
     '**/__tests__/api/tasks/route.test.ts',
     '**/__tests__/api/budgets/installments/route.test.ts',
     '**/__tests__/api/instagram/webhook/contract.test.ts',
+    '**/app/api/instagram/webhook/__tests__/route.test.ts',
     '**/modules/financeiro/services/__tests__/budget-scope-service.test.ts',
     '**/modules/financeiro/services/__tests__/collection-service.test.ts',
     '**/modules/financeiro/services/__tests__/installment-service.test.ts',

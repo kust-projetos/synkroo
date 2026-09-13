@@ -17,7 +17,7 @@ type RouteParams = {
  */
 async function handleGET(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('operacional:view')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },
@@ -51,7 +51,7 @@ async function handleGET(request: NextRequest, { params }: RouteParams) {
  */
 async function handlePOST(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('operacional:manage_patients')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },

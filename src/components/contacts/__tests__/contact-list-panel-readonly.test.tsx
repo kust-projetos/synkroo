@@ -34,11 +34,21 @@ beforeEach(() => {
   });
 });
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ContactListPanel } from '@/components/contacts/contact-list-panel';
 
 describe('ContactListPanel — read-only (Task 6)', () => {
   it('lista contatos fetched via useContacts (não literal [])', () => {
+    render(<ContactListPanel />);
+    expect(screen.getByText('Ana')).toBeInTheDocument();
+    expect(screen.getByText('Bruno')).toBeInTheDocument();
+  });
+
+  it('suporta array direto retornado pelo fetcher canônico', () => {
+    mockUseContacts.mockReturnValueOnce({
+      data: fixture,
+      isLoading: false,
+    });
     render(<ContactListPanel />);
     expect(screen.getByText('Ana')).toBeInTheDocument();
     expect(screen.getByText('Bruno')).toBeInTheDocument();
@@ -69,5 +79,38 @@ describe('ContactListPanel — read-only (Task 6)', () => {
     const lastCall = mockUseContacts.mock.calls[mockUseContacts.mock.calls.length - 1];
     const params = lastCall[0] as Record<string, string>;
     expect(params).toHaveProperty('limit', '20');
+  });
+
+  it('filtra por Pacientes ao clicar na aba correspondente', () => {
+    render(<ContactListPanel />);
+    const tabPacientes = screen.getByRole('tab', { name: /pacientes/i });
+    fireEvent.mouseDown(tabPacientes, { button: 0, ctrlKey: false });
+
+    const lastCall = mockUseContacts.mock.calls[mockUseContacts.mock.calls.length - 1];
+    const params = lastCall[0] as Record<string, string>;
+    expect(params).toEqual({ type: 'patient', limit: '20' });
+  });
+
+  it('filtra por Leads ao clicar na aba correspondente', () => {
+    render(<ContactListPanel />);
+    const tabLeads = screen.getByRole('tab', { name: /leads/i });
+    fireEvent.mouseDown(tabLeads, { button: 0, ctrlKey: false });
+
+    const lastCall = mockUseContacts.mock.calls[mockUseContacts.mock.calls.length - 1];
+    const params = lastCall[0] as Record<string, string>;
+    expect(params).toEqual({ type: 'lead', limit: '20' });
+  });
+
+  it('remove filtro de tipo ao clicar na aba Todos', () => {
+    render(<ContactListPanel />);
+    const tabLeads = screen.getByRole('tab', { name: /leads/i });
+    fireEvent.mouseDown(tabLeads, { button: 0, ctrlKey: false });
+
+    const tabTodos = screen.getByRole('tab', { name: /todos/i });
+    fireEvent.mouseDown(tabTodos, { button: 0, ctrlKey: false });
+
+    const lastCall = mockUseContacts.mock.calls[mockUseContacts.mock.calls.length - 1];
+    const params = lastCall[0] as Record<string, string>;
+    expect(params).toEqual({ limit: '20' });
   });
 });

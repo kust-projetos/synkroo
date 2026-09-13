@@ -1,0 +1,18 @@
+# orca.yaml — Synkroo (otimizado)
+# Este arquivo documenta otimizações locais. O Orca lê environmentRecipes daqui quando houver VMs/sandboxes.
+# Hooks de setup (npm install) são configurados via Orca UI/DB — este arquivo serve como fonte versionada do desejado.
+# Para ativar a receita de VM, descomente environmentRecipes e rode: orca vm recipe doctor <id> --json
+
+# Otimizações aplicadas (documentação):
+# - setup desejado: npm ci --prefer-offline --no-audit --no-fund (vs npm install puro)
+# - runPolicy desejado: run-if-needed (só roda se package-lock.json mudou)
+# - externalWorktreeDiscovery: false (evita escanear .worktrees legados — 107 entradas obsoletas limpas via prune)
+# - logs: main.trace.ndjson.* rotacionados (59MB -> 9MB)
+
+# Descomente quando for configurar VMs descartáveis:
+# environmentRecipes:
+#   - id: synkroo-local
+#     name: Synkroo Local VM
+#     create: ./scripts/orca-vm/synkroo-create.sh
+#     destroy: ./scripts/orca-vm/synkroo-destroy.sh
+#     # suspend/resume opcionais

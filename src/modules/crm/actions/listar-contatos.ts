@@ -10,6 +10,7 @@ export const listarContatos = defineAction({
   label: 'Listar contatos (pacientes + leads não convertidos)',
   input: z.object({
     search: z.string().optional(),
+    type: z.enum(['patient', 'lead']).optional(),
     limit: z.number().int().min(1).max(100).default(25),
     offset: z.number().int().min(0).default(0),
   }),

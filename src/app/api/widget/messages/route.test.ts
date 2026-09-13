@@ -88,6 +88,18 @@ describe('POST /api/widget/messages', () => {
     expect(mockRunAction).not.toHaveBeenCalled();
   });
 
+  it('T1 b: invalid widget token does not consume rate quota (auth before limiter)', async () => {
+    mockRateLimit.mockClear();
+    const token = issueWidgetToken(SECRET, { installationId: INSTALLATION.installationId, origin: 'https://other.example' }).token;
+    const response = await POST(request({ visitorId: 'visitor-1', message: 'Olá' }, token));
+    expect(response.status).toBe(401);
+    expect(mockRateLimit).not.toHaveBeenCalled();
+    // valid token then consumes quota
+    const valid = await POST(request({ visitorId: 'visitor-1', message: 'Olá' }));
+    expect(valid.status).toBe(200);
+    expect(mockRateLimit).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects an origin that is not HTTPS/allowlisted', async () => {
     mockIsAllowedOrigin.mockReturnValue(false);
 

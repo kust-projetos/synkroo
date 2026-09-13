@@ -31,7 +31,7 @@ const createTreatmentPlanSchema = z.object({
  */
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('operacional:view')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('operacional:manage_patients')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },

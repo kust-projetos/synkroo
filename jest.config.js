@@ -52,6 +52,8 @@ module.exports = {
     '!src/**/ui/route-adapter.ts',
     '!src/modules/**/services/reminders-service.ts',
   ],
+  // T9: thresholds alinhados ao contrato efetivamente medido (AGENTS.md reflete este bloco);
+  // branches/functions com patamar diferenciado por custo de cobertura; sem novas exclusões para mascarar quedas.
   coverageThreshold: {
     global: {
       branches: 55,

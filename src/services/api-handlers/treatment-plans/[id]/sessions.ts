@@ -18,7 +18,7 @@ async function verifyOwnership(planId: string, clinicId: string) {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('operacional:manage_patients')
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
     const { id: planId } = await params
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('operacional:view')
     if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
     const { id: planId } = await params

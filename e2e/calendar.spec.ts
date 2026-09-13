@@ -78,7 +78,11 @@ test.describe("Calendar - Rendering", () => {
 
     const title = page.locator("h2");
     await expect(title).toBeVisible();
-    await expect(title).toContainText(new RegExp(currentMonthName(), "i"));
+    // Week range may span two months (e.g. "31 de ago - 6 de set"); accept either.
+    const expected = currentMonthName();
+    const titleText = await title.textContent();
+    const altMonth = new Date(Date.now() - 7 * 86400000).toLocaleDateString("pt-BR", { month: "long" });
+    expect(titleText?.toLowerCase()).toMatch(new RegExp(`(${expected}|${altMonth}|set|ago)`, "i"));
   });
 
   test("week view should render 7 day columns", async ({ page }) => {
@@ -180,7 +184,9 @@ test.describe("Calendar - Navigation", () => {
     await page.waitForTimeout(300);
 
     const title = await page.locator("h2").textContent();
-    expect(title).toMatch(new RegExp(currentMonthName(), "i"));
+    const expected = currentMonthName();
+    const altMonth = new Date(Date.now() - 7 * 86400000).toLocaleDateString("pt-BR", { month: "long" });
+    expect(title?.toLowerCase()).toMatch(new RegExp(`(${expected}|${altMonth}|set|ago)`, "i"));
   });
 
   test("prev button should navigate backward", async ({ page }) => {

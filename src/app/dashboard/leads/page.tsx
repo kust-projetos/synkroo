@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { Suspense, useState, useMemo, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth/context'
 import { useLeads, useLeadStats, useLeadNotifications } from '@/lib/hooks/use-queries'
 import Link from 'next/link'
@@ -92,10 +93,17 @@ const temperatureColors: Record<LeadTemperature, string> = {
   hot: 'bg-red-500',
 }
 
-export default function LeadsPage() {
+function LeadsPageContent() {
   const { profile } = useAuth()
+  const searchParams = useSearchParams()
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all')
   const [temperatureFilter, setTemperatureFilter] = useState<LeadTemperature | 'all'>('all')
+
+  useEffect(() => {
+    const filter = searchParams.get('filter')
+    if (filter === 'hot') setTemperatureFilter('hot')
+    else if (filter === null) setTemperatureFilter('all')
+  }, [searchParams])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -518,5 +526,13 @@ export default function LeadsPage() {
       </DialogContent>
     </Dialog>
     </>
+  )
+}
+
+export default function LeadsPage() {
+  return (
+    <Suspense fallback={<div className="p-4 lg:p-8"><div className="animate-pulse h-32 bg-muted rounded" /></div>}>
+      <LeadsPageContent />
+    </Suspense>
   )
 }

@@ -291,7 +291,7 @@ describeOrSkip('operacional scheduling actions (F3)', () => {
 
     expect(response.status).toBe(401);
     const body = await response.json();
-    expect(body.error).toBe('Unauthorized');
+    expect(body.error).toMatchObject({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
     jest.spyOn(contextModule, 'buildUserContext').mockRestore();
     if (original) (contextModule as any).buildUserContext = original;

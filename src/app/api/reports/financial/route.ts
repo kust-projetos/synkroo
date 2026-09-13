@@ -22,8 +22,8 @@ const VALID_PERIODS: PeriodType[] = ['month', 'quarter', 'year']
 
 export async function GET(request: NextRequest) {
   try {
-    // Validate authentication
-    const authResult = await validateApiAuth()
+    // Validate authentication + authorization (financeiro:view)
+    const authResult = await validateApiAuth('financeiro:view')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error?.message || 'Unauthorized' },

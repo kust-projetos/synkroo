@@ -159,7 +159,7 @@ src/
 ## Testes
 - Unit/Integration: Jest (`src/**/__tests__/`) — 264 suites
 - E2E: Playwright (`e2e/`) — 14 specs
-- Coverage threshold: 70% global (branches, functions, lines, statements)
+- Coverage threshold (efetivamente medido em `jest.config.js` global: branches 55 / functions 65 / lines 70 / statements 70; sem exclusões adicionais para mascarar quedas; `src/**/*.tsx`, `src/app/**`, `src/lib/db/**` excluídos por contrato)
 - Hardening: Stryker mutation testing em repositórios e services
 
 ## Direção da Stack & Roadmap

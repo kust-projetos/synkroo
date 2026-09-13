@@ -66,16 +66,17 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const { installation } = await resolveOriginInstallation(request, installationId);
   if (!installation) return failure(origin, 'FORBIDDEN', 'Invalid widget installation.', 403);
 
-  const clientKey = `${installation.installationId}:${getClientIdentifier(request)}`;
-  const rateLimit = checkRateLimit(clientKey, { ...rateLimitPresets.messages, keyPrefix: 'widget-message' });
-  if (!rateLimit.allowed) return failure(origin, 'TOO_MANY_REQUESTS', 'Rate limit exceeded.', 429);
-
+  // Verify widget token before rate limit — invalid token must not consume legitimate quota (T1 b).
   const authorization = request.headers.get('authorization') ?? '';
   const token = authorization.startsWith('Bearer ') ? authorization.slice(7) : '';
   const claims = verifyWidgetToken(process.env.AUTH_SECRET ?? '', token);
   if (!claims || claims.installationId !== installation.installationId || claims.origin !== origin) {
     return failure(origin, 'UNAUTHORIZED', 'Invalid or expired widget token.', 401);
   }
+
+  const clientKey = `${installation.installationId}:${getClientIdentifier(request)}`;
+  const rateLimit = checkRateLimit(clientKey, { ...rateLimitPresets.messages, keyPrefix: 'widget-message' });
+  if (!rateLimit.allowed) return failure(origin, 'TOO_MANY_REQUESTS', 'Rate limit exceeded.', 429);
 
   const visitorId = typeof body.visitorId === 'string' ? body.visitorId : '';
   const idempotencyKey = request.headers.get('idempotency-key')

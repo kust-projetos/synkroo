@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { useConversations, useConversation } from "@/lib/hooks/use-queries";
+import { useToast } from "@/hooks/use-toast";
+import { useCalendarStore } from "@/components/calendar/store/calendar-store";
 import { PageHeader } from "@/components/ui/page-header";
 import { SearchInput } from "@/components/ui/search-input";
 import { Button } from "@/components/ui/button";
@@ -97,6 +100,9 @@ const statusConfig: Record<
 
 export default function ConversasPage() {
   const { profile } = useAuth();
+  const router = useRouter();
+  const { toast } = useToast();
+  const prefillFromPatient = useCalendarStore((s) => s.prefillFromPatient);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<
     "all" | "whatsapp" | "instagram" | "escalated"
@@ -105,6 +111,7 @@ export default function ConversasPage() {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([]);
+  const [failedMessage, setFailedMessage] = useState<string | null>(null);
 
   const convParams = useMemo(() => {
     const params: Record<string, string> = {
@@ -182,20 +189,22 @@ export default function ConversasPage() {
 
   const activeCount = conversations.filter((c) => c.status === "active").length;
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedId || sending || !profile?.clinic_id)
-      return;
-    const outgoingMessage = newMessage.trim();
+  const sendMessage = async (retryContent?: string) => {
+    const content = (retryContent ?? newMessage).trim();
+    if (!content || !selectedId || sending || !profile?.clinic_id) return;
+    const tempId = `local-${Date.now()}`;
+    const outgoingMessage = content;
     setOptimisticMessages((current) => [
       ...current,
       {
-        id: `local-${Date.now()}`,
+        id: tempId,
         direction: "outbound",
         content: outgoingMessage,
         is_ai: false,
         created_at: new Date().toISOString(),
       },
     ]);
+    setFailedMessage(null);
 
     setSending(true);
     try {
@@ -206,23 +215,41 @@ export default function ConversasPage() {
         body: JSON.stringify({
           clinicId: profile.clinic_id,
           to: conv?.external_id || "",
-          message: newMessage.trim(),
+          message: outgoingMessage,
           channel: conv?.channel || "whatsapp",
         }),
       });
 
-      const data = await response.json();
-
-      if (data.success) {
-        setNewMessage("");
-        refetchDetail();
-        refetchConvs();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        const msg = data.error || data.message || `Erro ${response.status}`;
+        throw new Error(msg);
       }
-    } catch (error) {
+
+      setNewMessage("");
+      setFailedMessage(null);
+      // Remove optimistic after successful refetch (deterministic rollback)
+      setOptimisticMessages((cur) => cur.filter((m) => m.id !== tempId));
+      refetchDetail();
+      refetchConvs();
+      toast({ title: "Mensagem enviada", description: "Mensagem entregue." });
+    } catch (error: any) {
+      // Deterministic rollback of optimistic message
+      setOptimisticMessages((cur) => cur.filter((m) => m.id !== tempId));
+      setFailedMessage(outgoingMessage);
       console.error("Error sending message:", error);
+      toast({
+        title: "Falha ao enviar",
+        description: error.message || "Não foi possível enviar. Tente novamente.",
+        variant: "destructive",
+      });
     } finally {
       setSending(false);
     }
+  };
+
+  const handleRetry = () => {
+    if (failedMessage) sendMessage(failedMessage);
   };
 
   return (
@@ -443,11 +470,41 @@ export default function ConversasPage() {
 
               {/* Quick Actions */}
               <div className="px-4 py-2 border-t border-border flex gap-2">
-                <Button variant="ghost" size="sm" className="h-8 text-xs">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    const pid = selectedConversation?.patient?.id;
+                    if (pid) {
+                      prefillFromPatient(pid);
+                      toast({ title: 'Agendamento', description: 'Abrindo calendário com paciente selecionado.' });
+                      router.push('/dashboard');
+                    } else {
+                      toast({ title: 'Agendar', description: 'Selecione um paciente para agendar.', variant: 'destructive' });
+                      router.push('/dashboard');
+                    }
+                  }}
+                >
                   <CalendarIcon className="w-4 h-4 mr-1" />
                   Agendar
                 </Button>
-                <Button variant="ghost" size="sm" className="h-8 text-xs">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={() => {
+                    const pid = selectedConversation?.patient?.id;
+                    if (pid) {
+                      // For reschedule, open create dialog with patient prefill and navigate
+                      prefillFromPatient(pid);
+                      toast({ title: 'Reagendar', description: 'Abrindo calendário para reagendamento.' });
+                      router.push('/dashboard');
+                    } else {
+                      toast({ title: 'Reagendar', description: 'Selecione uma conversa para reagendar.', variant: 'destructive' });
+                    }
+                  }}
+                >
                   <ClockIcon className="w-4 h-4 mr-1" />
                   Reagendar
                 </Button>
@@ -455,21 +512,31 @@ export default function ConversasPage() {
 
               {/* Message Input */}
               <div className="p-4 border-t border-border bg-card">
+                {failedMessage && (
+                  <div className="mb-2 flex items-center justify-between rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive" role="status" aria-live="polite">
+                    <span>Falha ao enviar: &quot;{failedMessage.slice(0, 40)}&quot;</span>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={handleRetry}>
+                      Tentar novamente
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-3">
                   <input
                     type="text"
                     placeholder="Digite sua mensagem..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), sendMessage())}
                     disabled={sending}
+                    aria-label="Mensagem"
                     className="flex-1 px-4 py-2 bg-muted border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
                   />
                   <Button
                     data-testid="send-button"
-                    onClick={sendMessage}
-                    disabled={!newMessage.trim() || sending}
+                    onClick={() => sendMessage()}
+                    disabled={(!newMessage.trim() && !failedMessage) || sending}
                     size="icon"
+                    aria-label="Enviar mensagem"
                   >
                     <PaperAirplaneIcon className="w-4 h-4" />
                   </Button>

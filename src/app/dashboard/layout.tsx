@@ -33,8 +33,9 @@ export default function DashboardRootLayout({
 
   if (loading && !isDevBypass) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+      <div className="min-h-screen flex items-center justify-center bg-background" role="status" aria-live="polite" aria-busy="true" aria-label="Carregando painel">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" aria-hidden="true" />
+        <span className="sr-only">Carregando...</span>
       </div>
     )
   }

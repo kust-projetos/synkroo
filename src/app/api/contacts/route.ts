@@ -12,8 +12,11 @@ import { listarContatos } from '@/modules/crm/actions';
 
 async function handleGET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
+  const typeParam = searchParams.get('type');
+  const type = typeParam === 'patient' || typeParam === 'lead' ? typeParam : undefined;
   const input = {
     search: searchParams.get('search') ?? undefined,
+    type,
     limit: searchParams.get('limit') ? Number(searchParams.get('limit')) : undefined,
     offset: searchParams.get('offset') ? Number(searchParams.get('offset')) : undefined,
   };

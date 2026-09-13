@@ -8,17 +8,26 @@ export default function Error({
   reset: () => void
 }) {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c1117', fontFamily: 'system-ui, sans-serif' }}>
+    <div
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+      aria-labelledby="error-title"
+      aria-describedby="error-desc"
+      style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0c1117', fontFamily: 'system-ui, sans-serif' }}
+    >
       <div style={{ maxWidth: '28rem', width: '100%', margin: '0 auto', padding: '2rem', textAlign: 'center' }}>
-        <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f9fafb' }}>
+        <div aria-hidden="true" style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+        <h1 id="error-title" tabIndex={-1} style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f9fafb' }}>
           Erro na página
         </h1>
-        <p style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
+        <p id="error-desc" style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
           Não foi possível carregar esta página.
         </p>
         <button
+          type="button"
           onClick={reset}
+          aria-label="Recarregar página"
           style={{ padding: '0.75rem 1.5rem', background: '#0d9488', color: 'white', fontWeight: 500, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }}
         >
           Recarregar

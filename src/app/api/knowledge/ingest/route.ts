@@ -9,7 +9,7 @@ import { ragService } from '@/services/rag';
  */
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth();
+    const authResult = await validateApiAuth('ia:manage');
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },

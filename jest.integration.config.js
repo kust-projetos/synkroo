@@ -23,12 +23,14 @@ module.exports = {
   // and must not run concurrently to avoid FK/unique constraint conflicts.
   maxWorkers: 1,
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
+    '^.+\\.(?:ts|tsx|js|jsx|mjs)$': ['ts-jest', {
       tsconfig: {
         jsx: 'react-jsx',
       },
     }],
   },
+  // uuid v14 is ESM-only; transform it for the CommonJS Jest runtime.
+  transformIgnorePatterns: ['/node_modules/(?!uuid/)'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',

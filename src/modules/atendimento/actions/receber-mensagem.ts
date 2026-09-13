@@ -13,7 +13,7 @@ export const receberMensagem = defineAction({
     externalProvider: z.string().trim().min(1).max(64),
     externalMessageId: z.string().trim().min(1).max(255),
     message: z.string().min(1).max(32_000),
-    channel: z.enum(['whatsapp', 'web']),
+    channel: z.enum(['whatsapp', 'instagram', 'web']),
     messageType: z.enum(['text', 'image', 'audio', 'document']).default('text'),
     metadata: z.record(z.unknown()).optional(),
   }).strict(),

@@ -175,6 +175,66 @@ describe('GET /api/contacts — CRM enabled → runCrmAction(listarContatos)', (
     });
   });
 
+  it('passa type=patient e type=lead para a action e sanitiza tipo inválido', async () => {
+    const { GET } = await importRoute('@/app/api/contacts/route');
+
+    // type=patient
+    await GET(mkReq('http://localhost/api/contacts?type=patient'));
+    expect(mockRunCrmAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'crm.listarContatos' }),
+      expect.objectContaining({ type: 'patient' }),
+    );
+
+    // type=lead
+    await GET(mkReq('http://localhost/api/contacts?type=lead'));
+    expect(mockRunCrmAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'crm.listarContatos' }),
+      expect.objectContaining({ type: 'lead' }),
+    );
+
+    // type desconhecido vira undefined
+    await GET(mkReq('http://localhost/api/contacts?type=invalid_type'));
+    expect(mockRunCrmAction).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'crm.listarContatos' }),
+      expect.objectContaining({ type: undefined }),
+    );
+  });
+
+  it('envelope da resposta reflete o filtro por tipo (patient vs lead)', async () => {
+    const { GET } = await importRoute('@/app/api/contacts/route');
+    mockRunCrmAction.mockImplementation(async (_action: any, input: any) => {
+      const data =
+        input?.type === 'patient'
+          ? [{ id: 'p1', type: 'patient', name: 'Ana' }]
+          : input?.type === 'lead'
+            ? [{ id: 'l1', type: 'lead', name: 'Bruno' }]
+            : [
+                { id: 'p1', type: 'patient', name: 'Ana' },
+                { id: 'l1', type: 'lead', name: 'Bruno' },
+              ];
+      return new Response(JSON.stringify({ data }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    const rPatient = await GET(mkReq('http://localhost/api/contacts?type=patient'));
+    const bPatient = await rPatient.json();
+    expect(rPatient.status).toBe(200);
+    expect(bPatient.data).toHaveLength(1);
+    expect(bPatient.data[0]).toMatchObject({ type: 'patient' });
+
+    const rLead = await GET(mkReq('http://localhost/api/contacts?type=lead'));
+    const bLead = await rLead.json();
+    expect(rLead.status).toBe(200);
+    expect(bLead.data).toHaveLength(1);
+    expect(bLead.data[0]).toMatchObject({ type: 'lead' });
+
+    const rAll = await GET(mkReq('http://localhost/api/contacts'));
+    const bAll = await rAll.json();
+    expect(bAll.data).toHaveLength(2);
+  });
+
   it('404 quando CRM disabled', async () => {
     mockModuleManifest.isEnabled.mockResolvedValueOnce(false);
     const { GET } = await importRoute('@/app/api/contacts/route');

@@ -99,15 +99,16 @@ it('syncRolePermissions is the reconciliation mechanism (adds missing keys, skip
   } as unknown as DbOrTx;
 
   // syncRolePermissions com DEFAULT_AGENT_PERMISSIONS
-  // role já tem 'operacional:view', faltam 'operacional:manage_appointments' e 'atendimento:manage_messages'
+  // role já tem 'operacional:view'; faltam as demais permissões default do Agente
   await syncRolePermissions(mockDb, 'role-agent', DEFAULT_AGENT_PERMISSIONS);
 
   const keys = inserted.filter((p) => p.roleId === 'role-agent').map((p) => p.permissionKey);
   expect(keys).toContain('operacional:view');
   expect(keys).toContain('operacional:manage_appointments');
   expect(keys).toContain('atendimento:manage_messages');
-  // 3 permissões: 1 existente + 2 novas
-  expect(keys.length).toBe(3);
+  expect(keys).toContain('atendimento:manage_webhooks');
+  // 4 permissões: a existente + 3 novas
+  expect(keys.length).toBe(4);
 });
 
 // ─── seedRbacForClinic() rerun reconciliation test ──────────────────

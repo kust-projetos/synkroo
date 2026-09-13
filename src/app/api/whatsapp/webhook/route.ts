@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { runAtendimentoSystemActionResult } from '@/modules/atendimento/ui/route-adapter';
@@ -20,13 +20,14 @@ async function handleGET(request: NextRequest) {
 }
 
 async function handlePOST(request: NextRequest) {
-  const clientId = getClientIdentifier(request);
-  const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'wa-webhook' });
-  if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
-
+  // Verify signature before rate limit — invalid payload must not consume legitimate quota (T1 b).
   const signature = request.headers.get('x-hub-signature-256');
   const body = await request.text();
   if (!verifySignature(body, signature)) return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
+
+  const clientId = getClientIdentifier(request);
+  const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'wa-webhook' });
+  if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
 
   let payload: Record<string, unknown>;
   try {
@@ -107,5 +108,7 @@ function verifySignature(body: string, signature: string | null): boolean {
   }
   if (!signature) return false;
   const expected = 'sha256=' + createHmac('sha256', APP_SECRET).update(body).digest('hex');
-  return signature === expected;
+  const sigBuf = Buffer.from(signature, 'utf8');
+  const expBuf = Buffer.from(expected, 'utf8');
+  return sigBuf.length === expBuf.length && timingSafeEqual(sigBuf, expBuf);
 }

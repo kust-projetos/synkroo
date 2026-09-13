@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
 import { useDentists, useProcedures } from '@/lib/hooks/use-queries'
+import { useToast } from '@/hooks/use-toast'
+import { useQueryClient } from '@tanstack/react-query'
 import { formatHourLabel } from './utils/date-utils'
 import type { AppointmentStatus } from '@/lib/db/types'
 
@@ -43,6 +45,8 @@ export function AppointmentDialog() {
   const dentists = (dentistsData?.dentists || []) as { id: string; name: string }[]
   const procedures = (proceduresData?.procedures || []) as { id: string; name: string; duration_minutes: number }[]
 
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState<DialogFormData>({
     patientName: '',
@@ -128,6 +132,10 @@ export function AppointmentDialog() {
       // First, find or create patient
       let patientId = ''
       const patientRes = await fetch('/api/patients?search=' + encodeURIComponent(form.patientName))
+      if (!patientRes.ok) {
+        const err = await patientRes.json().catch(() => ({}))
+        throw new Error(err.error || `Falha ao buscar paciente: ${patientRes.status}`)
+      }
       const patientData = await patientRes.json()
       const existing = patientData?.patients?.find(
         (p: { name: string }) => p.name.toLowerCase() === form.patientName.toLowerCase()
@@ -144,14 +152,18 @@ export function AppointmentDialog() {
             phone: form.patientPhone || undefined,
           }),
         })
+        if (!createRes.ok) {
+          const err = await createRes.json().catch(() => ({}))
+          throw new Error(err.error || `Falha ao criar paciente: ${createRes.status}`)
+        }
         const created = await createRes.json()
         patientId = created.patient?.id
       }
 
       if (!patientId) throw new Error('Failed to create/find patient')
 
-      // Create appointment
-      await fetch('/api/appointments', {
+      // Create appointment — handle 409/500 without closing modal
+      const apptRes = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,14 +175,43 @@ export function AppointmentDialog() {
           notes: form.notes || undefined,
         }),
       })
-
+      const apptJson = await apptRes.json().catch(() => ({}))
+      if (!apptRes.ok) {
+        const msg = apptJson.error || apptJson.message || `Erro ${apptRes.status}`
+        const isConflict = apptRes.status === 409
+        toast({
+          title: isConflict ? 'Horário já ocupado' : 'Erro ao agendar',
+          description: msg,
+          variant: 'destructive',
+        })
+        // Keep modal open for retry; do not invalidate
+        throw new Error(msg)
+      }
+      // Success — invalidate only after success
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
+      toast({
+        title: 'Agendamento criado',
+        description: 'Consulta agendada com sucesso.',
+      })
       closeDialog()
-    } catch (err) {
-      console.error('Failed to save appointment:', err)
+    } catch (err: any) {
+      if (err.message !== 'Horário já ocupado' && !err.message?.includes('Erro ao agendar')) {
+        // Only show generic toast if not already shown for 409/500
+        const isAlreadyHandled = err.message?.includes('Horário já ocupado') || err.message?.includes('Erro ao agendar')
+        if (!isAlreadyHandled) {
+          toast({
+            title: 'Erro ao salvar',
+            description: err.message || 'Falha ao agendar consulta.',
+            variant: 'destructive',
+          })
+        }
+        console.error('Failed to save appointment:', err)
+      }
     } finally {
       setSaving(false)
     }
-  }, [form, clinicId, closeDialog])
+  }, [form, clinicId, closeDialog, toast, queryClient])
 
   const isCreate = dialog.mode === 'create'
 

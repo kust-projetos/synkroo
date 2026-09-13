@@ -86,6 +86,48 @@ try {
      ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = now()`,
     [USER_ID, hashPassword(DEMO_PASSWORD)],
   );
+  // RBAC pleno para admin@clinicademo.com: roles de sistema Owner +
+  // Administrador, vínculo em user_clinic_access apontando para Owner
+  // (autoridade da role efetiva) e os 7 módulos contratáveis + core always-on.
+  const OWNER_ROLE_ID = "00000000-0000-4000-8000-000000000100";
+  const ADMIN_ROLE_ID = "00000000-0000-4000-8000-000000000101";
+  const roleRows = await client.query(
+    `SELECT id, name FROM roles WHERE clinic_id = $1 AND name = ANY($2) AND is_system = true`,
+    [CLINIC_ID, ["Owner", "Administrador"]],
+  );
+  const roleByName = new Map(roleRows.rows.map((row) => [row.name, row.id]));
+  async function ensureSystemRole(id, name, description) {
+    if (roleByName.get(name)) return roleByName.get(name);
+    await client.query(
+      `INSERT INTO roles (id, clinic_id, name, description, is_system)
+       VALUES ($1, $2, $3, $4, true)
+       ON CONFLICT (id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, name = EXCLUDED.name, description = EXCLUDED.description, is_system = true`,
+      [id, CLINIC_ID, name, description],
+    );
+    roleByName.set(name, id);
+    return id;
+  }
+  const ownerRoleId = await ensureSystemRole(
+    OWNER_ROLE_ID,
+    "Owner",
+    "Dono da clínica (acesso total).",
+  );
+  await ensureSystemRole(
+    ADMIN_ROLE_ID,
+    "Administrador",
+    "Administrador da clínica.",
+  );
+  await client.query(
+    `INSERT INTO user_clinic_access (user_id, clinic_id, role_id, grant_reason)
+     VALUES ($1, $2, $3, 'seed-test-clinic: demo admin')
+     ON CONFLICT (user_id, clinic_id) DO UPDATE SET role_id = EXCLUDED.role_id, revoked_at = NULL, expires_at = NULL, grant_reason = EXCLUDED.grant_reason`,
+    [USER_ID, CLINIC_ID, ownerRoleId],
+  );
+  await client.query(
+    `INSERT INTO instance_modules (module_id, enabled)
+     VALUES ('atendimento', true), ('comercial', true), ('core', true), ('crm', true), ('financeiro', true), ('followup', true), ('ia', true), ('operacional', true)
+     ON CONFLICT (module_id) DO UPDATE SET enabled = true`,
+  );
   await client.query(
     `INSERT INTO dentists (id, clinic_id, name, phone, email, cro, specialty, is_active, working_hours)
      VALUES

@@ -32,7 +32,17 @@ import { executarCampanhas } from '@/modules/followup/actions/executar-campanhas
 type CronResult = { task: string; clinicId: string; ok: boolean; data?: unknown; error?: string };
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
-  // Rate limit cron endpoints
+  // Verify CRON_SECRET before rate limit — invalid credentials must not consume scheduler quota (T1 DoS fix).
+  const cronSecret = request.headers.get('Authorization') ?? '';
+  const expectedSecret = `Bearer ${process.env.CRON_SECRET ?? ''}`;
+  if (
+    !process.env.CRON_SECRET ||
+    cronSecret.length !== expectedSecret.length ||
+    !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
+  ) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   const rateLimit = checkRateLimit('cron', {
     ...rateLimitPresets.cron,
     maxRequests: 30,
@@ -42,17 +52,6 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
       { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
     );
-  }
-
-  // Verify CRON_SECRET
-  const cronSecret = request.headers.get('Authorization') ?? '';
-  const expectedSecret = `Bearer ${process.env.CRON_SECRET ?? ''}`;
-  if (
-    !process.env.CRON_SECRET ||
-    cronSecret.length !== expectedSecret.length ||
-    !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
-  ) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   // Module gate — skip if followup module is not contracted

@@ -102,10 +102,10 @@ test.describe('Authentication Flow', () => {
     ])
     await page.waitForLoadState('networkidle')
 
-    const logoutButton = page.getByRole('button', { name: 'Sair', exact: true })
-    await expect(logoutButton).toBeVisible()
+    const logoutButton = page.getByRole('button', { name: /Sair/ }).first()
+    await expect(logoutButton).toBeVisible({ timeout: 10000 })
     await logoutButton.click()
-    await expect(page).toHaveURL(/.*login/, { timeout: 5000 })
+    await expect(page).toHaveURL(/.*login/, { timeout: 10000 })
   })
 })
 

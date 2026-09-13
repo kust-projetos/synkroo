@@ -148,7 +148,12 @@ async function loadPatientGraph(db: DbExecutor, clinicId: string, patientId: str
     eq(auditLogs.clinicId, clinicId),
     inArray(auditLogs.entityId, relatedIds),
   ));
-  const clinicActionRows = await db.select().from(actionLogs).where(eq(actionLogs.clinicId, clinicId));
+  // T3: filter actionLogs by verifiable link to the patient; if no reliable link, omit (never export whole clinic).
+  // Current schema has no direct FK to patient, so we check inputRedacted for any relatedId.
+  // This prevents same-clinic leakage (export A must not contain B's actions).
+  const allActionLogsForClinic = await db.select().from(actionLogs).where(eq(actionLogs.clinicId, clinicId));
+  const relatedIdsSet = new Set(relatedIds);
+  const clinicActionRows = allActionLogsForClinic.filter((row: any) => containsAnyId(row.inputRedacted, relatedIdsSet));
 
   return {
     patient,
@@ -288,8 +293,13 @@ async function redactAgentQueues(db: DbExecutor, relatedIds: readonly string[]) 
       if (!containsAnyId(row.payload, ids)) continue;
       await db.execute(sql`UPDATE agent_dlq SET payload = ${JSON.stringify({ redacted: true, reason: 'patient_anonymized' })}::jsonb WHERE id = ${row.id}`);
     }
-  } catch {
-    // Silently ignore if tables not present (e.g., in unit tests)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Safe omission when tables don't exist (unit tests without DB); otherwise fail closed so unredacted content is never returned.
+    if (msg.includes('does not exist') || msg.includes('relation') || msg.includes('undefined_table') || msg.includes('no such table')) {
+      return;
+    }
+    throw new ActionError('internal', `Falha ao redigir filas do agente: ${msg}`);
   }
 }
 

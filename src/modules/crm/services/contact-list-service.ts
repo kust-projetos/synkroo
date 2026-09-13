@@ -14,6 +14,7 @@ import {
 
 export interface ListContactsInput {
   search?: string;
+  type?: 'patient' | 'lead';
   limit: number;
   offset: number;
 }
@@ -31,6 +32,7 @@ export async function listContactsService(
     limit: input.limit,
     offset: input.offset,
     ...(input.search ? { search: input.search } : {}),
+    ...(input.type ? { type: input.type } : {}),
   };
   const [data, total] = await Promise.all([
     listContacts(ctx.clinicId, opts),
