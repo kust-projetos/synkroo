@@ -10,10 +10,23 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash, timingSafeEqual } from 'crypto';
 import { processAsaasWebhook } from '@/modules/financeiro/gateways/providers/asaas/webhook';
 import { listGatewaysByProvider } from '@/modules/financeiro/repositories/financeiro-repository';
 import { decryptGatewayCredentials } from '@/modules/financeiro/lib/crypto';
 import type { EncryptedPayload } from '@/modules/financeiro/lib/crypto';
+
+/**
+ * Constant-time token comparison: both sides are hashed with SHA-256 so the
+ * comparison never leaks length or prefix information, matching the
+ * matchesSecret pattern used for channel installations.
+ */
+function safeTokenEquals(provided: string, expected: string | undefined): boolean {
+  if (!provided || !expected) return false;
+  const providedHash = createHash('sha256').update(provided).digest();
+  const expectedHash = createHash('sha256').update(expected).digest();
+  return timingSafeEqual(providedHash, expectedHash);
+}
 
 export async function POST(
   request: NextRequest,
@@ -50,7 +63,7 @@ export async function POST(
         typeof enc.tag === 'string' &&
         (() => {
           const credentials = decryptGatewayCredentials({ iv: enc.iv, data: enc.data, tag: enc.tag });
-          return credentials.apiKey === token || credentials.webhookToken === token;
+          return safeTokenEquals(token, credentials.apiKey) || safeTokenEquals(token, credentials.webhookToken);
         })()
       ) {
         matchedGateway = gateway;
