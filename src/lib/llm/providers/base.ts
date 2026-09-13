@@ -12,6 +12,105 @@ import type {
   ToolCall,
 } from '../types';
 import { LlmError } from '../errors';
+import { z } from 'zod';
+
+/**
+ * B1 — envelope `chat/completions` validado com Zod em vez de guards manuais.
+ * Falha de schema → `LlmError` (`invalid_response`, sem retry); a mensagem de
+ * erro carrega só os paths inválidos, nunca o payload bruto (sem secrets).
+ */
+const ProviderToolCallSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    type: z.string().optional(),
+    function: z
+      .object({
+        name: z.string().min(1),
+        arguments: z.unknown().optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+const ChatCompletionsEnvelopeSchema = z
+  .object({
+    choices: z
+      .array(
+        z
+          .object({
+            message: z
+              .object({
+                content: z.union([z.string(), z.null()]).optional(),
+                tool_calls: z.array(ProviderToolCallSchema).optional(),
+              })
+              .passthrough()
+              .optional(),
+            finish_reason: z.string().nullable().optional(),
+          })
+          .passthrough(),
+      )
+      .min(1),
+    usage: z
+      .object({
+        prompt_tokens: z.number().optional(),
+        completion_tokens: z.number().optional(),
+        total_tokens: z.number().optional(),
+      })
+      .passthrough()
+      .optional(),
+  })
+  .passthrough();
+
+type ChatCompletionsEnvelope = z.infer<typeof ChatCompletionsEnvelopeSchema>;
+
+function invalidEnvelopeError(
+  provider: LlmProviderType,
+  apiKey: string,
+  detail: string,
+): LlmError {
+  return new LlmError({
+    message: `Invalid response envelope from provider: ${detail}`,
+    code: 'invalid_response',
+    provider,
+    retryable: false,
+    secrets: [apiKey],
+  });
+}
+
+/** Normaliza o envelope já validado para `LlmCompletion` (mesma semântica dos guards antigos). */
+function toCompletion(envelope: ChatCompletionsEnvelope): LlmCompletion {
+  const choice = envelope.choices[0];
+  const msg = choice.message ?? {};
+  const toolCalls: ToolCall[] = [];
+
+  for (const tc of msg.tool_calls ?? []) {
+    // function.name vazio já é barrado pelo schema; id ausente ganha fallback.
+    toolCalls.push({
+      id: tc.id || `call_${Math.random().toString(36).slice(2, 9)}`,
+      type: 'function',
+      function: {
+        name: tc.function.name,
+        arguments:
+          typeof tc.function.arguments === 'string'
+            ? tc.function.arguments
+            : JSON.stringify(tc.function.arguments ?? {}),
+      },
+    });
+  }
+
+  return {
+    text: typeof msg.content === 'string' ? msg.content : null,
+    toolCalls,
+    finishReason: choice.finish_reason ?? null,
+    usage: envelope.usage
+      ? {
+          promptTokens: envelope.usage.prompt_tokens ?? 0,
+          completionTokens: envelope.usage.completion_tokens ?? 0,
+          totalTokens: envelope.usage.total_tokens ?? 0,
+        }
+      : undefined,
+  };
+}
 
 export abstract class BaseLlmProvider implements LlmProvider {
   public abstract readonly providerName: LlmProviderType;
@@ -167,50 +266,16 @@ export abstract class BaseLlmProvider implements LlmProvider {
           });
         }
 
-        const choice = json.choices?.[0];
-        if (!choice) {
-          throw new LlmError({
-            message: 'No choices returned by LLM provider',
-            code: 'invalid_response',
-            provider: this.providerName,
-            retryable: false,
-            secrets: [this.apiKey],
-          });
+        const choice = ChatCompletionsEnvelopeSchema.safeParse(json);
+        if (!choice.success) {
+          const paths = choice.error.issues
+            .map((i) => i.path.join('.') || '(root)')
+            .slice(0, 5)
+            .join(', ');
+          throw invalidEnvelopeError(this.providerName, this.apiKey, paths);
         }
 
-        const msg = choice.message ?? {};
-        const rawToolCalls = msg.tool_calls;
-        const toolCalls: ToolCall[] = [];
-
-        if (Array.isArray(rawToolCalls)) {
-          for (const tc of rawToolCalls) {
-            if (tc && tc.function && typeof tc.function.name === 'string') {
-              toolCalls.push({
-                id: tc.id || `call_${Math.random().toString(36).slice(2, 9)}`,
-                type: 'function',
-                function: {
-                  name: tc.function.name,
-                  arguments: typeof tc.function.arguments === 'string'
-                    ? tc.function.arguments
-                    : JSON.stringify(tc.function.arguments ?? {}),
-                },
-              });
-            }
-          }
-        }
-
-        return {
-          text: typeof msg.content === 'string' ? msg.content : null,
-          toolCalls,
-          finishReason: choice.finish_reason ?? null,
-          usage: json.usage
-            ? {
-                promptTokens: json.usage.prompt_tokens ?? 0,
-                completionTokens: json.usage.completion_tokens ?? 0,
-                totalTokens: json.usage.total_tokens ?? 0,
-              }
-            : undefined,
-        };
+        return toCompletion(choice.data);
       } catch (err: unknown) {
         clearTimeout(timeoutId);
         if (err instanceof LlmError) {
