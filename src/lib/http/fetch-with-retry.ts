@@ -175,10 +175,45 @@ export async function fetchWithRetry(
   const idempotentOp = isIdempotentMethod(method) || idempotent || Boolean(idempotencyKey);
   const maxAttempts = idempotentOp ? 1 + Math.max(0, maxRetries) : 1;
   const target = describeTarget(input, method);
+  const externalSignal = init.signal as AbortSignal | undefined | null;
+
+  const callerAbortedError = (cause?: unknown): ExternalHttpError =>
+    new ExternalHttpError({
+      message: `External request aborted by caller: ${target}`,
+      timeout: false,
+      retryable: false,
+      aborted: true,
+      correlationId,
+      cause,
+    });
+
+  // Backoff abortável: se o chamador abortar durante a espera, nenhuma nova
+  // tentativa inicia (sem `sleep` cego). Sem signal externo, `sleep` puro.
+  const sleepOrAbort = async (ms: number): Promise<void> => {
+    if (!externalSignal) {
+      await sleep(ms);
+      return;
+    }
+    if (externalSignal.aborted) throw callerAbortedError();
+    let onAbort: () => void = () => undefined;
+    try {
+      await Promise.race([
+        sleep(ms),
+        new Promise<never>((_resolve, reject) => {
+          onAbort = () => reject(callerAbortedError());
+          externalSignal.addEventListener('abort', onAbort, { once: true });
+        }),
+      ]);
+    } finally {
+      externalSignal.removeEventListener('abort', onAbort);
+    }
+    if (externalSignal.aborted) throw callerAbortedError();
+  };
 
   let attempt = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
+    if (externalSignal?.aborted) throw callerAbortedError();
     attempt += 1;
     const controller = new AbortController();
     let timedOut = false;
@@ -187,7 +222,6 @@ export async function fetchWithRetry(
       controller.abort();
     }, timeoutMs);
 
-    const externalSignal = init.signal as AbortSignal | undefined | null;
     const onExternalAbort = (): void => controller.abort();
     if (externalSignal) {
       if (externalSignal.aborted) controller.abort();
@@ -206,27 +240,21 @@ export async function fetchWithRetry(
       }
       // Status retryable…
       if (attempt >= maxAttempts) return response; // …sem budget (ou não-idempotente): devolve
-      await sleep(computeRetryDelayMs(attempt - 1, random));
+      await sleepOrAbort(computeRetryDelayMs(attempt - 1, random));
       continue;
     } catch (error) {
       clearTimeout(timer);
       if (externalSignal && !externalSignal.aborted) {
         externalSignal.removeEventListener('abort', onExternalAbort);
       }
+      if (error instanceof ExternalHttpError && error.aborted) throw error;
       // Abort do chamador (signal externo) ≠ timeout interno: encerra
       // imediatamente, sem retry — o chamador pediu o cancelamento.
       // `timedOut` prevalece: nosso timer também aborta o controller, mas o
       // signal externo permanece íntegro nesse caso.
       const callerAborted = Boolean(externalSignal?.aborted) && !timedOut;
       if (callerAborted) {
-        throw new ExternalHttpError({
-          message: `External request aborted by caller: ${target}`,
-          timeout: false,
-          retryable: false,
-          aborted: true,
-          correlationId,
-          cause: error,
-        });
+        throw callerAbortedError(error);
       }
       const timeout = timedOut || isAbortError(error);
       const retryable = isRetryableNetworkError(error);
@@ -243,7 +271,7 @@ export async function fetchWithRetry(
           cause: error,
         });
       }
-      await sleep(computeRetryDelayMs(attempt - 1, random));
+      await sleepOrAbort(computeRetryDelayMs(attempt - 1, random));
     }
   }
 }

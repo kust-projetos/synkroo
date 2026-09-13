@@ -1,34 +1,27 @@
 /**
- * Integration leve (A3) — retry duplicado de sendTextMessage com a mesma chave
- * chama o provider 1 vez; sem chave, o comportamento legado é preservado.
+ * RE-REVIEW-A2A3 — `sendTextMessage` (leaf) NÃO faz claim: o claim vive
+ * exclusivamente na facade (`channel-service.runIdempotentSend`).
  *
- * Claim real sob mock in-memory da camada `@/lib/idempotency` (sem DB).
- * Evolution NÃO recebe header de idempotência (sem suporte nativo documentado).
+ * Prova: com chave, o leaf envia direto (sem dedup, sem claim, sem header de
+ * idempotência); o param `idempotencyKey` existe só por compatibilidade.
  */
 
-const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> = [];
-const completedKeys: string[] = [];
-const failedKeys: string[] = [];
-
 jest.mock('@/lib/idempotency', () => ({
-  claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
-  markIdempotencyKeyCompleted: jest.fn(async (key: string) => {
-    completedKeys.push(key);
-  }),
-  markIdempotencyKeyFailed: jest.fn(async (key: string) => {
-    failedKeys.push(key);
-  }),
-  isIdempotencyKeyProcessed: jest.fn(async (key: string) => completedKeys.includes(key)),
+  claimIdempotencyKey: jest.fn(),
+  tryClaimIdempotencyKey: jest.fn(),
+  markIdempotencyKeyCompleted: jest.fn(),
+  markIdempotencyKeyFailed: jest.fn(),
+  isIdempotencyKeyProcessed: jest.fn(),
   withIdempotency: jest.fn(),
+  IdempotencyInfraError: class IdempotencyInfraError extends Error {},
 }));
 
 import { EvolutionApiService } from '../evolution-service';
+import { claimIdempotencyKey } from '@/lib/idempotency';
 
-describe('evolution sendTextMessage idempotency (A3)', () => {
+describe('evolution sendTextMessage leaf (no claim)', () => {
   beforeEach(() => {
-    outcomes.length = 0;
-    completedKeys.length = 0;
-    failedKeys.length = 0;
+    jest.clearAllMocks();
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -40,8 +33,7 @@ describe('evolution sendTextMessage idempotency (A3)', () => {
     jest.restoreAllMocks();
   });
 
-  it('retry duplicado da mesma operação lógica → provider chamado 1 vez', async () => {
-    outcomes.push('claimed', 'completed');
+  it('com chave → envia direto, sem claim e sem dedup (facade é dona do claim)', async () => {
     const service = new EvolutionApiService('https://evolution.example.com', 'k', 'inst');
     const key = 'whatsapp:send:clinic-1:msg-1';
 
@@ -49,19 +41,10 @@ describe('evolution sendTextMessage idempotency (A3)', () => {
     expect(first).toEqual({ success: true, messageId: 'evo-msg-1' });
 
     const dup = await service.sendTextMessage('11999999999', 'Olá', { idempotencyKey: key });
-    expect(dup).toEqual({ success: true, deduplicated: true });
-
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('sem chave → envio direto sem claim (legado preservado)', async () => {
-    const service = new EvolutionApiService('https://evolution.example.com', 'k', 'inst');
-
-    await service.sendTextMessage('11999999999', 'A');
-    await service.sendTextMessage('11999999999', 'A');
+    expect(dup).toEqual({ success: true, messageId: 'evo-msg-1' });
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(completedKeys.length).toBe(0);
+    expect(claimIdempotencyKey).not.toHaveBeenCalled();
   });
 
   it('NÃO envia header de idempotência à Evolution (sem suporte nativo)', async () => {
@@ -73,19 +56,17 @@ describe('evolution sendTextMessage idempotency (A3)', () => {
     expect(JSON.stringify(headers).toLowerCase()).not.toContain('idempotency');
   });
 
-  it('falha do provider libera retry (não completa o claim)', async () => {
-    outcomes.push('claimed');
+  it('falha do provider retorna erro (sem marcar nada)', async () => {
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
       ok: false,
       status: 400,
       json: async () => ({ message: 'Invalid number' }),
     });
     const service = new EvolutionApiService('https://evolution.example.com', 'k', 'inst');
-    const key = 'whatsapp:send:clinic-1:msg-bad';
 
-    const first = await service.sendTextMessage('11999999999', 'Olá', { idempotencyKey: key });
-    expect(first.success).toBe(false);
-    expect(completedKeys.includes(key)).toBe(false);
-    expect(failedKeys.includes(key)).toBe(true);
+    const res = await service.sendTextMessage('11999999999', 'Olá', {
+      idempotencyKey: 'whatsapp:send:clinic-1:msg-bad',
+    });
+    expect(res).toEqual({ success: false, error: 'Invalid number' });
   });
 });

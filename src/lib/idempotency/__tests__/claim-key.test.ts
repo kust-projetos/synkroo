@@ -110,6 +110,30 @@ describe('claimIdempotencyKey (review)', () => {
     await expect(claimIdempotencyKey('k', 'job')).resolves.toBe('claimed');
   });
 
+  it('derrota no reclaim de completed (0 linhas) + linha em in_progress → in_progress', async () => {
+    selectQueue.push(
+      [{ status: 'completed', expiresAt: past }],
+      [{ status: 'in_progress', expiresAt: future }],
+    );
+    updateRows = [];
+
+    await expect(
+      claimIdempotencyKey('k', 'job', { completedTtlMs: 600_000 }),
+    ).resolves.toBe('in_progress');
+  });
+
+  it('derrota no reclaim + releitura confirmed completed vivo → completed', async () => {
+    selectQueue.push(
+      [{ status: 'completed', expiresAt: past }],
+      [{ status: 'completed', expiresAt: future }],
+    );
+    updateRows = [];
+
+    await expect(
+      claimIdempotencyKey('k', 'job', { completedTtlMs: 600_000 }),
+    ).resolves.toBe('completed');
+  });
+
   it('corrida no insert (conflito) → relê e classifica completed', async () => {
     selectQueue.push([], [{ status: 'completed', expiresAt: future }]);
     insertRows = [];
