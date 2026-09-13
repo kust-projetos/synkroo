@@ -7,7 +7,7 @@ import type {
   RunTurnResult,
 } from './types';
 import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
-import { personaSystemPrompt } from './personas';
+import { personaSystemPrompt, wrapUserData } from './personas';
 import { analyzeClinicalSafety } from './clinical-safety';
 
 export interface RunTurnDeps {
@@ -141,6 +141,9 @@ export async function runTurn(
   }));
 
   // ── 2. Prompt COM histórico ──────────────────────────────────────────────
+  // B1: falas do usuário (atual + turnos anteriores) entram como DADO
+  // delimitado — o histórico persistido no DO tem origem externa e pode
+  // conter injeção. Turnos assistant/tool são saída do próprio modelo/servidor.
   const messages: ChatMessage[] = [
     {
       role: 'system',
@@ -151,8 +154,10 @@ export async function runTurn(
         input.timezone,
       ),
     },
-    ...(input.history ?? []),
-    { role: 'user', content: input.userMessage },
+    ...(input.history ?? []).map((m) =>
+      m.role === 'user' ? { ...m, content: wrapUserData(m.content) } : m,
+    ),
+    { role: 'user', content: wrapUserData(input.userMessage) },
   ];
 
   // ── 3. Loop LLM↔tools ───────────────────────────────────────────────────
