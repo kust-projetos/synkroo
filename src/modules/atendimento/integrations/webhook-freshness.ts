@@ -47,9 +47,11 @@ function resolveLimits(options?: FreshnessOptions): { maxAgeSec: number; maxSkew
 function resolveEnvPositiveInt(name: string): number | null {
   const raw = process.env[name];
   if (!raw) return null;
-  const n = Number(raw);
+  // Normalize before validating: a fractional override (e.g. "0.5") floors
+  // to 0 and must fall back to the default instead of becoming a 0s window.
+  const n = Math.floor(Number(raw));
   if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.floor(n);
+  return n;
 }
 
 /**
