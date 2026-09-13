@@ -12,7 +12,7 @@ import { previewSegmentSize, getSegmentPatients } from '@/services/followup/segm
  */
 export async function GET(request: NextRequest) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('followup:manage_segments')
     if (!authResult.success) {
       return NextResponse.json(
         { error: authResult.error!.message },

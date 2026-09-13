@@ -124,10 +124,10 @@ export async function getFinancialReport(clinicId: string, period: PeriodType, d
         .from(budgetItems).where(inArray(budgetItems.budgetId, budgetIds))
     }
 
-    // Payments received within period
+    // Payments received within period — tenant-scoped
     const paymentRows = await db
       .select({ amount: payments.amount, paidAt: payments.paidAt, budgetId: payments.budgetId })
-      .from(payments).where(and(gte(payments.paidAt, start), lte(payments.paidAt, end)))
+      .from(payments).where(and(eq(payments.clinicId, clinicId), gte(payments.paidAt, start), lte(payments.paidAt, end)))
 
     let revenue = 0
     const procMap = new Map<string, ProcedureBreakdown>()

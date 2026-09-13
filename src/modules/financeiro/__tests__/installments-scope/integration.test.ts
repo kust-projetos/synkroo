@@ -15,6 +15,7 @@ jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }));
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { PATCH, DELETE } from '@/app/api/budgets/[id]/installments/route';
+import * as contextModule from '@/core/actions/context';
 import { validateApiAuth } from '@/lib/auth/session';
 import {
   getBudgetForClinic,
@@ -31,11 +32,21 @@ const BUDGET_A = '00000000-0000-0000-0000-00000000c001';
 const BUDGET_B = '00000000-0000-0000-0000-00000000c002';
 const INSTALLMENT_A = '00000000-0000-0000-0000-00000000d001';
 const INSTALLMENT_B = '00000000-0000-0000-0000-00000000d002';
+const buildUserContextMock = jest.spyOn(contextModule, 'buildUserContext');
 
 function authAs(clinicId: string) {
   (validateApiAuth as jest.Mock).mockResolvedValue({
     success: true,
     profile: { id: 'user-1', clinic_id: clinicId, role: 'owner' },
+  });
+  buildUserContextMock.mockResolvedValue({
+    source: 'user',
+    clinicId,
+    user: { id: 'user-1', email: 'user-1@test.local', name: 'User 1' },
+    role: 'owner',
+    can: () => true,
+    hasModule: () => true,
+    audit: { actor: 'user-1' },
   });
 }
 
@@ -96,11 +107,13 @@ describeOrSkip('Installments tenant scope — route + DB real', () => {
     await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_A}, ${BUDGET_B})`);
     await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_A}, ${BUDGET_B})`);
     await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
+    buildUserContextMock.mockRestore();
     await closeDb();
   });
 
   beforeEach(() => {
     (validateApiAuth as jest.Mock).mockReset();
+    buildUserContextMock.mockReset();
   });
 
   // ── PATCH route ──────────────────────────────────────

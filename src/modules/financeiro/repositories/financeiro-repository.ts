@@ -437,6 +437,24 @@ export async function findGatewayEvent(provider: string, externalEventId: string
   return row;
 }
 
+function toCentsRepo(value: string | number): bigint {
+  const str = typeof value === 'number' ? value.toFixed(2) : String(value).trim();
+  if (!/^-?\d+(\.\d{1,2})?$/.test(str)) return 0n;
+  const [intPart, decPart = ''] = str.split('.');
+  const paddedDec = (decPart + '00').slice(0, 2);
+  const sign = intPart.startsWith('-') ? -1n : 1n;
+  const base = BigInt(intPart) * 100n;
+  const dec = BigInt(paddedDec) * sign;
+  // Handle -0
+  if (intPart === '-0' || intPart === '-00') return -BigInt(paddedDec);
+  return base + dec;
+}
+function centsToDecimalRepo(cents: bigint): string {
+  const sign = cents < 0n ? '-' : '';
+  const abs = cents < 0n ? -cents : cents;
+  return `${sign}${abs / 100n}.${(abs % 100n).toString().padStart(2, '0')}`;
+}
+
 export async function processGatewayEventAtomically(input: {
   clinicId: string;
   gatewayId: string;
@@ -467,24 +485,96 @@ export async function processGatewayEventAtomically(input: {
     }).onConflictDoNothing().returning({ id: gatewayEvents.id });
     if (!event) return { settled: false, duplicate: true, chargeFound: true };
 
+    // Fetch budget for patient and total, and existing payments for CAS/partial logic
+    const [budget] = await tx.select().from(budgets).where(and(eq(budgets.id, charge.budgetId), eq(budgets.clinicId, input.clinicId))).limit(1);
+    const patientId = (budget as any)?.patientId ?? null;
+    const chargeAmountCents = toCentsRepo(charge.amount as any);
+    const receivedCents = toCentsRepo(input.amount);
+
+    // Determine billing method from payload if available
+    const paymentObj = (input.payload as any)?.payment as Record<string, unknown> | undefined;
+    const billingType = (paymentObj?.billingType as string) || (paymentObj?.paymentMethod as string) || 'pix';
+    const normalizedMethod = String(billingType).toLowerCase();
+    const paymentMethod = normalizedMethod.includes('pix') ? 'pix' : normalizedMethod.includes('boleto') ? 'boleto' : normalizedMethod.includes('card') ? 'card' : normalizedMethod || 'pix';
+
+    // Terminal states: once cancelled/refunded, never revert to paid via late retry
+    const terminalStatuses = new Set(['cancelled', 'refunded', 'refund_pending', 'chargeback', 'deleted']);
+    const isTerminal = terminalStatuses.has(charge.status);
+    const payloadStatus = String((paymentObj?.status as string) || '').toUpperCase();
+    const isRefundEvent = ['REFUNDED', 'REFUND_IN_PROGRESS', 'PAYMENT_REFUNDED', 'PAYMENT_DELETED', 'PAYMENT_CHARGEBACK_REQUESTED', 'PAYMENT_CHARGEBACK_DISPUTE'].includes(payloadStatus) || payloadStatus.includes('REFUND') || payloadStatus.includes('CHARGEBACK') || payloadStatus === 'DELETED';
+
+    if (isRefundEvent) {
+      // Make refund terminal — CAS: only if not already terminal
+      if (!isTerminal) {
+        await tx.update(paymentCharges).set({ status: 'cancelled', updatedAt: new Date() })
+          .where(and(eq(paymentCharges.id, charge.id), eq(paymentCharges.clinicId, input.clinicId), eq(paymentCharges.status, charge.status)));
+      }
+      await tx.update(gatewayEvents).set({ processedAt: new Date() }).where(eq(gatewayEvents.id, event.id));
+      return { settled: false, chargeFound: true };
+    }
+
     if (input.settlement) {
+      if (isTerminal) {
+        // Do not revert terminal to paid
+        await tx.update(gatewayEvents).set({ processedAt: new Date() }).where(eq(gatewayEvents.id, event.id));
+        return { settled: false, chargeFound: true };
+      }
+
+      // Compare received amount vs charge amount for partial handling
+      const isPartial = receivedCents > 0n && receivedCents < chargeAmountCents;
+      const isFullOrOver = receivedCents >= chargeAmountCents;
+
+      // Preserve patient and method, use decimal safe amount
+      const amountDecimal = centsToDecimalRepo(receivedCents > 0n ? receivedCents : chargeAmountCents);
       await tx.insert(payments).values({
         clinicId: input.clinicId,
         budgetId: charge.budgetId,
         chargeId: charge.id,
-        patientId: null,
-        amount: input.amount,
-        paymentMethod: 'pix',
+        patientId,
+        amount: amountDecimal,
+        paymentMethod,
         status: 'settled',
         paidAt: new Date(input.paidAt),
         notes: `Asaas webhook: ${input.externalEventId}`,
         createdBy: null,
       }).onConflictDoNothing();
-      await tx.update(paymentCharges).set({ status: 'paid', paidAt: new Date(input.paidAt), updatedAt: new Date() })
-        .where(and(eq(paymentCharges.id, charge.id), eq(paymentCharges.clinicId, input.clinicId)));
+
+      if (isPartial) {
+        // Explicit partial — do not mark paid until liquidated
+        await tx.update(paymentCharges).set({ status: 'partially_paid', updatedAt: new Date() })
+          .where(and(eq(paymentCharges.id, charge.id), eq(paymentCharges.clinicId, input.clinicId), eq(paymentCharges.status, charge.status)));
+      } else if (isFullOrOver) {
+        // CAS: only transition from non-terminal pending/partially_paid/overdue to paid
+        const allowedFrom = ['pending', 'overdue', 'partially_paid'];
+        if (allowedFrom.includes(charge.status)) {
+          await tx.update(paymentCharges).set({ status: 'paid', paidAt: new Date(input.paidAt), updatedAt: new Date() })
+            .where(and(eq(paymentCharges.id, charge.id), eq(paymentCharges.clinicId, input.clinicId), eq(paymentCharges.status, charge.status)));
+        } else if (charge.status !== 'paid') {
+          // Fallback CAS with current status
+          await tx.update(paymentCharges).set({ status: 'paid', paidAt: new Date(input.paidAt), updatedAt: new Date() })
+            .where(and(eq(paymentCharges.id, charge.id), eq(paymentCharges.clinicId, input.clinicId), eq(paymentCharges.status, charge.status)));
+        }
+      }
+
+      // Update installments within same transaction — mark earliest pending as paid
+      if (isFullOrOver || isPartial) {
+        const pendingInstallments: any[] = await tx.select().from(budgetInstallments).where(and(eq(budgetInstallments.budgetId, charge.budgetId), eq(budgetInstallments.status, 'pending'))).orderBy(budgetInstallments.dueDate);
+        let remaining = receivedCents > 0n ? receivedCents : chargeAmountCents;
+        for (const inst of pendingInstallments) {
+          if (remaining <= 0n) break;
+          const instCents = toCentsRepo(inst.amount as any);
+          if (instCents <= 0n) continue;
+          if (remaining >= instCents) {
+            await tx.update(budgetInstallments).set({ status: 'paid', paidAt: new Date(input.paidAt), updatedAt: new Date() }).where(eq(budgetInstallments.id, inst.id));
+            remaining -= instCents;
+          } else {
+            break;
+          }
+        }
+      }
     }
     await tx.update(gatewayEvents).set({ processedAt: new Date() }).where(eq(gatewayEvents.id, event.id));
-    return { settled: input.settlement, chargeFound: true };
+    return { settled: input.settlement && !isTerminal, chargeFound: true };
   });
 }
 

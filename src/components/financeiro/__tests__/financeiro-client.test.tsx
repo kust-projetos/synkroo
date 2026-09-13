@@ -33,6 +33,10 @@ jest.mock('@/components/ui/page-header', () => ({
   PageHeader: ({ title }: { title: string }) => <div data-testid="page-header">{title}</div>,
 }));
 
+jest.mock('@/lib/auth/context', () => ({
+  useAuth: jest.fn(() => ({ profile: { role: 'owner', clinic_id: 'c1', name: 'Test Owner' } })),
+}));
+
 const DASHBOARD_FIXTURE = {
   overdueCount: 7,
   totalOverdue: 3850.00,

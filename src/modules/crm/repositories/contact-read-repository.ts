@@ -31,6 +31,7 @@ export type ContactType = 'patient' | 'lead';
 
 export interface ContactListOptions {
   search?: string;
+  type?: ContactType;
   limit: number;
   offset: number;
 }
@@ -69,7 +70,7 @@ export interface NoteEntry {
 const PATIENT_NOT_MERGED = sql`(${patients.mergeStatus} IS NULL OR ${patients.mergeStatus} <> 'merged')`;
 const LEAD_NOT_MERGED = sql`(${leads.mergeStatus} IS NULL OR ${leads.mergeStatus} <> 'merged')`;
 
-// ─── listContacts: UNION ALL parametrizado ───────────────────────────────────
+// ─── listContacts: UNION ALL parametrizado com filtro opcional de tipo ────────
 
 export async function listContacts(
   clinicId: string,
@@ -84,7 +85,7 @@ export async function listContacts(
     ? sql`AND ${leads.name} ILIKE ${'%' + search + '%'}`
     : sql``;
 
-  const query = sql`
+  const patientQuery = sql`
     SELECT
       'patient'::text AS type,
       ${patients.id}::text AS id,
@@ -98,7 +99,9 @@ export async function listContacts(
       AND ${patients.deletedAt} IS NULL
       AND ${PATIENT_NOT_MERGED}
       ${searchFrag}
-    UNION ALL
+  `;
+
+  const leadQuery = sql`
     SELECT
       'lead'::text AS type,
       ${leads.id}::text AS id,
@@ -112,6 +115,19 @@ export async function listContacts(
       AND ${leads.convertedAt} IS NULL
       AND ${LEAD_NOT_MERGED}
       ${searchFragLead}
+  `;
+
+  let baseQuery;
+  if (opts.type === 'patient') {
+    baseQuery = patientQuery;
+  } else if (opts.type === 'lead') {
+    baseQuery = leadQuery;
+  } else {
+    baseQuery = sql`${patientQuery} UNION ALL ${leadQuery}`;
+  }
+
+  const query = sql`
+    ${baseQuery}
     ORDER BY updated_at DESC, type ASC, id ASC
     LIMIT ${opts.limit} OFFSET ${opts.offset}
   `;
@@ -143,21 +159,27 @@ export async function countContacts(
     ? sql`AND ${leads.name} ILIKE ${'%' + search + '%'}`
     : sql``;
 
-  const query = sql`
-    SELECT
-      (SELECT COUNT(*) FROM ${patients}
+  const countPatientSql = sql`(SELECT COUNT(*) FROM ${patients}
        WHERE ${patients.clinicId} = ${clinicId}
          AND ${patients.deletedAt} IS NULL
          AND ${PATIENT_NOT_MERGED}
-         ${searchFrag})
-      +
-      (SELECT COUNT(*) FROM ${leads}
+         ${searchFrag})`;
+
+  const countLeadSql = sql`(SELECT COUNT(*) FROM ${leads}
        WHERE ${leads.clinicId} = ${clinicId}
          AND ${leads.convertedAt} IS NULL
          AND ${LEAD_NOT_MERGED}
-         ${searchFragLead})
-      AS total
-  `;
+         ${searchFragLead})`;
+
+  let query;
+  if (opts.type === 'patient') {
+    query = sql`SELECT ${countPatientSql} AS total`;
+  } else if (opts.type === 'lead') {
+    query = sql`SELECT ${countLeadSql} AS total`;
+  } else {
+    query = sql`SELECT ${countPatientSql} + ${countLeadSql} AS total`;
+  }
+
   const result = await db.execute(query);
   const rows = (result as { rows?: unknown[] }).rows ?? [];
   const total = (rows as Array<{ total: number | string }>)[0]?.total ?? 0;

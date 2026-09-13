@@ -80,9 +80,11 @@ async function check(
 async function validateAgendaTenant(response, clinicId) {
   if (!response.ok) return false;
   const payload = await response.json();
-  if (!payload || !Array.isArray(payload.appointments) || !payload.pagination)
+  // A API real envelopa em data; aceitar envelope canônico ou corpo direto.
+  const data = payload?.data ?? payload;
+  if (!data || !Array.isArray(data.appointments) || !data.pagination)
     return false;
-  return payload.appointments.every(
+  return data.appointments.every(
     (appointment) => appointment.clinicId === clinicId,
   );
 }
@@ -92,7 +94,7 @@ export async function runSmoke(baseUrl, options = {}) {
   const paths = { ...DEFAULT_PATHS, ...(options.paths ?? {}) };
   const authCookie = options.authCookie ?? process.env.STAGING_AUTH_COOKIE;
   const clinicId = options.clinicId ?? process.env.STAGING_CLINIC_ID;
-  const authHeaders = authCookie ? { cookie: authCookie } : undefined;
+  const authHeaders = authCookie ? { cookie: authCookie, origin: baseUrl } : undefined;
   const hasSyntheticAuth = Boolean(authCookie && clinicId);
   const checks = [
     () =>

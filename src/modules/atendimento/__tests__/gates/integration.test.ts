@@ -24,7 +24,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 import { Pool } from 'pg';
 import { withModuleRoute } from '@/core/modules/gates';
-import { createManifest } from '@/core/modules/manifest';
+import * as manifestModule from '@/core/modules/manifest';
 import { hashChannelSecret } from '@/modules/atendimento/integrations/resolve-channel-installation';
 jest.mock('@/core/ia-channel/webhook-router', () => ({
   routeInboundToAgent: jest.fn().mockResolvedValue({ from: 'integration', action: 'agent_replied' }),
@@ -144,7 +144,7 @@ describe('withModuleRoute — atendimento module gate (P0)', () => {
 describeOrSkip('Atendimento routes — module enabled (P0)', () => {
 
   beforeEach(() => {
-    jest.spyOn(createManifest(), 'isEnabled').mockResolvedValue(true);
+    jest.spyOn(manifestModule, 'createManifest').mockReturnValue(stubEnabled);
   });
 
   afterEach(() => {
@@ -165,8 +165,8 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
     expect(text).toBe('ch123');
   });
 
-  // ── instagram/webhook is outside the v1 scope ──
-  it('instagram/webhook GET remains disabled in v1', async () => {
+  // ── instagram/webhook GET handshake ──
+  it('instagram/webhook GET returns challenge text when valid token', async () => {
     const { GET } = await import('@/app/api/instagram/webhook/route');
     const url = new URL('http://localhost/api/instagram/webhook');
     url.searchParams.set('hub.mode', 'subscribe');
@@ -174,7 +174,9 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
     url.searchParams.set('hub.challenge', 'ch456');
     const req = new NextRequest(url);
     const res = await GET(req);
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toBe('ch456');
   });
 
   // ── messages/inbound unknown installation → 403 (fail-closed tenant resolution) ──
@@ -248,7 +250,7 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
 describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => {
 
   beforeEach(() => {
-    jest.spyOn(createManifest(), 'isEnabled').mockResolvedValue(false);
+    jest.spyOn(manifestModule, 'createManifest').mockReturnValue(stubDisabled);
   });
 
   afterEach(() => {
@@ -350,6 +352,27 @@ beforeAll(async () => {
      ON CONFLICT (installation_id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, provider = EXCLUDED.provider, secret_hash = EXCLUDED.secret_hash, enabled = true`,
     [P3_CLINIC_ID, P3_EVOLUTION_INSTANCE, hashChannelSecret(VALID_SECRET)],
   );
+  await pool!.query(
+    `INSERT INTO instance_modules (module_id, enabled)
+     VALUES ('operacional', true), ('comercial', true), ('atendimento', true)
+     ON CONFLICT (module_id) DO UPDATE SET enabled = true`,
+  );
+  const { rows: agentRoles } = await pool!.query(
+    `SELECT id FROM roles WHERE clinic_id = $1 AND name = 'Agente' AND is_system = true LIMIT 1`,
+    [P3_CLINIC_ID],
+  );
+  const agentRoleId = agentRoles[0]?.id ?? (await pool!.query(
+    `INSERT INTO roles (clinic_id, name, description, is_system)
+     VALUES ($1, 'Agente', 'Agente de IA (autônomo).', true)
+     RETURNING id`,
+    [P3_CLINIC_ID],
+  )).rows[0].id;
+  await pool!.query(
+    `INSERT INTO role_permissions (role_id, permission_key)
+     SELECT $1, key FROM permissions WHERE key = 'atendimento:manage_webhooks'
+     ON CONFLICT DO NOTHING`,
+    [agentRoleId],
+  );
 }, 60_000);
 
 afterAll(async () => {
@@ -372,7 +395,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
   }
 
   beforeEach(() => {
-    jest.spyOn(createManifest(), 'isEnabled').mockResolvedValue(true);
+    jest.spyOn(manifestModule, 'createManifest').mockReturnValue(stubEnabled);
   });
 
   afterEach(() => {

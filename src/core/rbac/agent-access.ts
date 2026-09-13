@@ -12,6 +12,7 @@ export const DEFAULT_AGENT_PERMISSIONS = [
   'operacional:view',
   'operacional:manage_appointments',
   'atendimento:manage_messages',
+  'atendimento:manage_webhooks',
 ];
 
 export interface AgentAccessRepo {

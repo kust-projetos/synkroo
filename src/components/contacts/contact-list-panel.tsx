@@ -33,7 +33,7 @@ export function ContactListPanel({ selectedId, selectedType }: ContactListPanelP
   }, [search, typeFilter])
 
   const { data, isLoading } = useContacts(queryParams)
-  const contacts = data?.data || []
+  const contacts = Array.isArray(data) ? data : (data?.data || [])
 
   const handleSelect = (id: string, type: 'patient' | 'lead') => {
     router.replace(`/dashboard/contatos?contact=${id}&type=${type}`, { scroll: false })

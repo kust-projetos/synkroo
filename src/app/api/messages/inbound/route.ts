@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { runAtendimentoSystemAction } from '@/modules/atendimento/ui/route-adapter';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { resolveChannelInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
@@ -7,10 +7,9 @@ import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 
 async function handlePOST(request: NextRequest) {
-  const clientId = getClientIdentifier(request);
-  const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'msg-inbound' });
-  if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
-
+  // Authenticate before rate limiting: unauthenticated/invalid requests must
+  // never consume the legitimate tenant's rate-limit quota. The tenant bucket
+  // is keyed by the resolved clinicId, which only exists after successful auth.
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
   const installationId = typeof body?.installationId === 'string' ? body.installationId : '';
   const installation = await resolveChannelInstallation({
@@ -18,6 +17,9 @@ async function handlePOST(request: NextRequest) {
     providedSecret: request.headers.get('x-webhook-secret') ?? '',
   });
   if (!installation) return NextResponse.json({ error: 'Invalid webhook' }, { status: 403 });
+
+  const rateLimit = checkRateLimit(`tenant:${installation.clinicId}`, { ...rateLimitPresets.webhook, keyPrefix: 'msg-inbound' });
+  if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
 
   const from = typeof body?.from === 'string' ? body.from : '';
   const message = typeof body?.message === 'string' ? body.message : '';

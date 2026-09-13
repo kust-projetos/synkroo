@@ -19,7 +19,13 @@ const PUBLIC_EXACT = new Set([
   '/api/health',
   '/api/health/db',
   '/api/internal/readiness',
+  // External transports with handler-level validation (HMAC/token/origin).
+  // List exact paths only — never wildcard /api/whatsapp/* or /api/widget/*.
+  '/api/whatsapp/webhook',
   '/api/whatsapp/evolution',
+  '/api/instagram/webhook',
+  '/api/widget/session',
+  '/api/widget/messages',
   '/api/auth/providers',
   '/api/auth/csrf',
   '/api/auth/session',
@@ -58,7 +64,7 @@ export async function middleware(request: NextRequest) {
   ) {
     return new NextResponse(null, { status: 404 });
   }
-  const AUTH_SECRET = process.env.AUTH_SECRET;
+  const AUTH_SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
 
   // Dev bypass: skip auth when AUTH_SECRET is missing OR mock mode is active
   if (

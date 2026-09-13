@@ -6,7 +6,9 @@ t.describe('Patients API', () => {
     const res = await request.get('/api/patients?limit=5')
     expect(res.status()).toBeLessThan(500)
     const body = await res.json()
-    expect(body).toHaveProperty('patients')
+    const payload = body.data ?? body
+    expect(payload).toHaveProperty('patients')
+    expect(Array.isArray(payload.patients)).toBe(true)
   })
   t('POST with invalid data returns error', async ({ request }) => {
     const res = await request.post('/api/patients', { data: {} })

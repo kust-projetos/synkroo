@@ -59,7 +59,7 @@ test.describe("Clinic Settings", () => {
 test.describe("Reminder Settings", () => {
   test.beforeEach(async ({ page }) => {
     await login(page);
-    await page.goto(`${BASE_URL}/dashboard/configuracao`);
+    await page.goto(`${BASE_URL}/dashboard/configuracoes`);
     await page.waitForLoadState("networkidle");
   });
 

@@ -12,6 +12,8 @@ import { eq, and } from 'drizzle-orm';
  * Exported as authOptions for use in route handler and session helpers.
  */
 export const authOptions: NextAuthOptions = {
+  // Staging/prod secret sync: o middleware verifica o JWT com o mesmo valor.
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET,
   providers: [
     Credentials({
       name: 'credentials',

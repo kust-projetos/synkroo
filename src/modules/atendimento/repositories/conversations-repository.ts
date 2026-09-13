@@ -647,6 +647,36 @@ export async function getClinicByInstagramAccountId(accountId: string): Promise<
   return rows[0]?.id ?? null;
 }
 
+/**
+ * T6-S1: Resolve Instagram installation — encapsulates channelInstallations
+ * lookup (provider='instagram', enabled=true) with fallback to legacy
+ * settings-based getClinicByInstagramAccountId. Preserves tenant scoping:
+ * never trusts body clinicId, resolves server-side only.
+ */
+export async function resolveInstagramInstallation(
+  accountId: string,
+): Promise<{ clinicId: string; installationId: string } | null> {
+  if (!accountId) return null;
+  try {
+    const [row] = await getDb()
+      .select({ clinicId: channelInstallations.clinicId, installationId: channelInstallations.installationId })
+      .from(channelInstallations)
+      .where(
+        and(
+          eq(channelInstallations.installationId, accountId),
+          eq(channelInstallations.provider, 'instagram'),
+          eq(channelInstallations.enabled, true),
+        ),
+      )
+      .limit(1);
+    if (row) return { clinicId: row.clinicId, installationId: row.installationId };
+  } catch {
+    // fallback to settings lookup below — preserves current route behavior
+  }
+  const clinicId = await getClinicByInstagramAccountId(accountId);
+  return clinicId ? { clinicId, installationId: accountId } : null;
+}
+
 /** Check if a message with a given id already exists (dedup helper). */
 export async function messageExistsById(messageId: string): Promise<boolean> {
   const db = getDb();
@@ -709,7 +739,7 @@ export async function appendInboundMessageDeduped(data: {
  */
 export async function persistInboundMessage(input: {
   clinicId: string;
-  channel: 'whatsapp' | 'web';
+  channel: 'whatsapp' | 'instagram' | 'web';
   externalConversationId: string;
   externalProvider: string;
   externalMessageId: string;

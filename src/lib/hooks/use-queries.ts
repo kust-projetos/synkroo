@@ -58,7 +58,17 @@ async function fetcher<T>(url: string): Promise<T> {
   if (!response.ok) {
     throw new Error(`API error: ${response.status}`)
   }
-  return response.json()
+  const json = await response.json()
+  // Handle canonical envelope { data: T, meta? } vs legacy plain responses.
+  // Unwrap envelope so consumers can uniformly read `data.field`.
+  if (json && typeof json === 'object' && !Array.isArray(json) && 'data' in json) {
+    const envelope = json as { data: unknown; meta?: unknown }
+    // Preserve top-level keys if data is an object that itself contains domain keys,
+    // while still exposing envelope meta when relevant. Return inner data for
+    // domain queries; meta is available via separate pagination fields when needed.
+    return envelope.data as T
+  }
+  return json as T
 }
 
 /**
@@ -207,7 +217,7 @@ export function useCampaigns(params?: Record<string, string>) {
 }
 
 /**
- * Conversations — cached for 30s
+ * Conversations — cached for 30s, moderate polling for inbound without reload (15s), no background duplication
  */
 export function useConversations(params?: Record<string, string>) {
   const qs = params ? new URLSearchParams(params).toString() : ''
@@ -216,6 +226,9 @@ export function useConversations(params?: Record<string, string>) {
     queryKey: queryKeys.conversations(qs),
     queryFn: () => fetcher<any>(`/api/conversations${qs ? `?${qs}` : ''}`),
     staleTime: 30 * 1000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
     enabled: !!params,
   })
 }
@@ -329,7 +342,7 @@ export function useCalendarEventsQuery(params?: Record<string, string> | string)
 }
 
 /**
- * Single conversation with messages — cached for 30s
+ * Single conversation with messages — cached for 30s, polling for inbound (15s) without tab duplication
  */
 export function useConversation(id: string) {
   return useQuery({
@@ -337,6 +350,9 @@ export function useConversation(id: string) {
     queryFn: () => fetcher<any>(`/api/conversations/${id}`),
     enabled: !!id,
     staleTime: 30 * 1000,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   })
 }
 

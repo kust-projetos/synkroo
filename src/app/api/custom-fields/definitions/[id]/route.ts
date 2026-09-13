@@ -19,7 +19,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await validateApiAuth()
+  const auth = await validateApiAuth('crm:view')
   if (!auth.success) {
     return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
   }
@@ -40,7 +40,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await validateApiAuth()
+  const auth = await validateApiAuth('crm:manage_tags')
   if (!auth.success) {
     return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
   }
@@ -66,7 +66,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await validateApiAuth()
+  const auth = await validateApiAuth('crm:manage_tags')
   if (!auth.success) {
     return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
   }

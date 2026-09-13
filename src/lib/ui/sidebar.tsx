@@ -110,7 +110,7 @@ function BadgePill({ count, variant, collapsed }: { count: number; variant: stri
 
   if (collapsed) {
     return (
-      <div className={cn("absolute top-0 right-0 h-2 w-2 rounded-full", variant === "pill-teal" ? "bg-teal-600" : "bg-teal-500")} />
+      <div aria-hidden="true" className={cn("absolute top-0 right-0 h-2 w-2 rounded-full", variant === "pill-teal" ? "bg-teal-600" : "bg-teal-500")} />
     )
   }
 
@@ -127,8 +127,10 @@ function NavItemLink({ item, isActive, collapsed }: { item: NavItem; isActive: b
     <Link
       href={item.href}
       prefetch={false}
+      aria-current={isActive ? 'page' : undefined}
+      aria-label={collapsed ? item.name : undefined}
       className={cn(
-        "flex items-center gap-3 rounded-xl transition-all duration-200 relative group font-medium",
+        "flex items-center gap-3 rounded-xl transition-all duration-200 relative group font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1",
         collapsed ? "justify-center p-2.5 mx-auto" : "px-3 py-2.5",
         isActive
           ? "bg-gradient-to-r from-teal-500/15 via-teal-500/10 to-transparent text-teal-700 dark:text-teal-300 font-semibold shadow-sm"
@@ -137,9 +139,9 @@ function NavItemLink({ item, isActive, collapsed }: { item: NavItem; isActive: b
     >
       {/* Active Indicator Bar */}
       {isActive && !collapsed && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-gradient-to-b from-teal-500 to-emerald-500 shadow-[0_0_8px_rgba(13,148,136,0.5)]" />
+        <span aria-hidden="true" className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-1 rounded-r-full bg-gradient-to-b from-teal-500 to-emerald-500 shadow-[0_0_8px_rgba(13,148,136,0.5)]" />
       )}
-      <Icon className={cn(
+      <Icon aria-hidden="true" className={cn(
         "flex-shrink-0 transition-transform duration-200 group-hover:scale-110",
         collapsed ? "h-5 w-5" : "h-4 w-4",
         isActive ? "text-teal-600 dark:text-teal-400" : "text-zinc-400 dark:text-zinc-500 group-hover:text-zinc-600 dark:group-hover:text-zinc-300"
@@ -202,8 +204,24 @@ function SidebarContent({
     return () => { active = false }
   }, [])
 
+  // T7 fix: sidebar deriva de permissões/módulos ativos via getVisibleCoreMenu (server RBAC), sem enfraquecer servidor.
+  // Dashboard always visible; legacy core routes sem manifesto (CRM, Campanhas, Tarefas, Inativos, Analytics)
+  // são preservadas para não regredir (AGY T7 3.3). Apenas rotas com manifesto são filtradas por RBAC.
+  const LEGACY_STATIC_HREFS = new Set([
+    '/dashboard/crm',
+    '/dashboard/campanhas',
+    '/dashboard/tarefas',
+    '/dashboard/pacientes/inativos',
+    '/dashboard/analytics',
+  ]);
+  const visibleStatic = navItems.filter((item) => {
+    if (item.href === '/dashboard') return true;
+    if (LEGACY_STATIC_HREFS.has(item.href)) return true;
+    if (coreNavItems.length === 0) return true;
+    return coreNavItems.some((ci) => ci.href === item.href || (ci as any).label === item.name);
+  });
   const allNavItems = [
-    ...navItems,
+    ...visibleStatic,
     ...coreNavItems.filter(
       (ci) => !navItems.some((ni) => ni.href === ci.href)
     ),
@@ -232,8 +250,14 @@ function SidebarContent({
           </div>
         )}
         {!collapsed && (
-          <button onClick={onToggle} className="ml-auto h-7 w-7 rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors">
-            <ChevronDoubleLeftIcon className="h-3.5 w-3.5" />
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label="Recolher barra lateral"
+            aria-expanded={!collapsed}
+            className="ml-auto h-7 w-7 rounded-lg border border-zinc-200/80 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+          >
+            <ChevronDoubleLeftIcon aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
@@ -241,14 +265,20 @@ function SidebarContent({
       {/* Expand button (collapsed only) */}
       {collapsed && (
         <div className="flex justify-center pt-3 pb-1">
-          <button onClick={onToggle} className="h-7 w-7 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors">
-            <ChevronDoubleRightIcon className="h-3.5 w-3.5" />
+          <button
+            type="button"
+            onClick={onToggle}
+            aria-label="Expandir barra lateral"
+            aria-expanded={!collapsed}
+            className="h-7 w-7 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-teal-600 dark:hover:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+          >
+            <ChevronDoubleRightIcon aria-hidden="true" className="h-3.5 w-3.5" />
           </button>
         </div>
       )}
 
-      {/* Nav Sections */}
-      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+      {/* Nav Sections — aria-label por seção (T9 a11y) */}
+      <nav aria-label="Navegação principal" className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
         <TooltipProvider>
           {sections.map((section, si) => {
             const sectionItems = allNavItems.filter(i => i.section === section)
@@ -278,28 +308,34 @@ function SidebarContent({
 
       {/* Footer */}
       <div className={cn("px-3 pb-3 pt-3 border-t border-zinc-100 dark:border-white/5 bg-zinc-50/50 dark:bg-black/20", collapsed && "px-2")}>
-        {/* Theme Toggle */}
-        <div className={cn("flex gap-1 bg-zinc-200/60 dark:bg-zinc-900/80 backdrop-blur-sm rounded-xl p-1 mb-3 border border-zinc-200/50 dark:border-white/5", collapsed && "mx-auto w-fit")}>
+        {/* Theme Toggle — T9 a11y: aria-pressed + aria-label */}
+        <div className={cn("flex gap-1 bg-zinc-200/60 dark:bg-zinc-900/80 backdrop-blur-sm rounded-xl p-1 mb-3 border border-zinc-200/50 dark:border-white/5", collapsed && "mx-auto w-fit")} role="group" aria-label="Alternar tema">
           <button
+            type="button"
             onClick={() => setTheme("light")}
+            aria-label="Tema claro"
+            aria-pressed={theme === "light"}
             className={cn(
-              "rounded-lg p-1.5 transition-all duration-200",
+              "rounded-lg p-1.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500",
               collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
               theme === "light" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-700 font-semibold" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             )}
           >
-            <SunIcon className="h-3.5 w-3.5" />
+            <SunIcon aria-hidden="true" className="h-3.5 w-3.5" />
             {!collapsed && <span className="text-[11px]">Claro</span>}
           </button>
           <button
+            type="button"
             onClick={() => setTheme("dark")}
+            aria-label="Tema escuro"
+            aria-pressed={theme === "dark"}
             className={cn(
-              "rounded-lg p-1.5 transition-all duration-200",
+              "rounded-lg p-1.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500",
               collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
               theme === "dark" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-400 font-semibold" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
             )}
           >
-            <MoonIcon className="h-3.5 w-3.5" />
+            <MoonIcon aria-hidden="true" className="h-3.5 w-3.5" />
             {!collapsed && <span className="text-[11px]">Escuro</span>}
           </button>
         </div>
@@ -318,8 +354,8 @@ function SidebarContent({
                 <div className="text-xs font-semibold text-foreground truncate">{profile?.name || "Dr. Profissional"}</div>
                 <div className="text-[10px] text-teal-600 dark:text-teal-400 font-medium capitalize truncate">{profile?.role || "Administrador"}</div>
               </div>
-              <button onClick={() => logout()} title="Sair" aria-label="Sair" className="p-1 text-zinc-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30">
-                <LogoutIcon className="h-4 w-4" />
+              <button type="button" onClick={() => logout()} title="Sair da conta" aria-label="Sair da conta" className="p-1 text-zinc-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+                <LogoutIcon aria-hidden="true" className="h-4 w-4" />
               </button>
             </>
           )}
@@ -351,6 +387,7 @@ export function Sidebar() {
 
   return (
     <aside
+      aria-label="Navegação principal"
       className={cn(
         "hidden lg:flex flex-col h-screen sticky top-0 transition-all duration-200 border-r border-border bg-card",
         collapsed ? "w-20" : "w-60"

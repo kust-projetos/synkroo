@@ -14,15 +14,7 @@ import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
-  const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
-    );
-  }
-
-  // Verify CRON_SECRET
+  // Verify CRON_SECRET before rate limit — invalid credentials must not consume scheduler quota (T1 DoS fix).
   const cronSecret = request.headers.get('Authorization') ?? '';
   const expectedSecret = `Bearer ${process.env.CRON_SECRET ?? ''}`;
   if (
@@ -31,6 +23,14 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
   ) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
+    );
   }
 
   // Module gate — skip if disabled (200, not error)

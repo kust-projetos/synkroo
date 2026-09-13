@@ -13,6 +13,7 @@ import { getDb, closeDb } from '@/lib/db/client';
 import { listPayments, registerManualPayment } from '@/modules/financeiro/services/payment-service';
 import { validateApiAuth } from '@/lib/auth/session';
 import { GET as PaymentsGET, POST as PaymentsPOST } from '@/app/api/budgets/[id]/payments/route';
+import * as contextModule from '@/core/actions/context';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 
@@ -26,11 +27,21 @@ const CHARGE_A = '00000000-0000-0000-0000-0000e0010001';
 const CHARGE_B = '00000000-0000-0000-0000-0000e0010002';
 const PAYMENT_B = '00000000-0000-0000-0000-0000f0010002';
 const USER_A = '00000000-0000-0000-0000-00000000a101';
+const buildUserContextMock = jest.spyOn(contextModule, 'buildUserContext');
 
 function authAs(clinicId: string) {
   (validateApiAuth as jest.Mock).mockResolvedValue({
     success: true,
     profile: { id: USER_A, clinic_id: clinicId, role: 'owner' },
+  });
+  buildUserContextMock.mockResolvedValue({
+    source: 'user',
+    clinicId,
+    user: { id: USER_A, email: 'pay-user-a@test.local', name: 'Pay User A' },
+    role: 'owner',
+    can: () => true,
+    hasModule: () => true,
+    audit: { actor: USER_A },
   });
 }
 
@@ -62,11 +73,13 @@ describeOrSkip('Payments tenant scope — service + route', () => {
     await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_A}, ${BUDGET_B})`);
     await db.execute(sql`DELETE FROM users WHERE id = ${USER_A}`);
     await db.execute(sql`DELETE FROM clinics WHERE id IN (${CLINIC_A}, ${CLINIC_B})`);
+    buildUserContextMock.mockRestore();
     await closeDb();
   });
 
   beforeEach(() => {
     (validateApiAuth as jest.Mock).mockReset();
+    buildUserContextMock.mockReset();
   });
 
   it('listPayments rejects foreign budget (clinic A trying budget B)', async () => {
@@ -105,9 +118,9 @@ describeOrSkip('Payments tenant scope — service + route', () => {
     expect(payment.createdBy).toBe(USER_A);
     // Cleanup created payment
     await getDb().execute(sql`DELETE FROM payments WHERE id = ${payment.id}`);
-    // Charge should be marked paid
+    // Partial payment should keep the charge partially paid
     const charge = await getDb().execute(sql`SELECT status FROM payment_charges WHERE id = ${CHARGE_A}`);
-    expect((charge.rows as any)[0].status).toBe('paid');
+    expect((charge.rows as any)[0].status).toBe('partially_paid');
     // Reset charge for other tests
     await getDb().execute(sql`UPDATE payment_charges SET status = 'pending', paid_at = NULL WHERE id = ${CHARGE_A}`);
   });

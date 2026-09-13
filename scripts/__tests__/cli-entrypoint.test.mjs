@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isCliInvocation as isSmokeCliInvocation } from '../smoke-staging.mjs';
 import { isCliInvocation as isSchemaCliInvocation } from '../verify-remediation-schema.mjs';
+import { isCliInvocation as isImportCliInvocation } from '../import-client-data.mjs';
 
 for (const [name, isCliInvocation] of [
   ['smoke runner', isSmokeCliInvocation],
   ['schema verifier', isSchemaCliInvocation],
+  ['import client data', isImportCliInvocation],
 ]) {
   test(`${name} recognizes Windows and POSIX module paths`, () => {
     assert.equal(isCliInvocation('file:///D:/projetos/synkroo/scripts/tool.mjs', 'D:\\projetos\\synkroo\\scripts\\tool.mjs'), true);

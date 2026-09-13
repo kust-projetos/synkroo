@@ -30,7 +30,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('ia:chat')
     if (!authResult.success)
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id
@@ -58,7 +58,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await validateApiAuth()
+    const auth = await validateApiAuth('ia:manage')
     if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
     const { id } = await params
@@ -92,7 +92,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authResult = await validateApiAuth()
+    const authResult = await validateApiAuth('ia:manage')
     if (!authResult.success)
       return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
     const clinicId = authResult.profile!.clinic_id

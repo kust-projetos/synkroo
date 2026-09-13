@@ -13,4 +13,7 @@ test("E2E seed provisions the clinic and credentials expected by global setup", 
   assert.match(source, /user_credentials/);
   assert.match(source, /INSERT INTO dentists/);
   assert.match(source, /INSERT INTO procedures/);
+  assert.match(source, /INSERT INTO roles/);
+  assert.match(source, /INSERT INTO user_clinic_access/);
+  assert.match(source, /INSERT INTO instance_modules/);
 });

@@ -6,7 +6,9 @@ t.describe('Appointments API', () => {
     const res = await request.get('/api/appointments?limit=5')
     expect(res.status()).toBeLessThan(500)
     const body = await res.json()
-    expect(body).toHaveProperty('appointments')
+    const payload = body.data ?? body
+    expect(payload).toHaveProperty('appointments')
+    expect(Array.isArray(payload.appointments)).toBe(true)
   })
   t('GET supports date range', async ({ request }) => {
     const today = new Date().toISOString().split('T')[0]

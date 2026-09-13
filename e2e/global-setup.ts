@@ -19,12 +19,26 @@ export default async function globalSetup(_config: FullConfig) {
   const browser = await chromium.launch();
   try {
     const page = await browser.newPage();
-    const seedResponse = await page.request.get(
-      `${BASE_URL}/api/seed?secret=${encodeURIComponent(seedSecret)}`,
-      {
-        timeout: 300_000,
-      },
-    );
+    // Retry seed fetch on ECONNRESET / compilation race (dev server may need warmup)
+    let seedResponse: import("@playwright/test").APIResponse | null = null;
+    let lastErr: unknown = null;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        seedResponse = await page.request.get(
+          `${BASE_URL}/api/seed?secret=${encodeURIComponent(seedSecret)}`,
+          { timeout: 300_000 },
+        );
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+        const msg = String((e as Error)?.message ?? e);
+        const isRetryable = msg.includes("ECONNRESET") || msg.includes("aborted") || msg.includes("Timeout");
+        if (!isRetryable || attempt === 5) throw e;
+        await new Promise((r) => setTimeout(r, attempt * 4000));
+      }
+    }
+    if (!seedResponse) throw lastErr ?? new Error("seed fetch failed after retries");
     const seedBody = await seedResponse.text();
     let seedPayload: SeedPayload;
     try {

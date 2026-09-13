@@ -30,7 +30,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-b from-transparent via-teal-950/[0.02] to-transparent">
+        <main id="main-content" aria-label="Conteúdo principal" className="flex-1 overflow-y-auto bg-gradient-to-b from-transparent via-teal-950/[0.02] to-transparent">
           {children}
         </main>
       </div>

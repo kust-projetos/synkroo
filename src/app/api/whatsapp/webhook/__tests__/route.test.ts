@@ -265,5 +265,36 @@ describe('WhatsApp Webhook', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
     })
+
+    it('T1 b: invalid signature does not consume rate quota (auth before limiter)', async () => {
+      const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as { checkRateLimit: jest.Mock }
+      checkRateLimit.mockClear()
+      const payload = { object: 'whatsapp_business_account', entry: [] }
+      const body = JSON.stringify(payload)
+      const invalidReq = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': 'sha256=invalidsignature',
+        },
+      })
+      const invalidRes = await POST(invalidReq)
+      expect(invalidRes.status).toBe(403)
+      expect(checkRateLimit).not.toHaveBeenCalled()
+
+      const validReq = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+      const validRes = await POST(validReq)
+      // valid with ignored payload returns 200 (status ignored or success) but not 429/403
+      expect([200].includes(validRes.status)).toBe(true)
+      expect(checkRateLimit).toHaveBeenCalledTimes(1)
+    })
   })
 })

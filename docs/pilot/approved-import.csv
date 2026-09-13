@@ -1,11 +1,11 @@
 name,phone,email,birthDate,clinicSlug,consentVersion,optOutMarketing
-Ana Silva,11988887777,ana.silva+piloto@exemplo.com,1990-03-15,synkroo-staging,v1,false
-Bruno Costa,11988887778,bruno.costa+piloto@exemplo.com,1985-07-22,synkroo-staging,v1,false
-Carla Mendes,11988887779,carla.mendes+piloto@exemplo.com,1992-11-08,synkroo-staging,v1,false
-Daniel Oliveira,11988887780,daniel.oliveira+piloto@exemplo.com,1988-01-30,synkroo-staging,v1,false
-Elisa Rocha,11988887781,elisa.rocha+piloto@exemplo.com,1995-06-12,synkroo-staging,v1,false
-Fernanda Lima,11988887782,fernanda.lima+piloto@exemplo.com,1991-09-25,synkroo-staging,v1,true
-Gustavo Nunes,11988887783,gustavo.nunes+piloto@exemplo.com,1987-04-03,synkroo-staging,v1,false
-Helena Vieira,11988887784,helena.vieira+piloto@exemplo.com,1993-12-19,synkroo-staging,v1,false
-Igor Santos,11988887785,igor.santos+piloto@exemplo.com,1990-08-14,synkroo-staging,v1,false
-Julia Martins,11988887786,julia.martins+piloto@exemplo.com,1994-02-27,synkroo-staging,v1,false
+Paciente Piloto 01,11900000001,paciente01@piloto.synkroo.com,1990-01-01,synkroo-staging,v1,false
+Paciente Piloto 02,11900000002,paciente02@piloto.synkroo.com,1985-02-02,synkroo-staging,v1,false
+Paciente Piloto 03,11900000003,paciente03@piloto.synkroo.com,1992-03-03,synkroo-staging,v1,false
+Paciente Piloto 04,11900000004,paciente04@piloto.synkroo.com,1988-04-04,synkroo-staging,v1,false
+Paciente Piloto 05,11900000005,paciente05@piloto.synkroo.com,1995-05-05,synkroo-staging,v1,false
+Paciente Piloto 06,11900000006,paciente06@piloto.synkroo.com,1991-06-06,synkroo-staging,v1,true
+Paciente Piloto 07,11900000007,paciente07@piloto.synkroo.com,1987-07-07,synkroo-staging,v1,false
+Paciente Piloto 08,11900000008,paciente08@piloto.synkroo.com,1993-08-08,synkroo-staging,v1,false
+Paciente Piloto 09,11900000009,paciente09@piloto.synkroo.com,1990-09-09,synkroo-staging,v1,false
+Paciente Piloto 10,11900000010,paciente10@piloto.synkroo.com,1994-10-10,synkroo-staging,v1,false

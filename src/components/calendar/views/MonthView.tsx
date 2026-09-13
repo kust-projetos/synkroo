@@ -178,16 +178,20 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
     return weeks.map((_, i) => i === expandedWeek ? 'auto' : 'minmax(150px, 1fr)')
   }, [weeks, expandedWeek])
 
-  // Render a single event mini card
+  // Render a single event mini card — T9 a11y: role/button + teclado + aria-label
   const renderEventCard = (event: CalendarEvent, showDetails: boolean) => {
     const canDrag = isDraggableStatus(event.status)
     const isAiOrigin = event.origin === 'ai'
+    const ariaLabel = `${formatTime(event.start)} ${event.title}${event.procedureName ? `, ${event.procedureName}` : ''}, ${statusLabels[event.status] || event.status}${isAiOrigin ? ', criado por IA' : ''}`
     return (
       <div
         key={event.id}
+        role="button"
+        tabIndex={0}
+        aria-label={ariaLabel}
         draggable={canDrag}
         className={cn(
-          'rounded px-1.5 select-none flex items-center gap-1.5',
+          'rounded px-1.5 select-none flex items-center gap-1.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-1',
           showDetails ? 'py-1 text-xs leading-4' : 'py-0.5 text-[12px] leading-4 font-medium',
           STATUS_BG[event.status] || 'bg-muted text-muted-foreground',
           canDrag ? 'cursor-grab' : 'cursor-default',
@@ -195,20 +199,28 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
         )}
         onClick={(e) => handleEventClick(e, event.id)}
         onDoubleClick={(e) => handleEventDoubleClick(e, event.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            e.stopPropagation()
+            if (onEventClick) onEventClick(event.id)
+            else openEditDialog(event.id)
+          }
+        }}
         onDragStart={canDrag ? (e) => handleDragStart(e, event) : undefined}
         onDragEnd={canDrag ? handleDragEnd : undefined}
       >
-        <span className={cn(
+        <span aria-hidden="true" className={cn(
           "w-[3px] rounded-full flex-shrink-0",
           showDetails ? "h-4" : "h-3",
           STATUS_BAR_COLORS[event.status] || 'bg-gray-400',
         )} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1 truncate font-medium">
-            <span className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDentistDotColor(event.dentistId))} />
+            <span aria-hidden="true" className={cn("w-1.5 h-1.5 rounded-full flex-shrink-0", getDentistDotColor(event.dentistId))} />
             <span className="truncate">{formatTime(event.start)} - {event.title}</span>
             {isAiOrigin && (
-              <span className="text-[8px] font-semibold px-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 flex-shrink-0 leading-relaxed">
+              <span aria-hidden="true" className="text-[8px] font-semibold px-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300 flex-shrink-0 leading-relaxed">
                 IA
               </span>
             )}
@@ -224,11 +236,11 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
   }
 
   return (
-    <div className={cn("flex-1 flex flex-col", draggedEventId && "cursor-grabbing")}>
+    <div className={cn("flex-1 flex flex-col", draggedEventId && "cursor-grabbing")} role="grid" aria-label="Calendário mensal">
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 border-b border-border">
+      <div className="grid grid-cols-7 border-b border-border" role="row">
         {WEEKDAY_HEADERS.map((name) => (
-          <div key={name} className="py-2.5 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+          <div key={name} role="columnheader" className="py-2.5 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wide">
             {name}
           </div>
         ))}
@@ -238,7 +250,7 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
       <div className="flex-1 overflow-y-auto">
         <div className="grid" style={{ gridTemplateRows: rowSizes.join(' ') }}>
           {weeks.map((week, wi) => (
-            <div key={wi} className="grid grid-cols-7 border-b border-border">
+            <div key={wi} className="grid grid-cols-7 border-b border-border" role="row">
               {week.map((day) => {
                 const key = formatDateKey(day)
                 const dayEvents = eventsByDate.get(key) || []
@@ -248,12 +260,18 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                 const visibleEvents = isExpanded ? dayEvents : dayEvents.slice(0, MAX_VISIBLE_EVENTS)
                 const overflowCount = dayEvents.length - MAX_VISIBLE_EVENTS
                 const isDropTarget = dropTargetKey === key
+                const dayLabel = day.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+                const dayAriaLabel = `${dayLabel}${today ? ', hoje' : ''}${dayEvents.length ? `, ${dayEvents.length} agendamento${dayEvents.length > 1 ? 's' : ''}` : ', sem agendamentos'}${!isCurrentMonth ? ', fora do mês atual' : ''}`
 
                 return (
                   <div
                     key={key}
+                    role="gridcell"
+                    tabIndex={0}
+                    aria-label={dayAriaLabel}
+                    aria-selected={today ? true : undefined}
                     className={cn(
-                      'group border-r border-border last:border-r-0 p-1.5 cursor-pointer hover:bg-muted/30 transition-colors flex flex-col',
+                      'group border-r border-border last:border-r-0 p-1.5 cursor-pointer hover:bg-muted/30 transition-colors flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-inset',
                       isExpanded ? '' : 'min-h-[150px]',
                       !isCurrentMonth && !isExpanded && 'opacity-40',
                       today && 'bg-teal-50/50 dark:bg-teal-950/20',
@@ -262,6 +280,15 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                     )}
                     onClick={() => handleDayClick(day)}
                     onDoubleClick={() => handleDayDoubleClick(day)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        handleDayClick(day)
+                      } else if (e.key === 'Enter' && e.shiftKey) {
+                        e.preventDefault()
+                        handleDayDoubleClick(day)
+                      }
+                    }}
                     onContextMenu={(e) => handleDayContextMenu(e, day)}
                     onDragEnter={(e) => handleDragEnter(e, key)}
                     onDragOver={handleDragOver}
@@ -286,9 +313,10 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                           </span>
                         )}
                         <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-primary text-xs font-bold leading-none"
+                          type="button"
+                          className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity w-5 h-5 rounded-full bg-primary/10 hover:bg-primary/20 flex items-center justify-center text-primary text-xs font-bold leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                           onClick={(e) => { e.stopPropagation(); openCreateDialog({ date: day, hour: 8, minute: 0 }) }}
-                          aria-label="Novo agendamento"
+                          aria-label={`Novo agendamento em ${day.toLocaleDateString('pt-BR')}`}
                         >
                           +
                         </button>
@@ -317,9 +345,15 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                                 {visibleGroup.map((event) => renderEventCard(event, isExpanded))}
                                 {/* Per-group overflow */}
                                 {groupOverflow > 0 && !isExpanded && (
-                                  <div className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors cursor-pointer" onClick={(e) => handleExpandToggle(e, wi)}>
+                                  <button
+                                    type="button"
+                                    aria-label={`Expandir semana, mais ${groupOverflow} agendamentos`}
+                                    aria-expanded={false}
+                                    className="text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 text-left w-full"
+                                    onClick={(e) => handleExpandToggle(e, wi)}
+                                  >
                                     +{groupOverflow} mais
-                                  </div>
+                                  </button>
                                 )}
                               </div>
                             )
@@ -331,11 +365,14 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
 
                       {/* Expand/collapse toggle — agenda mode only (global overflow) */}
                       {!isProfessionalsMode && overflowCount > 0 && !isExpanded && (
-                        <div
-                          className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors cursor-pointer"
+                        <button
+                          type="button"
+                          aria-label={`Expandir semana, mais ${overflowCount} agendamentos`}
+                          aria-expanded={false}
+                          className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded hover:bg-muted/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 w-full text-left"
                           onClick={(e) => handleExpandToggle(e, wi)}
                         >
-                          <div className="flex items-center gap-px">
+                          <div className="flex items-center gap-px" aria-hidden="true">
                             {getStatusDistribution(dayEvents.slice(MAX_VISIBLE_EVENTS)).map(({ status, count }) => (
                               <span
                                 key={status}
@@ -348,17 +385,20 @@ export function MonthView({ events, date, onEventDrop, onEventClick }: MonthView
                             ))}
                           </div>
                           <span>+{overflowCount} mais</span>
-                        </div>
+                        </button>
                       )}
 
                       {/* Collapse button when expanded */}
                       {isExpanded && dayEvents.length > MAX_VISIBLE_EVENTS && (
-                        <div
-                          className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80 px-1.5 py-0.5 rounded hover:bg-primary/5 transition-colors cursor-pointer"
+                        <button
+                          type="button"
+                          aria-label="Recolher semana"
+                          aria-expanded={true}
+                          className="flex items-center gap-1 text-[10px] font-medium text-primary hover:text-primary/80 px-1.5 py-0.5 rounded hover:bg-primary/5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 w-full text-left"
                           onClick={(e) => handleExpandToggle(e, wi)}
                         >
                           <span>mostrar menos</span>
-                        </div>
+                        </button>
                       )}
                     </div>
                   </div>

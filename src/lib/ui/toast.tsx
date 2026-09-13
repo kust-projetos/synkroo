@@ -70,28 +70,42 @@ export function ToastProvider({ children }: ToastProviderProps) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      {/* Toast Container */}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={cn(
-              "pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg animate-in slide-in-from-right-5",
-              getToastStyles(toast.type)
-            )}
-          >
-            <div className="flex-shrink-0 mt-0.5">
-              {getIcon(toast.type)}
-            </div>
-            <p className="text-sm font-medium flex-1">{toast.message}</p>
-            <button
-              onClick={() => removeToast(toast.id)}
-              className="flex-shrink-0 text-current/60 hover:text-current transition-colors rounded p-0.5 hover:bg-black/5"
+      {/* Toast Container — aria-live region (T9 a11y): anúncios de sucesso são polite/status, erros são assertive/alert */}
+      <div
+        className="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"
+        role="region"
+        aria-label="Notificações"
+        aria-live="polite"
+        aria-atomic="false"
+      >
+        {toasts.map((toast) => {
+          const isAssertive = toast.type === 'error' || toast.type === 'warning'
+          return (
+            <div
+              key={toast.id}
+              role={isAssertive ? 'alert' : 'status'}
+              aria-live={isAssertive ? 'assertive' : 'polite'}
+              aria-atomic="true"
+              className={cn(
+                "pointer-events-auto flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg animate-in slide-in-from-right-5",
+                getToastStyles(toast.type)
+              )}
             >
-              <XMarkIcon className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
+              <div className="flex-shrink-0 mt-0.5" aria-hidden="true">
+                {getIcon(toast.type)}
+              </div>
+              <p className="text-sm font-medium flex-1">{toast.message}</p>
+              <button
+                type="button"
+                onClick={() => removeToast(toast.id)}
+                aria-label={`Fechar notificação: ${toast.message}`}
+                className="flex-shrink-0 text-current/60 hover:text-current transition-colors rounded p-0.5 hover:bg-black/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-current focus-visible:ring-offset-1"
+              >
+                <XMarkIcon className="w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )

@@ -9,7 +9,7 @@ const KB = knowledgeBase
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await validateApiAuth()
+    const auth = await validateApiAuth('ia:chat')
     if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
     const clinicId = auth.profile!.clinic_id
     const db = getDb()

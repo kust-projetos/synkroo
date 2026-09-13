@@ -140,6 +140,38 @@ describe('POST /api/cron/followups', () => {
     const response = await POST(req);
     expect(response.status).toBe(401);
   });
+
+  it('credencial inválida não consome quota: checkRateLimit não chamado em 401', async () => {
+    const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as { checkRateLimit: jest.Mock };
+    checkRateLimit.mockClear();
+    const req = makeCronRequest('followups');
+    req.headers.set('Authorization', 'Bearer wrong');
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    expect(checkRateLimit).not.toHaveBeenCalled();
+  });
+
+  it('20 anônimas retornam 401 e seguinte válida não recebe 429', async () => {
+    const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as { checkRateLimit: jest.Mock };
+    checkRateLimit.mockClear();
+    // mock retorno permitido por padrão
+    const mock = checkRateLimit as jest.Mock;
+    mock.mockReturnValue({ allowed: true, retryAfter: 0 });
+    for (let i = 0; i < 20; i++) {
+      const req = makeCronRequest('followups');
+      const res = await POST(req);
+      expect(res.status).toBe(401);
+    }
+    expect(checkRateLimit).not.toHaveBeenCalled();
+    mockWhere.mockResolvedValueOnce([{ id: 'clinic-a' }]);
+    mockBuildCronContext.mockResolvedValueOnce({ clinicId: 'clinic-a', can: () => true, hasModule: () => true, audit: { actor: 'cron' } });
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { processed: 1 } });
+    const valid = makeCronRequest('followups');
+    valid.headers.set('Authorization', `Bearer ${SECRET}`);
+    const res = await POST(valid);
+    expect(res.status).not.toBe(429);
+    expect(checkRateLimit).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('GET /api/cron/followups', () => {

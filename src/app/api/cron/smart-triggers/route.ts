@@ -12,16 +12,7 @@ import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
  */
 export async function POST(request: NextRequest) {
   try {
-    // Rate limit cron endpoints
-    const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
-    if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
-      )
-    }
-
-    // Verify cron secret
+    // Verify cron secret before rate limit — invalid credentials must not consume scheduler quota (T1 DoS fix).
     const authHeader = request.headers.get('Authorization') || ''
     const cronSecret = process.env.CRON_SECRET
     const expectedSecret = cronSecret ? `Bearer ${cronSecret}` : ''
@@ -31,6 +22,14 @@ export async function POST(request: NextRequest) {
       !crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedSecret))
     )) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
+      )
     }
 
     return NextResponse.json({

@@ -231,3 +231,40 @@ describe('POST /api/cron/crm-duplicates — rate limit', () => {
     expect(body).toMatchObject({ error: 'Rate limit exceeded', retryAfter: 30 });
   });
 });
+
+describe('POST /api/cron/crm-duplicates — T1 DoS protection (auth antes de rate limit)', () => {
+  it('credencial inválida não consome quota: checkRateLimit não é chamado em 401', async () => {
+    const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as {
+      checkRateLimit: jest.Mock;
+    };
+    checkRateLimit.mockClear();
+    const res = await POST(makeRequest('Bearer wrong-secret') as any);
+    expect(res.status).toBe(401);
+    expect(checkRateLimit).not.toHaveBeenCalled();
+  });
+
+  it('20 anônimas retornam 401 e a seguinte válida não recebe 429 por essa causa', async () => {
+    const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as {
+      checkRateLimit: jest.Mock;
+    };
+    checkRateLimit.mockClear();
+    mockRateLimit.allowed = true;
+    for (let i = 0; i < 20; i++) {
+      const res = await POST(makeRequest() as any);
+      expect(res.status).toBe(401);
+    }
+    // Nenhuma das 20 chamou rate limiter
+    expect(checkRateLimit).not.toHaveBeenCalled();
+    // Próxima com secret válido passa (200) e aí sim chama rate limiter uma vez
+    const valid = await POST(makeRequest(VALID_BEARER) as any);
+    expect(valid.status).toBe(200);
+    expect(checkRateLimit).toHaveBeenCalledTimes(1);
+  });
+
+  it('assinatura ausente/inválida nunca tem efeito de domínio (não chama repo)', async () => {
+    const res = await POST(makeRequest('') as any);
+    expect(res.status).toBe(401);
+    expect(mockListClinicIds).not.toHaveBeenCalled();
+    expect(mockRunAction).not.toHaveBeenCalled();
+  });
+});

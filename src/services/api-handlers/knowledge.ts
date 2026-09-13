@@ -27,7 +27,7 @@ function toSnake(r: any) {
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await validateApiAuth()
+    const auth = await validateApiAuth('ia:chat')
     if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
     const clinicId = auth.profile!.clinic_id
     const db = getDb()
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await validateApiAuth()
+    const auth = await validateApiAuth('ia:manage')
     if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
 
     const body = await request.json() as Record<string, unknown>

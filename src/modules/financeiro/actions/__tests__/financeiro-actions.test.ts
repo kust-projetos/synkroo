@@ -159,7 +159,7 @@ describe('cancelarCobranca', () => {
 describe('salvarGateway', () => {
   test('maskApiKey works correctly', () => {
     expect(maskApiKey('abc123')).toBe('**c123');
-    expect(maskApiKey('mock_key_abcdef1234567890')).toBe('********************7890');
+    expect(maskApiKey('mock_key_abcdef1234567890')).toBe('*********************7890');
     expect(maskApiKey('ab')).toBe('****');
   });
 });

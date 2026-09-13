@@ -101,6 +101,7 @@
     "atendimento:view",
     "atendimento:manage_messages",
     "atendimento:manage_conversations",
+    "atendimento:manage_webhooks",
     "ia:chat",
     "crm:view"
   ]

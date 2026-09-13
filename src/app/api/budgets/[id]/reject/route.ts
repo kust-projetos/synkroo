@@ -14,14 +14,14 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const auth = await validateApiAuth();
+    const auth = await validateApiAuth('financeiro:manage_budget');
     if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status });
     const clinicId = auth.profile!.clinic_id;
     const { id } = await params;
 
     const budget = await getBudget(id);
     if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-    if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
     if (budget.status && !['pending', 'sent'].includes(budget.status)) {
       return NextResponse.json({ error: 'Budget cannot be rejected in current status' }, { status: 400 });
     }
