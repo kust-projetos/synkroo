@@ -119,8 +119,14 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     const data = (result as any).data;
     expect(data.messageId).toBeDefined();
 
-    // Evolution was called with correct phone
-    expect(mockSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Olá, sua consulta está confirmada!');
+    // Evolution was called with correct phone + idempotency key (A3)
+    expect(mockSendTextMessage).toHaveBeenCalledWith(
+      CONV_PHONE,
+      'Olá, sua consulta está confirmada!',
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining(`whatsapp:send:${CLINIC_ID}:`),
+      }),
+    );
 
     // Outbound message persisted
     const { rows: msgRows } = await pool!.query(
@@ -185,7 +191,13 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     }, systemCtx);
 
     expect(result.ok).toBe(true);
-    expect(mockSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Mensagem via whatsapp explícito');
+    expect(mockSendTextMessage).toHaveBeenCalledWith(
+      CONV_PHONE,
+      'Mensagem via whatsapp explícito',
+      expect.objectContaining({
+        idempotencyKey: expect.stringContaining(`whatsapp:send:${CLINIC_ID}:`),
+      }),
+    );
   });
 
   // ── escalarConversa ──────────────────────────────────────────
