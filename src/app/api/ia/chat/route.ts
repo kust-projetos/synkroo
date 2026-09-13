@@ -5,18 +5,8 @@ import { buildUserContext } from '@/core/actions/context';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
 import { apiFailure, generateRequestId } from '@/lib/api/response';
+import { IA_CHAT_MAX_MESSAGE_LENGTH } from '@/core/ia-channel/chat-limits';
 import { resolveIaTimezone } from '../timezone';
-
-/**
- * B1 (transporte): teto do `message` aceito no chat do agente.
- *
- * 4.000 chars ≈ ~1k tokens — folga para mensagens longas legítimas (colar
- * texto/relato clínico) sem deixar um payload gigante ir ao DO storage
- * (janela de 20 turnos persistida por conversa) nem ao provider a cada turno.
- * Rejeição explícita (400, sem truncar silenciosamente) para o caller saber
- * que precisa encurtar/dividir a mensagem.
- */
-export const IA_CHAT_MAX_MESSAGE_LENGTH = 4000;
 
 function withRequestId(res: NextResponse, requestId: string): NextResponse {
   res.headers.set('x-request-id', requestId);
