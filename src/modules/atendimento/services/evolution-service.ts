@@ -14,7 +14,6 @@ import { getDb } from '@/lib/db/client';
 import { whatsappInstances } from '@/modules/atendimento/schema/integrations';
 import { eq } from 'drizzle-orm';
 import { fetchWithRetry, DEFAULT_EXTERNAL_TIMEOUT_MS } from '@/lib/http/fetch-with-retry';
-import { withOutboundIdempotency } from '@/lib/http/outbound-idempotency';
 
 export interface EvolutionInstance {
   instance: {
@@ -69,11 +68,11 @@ export interface SendTextMessageInput {
     presence?: 'composing' | 'recording';
     linkPreview?: boolean;
     /**
-     * Chave de idempotência da operação lógica (etapa A3). Quando presente, o
-     * envio é protegido por claim local (`withOutboundIdempotency`): duplicata
-     * não reenvia e retorna `{ success: true, deduplicated: true }`.
+     * Chave de idempotência da operação lógica — COMPAT: aceita e ignorada
+     * neste nível. O claim vive exclusivamente na facade (`channel-service`,
+     * que engloba Evolution + fallback sidecar numa única operação).
      * NENHUM header de idempotência é enviado à Evolution (sem suporte nativo
-     * documentado) — o claim local é o mecanismo primário.
+     * documentado).
      */
     idempotencyKey?: string;
   };
@@ -117,7 +116,7 @@ export class EvolutionApiService extends EventEmitter {
       const url = `${this.baseUrl}${endpoint}`;
       // A2: timeout explícito em toda chamada; retry SOMENTE p/ GET/observação.
       // POST de envio NÃO retrya no client (a proteção contra duplicação é o
-      // claim de idempotência da etapa A3 em sendTextMessage).
+      // claim exclusivo da facade em `channel-service.runIdempotentSend`).
       const response = await fetchWithRetry(
         url,
         {
@@ -223,26 +222,19 @@ export class EvolutionApiService extends EventEmitter {
     let formattedNumber = number.replace(/\D/g, '');
     if (!formattedNumber.startsWith('55')) formattedNumber = '55' + formattedNumber;
 
-    const send = async (): Promise<{ success: boolean; messageId?: string; error?: string }> => {
-      // Evolution GO v0.7.2: POST /send/text (instance resolved by apikey token)
-      const result = await this.request<{ data: { Info: { ID: string } } }>(
-        'POST', '/send/text',
-        { number: formattedNumber, text, delay: options?.delay || 0 },
-      );
-      if (result.success && result.data) {
-        return { success: true, messageId: result.data.data?.Info?.ID };
-      }
-      return { success: false, error: result.error };
-    };
-
-    // A3: sem chave → comportamento legado (envio direto, sem claim).
-    if (!options?.idempotencyKey) return send();
-
-    const guarded = await withOutboundIdempotency(options.idempotencyKey, send, {
-      isSuccess: (r) => r.success,
-    });
-    if (guarded.deduped) return { success: true, deduplicated: true };
-    return guarded.result ?? { success: false, error: 'Idempotency claim failed' };
+    // RE-REVIEW-A2A3: sem claim neste nível — o claim vive EXCLUSIVAMENTE na
+    // facade (`channel-service.runIdempotentSend`, que engloba Evolution +
+    // fallback sidecar). `options.idempotencyKey` é aceito por compat e
+    // ignorado aqui. Envio direto, sem retry de POST (ver `request`).
+    // Evolution GO v0.7.2: POST /send/text (instance resolved by apikey token)
+    const result = await this.request<{ data: { Info: { ID: string } } }>(
+      'POST', '/send/text',
+      { number: formattedNumber, text, delay: options?.delay || 0 },
+    );
+    if (result.success && result.data) {
+      return { success: true, messageId: result.data.data?.Info?.ID };
+    }
+    return { success: false, error: result.error };
   }
 
   async sendMediaMessage(

@@ -254,7 +254,11 @@ async function settleClaim(
         lte(idempotencyKeys.expiresAt, now),
       ))
       .returning({ key: idempotencyKeys.key });
-    return reclaimed.length === 1 ? 'claimed' : 'completed';
+    if (reclaimed.length === 1) return 'claimed';
+    // Derrota na corrida: outro worker venceu — NUNCA presuma `completed` stale.
+    // Releia e classifique o estado atual (o vencedor marcou `in_progress`, ou
+    // até já concluiu — só `completed` confirmado na releitura dedupa).
+    return rereadClaim(db, key, completedTtlMs);
   }
 
   if (row.status === 'failed') {
@@ -282,6 +286,32 @@ async function reclaimExpired(
       lte(idempotencyKeys.expiresAt, now),
       or(eq(idempotencyKeys.status, 'failed'), eq(idempotencyKeys.status, 'in_progress')),
     ))
-    .returning({ key: idempotencyKeys.key });
+      .returning({ key: idempotencyKeys.key });
   return reclaimed.length === 1;
+}
+
+/**
+ * Releitura pós-derrota no reclaim: classifica o estado ATUAL sem presumir.
+ * Só retorna `completed` se a releitura confirmar `completed` vivo (ou sem
+ * TTL configurado); `completed` expirado com TTL após derrota indica outro
+ * worker ativo → fail-closed (`in_progress`). `failed` → `retry_after`.
+ */
+async function rereadClaim(
+  db: ReturnType<typeof getDb>,
+  key: string,
+  completedTtlMs: number | undefined,
+): Promise<ClaimOutcome> {
+  const [current] = await db
+    .select({ status: idempotencyKeys.status, expiresAt: idempotencyKeys.expiresAt })
+    .from(idempotencyKeys)
+    .where(eq(idempotencyKeys.key, key))
+    .limit(1);
+  if (!current) return 'in_progress';
+  const row = current as ClaimRow;
+  if (row.status === 'completed') {
+    const expired = !row.expiresAt || row.expiresAt <= new Date();
+    if (completedTtlMs === undefined || !expired) return 'completed';
+    return 'in_progress';
+  }
+  return row.status === 'failed' ? 'retry_after' : 'in_progress';
 }

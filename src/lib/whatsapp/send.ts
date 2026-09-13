@@ -1,15 +1,11 @@
 /**
  * WhatsApp send helper — neutral lib layer.
  *
- * Provider-dispatching facade for sending WhatsApp messages.
- * Uses Evolution API (preferred) or Playwright fallback.
- *
- * Consumers: budgets/send, lead-notification, reminders-service
- * (cross-module via lib — satisfies boundaries/dependencies rule).
+ * Thin forwarder to the atendimento channel-service facade (Evolution +
+ * failover sidecar + single idempotency claim). Kept as a stable import
+ * surface for cross-module consumers (budgets/send, lead-notification,
+ * reminders-service).
  */
-
-import { getEvolutionService } from '@/modules/atendimento/services/evolution-service';
-import { withOutboundIdempotency } from '@/lib/http/outbound-idempotency';
 
 export interface SendResult {
   success: boolean;
@@ -19,50 +15,20 @@ export interface SendResult {
   deduplicated?: boolean;
 }
 
-function detectProvider(): 'evolution' | 'playwright' | 'business-api' {
-  if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) return 'evolution';
-  if (process.env.WHATSAPP_API_URL && process.env.WHATSAPP_TOKEN) return 'business-api';
-  return 'playwright';
-}
-
 /**
  * Send a WhatsApp message using the configured provider.
  *
- * `idempotencyKey` (opcional, A3) ancora a operação lógica. Sem a chave, o
+ * `idempotencyKey` (opcional, A3) ancora a operação lógica. RE-REVIEW-A2A3: o
+ * claim vive EXCLUSIVAMENTE na facade (`channel-service.runIdempotentSend`) —
+ * esta função apenas encaminha a chave, sem claim próprio. Sem a chave, o
  * comportamento é o legado. Nenhum header de idempotência é enviado à
- * Evolution (sem suporte nativo documentado) — vale o claim local.
+ * Evolution (sem suporte nativo documentado).
  */
 export async function sendWhatsAppMessage(
   phone: string, message: string, idempotencyKey?: string,
 ): Promise<SendResult> {
-  const provider = detectProvider();
-
-  if (provider === 'evolution') {
-    const evolutionService = getEvolutionService();
-    if (evolutionService) {
-      return idempotencyKey
-        ? evolutionService.sendTextMessage(phone, message, { idempotencyKey })
-        : evolutionService.sendTextMessage(phone, message);
-    }
-  }
-
-  // Playwright fallback: delegate to channel-service sidecar client
-  if (provider === 'playwright') {
-    try {
-      const { getWhatsAppService } = await import('@/modules/atendimento/services/channel-service');
-      const service = getWhatsAppService();
-      if (!idempotencyKey) return service.sendMessage(phone, message);
-      const guarded = await withOutboundIdempotency(
-        idempotencyKey,
-        () => service.sendMessage(phone, message),
-        { isSuccess: (r) => r.success },
-      );
-      if (guarded.deduped) return { success: true, deduplicated: true };
-      return guarded.result ?? { success: false, error: 'Idempotency claim failed' };
-    } catch {
-      // Fallback service not available
-    }
-  }
-
-  return { success: false, error: 'No WhatsApp provider available' };
+  const { sendWhatsAppMessage: facadeSend } = await import(
+    '@/modules/atendimento/services/channel-service'
+  );
+  return facadeSend(phone, message, idempotencyKey);
 }

@@ -200,6 +200,31 @@ describe('fetchWithRetry (A2)', () => {
     expect(calls).toBe(1);
   });
 
+  it('abort durante o backoff → nenhuma tentativa adicional', async () => {
+    const controller = new AbortController();
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValueOnce(errorResponse(500))
+      .mockResolvedValueOnce(okResponse());
+
+    const err = await fetchWithRetry('https://provider.example.com/status', {
+      method: 'GET',
+      signal: controller.signal,
+    }, {
+      fetchImpl,
+      maxRetries: 2,
+      // Simula o chamador abortando no meio do backoff.
+      sleep: async () => {
+        controller.abort();
+        await new Promise((r) => setTimeout(r, 20));
+      },
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ExternalHttpError);
+    expect(err as ExternalHttpError).toMatchObject({ aborted: true, retryable: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it('mensagem de erro NÃO vaza segredos (headers/body/query)', async () => {
     const secret = 'super-secret-api-key-123';
     const fetchImpl = jest.fn().mockRejectedValueOnce(new Error('fetch failed'));
