@@ -159,7 +159,23 @@ export async function runTurn(
   let turnsUsed = 0;
   for (let i = 0; i < maxIterations; i++) {
     turnsUsed = i + 1;
-    const completion = await deps.provider.complete(messages, llmTools);
+    let completion;
+    try {
+      completion = await deps.provider.complete(messages, llmTools, {
+        correlationId: input.correlationId,
+      });
+    } catch (err) {
+      // B1: correlation presente no log de erro do orchestrator; o erro
+      // sobe para o DO → invoker, que devolve o fallback ao caller HTTP.
+      // eslint-disable-next-line no-console
+      console.error('[ia-agent] provider complete failed', {
+        correlationId: input.correlationId,
+        conversationId: input.conversationId,
+        iteration: i,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
 
     // Sem tool calls → resposta final
     if (!completion.toolCalls.length) {

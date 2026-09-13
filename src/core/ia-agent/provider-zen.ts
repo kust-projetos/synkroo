@@ -24,7 +24,6 @@ export interface ZenConfig {
   baseUrl: string;
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
-  correlationId?: string;
 }
 
 export function createZenProvider(cfg: ZenConfig): LlmProvider {
@@ -71,12 +70,27 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
     (e.name === 'AbortError' || /HTTP (408|409|429|5\d\d)/.test(e.message));
 
   return {
-    async complete(messages, tools) {
+    async complete(messages, tools, opts?: { correlationId?: string }) {
+      // B1: correlation no texto do erro para rastreio (o abort do
+      // AbortController não carrega contexto — o invoker loga o resto).
+      const corr = opts?.correlationId ?? 'none';
       try {
         return await call(messages, tools);
       } catch (e) {
-        if (!retryable(e)) throw e;
-        return await call(messages, tools);
+        if (!retryable(e)) {
+          if (e instanceof Error && !e.message.includes('[corr=')) {
+            e.message = `${e.message} [corr=${corr}]`;
+          }
+          throw e;
+        }
+        try {
+          return await call(messages, tools);
+        } catch (e2) {
+          if (e2 instanceof Error && !e2.message.includes('[corr=')) {
+            e2.message = `${e2.message} [corr=${corr}]`;
+          }
+          throw e2;
+        }
       }
     },
   };
