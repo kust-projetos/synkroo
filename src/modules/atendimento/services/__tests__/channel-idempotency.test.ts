@@ -6,20 +6,13 @@
  * e que o retry de GET (A2) acontece (observação) sem retry de POST de envio.
  */
 
-const claimed = new Set<string>();
-const completed = new Set<string>();
+const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> = [];
 
 jest.mock('@/lib/idempotency', () => ({
-  tryClaimIdempotencyKey: jest.fn(async (key: string) => {
-    if (claimed.has(key) || completed.has(key)) return false;
-    claimed.add(key);
-    return true;
-  }),
-  markIdempotencyKeyCompleted: jest.fn(async (key: string) => {
-    completed.add(key);
-  }),
+  claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
+  markIdempotencyKeyCompleted: jest.fn(async () => undefined),
   markIdempotencyKeyFailed: jest.fn(async () => undefined),
-  isIdempotencyKeyProcessed: jest.fn(async (key: string) => completed.has(key)),
+  isIdempotencyKeyProcessed: jest.fn(async () => false),
   withIdempotency: jest.fn(),
 }));
 
@@ -34,8 +27,7 @@ describe('channel-service outbound idempotency (A3)', () => {
   const originalEnv = process.env;
 
   beforeEach(() => {
-    claimed.clear();
-    completed.clear();
+    outcomes.length = 0;
     jest.clearAllMocks();
     process.env = { ...originalEnv };
     process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
@@ -51,6 +43,7 @@ describe('channel-service outbound idempotency (A3)', () => {
   });
 
   it('sendWhatsApp duplicado (mesma chave) → Evolution chamado 1 vez', async () => {
+    outcomes.push('claimed', 'completed');
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -81,6 +74,7 @@ describe('channel-service outbound idempotency (A3)', () => {
   });
 
   it('sendInstagram duplicado (mesma chave) → Graph chamado 1 vez', async () => {
+    outcomes.push('claimed', 'completed');
     process.env.INSTAGRAM_ACCOUNT_ID = 'ig-acct-1';
     process.env.INSTAGRAM_ACCESS_TOKEN = 'ig-token';
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
@@ -97,5 +91,28 @@ describe('channel-service outbound idempotency (A3)', () => {
     expect(dup).toEqual({ success: true, deduplicated: true });
 
     expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('falha ambígua da Evolution → fallback sidecar 1x sob o MESMO claim; retry → 0 envios', async () => {
+    outcomes.push('claimed', 'completed');
+    process.env.WHATSAPP_FALLBACK_URL = 'https://sidecar.example.com';
+    process.env.WHATSAPP_FALLBACK_SECRET = 'sidecar-secret';
+    const fetchMock = jest.fn(async (url: unknown) => {
+      if (String(url).includes('sidecar.example.com')) {
+        return { ok: true, status: 200, json: async () => ({ success: true, messageId: 'sc-1' }) };
+      }
+      return { ok: false, status: 500, json: async () => ({ message: 'evo down' }) };
+    });
+    (global.fetch as unknown) = fetchMock;
+    const key = buildOutboundIdempotencyKey('whatsapp', 'clinic-1', 'job-fb');
+
+    const first = await sendWhatsApp('11999999999', 'Olá', key);
+    expect(first).toEqual({ success: true, messageId: 'sc-1' });
+
+    const dup = await sendWhatsApp('11999999999', 'Olá', key);
+    expect(dup).toEqual({ success: true, deduplicated: true });
+
+    expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('evolution')).length).toBe(1);
+    expect(fetchMock.mock.calls.filter(([u]) => String(u).includes('sidecar')).length).toBe(1);
   });
 });

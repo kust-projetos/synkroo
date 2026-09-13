@@ -46,6 +46,7 @@ beforeAll(async () => {
 
   await pool.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [CLINIC_ID]);
   await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [CLINIC_ID]);
+  await pool.query(`DELETE FROM idempotency_keys WHERE key LIKE 'whatsapp:send:${CLINIC_ID}:%'`, []);
   await pool.query(`DELETE FROM clinics WHERE id = $1`, [CLINIC_ID]);
 
   await pool.query(
@@ -71,6 +72,7 @@ afterEach(async () => {
   try {
     await pool.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [CLINIC_ID]);
     await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [CLINIC_ID]);
+    await pool.query(`DELETE FROM idempotency_keys WHERE key LIKE 'whatsapp:send:${CLINIC_ID}:%'`, []);
   } catch { /* ignore */ }
   mockSendTextMessage.mockReset();
 });
@@ -119,14 +121,8 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     const data = (result as any).data;
     expect(data.messageId).toBeDefined();
 
-    // Evolution was called with correct phone + idempotency key (A3)
-    expect(mockSendTextMessage).toHaveBeenCalledWith(
-      CONV_PHONE,
-      'Olá, sua consulta está confirmada!',
-      expect.objectContaining({
-        idempotencyKey: expect.stringContaining(`whatsapp:send:${CLINIC_ID}:`),
-      }),
-    );
+    // Evolution was called with correct phone (claim único vive na facade)
+    expect(mockSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Olá, sua consulta está confirmada!');
 
     // Outbound message persisted
     const { rows: msgRows } = await pool!.query(
@@ -136,6 +132,14 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     expect(msgRows.length).toBe(1);
     expect(msgRows[0].direction).toBe('outbound');
     expect(msgRows[0].content).toBe('Olá, sua consulta está confirmada!');
+
+    // Idempotency claim recorded (facade claim, REVIEW-A2A3)
+    const { rows: keyRows } = await pool!.query(
+      `SELECT status FROM idempotency_keys WHERE key LIKE $1`,
+      [`whatsapp:send:${CLINIC_ID}:%`],
+    );
+    expect(keyRows.length).toBe(1);
+    expect(keyRows[0].status).toBe('completed');
 
     // Conversation updated
     const { rows: convRows } = await pool!.query(
@@ -191,13 +195,7 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     }, systemCtx);
 
     expect(result.ok).toBe(true);
-    expect(mockSendTextMessage).toHaveBeenCalledWith(
-      CONV_PHONE,
-      'Mensagem via whatsapp explícito',
-      expect.objectContaining({
-        idempotencyKey: expect.stringContaining(`whatsapp:send:${CLINIC_ID}:`),
-      }),
-    );
+    expect(mockSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Mensagem via whatsapp explícito');
   });
 
   // ── escalarConversa ──────────────────────────────────────────

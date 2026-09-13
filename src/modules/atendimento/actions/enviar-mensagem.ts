@@ -5,7 +5,11 @@ import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
 import { sendByChannel } from '../services/send-message-service';
 import { sendWhatsApp as channelSendWhatsApp } from '../services/channel-service';
-import { buildOutboundIdempotencyKey } from '@/lib/http/outbound-idempotency';
+import {
+  buildOutboundIdempotencyKey,
+  OUTBOUND_CONTENT_COMPLETED_TTL_MS,
+  OutboundSendConflictError,
+} from '@/lib/http/outbound-idempotency';
 import * as repo from '../repositories/conversations-repository';
 
 /**
@@ -61,22 +65,38 @@ export const enviarMensagem = defineAction({
     // A chave ancora no par disponível pré-envio (conversa + fingerprint).
     //
     // Limitação (colisão teórica): mesma conversa + mesmo texto normalizado
-    // dentro do TTL do claim (10min) reutiliza a chave — o reenvio intencional
-    // de texto idêntico nesse intervalo é suprimido. Escape: informar
-    // `idempotencyKey` próprio por operação lógica.
+    // dentro do TTL de `completed` (10min, `OUTBOUND_CONTENT_COMPLETED_TTL_MS`)
+    // reutiliza a chave — o reenvio intencional de texto idêntico nesse
+    // intervalo é suprimido, mas o reenvio legítimo tardio volta a enviar
+    // (reclaim de `completed` expirado). Escape imediato: informar
+    // `idempotencyKey` próprio por operação lógica (dedup permanente).
     const stableId = input.idempotencyKey
       ?? `${input.conversationId}:${buildOutboundPayloadFingerprint(channel, convScoped.externalId, input.message)}`;
+    // Âncora automática (fingerprint) expira `completed` em 10min; chave
+    // explícita do caller permanece permanente.
+    const completedTtlMs = input.idempotencyKey ? undefined : OUTBOUND_CONTENT_COMPLETED_TTL_MS;
     let sendResult;
-    if (channel === 'whatsapp') {
-      // Mesmo transporte do shim (channel-service + failover sidecar), com chave.
-      sendResult = await channelSendWhatsApp(
-        convScoped.externalId,
-        input.message,
-        buildOutboundIdempotencyKey('whatsapp', ctx.clinicId, stableId),
-      );
-    } else {
-      // instagram (stub legado) e web: contratos do shim preservados.
-      sendResult = await sendByChannel(channel, convScoped.externalId, input.message);
+    try {
+      if (channel === 'whatsapp') {
+        // Mesmo transporte do shim (channel-service + failover sidecar), com chave.
+        sendResult = await channelSendWhatsApp(
+          convScoped.externalId,
+          input.message,
+          buildOutboundIdempotencyKey('whatsapp', ctx.clinicId, stableId),
+          { completedTtlMs },
+        );
+      } else {
+        // instagram (stub legado) e web: contratos do shim preservados.
+        sendResult = await sendByChannel(channel, convScoped.externalId, input.message);
+      }
+    } catch (err) {
+      // Conflito (outra execução ativa ou falha recente): NÃO é sucesso nem
+      // erro interno — mapeia para `conflict` no padrão da action (runAction
+      // propaga o code; retry do caller gera a mesma chave e dedupa).
+      if (err instanceof OutboundSendConflictError) {
+        throw new ActionError('conflict', 'Envio já em andamento; tente novamente em instantes.');
+      }
+      throw err;
     }
     if (!sendResult.success) {
       throw new ActionError('internal', sendResult.error ?? 'Falha ao enviar mensagem.');

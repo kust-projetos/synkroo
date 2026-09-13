@@ -134,11 +134,16 @@ export class EvolutionApiService extends EventEmitter {
         data = {};
       }
       if (!response.ok) {
-        whatsappLogger.error('Evolution API error', null, { status: response.status, data });
-        return { success: false, error: (data.message as string) || (data.error as string) || `HTTP ${response.status}` };
+        // REVIEW-A2A3: nunca logar o body do provider (pode conter apikey e
+        // outros segredos) — apenas status + mensagem sanitizada. O logger
+        // serializa message/stack (redige chaves sensíveis) e ignora `cause`.
+        const providerMessage = (data.message as string) || (data.error as string) || `HTTP ${response.status}`;
+        whatsappLogger.error('Evolution API error', null, { status: response.status, error: providerMessage });
+        return { success: false, error: providerMessage };
       }
       return { success: true, data: data as T };
     } catch (error) {
+      // ExternalHttpError já é sanitizado (método+host+path, sem headers/body/query).
       whatsappLogger.error('Evolution API request failed', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }

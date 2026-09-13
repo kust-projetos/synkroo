@@ -1,32 +1,47 @@
 /**
- * Unit tests — withOutboundIdempotency / buildOutboundIdempotencyKey (A3).
+ * Unit tests — withOutboundIdempotency / buildOutboundIdempotencyKey (A3, review).
  *
- * Camada DB (`@/lib/idempotency`) mockada; prova o contrato do claim:
- * primeira execução processa, duplicata não reexecuta o handler.
+ * Claim estruturado (`claimIdempotencyKey`) mockado; prova:
+ * claimed→executa, completed→dedup, in_progress/retry_after→ConflictError,
+ * infra→fail-open. Conflito legítimo NUNCA vira fail-open silencioso.
  */
 
-import { buildOutboundIdempotencyKey, withOutboundIdempotency } from '../outbound-idempotency';
 import {
-  tryClaimIdempotencyKey,
+  buildOutboundIdempotencyKey,
+  withOutboundIdempotency,
+  OutboundSendConflictError,
+} from '../outbound-idempotency';
+import {
+  claimIdempotencyKey,
   markIdempotencyKeyCompleted,
   markIdempotencyKeyFailed,
+  IdempotencyInfraError,
 } from '@/lib/idempotency';
 
 jest.mock('@/lib/idempotency', () => ({
+  claimIdempotencyKey: jest.fn(),
   tryClaimIdempotencyKey: jest.fn(),
   markIdempotencyKeyCompleted: jest.fn(),
   markIdempotencyKeyFailed: jest.fn(),
+  isIdempotencyKeyProcessed: jest.fn(),
+  withIdempotency: jest.fn(),
+  IdempotencyInfraError: class IdempotencyInfraError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'IdempotencyInfraError';
+    }
+  },
 }));
 
 jest.mock('@/lib/logger', () => ({
   dbLogger: { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() },
 }));
 
-const mockClaim = tryClaimIdempotencyKey as jest.Mock;
+const mockClaim = claimIdempotencyKey as jest.Mock;
 const mockCompleted = markIdempotencyKeyCompleted as jest.Mock;
 const mockFailed = markIdempotencyKeyFailed as jest.Mock;
 
-describe('outbound-idempotency (A3)', () => {
+describe('outbound-idempotency (A3 review)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
@@ -35,13 +50,13 @@ describe('outbound-idempotency (A3)', () => {
     expect(buildOutboundIdempotencyKey('whatsapp', 'clinic-1', 'msg-9')).toBe(
       'whatsapp:send:clinic-1:msg-9',
     );
-    expect(buildOutboundIdempotencyKey('instagram', 'clinic-1', 'ig-2')).toBe(
-      'instagram:send:clinic-1:ig-2',
+    expect(buildOutboundIdempotencyKey('whatsapp', 'clinic-1', 'inbox:job-1')).toBe(
+      'whatsapp:send:clinic-1:inbox:job-1',
     );
   });
 
-  it('primeira execução roda o handler e marca completed', async () => {
-    mockClaim.mockResolvedValueOnce(true);
+  it('claimed → executa o handler e marca completed', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
     const handler = jest.fn().mockResolvedValueOnce({ success: true });
 
     const out = await withOutboundIdempotency('whatsapp:send:c1:m1', handler, {
@@ -54,8 +69,8 @@ describe('outbound-idempotency (A3)', () => {
     expect(mockFailed).not.toHaveBeenCalled();
   });
 
-  it('duplicata (claim recusado) NÃO reexecuta o handler', async () => {
-    mockClaim.mockResolvedValueOnce(false);
+  it('completed → deduped, handler NÃO executa', async () => {
+    mockClaim.mockResolvedValueOnce('completed');
     const handler = jest.fn();
 
     const out = await withOutboundIdempotency('whatsapp:send:c1:m1', handler);
@@ -65,8 +80,28 @@ describe('outbound-idempotency (A3)', () => {
     expect(mockCompleted).not.toHaveBeenCalled();
   });
 
+  it('in_progress → OutboundSendConflictError (não envia, não reporta sucesso)', async () => {
+    mockClaim.mockResolvedValueOnce('in_progress');
+    const handler = jest.fn();
+
+    await expect(withOutboundIdempotency('whatsapp:send:c1:m1', handler)).rejects.toBeInstanceOf(
+      OutboundSendConflictError,
+    );
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('retry_after → OutboundSendConflictError', async () => {
+    mockClaim.mockResolvedValueOnce('retry_after');
+    const handler = jest.fn();
+
+    const err = await withOutboundIdempotency('whatsapp:send:c1:m1', handler).catch((e) => e);
+    expect(err).toBeInstanceOf(OutboundSendConflictError);
+    expect((err as OutboundSendConflictError).state).toBe('retry_after');
+    expect(handler).not.toHaveBeenCalled();
+  });
+
   it('falha do provider marca failed (retry liberado após TTL)', async () => {
-    mockClaim.mockResolvedValueOnce(true);
+    mockClaim.mockResolvedValueOnce('claimed');
     const handler = jest.fn().mockResolvedValueOnce({ success: false });
 
     const out = await withOutboundIdempotency('whatsapp:send:c1:m2', handler, {
@@ -79,7 +114,7 @@ describe('outbound-idempotency (A3)', () => {
   });
 
   it('throw do handler marca failed e rethrow', async () => {
-    mockClaim.mockResolvedValueOnce(true);
+    mockClaim.mockResolvedValueOnce('claimed');
     const handler = jest.fn().mockRejectedValueOnce(new Error('provider down'));
 
     await expect(withOutboundIdempotency('whatsapp:send:c1:m3', handler)).rejects.toThrow(
@@ -88,13 +123,26 @@ describe('outbound-idempotency (A3)', () => {
     expect(mockFailed).toHaveBeenCalledWith('whatsapp:send:c1:m3', 'provider down');
   });
 
-  it('claim indisponível (DB down) → fail-open: envia sem dedup', async () => {
-    mockClaim.mockRejectedValueOnce(new Error('db offline'));
+  it('infra indisponível → fail-open: envia sem dedup (só IdempotencyInfraError)', async () => {
+    mockClaim.mockRejectedValueOnce(new IdempotencyInfraError('db offline'));
     const handler = jest.fn().mockResolvedValueOnce({ success: true });
 
     const out = await withOutboundIdempotency('whatsapp:send:c1:m4', handler);
 
     expect(out).toEqual({ deduped: false, result: { success: true } });
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('repassa completedTtlMs ao claim', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
+    const handler = jest.fn().mockResolvedValueOnce('ok');
+
+    await withOutboundIdempotency('k', handler, { completedTtlMs: 600_000 });
+
+    expect(mockClaim).toHaveBeenCalledWith(
+      'k',
+      'whatsapp:outbound',
+      expect.objectContaining({ completedTtlMs: 600_000 }),
+    );
   });
 });

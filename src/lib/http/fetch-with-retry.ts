@@ -77,6 +77,8 @@ export class ExternalHttpError extends Error {
   readonly status?: number;
   readonly timeout: boolean;
   readonly retryable: boolean;
+  /** true quando o abort partiu do signal externo do chamador (nunca retryable). */
+  readonly aborted: boolean;
   readonly correlationId?: string;
 
   constructor(args: {
@@ -84,6 +86,7 @@ export class ExternalHttpError extends Error {
     status?: number;
     timeout?: boolean;
     retryable?: boolean;
+    aborted?: boolean;
     correlationId?: string;
     cause?: unknown;
   }) {
@@ -92,6 +95,7 @@ export class ExternalHttpError extends Error {
     this.status = args.status;
     this.timeout = args.timeout ?? false;
     this.retryable = args.retryable ?? false;
+    this.aborted = args.aborted ?? false;
     this.correlationId = args.correlationId;
     if (args.cause !== undefined) (this as { cause?: unknown }).cause = args.cause;
   }
@@ -146,7 +150,9 @@ function isIdempotentMethod(method: string): boolean {
  *
  * Retorna a última `Response` (inclusive não-ok). Lança `ExternalHttpError`
  * apenas em falha de transporte após esgotar o budget — ou imediatamente para
- * operação não-idempotente (sem retry, mas COM timeout).
+ * operação não-idempotente (sem retry, mas COM timeout). Abort do signal
+ * externo do chamador nunca retrya (`aborted: true`); só timeout interno é
+ * retryable (para op idempotente).
  */
 export async function fetchWithRetry(
   input: string | URL | Request,
@@ -206,6 +212,21 @@ export async function fetchWithRetry(
       clearTimeout(timer);
       if (externalSignal && !externalSignal.aborted) {
         externalSignal.removeEventListener('abort', onExternalAbort);
+      }
+      // Abort do chamador (signal externo) ≠ timeout interno: encerra
+      // imediatamente, sem retry — o chamador pediu o cancelamento.
+      // `timedOut` prevalece: nosso timer também aborta o controller, mas o
+      // signal externo permanece íntegro nesse caso.
+      const callerAborted = Boolean(externalSignal?.aborted) && !timedOut;
+      if (callerAborted) {
+        throw new ExternalHttpError({
+          message: `External request aborted by caller: ${target}`,
+          timeout: false,
+          retryable: false,
+          aborted: true,
+          correlationId,
+          cause: error,
+        });
       }
       const timeout = timedOut || isAbortError(error);
       const retryable = isRetryableNetworkError(error);

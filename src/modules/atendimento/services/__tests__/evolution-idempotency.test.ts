@@ -6,22 +6,19 @@
  * Evolution NÃO recebe header de idempotência (sem suporte nativo documentado).
  */
 
-const claimed = new Set<string>();
-const completed = new Set<string>();
+const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> = [];
+const completedKeys: string[] = [];
+const failedKeys: string[] = [];
 
 jest.mock('@/lib/idempotency', () => ({
-  tryClaimIdempotencyKey: jest.fn(async (key: string) => {
-    if (claimed.has(key) || completed.has(key)) return false;
-    claimed.add(key);
-    return true;
-  }),
+  claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
   markIdempotencyKeyCompleted: jest.fn(async (key: string) => {
-    completed.add(key);
+    completedKeys.push(key);
   }),
   markIdempotencyKeyFailed: jest.fn(async (key: string) => {
-    claimed.delete(key);
+    failedKeys.push(key);
   }),
-  isIdempotencyKeyProcessed: jest.fn(async (key: string) => completed.has(key)),
+  isIdempotencyKeyProcessed: jest.fn(async (key: string) => completedKeys.includes(key)),
   withIdempotency: jest.fn(),
 }));
 
@@ -29,8 +26,9 @@ import { EvolutionApiService } from '../evolution-service';
 
 describe('evolution sendTextMessage idempotency (A3)', () => {
   beforeEach(() => {
-    claimed.clear();
-    completed.clear();
+    outcomes.length = 0;
+    completedKeys.length = 0;
+    failedKeys.length = 0;
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -43,6 +41,7 @@ describe('evolution sendTextMessage idempotency (A3)', () => {
   });
 
   it('retry duplicado da mesma operação lógica → provider chamado 1 vez', async () => {
+    outcomes.push('claimed', 'completed');
     const service = new EvolutionApiService('https://evolution.example.com', 'k', 'inst');
     const key = 'whatsapp:send:clinic-1:msg-1';
 
@@ -62,7 +61,7 @@ describe('evolution sendTextMessage idempotency (A3)', () => {
     await service.sendTextMessage('11999999999', 'A');
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
-    expect(completed.size).toBe(0);
+    expect(completedKeys.length).toBe(0);
   });
 
   it('NÃO envia header de idempotência à Evolution (sem suporte nativo)', async () => {
@@ -75,6 +74,7 @@ describe('evolution sendTextMessage idempotency (A3)', () => {
   });
 
   it('falha do provider libera retry (não completa o claim)', async () => {
+    outcomes.push('claimed');
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
       ok: false,
       status: 400,
@@ -85,6 +85,7 @@ describe('evolution sendTextMessage idempotency (A3)', () => {
 
     const first = await service.sendTextMessage('11999999999', 'Olá', { idempotencyKey: key });
     expect(first.success).toBe(false);
-    expect(completed.has(key)).toBe(false);
+    expect(completedKeys.includes(key)).toBe(false);
+    expect(failedKeys.includes(key)).toBe(true);
   });
 });
