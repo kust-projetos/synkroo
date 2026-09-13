@@ -54,7 +54,7 @@ async function findOrCreateDemoClinic() {
 async function upsertDemoUser() {
   const db = getDb();
   const clinic = await findOrCreateDemoClinic();
-  const passwordHash = hashPassword(DEMO_PASSWORD);
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
 
   const existing = await db
     .select()

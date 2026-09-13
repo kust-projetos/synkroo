@@ -590,7 +590,7 @@ async function findOrCreateDemoClinic() {
 
 async function findOrCreateDemoUser(clinicId: string) {
   const db = getDb()
-  const passwordHash = hashPassword(DEMO_USER.password)
+  const passwordHash = await hashPassword(DEMO_USER.password)
 
   const existing = await db.select().from(users).where(eq(users.email, DEMO_USER.email)).limit(1)
   let userId: string
