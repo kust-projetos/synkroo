@@ -77,11 +77,11 @@ describe('runTurn — tokens do body não autorizam execução (B1)', () => {
 });
 
 describe('safeTokenEquals (B1, timing-safe)', () => {
-  it('iguais → true; diferentes e vazios → false', () => {
-    expect(safeTokenEquals('tok-1', 'tok-1')).toBe(true);
-    expect(safeTokenEquals('tok-1', 'tok-2')).toBe(false);
-    expect(safeTokenEquals('', 'tok-1')).toBe(false);
-    expect(safeTokenEquals('tok-1', '')).toBe(false);
-    expect(safeTokenEquals('curto', 'bem-mais-longo-que-curto')).toBe(false);
+  it('iguais → true; diferentes e vazios → false', async () => {
+    expect(await safeTokenEquals('tok-1', 'tok-1')).toBe(true);
+    expect(await safeTokenEquals('tok-1', 'tok-2')).toBe(false);
+    expect(await safeTokenEquals('', 'tok-1')).toBe(false);
+    expect(await safeTokenEquals('tok-1', '')).toBe(false);
+    expect(await safeTokenEquals('curto', 'bem-mais-longo-que-curto')).toBe(false);
   });
 });

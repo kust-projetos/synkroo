@@ -1,4 +1,3 @@
-import { createHash, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type {
   AppBinding,
@@ -13,18 +12,29 @@ import { personaSystemPrompt, wrapUserData } from './personas';
 import { analyzeClinicalSafety } from './clinical-safety';
 
 /**
- * B1 — comparação constant-time de tokens (padrão `matchesSecret` do repo:
- * sha256 dos dois lados + `timingSafeEqual`, sem early-exit em tamanho).
- * Troca o `===` do caminho de confirmação: UUID opaco não é segredo de alta
- * entropia exposta, mas a comparação barata elimina oráculo de timing.
+ * B1 — comparação constant-time de tokens (mesmo padrão do `matchesSecret`
+ * do repo: sha256 dos dois lados + comparação sem early-exit).
+ *
+ * Implementado sobre WebCrypto (`crypto.subtle`) em vez de `node:crypto`:
+ * o tsconfig do worker ia-agent só inclui `@cloudflare/workers-types`
+ * (sem tipos do Node), e `subtle` existe nos três runtimes (DO/workerd,
+ * Node/jest, edge). O hash fixa o tamanho (tokens de tamanhos diferentes
+ * não vazam por early-exit) e o fold XOR percorre todos os 32 bytes sempre.
  */
-export function safeTokenEquals(a: string, b: string): boolean {
+export async function safeTokenEquals(a: string, b: string): Promise<boolean> {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length === 0 || b.length === 0) {
     return false;
   }
-  const ha = createHash('sha256').update(a, 'utf8').digest();
-  const hb = createHash('sha256').update(b, 'utf8').digest();
-  return ha.length === hb.length && timingSafeEqual(ha, hb);
+  const enc = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest('SHA-256', enc.encode(a)),
+    crypto.subtle.digest('SHA-256', enc.encode(b)),
+  ]);
+  const xa = new Uint8Array(ha);
+  const xb = new Uint8Array(hb);
+  let diff = 0;
+  for (let i = 0; i < xa.length; i++) diff |= xa[i] ^ xb[i];
+  return diff === 0;
 }
 
 /**
@@ -112,12 +122,12 @@ export async function runTurn(
   if (
     input.pendingAction &&
     input.confirmedToken &&
-    safeTokenEquals(input.confirmedToken, input.pendingAction.token)
+    (await safeTokenEquals(input.confirmedToken, input.pendingAction.token))
   ) {
     const pa = input.pendingAction;
     const identityVerified =
       !!input.identityVerifiedToken &&
-      safeTokenEquals(input.identityVerifiedToken, pa.token);
+      (await safeTokenEquals(input.identityVerifiedToken, pa.token));
     const exec = await deps.app.executeAction({
       contractVersion: BRIDGE_RPC_VERSION,
       handle: input.handle,
