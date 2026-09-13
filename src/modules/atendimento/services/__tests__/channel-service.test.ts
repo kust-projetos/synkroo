@@ -272,7 +272,7 @@ describe('channel-service unit tests', () => {
 
       expect(global.fetch).toHaveBeenCalledWith(
         'https://graph.facebook.com/v18.0/acc-123/messages',
-        {
+        expect.objectContaining({
           method: 'POST',
           headers: {
             Authorization: 'Bearer tok-456',
@@ -282,7 +282,7 @@ describe('channel-service unit tests', () => {
             recipient: { id: 'recipient-1' },
             message: { text: 'Mensagem Instagram' },
           }),
-        },
+        }),
       );
       expect(res).toEqual({ success: true, messageId: 'ig-mid-999' });
     });
@@ -462,14 +462,14 @@ describe('channel-service unit tests', () => {
         expect(res).toEqual({ success: true, messageId: 'msg-999' });
         expect(global.fetch).toHaveBeenCalledWith(
           'https://whatsapp-sidecar.example.com/api/v1/messages/send',
-          {
+          expect.objectContaining({
             method: 'POST',
             headers: {
               Authorization: 'Bearer token-abc',
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ phone: '11999999999', message: 'Mensagem teste' }),
-          },
+          }),
         );
       });
 
@@ -497,7 +497,9 @@ describe('channel-service unit tests', () => {
         const service = new WhatsAppService();
         const res = await service.sendMessage('11999999999', 'Oi');
 
-        expect(res).toEqual({ success: false, error: 'Network timeout' });
+        // A2: POST sem retry; falha de transporte vira erro estruturado.
+        expect(res.success).toBe(false);
+        expect(res.error).toMatch(/External request/);
         expect(dbLogger.error).toHaveBeenCalledWith('channel-service: sidecar sendMessage failed', expect.any(Error));
       });
     });

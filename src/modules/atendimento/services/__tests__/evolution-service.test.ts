@@ -75,7 +75,8 @@ describe('EvolutionApiService', () => {
     });
 
     it('handles HTTP error responses without message or error', async () => {
-      (global.fetch as jest.Mock).mockResolvedValueOnce({
+      // A2: GET 502 retrya (budget 1+2) e, esgotado, devolve o erro final.
+      (global.fetch as jest.Mock).mockResolvedValue({
         ok: false,
         status: 502,
         json: async () => ({}),
@@ -83,20 +84,26 @@ describe('EvolutionApiService', () => {
 
       const res = await (service as any).request('GET', '/bad-gateway');
       expect(res).toEqual({ success: false, error: 'HTTP 502' });
+      expect(global.fetch).toHaveBeenCalledTimes(3);
     });
 
     it('catches network exceptions with Error instance', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce(new Error('Network timeout'));
+      // A2: GET com erro de rede retrya; erro final é estruturado (ExternalHttpError).
+      (global.fetch as jest.Mock).mockRejectedValue(new Error('Network timeout'));
 
       const res = await (service as any).request('GET', '/timeout');
-      expect(res).toEqual({ success: false, error: 'Network timeout' });
+      expect(res.success).toBe(false);
+      expect(res.error).toMatch(/External request/);
+      expect(global.fetch).toHaveBeenCalledTimes(3);
     });
 
     it('catches non-Error thrown objects', async () => {
-      (global.fetch as jest.Mock).mockRejectedValueOnce('Unknown crash');
+      // A2: throw não-Error não é retryable → falha direta com erro estruturado.
+      (global.fetch as jest.Mock).mockRejectedValue('Unknown crash');
 
       const res = await (service as any).request('GET', '/crash');
-      expect(res).toEqual({ success: false, error: 'Unknown error' });
+      expect(res.success).toBe(false);
+      expect(typeof res.error).toBe('string');
     });
   });
 

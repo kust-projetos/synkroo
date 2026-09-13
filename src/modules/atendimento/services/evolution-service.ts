@@ -13,6 +13,8 @@ import { dbLogger, whatsappLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db/client';
 import { whatsappInstances } from '@/modules/atendimento/schema/integrations';
 import { eq } from 'drizzle-orm';
+import { fetchWithRetry, DEFAULT_EXTERNAL_TIMEOUT_MS } from '@/lib/http/fetch-with-retry';
+import { withOutboundIdempotency } from '@/lib/http/outbound-idempotency';
 
 export interface EvolutionInstance {
   instance: {
@@ -66,6 +68,14 @@ export interface SendTextMessageInput {
     delay?: number;
     presence?: 'composing' | 'recording';
     linkPreview?: boolean;
+    /**
+     * Chave de idempotência da operação lógica (etapa A3). Quando presente, o
+     * envio é protegido por claim local (`withOutboundIdempotency`): duplicata
+     * não reenvia e retorna `{ success: true, deduplicated: true }`.
+     * NENHUM header de idempotência é enviado à Evolution (sem suporte nativo
+     * documentado) — o claim local é o mecanismo primário.
+     */
+    idempotencyKey?: string;
   };
 }
 
@@ -105,12 +115,24 @@ export class EvolutionApiService extends EventEmitter {
   ): Promise<{ success: boolean; data?: T; error?: string }> {
     try {
       const url = `${this.baseUrl}${endpoint}`;
-      const response = await fetch(url, {
-        method,
-        headers: this.getHeaders(),
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const data = (await response.json()) as Record<string, unknown>;
+      // A2: timeout explícito em toda chamada; retry SOMENTE p/ GET/observação.
+      // POST de envio NÃO retrya no client (a proteção contra duplicação é o
+      // claim de idempotência da etapa A3 em sendTextMessage).
+      const response = await fetchWithRetry(
+        url,
+        {
+          method,
+          headers: this.getHeaders(),
+          body: body ? JSON.stringify(body) : undefined,
+        },
+        { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS, idempotent: method === 'GET' },
+      );
+      let data: Record<string, unknown>;
+      try {
+        data = (await response.json()) as Record<string, unknown>;
+      } catch {
+        data = {};
+      }
       if (!response.ok) {
         whatsappLogger.error('Evolution API error', null, { status: response.status, data });
         return { success: false, error: (data.message as string) || (data.error as string) || `HTTP ${response.status}` };
@@ -192,19 +214,30 @@ export class EvolutionApiService extends EventEmitter {
 
   async sendTextMessage(
     number: string, text: string, options?: SendTextMessageInput['options'],
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  ): Promise<{ success: boolean; messageId?: string; error?: string; deduplicated?: boolean }> {
     let formattedNumber = number.replace(/\D/g, '');
     if (!formattedNumber.startsWith('55')) formattedNumber = '55' + formattedNumber;
 
-    // Evolution GO v0.7.2: POST /send/text (instance resolved by apikey token)
-    const result = await this.request<{ data: { Info: { ID: string } } }>(
-      'POST', '/send/text',
-      { number: formattedNumber, text, delay: options?.delay || 0 },
-    );
-    if (result.success && result.data) {
-      return { success: true, messageId: result.data.data?.Info?.ID };
-    }
-    return { success: false, error: result.error };
+    const send = async (): Promise<{ success: boolean; messageId?: string; error?: string }> => {
+      // Evolution GO v0.7.2: POST /send/text (instance resolved by apikey token)
+      const result = await this.request<{ data: { Info: { ID: string } } }>(
+        'POST', '/send/text',
+        { number: formattedNumber, text, delay: options?.delay || 0 },
+      );
+      if (result.success && result.data) {
+        return { success: true, messageId: result.data.data?.Info?.ID };
+      }
+      return { success: false, error: result.error };
+    };
+
+    // A3: sem chave → comportamento legado (envio direto, sem claim).
+    if (!options?.idempotencyKey) return send();
+
+    const guarded = await withOutboundIdempotency(options.idempotencyKey, send, {
+      isSuccess: (r) => r.success,
+    });
+    if (guarded.deduped) return { success: true, deduplicated: true };
+    return guarded.result ?? { success: false, error: 'Idempotency claim failed' };
   }
 
   async sendMediaMessage(
