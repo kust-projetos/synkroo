@@ -33,9 +33,9 @@ Requisitos: Node 18+ (usa `AbortSignal.timeout` e `fetch` nativo). Timeout de
 
 | Check | Request | Esperado | Prova |
 |---|---|---|---|
-| `liveness` | `GET /api/health` | 200 `{ status: 'healthy' }` | Runtime + app responderam; inclui ping no DB (`checks.database`) |
+| `liveness` | `GET /api/health` | 200 `{ status: 'ok' }` | Processo vivo e respondendo; liveness é puro, sem ping em DB/dependências (readiness real: `GET /api/internal/readiness`) |
 | `auth-pipeline` | `GET /api/auth/session` (sem cookie) | 200/401 `{ authenticated: bool }` | Pipeline Auth.js responde sem credenciais reais (`POST /api/auth/login` foi removido — login é exclusivo NextAuth) |
-| `db` | `GET /api/health/db` | 200 `{ status: 'complete' }` | Schema acessível (todas as tabelas esperadas existem) |
+| `db` | `GET /api/health/db` | 200 `{ data: { status: 'complete' } }` | DB acessível e ledger de migrations compatível com o esperado (contagem de migrations aplicadas; NÃO valida existência física de cada tabela) |
 | `middleware` | `GET /api/patients` (sem sessão) | 401/403 ou 3xx (redirect p/ `/login`) | Middleware bloqueia anônimo: redirect 307 (`src/middleware.ts`) ou 401/403 das gates — dado nunca vaza 200 nem some em 404 |
 | `workers` | — (skipped) | `ok:true, skipped:true` | ia-bridge é chamado via **service bindings** (RPC interno, sem HTTP público) — sem endpoint externo a pingar; cobertura via `liveness` + `db` |
 

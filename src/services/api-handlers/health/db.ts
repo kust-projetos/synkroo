@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { sql } from 'drizzle-orm'
+import { apiSuccess } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
 
 /**
@@ -71,14 +72,14 @@ export async function checkMigrations(executor?: DbExecutor): Promise<MigrationS
 /**
  * Diagnóstico sanitizado de migrations para ambiente operacional.
  * Payload agregado — sem enumeração de schema, sem mensagens de erro brutas.
- * Sempre 200 (inclusive com DB fora); o corpo carrega `status`.
+ * Sempre 200 (inclusive com DB fora); o corpo carrega `data.status`.
  */
 export async function GET(_request: NextRequest) {
   const { complete, applied, expected } = await checkMigrations()
-  return NextResponse.json({
+  return apiSuccess({
     status: complete ? 'complete' : 'incomplete',
     complete,
-    migrations_applied: applied,
-    migrations_expected: expected,
+    migrationsApplied: applied,
+    migrationsExpected: expected,
   })
 }

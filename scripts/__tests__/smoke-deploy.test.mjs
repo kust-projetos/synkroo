@@ -27,7 +27,7 @@ function allGreenFetch() {
       case "/api/auth/session":
         return okJson({ authenticated: false, user: null, profile: null });
       case "/api/health/db":
-        return okJson({ status: "complete" });
+        return okJson({ data: { status: "complete" } });
       case "/api/patients":
         // Comportamento real sem sessão: middleware redireciona p/ /login (307).
         return new Response("{}", { status: 307 });
@@ -61,7 +61,7 @@ test("um check falho marca falha (exit 1)", async () => {
   const results = await runSmokeDeploy("https://deploy.example.test", {
     fetchImpl: mockFetch((url) => {
       if (url.pathname === "/api/health/db")
-        return okJson({ status: "incomplete" });
+        return okJson({ data: { status: "incomplete" } });
       if (url.pathname === "/api/health")
         return okJson({ status: "healthy" });
       if (url.pathname === "/api/auth/session")
@@ -88,7 +88,7 @@ test("timeout de request vira falha registrada", async () => {
       if (url.pathname === "/api/auth/session")
         return okJson({ authenticated: false });
       if (url.pathname === "/api/health/db")
-        return okJson({ status: "complete" });
+        return okJson({ data: { status: "complete" } });
       return new Response("{}", { status: 401 });
     }),
   });
@@ -115,7 +115,7 @@ test("middleware aceita 401/403/3xx, rejeita 200 e 404", async () => {
         if (url.pathname === "/api/patients")
           return new Response("{}", { status });
         if (url.pathname === "/api/health/db")
-          return okJson({ status: "complete" });
+          return okJson({ data: { status: "complete" } });
         if (url.pathname === "/api/health")
           return okJson({ status: "healthy" });
         return okJson({ authenticated: false });
@@ -134,7 +134,7 @@ test("middleware aceita 401/403/3xx, rejeita 200 e 404", async () => {
         if (url.pathname === "/api/patients")
           return new Response(body, { status });
         if (url.pathname === "/api/health/db")
-          return okJson({ status: "complete" });
+          return okJson({ data: { status: "complete" } });
         if (url.pathname === "/api/health")
           return okJson({ status: "healthy" });
         return okJson({ authenticated: false });
@@ -156,7 +156,7 @@ test("requests usam GET, redirect manual e timeout por request", async () => {
       if (url.pathname === "/api/patients")
         return new Response("{}", { status: 307 });
       if (url.pathname === "/api/health/db")
-        return okJson({ status: "complete" });
+        return okJson({ data: { status: "complete" } });
       if (url.pathname === "/api/health")
         return okJson({ status: "healthy" });
       return okJson({ authenticated: false });
@@ -223,7 +223,7 @@ test("fluxo de saida do CLI: JSON por linha + exit via smokeFailed", async () =>
   const broken = await runSmokeDeploy("https://deploy.example.test", {
     fetchImpl: mockFetch((url) => {
       if (url.pathname === "/api/health/db")
-        return okJson({ status: "incomplete" });
+        return okJson({ data: { status: "incomplete" } });
       if (url.pathname === "/api/health")
         return okJson({ status: "healthy" });
       if (url.pathname === "/api/auth/session")

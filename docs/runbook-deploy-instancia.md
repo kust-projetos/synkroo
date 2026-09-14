@@ -170,8 +170,9 @@ npx wrangler deploy --version <version-id>
 
 ### Health interno
 
-- `GET /api/health` — status do runtime + DB ping
-- `GET /api/health/db` — status do banco (query leve)
+- `GET /api/health` — liveness puro do runtime (sem ping em DB/dependências)
+- `GET /api/health/db` — envelope canônico `{ data: { status, complete, migrationsApplied, migrationsExpected } }` (ledger de migrations)
+- `GET /api/internal/readiness` — readiness real (DB acessível + migrations), protegido
 - `action_logs` — auditoria de todas as Actions executadas (W3.1)
 
 ---
