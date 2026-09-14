@@ -18,10 +18,13 @@ const FALLBACK_REPLY =
 // padrão de cancel do workerd (~30s) para que o invokeAgentWithEnv consiga
 // devolver o fallback ao caller antes do runtime matar o request.
 // Configurável por injeção (env.RPC_TIMEOUT_MS / window.__RPC_TIMEOUT_MS / default).
+// B1: exportado para o assert de budget (TURN_BUDGET_MS < INVOKER_RPC_TIMEOUT_MS).
+// NÃO aumentar: o limite do workerd (~30s) é rígido.
+export const INVOKER_RPC_TIMEOUT_MS = 25_000;
 function resolveRpcTimeoutMs(): number {
   // SSR/edge runtime: não há window; o limite é o que o caller passar ou o default.
   // Mantemos a função pura para testabilidade — unit test sobrescreve via spy.
-  const DEFAULT_MS = 25_000;
+  const DEFAULT_MS = INVOKER_RPC_TIMEOUT_MS;
   try {
     if (typeof process !== 'undefined' && process.env?.RPC_TIMEOUT_MS) {
       const n = Number(process.env.RPC_TIMEOUT_MS);
@@ -56,6 +59,8 @@ export interface InvokeAgentInput {
   userMessage: string;
   confirmedToken?: string;
   identityVerifiedToken?: string;
+  /** B1: rastreio fim-a-fim (x-request-id do route). Opcional, só observabilidade. */
+  correlationId?: string;
 }
 
 // Lógica pura (testável): recebe os bindings já resolvidos.
@@ -79,6 +84,8 @@ export async function invokeAgentWithEnv(
       principalRef: input.principalRef,
       source: input.source,
       ttlSeconds: 120,
+      // B1: campo opcional/aditivo do contrato — servidores antigos ignoram.
+      ...(input.correlationId ? { correlationId: input.correlationId } : {}),
     });
     if (!('handle' in issued) || issued.contractVersion !== BRIDGE_RPC_VERSION) {
       throw new Error('[agent-invoker] handle issuer contract version mismatch');
@@ -103,6 +110,10 @@ export async function invokeAgentWithEnv(
       userMessage: input.userMessage,
       confirmedToken: input.confirmedToken,
       identityVerifiedToken: input.identityVerifiedToken,
+      correlationId: input.correlationId,
+      // B1-review: dono do turno para o binding da pending no confirm
+      // (userId no chat; 'agente' no path WhatsApp).
+      principalId: input.principalRef,
     });
   };
 
@@ -113,6 +124,7 @@ export async function invokeAgentWithEnv(
     // um fallback controlado e o Worker não é cancelado.
     // eslint-disable-next-line no-console
     console.error('[agent-invoker] runTurn failed, returning fallback reply', {
+      correlationId: input.correlationId,
       conversationId: input.conversationId,
       channel: input.channel,
       timeoutMs,
