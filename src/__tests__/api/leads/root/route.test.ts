@@ -1,0 +1,82 @@
+/**
+ * D2 lote 2/5 (comercial) — contract test de caracterização.
+ *
+ * As rotas /api/leads já estão no contrato canônico (withModuleRoute +
+ * runComercialAction → envelope { data } / { error }). Este teste fixa o
+ * contrato atual (status + envelope) como rede de proteção; a D3 altera o
+ * POST inválido de 422 (validação da Action) para 400 (Zod na rota).
+ */
+const mockValidateApiAuth = jest.fn()
+jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth }))
+jest.mock('@/core/modules/manifest', () => require('../../_setup/route-mocks').manifestMock)
+jest.mock('@/core/actions/context', () => require('../../_setup/route-mocks').contextMock)
+jest.mock('@/core/actions/run', () => ({ runAction: jest.fn() }))
+
+import { buildUserContext } from '@/core/actions/context'
+import { runAction } from '@/core/actions/run'
+
+const authOk = () => {
+  mockValidateApiAuth.mockResolvedValue({ success: true, profile: { clinic_id: 'c1' } })
+  ;(buildUserContext as jest.Mock).mockResolvedValue({
+    source: 'user', clinicId: 'c1', user: { id: 'u1', email: 'u@x.com', name: 'U' },
+    can: () => true, hasModule: () => true, audit: { actor: 'u1' },
+  })
+}
+const authFail = () => {
+  mockValidateApiAuth.mockResolvedValue({ success: false, error: { message: 'Unauthorized', status: 401 } })
+  ;(buildUserContext as jest.Mock).mockRejectedValue(new Error('unauthenticated'))
+}
+beforeEach(() => { jest.clearAllMocks() })
+
+import { NextRequest } from 'next/server'
+import { GET, POST } from '../../../../app/api/leads/route'
+
+describe('D2 lote 2 — GET /api/leads (canônico)', () => {
+  it('401 envelope canônico quando não autenticado', async () => {
+    authFail()
+    const r = await GET(new NextRequest('http://localhost/api/leads'))
+    expect(r.status).toBe(401)
+    const b = await r.json()
+    expect(b.error.code).toBe('UNAUTHORIZED')
+    expect(typeof b.error.requestId).toBe('string')
+  })
+
+  it('200 envelope canônico { data } quando autenticado', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({ ok: true, data: [{ id: 'l1' }] })
+    const r = await GET(new NextRequest('http://localhost/api/leads'))
+    expect(r.status).toBe(200)
+    const b = await r.json()
+    expect(b.data).toEqual([{ id: 'l1' }])
+    expect(r.headers.get('x-request-id')).toBeTruthy()
+  })
+})
+
+describe('D2 lote 2 — POST /api/leads (canônico, pré-D3)', () => {
+  it('200/201 envelope canônico em payload válido', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({ ok: true, data: { id: 'l1', name: 'Ana' } })
+    const r = await POST(new NextRequest('http://localhost/api/leads', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Ana', phone: '+5511999990001', source: 'website' }),
+    }))
+    expect([200, 201]).toContain(r.status)
+    const b = await r.json()
+    expect(b.data).toEqual({ id: 'l1', name: 'Ana' })
+  })
+
+  it('422 INVALID_INPUT canônico em payload inválido (validação da Action; D3 migra para 400 na rota)', async () => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({
+      ok: false,
+      error: { code: 'invalid_input', message: 'Invalid input' },
+    })
+    const r = await POST(new NextRequest('http://localhost/api/leads', {
+      method: 'POST',
+      body: JSON.stringify({ name: '', phone: '' }),
+    }))
+    expect(r.status).toBe(422)
+    const b = await r.json()
+    expect(b.error.code).toBe('INVALID_INPUT')
+  })
+})
