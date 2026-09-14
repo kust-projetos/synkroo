@@ -143,3 +143,14 @@ export function contractVersionMismatch(): MismatchError {
     contractVersion: BRIDGE_RPC_VERSION,
   };
 }
+
+/**
+ * Erro tipado de mismatch de versão (classificação por instanceof, nunca por
+ * sniffing de texto de mensagem — o texto pode conter conteúdo externo).
+ */
+export class ContractVersionMismatchError extends Error {
+  constructor(source = 'agent-invoker') {
+    super(`[${source}] handle issuer contract version mismatch`);
+    this.name = 'ContractVersionMismatchError';
+  }
+}
