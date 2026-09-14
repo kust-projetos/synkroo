@@ -114,6 +114,24 @@ export async function runTurn(
   const maxIterations = deps.maxIterations ?? 5;
   const newToken = deps.newToken ?? (() => crypto.randomUUID());
 
+  // B1-review HIGH: deadline ÚNICO do turno, criado aqui e compartilhado por
+  // confirm e loop — o confirm também está sob budget (antes ele executava
+  // fora de qualquer deadline).
+  const turnBudgetMs = deps.turnBudgetMs ?? TURN_BUDGET_MS;
+  const nowMs = deps.nowMs ?? Date.now;
+  const deadline = nowMs() + turnBudgetMs;
+  // B1-review HIGH: budget revalidado (a) antes do execute confirmado,
+  // (b) após cada complete, (c) antes de cada executeAction.
+  const budgetExhausted = (where: string): boolean => {
+    if (nowMs() < deadline) return false;
+    // eslint-disable-next-line no-console
+    console.error('[ia-agent] turn budget exhausted, skipping ' + where, {
+      correlationId: input.correlationId,
+      conversationId: input.conversationId,
+    });
+    return true;
+  };
+
   // ── 0. Clinical Safety & Takeover Interception ─────────────────────────────
   if (input.userMessage && input.userMessage.trim().length > 0) {
     const safety = analyzeClinicalSafety(input.userMessage);
@@ -123,12 +141,14 @@ export async function runTurn(
         turnsUsed: 0,
         escalated: true,
         escalationReason: safety.escalationReason,
+        pendingActionWrite: 'keep',
       };
     }
     if (safety.isAiIdentityQuery && safety.reply) {
       return {
         reply: safety.reply,
         turnsUsed: 0,
+        pendingActionWrite: 'keep',
       };
     }
   }
@@ -136,7 +156,7 @@ export async function runTurn(
   // O handshake é por turno para não deixar uma versão de bridge presa no
   // isolate. Nenhuma operação de tool é enviada sem confirmar v2.
   if (!(await hasCurrentBridgeContract(deps.app))) {
-    return { reply: FALLBACK, turnsUsed: 0 };
+    return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
   }
 
   // ── Caminho de confirmação ────────────────────────────────────────────────
@@ -162,6 +182,11 @@ export async function runTurn(
       input.principalId === peeked.principalId &&
       (await safeTokenEquals(input.confirmedToken, peeked.token))
     ) {
+      // B1-review HIGH: sem budget NÃO consome nem executa — a pending
+      // permanece (só peek até aqui) para confirmação futura dentro do budget.
+      if (budgetExhausted('confirm-execute')) {
+        return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
+      }
       const taken = deps.consumePendingAction
         ? await deps.consumePendingAction()
         : peeked;
@@ -186,7 +211,7 @@ export async function runTurn(
       flags: { confirmed: true, identityVerified },
     });
     if (exec.contractVersion !== BRIDGE_RPC_VERSION) {
-      return { reply: FALLBACK, turnsUsed: 0 };
+      return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'clear' };
     }
     if (!exec.ok) {
       return {
@@ -194,9 +219,10 @@ export async function runTurn(
         turnsUsed: 1,
         escalated: exec.error === 'escalate_human',
         escalationReason: exec.error === 'escalate_human' ? 'action_escalate_human' : undefined,
+        pendingActionWrite: 'clear',
       };
     }
-    return { reply: 'Pronto, confirmado e executado.', turnsUsed: 1 };
+    return { reply: 'Pronto, confirmado e executado.', turnsUsed: 1, pendingActionWrite: 'clear' };
   }
 
   // ── 1. Catálogo ──────────────────────────────────────────────────────────
@@ -206,7 +232,7 @@ export async function runTurn(
     conversationId: input.conversationId,
   });
   if (!toolsResp.ok || toolsResp.contractVersion !== BRIDGE_RPC_VERSION)
-    return { reply: FALLBACK, turnsUsed: 0 };
+    return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
 
   const llmTools: LlmTool[] = toolsResp.catalog.tools.map((t) => ({
     type: 'function' as const,
@@ -238,22 +264,9 @@ export async function runTurn(
   ];
 
   // ── 3. Loop LLM↔tools ───────────────────────────────────────────────────
-  // B1-review: deadline real — sem budget restante, encerra com fallback sem
-  // iniciar nova chamada ao provider nem executar tool.
-  const turnBudgetMs = deps.turnBudgetMs ?? TURN_BUDGET_MS;
-  const nowMs = deps.nowMs ?? Date.now;
-  const deadline = nowMs() + turnBudgetMs;
-  // B1-review HIGH: budget revalidado (a) após cada complete, (b) antes de
-  // cada executeAction — tool execution também está sob o deadline.
-  const budgetExhausted = (where: string): boolean => {
-    if (nowMs() < deadline) return false;
-    // eslint-disable-next-line no-console
-    console.error('[ia-agent] turn budget exhausted, skipping ' + where, {
-      correlationId: input.correlationId,
-      conversationId: input.conversationId,
-    });
-    return true;
-  };
+  // B1-review: deadline real (criado no topo, compartilhado com o confirm) —
+  // sem budget restante, encerra com fallback sem iniciar nova chamada ao
+  // provider nem executar tool.
   let turnsUsed = 0;
   for (let i = 0; i < maxIterations; i++) {
     if (nowMs() >= deadline) {
@@ -264,7 +277,7 @@ export async function runTurn(
         iteration: i,
         turnsUsed,
       });
-      return { reply: FALLBACK, turnsUsed };
+      return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
     }
     turnsUsed = i + 1;
     // Aborta a chamada em curso ao estourar o deadline.
@@ -288,7 +301,7 @@ export async function runTurn(
           conversationId: input.conversationId,
           iteration: i,
         });
-        return { reply: FALLBACK, turnsUsed };
+        return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
       }
       // B1: correlation presente no log de erro do orchestrator; o erro
       // sobe para o DO → invoker, que devolve o fallback ao caller HTTP.
@@ -307,7 +320,7 @@ export async function runTurn(
     // B1-review HIGH (a): budget pode ter estourado DURANTE o complete —
     // revalida antes de usar a resposta; sem budget, fallback sem executar tool.
     if (budgetExhausted('tool-batch')) {
-      return { reply: FALLBACK, turnsUsed };
+      return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
     }
 
     // Sem tool calls → resposta final
@@ -316,6 +329,7 @@ export async function runTurn(
       return {
         reply: text.trim() ? text : FALLBACK,
         turnsUsed,
+        pendingActionWrite: 'keep',
       };
     }
 
@@ -377,7 +391,7 @@ export async function runTurn(
       // B1-review HIGH (b): revalida o budget imediatamente ANTES de cada
       // executeAction — sem budget, fallback e a tool NÃO executa.
       if (budgetExhausted(`execute:${alias}`)) {
-        return { reply: FALLBACK, turnsUsed };
+        return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
       }
 
       const exec = await deps.app.executeAction({
@@ -391,7 +405,7 @@ export async function runTurn(
       });
 
       if (exec.contractVersion !== BRIDGE_RPC_VERSION) {
-        return { reply: FALLBACK, turnsUsed: 0 };
+        return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
       }
       if (!exec.ok) {
         if (
@@ -406,6 +420,7 @@ export async function runTurn(
             reply: `Para prosseguir, ${ask}. Posso seguir?`,
             turnsUsed,
             pendingAction: { alias, args, token: newToken(), principalId: input.principalId },
+            pendingActionWrite: 'set',
           };
         }
 
@@ -415,6 +430,7 @@ export async function runTurn(
             turnsUsed,
             escalated: true,
             escalationReason: 'action_escalate_human',
+            pendingActionWrite: 'keep',
           };
 
         // Erro estruturado realimentado ao modelo
@@ -439,5 +455,5 @@ export async function runTurn(
     }
   }
 
-  return { reply: FALLBACK, turnsUsed };
+  return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
 }

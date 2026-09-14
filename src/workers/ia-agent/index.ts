@@ -105,7 +105,15 @@ export class AgentOrchestrator extends DurableObject<Env> {
       { role: 'assistant' as const, content: result.reply },
     ].slice(-20);
     await this.ctx.storage.put('history', nextHistory);
-    await this.ctx.storage.put('pendingAction', result.pendingAction ?? null);
+    // B1-review — semântica explícita de escrita da pending:
+    // 'set' (orchestrator criou nova) → grava; 'clear' (confirm consumiu) →
+    // grava null; 'keep'/ausente (turno normal, confirm inválido, budget
+    // estourado) → NÃO escreve, preserva a existente.
+    if (result.pendingActionWrite === 'set') {
+      await this.ctx.storage.put('pendingAction', result.pendingAction ?? null);
+    } else if (result.pendingActionWrite === 'clear') {
+      await this.ctx.storage.put('pendingAction', null);
+    }
     // F6.12 retention — reschedule purge alarm on every turn
     await this.ctx.storage.setAlarm(Date.now() + RETENTION_MS);
 

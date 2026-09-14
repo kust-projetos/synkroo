@@ -42,32 +42,35 @@ const CLOSER_RE = /<\/(dados_contexto|dados_usuario)\s*>/gi;
  * byte-a-byte (`ª`, sobrescritos, emojis intactos).
  */
 export function sanitizeUntrustedData(value: string): string {
-  // Cópia foldada + mapa folded→original (índices em code units).
-  const foldedParts: string[] = [];
-  const origStartOfFolded: number[] = [];
-  const origEndOfFolded: number[] = [];
+  // Fold por CODE UNIT UTF-16 com offsets explícitos: para cada índice do
+  // texto foldado, guarda o range original [start,end). Cada unidade foldada
+  // deriva de exatamente um code point original, e o range cobre o code
+  // point inteiro — `regex.index/length` (code units) alinham exatamente,
+  // mesmo com astral (emoji, 2 units) antes ou dentro do span. Slices nunca
+  // partem surrogate pair: ranges sempre alinham a fronteiras de code point.
+  const foldedUnits: string[] = [];
+  const origStart: number[] = [];
+  const origEnd: number[] = [];
   for (let i = 0; i < value.length;) {
     const ch = String.fromCodePoint(value.codePointAt(i)!);
-    const next = i + ch.length;
+    const next = i + ch.length; // 1 ou 2 code units
     const foldedCh = ch.normalize('NFKC').replace(INVISIBLE_RE, '');
-    for (let j = 0; j < foldedCh.length;) {
-      const fch = String.fromCodePoint(foldedCh.codePointAt(j)!);
-      foldedParts.push(fch);
-      origStartOfFolded.push(i);
-      origEndOfFolded.push(next);
-      j += fch.length;
+    for (let j = 0; j < foldedCh.length; j++) {
+      foldedUnits.push(foldedCh[j]);
+      origStart.push(i);
+      origEnd.push(next);
     }
     i = next;
   }
-  const folded = foldedParts.join('');
+  const folded = foldedUnits.join('');
   // Spans no original correspondentes a cada match no foldado.
   const spans: Array<[number, number]> = [];
   CLOSER_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = CLOSER_RE.exec(folded)) !== null && m[0].length > 0) {
     spans.push([
-      origStartOfFolded[m.index],
-      origEndOfFolded[m.index + m[0].length - 1],
+      origStart[m.index],
+      origEnd[m.index + m[0].length - 1],
     ]);
   }
   if (!spans.length) return value;
