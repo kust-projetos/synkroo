@@ -35,8 +35,9 @@ async function fetchFinancialSummary(patientId: string): Promise<FinancialSummar
   if (!response.ok) {
     throw new Error('Failed to fetch financial summary')
   }
-  const data = await response.json()
-  return data.financial_summary
+  const body = await response.json()
+  // Contrato canônico (D2 lote 4): { data: { financial_summary } }
+  return body.data.financial_summary
 }
 
 export function useFinancialSummary(patientId: string | null) {

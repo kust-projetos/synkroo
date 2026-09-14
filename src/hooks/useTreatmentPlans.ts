@@ -13,8 +13,9 @@ async function fetchTreatmentPlans(patientId: string): Promise<TreatmentPlan[]> 
   if (!response.ok) {
     throw new Error('Failed to fetch treatment plans')
   }
-  const data = await response.json()
-  return data.treatment_plans
+  const body = await response.json()
+  // Contrato canônico (D2 lote 4): { data: { treatment_plans } }
+  return body.data.treatment_plans
 }
 
 async function fetchTreatmentPlan(id: string): Promise<TreatmentPlan> {
@@ -22,8 +23,8 @@ async function fetchTreatmentPlan(id: string): Promise<TreatmentPlan> {
   if (!response.ok) {
     throw new Error('Failed to fetch treatment plan')
   }
-  const data = await response.json()
-  return data.treatment_plan
+  const body = await response.json()
+  return body.data.treatment_plan
 }
 
 async function createTreatmentPlan(input: CreateTreatmentPlanInput): Promise<TreatmentPlan> {
@@ -36,7 +37,7 @@ async function createTreatmentPlan(input: CreateTreatmentPlanInput): Promise<Tre
     throw new Error('Failed to create treatment plan')
   }
   const data = await response.json()
-  return data.treatment_plan
+  return data.data.treatment_plan
 }
 
 async function updateTreatmentPlan(id: string, input: Partial<CreateTreatmentPlanInput>): Promise<TreatmentPlan> {
@@ -49,7 +50,7 @@ async function updateTreatmentPlan(id: string, input: Partial<CreateTreatmentPla
     throw new Error('Failed to update treatment plan')
   }
   const data = await response.json()
-  return data.treatment_plan
+  return data.data.treatment_plan
 }
 
 async function updateSession(treatmentPlanId: string, treatmentPlanItemId: string): Promise<unknown> {

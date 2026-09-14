@@ -184,9 +184,9 @@ describe('Patient Preferences API', () => {
 
       expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json.preferences).toBeDefined();
-      expect(Array.isArray(json.preferences)).toBe(true);
-      expect(json.preferences.length).toBe(2);
+      expect(json.data.preferences).toBeDefined();
+      expect(Array.isArray(json.data.preferences)).toBe(true);
+      expect(json.data.preferences.length).toBe(2);
     });
 
     it('deve retornar 401 quando não autenticado', async () => {
@@ -266,8 +266,8 @@ describe('Patient Preferences API', () => {
 
       expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json.preference).toBeDefined();
-      expect(json.preference.key).toBe('pref_test');
+      expect(json.data.preference).toBeDefined();
+      expect(json.data.preference.key).toBe('pref_test');
     });
 
     it('deve atualizar preferência (update) existente e retornar 200', async () => {
@@ -304,8 +304,8 @@ describe('Patient Preferences API', () => {
 
       expect(res.status).toBe(200);
       const json = await res.json();
-      expect(json.preference).toBeDefined();
-      expect(json.preference.value).toBe('updated-value');
+      expect(json.data.preference).toBeDefined();
+      expect(json.data.preference.value).toBe('updated-value');
     });
 
     it('deve retornar 500 quando setPreference retorna null', async () => {
