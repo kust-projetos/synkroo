@@ -1,6 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
+import {
+  createTelemetryLogger,
+  extractCorrelationId,
+} from '@/core/ia-agent/telemetry';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
 import type { AppBinding } from '@/core/agent-bridge/rpc-contract';
 import type {
@@ -65,17 +69,35 @@ export class AgentOrchestrator extends DurableObject<Env> {
     const history = (await this.ctx.storage.get<ChatMessage[]>('history')) ?? [];
     const pendingAction = (await this.ctx.storage.get<PendingAction | null>('pendingAction')) ?? undefined;
 
+    // B2: telemetria estruturada edge-safe (JSON via console; sem src/lib/logger).
+    // O correlationId viaja no input (invoker → DO); cai para extração defensiva.
+    const correlationId = input.correlationId ?? extractCorrelationId(input);
+    const emit = createTelemetryLogger('ia-agent');
     const provider = createZenProvider({
       apiKey: this.env.OPENCODE_ZEN_API_KEY,
       model: this.env.IA_LLM_MODEL,
       baseUrl: this.env.IA_LLM_BASE_URL,
+      onMetric: (m) =>
+        emit({
+          correlationId: m.correlationId ?? correlationId,
+          clinicId: input.clinicId,
+          operation: 'provider_call',
+          durationMs: m.latencyMs,
+          status: m.success ? 'ok' : 'error',
+          code: m.errorCode,
+          attempt: m.attempt,
+          provider: m.provider,
+          model: m.model,
+          usage: m.usage,
+        }),
     });
 
     const app = this.env.APP as unknown as AppBinding;
     const result = await runAgentTurn(
-      { provider, app, now: new Date() },
+      { provider, app, now: new Date(), telemetry: emit },
       {
         ...input,
+        correlationId,
         history,
         pendingAction,
       },
