@@ -182,6 +182,7 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
           // callback a partir do storage do DO.
           correlationId: expect.stringMatching(/^[A-Za-z0-9_-]{1,128}$/),
         }),
+      );
 
       // Verify storage persistence (history sim; pending keep → NÃO escreve)
       expect(mockCtx.storage.put).toHaveBeenCalledWith('history', [
