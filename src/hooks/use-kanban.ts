@@ -1,11 +1,15 @@
 'use client'
 
-import { useCallback } from 'react'
+import { useCallback, useContext } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { DropResult } from '@hello-pangea/dnd'
+import { AuthContext } from '@/lib/auth/context'
+import { queryKeys } from '@/lib/hooks/use-queries'
 
 interface UseKanbanBoardOptions {
   onError?: (error: Error, conflict?: boolean) => void
+  /** G1: tenant scope — explicit wins, otherwise AuthContext profile. */
+  clinicId?: string
 }
 
 /**
@@ -14,7 +18,8 @@ interface UseKanbanBoardOptions {
  * onDragEnd implementation (MEDIUM-1 - concurrent modification handling):
  * 1. Extract destination.droppableId and draggableId
  * 2. Extract current version/timestamp from lead being dragged
- * 3. Apply optimistic update to kanban-leads query cache
+ * 3. Apply optimistic update to the scoped kanban query cache
+ *    (central queryKeys.kanbanLeads — G1 tenant-scoped, no ['kanban-leads'] duplicate)
  * 4. Call PATCH /api/leads/${leadId}/stage with { stage_id: newStageId, version: leadVersion }
  * 5. On 409 Conflict (concurrent modification):
  *    - Invalidate queries to force refetch
@@ -23,6 +28,10 @@ interface UseKanbanBoardOptions {
  */
 export function useKanbanBoard(options: UseKanbanBoardOptions = {}) {
   const queryClient = useQueryClient()
+  const authCtx = useContext(AuthContext)
+  // G1: single source of truth — central queryKeys.kanbanLeads (scoped).
+  const clinicId = options.clinicId ?? authCtx?.profile?.clinic_id
+  const kanbanKey = queryKeys.kanbanLeads(clinicId)
 
   const onDragEnd = useCallback(
     async (result: DropResult) => {
@@ -34,7 +43,7 @@ export function useKanbanBoard(options: UseKanbanBoardOptions = {}) {
       const leadId = draggableId
 
       // Get lead version from query cache for optimistic locking
-      const leadsQueryData = queryClient.getQueryData(['kanban-leads'])
+      const leadsQueryData = queryClient.getQueryData(kanbanKey)
       let leadVersion: string | undefined
 
       if (leadsQueryData && Array.isArray(leadsQueryData)) {
@@ -45,7 +54,7 @@ export function useKanbanBoard(options: UseKanbanBoardOptions = {}) {
       }
 
       // Optimistic update - move lead to new stage in cache
-      queryClient.setQueriesData({ queryKey: ['kanban-leads'] }, (old: any) => {
+      queryClient.setQueriesData({ queryKey: kanbanKey, exact: true }, (old: any) => {
         if (!old) return old
         if (Array.isArray(old)) {
           return old.map((lead: any) =>
@@ -69,7 +78,7 @@ export function useKanbanBoard(options: UseKanbanBoardOptions = {}) {
         // Handle 409 Conflict - concurrent modification detected
         if (res.status === 409) {
           // Invalidate queries to force refetch with fresh data
-          queryClient.invalidateQueries({ queryKey: ['kanban-leads'] })
+          queryClient.invalidateQueries({ queryKey: kanbanKey })
           options.onError?.(new Error('Lead was modified by another user. Please refresh.'), true)
           return
         }
@@ -79,14 +88,14 @@ export function useKanbanBoard(options: UseKanbanBoardOptions = {}) {
         }
 
         // Success - invalidate to ensure fresh data
-        queryClient.invalidateQueries({ queryKey: ['kanban-leads'] })
+        queryClient.invalidateQueries({ queryKey: kanbanKey })
       } catch (error) {
         // On error, invalidate queries and call error callback
-        queryClient.invalidateQueries({ queryKey: ['kanban-leads'] })
+        queryClient.invalidateQueries({ queryKey: kanbanKey })
         options.onError?.(error as Error, false)
       }
     },
-    [queryClient, options]
+    [queryClient, options, kanbanKey]
   )
 
   return { onDragEnd }

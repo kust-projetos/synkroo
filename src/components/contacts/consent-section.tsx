@@ -1,7 +1,8 @@
 'use client'
 
 import { useContactConsents } from '@/lib/hooks/use-queries'
-import { useGrantConsent, useRevokeConsent } from '@/lib/hooks/use-queries'
+import { useGrantConsent, useRevokeConsent, queryKeys } from '@/lib/hooks/use-queries'
+import { useCurrentClinicId } from '@/lib/auth/context'
 import { useQueryClient } from '@tanstack/react-query'
 import { Switch } from '@/components/ui/switch'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -31,6 +32,8 @@ const CONSENT_CONFIG = [
 
 export function ConsentSection({ contactId, contactType }: ConsentSectionProps) {
   const queryClient = useQueryClient()
+  // G1: invalidação no mesmo escopo da query (segmento [1] = clinicId).
+  const clinicId = useCurrentClinicId()
 
   const { data, isLoading } = useContactConsents(contactId, contactType)
 
@@ -47,7 +50,7 @@ export function ConsentSection({ contactId, contactType }: ConsentSectionProps) 
     const mutation = currentGranted ? revokeMutation : grantMutation
     mutation.mutate(payload, {
       onSuccess: () => {
-        queryClient.invalidateQueries({ queryKey: ['consents', contactId, contactType] })
+        queryClient.invalidateQueries({ queryKey: queryKeys.consents(contactId, contactType, clinicId) })
       },
     })
   }

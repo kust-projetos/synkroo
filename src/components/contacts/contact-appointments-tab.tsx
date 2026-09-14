@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCalendarStore } from '@/components/calendar/store/calendar-store'
+import { queryKeys } from '@/lib/hooks/use-queries'
+import { useCurrentClinicId } from '@/lib/auth/context'
 
 interface Appointment {
   id: string
@@ -88,9 +90,11 @@ function AppointmentCard({ appointment }: { appointment: Appointment }) {
 
 export function ContactAppointmentsTab({ contactId }: ContactAppointmentsTabProps) {
   const { prefillFromPatient } = useCalendarStore()
+  // G1: tenant da sessão — a key carrega o clinicId no segmento [1].
+  const clinicId = useCurrentClinicId()
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['contacts', contactId, 'appointments'],
+    queryKey: queryKeys.contactAppointments(contactId, clinicId),
     queryFn: () => fetchAppointments(contactId),
   })
 

@@ -53,7 +53,8 @@ class KanbanErrorBoundary extends Component<{ children: ReactNode }, ErrorState>
 }
 
 export function KanbanBoard({ clinicId, operations }: KanbanBoardProps & { operations?: StageOperations }) {
-  const { onDragEnd } = useKanbanBoard()
+  // G1: scoped kanban cache — drag-drop writes go to this clinic's key only.
+  const { onDragEnd } = useKanbanBoard({ clinicId })
   const { data: stagesData, isLoading: stagesLoading, refetch: refetchStages } = usePipelineStages(clinicId)
   const { data: leadsData, isLoading: leadsLoading } = useKanbanLeads(clinicId)
 

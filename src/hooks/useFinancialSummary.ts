@@ -8,6 +8,7 @@ import type { TreatmentPlan } from '@/services/treatment-plans/treatment-plan.se
 import type { Budget } from '@/services/budgets/budget.service'
 import type { BudgetInstallment } from '@/services/installments/installment.service'
 import type { Payment } from '@/services/payments/payment.service'
+import { clinicScope, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 const API_BASE = '/api/treatment-plans'
 
@@ -40,9 +41,10 @@ async function fetchFinancialSummary(patientId: string): Promise<FinancialSummar
   return body.data.financial_summary
 }
 
-export function useFinancialSummary(patientId: string | null) {
+export function useFinancialSummary(patientId: string | null, clinicId?: string) {
+  const resolved = useResolvedClinicId(clinicId)
   return useQuery({
-    queryKey: ['financial-summary', patientId],
+    queryKey: clinicScope(resolved, 'financial-summary', patientId),
     queryFn: () => fetchFinancialSummary(patientId!),
     enabled: !!patientId,
   })

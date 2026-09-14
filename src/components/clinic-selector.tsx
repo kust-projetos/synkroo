@@ -1,7 +1,6 @@
 'use client'
 
 import { useAuth } from '@/lib/auth/context'
-import { useQueryClient } from '@tanstack/react-query'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BuildingOfficeIcon } from '@heroicons/react/24/outline'
 
@@ -18,7 +17,6 @@ export interface ClinicSelectorProps {
 
 export function ClinicSelector({ clinics: propClinics, className }: ClinicSelectorProps) {
   const { profile, switchClinic } = useAuth()
-  const queryClient = useQueryClient()
 
   const availableClinics = propClinics ?? profile?.available_clinics?.map((clinic) => ({
     id: clinic.id,
@@ -39,8 +37,11 @@ export function ClinicSelector({ clinics: propClinics, className }: ClinicSelect
         value={currentClinicId}
         onValueChange={async (clinicId) => {
           if (clinicId && clinicId !== currentClinicId) {
+            // G1: switchClinic already does cancelQueries() + clear() +
+            // refreshProfile + router.refresh; no extra invalidate here
+            // (clear() drops everything, invalidate would only refetch
+            // stale entries that no longer exist).
             await switchClinic(clinicId)
-            queryClient.invalidateQueries()
           }
         }}
       >
