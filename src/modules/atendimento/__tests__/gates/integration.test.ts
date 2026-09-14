@@ -389,6 +389,16 @@ beforeAll(async () => {
      RETURNING id`,
     [P3_CLINIC_ID],
   )).rows[0].id;
+  // Self-provision the permission catalog row this suite grants. The catalog
+  // is populated by seedRbacForClinic (core/rbac suites), NOT by migrations or
+  // seed-test-clinic — on a virgin DB with this file running first the grant
+  // below would silently insert 0 rows and every system-action call would 403.
+  // Values mirror src/core/rbac/preset-policy.json.
+  await pool!.query(
+    `INSERT INTO permissions (key, module, label)
+     VALUES ('atendimento:manage_webhooks', 'atendimento', 'Gerenciar webhooks')
+     ON CONFLICT (key) DO NOTHING`,
+  );
   await pool!.query(
     `INSERT INTO role_permissions (role_id, permission_key)
      SELECT $1, key FROM permissions WHERE key = 'atendimento:manage_webhooks'
