@@ -78,4 +78,8 @@ describe('B2 — rpc-contract tolera correlationId aditivo', () => {
       }),
     ).toBeNull();
   });
+
+  it('resolve v2 sem correlationId (callers antigos)', () => {
+    expect(resolveContractVersion({ contractVersion: 'v2' })).toBe('v2');
+  });
 });

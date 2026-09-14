@@ -10,6 +10,10 @@ import type {
   LlmTool,
 } from '../types';
 import type { TelemetryEvent, TelemetrySink } from '../telemetry';
+import {
+  isValidCorrelationId,
+  resolveCorrelationId,
+} from '../telemetry';
 import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
 const tool: LlmTool = {
@@ -112,11 +116,11 @@ describe('B2 — provider call registra latência + usage + retry', () => {
       totalTokens: 15,
     });
     expect(metrics).toHaveLength(2);
-    // tentativa 1: falha 429
+    // tentativa 1: falha 429 (classe http_4xx, sem texto do body)
     expect(metrics[0]).toMatchObject({
       success: false,
       attempt: 1,
-      errorCode: 'http_429',
+      errorCode: 'http_4xx',
       correlationId: 'corr-123',
     });
     expect(metrics[0].latencyMs).toBeGreaterThanOrEqual(0);
@@ -128,6 +132,74 @@ describe('B2 — provider call registra latência + usage + retry', () => {
       usage: { promptTokens: 12, completionTokens: 3, totalTokens: 15 },
     });
     expect(metrics[1].latencyMs).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('B2 — métrica por tipo/status, sem sniffing de texto', () => {
+  it('fetch lançando Error com texto "HTTP 429" registra métrica da tentativa', async () => {
+    const metrics: LlmCallMetric[] = [];
+    const throwing = jest.fn().mockRejectedValue(new Error('HTTP 429 fake (texto, sem resposta)'));
+    const p = createZenProvider({
+      apiKey: 'k',
+      model: 'm',
+      baseUrl: 'https://x/v1',
+      fetchImpl: throwing as unknown as typeof fetch,
+      onMetric: (m) => metrics.push(m),
+    });
+
+    await expect(
+      p.complete([{ role: 'user', content: 'oi' }], [], { correlationId: 'c' }),
+    ).rejects.toThrow();
+    // erro genérico (não é resposta real): métrica registrada, sem retry
+    expect(throwing).toHaveBeenCalledTimes(1);
+    expect(metrics).toHaveLength(1);
+    expect(metrics[0]).toMatchObject({
+      success: false,
+      attempt: 1,
+      errorCode: 'provider_error',
+      correlationId: 'c',
+    });
+  });
+
+  it('corpo não-JSON vira http_unparseable sem vazar o body', async () => {
+    const metrics: LlmCallMetric[] = [];
+    const f = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => 'não-json { segredo: CORPO-SECRETO-XYZ }',
+    });
+    const p = createZenProvider({
+      apiKey: 'k',
+      model: 'm',
+      baseUrl: 'https://x/v1',
+      fetchImpl: f as unknown as typeof fetch,
+      onMetric: (m) => metrics.push(m),
+    });
+
+    await expect(p.complete([{ role: 'user', content: 'oi' }], [])).rejects.toThrow();
+    expect(f).toHaveBeenCalledTimes(1); // sem retry de corpo ilegível
+    expect(metrics).toHaveLength(1);
+    expect(metrics[0]).toMatchObject({
+      success: false,
+      attempt: 1,
+      errorCode: 'http_unparseable',
+    });
+    expect(JSON.stringify(metrics)).not.toContain('CORPO-SECRETO-XYZ');
+  });
+});
+
+describe('B2 — resolveCorrelationId valida formato fechado', () => {
+  it('aceita id válido e gera para PII/blob/ausente', () => {
+    expect(isValidCorrelationId('req-abc_123')).toBe(true);
+    expect(isValidCorrelationId('cpf-123.456.789-00')).toBe(false);
+    expect(isValidCorrelationId('x'.repeat(1024))).toBe(false);
+    expect(isValidCorrelationId('')).toBe(false);
+    expect(isValidCorrelationId(undefined)).toBe(false);
+    expect(resolveCorrelationId('req-abc_123')).toBe('req-abc_123');
+    const gen = resolveCorrelationId('PII:' + 'x'.repeat(1024));
+    expect(gen).not.toContain('PII');
+    expect(isValidCorrelationId(gen)).toBe(true);
+    expect(isValidCorrelationId(resolveCorrelationId(undefined))).toBe(true);
   });
 });
 

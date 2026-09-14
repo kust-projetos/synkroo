@@ -5,35 +5,15 @@ import { buildUserContext } from '@/core/actions/context';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
 import { resolveIaTimezone } from '../timezone';
-import type { RunTurnResult } from '@/core/ia-agent/types';
-
-/**
- * Códigos internos liberados no DTO público (allowlist explícita).
- * Todo o resto de `errorCode` fica só no log correlacionado, nunca no HTTP.
- */
-const PUBLIC_ERROR_CODES: ReadonlySet<string> = new Set(['rpc_timeout']);
-
-/** Mapeia o resultado interno para o DTO público mínimo do chat. */
-export function toPublicChatDto(result: RunTurnResult): Record<string, unknown> {
-  const dto: Record<string, unknown> = {
-    reply: result.reply,
-    turnsUsed: result.turnsUsed,
-  };
-  if (result.escalated !== undefined) dto.escalated = result.escalated;
-  if (result.escalationReason) dto.escalationReason = result.escalationReason;
-  if (result.pendingAction) dto.pendingAction = result.pendingAction;
-  if (result.errorCode && PUBLIC_ERROR_CODES.has(result.errorCode)) {
-    dto.errorCode = result.errorCode;
-  }
-  return dto;
-}
+import { resolveCorrelationId } from '@/core/ia-agent/telemetry';
+import { toPublicChatDto } from './dto';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
-  // B2: correlation id ponta a ponta — ecoa x-request-id do caller ou gera um
-  // novo; propagado a invokeAgent → issueHandle → runTurn → provider e
-  // devolvido no header da resposta para rastreabilidade do incidente.
-  const correlationId =
-    request.headers.get('x-request-id') ?? crypto.randomUUID();
+  // B2: correlation id ponta a ponta — ecoa x-request-id do caller quando em
+  // formato válido, senão gera um novo (resolveCorrelationId); propagado a
+  // invokeAgent → issueHandle → runTurn → provider e devolvido no header de
+  // TODAS as respostas para rastreabilidade do incidente.
+  const correlationId = resolveCorrelationId(request.headers.get('x-request-id'));
   const corrHeaders = { 'x-request-id': correlationId };
 
   // buildUserContext lança 'unauthenticated' sem sessão; dá user + can (RBAC real).
@@ -41,12 +21,18 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   try {
     ctx = await buildUserContext();
   } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: corrHeaders },
+    );
   }
 
   // autorização específica: exige ia:chat (não basta o módulo ativo).
   if (!ctx.can('ia:chat')) {
-    return NextResponse.json({ error: 'Sem permissão para o assistente.' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'Sem permissão para o assistente.' },
+      { status: 403, headers: corrHeaders },
+    );
   }
 
   const userId = ctx.user!.id;
@@ -60,7 +46,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   if (!conversationId || !message) {
     return NextResponse.json(
       { error: 'conversationId e message são obrigatórios.' },
-      { status: 422 },
+      { status: 422, headers: corrHeaders },
     );
   }
 

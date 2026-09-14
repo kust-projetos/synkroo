@@ -43,11 +43,28 @@ export interface TelemetryEvent {
 
 export type TelemetrySink = (event: TelemetryEvent) => void;
 
+/** Formato fechado de correlation id: 1–128 chars alfanuméricos, hífen, underscore. */
+const CORRELATION_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+/** Valida correlation id contra o formato fechado (rejeita PII/blob injetado). */
+export function isValidCorrelationId(v: unknown): v is string {
+  return typeof v === 'string' && CORRELATION_PATTERN.test(v);
+}
+
+/**
+ * Resolve o correlation id de borda não confiável (header x-request-id, RPC):
+ * válido → ecoa; ausente/inválido (PII, blob, 1KB) → gera randomUUID.
+ * Função única — rota e workers usam esta.
+ */
+export function resolveCorrelationId(raw: unknown): string {
+  return isValidCorrelationId(raw) ? raw : crypto.randomUUID();
+}
+
 /** Extrai correlationId de input não confiável (borda RPC) sem quebrar. */
 export function extractCorrelationId(input: unknown): string | undefined {
   if (input === null || typeof input !== 'object') return undefined;
   const v = (input as { correlationId?: unknown }).correlationId;
-  return typeof v === 'string' && v.length > 0 ? v : undefined;
+  return isValidCorrelationId(v) ? v : undefined;
 }
 
 /**
