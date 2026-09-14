@@ -63,7 +63,6 @@ export class AgentOrchestrator extends DurableObject<Env> {
   ): Promise<RunTurnResult> {
     // Carrega estado persistido entre turnos da mesma conversa.
     const history = (await this.ctx.storage.get<ChatMessage[]>('history')) ?? [];
-    const pendingAction = (await this.ctx.storage.get<PendingAction | null>('pendingAction')) ?? undefined;
 
     const provider = createZenProvider({
       apiKey: this.env.OPENCODE_ZEN_API_KEY,
@@ -73,11 +72,25 @@ export class AgentOrchestrator extends DurableObject<Env> {
 
     const app = this.env.APP as unknown as AppBinding;
     const result = await runAgentTurn(
-      { provider, app, now: new Date() },
+      {
+        provider,
+        app,
+        now: new Date(),
+        // B1-review — reserva atômica por shard: lê e apaga a pending na
+        // mesma transação. Segunda confirmação (concorrente ou seguida) do
+        // mesmo token recebe undefined → recusada (at-most-once).
+        consumePendingAction: async () => {
+          const taken = await this.ctx.storage.transaction(async (txn) => {
+            const cur = await txn.get<PendingAction | null>('pendingAction');
+            await txn.delete('pendingAction');
+            return cur ?? undefined;
+          });
+          return taken;
+        },
+      },
       {
         ...input,
         history,
-        pendingAction,
       },
     );
 

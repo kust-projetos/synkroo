@@ -139,13 +139,25 @@ export async function runTurn(
 
   // ── Caminho de confirmação ────────────────────────────────────────────────
   // Reexecuta os args ORIGINAIS (não os do modelo). Vincula alias+args.
-  // Comparação timing-safe (B1): nunca `===` em token.
+  // B1-review — reserva atômica + binding de principal:
+  //  - consome a pending do DO storage ANTES de executar (at-most-once via
+  //    `consumePendingAction`; sem callback, usa `input.pendingAction`);
+  //  - confirma só se token (timing-safe) E principalId casarem;
+  //  - fail-closed: sem pending, sem token, ou principal ausente/divergente
+  //    em qualquer lado → recusa (segue o fluxo normal, sem executar);
+  //  - falha pós-reserva NÃO re-arma a pending: erro normal ao usuário.
+  const storedPa = deps.consumePendingAction
+    ? await deps.consumePendingAction()
+    : input.pendingAction;
   if (
-    input.pendingAction &&
+    storedPa &&
     input.confirmedToken &&
-    (await safeTokenEquals(input.confirmedToken, input.pendingAction.token))
+    input.principalId &&
+    storedPa.principalId &&
+    input.principalId === storedPa.principalId &&
+    (await safeTokenEquals(input.confirmedToken, storedPa.token))
   ) {
-    const pa = input.pendingAction;
+    const pa = storedPa;
     const identityVerified =
       !!input.identityVerifiedToken &&
       (await safeTokenEquals(input.identityVerifiedToken, pa.token));
@@ -162,18 +174,6 @@ export async function runTurn(
       return { reply: FALLBACK, turnsUsed: 0 };
     }
     if (!exec.ok) {
-      // needs_identity / needs_confirmation: preserva pendingAction (não limpa o estado)
-      if (exec.error === 'needs_identity' || exec.error === 'needs_confirmation') {
-        const ask =
-          exec.error === 'needs_identity'
-            ? 'preciso confirmar sua identidade'
-            : 'você confirma esta ação';
-        return {
-          reply: `Para prosseguir, ${ask}. Posso seguir?`,
-          turnsUsed: 1,
-          pendingAction: pa,
-        };
-      }
       return {
         reply: errorReply(exec.error),
         turnsUsed: 1,
@@ -367,7 +367,7 @@ export async function runTurn(
           return {
             reply: `Para prosseguir, ${ask}. Posso seguir?`,
             turnsUsed,
-            pendingAction: { alias, args, token: newToken() },
+            pendingAction: { alias, args, token: newToken(), principalId: input.principalId },
           };
         }
 

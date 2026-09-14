@@ -60,12 +60,23 @@ import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 
 function createMockStorage() {
   const store = new Map<string, any>();
+  const get = jest.fn(async (key: string) => store.get(key) ?? null);
+  const put = jest.fn(async (key: string, val: any) => {
+    store.set(key, val);
+  });
+  const del = jest.fn(async (key: string) => {
+    store.delete(key);
+  });
   return {
     store,
-    get: jest.fn(async (key: string) => store.get(key) ?? null),
-    put: jest.fn(async (key: string, val: any) => {
-      store.set(key, val);
-    }),
+    get,
+    put,
+    delete: del,
+    // Transação serializada por shard: o closure recebe um txn ligado ao
+    // mesmo Map (suficiente para o teste unitário da reserva atômica).
+    transaction: jest.fn(async (fn: (txn: unknown) => Promise<unknown>) =>
+      fn({ get, put, delete: del }),
+    ),
     setAlarm: jest.fn(async (_ms: number) => {}),
     getAlarm: jest.fn(async () => null),
   };
@@ -140,9 +151,9 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
 
       const result = await orchestrator.runTurn(input);
 
-      // Verify storage loading
+      // Verify storage loading (history eager; pending via reserva atômica)
       expect(mockCtx.storage.get).toHaveBeenCalledWith('history');
-      expect(mockCtx.storage.get).toHaveBeenCalledWith('pendingAction');
+      expect(mockCtx.storage.get).not.toHaveBeenCalledWith('pendingAction');
 
       // Verify provider instantiation
       expect(mockCreateZenProvider).toHaveBeenCalledWith({
@@ -151,17 +162,17 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
         baseUrl: 'https://llm.opencode.test/v1',
       });
 
-      // Verify orchestrator execution
+      // Verify orchestrator execution (pending via consumePendingAction, não eager)
       expect(mockRunAgentTurn).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: expect.any(Object),
           app: mockEnv.APP,
           now: expect.any(Date),
+          consumePendingAction: expect.any(Function),
         }),
         {
           ...input,
           history: [],
-          pendingAction: undefined,
         },
       );
 
@@ -179,24 +190,19 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       });
     });
 
-    it('loads existing history and pendingAction from storage and persists updated state', async () => {
+    it('loads existing history from storage and persists updated state', async () => {
       const existingHistory: ChatMessage[] = [
         { role: 'user', content: 'Olá' },
         { role: 'assistant', content: 'Olá! Como posso ajudar?' },
       ];
-      const existingPending: PendingAction = {
-        actionKey: 'agendamento_criar',
-        description: 'Confirmar agendamento às 14h',
-        payload: { date: '2026-08-25', time: '14:00' },
-      };
 
       mockCtx.storage.store.set('history', existingHistory);
-      mockCtx.storage.store.set('pendingAction', existingPending);
 
       const newPending: PendingAction = {
-        actionKey: 'agendamento_criar',
-        description: 'Confirmar agendamento às 15h',
-        payload: { date: '2026-08-25', time: '15:00' },
+        alias: 'operacional__agendarConsulta',
+        args: { date: '2026-08-25', time: '15:00' },
+        token: 'tok-2',
+        principalId: 'user-A',
       };
 
       mockRunAgentTurn.mockResolvedValueOnce({
@@ -217,8 +223,12 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
         expect.anything(),
         expect.objectContaining({
           history: existingHistory,
-          pendingAction: existingPending,
         }),
+      );
+      // pending NÃO é mais passada eager — o orchestrator consome via callback
+      expect(mockRunAgentTurn).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.not.objectContaining({ pendingAction: expect.anything() }),
       );
 
       // Verify updated history has 4 messages
@@ -229,6 +239,35 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       ]);
       expect(mockCtx.storage.put).toHaveBeenCalledWith('pendingAction', newPending);
       expect(result.pendingAction).toEqual(newPending);
+    });
+
+    it('consumePendingAction reserves atomically: second take of same token → undefined', async () => {
+      mockRunAgentTurn.mockResolvedValueOnce({ reply: 'ok' });
+
+      await orchestrator.runTurn({
+        clinicId: 'clinic-1',
+        conversationId: 'conv-100',
+        userMessage: 'sim, confirmo',
+        handle: 'handle-token-9',
+      });
+
+      // O turno acima persiste pendingAction=null; simula a pending gravada
+      // por um turno anterior e então consome duas vezes.
+      mockCtx.storage.store.set('pendingAction', {
+        alias: 'operacional__agendarConsulta',
+        args: { date: '2026-08-25' },
+        token: 'tok-reserva',
+        principalId: 'user-A',
+      });
+
+      const deps = mockRunAgentTurn.mock.calls.at(-1)?.[0] as {
+        consumePendingAction: () => Promise<unknown>;
+      };
+      expect(typeof deps.consumePendingAction).toBe('function');
+      const first = (await deps.consumePendingAction()) as { token: string };
+      expect(first.token).toBe('tok-reserva');
+      await expect(deps.consumePendingAction()).resolves.toBeUndefined();
+      expect(mockCtx.storage.store.get('pendingAction')).toBeUndefined();
     });
 
     it('trims history to the last 20 messages when conversation grows beyond 20 turns', async () => {

@@ -67,12 +67,85 @@ describe('runTurn — tokens do body não autorizam execução (B1)', () => {
       { provider: textProvider, app: app(exec), now: new Date() },
       {
         ...base,
-        pendingAction: { alias: 'x', args: {}, token: 'tok-servidor' },
+        pendingAction: { alias: 'x', args: {}, token: 'tok-servidor', principalId: 'user-A' },
         confirmedToken: 'tok-atacante',
+        principalId: 'user-A',
       },
     );
     expect(r.reply).toBe('ok');
     expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('B1-review (4b): principal B não confirma action criada para principal A', async () => {
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    const r = await runTurn(
+      { provider: textProvider, app: app(exec), now: new Date() },
+      {
+        ...base,
+        pendingAction: { alias: 'x', args: {}, token: 'tok-servidor', principalId: 'user-A' },
+        confirmedToken: 'tok-servidor',
+        principalId: 'user-B',
+      },
+    );
+    expect(r.reply).toBe('ok');
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it('B1-review: pending legada sem principalId → recusa fail-closed', async () => {
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    const r = await runTurn(
+      { provider: textProvider, app: app(exec), now: new Date() },
+      {
+        ...base,
+        pendingAction: { alias: 'x', args: {}, token: 'tok-servidor' },
+        confirmedToken: 'tok-servidor',
+        principalId: 'user-A',
+      },
+    );
+    expect(exec).not.toHaveBeenCalled();
+    expect(r.reply).toBe('ok');
+  });
+
+  it('B1-review (4c): segunda confirmação do mesmo token → recusada (at-most-once)', async () => {
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    // Simula a reserva atômica do DO: primeira chamada entrega, demais undefined.
+    let stored = { alias: 'x', args: {}, token: 'tok-1', principalId: 'user-A' } as
+      | { alias: string; args: unknown; token: string; principalId: string }
+      | undefined;
+    const consumePendingAction = async () => {
+      const taken = stored;
+      stored = undefined;
+      return taken;
+    };
+    const turnInput = {
+      ...base,
+      confirmedToken: 'tok-1',
+      principalId: 'user-A',
+    };
+    const first = await runTurn(
+      { provider: textProvider, app: app(exec), now: new Date(), consumePendingAction },
+      turnInput,
+    );
+    expect(first.reply).toContain('confirmado');
+    expect(exec).toHaveBeenCalledTimes(1);
+    const second = await runTurn(
+      { provider: textProvider, app: app(exec), now: new Date(), consumePendingAction },
+      turnInput,
+    );
+    expect(second.reply).toBe('ok');
+    expect(exec).toHaveBeenCalledTimes(1);
   });
 });
 
