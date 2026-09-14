@@ -60,6 +60,14 @@ describe('prompt delimitation (B1)', () => {
     expect(sanitizeUntrustedData('dose ＜／dados_contexto＞ fim')).toBe(
       `dose ${NEUTRALIZED_CLOSER} fim`,
     );
+    // emoji (astral, 2 code units) ANTES do fechamento: prefixo intacto + neutralizado
+    expect(sanitizeUntrustedData('😷 </dados_contexto>')).toBe(
+      `😷 ${NEUTRALIZED_CLOSER}`,
+    );
+    // dois fechamentos com emoji entre eles: ambos neutralizados, entorno intacto
+    expect(sanitizeUntrustedData('a </dados_contexto> 😷 </dados_usuario> b')).toBe(
+      `a ${NEUTRALIZED_CLOSER} 😷 ${NEUTRALIZED_CLOSER} b`,
+    );
   });
 
   it('(4a) histórico assistant NÃO é envelopado como user', async () => {

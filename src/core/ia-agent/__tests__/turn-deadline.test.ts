@@ -183,4 +183,38 @@ describe('runTurn — deadline real do turno (B1-review)', () => {
     expect(r.reply).toBeTruthy();
     expect(r.turnsUsed).toBe(1);
   });
+
+  it('B1-review: confirm com clock além do deadline → 0 exec, pending preservada, fallback', async () => {
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    let stored = { alias: 'x', args: {}, token: 'tok-1', principalId: 'user-A' } as
+      | { alias: string; args: unknown; token: string; principalId: string }
+      | undefined;
+    const peekPendingAction = async () => stored;
+    const consumePendingAction = async () => {
+      const taken = stored;
+      stored = undefined;
+      return taken;
+    };
+    const r = await runTurn(
+      {
+        provider: { complete: async () => ({ text: 'n/a', toolCalls: [] }) },
+        app: { ...okApp, executeAction: exec },
+        now: new Date(),
+        turnBudgetMs: 0,
+        peekPendingAction,
+        consumePendingAction,
+      },
+      { ...base, confirmedToken: 'tok-1', principalId: 'user-A' },
+    );
+    expect(exec).not.toHaveBeenCalled();
+    expect(stored).toBeDefined();
+    expect(await peekPendingAction()).toBeDefined();
+    expect(r.turnsUsed).toBe(0);
+    expect(r.reply).toBeTruthy();
+    expect(r.pendingActionWrite).toBe('keep');
+  });
 });

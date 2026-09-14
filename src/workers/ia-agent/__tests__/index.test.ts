@@ -177,12 +177,15 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
         },
       );
 
-      // Verify storage persistence
+      // Verify storage persistence (history sim; pending keep → NÃO escreve)
       expect(mockCtx.storage.put).toHaveBeenCalledWith('history', [
         { role: 'user', content: 'Gostaria de agendar para amanhã' },
         { role: 'assistant', content: 'Posso agendar sua consulta.' },
       ]);
-      expect(mockCtx.storage.put).toHaveBeenCalledWith('pendingAction', null);
+      expect(mockCtx.storage.put).not.toHaveBeenCalledWith(
+        'pendingAction',
+        expect.anything(),
+      );
 
       // Verify returned result
       expect(result).toEqual({
@@ -209,6 +212,7 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       mockRunAgentTurn.mockResolvedValueOnce({
         reply: 'Horário ajustado para 15h.',
         pendingAction: newPending,
+        pendingActionWrite: 'set',
       });
 
       const input = {
@@ -240,6 +244,67 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       ]);
       expect(mockCtx.storage.put).toHaveBeenCalledWith('pendingAction', newPending);
       expect(result.pendingAction).toEqual(newPending);
+    });
+
+    it("B1-review item 3: turno normal com pending existente → pending intacta (keep não escreve)", async () => {
+      const existing = {
+        alias: 'operacional__agendarConsulta',
+        args: { date: '2026-08-25' },
+        token: 'tok-keep',
+        principalId: 'user-A',
+      };
+      mockCtx.storage.store.set('pendingAction', existing);
+      mockRunAgentTurn.mockResolvedValueOnce({ reply: 'ok' });
+
+      await orchestrator.runTurn({
+        clinicId: 'clinic-1',
+        conversationId: 'conv-100',
+        userMessage: 'só uma dúvida',
+        handle: 'handle-token-keep',
+      });
+
+      expect(mockCtx.storage.put).not.toHaveBeenCalledWith(
+        'pendingAction',
+        expect.anything(),
+      );
+      expect(mockCtx.storage.store.get('pendingAction')).toEqual(existing);
+    });
+
+    it('B1-review item 3: confirm inválido → pending intacta; confirm válido → null', async () => {
+      const existing = {
+        alias: 'operacional__agendarConsulta',
+        args: { date: '2026-08-25' },
+        token: 'tok-x',
+        principalId: 'user-A',
+      };
+      mockCtx.storage.store.set('pendingAction', existing);
+
+      // confirm inválido (sem clear) → não escreve
+      mockRunAgentTurn.mockResolvedValueOnce({ reply: 'não entendi' });
+      await orchestrator.runTurn({
+        clinicId: 'clinic-1',
+        conversationId: 'conv-100',
+        userMessage: 'sim?',
+        handle: 'handle-token-bad',
+      });
+      expect(mockCtx.storage.put).not.toHaveBeenCalledWith(
+        'pendingAction',
+        expect.anything(),
+      );
+      expect(mockCtx.storage.store.get('pendingAction')).toEqual(existing);
+
+      // confirm válido (consumiu) → clear grava null
+      mockRunAgentTurn.mockResolvedValueOnce({
+        reply: 'Pronto, confirmado e executado.',
+        pendingActionWrite: 'clear',
+      });
+      await orchestrator.runTurn({
+        clinicId: 'clinic-1',
+        conversationId: 'conv-100',
+        userMessage: 'sim, confirmo',
+        handle: 'handle-token-ok',
+      });
+      expect(mockCtx.storage.put).toHaveBeenCalledWith('pendingAction', null);
     });
 
     it('consumePendingAction reserves atomically: second take of same token → undefined', async () => {

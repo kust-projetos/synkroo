@@ -86,4 +86,10 @@ export interface RunTurnResult {
   escalated?: boolean;
   escalationReason?: string;
   pendingAction?: PendingAction;
+  /**
+   * B1-review — semântica de escrita da pending no DO storage:
+   * 'set' (orchestrator criou nova), 'clear' (confirm consumiu),
+   * 'keep' (não escreve — preserva a existente). Opcional: ausente = keep.
+   */
+  pendingActionWrite?: 'set' | 'clear' | 'keep';
 }
