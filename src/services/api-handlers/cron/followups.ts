@@ -25,6 +25,7 @@ import { assertModuleForJob } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
+import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';
 import { executarFollowup } from '@/modules/followup/actions/executar-followup';
 import { detectarInativos } from '@/modules/followup/actions/detectar-inativos';
 import { executarCampanhas } from '@/modules/followup/actions/executar-campanhas';
@@ -32,6 +33,7 @@ import { executarCampanhas } from '@/modules/followup/actions/executar-campanhas
 type CronResult = { task: string; clinicId: string; ok: boolean; data?: unknown; error?: string };
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  const requestId = generateRequestId();
   // Verify CRON_SECRET before rate limit — invalid credentials must not consume scheduler quota (T1 DoS fix).
   const cronSecret = request.headers.get('Authorization') ?? '';
   const expectedSecret = `Bearer ${process.env.CRON_SECRET ?? ''}`;
@@ -40,7 +42,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     cronSecret.length !== expectedSecret.length ||
     !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
   ) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return apiFailure('UNAUTHORIZED', 'Unauthorized', requestId, 401);
   }
 
   const rateLimit = checkRateLimit('cron', {
@@ -49,7 +51,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   });
   if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+      { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId }, retryAfter: rateLimit.retryAfter },
       { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
     );
   }
@@ -58,9 +60,8 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   try {
     await assertModuleForJob('followup', createManifest());
   } catch (_e) {
-    return NextResponse.json(
+    return apiSuccess(
       { success: true, skipped: 'followup module disabled', timestamp: new Date().toISOString() },
-      { status: 200 },
     );
   }
 
@@ -131,7 +132,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     success: true,
     timestamp: new Date().toISOString(),
     results,

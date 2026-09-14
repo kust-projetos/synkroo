@@ -1,14 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { eq, and, gte, lte, lt, inArray, isNull, sql } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
 import { getDb } from '@/lib/db/client'
 import { patients, appointments } from '@/lib/db/schema'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+    if (!authResult.success) return apiAuthFailure(authResult.error, requestId)
     const clinicId = authResult.profile!.clinic_id
     const db = getDb()
     const sp = new URL(request.url).searchParams
@@ -54,11 +55,11 @@ export async function GET(request: NextRequest) {
     const prevNew = prevRow?.count ?? 0
     const growth = prevNew ? Math.round(((newPatients.length - prevNew) / prevNew) * 100) : 0
 
-    return NextResponse.json({
+    return apiSuccess({
       period: { start: startDate, end: endDate },
       newPatients: { total: newPatients.length, bySource, growth },
       retention: { totalPatients, activePatients: activeIds.size, inactivePatients: inactiveList.length, retentionRate },
       inactiveList,
     })
-  } catch (error) { return handleApiError(error) }
+  } catch (error) { return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500) }
 }

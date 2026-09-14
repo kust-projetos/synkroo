@@ -165,7 +165,8 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
 
     expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error).toBe('Unauthorized');
+    // Envelope canônico de erro (R2)
+    expect(body.error.code).toBe('UNAUTHORIZED');
   });
 
   it('returns 401 when Authorization header is missing', async () => {
@@ -192,8 +193,9 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.skipped).toContain('followup module disabled');
+    // Envelope canônico (R2): { data: { success, skipped, ... } }
+    expect(body.data.success).toBe(true);
+    expect(body.data.skipped).toContain('followup module disabled');
   });
 
   // ── Valid request (DB enabled) ──────────────────────────────────────────
@@ -204,9 +206,9 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(body.results).toBeDefined();
-    expect(body.timestamp).toBeDefined();
+    expect(body.data.success).toBe(true);
+    expect(body.data.results).toBeDefined();
+    expect(body.data.timestamp).toBeDefined();
   });
 
   it('processes specific tasks via tasks query param', async () => {
@@ -215,11 +217,11 @@ describeOrSkip('POST /api/cron/followups (gate via DB real)', () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.success).toBe(true);
-    expect(Array.isArray(body.results.followups)).toBe(true);
-    expect(body.results.followups[0]).toMatchObject({ task: 'followups', ok: true });
+    expect(body.data.success).toBe(true);
+    expect(Array.isArray(body.data.results.followups)).toBe(true);
+    expect(body.data.results.followups[0]).toMatchObject({ task: 'followups', ok: true });
     // inactivity and campaigns should NOT be processed
-    expect(body.results.inactivity).toBeUndefined();
-    expect(body.results.campaigns).toBeUndefined();
+    expect(body.data.results.inactivity).toBeUndefined();
+    expect(body.data.results.campaigns).toBeUndefined();
   });
 });

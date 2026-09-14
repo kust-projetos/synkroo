@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, gte, lte, inArray, desc, asc, isNull, sql } from 'drizzle-orm'
+import { eq, and, gte, lte, inArray, desc, asc, isNull } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
 import { appointments, patients, leads, conversations, dentists, procedures } from '@/lib/db/schema'
 import { redactPII } from '@/lib/reports/redact-pii'
 import { escapeCsvCell } from '@/app/api/reports/export/csv'
 
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('analytics:export')
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+    if (!authResult.success) return apiAuthFailure(authResult.error, requestId)
     const clinicId = authResult.profile!.clinic_id
     const sp = new URL(request.url).searchParams
     const type = sp.get('type') || 'appointments'
@@ -88,13 +89,13 @@ export async function GET(request: NextRequest) {
         break
       }
       default:
-        return NextResponse.json({ error: 'Invalid report type. Use: appointments, patients, leads, financial, conversations' }, { status: 400 })
+        return apiFailure('INVALID_INPUT', 'Invalid report type. Use: appointments, patients, leads, financial, conversations', requestId, 400)
     }
 
     data = redactPII(data)
     const dateSuffix = new Date().toISOString().split('T')[0]
     if (format === 'json' || format === 'pdf') {
-      return NextResponse.json({
+      return apiSuccess({
         data,
         headers,
         filename: `${filename}_${dateSuffix}`,
@@ -109,7 +110,7 @@ export async function GET(request: NextRequest) {
     }
     const csvContent = generateCSV(data, headers, type)
     return new NextResponse(csvContent, { headers: { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${filename}_${dateSuffix}.csv"` } })
-  } catch (error) { return handleApiError(error) }
+  } catch (error) { return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500) }
 }
 
 // ─── CSV generator ───
