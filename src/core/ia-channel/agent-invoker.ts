@@ -7,6 +7,10 @@ import {
   type IssueHandleResult,
 } from '@/core/agent-bridge/rpc-contract';
 import type { PersonaType, RunTurnInput, RunTurnResult } from '@/core/ia-agent/types';
+import {
+  createTelemetryLogger,
+  type TelemetrySink,
+} from '@/core/ia-agent/telemetry';
 
 // Fallback quando o DO/bridge falha ou estoura o timeout (anti-hang / worker-cancel).
 // Contrato: invokeAgentWithEnv SEMPRE resolve com um RunTurnResult controlado;
@@ -56,6 +60,8 @@ export interface InvokeAgentInput {
   userMessage: string;
   confirmedToken?: string;
   identityVerifiedToken?: string;
+  /** B2: x-request-id da rota; gerado aqui quando ausente. */
+  correlationId?: string;
 }
 
 // Lógica pura (testável): recebe os bindings já resolvidos.
@@ -66,14 +72,20 @@ export interface InvokeAgentInput {
 export async function invokeAgentWithEnv(
   env: AgentEnv,
   input: InvokeAgentInput,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; telemetry?: TelemetrySink } = {},
 ): Promise<RunTurnResult> {
   const timeoutMs = opts.timeoutMs ?? resolveRpcTimeoutMs();
+  // B2: correlation id ponta a ponta — a rota gera/ecoa x-request-id; aqui é
+  // o fallback de geração para callers que não passam (ex.: WhatsApp inbound).
+  const correlationId = input.correlationId ?? crypto.randomUUID();
+  const emit = opts.telemetry ?? createTelemetryLogger('ia-channel:agent-invoker');
+  const startedAt = Date.now();
 
   const runOnce = async (): Promise<RunTurnResult> => {
     // 1. handle (ia-bridge é a autoridade do principal)
     const issued: IssueHandleResult = await env.IA_HANDLE_ISSUER.issueHandle({
       contractVersion: BRIDGE_RPC_VERSION,
+      correlationId,
       clinicId: input.clinicId,
       conversationId: input.conversationId,
       principalRef: input.principalRef,
@@ -103,22 +115,32 @@ export async function invokeAgentWithEnv(
       userMessage: input.userMessage,
       confirmedToken: input.confirmedToken,
       identityVerifiedToken: input.identityVerifiedToken,
+      correlationId,
+      clinicId: input.clinicId,
     });
   };
 
   try {
-    return await raceWithTimeout(runOnce(), timeoutMs, input);
+    return await raceWithTimeout(runOnce(), timeoutMs, input, correlationId);
   } catch (err) {
-    // Log estruturado para diagnístico sem expor PII; o caller HTTP recebe
-    // um fallback controlado e o Worker não é cancelado.
-    // eslint-disable-next-line no-console
-    console.error('[agent-invoker] runTurn failed, returning fallback reply', {
-      conversationId: input.conversationId,
-      channel: input.channel,
-      timeoutMs,
-      error: err instanceof Error ? err.message : String(err),
+    // Log estruturado para diagnóstico (com correlation id) sem expor PII;
+    // o caller HTTP recebe um fallback controlado e o Worker não é cancelado.
+    const message = err instanceof Error ? err.message : String(err);
+    const code = message.includes('RPC timeout')
+      ? 'rpc_timeout'
+      : message.includes('contract version mismatch')
+        ? 'contract_version_mismatch'
+        : 'invoke_failed';
+    emit({
+      correlationId,
+      clinicId: input.clinicId,
+      operation: 'invoke_agent',
+      durationMs: Date.now() - startedAt,
+      status: 'fallback',
+      code,
+      detail: message.slice(0, 300),
     });
-    return { reply: FALLBACK_REPLY, turnsUsed: 0 };
+    return { reply: FALLBACK_REPLY, turnsUsed: 0, errorCode: code };
   }
 }
 
@@ -129,13 +151,14 @@ async function raceWithTimeout<T>(
   p: Promise<T>,
   ms: number,
   input: InvokeAgentInput,
+  correlationId: string,
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       reject(
         new Error(
-          `[agent-invoker] RPC timeout after ${ms}ms (conversationId=${input.conversationId}, channel=${input.channel})`,
+          `[agent-invoker] RPC timeout after ${ms}ms (conversationId=${input.conversationId}, channel=${input.channel}, corr=${correlationId})`,
         ),
       );
     }, ms);
