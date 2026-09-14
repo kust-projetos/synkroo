@@ -1,28 +1,29 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server'
 import { eq } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
 import { clinics } from '@/lib/db/schema'
 import { clinicSettingsSchema } from '@/lib/validations'
 
 export async function GET() {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+    if (!authResult.success) return apiAuthFailure(authResult.error, requestId)
     const clinicId = authResult.profile!.clinic_id
     const db = getDb()
     const [clinic] = await db.select({ id: clinics.id, name: clinics.name, phone: clinics.phone, email: clinics.email, settings: clinics.settings, timezone: clinics.timezone }).from(clinics).where(eq(clinics.id, clinicId))
-    if (!clinic) return handleApiError(new Error('Clinic not found'))
-    return NextResponse.json({ settings: clinic })
-  } catch (error) { return handleApiError(error) }
+    if (!clinic) return apiFailure('NOT_FOUND', 'Clinic not found', requestId, 404)
+    return apiSuccess({ settings: clinic })
+  } catch (error) { return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500) }
 }
 
 export async function PUT(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth()
-    if (!authResult.success) return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+    if (!authResult.success) return apiAuthFailure(authResult.error, requestId)
     const clinicId = authResult.profile!.clinic_id
     const rawBody = await request.json()
     const body = clinicSettingsSchema.parse(rawBody)
@@ -30,7 +31,7 @@ export async function PUT(request: NextRequest) {
 
     // Fetch existing to preserve unknown keys / credentials / channel metadata (e.g., whatsapp_phone_number_id)
     const [existing] = await db.select({ id: clinics.id, name: clinics.name, phone: clinics.phone, email: clinics.email, settings: clinics.settings, timezone: clinics.timezone }).from(clinics).where(eq(clinics.id, clinicId))
-    if (!existing) return handleApiError(new Error('Clinic not found'))
+    if (!existing) return apiFailure('NOT_FOUND', 'Clinic not found', requestId, 404)
 
     const existingSettings = (existing.settings as Record<string, unknown>) ?? {}
     const incomingSettings = (body.settings as Record<string, unknown>) ?? {}
@@ -53,6 +54,6 @@ export async function PUT(request: NextRequest) {
     if (Object.keys(updateData).length > 0) {
       await db.update(clinics).set(updateData as any).where(eq(clinics.id, clinicId))
     }
-    return NextResponse.json({ success: true })
-  } catch (error) { return handleApiError(error) }
+    return apiSuccess({ success: true })
+  } catch (error) { return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500) }
 }

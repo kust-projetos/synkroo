@@ -728,7 +728,9 @@ export function useCreateTask() {
         body: JSON.stringify(input),
       })
       if (!res.ok) throw new Error('Failed to create task')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { task } }
+      return body.data ?? body
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('tasks') })
@@ -749,7 +751,9 @@ export function useUpdateTask() {
         body: JSON.stringify(input),
       })
       if (!res.ok) throw new Error('Failed to update task')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { task } }
+      return body.data ?? body
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('tasks') })
@@ -766,7 +770,9 @@ export function useDeleteTask() {
       }
       const res = await fetch(`/api/tasks?id=${taskId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete task')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { success } }
+      return body.data ?? body
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('tasks') })
@@ -826,10 +832,13 @@ export function useAllActivities(options?: {
       if (options?.endDate) params.set('end_date', options.endDate)
       const res = await fetch(`/api/activities?${params}`)
       if (!res.ok) throw new Error('Failed to fetch activities')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { events, next_cursor } }
+      return body.data ?? body
     },
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage.next_cursor ?? undefined,
+    getNextPageParam: (lastPage: { data?: { next_cursor: string | null }; next_cursor?: string | null }) =>
+      lastPage.data?.next_cursor ?? lastPage.next_cursor ?? undefined,
     staleTime: 30 * 1000,
   })
 }

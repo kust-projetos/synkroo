@@ -14,10 +14,10 @@ beforeEach(()=>jest.clearAllMocks())
 
 describe('GET /api/clinics/settings',()=>{
   it('returns 401 without auth',async()=>{mockAuthFail();const r=await GET();expect(r.status).toBe(401)})
-  it('returns settings shape',async()=>{mockAuth();ok([{id:'c1',name:'Demo',phone:'11',email:'a@b.com',settings:{}}]);const r=await GET();const b=await r.json();expect(r.status).toBe(200);expect(b.settings).toHaveProperty('id');expect(b.settings).toHaveProperty('name')})
+  it('returns settings shape',async()=>{mockAuth();ok([{id:'c1',name:'Demo',phone:'11',email:'a@b.com',settings:{}}]);const r=await GET();const b=await r.json();expect(r.status).toBe(200);expect(b.data.settings).toHaveProperty('id');expect(b.data.settings).toHaveProperty('name')})
 })
 
 describe('PUT /api/clinics/settings',()=>{
   it('returns 401 without auth',async()=>{mockAuthFail();const r=await PUT(new Request('http://x',{method:'PUT',body:JSON.stringify({name:'X'})}) as any);expect(r.status).toBe(401)})
-  it('updates clinic settings',async()=>{mockAuth();ok([{id:'c1'}]);const r=await PUT(new Request('http://x',{method:'PUT',body:JSON.stringify({name:'New'})}) as any);const b=await r.json();expect(r.status).toBe(200);expect(b.success).toBe(true)})
+  it('updates clinic settings',async()=>{mockAuth();ok([{id:'c1'}]);const r=await PUT(new Request('http://x',{method:'PUT',body:JSON.stringify({name:'New'})}) as any);const b=await r.json();expect(r.status).toBe(200);expect(b.data.success).toBe(true)})
 })
