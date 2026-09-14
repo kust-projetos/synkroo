@@ -51,7 +51,7 @@ describe('withModuleRoute — operational module gate', () => {
     const res = await wrapped(new NextRequest('http://localhost'));
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error).toBe('not_found');
+    expect(body.error.code).toBe('NOT_FOUND');
   });
 
   it('passes route params through when enabled', async () => {

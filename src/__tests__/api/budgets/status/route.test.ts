@@ -1,7 +1,7 @@
-/** Tests for budgets/accept + budgets/reject routes — financeiro legacy adapter */
+/** Tests for budgets/accept + budgets/reject routes — contrato canônico (D2 lote 3/5) */
 const mockValidateApiAuth = jest.fn()
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth }))
-jest.mock('@/lib/errors', () => ({ handleApiError: jest.fn((e: any) => new Response(JSON.stringify({ error: 'Internal' }), { status: 500 })) }))
+jest.mock('@/core/modules/gates', () => ({ withModuleRoute: () => (h: unknown) => h }))
 jest.mock('@/modules/financeiro/services/budget-service', () => ({
   getBudget: jest.fn(),
   acceptBudget: jest.fn(),
@@ -41,11 +41,19 @@ describe('budgets/accept', () => {
   })
   it('accepts budget', async () => {
     authOk()
-    ;(getBudget as jest.Mock).mockResolvedValue(mkBudget())
+    ;(getBudget as jest.Mock).mockResolvedValue(mkBudget({ status: 'pending' }))
     ;(acceptBudget as jest.Mock).mockResolvedValue(mkBudget({ status: 'accepted' }))
     const r = await POST(new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 'b1' }) })
     const b = await r.json()
-    expect(b.message).toContain('accepted')
+    expect(b.data.message).toContain('accepted')
+  })
+  it('returns 409 canonical for non-pending budget (sent)', async () => {
+    authOk()
+    ;(getBudget as jest.Mock).mockResolvedValue(mkBudget({ status: 'sent' }))
+    const r = await POST(new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 'b1' }) })
+    expect(r.status).toBe(409)
+    expect((await r.json()).error.code).toBe('CONFLICT')
+    expect(acceptBudget).not.toHaveBeenCalled()
   })
 })
 
@@ -68,6 +76,6 @@ describe('budgets/reject', () => {
     ;(rejectBudget as jest.Mock).mockResolvedValue(mkBudget({ status: 'rejected' }))
     const r = await POST(new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 'b1' }) })
     const b = await r.json()
-    expect(b.message).toContain('rejected')
+    expect(b.data.message).toContain('rejected')
   })
 })

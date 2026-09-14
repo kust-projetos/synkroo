@@ -1,27 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import {
   getDefinitionById,
   updateDefinition,
   deleteDefinition,
 } from '@/services/custom-fields/definitions.service'
+import { updateCustomFieldDefinitionSchema } from '@/lib/validations/custom-fields'
 import { z } from 'zod'
 
-const updateDefinitionSchema = z.object({
-  name: z.string().min(1).optional(),
-  options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-  required: z.boolean().optional(),
-  sort_order: z.number().optional(),
-  is_active: z.boolean().optional(),
-})
+type RouteParams = { params: Promise<{ id: string }> }
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+async function handleGET(
+  _request: NextRequest,
+  { params }: RouteParams,
 ) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:view')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -30,19 +28,20 @@ export async function GET(
   const definition = await getDefinitionById(clinicId, id)
 
   if (!definition) {
-    return NextResponse.json({ error: 'Definition not found' }, { status: 404 })
+    return apiFailure('NOT_FOUND', 'Definition not found', requestId, 404)
   }
 
-  return NextResponse.json(definition)
+  return apiSuccess(definition)
 }
 
-export async function PUT(
+async function handlePUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: RouteParams,
 ) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:manage_tags')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -50,25 +49,26 @@ export async function PUT(
 
   try {
     const body = await request.json()
-    const validated = updateDefinitionSchema.parse(body)
+    const validated = updateCustomFieldDefinitionSchema.parse(body)
 
     const definition = await updateDefinition(clinicId, id, validated)
-    return NextResponse.json(definition)
+    return apiSuccess(definition)
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return apiFailure('INVALID_INPUT', 'Validation failed', requestId, 400)
     }
-    return NextResponse.json({ error: 'Failed to update definition' }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Failed to update definition', requestId, 500)
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+async function handleDELETE(
+  _request: NextRequest,
+  { params }: RouteParams,
 ) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:manage_tags')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -76,8 +76,12 @@ export async function DELETE(
 
   try {
     await deleteDefinition(clinicId, id)
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete definition' }, { status: 500 })
+    return apiSuccess({ success: true })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Failed to delete definition', requestId, 500)
   }
 }
+
+export const GET = withModuleRoute('crm')(handleGET)
+export const PUT = withModuleRoute('crm')(handlePUT)
+export const DELETE = withModuleRoute('crm')(handleDELETE)

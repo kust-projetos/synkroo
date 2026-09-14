@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import { setPreference, getPreferences } from '@/services/patients/patient-preferences.service'
 import * as patientRepo from '@/repositories/patients'
-import { withModuleRoute } from '@/core/modules/gates'
-import { createManifest } from '@/core/modules/manifest'
-
-const OPERACIONAL_MODULE = 'operacional'
 
 type RouteParams = {
   params: Promise<{ id: string }>
@@ -16,13 +13,11 @@ type RouteParams = {
  * GET /api/patients/[id]/preferences
  */
 async function handleGET(request: NextRequest, { params }: RouteParams) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('operacional:view')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const { id } = await params
@@ -30,7 +25,7 @@ async function handleGET(request: NextRequest, { params }: RouteParams) {
 
     const patient = await patientRepo.findByIdScoped(id, clinicId)
     if (!patient) {
-      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+      return apiFailure('NOT_FOUND', 'Patient not found', requestId, 404)
     }
 
     const category = new URL(request.url).searchParams.get('category') as
@@ -39,9 +34,9 @@ async function handleGET(request: NextRequest, { params }: RouteParams) {
 
     const preferences = await getPreferences(id, category || undefined)
 
-    return NextResponse.json({ preferences })
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess({ preferences })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -50,13 +45,11 @@ async function handleGET(request: NextRequest, { params }: RouteParams) {
  * Set a patient preference
  */
 async function handlePOST(request: NextRequest, { params }: RouteParams) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('operacional:manage_patients')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const { id } = await params
@@ -64,16 +57,18 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
 
     const patient = await patientRepo.findByIdScoped(id, clinicId)
     if (!patient) {
-      return NextResponse.json({ error: 'Patient not found' }, { status: 404 })
+      return apiFailure('NOT_FOUND', 'Patient not found', requestId, 404)
     }
 
     const body = await request.json()
     const { key, value, category } = body
 
     if (!key || !value || !category) {
-      return NextResponse.json(
-        { error: 'Missing required fields: key, value, category' },
-        { status: 400 }
+      return apiFailure(
+        'INVALID_INPUT',
+        'Missing required fields: key, value, category',
+        requestId,
+        400,
       )
     }
 
@@ -86,12 +81,12 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
     })
 
     if (!preference) {
-      return NextResponse.json({ error: 'Failed to set preference' }, { status: 500 })
+      return apiFailure('INTERNAL_ERROR', 'Failed to set preference', requestId, 500)
     }
 
-    return NextResponse.json({ preference })
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess({ preference })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -99,18 +94,6 @@ async function handlePUT(request: NextRequest, ctx: RouteParams) {
   return handlePOST(request, ctx)
 }
 
-const wrappedGET = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handleGET)
-const wrappedPOST = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePOST)
-const wrappedPUT = withModuleRoute(OPERACIONAL_MODULE, createManifest())(handlePUT)
-
-export async function GET(request: NextRequest, ctx: RouteParams) {
-  return wrappedGET(request as any, ctx as any)
-}
-
-export async function POST(request: NextRequest, ctx: RouteParams) {
-  return wrappedPOST(request as any, ctx as any)
-}
-
-export async function PUT(request: NextRequest, ctx: RouteParams) {
-  return wrappedPUT(request as any, ctx as any)
-}
+export const GET = withModuleRoute('operacional')(handleGET)
+export const POST = withModuleRoute('operacional')(handlePOST)
+export const PUT = withModuleRoute('operacional')(handlePUT)

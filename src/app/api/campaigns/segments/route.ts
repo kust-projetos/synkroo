@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import {
   createSegment,
   previewSegmentSize,
@@ -7,20 +9,17 @@ import {
   listSegments,
   type SegmentCriteria,
 } from '@/services/followup/segmentation.service'
-import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * GET /api/campaigns/segments
  * List saved segments or preview criteria
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('followup:manage_segments')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -30,18 +29,18 @@ export async function GET(request: NextRequest) {
     if (preview) {
       const criteriaJson = searchParams.get('criteria')
       if (!criteriaJson) {
-        return handleApiError(new ValidationError('criteria parameter required for preview'))
+        return apiFailure('INVALID_INPUT', 'criteria parameter required for preview', requestId, 400)
       }
 
       const criteria: SegmentCriteria = JSON.parse(criteriaJson)
       const count = await previewSegmentSize(clinicId, criteria)
-      return NextResponse.json({ count })
+      return apiSuccess({ count })
     }
 
     const segments = await listSegments(clinicId)
-    return NextResponse.json({ segments })
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess({ segments })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -49,14 +48,12 @@ export async function GET(request: NextRequest) {
  * POST /api/campaigns/segments
  * Create a new segment
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('followup:manage_segments')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -68,7 +65,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!name || !criteria) {
-      return handleApiError(new ValidationError('Missing required fields: name, criteria'))
+      return apiFailure('INVALID_INPUT', 'Missing required fields: name, criteria', requestId, 400)
     }
 
     const segment = await createSegment({
@@ -80,11 +77,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (!segment) {
-      return NextResponse.json({ error: 'Failed to create segment' }, { status: 500 })
+      return apiFailure('INTERNAL_ERROR', 'Failed to create segment', requestId, 500)
     }
 
-    return NextResponse.json({ segment })
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess({ segment })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
+
+export const GET = withModuleRoute('followup')(handleGET)
+export const POST = withModuleRoute('followup')(handlePOST)

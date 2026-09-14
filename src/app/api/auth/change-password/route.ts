@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { changePasswordSchema } from '@/lib/validations/auth'
 import {
   checkRateLimit,
   createRateLimitHeaders,
@@ -10,12 +10,8 @@ import {
 } from '@/lib/rate-limit'
 import { changeUserPassword } from '@/repositories/auth'
 
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(6, 'Current password is required'),
-  nextPassword: z.string().min(6, 'New password must be at least 6 characters').max(128),
-})
-
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
   const rateLimit = checkRateLimit(
     getClientIdentifier(request),
     rateLimitPresets.auth,
@@ -29,22 +25,22 @@ export async function POST(request: NextRequest) {
     if (rateLimit.retryAfter !== undefined) {
       headers['Retry-After'] = String(rateLimit.retryAfter)
     }
-    return NextResponse.json(
-      { error: 'Too many requests' },
-      { status: 429, headers },
-    )
+    const res = apiFailure('TOO_MANY_REQUESTS', 'Too many requests', requestId, 429)
+    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v)
+    return res
   }
 
   const authResult = await validateApiAuth()
   if (!authResult.success) {
-    return NextResponse.json(
-      { error: authResult.error!.message },
-      { status: authResult.error!.status },
-    )
+    return apiAuthFailure(authResult.error, requestId)
   }
 
   try {
-    const input = changePasswordSchema.parse(await request.json())
+    const parsed = changePasswordSchema.safeParse(await request.json())
+    if (!parsed.success) {
+      return apiFailure('INVALID_INPUT', 'Invalid password input', requestId, 400)
+    }
+    const input = parsed.data
     const result = await changeUserPassword(
       authResult.user!.id,
       input.currentPassword,
@@ -52,17 +48,14 @@ export async function POST(request: NextRequest) {
     )
 
     if (!result.ok) {
-      return NextResponse.json(
-        { error: 'Current password is incorrect' },
-        { status: 403 },
-      )
+      return apiFailure('FORBIDDEN', 'Current password is incorrect', requestId, 403)
     }
 
-    return NextResponse.json({ success: true })
+    return apiSuccess({ success: true })
   } catch (error) {
-    if (error instanceof z.ZodError || error instanceof SyntaxError) {
-      return NextResponse.json({ error: 'Invalid password input' }, { status: 400 })
+    if (error instanceof SyntaxError) {
+      return apiFailure('INVALID_INPUT', 'Invalid password input', requestId, 400)
     }
-    return handleApiError(error)
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

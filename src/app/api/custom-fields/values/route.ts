@@ -1,25 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import {
   getValuesForContact,
   upsertValues,
   deleteValuesForContact,
 } from '@/services/custom-fields/values.service'
+import { upsertCustomFieldValuesSchema } from '@/lib/validations/custom-fields'
 import { z } from 'zod'
 
-const upsertSchema = z.object({
-  contact_id: z.string().uuid(),
-  contact_type: z.enum(['patient', 'lead']),
-  values: z.array(z.object({
-    definition_id: z.string().uuid(),
-    value: z.unknown(),
-  })),
-})
-
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:view')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -29,27 +24,30 @@ export async function GET(request: NextRequest) {
   const contactType = searchParams.get('contact_type') as 'patient' | 'lead'
 
   if (!contactId || !contactType) {
-    return NextResponse.json(
-      { error: 'contact_id and contact_type query parameters are required' },
-      { status: 400 }
+    return apiFailure(
+      'INVALID_INPUT',
+      'contact_id and contact_type query parameters are required',
+      requestId,
+      400,
     )
   }
 
   const values = await getValuesForContact(clinicId, contactId, contactType)
-  return NextResponse.json({ data: values })
+  return apiSuccess(values)
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:manage_tags')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
 
   try {
     const body = await request.json()
-    const { contact_id, contact_type, values } = upsertSchema.parse(body)
+    const { contact_id, contact_type, values } = upsertCustomFieldValuesSchema.parse(body)
 
     const result = await upsertValues(
       clinicId,
@@ -57,19 +55,20 @@ export async function POST(request: NextRequest) {
       contact_type,
       values.map(v => ({ definition_id: v.definition_id, value: v.value }))
     )
-    return NextResponse.json({ data: result }, { status: 201 })
+    return apiSuccess(result, undefined, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return apiFailure('INVALID_INPUT', 'Validation failed', requestId, 400)
     }
-    return NextResponse.json({ error: 'Failed to upsert values' }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Failed to upsert values', requestId, 500)
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:manage_tags')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -79,16 +78,22 @@ export async function DELETE(request: NextRequest) {
   const contactType = searchParams.get('contact_type') as 'patient' | 'lead'
 
   if (!contactId || !contactType) {
-    return NextResponse.json(
-      { error: 'contact_id and contact_type query parameters are required' },
-      { status: 400 }
+    return apiFailure(
+      'INVALID_INPUT',
+      'contact_id and contact_type query parameters are required',
+      requestId,
+      400,
     )
   }
 
   try {
     await deleteValuesForContact(clinicId, contactId, contactType)
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to delete values' }, { status: 500 })
+    return apiSuccess({ success: true })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Failed to delete values', requestId, 500)
   }
 }
+
+export const GET = withModuleRoute('crm')(handleGET)
+export const POST = withModuleRoute('crm')(handlePOST)
+export const DELETE = withModuleRoute('crm')(handleDELETE)
