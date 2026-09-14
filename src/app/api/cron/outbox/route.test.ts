@@ -1,14 +1,8 @@
 const dispatchNextOutbox = jest.fn();
 const dispatchChargeJob = jest.fn();
-const dispatchCampaignRecipientJob = jest.fn();
-const markCampaignRecipientDeadLetter = jest.fn();
 
 jest.mock('@/lib/outbox/dispatch-outbox', () => ({ dispatchNextOutbox: (...args: unknown[]) => dispatchNextOutbox(...args) }));
 jest.mock('@/modules/financeiro/services/dispatch-charge-job', () => ({ dispatchChargeJob: (...args: unknown[]) => dispatchChargeJob(...args) }));
-jest.mock('@/services/followup/dispatch-campaign-recipient', () => ({
-  dispatchCampaignRecipientJob: (...args: unknown[]) => dispatchCampaignRecipientJob(...args),
-  markCampaignRecipientDeadLetter: (...args: unknown[]) => markCampaignRecipientDeadLetter(...args),
-}));
 jest.mock('@/core/modules/manifest', () => ({
   createManifest: jest.fn(() => ({
     enabledModules: jest.fn().mockResolvedValue(new Set(['core', 'financeiro', 'followup'])),
