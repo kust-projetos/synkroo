@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { eq, and, gte, lt, inArray, sql } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { dbLogger } from '@/lib/logger'
 import { getDb } from '@/lib/db/client'
 import {
@@ -22,13 +22,11 @@ import { getInactivityStats } from '@/services/followup/inactive-patient.service
  * janelas de hoje e de 30 dias.
  */
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -154,7 +152,7 @@ export async function GET(request: NextRequest) {
     const confirmedRecent = recentAgg.confirmed ?? 0
     const confirmationRate = totalRecent > 0 ? Math.round((confirmedRecent / totalRecent) * 100) : 0
 
-    return NextResponse.json({
+    return apiSuccess({
       today: {
         appointments: todayCount,
         confirmed: confirmedCount,
@@ -172,6 +170,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    return handleApiError(error)
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

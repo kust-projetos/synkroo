@@ -63,8 +63,10 @@ function BusinessHoursCard() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()
       })
-      .then((data) => {
+      .then((body) => {
         if (cancelled) return
+        // Envelope canônico (R2): { data: { settings } }
+        const data = body.data
         const opening = (data.settings?.settings as any)?.opening_hours as { startHour?: number; endHour?: number } | undefined
         const s = opening?.startHour ?? data.settings?.settings?.appointment_durations?.[0] ?? startHour
         const e = opening?.endHour ?? endHour
@@ -107,7 +109,7 @@ function BusinessHoursCard() {
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
+        throw new Error(err.error?.message ?? err.error ?? `HTTP ${res.status}`)
       }
       setBusinessHours(localStart, localEnd)
       setSaveMessage('Horário salvo com sucesso!')
@@ -258,14 +260,16 @@ export default function ConfiguracoesPage() {
     try {
       const response = await fetch('/api/clinics/settings')
       if (response.ok) {
-        const data = await response.json()
+        const body = await response.json()
+        // Envelope canônico (R2): { data: { settings } }
+        const data = body.data
         // Only set settings if we got valid data - don't render defaults as confirmed
         if (data.settings) {
           setSettings((prev) => ({ ...prev, ...data.settings }))
         }
       } else {
         const err = await response.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${response.status}`)
+        throw new Error(err.error?.message ?? err.error ?? `HTTP ${response.status}`)
       }
     } catch (error: any) {
       console.error('Error fetching settings:', error)

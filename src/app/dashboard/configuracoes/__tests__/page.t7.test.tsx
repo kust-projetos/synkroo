@@ -47,7 +47,7 @@ describe('T7 — Configurações: persistência e load error', () => {
   it('persiste horários via endpoint canônico e preserva whatsapp_phone_number_id (via settings merge)', async () => {
     const mockFetch = jest.fn(async (url: string, init?: any) => {
       if (String(url).includes('/api/clinics/settings')) {
-        return { ok: true, json: async () => ({ settings: { id: 'clinic-1', name: 'Clinica', settings: { whatsapp_phone_number_id: 'keep-me', opening_hours: { startHour: 8, endHour: 18 } } } }) } as any;
+        return { ok: true, json: async () => ({ data: { settings: { id: 'clinic-1', name: 'Clinica', settings: { whatsapp_phone_number_id: 'keep-me', opening_hours: { startHour: 8, endHour: 18 } } } } }) } as any;
       }
       return { ok: true, json: async () => ({}) } as any;
     });
@@ -72,7 +72,7 @@ describe('T7 — Configurações: persistência e load error', () => {
         return { ok: true, json: async () => ({ success: true }) } as any;
       }
       if (String(url).includes('/api/clinics/settings')) {
-        return { ok: true, json: async () => ({ settings: { id: 'clinic-1', name: 'Test', settings: savedSettings?.settings || {} } }) } as any;
+        return { ok: true, json: async () => ({ data: { settings: { id: 'clinic-1', name: 'Test', settings: savedSettings?.settings || {} } } }) } as any;
       }
       return { ok: true, json: async () => ({}) } as any;
     });

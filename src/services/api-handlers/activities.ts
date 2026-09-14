@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, gte, lte, ne, isNotNull, inArray, desc } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
+import { eq, and, isNotNull, inArray } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
 import { leads, patients, leadActivities, messages, conversations, appointments, patientObservations } from '@/lib/db/schema'
 import type { TimelineSourceType } from '@/services/contacts/timeline.service'
@@ -37,9 +38,10 @@ function decodeCursor(cursor: string): { timestamp: string; id: string } | null 
 }
 
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth()
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -254,9 +256,9 @@ export async function GET(request: NextRequest) {
       next_cursor,
     }
 
-    return NextResponse.json(response)
+    return apiSuccess(response)
   } catch (error) {
     console.error('Error fetching all activities:', error)
-    return NextResponse.json({ error: 'Failed to fetch activities' }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Failed to fetch activities', requestId, 500)
   }
 }

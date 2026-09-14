@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, like, desc, asc, isNull, sql } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
+import { eq, and, asc } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { tasks, leads } from '@/lib/db/schema'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiCreated, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
   const priority = searchParams.get('priority')
@@ -12,7 +14,7 @@ export async function GET(request: NextRequest) {
 
   const auth = await validateApiAuth()
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const db = getDb()
@@ -53,20 +55,21 @@ export async function GET(request: NextRequest) {
     leads: t.leadName ? { id: t.leadId, name: t.leadName } : null,
   }))
 
-  return NextResponse.json({ tasks: mapped })
+  return apiSuccess({ tasks: mapped })
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth()
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const body = await request.json()
   const { title, description, due_date, priority, lead_id } = body
 
   if (!title) {
-    return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+    return apiFailure('INVALID_INPUT', 'Title is required', requestId, 400)
   }
 
   const db = getDb()
@@ -83,7 +86,7 @@ export async function POST(request: NextRequest) {
     } as any)
     .returning()
 
-  return NextResponse.json({
+  return apiCreated({
     task: {
       id: task.id,
       title: task.title,
@@ -94,20 +97,21 @@ export async function POST(request: NextRequest) {
       lead_id: task.leadId,
       created_at: task.createdAt,
     },
-  }, { status: 201 })
+  })
 }
 
 export async function PUT(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth()
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const body = await request.json()
   const { id, status, priority, title, description, due_date, lead_id } = body
 
   if (!id) {
-    return NextResponse.json({ error: 'Task ID is required' }, { status: 400 })
+    return apiFailure('INVALID_INPUT', 'Task ID is required', requestId, 400)
   }
 
   const db = getDb()
@@ -126,22 +130,23 @@ export async function PUT(request: NextRequest) {
     .returning()
 
   if (!task) {
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    return apiFailure('NOT_FOUND', 'Task not found', requestId, 404)
   }
 
-  return NextResponse.json({ task })
+  return apiSuccess({ task })
 }
 
 export async function DELETE(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth()
   if (!auth.success) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const { searchParams } = new URL(request.url)
   const id = searchParams.get('id')
   if (!id) {
-    return NextResponse.json({ error: 'Task ID is required' }, { status: 400 })
+    return apiFailure('INVALID_INPUT', 'Task ID is required', requestId, 400)
   }
 
   const db = getDb()
@@ -151,8 +156,8 @@ export async function DELETE(request: NextRequest) {
     .returning()
 
   if (!task) {
-    return NextResponse.json({ error: 'Task not found' }, { status: 404 })
+    return apiFailure('NOT_FOUND', 'Task not found', requestId, 404)
   }
 
-  return NextResponse.json({ success: true })
+  return apiSuccess({ success: true })
 }
