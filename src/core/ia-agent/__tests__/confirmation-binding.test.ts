@@ -125,10 +125,13 @@ describe('runTurn — tokens do body não autorizam execução (B1)', () => {
       | { alias: string; args: unknown; token: string; principalId: string }
       | undefined;
     const peekPendingAction = async () => stored;
-    const consumePendingAction = async () => {
+    const consumePendingAction = async (expected: { token: string; principalId?: string }) => {
+      if (!stored || stored.token !== expected.token || stored.principalId !== expected.principalId) {
+        return { reserved: undefined, mismatch: !!stored };
+      }
       const taken = stored;
       stored = undefined;
-      return taken;
+      return { reserved: taken, mismatch: false };
     };
     const deps = { provider: textProvider, app: app(exec), now: new Date(), peekPendingAction, consumePendingAction };
     const turnInput = {
@@ -158,10 +161,13 @@ describe('runTurn — tokens do body não autorizam execução (B1)', () => {
       app: app(exec),
       now: new Date(),
       peekPendingAction: async () => stored,
-      consumePendingAction: async () => {
+      consumePendingAction: async (expected: { token: string; principalId?: string }) => {
+        if (!stored || stored.token !== expected.token || stored.principalId !== expected.principalId) {
+          return { reserved: undefined, mismatch: !!stored };
+        }
         const taken = stored;
         stored = undefined;
-        return taken;
+        return { reserved: taken, mismatch: false };
       },
     };
     // turno intermediário: mensagem normal, sem token
@@ -173,6 +179,35 @@ describe('runTurn — tokens do body não autorizam execução (B1)', () => {
     const confirm = await runTurn(deps, { ...base, confirmedToken: 'tok-1', principalId: 'user-A' });
     expect(confirm.reply).toContain('confirmado');
     expect(exec).toHaveBeenCalledTimes(1);
+  });
+
+  it('B1-review HIGH (a): pending trocada entre peek e consume → mismatch, fallback, nova intacta', async () => {
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    // peek vê a pending antiga; o consume (DO) encontra a NOVA e recusa deletar.
+    const peekPendingAction = async () => ({
+      alias: 'x',
+      args: {},
+      token: 'tok-old',
+      principalId: 'user-A',
+    });
+    const consumePendingAction = async () => ({ reserved: undefined, mismatch: true });
+    const r = await runTurn(
+      {
+        provider: textProvider,
+        app: app(exec),
+        now: new Date(),
+        peekPendingAction,
+        consumePendingAction,
+      },
+      { ...base, confirmedToken: 'tok-old', principalId: 'user-A' },
+    );
+    expect(exec).not.toHaveBeenCalled();
+    expect(r.reply).toBeTruthy();
+    expect(r.pendingActionWrite).toBe('keep');
   });
 });
 

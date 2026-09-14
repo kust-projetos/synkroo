@@ -194,10 +194,13 @@ describe('runTurn — deadline real do turno (B1-review)', () => {
       | { alias: string; args: unknown; token: string; principalId: string }
       | undefined;
     const peekPendingAction = async () => stored;
-    const consumePendingAction = async () => {
+    const consumePendingAction = async (expected: { token: string; principalId?: string }) => {
+      if (!stored || stored.token !== expected.token || stored.principalId !== expected.principalId) {
+        return { reserved: undefined, mismatch: !!stored };
+      }
       const taken = stored;
       stored = undefined;
-      return taken;
+      return { reserved: taken, mismatch: false };
     };
     const r = await runTurn(
       {

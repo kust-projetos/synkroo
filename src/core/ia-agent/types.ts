@@ -57,6 +57,23 @@ export interface PendingAction {
   principalId?: string;
 }
 
+/**
+ * B1-review HIGH — resultado da reserva condicional no DO storage.
+ * `reserved` só vem preenchido quando o valor atual casou com o esperado
+ * (token+principal) e foi deletado na mesma transação; `mismatch` indica
+ * que havia valor DIFERENTE (não deletado).
+ */
+export interface ConsumePendingResult {
+  reserved: PendingAction | undefined;
+  mismatch: boolean;
+}
+
+/** Chave esperada pela reserva condicional (do peek já validado). */
+export interface PendingConsumeExpected {
+  token: string;
+  principalId?: string;
+}
+
 export interface RunTurnInput {
   handle: string;
   conversationId: string;
@@ -90,6 +107,9 @@ export interface RunTurnResult {
    * B1-review — semântica de escrita da pending no DO storage:
    * 'set' (orchestrator criou nova), 'clear' (confirm consumiu),
    * 'keep' (não escreve — preserva a existente). Opcional: ausente = keep.
+   * Em 'clear', `clearedToken` identifica a pending que ESTA execução
+   * reservou (o shell só apaga se for a mesma — concorrência).
    */
   pendingActionWrite?: 'set' | 'clear' | 'keep';
+  clearedToken?: string;
 }
