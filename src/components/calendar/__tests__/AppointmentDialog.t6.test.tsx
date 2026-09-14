@@ -13,16 +13,16 @@ jest.mock('../store/calendar-store', () => ({
 jest.mock('@/lib/auth/context', () => ({
   useAuth: () => ({ profile: mockProfile }),
 }));
-jest.mock('@/lib/hooks/use-queries', () => ({
-  useDentists: () => ({ data: { dentists: [] } }),
-  useProcedures: () => ({ data: { procedures: [] } }),
-  // G1: factory escopada espelhada para o teste hermético.
-  clinicScope: (clinicId: string | undefined | null, ...segments: unknown[]) => [
-    'clinic',
-    clinicId ?? 'unscoped',
-    ...segments,
-  ],
-}));
+jest.mock('@/lib/hooks/use-queries', () => {
+  // G1: mantém os helpers reais (clinicScope, invalidateCalendarDateKeys);
+  // só as queries de catálogo são herméticas.
+  const actual = jest.requireActual('@/lib/hooks/use-queries');
+  return {
+    ...actual,
+    useDentists: () => ({ data: { dentists: [] } }),
+    useProcedures: () => ({ data: { procedures: [] } }),
+  };
+});
 jest.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: mockToast }),
 }));
@@ -128,6 +128,10 @@ describe('T6 — AppointmentDialog response.ok/envelope', () => {
     await waitFor(() => expect(mockCloseDialog).toHaveBeenCalled());
     expect(mockInvalidate).toHaveBeenCalledWith(
       expect.objectContaining({ queryKey: ['clinic', 'clinic-1', 'appointments'] }),
+    );
+    // G1: calendar-events refinado por sobreposição de faixa (predicate), não mais prefixo.
+    expect(mockInvalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ predicate: expect.any(Function) }),
     );
     expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Agendamento criado' }));
   });

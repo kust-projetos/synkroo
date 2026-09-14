@@ -93,7 +93,8 @@ describe('G1 tenant-key gate (execution-based)', () => {
     ]
     for (const file of migrated) {
       const src = readFileSync(file, 'utf8')
-      expect(src).toMatch(/clinicScope\(|queryKeys\.kanbanLeads\(/)
+      // G1: vale o helper direto ou a factory canônica (queryKeys.* usa clinicScope).
+      expect(src).toMatch(/clinicScope\(|queryKeys\.|duplicateKeys\./)
       // Nenhuma chave de cache literal paralela: todo queryKey passa pelo helper.
       expect(src).not.toMatch(/queryKey:\s*\[/)
     }

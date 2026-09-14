@@ -109,6 +109,62 @@ export function invalidateDomainAllTenants(
 }
 
 /**
+ * G1 — validador estrito de data `YYYY-MM-DD` (formato + calendário real).
+ * Idioma local: regex de formato como em `lib/validations/appointment.ts`
+ * (`/^\d{4}-\d{2}-\d{2}$/) + roundtrip UTC para rejeitar `2026-02-30`,
+ * `2026-13-01` etc. (`new Date('2026-02-30')` faria rollover silencioso).
+ */
+const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+function isValidDateKey(value: unknown): value is string {
+  if (typeof value !== 'string' || !DATE_KEY_RE.test(value)) return false
+  const [y, m, d] = value.split('-').map(Number)
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d
+}
+
+/**
+ * G1: invalidação refinada de `calendar-events` por sobreposição de intervalo.
+ *
+ * As queries de calendário registram `queryKeys.calendarEvents(qs)` onde `qs`
+ * contém `start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` (faixa varia por
+ * view: mês/semana/dia ±1 dia + filtros). O prefixo amplo
+ * `clinicScope(clinicId, 'calendar-events')` invalida TODAS as faixas em cache;
+ * aqui invalida-se só a clínica atual E só as faixas cujo intervalo contém
+ * pelo menos uma das datas afetadas (`YYYY-MM-DD`).
+ *
+ * Regra conservadora: qualquer valor inválido — faixa da key ilegível,
+ * `start/end` fora do formato/calendário, `start > end`, ou data afetada
+ * inválida — retorna `true` (invalida). Over-invalidar é aceitável;
+ * under-invalidar (deixar stale) nunca.
+ */
+export function invalidateCalendarDateKeys(
+  queryClient: QueryClient,
+  clinicId: string | undefined | null,
+  ...dateKeys: readonly string[]
+) {
+  return invalidateClinicKeys(queryClient, clinicId, (key) => {
+    if (key[2] !== 'calendar-events') return false
+    const qs = key[3]
+    if (typeof qs !== 'string' || !qs) return true
+    let start: string | null = null
+    let end: string | null = null
+    try {
+      const params = new URLSearchParams(qs)
+      start = params.get('start_date')
+      end = params.get('end_date')
+    } catch {
+      return true
+    }
+    if (!isValidDateKey(start) || !isValidDateKey(end) || start > end) return true
+    const targets = dateKeys.filter(isValidDateKey)
+    if (targets.length === 0 || targets.length !== dateKeys.length) return true
+    return targets.some((d) => start <= d && d <= end)
+  })
+}
+
+/**
  * Shared query keys for cache invalidation.
  * G1: ALL multi-tenant keys are tenant-scoped via `clinicScope`.
  * Convention: (params?, clinicId?) — params first for backwards compat;
@@ -757,6 +813,8 @@ export function useUpdateBudgetStatus() {
       // R4: tenant do retorno quando presente, senão contexto; fallback amplo-por-domínio.
       const tenant = (data as { clinic_id?: string } | null)?.clinic_id ?? clinicId
       invalidateClinicDomain(queryClient, tenant, 'financeiro', 'budgets')
+      // G1: derivado sub-invalidado — dashboard agrega conversão/cobranças de budgets.
+      queryClient.invalidateQueries({ queryKey: queryKeys.financeDashboard(tenant) })
     },
   })
 }
@@ -931,6 +989,7 @@ export function useContactConsents(contactId: string, contactType: 'patient' | '
  */
 export function useGrantConsent() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (input: { contact_id: string; contact_type: 'patient' | 'lead'; purpose: string; channel?: string; notes?: string }) => {
       if (isMockMode()) {
@@ -943,6 +1002,13 @@ export function useGrantConsent() {
       })
       if (!res.ok) throw new Error('Failed to grant consent')
       return res.json()
+    },
+    onSuccess: (_data, variables) => {
+      // G1: invalidação exata movida do callsite (consent-section) para o hook,
+      // espelhando o revoke — key exata, sem onSuccess de invalidação no callsite.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.consents(variables.contact_id, variables.contact_type, clinicId),
+      })
     },
   })
 }
@@ -1050,7 +1116,11 @@ export function useMergeSuggestion() {
       return res.json()
     },
     // R4: escopado por clínica; fallback amplo-por-domínio sem tenant.
-    onSuccess: () => invalidateClinicDomain(queryClient, clinicId, 'duplicates'),
+    // G1: merge altera contatos — invalida o domínio de contatos da clínica.
+    onSuccess: () => {
+      invalidateClinicDomain(queryClient, clinicId, 'duplicates')
+      invalidateClinicDomain(queryClient, clinicId, 'contacts')
+    },
   })
 }
 

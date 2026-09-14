@@ -5,7 +5,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CreateTreatmentPlanInput, TreatmentPlan } from '@/services/treatment-plans/treatment-plan.service'
-import { clinicScope, invalidateClinicDomain, invalidateClinicKeys, useResolvedClinicId } from '@/lib/hooks/use-queries'
+import { clinicScope, invalidateClinicDomain, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 const API_BASE = '/api/treatment-plans'
 
@@ -106,12 +106,15 @@ export function useUpdateTreatmentPlan() {
     mutationFn: ({ id, input }: { id: string; input: Partial<CreateTreatmentPlanInput> }) =>
       updateTreatmentPlan(id, input),
     onSuccess: (data) => {
-      // R4: match por id restrito ao tenant do contexto.
-      invalidateClinicKeys(
-        queryClient,
-        clinicId,
-        (key) => key.includes(data.id) || key.includes(data.patient_id),
-      )
+      // G1: invalidações exatas — detail + lista do paciente (antes: predicates
+      // amplos `includes(id)` restritos ao tenant). Tenant do retorno, senão contexto.
+      const tenant = data?.clinic_id ?? clinicId
+      if (data?.id) {
+        queryClient.invalidateQueries({ queryKey: clinicScope(tenant, 'treatment-plan', data.id) })
+      }
+      if (data?.patient_id) {
+        queryClient.invalidateQueries({ queryKey: clinicScope(tenant, 'treatment-plans', data.patient_id) })
+      }
     },
   })
 }
@@ -124,12 +127,14 @@ export function useUpdateSession() {
     mutationFn: ({ treatmentPlanId, treatmentPlanItemId }: { treatmentPlanId: string; treatmentPlanItemId: string }) =>
       updateSession(treatmentPlanId, treatmentPlanItemId),
     onSuccess: (_, variables) => {
-      // R4: match por id restrito ao tenant do contexto.
-      invalidateClinicKeys(
-        queryClient,
-        clinicId,
-        (key) => key.includes(variables.treatmentPlanId),
-      )
+      // G1: invalidação exata do detail (antes: predicate amplo `includes(id)`
+      // restrito ao tenant). Lista do paciente indisponível aqui (sem patient_id
+      // nas variáveis nem no retorno) — ver FINDINGS.
+      if (variables?.treatmentPlanId) {
+        queryClient.invalidateQueries({
+          queryKey: clinicScope(clinicId, 'treatment-plan', variables.treatmentPlanId),
+        })
+      }
     },
   })
 }

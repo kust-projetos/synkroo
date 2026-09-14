@@ -23,8 +23,8 @@ import {
 } from '@/components/ui/select'
 import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
-import { useDentists, clinicScope } from '@/lib/hooks/use-queries'
-import { formatHourLabel } from './utils/date-utils'
+import { useDentists, invalidateCalendarDateKeys } from '@/lib/hooks/use-queries'
+import { formatDateKey, formatHourLabel } from './utils/date-utils'
 import { useToast } from '@/lib/ui/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
@@ -111,8 +111,16 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
 
       showToast('Agendamento remarcado com sucesso!', 'success')
       closeDialog()
-      // G1: invalida só o escopo da clínica atual.
-      queryClient.invalidateQueries({ queryKey: clinicScope(clinicId, 'calendar-events') })
+      // G1: invalida só as faixas de calendário que contêm a data origem ou
+      // destino (mês/semana/dia) — antes: prefixo de todas as faixas da clínica.
+      const originKey = event ? formatDateKey(event.start) : null
+      invalidateCalendarDateKeys(
+        queryClient,
+        clinicId,
+        ...(originKey
+          ? [originKey, rescheduleInfo.targetDateKey]
+          : [rescheduleInfo.targetDateKey]),
+      )
     } catch (err) {
       const baseMsg =
         err instanceof Error ? err.message : 'Erro ao remarcar. Tente novamente.'
@@ -125,7 +133,7 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
     } finally {
       setSaving(false)
     }
-  }, [rescheduleInfo, hour, minute, dentistId, showToast, closeDialog, queryClient, clinicId])
+  }, [rescheduleInfo, event, hour, minute, dentistId, showToast, closeDialog, queryClient, clinicId])
 
   if (!rescheduleInfo || !event) return null
 
