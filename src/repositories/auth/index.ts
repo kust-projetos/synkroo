@@ -193,13 +193,13 @@ export async function changeUserPassword(
       .where(eq(userCredentials.userId, userId))
       .for('update');
 
-    if (!credential || !verifyPassword(currentPassword, credential.passwordHash)) {
+    if (!credential || !(await verifyPassword(currentPassword, credential.passwordHash))) {
       return { ok: false as const, reason: 'invalid_current_password' as const };
     }
 
     await tx
       .update(userCredentials)
-      .set({ passwordHash: hashPassword(nextPassword), updatedAt: new Date() })
+      .set({ passwordHash: await hashPassword(nextPassword), updatedAt: new Date() })
       .where(eq(userCredentials.userId, userId));
 
     await tx
@@ -209,6 +209,30 @@ export async function changeUserPassword(
 
     return { ok: true as const };
   });
+}
+
+/**
+ * Replace the stored password hash guarded by the currently expected hash
+ * (compare-and-swap: concurrent writers only win when nothing changed).
+ * Used for transparent re-hash to the versioned format after login.
+ * Returns true when a row was actually updated.
+ */
+export async function updateUserPasswordHash(
+  userId: string,
+  nextHash: string,
+  expectedCurrentHash: string,
+): Promise<boolean> {
+  const rows = await getDb()
+    .update(userCredentials)
+    .set({ passwordHash: nextHash, updatedAt: new Date() })
+    .where(
+      and(
+        eq(userCredentials.userId, userId),
+        eq(userCredentials.passwordHash, expectedCurrentHash),
+      ),
+    )
+    .returning({ userId: userCredentials.userId });
+  return rows.length > 0;
 }
 
 export async function revokeUserSession(userId: string): Promise<void> {
@@ -286,7 +310,7 @@ export async function createUserWithClinic(
     // 3. Create credentials
     await tx.insert(userCredentials).values({
       userId: user.id,
-      passwordHash: hashPassword(params.password),
+      passwordHash: await hashPassword(params.password),
     });
 
     // 4. Garante catálogo populado (idempotente) antes do seed.
