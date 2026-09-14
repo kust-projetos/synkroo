@@ -1,43 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { sql } from 'drizzle-orm'
-import { getDb } from '@/lib/db/client'
 
-export async function GET(request: NextRequest) {
-  const startTime = Date.now()
-  const checks: Record<string, { status: string; latency?: number; error?: string }> = {}
-
-  // Database check via Drizzle
-  try {
-    const db = getDb()
-    const dbStart = Date.now()
-    const result = await db.execute(sql`SELECT 1 FROM clinics LIMIT 1`)
-    const dbLatency = Date.now() - dbStart
-
-    if (result) {
-      checks.database = { status: 'ok', latency: dbLatency }
-    } else {
-      checks.database = { status: 'warning', latency: dbLatency, error: 'Empty result' }
-    }
-  } catch (error) {
-    checks.database = { status: 'error', error: error instanceof Error ? error.message : 'Unknown error' }
-  }
-
-  // Environment variables check
-  const criticalEnvVars = {
-    DATABASE_URL: !!process.env.DATABASE_URL,
-  }
-  const allCriticalSet = Object.values(criticalEnvVars).every(Boolean)
-  checks.environment = {
-    status: allCriticalSet ? 'ok' : 'error',
-    ...criticalEnvVars,
-  }
-
-  const allChecksPassed = Object.values(checks).every((c) => c.status === 'ok' || c.status === 'warning')
+/**
+ * Liveness puro: indica apenas que o processo está vivo e respondendo.
+ *
+ * NÃO consulta o banco de dados nem nenhuma dependência externa (opcional ou
+ * essencial). Readiness real (DB acessível + migrations compatíveis) vive em
+ * `/api/internal/readiness`, protegido por CRON_SECRET/sessão.
+ *
+ * Retorna 200 sempre que o processo responder. Payload mínimo, sem `checks`,
+ * sem `latency` e sem mensagens de erro de drivers — nada que exponha internos.
+ */
+export async function GET(_request: NextRequest) {
   return NextResponse.json({
-    status: allChecksPassed ? 'healthy' : 'unhealthy',
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    latency: Date.now() - startTime,
     version: '1.0.0',
-    checks,
-  }, { status: allChecksPassed ? 200 : 503 })
+  })
 }
