@@ -12,23 +12,6 @@ export const ROLE_HIERARCHY: Record<string, number> = {
 };
 
 /**
- * Check if a user's role meets the minimum required role.
- * Uses role hierarchy levels.
- */
-export function hasMinRole(userRole: string, minRole: string): boolean {
-  const userLevel = ROLE_HIERARCHY[userRole] ?? 0;
-  const requiredLevel = ROLE_HIERARCHY[minRole] ?? 0;
-  return userLevel >= requiredLevel;
-}
-
-/**
- * Check if user role is in the allowed set.
- */
-export function isRoleIn(userRole: string, allowedRoles: string[]): boolean {
-  return allowedRoles.includes(userRole);
-}
-
-/**
  * Get all roles equal to or above a given role.
  */
 export function rolesAtOrAbove(role: string): string[] {
@@ -36,13 +19,6 @@ export function rolesAtOrAbove(role: string): string[] {
   return Object.entries(ROLE_HIERARCHY)
     .filter(([, lvl]) => lvl >= level)
     .map(([r]) => r);
-}
-
-/**
- * Admin or above (owner, admin).
- */
-export function isAdminOrAbove(role: string): boolean {
-  return isRoleIn(role, ['owner', 'admin']);
 }
 
 /**
