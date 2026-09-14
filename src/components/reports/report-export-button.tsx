@@ -46,7 +46,8 @@ export function ReportExportButton({
           throw new Error('Falha ao obter dados para exportação')
         }
         const payload = await res.json()
-        await generateAndDownloadClientPDF(payload)
+        // Envelope canônico (R2): { data: { data, headers, filename, title, meta } }
+        await generateAndDownloadClientPDF(payload.data ?? payload)
       } else {
         const params = new URLSearchParams({
           type: reportType,

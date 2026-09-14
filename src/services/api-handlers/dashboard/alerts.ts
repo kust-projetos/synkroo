@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, gte, lt, inArray, desc, asc, sql } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
+import { eq, and, gte, lt, desc, sql } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
 import { conversations, appointments, patients } from '@/lib/db/schema'
 import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete-treatment.service'
-import { listLeadsByClinic } from '@/modules/comercial/repositories/leads-repository'
+import { listLeadsByClinic } from '@/modules/comercial'
 import { findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
 
 // Minimal inferred shape for the hot-lead filter callback (TS7006).
@@ -31,13 +31,11 @@ interface Alert {
  * Consolidated dashboard alerts — migrated from Supabase to Drizzle.
  */
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -191,7 +189,7 @@ export async function GET(request: NextRequest) {
       ? Math.round(((thisWeekMsgs - lastWeekMsgs) / lastWeekMsgs) * 100)
       : 0
 
-    return NextResponse.json({
+    return apiSuccess({
       alerts,
       stats: {
         totalAlerts: alerts.length,
@@ -204,6 +202,6 @@ export async function GET(request: NextRequest) {
       },
     })
   } catch (error) {
-    return handleApiError(error)
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

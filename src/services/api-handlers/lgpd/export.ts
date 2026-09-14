@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     const { buildUserContext } = await import('@/core/actions/context');
     const { runAction } = await import('@/core/actions/run');
-    const { exportarDadosPaciente } = await import('@/modules/operacional/actions/exportar-dados-paciente');
+    const { exportarDadosPaciente } = await import('@/modules/operacional');
     const parsed = inputSchema.safeParse(await request.json());
     if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
     const result = await runAction(exportarDadosPaciente, parsed.data, await buildUserContext());

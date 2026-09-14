@@ -2,6 +2,7 @@
 
 import { useContext } from 'react'
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query'
+import type { Query, QueryClient } from '@tanstack/react-query'
 import { isMockMode, getMockForUrl } from '@/lib/mocks'
 import { AuthContext } from '@/lib/auth/context'
 
@@ -32,6 +33,79 @@ export const qk = { clinicScope, scope: clinicScope } as const
 export function useResolvedClinicId(explicit?: string | null): string | undefined {
   const ctx = useContext(AuthContext)
   return explicit ?? ctx?.profile?.clinic_id ?? undefined
+}
+
+/**
+ * R4: invalidação de mutation escopada por clínica.
+ *
+ * Substitui predicates amplos (`key.includes(domain)`) que atravessavam
+ * tenants (over-invalidation cross-tenant: seguro, mas custoso). O tenant é
+ * sempre o segmento [1] (`['clinic', clinicId, ...]`); o match do domínio é
+ * por prefixo a partir de [2].
+ *
+ * - Tenant conhecido (contexto via `useResolvedClinicId` ou derivado do
+ *   retorno/variáveis da mutation): invalida só o tenant atual. Tudo que era
+ *   atingido DENTRO da clínica continua sendo atingido.
+ * - Tenant desconhecido (fora de provider e sem dado na mutation): fallback
+ *   amplo-por-domínio (qualquer tenant, só o domínio). Não se inventa busca
+ *   de dado para achar a clínica — ver FINDINGS do R4.
+ */
+export function invalidateClinicDomain(
+  queryClient: QueryClient,
+  clinicId: string | undefined | null,
+  ...domain: readonly unknown[]
+) {
+  if (!clinicId) return invalidateDomainAllTenants(queryClient, ...domain)
+  const tenant: unknown = clinicId
+  return queryClient.invalidateQueries({
+    predicate: (q: Query) =>
+      Array.isArray(q.queryKey) &&
+      q.queryKey[0] === TENANT_SCOPE &&
+      q.queryKey[1] === tenant &&
+      domain.every((seg, i) => q.queryKey[i + 2] === seg),
+  })
+}
+
+/**
+ * R4: variante por id de entidade (sem segmento de domínio fixo — ex.:
+ * budget_id, treatmentPlanId). Mantém o match por id, restrito ao tenant.
+ * Sem tenant conhecido, preserva o match exato antigo (só o id).
+ */
+export function invalidateClinicKeys(
+  queryClient: QueryClient,
+  clinicId: string | undefined | null,
+  match: (key: readonly unknown[]) => boolean,
+) {
+  if (!clinicId) {
+    return queryClient.invalidateQueries({
+      predicate: (q: Query) => Array.isArray(q.queryKey) && match(q.queryKey),
+    })
+  }
+  const tenant: unknown = clinicId
+  return queryClient.invalidateQueries({
+    predicate: (q: Query) =>
+      Array.isArray(q.queryKey) &&
+      q.queryKey[0] === TENANT_SCOPE &&
+      q.queryKey[1] === tenant &&
+      match(q.queryKey),
+  })
+}
+
+/**
+ * R4 fallback documentado: predicate amplo-por-domínio (qualquer tenant, só
+ * o domínio: `key[0]==='clinic' && key[2]===domain...`). Usado quando a
+ * mutation não carrega o tenant em contexto, retorno ou variáveis.
+ */
+export function invalidateDomainAllTenants(
+  queryClient: QueryClient,
+  ...domain: readonly unknown[]
+) {
+  return queryClient.invalidateQueries({
+    predicate: (q: Query) =>
+      Array.isArray(q.queryKey) &&
+      q.queryKey[0] === TENANT_SCOPE &&
+      domain.every((seg, i) => q.queryKey[i + 2] === seg),
+  })
 }
 
 /**
@@ -506,6 +580,7 @@ export function useContactNotes(id: string, type: string, clinicId?: string) {
  */
 export function useAddContactNote() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (input: { type: 'patient' | 'lead'; id: string; content: string }) => {
       const { id, ...body } = input
@@ -518,14 +593,8 @@ export function useAddContactNote() {
       return res.json()
     },
     onSuccess: (_data, variables) => {
-      // G1: scoped keys start with ['clinic', ...]; invalidate any tenant's
-      // notes for this contact via predicate (mutation has no clinic id).
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) &&
-          q.queryKey.includes('notes') &&
-          q.queryKey.includes(variables.id),
-      })
+      // R4: escopado por clínica (tenant do contexto); fallback amplo-por-domínio.
+      invalidateClinicDomain(queryClient, clinicId, 'contacts', variables.id, 'notes')
     },
   })
 }
@@ -536,6 +605,7 @@ export function useAddContactNote() {
  */
 export function useUpdateContactTags() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (input: { type: 'patient' | 'lead'; id: string; tags: string[] }) => {
       const { id, ...body } = input
@@ -548,13 +618,8 @@ export function useUpdateContactTags() {
       return res.json()
     },
     onSuccess: (_data, variables) => {
-      // G1: scoped keys — invalidate this contact across tenants via predicate.
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) &&
-          q.queryKey.includes('contacts') &&
-          q.queryKey.includes(variables.id),
-      })
+      // R4: escopado por clínica (tenant do contexto); fallback amplo-por-domínio.
+      invalidateClinicDomain(queryClient, clinicId, 'contacts', variables.id)
     },
   })
 }
@@ -676,6 +741,7 @@ export function useFinanceDashboard(clinicId?: string) {
  */
 export function useUpdateBudgetStatus() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (input: { id: string; status: string }) => {
       const res = await fetch(`/api/financeiro/budgets/${input.id}`, {
@@ -687,11 +753,10 @@ export function useUpdateBudgetStatus() {
       const json: any = await res.json()
       return json.data ?? json
     },
-    onSuccess: () => {
-      // G1: scoped budgets keys — invalidate any tenant's budgets via predicate.
-      queryClient.invalidateQueries({
-        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('budgets'),
-      })
+    onSuccess: (data) => {
+      // R4: tenant do retorno quando presente, senão contexto; fallback amplo-por-domínio.
+      const tenant = (data as { clinic_id?: string } | null)?.clinic_id ?? clinicId
+      invalidateClinicDomain(queryClient, tenant, 'financeiro', 'budgets')
     },
   })
 }
@@ -717,6 +782,7 @@ export function useTasks(filters?: { status?: string; priority?: string; lead_id
 
 export function useCreateTask() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (input: CreateTaskInput) => {
       if (isMockMode()) {
@@ -728,16 +794,20 @@ export function useCreateTask() {
         body: JSON.stringify(input),
       })
       if (!res.ok) throw new Error('Failed to create task')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { task } }
+      return body.data ?? body
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('tasks') })
+      // R4: escopado por clínica; fallback amplo-por-domínio sem tenant.
+      invalidateClinicDomain(queryClient, clinicId, 'tasks')
     },
   })
 }
 
 export function useUpdateTask() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (input: UpdateTaskInput) => {
       if (isMockMode()) {
@@ -749,16 +819,20 @@ export function useUpdateTask() {
         body: JSON.stringify(input),
       })
       if (!res.ok) throw new Error('Failed to update task')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { task } }
+      return body.data ?? body
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('tasks') })
+      // R4: escopado por clínica; fallback amplo-por-domínio sem tenant.
+      invalidateClinicDomain(queryClient, clinicId, 'tasks')
     },
   })
 }
 
 export function useDeleteTask() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (taskId: string) => {
       if (isMockMode()) {
@@ -766,10 +840,13 @@ export function useDeleteTask() {
       }
       const res = await fetch(`/api/tasks?id=${taskId}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete task')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { success } }
+      return body.data ?? body
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('tasks') })
+      // R4: escopado por clínica; fallback amplo-por-domínio sem tenant.
+      invalidateClinicDomain(queryClient, clinicId, 'tasks')
     },
   })
 }
@@ -826,10 +903,13 @@ export function useAllActivities(options?: {
       if (options?.endDate) params.set('end_date', options.endDate)
       const res = await fetch(`/api/activities?${params}`)
       if (!res.ok) throw new Error('Failed to fetch activities')
-      return res.json()
+      const body = await res.json()
+      // Envelope canônico (R2): { data: { events, next_cursor } }
+      return body.data ?? body
     },
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage: { next_cursor: string | null }) => lastPage.next_cursor ?? undefined,
+    getNextPageParam: (lastPage: { data?: { next_cursor: string | null }; next_cursor?: string | null }) =>
+      lastPage.data?.next_cursor ?? lastPage.next_cursor ?? undefined,
     staleTime: 30 * 1000,
   })
 }
@@ -930,18 +1010,21 @@ export function useContactDuplicateSuggestion(
 
 export function useApproveSuggestion() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/contacts/duplicates/${id}/approve`, { method: 'POST' })
       if (!res.ok) throw new Error('Failed to approve')
       return res.json()
     },
-    onSuccess: () => queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('duplicates') }),
+    // R4: escopado por clínica; fallback amplo-por-domínio sem tenant.
+    onSuccess: () => invalidateClinicDomain(queryClient, clinicId, 'duplicates'),
   })
 }
 
 export function useDismissSuggestion() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason?: string }) => {
       const res = await fetch(`/api/contacts/duplicates/${id}/dismiss`, {
@@ -952,19 +1035,22 @@ export function useDismissSuggestion() {
       if (!res.ok) throw new Error('Failed to dismiss')
       return res.json()
     },
-    onSuccess: () => queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('duplicates') }),
+    // R4: escopado por clínica; fallback amplo-por-domínio sem tenant.
+    onSuccess: () => invalidateClinicDomain(queryClient, clinicId, 'duplicates'),
   })
 }
 
 export function useMergeSuggestion() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (id: string) => {
       const res = await fetch(`/api/contacts/duplicates/${id}/merge`, { method: 'POST' })
       if (!res.ok) throw new Error('Failed to merge')
       return res.json()
     },
-    onSuccess: () => queryClient.invalidateQueries({ predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes('duplicates') }),
+    // R4: escopado por clínica; fallback amplo-por-domínio sem tenant.
+    onSuccess: () => invalidateClinicDomain(queryClient, clinicId, 'duplicates'),
   })
 }
 
@@ -973,6 +1059,7 @@ export function useMergeSuggestion() {
  */
 export function useRevokeConsent() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
   return useMutation({
     mutationFn: async (input: { contact_id: string; contact_type: 'patient' | 'lead'; purpose: string; channel?: string; notes?: string }) => {
       if (isMockMode()) {
@@ -987,13 +1074,8 @@ export function useRevokeConsent() {
       return res.json()
     },
     onSuccess: (_data, variables) => {
-      // G1: consents keys are tenant-scoped; invalidate via predicate.
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) &&
-          q.queryKey.includes('consents') &&
-          q.queryKey.includes(variables.contact_id),
-      })
+      // R4: escopado por clínica (tenant do contexto); fallback amplo-por-domínio.
+      invalidateClinicDomain(queryClient, clinicId, 'consents', variables.contact_id)
     },
   })
 }

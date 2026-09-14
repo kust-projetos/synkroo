@@ -20,6 +20,6 @@ import { GET } from '../../../../app/api/knowledge/categories/route'
 
 describe('knowledge/categories', () => {
   it('returns 401', async () => { authFail(); const r = await GET(new NextRequest('http://localhost')); expect(r.status).toBe(401) })
-  it('returns categories with counts', async () => { authOk(); seed([{ category: 'faq' }, { category: 'faq' }, { category: 'pricing' }]); const r = await GET(new NextRequest('http://localhost')); const b = await r.json(); expect(b.categories).toHaveLength(2); expect(b.categories[0].count).toBe(2) })
-  it('returns empty', async () => { authOk(); seed([]); const r = await GET(new NextRequest('http://localhost')); const b = await r.json(); expect(b.categories).toEqual([]) })
+  it('returns categories with counts', async () => { authOk(); seed([{ category: 'faq' }, { category: 'faq' }, { category: 'pricing' }]); const r = await GET(new NextRequest('http://localhost')); const b = await r.json(); expect(b.data.categories).toHaveLength(2); expect(b.data.categories[0].count).toBe(2) })
+  it('returns empty', async () => { authOk(); seed([]); const r = await GET(new NextRequest('http://localhost')); const b = await r.json(); expect(b.data.categories).toEqual([]) })
 })

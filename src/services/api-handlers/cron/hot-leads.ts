@@ -12,13 +12,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { assertModuleForJob } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
-import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
+import { processarNotificacoesLeadsQuentes } from '@/modules/comercial';
 import { runAction } from '@/core/actions/run';
 import { getDb } from '@/lib/db/client';
 import { clinics } from '@/lib/db/schema/core';
-import { eq, isNull } from 'drizzle-orm';
+import { isNull } from 'drizzle-orm';
+import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  const requestId = generateRequestId();
   // Verify CRON_SECRET
   const cronSecret = request.headers.get('Authorization') ?? '';
   const expectedSecret = `Bearer ${process.env.CRON_SECRET ?? ''}`;
@@ -27,16 +29,15 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     cronSecret.length !== expectedSecret.length ||
     !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
   ) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return apiFailure('UNAUTHORIZED', 'Unauthorized', requestId, 401);
   }
 
   // Module gate — skip if comercial module is not contracted
   try {
     await assertModuleForJob('comercial', createManifest());
   } catch {
-    return NextResponse.json(
+    return apiSuccess(
       { success: true, skipped: 'comercial module disabled', timestamp: new Date().toISOString() },
-      { status: 200 },
     );
   }
 
@@ -70,7 +71,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({
+  return apiSuccess({
     success: true,
     timestamp: new Date().toISOString(),
     results: {

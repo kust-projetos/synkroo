@@ -85,6 +85,10 @@ describe('GET /api/campaigns/segments/preview', () => {
     mockAuth()
     const res = await GET(mockReq('http://localhost/api/campaigns/segments/preview'))
     expect(res.status).toBe(400)
+    // Envelope canônico de erro (R2): { error: { code, message, requestId } }
+    const body = await res.json()
+    expect(body.error.code).toBe('INVALID_INPUT')
+    expect(typeof body.error.requestId).toBe('string')
   })
 
   it('returns 400 for unknown type', async () => {
@@ -98,9 +102,10 @@ describe('GET /api/campaigns/segments/preview', () => {
     const res = await GET(mockReq('http://localhost/api/campaigns/segments/preview?type=reactivation'))
     expect(res.status).toBe(200)
 
-    const data = await res.json()
-    expect(data.count).toBe(42)
-    expect(data.patients).toHaveLength(2)
+    const body = await res.json()
+    // Envelope canônico (R2): { data: { count, patients } }
+    expect(body.data.count).toBe(42)
+    expect(body.data.patients).toHaveLength(2)
   })
 
   it('uses service for reactivation criteria', async () => {
@@ -115,8 +120,8 @@ describe('GET /api/campaigns/segments/preview', () => {
     seed([{ id: 'p1' }, { id: 'p2' }, { id: 'p3' }])
 
     const res = await GET(mockReq('http://localhost/api/campaigns/segments/preview?type=promotional'))
-    const data = await res.json()
-    expect(data.count).toBe(3)
+    const body = await res.json()
+    expect(body.data.count).toBe(3)
   })
 
   it('filters birthday patients correctly', async () => {
@@ -131,8 +136,8 @@ describe('GET /api/campaigns/segments/preview', () => {
     ])
 
     const res = await GET(mockReq('http://localhost/api/campaigns/segments/preview?type=birthday'))
-    const data = await res.json()
+    const body = await res.json()
     // count depends on whether today's date falls within the week range
-    expect(typeof data.count).toBe('number')
+    expect(typeof body.data.count).toBe('number')
   })
 })

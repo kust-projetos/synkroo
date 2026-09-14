@@ -11,5 +11,5 @@ function ok(...results:any[][]){calls=0;mdb.then=jest.fn((fn:any)=>{const d=resu
 beforeEach(()=>{jest.clearAllMocks();calls=0})
 describe('GET /api/reports/patients',()=>{
   it('returns 401',async()=>{authFail();const r=await GET(new Request('http://x')as any);expect(r.status).toBe(401)})
-  it('returns shape',async()=>{auth();ok([],[],[],[],[]);const r=await GET(new Request('http://x')as any);const b=await r.json();expect(r.status).toBe(200);expect(b).toHaveProperty('period');expect(b).toHaveProperty('newPatients');expect(b).toHaveProperty('retention');expect(b).toHaveProperty('inactiveList')})
+  it('returns shape',async()=>{auth();ok([],[],[],[],[]);const r=await GET(new Request('http://x')as any);const b=await r.json();expect(r.status).toBe(200);expect(b.data).toHaveProperty('period');expect(b.data).toHaveProperty('newPatients');expect(b.data).toHaveProperty('retention');expect(b.data).toHaveProperty('inactiveList')})
 })

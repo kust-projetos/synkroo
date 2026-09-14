@@ -172,6 +172,7 @@ src/
 
 - **Contrato de API (D2 residual):** ~17 handlers legados em `src/services/api-handlers/**` ainda respondem sem o envelope canônico `{ data, meta? }` / `{ error: { code, message, requestId } }` (ver `ADR-BASE-10`); consumidor acoplado conhecido: `src/components/campaigns/campaign-wizard.tsx` ↔ `campaigns/segments/preview`. Migrations de `services/api-handlers` para o envelope pendentes — migrar servidor + consumidor atomicamente no mesmo PR (ou adapter temporário com remoção após zero consumidores legados).
 - **Boundaries (F3 onda c):** `services/**` importando fundo de `modules/**` — 35 violações mapeadas; endurecer boundaries (via `eslint.rules.json`) antes de restringir o `default: allow`.
+- **Boundaries/plugin (R4 diagnóstico):** `boundaries/dependencies` (v6) não resolve o alias `@/` (trata como pacote externo — `SCOPED_PACKAGE_REGEX`) e os patterns v4-style não casam no `folder-mode` default; gate efetivo hoje é `no-restricted-imports` em `src/services/**`. Migração da config para semântica v6 ou resolver de alias é decisão arquitetural separada.
 - **Frontend (G1 residual):** predicates amplos de mutation/invalidação no frontend (over-invalidation — seguro, mas custoso); refinar para invalidação por clínica/recurso após D2.
 - **CI (F1):** remover `continue-on-error: true` do job "Production E2E (no retries)" em `.github/workflows/ci.yml:98` após estabilidade medida no CI — a flag não sai com suíte vermelha.
 

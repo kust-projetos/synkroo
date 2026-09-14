@@ -84,10 +84,10 @@ describe('T5 — GET /api/reports/patients tenant-scoped SQL with limit (no JS f
     const res = await GET(req as any);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.retention).toBeDefined();
-    expect(body.inactiveList).toBeDefined();
-    expect(Array.isArray(body.inactiveList)).toBe(true);
-    expect(body.inactiveList.length).toBeLessThanOrEqual(50);
+    expect(body.data.retention).toBeDefined();
+    expect(body.data.inactiveList).toBeDefined();
+    expect(Array.isArray(body.data.inactiveList)).toBe(true);
+    expect(body.data.inactiveList.length).toBeLessThanOrEqual(50);
     expect(getDb).toHaveBeenCalled();
   });
 
@@ -96,7 +96,7 @@ describe('T5 — GET /api/reports/patients tenant-scoped SQL with limit (no JS f
     const res = await GET(req as any);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.inactiveList.length).toBeLessThanOrEqual(10);
+    expect(body.data.inactiveList.length).toBeLessThanOrEqual(10);
   });
 
   it('never returns patients from other clinic (tenant isolation)', async () => {
@@ -142,7 +142,7 @@ describe('T5 — large clinic OOM guard (simulated 5000 patients)', () => {
     const res = await LargeGet(req as any);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.inactiveList.length).toBe(50);
-    expect(body.retention.totalPatients).toBe(5000);
+    expect(body.data.inactiveList.length).toBe(50);
+    expect(body.data.retention.totalPatients).toBe(5000);
   });
 });
