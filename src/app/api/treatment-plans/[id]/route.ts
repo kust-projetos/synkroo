@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { withModuleRoute } from '@/core/modules/gates'
@@ -8,19 +7,11 @@ import {
   updateTreatmentPlan,
   deleteTreatmentPlan,
 } from '@/services/treatment-plans/treatment-plan.service'
+import { updateTreatmentPlanSchema } from '@/lib/validations/treatment-plan'
 
 type RouteParams = {
   params: Promise<{ id: string }>
 }
-
-const updateTreatmentPlanSchema = z.object({
-  title: z.string().min(1).max(255).optional(),
-  description: z.string().optional(),
-  status: z.enum(['active', 'completed', 'cancelled', 'paused']).optional(),
-  total_sessions: z.number().int().positive().optional(),
-  expected_completion_at: z.string().datetime().optional(),
-  notes: z.string().optional(),
-})
 
 /**
  * GET /api/treatment-plans/[id]

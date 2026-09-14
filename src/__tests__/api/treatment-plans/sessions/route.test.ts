@@ -1,4 +1,5 @@
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }));
+jest.mock('@/core/modules/gates', () => ({ withModuleRoute: () => (h: unknown) => h }));
 const mdb = {
   select: jest.fn(function (this: any) { return this; }),
   from: jest.fn(function (this: any) { return this; }),
@@ -65,7 +66,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
     }) as any, rParams);
     expect(r.status).toBe(404);
     const data = await r.json();
-    expect(data.error).toBe('Treatment plan not found');
+    expect(data.error.message).toBe('Treatment plan not found');
   });
 
   it('returns 403 if treatment plan belongs to another clinic (cross-clinic access)', async () => {
@@ -77,7 +78,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
     }) as any, rParams);
     expect(r.status).toBe(403);
     const data = await r.json();
-    expect(data.error).toBe('Forbidden');
+    expect(data.error.message).toBe('Forbidden');
   });
 
   it('returns 400 if treatment_plan_item_id is missing in payload', async () => {
@@ -89,7 +90,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
     }) as any, rParams);
     expect(r.status).toBe(400);
     const data = await r.json();
-    expect(data.error).toBe('treatment_plan_item_id is required');
+    expect(data.error.message).toBe('treatment_plan_item_id is required');
   });
 
   it('returns 500 when treatment item belongs to another plan (cross-plan item binding mismatch)', async () => {
@@ -104,7 +105,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
 
     expect(r.status).toBe(500);
     const data = await r.json();
-    expect(data.error).toBe('Failed to update session');
+    expect(data.error.message).toBe('Failed to update session');
     expect(updateSessionProgress).toHaveBeenCalledWith('foreign-item-from-other-plan', 'plan1', 'c1');
   });
 
@@ -120,7 +121,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
 
     expect(r.status).toBe(200);
     const data = await r.json();
-    expect(data).toEqual({ treatment_plan_item: { id: 'i1', treatment_plan_id: 'plan1', status: 'completed' } });
+    expect(data).toEqual({ data: { treatment_plan_item: { id: 'i1', treatment_plan_id: 'plan1', status: 'completed' } } });
     expect(updateSessionProgress).toHaveBeenCalledWith('i1', 'plan1', 'c1');
   });
 });
@@ -158,7 +159,7 @@ describe('GET /api/treatment-plans/[id]/sessions — tenancy & progress', () => 
     const r = await GET(new Request('http://localhost/api/treatment-plans/plan1/sessions') as any, rParams);
     expect(r.status).toBe(200);
     const data = await r.json();
-    expect(data).toEqual({ progress: { totalSessions: 4, completedSessions: 2, percent: 50 } });
+    expect(data).toEqual({ data: { progress: { totalSessions: 4, completedSessions: 2, percent: 50 } } });
     expect(getTreatmentPlanProgress).toHaveBeenCalledWith('plan1', 'c1');
   });
 });

@@ -4,6 +4,7 @@ import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rat
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { runAtendimentoSystemActionResult } from '@/modules/atendimento/ui/route-adapter';
 import { resolveMetaInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
+import { parseMetaMessage } from '@/modules/atendimento/integrations/meta-message.schema';
 import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 
@@ -80,22 +81,6 @@ async function handlePOST(request: NextRequest) {
   return NextResponse.json({
     success: true, processed, deduped,
   });
-}
-
-function parseMetaMessage(message: Record<string, unknown>): {
-  content: string;
-  messageType: 'text' | 'image' | 'audio' | 'document';
-} | null {
-  const type = typeof message.type === 'string' ? message.type : '';
-  const value = message[type] as Record<string, unknown> | undefined;
-  if (!value) return null;
-  if (type === 'text' && typeof value.body === 'string' && value.body) {
-    return { content: value.body, messageType: 'text' };
-  }
-  if (type === 'image') return { content: typeof value.caption === 'string' && value.caption ? value.caption : '[Image]', messageType: 'image' };
-  if (type === 'audio') return { content: '[Audio]', messageType: 'audio' };
-  if (type === 'document') return { content: typeof value.caption === 'string' && value.caption ? value.caption : '[Document]', messageType: 'document' };
-  return null;
 }
 
 export const GET = withModuleRoute('atendimento')(handleGET);

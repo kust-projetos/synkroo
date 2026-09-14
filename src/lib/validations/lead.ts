@@ -31,3 +31,14 @@ export const updateLeadSchema = z.object({
   interest: z.string().max(500).optional().nullable(),
   deal_value: z.number().min(0).max(999999999999).optional().nullable(),
 })
+
+// --- POST /api/leads (D3) ---
+// Validação de borda da rota, espelhando o input aceito pela Action
+// comercial.capturarLead (name/phone/source + email passthrough).
+// Regras mínimas de presença/tipo — sem endurecer além da Action.
+export const leadApiCreateSchema = z.object({
+  name: z.string().min(1),
+  phone: z.string().min(1),
+  source: leadSourceEnum.optional(),
+  email: emailSchema.optional().nullable(),
+})

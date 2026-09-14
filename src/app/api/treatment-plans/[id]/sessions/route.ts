@@ -1,2 +1,6 @@
 /** Transport entrypoint; implementation lives outside the route module. */
-export { GET, POST } from './_handler';
+import { GET as handlerGET, POST as handlerPOST } from './_handler';
+import { withModuleRoute } from '@/core/modules/gates';
+
+export const GET = withModuleRoute('operacional')(handlerGET);
+export const POST = withModuleRoute('operacional')(handlerPOST);

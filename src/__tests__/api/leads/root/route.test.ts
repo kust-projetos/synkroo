@@ -52,7 +52,7 @@ describe('D2 lote 2 — GET /api/leads (canônico)', () => {
   })
 })
 
-describe('D2 lote 2 — POST /api/leads (canônico, pré-D3)', () => {
+describe('D2 lote 2 / D3 — POST /api/leads (canônico, Zod na rota)', () => {
   it('200/201 envelope canônico em payload válido', async () => {
     authOk()
     ;(runAction as jest.Mock).mockResolvedValue({ ok: true, data: { id: 'l1', name: 'Ana' } })
@@ -65,18 +65,15 @@ describe('D2 lote 2 — POST /api/leads (canônico, pré-D3)', () => {
     expect(b.data).toEqual({ id: 'l1', name: 'Ana' })
   })
 
-  it('422 INVALID_INPUT canônico em payload inválido (validação da Action; D3 migra para 400 na rota)', async () => {
+  it('400 INVALID_INPUT canônico em payload inválido (Zod na rota, D3)', async () => {
     authOk()
-    ;(runAction as jest.Mock).mockResolvedValue({
-      ok: false,
-      error: { code: 'invalid_input', message: 'Invalid input' },
-    })
     const r = await POST(new NextRequest('http://localhost/api/leads', {
       method: 'POST',
       body: JSON.stringify({ name: '', phone: '' }),
     }))
-    expect(r.status).toBe(422)
+    expect(r.status).toBe(400)
     const b = await r.json()
     expect(b.error.code).toBe('INVALID_INPUT')
+    expect(runAction).not.toHaveBeenCalled()
   })
 })

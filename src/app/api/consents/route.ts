@@ -1,41 +1,10 @@
-import { z } from 'zod';
 import { apiFailure, apiSuccess, generateRequestId } from '@/lib/api/response';
 import { ActionError } from '@/core/actions/types';
-
-const contactType = z.enum(['patient', 'lead']);
-const purpose = z.enum(['data_collection', 'marketing', 'whatsapp_communication']);
-const channel = z.enum(['web', 'whatsapp', 'manual']);
-
-const contactQuerySchema = z.object({
-  contact_id: z.string().uuid(),
-  contact_type: contactType,
-}).strict();
-
-const grantSchema = z.object({
-  contact_id: z.string().uuid(),
-  contact_type: contactType,
-  purpose,
-  channel: channel.optional(),
-  version: z.string().min(1).max(50).optional(),
-  notes: z.string().max(2000).nullable().optional(),
-}).strict();
-
-const revokeSchema = z.object({
-  consent_id: z.string().uuid().optional(),
-  contact_id: z.string().uuid().optional(),
-  contact_type: contactType.optional(),
-  purpose: purpose.optional(),
-  channel: channel.optional(),
-  notes: z.string().max(2000).nullable().optional(),
-}).strict().superRefine((input, ctx) => {
-  if (input.consent_id) {
-    if (input.contact_id || input.contact_type || input.purpose) ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'consent_id cannot be combined with contact selector' });
-    return;
-  }
-  if (!input.contact_id || !input.contact_type || !input.purpose) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'contact_id, contact_type and purpose are required' });
-  }
-});
+import {
+  contactQuerySchema,
+  grantConsentSchema as grantSchema,
+  revokeConsentSchema as revokeSchema,
+} from '@/lib/validations/consent';
 
 function statusFor(code: string): number {
   if (code === 'unauthenticated') return 401;
