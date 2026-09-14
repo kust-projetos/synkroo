@@ -4,6 +4,9 @@ import { getDb } from '@/lib/db/client';
 import { checkMigrations } from '@/services/api-handlers/health/db';
 import { getSession } from '@/lib/auth/session';
 
+/** Timeout por statement nas queries de readiness — estouro vira 503 `db-unreachable`. */
+const READINESS_STATEMENT_TIMEOUT = '3s';
+
 function isAuthorizedByCronSecret(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
@@ -25,13 +28,16 @@ function isAuthorizedByCronSecret(request: NextRequest): boolean {
 
 /**
  * Readiness real (interno, protegido): DB acessível via query barata
- * (`SELECT 1`) + migrations compatíveis. Apenas dependências essenciais —
- * opcionais (Evolution/LLM) NÃO derrubam o serviço e ficam de fora.
+ * (`SELECT 1`) + migrations compatíveis contra o ledger do Drizzle.
+ * Apenas dependências essenciais — opcionais (Evolution/LLM) NÃO derrubam
+ * o serviço e ficam de fora.
  *
- * Payload mais rico que o liveness público, mas sem secrets e sem
- * `error.message` do driver: falhas usam motivos curtos estáticos
- * (`db-unreachable`, `migrations-incomplete`). Inclui `durationMs` da
- * checagem de DB (insumo para G5). Falha → 503.
+ * Todas as queries rodam numa transação com `SET LOCAL statement_timeout`
+ * (3s): DB lento/inacessível vira 503 `db-unreachable`. Payload mais rico
+ * que o liveness público, mas sem secrets e sem `error.message` do driver:
+ * falhas usam motivos curtos estáticos (`db-unreachable`,
+ * `migrations-incomplete`). Toda resposta inclui `durationMs` (insumo G5).
+ * Falha → 503.
  */
 export async function GET(request: NextRequest) {
   // F11.07: barato e protegido — aceita CRON_SECRET (timingSafeEqual) OU sessão autenticada
@@ -43,15 +49,19 @@ export async function GET(request: NextRequest) {
   }
 
   const started = Date.now();
+  const durationMs = () => Date.now() - started;
   try {
     const db = getDb();
-    await db.execute(sql`SELECT 1`);
-    const durationMs = Date.now() - started;
+    let migrationsComplete = false;
+    await db.transaction(async (tx) => {
+      await tx.execute(sql`SET LOCAL statement_timeout = ${READINESS_STATEMENT_TIMEOUT}`);
+      await tx.execute(sql`SELECT 1`);
+      migrationsComplete = (await checkMigrations(tx)).complete;
+    });
 
-    const migrations = await checkMigrations();
-    if (!migrations.complete) {
+    if (!migrationsComplete) {
       return NextResponse.json(
-        { status: 'not-ready', reason: 'migrations-incomplete', durationMs },
+        { status: 'not-ready', reason: 'migrations-incomplete', durationMs: durationMs() },
         { status: 503 },
       );
     }
@@ -59,12 +69,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       status: 'ready',
       checks: { database: 'ok', migrations: 'complete' },
-      durationMs,
+      durationMs: durationMs(),
     });
   } catch {
     // Intencional: sem error.message do driver — motivo curto estático.
+    // Cobre DB fora, timeout de statement e falha de inicialização do client.
     return NextResponse.json(
-      { status: 'not-ready', reason: 'db-unreachable', durationMs: Date.now() - started },
+      { status: 'not-ready', reason: 'db-unreachable', durationMs: durationMs() },
       { status: 503 },
     );
   }
