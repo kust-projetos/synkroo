@@ -2,7 +2,7 @@ import type { NextAuthOptions, Session, User } from 'next-auth';
 import type { JWT } from 'next-auth/jwt';
 import Credentials from 'next-auth/providers/credentials';
 import { getDb } from '@/lib/db/client';
-import { findUserProfileById, revokeUserSession } from '@/repositories/auth';
+import { findUserProfileById, revokeUserSession, updateUserPasswordHash } from '@/repositories/auth';
 import { normalizeEmail } from '@/lib/validations/common';
 import { users, userCredentials } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
@@ -45,8 +45,16 @@ export const authOptions: NextAuthOptions = {
           const { user, passwordHash } = rows[0];
 
           // Dynamic import — avoids bundling node:crypto into Edge runtime
-          const { verifyPassword } = await import('@/lib/auth/password');
-          if (!verifyPassword(plainPassword, passwordHash)) return null;
+          const { verifyPassword, needsRehash, hashPassword } = await import('@/lib/auth/password');
+          if (!(await verifyPassword(plainPassword, passwordHash))) return null;
+
+          if (needsRehash(passwordHash)) {
+            try {
+              await updateUserPasswordHash(user.id, await hashPassword(plainPassword), passwordHash);
+            } catch {
+              // Best-effort: login succeeds even when the re-hash write fails
+            }
+          }
 
           // The default clinic is only the initial candidate. Authorization
           // still requires an active membership and resolves the effective
