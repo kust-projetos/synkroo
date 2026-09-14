@@ -3,12 +3,15 @@
  *
  * G1 — gate anti-regressão do cache multi-tenant.
  * Estratégia: validação por EXECUÇÃO das factories (robusta, não frágil) +
- * checagem leve de que os hooks migrados passam pelo helper central.
- * Se uma queryKey multi-tenant deixar de carregar o clinicId no segmento [1],
- * este teste quebra.
+ * varredura dos usos de cache em components/lib-ui/hooks: todo `queryKey`,
+ * `getQueryData`, `setQueryData` ou `invalidateQueries` precisa passar por
+ * `queryKeys.` / `clinicScope(` ou por `predicate` — caso contrário o tenant
+ * vaza entre clínicas. Se uma queryKey multi-tenant deixar de carregar o
+ * clinicId no segmento [1], este teste quebra.
  */
 
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import { clinicScope, duplicateKeys, queryKeys } from '@/lib/hooks/use-queries'
 
 const CLINIC = 'clinic-GATE'
@@ -48,6 +51,7 @@ describe('G1 tenant-key gate (execution-based)', () => {
       queryKeys.contacts('page=1', CLINIC),
       queryKeys.contact('c-1', 'patient', CLINIC),
       queryKeys.contactNotes('c-1', 'patient', CLINIC),
+      queryKeys.contactAppointments('c-1', CLINIC),
       queryKeys.calendarEvents('month=2026-08', CLINIC),
       queryKeys.customFieldDefinitions(CLINIC),
       queryKeys.customFieldValues('c-1', 'patient', CLINIC),
@@ -93,5 +97,61 @@ describe('G1 tenant-key gate (execution-based)', () => {
       // Nenhuma chave de cache literal paralela: todo queryKey passa pelo helper.
       expect(src).not.toMatch(/queryKey:\s*\[/)
     }
+  })
+
+  it('nenhum uso de cache fora da factory em components / lib-ui / hooks', () => {
+    const roots = ['src/components', 'src/lib/ui', 'src/lib/hooks', 'src/hooks']
+    // Flag: qualquer acesso a cache do TanStack...
+    const flagRe = /queryKey\s*:|getQueryData|setQueryData|setQueriesData|invalidateQueries/
+    // ...passa se for via factory central, helper ou predicate com escopo.
+    // `duplicateKeys.` é a factory central de duplicatas (usa clinicScope).
+    const passRe = /queryKeys\.|duplicateKeys\.|clinicScope\s*\(|predicate/
+    // Allowlist explícita e enxuta: variável derivada da factory central.
+    const allowlist: Record<string, RegExp> = {
+      // kanbanKey = queryKeys.kanbanLeads(clinicId) — fonte única central.
+      'src/hooks/use-kanban.ts': /kanbanKey/,
+    }
+
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) {
+          if (entry === '__tests__') continue
+          walk(full, out)
+        } else if (/\.tsx?$/.test(entry) && !/\.test\./.test(entry)) {
+          out.push(full.replace(/\\/g, '/'))
+        }
+      }
+      return out
+    }
+
+    const violations: string[] = []
+    for (const root of roots) {
+      for (const file of walk(root)) {
+        const lines = readFileSync(file, 'utf8').split('\n')
+        lines.forEach((raw, i) => {
+          const line = raw.replace(/\/\/.*$/, '')
+          if (!flagRe.test(line)) return
+          // Janela de bloco: predicate/factory podem estar nas linhas seguintes
+          // (ex.: invalidateQueries({\n  predicate: ... })).
+          const block = lines
+            .slice(i, i + 5)
+            .join('\n')
+            .replace(/\/\/.*$/gm, '')
+          if (passRe.test(block)) return
+          const allowed = allowlist[file]
+          if (allowed && allowed.test(block)) return
+          violations.push(`${file}:${i + 1}: ${raw.trim()}`)
+        })
+      }
+    }
+    expect(violations).toEqual([])
+  })
+
+  it('whatsapp não confunde contactId com telefone e sempre resolve o tenant', () => {
+    const src = readFileSync('src/lib/hooks/use-whatsapp-messages.ts', 'utf8')
+    // Regressão: o telefone era passado como contactId na invalidação.
+    expect(src).not.toMatch(/whatsappMessages\(contactPhone\)/)
+    expect(src).toMatch(/useResolvedClinicId|useCurrentClinicId/)
   })
 })
