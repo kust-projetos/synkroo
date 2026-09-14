@@ -186,20 +186,23 @@ describe('T8 campaigns/segments — matriz', () => {
 });
 
 // ── Custom-fields definitions ─────────────────────────────────────────────
+// D2 lote 1 (crm): envelope canônico { data } / { error: { code, message, requestId } }.
 describe('T8 custom-fields/definitions — matriz', () => {
-  it('GET 401 anônimo', async () => { authAnon(); const r = await CfDefsGET(new Request('http://x') as any); expect(r.status).toBe(401); });
-  it('GET 403 sem permissão', async () => { authForbidden(); const r = await CfDefsGET(new Request('http://x') as any); expect(r.status).toBe(403); });
-  it('GET 200 tenant-scoped', async () => { authOk(); (getDefinitions as jest.Mock).mockResolvedValue([{ id: 'd1' }]); const r = await CfDefsGET(new Request('http://x') as any); expect(r.status).toBe(200); expect(getDefinitions).toHaveBeenCalledWith('clinic-a'); });
+  it('GET 401 anônimo (envelope canônico)', async () => { authAnon(); const r = await CfDefsGET(new Request('http://x') as any); expect(r.status).toBe(401); expect((await r.json()).error.code).toBe('UNAUTHORIZED'); });
+  it('GET 403 sem permissão (envelope canônico)', async () => { authForbidden(); const r = await CfDefsGET(new Request('http://x') as any); expect(r.status).toBe(403); expect((await r.json()).error.code).toBe('FORBIDDEN'); });
+  it('GET 200 tenant-scoped (envelope canônico)', async () => { authOk(); (getDefinitions as jest.Mock).mockResolvedValue([{ id: 'd1' }]); const r = await CfDefsGET(new Request('http://x') as any); expect(r.status).toBe(200); expect(getDefinitions).toHaveBeenCalledWith('clinic-a'); expect((await r.json()).data).toEqual([{ id: 'd1' }]); });
   it('POST 403 sem permissão', async () => { authForbidden(); const r = await CfDefsPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any); expect(r.status).toBe(403); });
-  it('POST 201 clínica correta', async () => { authOk(); (createDefinition as jest.Mock).mockResolvedValue({ id: 'd1' }); const r = await CfDefsPOST(new Request('http://x', { method: 'POST', body: JSON.stringify({ name: 'x', field_type: 'text' }) }) as any); expect(r.status).toBe(201); });
-  it('GET [id] 404 estrangeiro', async () => { authOk(); (getDefinitionById as jest.Mock).mockResolvedValue(null); const r = await CfDefByIdGET(new Request('http://x') as any, params('d-foreign')); expect(r.status).toBe(404); });
+  it('POST 201 clínica correta (envelope canônico)', async () => { authOk(); (createDefinition as jest.Mock).mockResolvedValue({ id: 'd1' }); const r = await CfDefsPOST(new Request('http://x', { method: 'POST', body: JSON.stringify({ name: 'x', field_type: 'text' }) }) as any); expect(r.status).toBe(201); expect((await r.json()).data).toEqual({ id: 'd1' }); });
+  it('POST 400 payload inválido (envelope canônico)', async () => { authOk(); const r = await CfDefsPOST(new Request('http://x', { method: 'POST', body: JSON.stringify({ name: '', field_type: 'bogus' }) }) as any); expect(r.status).toBe(400); expect((await r.json()).error.code).toBe('INVALID_INPUT'); });
+  it('GET [id] 404 estrangeiro (envelope canônico)', async () => { authOk(); (getDefinitionById as jest.Mock).mockResolvedValue(null); const r = await CfDefByIdGET(new Request('http://x') as any, params('d-foreign')); expect(r.status).toBe(404); expect((await r.json()).error.code).toBe('NOT_FOUND'); });
   it('DELETE 403 sem permissão', async () => { authForbidden(); const r = await CfDefByIdDELETE(new Request('http://x', { method: 'DELETE' }) as any, params('d1')); expect(r.status).toBe(403); });
 });
 
 describe('T8 custom-fields/values — matriz', () => {
   it('GET 401 anônimo', async () => { authAnon(); const r = await CfValsGET(new Request('http://x?contact_id=c1&contact_type=patient') as any); expect(r.status).toBe(401); });
   it('GET 403 sem permissão', async () => { authForbidden(); const r = await CfValsGET(new Request('http://x?contact_id=c1&contact_type=patient') as any); expect(r.status).toBe(403); });
-  it('GET 200 tenant-scoped', async () => { authOk(); (getValuesForContact as jest.Mock).mockResolvedValue([]); const r = await CfValsGET(new Request('http://x?contact_id=c1&contact_type=patient') as any); expect(r.status).toBe(200); expect(getValuesForContact).toHaveBeenCalledWith('clinic-a', 'c1', 'patient'); });
+  it('GET 200 tenant-scoped (envelope canônico)', async () => { authOk(); (getValuesForContact as jest.Mock).mockResolvedValue([]); const r = await CfValsGET(new Request('http://x?contact_id=c1&contact_type=patient') as any); expect(r.status).toBe(200); expect(getValuesForContact).toHaveBeenCalledWith('clinic-a', 'c1', 'patient'); expect((await r.json()).data).toEqual([]); });
+  it('GET 400 sem query params (envelope canônico)', async () => { authOk(); const r = await CfValsGET(new Request('http://x') as any); expect(r.status).toBe(400); expect((await r.json()).error.code).toBe('INVALID_INPUT'); });
   it('POST 403 sem permissão', async () => { authForbidden(); const r = await CfValsPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any); expect(r.status).toBe(403); });
   it('DELETE 403 sem permissão', async () => { authForbidden(); const r = await CfValsDELETE(new Request('http://x?contact_id=c1&contact_type=patient') as any); expect(r.status).toBe(403); });
 });
