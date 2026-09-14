@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
+import { apiRateLimited, generateRequestId } from '@/lib/api/response'
 
 /**
  * POST /api/cron/smart-triggers
@@ -26,10 +27,7 @@ export async function POST(request: NextRequest) {
 
     const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
-      )
+      return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0)
     }
 
     return NextResponse.json({

@@ -68,4 +68,23 @@ describe('POST /api/cron/smart-triggers — T1 DoS protection', () => {
     expect(valid.status).not.toBe(401);
     expect(checkRateLimit).toHaveBeenCalledTimes(1);
   });
+
+  it('429 com rate limit bloqueado: envelope exato sem retryAfter no body + header Retry-After', async () => {
+    mockRateLimit.allowed = false;
+    mockRateLimit.retryAfter = 30;
+    const res = await POST(makeRequest(VALID) as any);
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(typeof body?.error?.requestId).toBe('string');
+    expect(body).toEqual({
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Rate limit exceeded',
+        requestId: body.error.requestId,
+      },
+    });
+    expect(body).not.toHaveProperty('retryAfter');
+    expect(body.error).not.toHaveProperty('retryAfter');
+    expect(res.headers.get('Retry-After')).toBe('30');
+  });
 });

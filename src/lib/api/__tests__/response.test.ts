@@ -10,6 +10,7 @@ import {
   apiCreated,
   apiFailure,
   apiErrors,
+  apiRateLimited,
   generateRequestId,
 } from '../response';
 
@@ -80,6 +81,45 @@ describe('API Response Contract (ADR-BASE-10)', () => {
 
       const body = await res.json();
       expect(body.error.requestId).toBe('req_x');
+    });
+  });
+
+  describe('apiRateLimited', () => {
+    it('returns status 429 with exact envelope and Retry-After header', async () => {
+      const res = apiRateLimited('req_429', 30);
+      expect(res.status).toBe(429);
+
+      const body = await res.json();
+      expect(body).toEqual({
+        error: {
+          code: 'TOO_MANY_REQUESTS',
+          message: 'Rate limit exceeded',
+          requestId: 'req_429',
+        },
+      });
+      expect(body).not.toHaveProperty('retryAfter');
+      expect(body.error).not.toHaveProperty('retryAfter');
+      expect(res.headers.get('Retry-After')).toBe('30');
+    });
+
+    it('uses default message when not provided', async () => {
+      const res = apiRateLimited('req_default', 15);
+      const body = await res.json();
+      expect(body.error.message).toBe('Rate limit exceeded');
+      expect(res.headers.get('Retry-After')).toBe('15');
+    });
+
+    it('uses custom message when provided', async () => {
+      const res = apiRateLimited('req_custom', 60, 'Too many requests');
+      const body = await res.json();
+      expect(body).toEqual({
+        error: {
+          code: 'TOO_MANY_REQUESTS',
+          message: 'Too many requests',
+          requestId: 'req_custom',
+        },
+      });
+      expect(res.headers.get('Retry-After')).toBe('60');
     });
   });
 

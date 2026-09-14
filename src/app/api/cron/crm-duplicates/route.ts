@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
+import { apiRateLimited, generateRequestId } from '@/lib/api/response';
 import { listClinicIdsWithPendingSuggestions } from '@/modules/crm/repositories/duplicate-suggestions-repository';
 import { reprocessarSugestoesDuplicidade } from '@/modules/crm/actions';
 import { buildSystemContext } from '@/core/actions/context';
@@ -31,10 +32,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
-    );
+    return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0);
   }
 
   try {
