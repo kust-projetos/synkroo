@@ -211,6 +211,13 @@
       "when": 1788048000000,
       "tag": "0030_widget_installation_origins",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1789357620101,
+      "tag": "0031_g4_query_indexes",
+      "breakpoints": true
     }
   ]
 }
