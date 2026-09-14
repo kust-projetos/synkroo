@@ -71,6 +71,23 @@ describe('invokeAgentWithEnv', () => {
     expect((calls.runTurn as { confirmedToken: string }).confirmedToken).toBe('tok-confirm');
     expect((calls.runTurn as { identityVerifiedToken: string }).identityVerifiedToken).toBe('tok-identity');
   });
+
+  it('B1-review: maps principalRef to principalId for the turn owner binding', async () => {
+    const { env, calls } = makeEnv();
+    await invokeAgentWithEnv(env, {
+      clinicId: 'c1',
+      conversationId: 'conv-3',
+      channel: 'chat',
+      peerId: 'u1',
+      principalRef: 'u1',
+      source: 'agent_delegated',
+      personaType: 'funcionario',
+      context: '',
+      timezone: 'America/Sao_Paulo',
+      userMessage: 'oi',
+    });
+    expect((calls.runTurn as { principalId: string }).principalId).toBe('u1');
+  });
 });
 
 describe('invokeAgentWithEnv — robustez (anti-hang / worker-cancel)', () => {

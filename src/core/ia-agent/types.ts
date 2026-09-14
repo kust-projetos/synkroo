@@ -49,6 +49,12 @@ export interface PendingAction {
   alias: string;
   args: unknown;
   token: string;
+  /**
+   * B1-review — dono da pending (userId no chat; identidade do path no
+   * WhatsApp). Opcional por compat com estado v2 já persistido; o confirm
+   * EXIGE presença e igualdade (fail-closed).
+   */
+  principalId?: string;
 }
 
 export interface RunTurnInput {
@@ -65,6 +71,11 @@ export interface RunTurnInput {
   pendingAction?: PendingAction;
   confirmedToken?: string;
   identityVerifiedToken?: string;
+  /**
+   * B1-review — identidade do chamador do turno (mapeada de `principalRef`
+   * no invoker). Exigida igual à da pending no confirm (fail-closed).
+   */
+  principalId?: string;
   /** B1: rastreio fim-a-fim (x-request-id do route). Opcional, só observabilidade. */
   correlationId?: string;
 }

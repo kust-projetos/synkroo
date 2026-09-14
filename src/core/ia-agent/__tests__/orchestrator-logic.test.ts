@@ -168,6 +168,7 @@ describe('runTurn', () => {
       alias: 'operacional__consultarDisponibilidade',
       args: { date: '2026-06-25' },
       token: 'tok-1',
+      principalId: 'user-A',
     };
     const a = app({
       executeAction: async (i) => {
@@ -182,7 +183,7 @@ describe('runTurn', () => {
         app: a,
         now: new Date(),
       },
-      { ...base, pendingAction: pending, confirmedToken: 'tok-1' },
+      { ...base, pendingAction: pending, confirmedToken: 'tok-1', principalId: 'user-A' },
     );
     expect(executedArgs).toEqual({ date: '2026-06-25' });
     expect(r.reply.length).toBeGreaterThan(0);
@@ -194,6 +195,7 @@ describe('runTurn', () => {
       alias: 'operacional__obterPaciente',
       args: { id: 'p1' },
       token: 'tok-2',
+      principalId: 'user-A',
     };
     const a = app({
       executeAction: async (i) => {
@@ -214,17 +216,19 @@ describe('runTurn', () => {
         pendingAction: pending,
         confirmedToken: 'tok-2',
         identityVerifiedToken: 'tok-2',
+        principalId: 'user-A',
       },
     );
     expect(gotFlags.identityVerified).toBe(true);
     expect(r.reply.length).toBeGreaterThan(0);
   });
 
-  it('confirmedToken without identityVerifiedToken → preserves pendingAction for needs_identity', async () => {
+  it('B1-review at-most-once: falha pós-reserva NÃO re-arma a pending', async () => {
     const pending = {
       alias: 'operacional__obterPaciente',
       args: { id: 'p1' },
       token: 'tok-id',
+      principalId: 'user-A',
     };
     const a = app({
       executeAction: async (i) =>
@@ -242,11 +246,13 @@ describe('runTurn', () => {
         ...base,
         pendingAction: pending,
         confirmedToken: 'tok-id',
-        // sem identityVerifiedToken
+        principalId: 'user-A',
+        // sem identityVerifiedToken → needs_identity, mas a reserva já foi
+        // consumida: sem re-arme (o usuário re-inicia o fluxo).
       },
     );
-    expect(r.pendingAction).toEqual(pending);
-    expect(r.reply.toLowerCase()).toContain('identidade');
+    expect(r.pendingAction).toBeUndefined();
+    expect(r.reply.length).toBeGreaterThan(0);
   });
 
   it('escalates to human on escalate_human', async () => {

@@ -111,6 +111,9 @@ export async function invokeAgentWithEnv(
       confirmedToken: input.confirmedToken,
       identityVerifiedToken: input.identityVerifiedToken,
       correlationId: input.correlationId,
+      // B1-review: dono do turno para o binding da pending no confirm
+      // (userId no chat; 'agente' no path WhatsApp).
+      principalId: input.principalRef,
     });
   };
 
