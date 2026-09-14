@@ -549,9 +549,13 @@ export async function GET(request: NextRequest) {
   }
   return NextResponse.json({ success: true, results, summary, fixtures })
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Short one-line diagnostic (no stack/secrets); dev-only route guarded by SEED_SECRET.
+    const reason = message.split('\n')[0].trim().slice(0, 160)
     return NextResponse.json({
       success: false,
       error: 'E2E fixture seed failed',
+      reason,
       details: error instanceof Error ? error.message : String(error),
     }, { status: 500 })
   }

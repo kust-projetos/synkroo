@@ -612,6 +612,21 @@ describe('GET /api/seed Handler', () => {
       expect(data.details).toContain('Database connection lost');
     });
 
+    it('includes a short single-line reason on top-level failure', async () => {
+      dbConfig.topLevelInsertThrows = true;
+
+      const req = makeReq(`/api/seed?secret=${SEED_SECRET}`);
+      const res = await GET(req);
+
+      expect(res.status).toBe(500);
+      const data = await res.json();
+      expect(data.error).toBe('E2E fixture seed failed');
+      expect(typeof data.reason).toBe('string');
+      expect(data.reason).toContain('Database connection lost');
+      expect(data.reason.length).toBeLessThanOrEqual(160);
+      expect(data.reason).not.toMatch(/[\r\n]/);
+    });
+
     it('handles non-Error objects thrown in top-level catch', async () => {
       (mockDbInstance.insert as jest.Mock).mockImplementationOnce(() => {
         throw 'String crash exception';
