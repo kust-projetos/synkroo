@@ -7,18 +7,18 @@ import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib
 
 const KB = knowledgeBase
 
-function toSnake(r: any) {
+function toCamel(r: any) {
   return {
     id: r.id,
-    clinic_id: r.clinicId,
+    clinicId: r.clinicId,
     category: r.category,
     question: r.question,
     answer: r.answer,
     keywords: r.keywords ?? [],
     embedding: r.embedding,
-    is_active: r.isActive,
-    created_at: r.createdAt?.toISOString?.() ?? null,
-    updated_at: r.updatedAt?.toISOString?.() ?? null,
+    isActive: r.isActive,
+    createdAt: r.createdAt?.toISOString?.() ?? null,
+    updatedAt: r.updatedAt?.toISOString?.() ?? null,
   }
 }
 
@@ -45,7 +45,7 @@ export async function GET(
       .where(and(eq(KB.id, id), eq(KB.clinicId, clinicId)))
     if (!row) return apiFailure('NOT_FOUND', 'Entry not found', requestId, 404)
 
-    return apiSuccess(toSnake(row))
+    return apiSuccess(toCamel(row))
   } catch (error) {
     return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
@@ -73,14 +73,15 @@ export async function PUT(
     if (Array.isArray(body.keywords)) {
       updateData.keywords = body.keywords.filter((keyword): keyword is string => typeof keyword === 'string')
     }
-    if (typeof body.is_active === 'boolean') updateData.isActive = body.is_active
+    if (typeof body.isActive === 'boolean') updateData.isActive = body.isActive
+    else if (typeof body.is_active === 'boolean') updateData.isActive = body.is_active
     if (Object.keys(updateData).length === 0) return apiFailure('INVALID_INPUT', 'No valid fields to update', requestId, 400)
 
     const [row] = await getDb().update(KB).set({ ...updateData, updatedAt: new Date() }).where(
       and(eq(KB.id, id), eq(KB.clinicId, auth.profile!.clinic_id)),
     ).returning()
     if (!row) return apiFailure('NOT_FOUND', 'Entry not found', requestId, 404)
-    return apiSuccess(toSnake(row))
+    return apiSuccess(toCamel(row))
   } catch (error) {
     return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }

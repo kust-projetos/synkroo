@@ -36,6 +36,10 @@ Contratos fora do envelope, aceitos explicitamente — não são débito de migr
 
 Regra para novas superfícies: qualquer resposta fora do envelope exige entrada nesta tabela com justificativa.
 
+### Compatibilidade transitória de entrada (2026-09-14)
+
+`PUT /api/knowledge/[id]` aceita `is_active` (snake_case legado) além do canônico `isActive`, com precedência de `isActive`. É shim de compatibilidade para clientes antigos — remover assim que confirmado zero consumidores legados (wave D2 futura). Não usar como precedente para novos campos.
+
 ## Gap (2026-08-28 W8 em progresso)
 
 Família canônica `/api/financeiro/budgets/*` com adapter canônico `{data,meta}`/`{error:{code,message,requestId}}` e `x-request-id` harmonizado; `createActionRoute` corrigido para não vazar `error.message` bruto. Strangler legado `/api/budgets/*` com `Deprecation`, `Link rel=successor-version` e métrica ainda pendente. Marcar Implementado após matriz método-a-método e contract tests canonical/legacy.
