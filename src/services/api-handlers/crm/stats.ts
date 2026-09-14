@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId }, retryAfter: rateLimit.retryAfter },
+        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId } },
         { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
       )
     }
