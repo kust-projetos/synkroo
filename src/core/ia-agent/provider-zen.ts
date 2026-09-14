@@ -79,6 +79,15 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
     e instanceof Error &&
     (e.name === 'AbortError' || /HTTP (408|409|429|5\d\d)/.test(e.message));
 
+  // B1-review HIGH (TOCTOU): o signal pode abortar entre a checagem e o
+  // fetch — re-checa imediatamente antes de CADA call(); abortado → erro
+  // abortado sem fetch.
+  const throwIfAborted = (signal?: AbortSignal): void => {
+    if (signal?.aborted) {
+      throw new DOMException('The operation was aborted.', 'AbortError');
+    }
+  };
+
   return {
     async complete(messages, tools, opts?: { correlationId?: string; signal?: AbortSignal }) {
       // B1: correlation no texto do erro para rastreio (o abort do
@@ -90,6 +99,7 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
         }
       };
       try {
+        throwIfAborted(opts?.signal);
         return await call(messages, tools, opts?.signal);
       } catch (e) {
         // Deadline do turno já estourou → sem retry, propaga o abort.
@@ -102,6 +112,7 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
           throw e;
         }
         try {
+          throwIfAborted(opts?.signal);
           return await call(messages, tools, opts?.signal);
         } catch (e2) {
           annotate(e2);

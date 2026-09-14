@@ -76,6 +76,10 @@ export class AgentOrchestrator extends DurableObject<Env> {
         provider,
         app,
         now: new Date(),
+        // B1-review — peek lê sem destruir (mensagem normal nunca consome);
+        // consume reserva atomicamente (get+delete na mesma transação).
+        peekPendingAction: async () =>
+          (await this.ctx.storage.get<PendingAction | null>('pendingAction')) ?? undefined,
         // B1-review — reserva atômica por shard: lê e apaga a pending na
         // mesma transação. Segunda confirmação (concorrente ou seguida) do
         // mesmo token recebe undefined → recusada (at-most-once).

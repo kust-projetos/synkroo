@@ -120,31 +120,58 @@ describe('runTurn — tokens do body não autorizam execução (B1)', () => {
       contractVersion: BRIDGE_RPC_VERSION,
       data: {},
     }));
-    // Simula a reserva atômica do DO: primeira chamada entrega, demais undefined.
+    // Simula o DO storage: peek lê sem destruir, consume lê+apaga.
     let stored = { alias: 'x', args: {}, token: 'tok-1', principalId: 'user-A' } as
       | { alias: string; args: unknown; token: string; principalId: string }
       | undefined;
+    const peekPendingAction = async () => stored;
     const consumePendingAction = async () => {
       const taken = stored;
       stored = undefined;
       return taken;
     };
+    const deps = { provider: textProvider, app: app(exec), now: new Date(), peekPendingAction, consumePendingAction };
     const turnInput = {
       ...base,
       confirmedToken: 'tok-1',
       principalId: 'user-A',
     };
-    const first = await runTurn(
-      { provider: textProvider, app: app(exec), now: new Date(), consumePendingAction },
-      turnInput,
-    );
+    const first = await runTurn(deps, turnInput);
     expect(first.reply).toContain('confirmado');
     expect(exec).toHaveBeenCalledTimes(1);
-    const second = await runTurn(
-      { provider: textProvider, app: app(exec), now: new Date(), consumePendingAction },
-      turnInput,
-    );
+    const second = await runTurn(deps, turnInput);
     expect(second.reply).toBe('ok');
+    expect(exec).toHaveBeenCalledTimes(1);
+  });
+
+  it('B1-review item 3: mensagem normal NÃO consome a pending; confirmação posterior funciona', async () => {
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    let stored = { alias: 'x', args: {}, token: 'tok-1', principalId: 'user-A' } as
+      | { alias: string; args: unknown; token: string; principalId: string }
+      | undefined;
+    const deps = {
+      provider: textProvider,
+      app: app(exec),
+      now: new Date(),
+      peekPendingAction: async () => stored,
+      consumePendingAction: async () => {
+        const taken = stored;
+        stored = undefined;
+        return taken;
+      },
+    };
+    // turno intermediário: mensagem normal, sem token
+    const middle = await runTurn(deps, { ...base, userMessage: 'só uma dúvida' });
+    expect(middle.reply).toBe('ok');
+    expect(exec).not.toHaveBeenCalled();
+    expect(stored).toBeDefined();
+    // confirmação posterior: ainda funciona
+    const confirm = await runTurn(deps, { ...base, confirmedToken: 'tok-1', principalId: 'user-A' });
+    expect(confirm.reply).toContain('confirmado');
     expect(exec).toHaveBeenCalledTimes(1);
   });
 });

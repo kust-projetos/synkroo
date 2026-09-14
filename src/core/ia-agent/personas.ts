@@ -29,18 +29,55 @@ const DATA_POLICY =
 /** Zero-width / joiners / invisíveis que quebram a detecção do fechamento. */
 const INVISIBLE_RE = /[\u200B-\u200D\uFEFF\u2060-\u2064\u00AD]/g;
 
+/** Fechamento de bloco de dados em qualquer caixa. */
+const CLOSER_RE = /<\/(dados_contexto|dados_usuario)\s*>/gi;
+
 /**
  * Neutraliza tentativas de escape do bloco (qualquer caixa).
  *
- * B1-review — normalização Unicode antes do regex: NFKC dobra full-width
- * (`＜／dados_contexto＞` → `</dados_contexto>`) e a remoção de invisíveis
- * fecha o bypass com zero-width dentro da tag (`</dados_\u200Bcontexto>`).
- * Tradeoff conhecido: NFKC aplica folding de compatibilidade (ex.: `ª`→`a`,
- * `ﬁ`→`fi`) — aceitável para dado operacional, nunca para texto canônico.
+ * B1-review MEDIUM — sem mutar dado legítimo: a detecção roda numa cópia
+ * "foldada" (NFKC dobra full-width `＜／dados_contexto＞`; strip de
+ * zero-width fecha `</dados_\u200Bcontexto>`), mas a substituição atinge
+ * SOMENTE os spans detectados no texto ORIGINAL — o restante permanece
+ * byte-a-byte (`ª`, sobrescritos, emojis intactos).
  */
 export function sanitizeUntrustedData(value: string): string {
-  const normalized = value.normalize('NFKC').replace(INVISIBLE_RE, '');
-  return normalized.replace(/<\/(dados_contexto|dados_usuario)\s*>/gi, NEUTRALIZED_CLOSER);
+  // Cópia foldada + mapa folded→original (índices em code units).
+  const foldedParts: string[] = [];
+  const origStartOfFolded: number[] = [];
+  const origEndOfFolded: number[] = [];
+  for (let i = 0; i < value.length;) {
+    const ch = String.fromCodePoint(value.codePointAt(i)!);
+    const next = i + ch.length;
+    const foldedCh = ch.normalize('NFKC').replace(INVISIBLE_RE, '');
+    for (let j = 0; j < foldedCh.length;) {
+      const fch = String.fromCodePoint(foldedCh.codePointAt(j)!);
+      foldedParts.push(fch);
+      origStartOfFolded.push(i);
+      origEndOfFolded.push(next);
+      j += fch.length;
+    }
+    i = next;
+  }
+  const folded = foldedParts.join('');
+  // Spans no original correspondentes a cada match no foldado.
+  const spans: Array<[number, number]> = [];
+  CLOSER_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CLOSER_RE.exec(folded)) !== null && m[0].length > 0) {
+    spans.push([
+      origStartOfFolded[m.index],
+      origEndOfFolded[m.index + m[0].length - 1],
+    ]);
+  }
+  if (!spans.length) return value;
+  let out = '';
+  let cursor = 0;
+  for (const [start, end] of spans) {
+    out += value.slice(cursor, start) + NEUTRALIZED_CLOSER;
+    cursor = end;
+  }
+  return out + value.slice(cursor);
 }
 
 /** Envolve dado de contexto (interlocutor/knowledge) já sanitizado. */

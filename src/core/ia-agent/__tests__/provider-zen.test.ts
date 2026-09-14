@@ -92,4 +92,32 @@ describe('zen provider', () => {
     ).toBe('ok');
     expect(f).toHaveBeenCalledTimes(2);
   });
+
+  it('B1-review HIGH (b): abort entre checagem e retry → segundo fetch nunca acontece', async () => {
+    const controller = new AbortController();
+    const f = jest.fn(async () => {
+      // primeira tentativa falha com retryable; o abort chega no microtask,
+      // ou seja, depois da checagem e antes do retry
+      queueMicrotask(() => controller.abort());
+      return {
+        ok: false,
+        status: 500,
+        text: async () => 'boom',
+      };
+    });
+    const p = createZenProvider({
+      apiKey: 'k',
+      model: 'm',
+      baseUrl: 'https://x/v1',
+      fetchImpl: f as unknown as typeof fetch,
+    });
+    const err = await p
+      .complete([{ role: 'user', content: 'oi' }], [], { signal: controller.signal })
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+    expect(err).toBeTruthy();
+    expect(f).toHaveBeenCalledTimes(1);
+  });
 });
