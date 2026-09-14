@@ -24,8 +24,10 @@ async function handlePOST(request: NextRequest, { params }: RouteParams) {
     const budget = await getBudget(id);
     if (!budget) return apiFailure('NOT_FOUND', 'Budget not found', requestId, 404);
     if (budget.clinicId !== clinicId) return apiFailure('NOT_FOUND', 'Budget not found', requestId, 404);
-    if (budget.status && !['pending', 'sent'].includes(budget.status)) {
-      return apiFailure('BAD_REQUEST', 'Budget cannot be accepted in current status', requestId, 400);
+    // Pré-condição espelha o service (acceptBudget só aceita 'pending'):
+    // estado não-aceitável → 409 canônico em vez de 500 do throw interno.
+    if (budget.status !== 'pending') {
+      return apiFailure('CONFLICT', 'Budget cannot be accepted in current status', requestId, 409);
     }
 
     const updated = await acceptBudget(id, clinicId);

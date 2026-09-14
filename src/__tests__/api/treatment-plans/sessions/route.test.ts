@@ -55,6 +55,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
     authFail();
     const r = await POST(new Request('http://localhost/api/treatment-plans/plan1/sessions', { method: 'POST', body: '{}' }) as any, rParams);
     expect(r.status).toBe(401);
+    expect((await r.json()).error.code).toBe('UNAUTHORIZED');
   });
 
   it('returns 404 if treatment plan does not exist', async () => {
@@ -135,6 +136,7 @@ describe('GET /api/treatment-plans/[id]/sessions — tenancy & progress', () => 
     authFail();
     const r = await GET(new Request('http://localhost/api/treatment-plans/plan1/sessions') as any, rParams);
     expect(r.status).toBe(401);
+    expect((await r.json()).error.code).toBe('UNAUTHORIZED');
   });
 
   it('returns 404 when plan is not found', async () => {

@@ -41,11 +41,19 @@ describe('budgets/accept', () => {
   })
   it('accepts budget', async () => {
     authOk()
-    ;(getBudget as jest.Mock).mockResolvedValue(mkBudget())
+    ;(getBudget as jest.Mock).mockResolvedValue(mkBudget({ status: 'pending' }))
     ;(acceptBudget as jest.Mock).mockResolvedValue(mkBudget({ status: 'accepted' }))
     const r = await POST(new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 'b1' }) })
     const b = await r.json()
     expect(b.data.message).toContain('accepted')
+  })
+  it('returns 409 canonical for non-pending budget (sent)', async () => {
+    authOk()
+    ;(getBudget as jest.Mock).mockResolvedValue(mkBudget({ status: 'sent' }))
+    const r = await POST(new NextRequest('http://localhost', { method: 'POST' }), { params: Promise.resolve({ id: 'b1' }) })
+    expect(r.status).toBe(409)
+    expect((await r.json()).error.code).toBe('CONFLICT')
+    expect(acceptBudget).not.toHaveBeenCalled()
   })
 })
 

@@ -98,7 +98,9 @@ describe('withModuleRoute — atendimento module gate (P0)', () => {
     const res = await gated(req);
     expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.error).toBe('not_found');
+    expect(body.error.code).toBe('NOT_FOUND');
+    expect(typeof body.error.requestId).toBe('string');
+    expect(res.headers.get('x-request-id')).toBe(body.error.requestId);
   });
 
   it('passes through when atendimento is enabled', async () => {

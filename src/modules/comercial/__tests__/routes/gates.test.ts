@@ -75,7 +75,7 @@ describe('Comercial route gates', () => {
       const response = await GET(mockRequest('GET', 'http://localhost:3000/api/leads'));
       expect(response.status).toBe(404);
       const body = await response.json();
-      expect(body.error).toBe('not_found');
+      expect(body.error.code).toBe('NOT_FOUND');
     });
   });
 
@@ -86,7 +86,7 @@ describe('Comercial route gates', () => {
       const response = await GET(mockRequest('GET', 'http://localhost:3000/api/pipeline/stages'));
       expect(response.status).toBe(404);
       const body = await response.json();
-      expect(body.error).toBe('not_found');
+      expect(body.error.code).toBe('NOT_FOUND');
     });
   });
 });
