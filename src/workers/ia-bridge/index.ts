@@ -27,6 +27,14 @@ import {
   type ListToolsResult,
   type PingResult,
 } from '@/core/agent-bridge/rpc-contract';
+import {
+  createTelemetryLogger,
+  extractCorrelationId,
+} from '@/core/ia-agent/telemetry';
+
+// B2: sink estruturado edge-safe (JSON via console). correlationId é
+// extraído de forma defensiva do input (campo aditivo opcional).
+const emitBridge = createTelemetryLogger('ia-bridge');
 
 export interface Env {
   HANDLE_SECRET: string;
@@ -142,27 +150,69 @@ export class AppService extends WorkerEntrypoint<Env> {
     const contractVersion = resolveContractVersion(input);
     if (!contractVersion) return contractVersionMismatch();
 
+    const correlationId = extractCorrelationId(input);
+    const startedAt = Date.now();
     await ensureBootstrap();
-    const result = await listToolsLogic(this.deps(), withoutContractVersion(input));
-    if (result.ok) {
-      return { ok: true, contractVersion, catalog: result.catalog };
+    try {
+      const result = await listToolsLogic(this.deps(), withoutContractVersion(input));
+      if (result.ok) {
+        return { ok: true, contractVersion, catalog: result.catalog };
+      }
+      emitBridge({
+        correlationId,
+        operation: 'list_tools',
+        durationMs: Date.now() - startedAt,
+        status: 'error',
+        code: result.error,
+      });
+      return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
+    } catch (err) {
+      // Texto da exceção nunca vai para o log — só o code fechado.
+      emitBridge({
+        correlationId,
+        operation: 'list_tools',
+        durationMs: Date.now() - startedAt,
+        status: 'error',
+        code: 'internal',
+      });
+      throw err;
     }
-    return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
   }
 
   async executeAction(input: CompatibleExecuteInput): Promise<ExecuteResult> {
     const contractVersion = resolveContractVersion(input);
     if (!contractVersion) return contractVersionMismatch();
 
+    const correlationId = extractCorrelationId(input);
+    const startedAt = Date.now();
     await ensureBootstrap();
-    const result = await executeActionLogic(
-      this.deps(),
-      withoutContractVersion(input),
-    );
-    if (result.ok) {
-      return { ok: true, contractVersion, data: result.data };
+    try {
+      const result = await executeActionLogic(
+        this.deps(),
+        withoutContractVersion(input),
+      );
+      if (result.ok) {
+        return { ok: true, contractVersion, data: result.data };
+      }
+      emitBridge({
+        correlationId,
+        operation: 'execute_action',
+        durationMs: Date.now() - startedAt,
+        status: 'error',
+        code: result.error,
+      });
+      return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
+    } catch (err) {
+      // Texto da exceção nunca vai para o log — só o code fechado.
+      emitBridge({
+        correlationId,
+        operation: 'execute_action',
+        durationMs: Date.now() - startedAt,
+        status: 'error',
+        code: 'internal',
+      });
+      throw err;
     }
-    return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
   }
 }
 

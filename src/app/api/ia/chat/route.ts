@@ -4,9 +4,11 @@ import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
-import { apiFailure, generateRequestId } from '@/lib/api/response';
+import { apiFailure } from '@/lib/api/response';
 import { IA_CHAT_MAX_MESSAGE_LENGTH } from '@/core/ia-channel/chat-limits';
 import { resolveIaTimezone } from '../timezone';
+import { resolveCorrelationId } from '@/core/ia-agent/telemetry';
+import { toPublicChatDto } from './dto';
 
 function withRequestId(res: NextResponse, requestId: string): NextResponse {
   res.headers.set('x-request-id', requestId);
@@ -38,18 +40,31 @@ function asOptionalToken(value: unknown): string | undefined {
 }
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
-  const requestId = request.headers.get('x-request-id') ?? generateRequestId();
+  // Integração B1×B2: correlation id ponta a ponta (B2) — ecoa x-request-id
+  // do caller quando em formato válido, senão gera um novo
+  // (resolveCorrelationId); propagado a invokeAgent → issueHandle → runTurn →
+  // provider e devolvido no header de TODAS as respostas. O mesmo id ancora
+  // o envelope de erro canônico (requestId — B1).
+  const correlationId = resolveCorrelationId(request.headers.get('x-request-id'));
+  const requestId = correlationId;
+  const corrHeaders = { 'x-request-id': correlationId };
   // buildUserContext lança 'unauthenticated' sem sessão; dá user + can (RBAC real).
   let ctx: Awaited<ReturnType<typeof buildUserContext>>;
   try {
     ctx = await buildUserContext();
   } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json(
+      { error: 'Unauthorized' },
+      { status: 401, headers: corrHeaders },
+    );
   }
 
   // autorização específica: exige ia:chat (não basta o módulo ativo).
   if (!ctx.can('ia:chat')) {
-    return NextResponse.json({ error: 'Sem permissão para o assistente.' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'Sem permissão para o assistente.' },
+      { status: 403, headers: corrHeaders },
+    );
   }
 
   const userId = ctx.user!.id;
@@ -63,7 +78,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   if (!conversationId || typeof message !== 'string' || !message) {
     return NextResponse.json(
       { error: 'conversationId e message são obrigatórios.' },
-      { status: 422 },
+      { status: 422, headers: corrHeaders },
     );
   }
 
@@ -93,19 +108,24 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       context: who.context,
       timezone: resolveIaTimezone(),
       userMessage: message,
+      // Integração B1×B2: tokens sanitizados na borda (B1 — não-string
+      // descartados) + correlation validado (B2).
       confirmedToken: asOptionalToken(body.confirmedToken),
       identityVerifiedToken: asOptionalToken(body.identityVerifiedToken),
-      // B1: x-request-id (header ou gerado) vira correlation fim-a-fim.
-      correlationId: requestId,
+      correlationId,
     });
   } catch {
+    // Integração B1×B2: envelope canônico (B1) com o correlation ecoado
+    // no header e no requestId (B2).
     return withRequestId(
       apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500),
       requestId,
     );
   }
 
-  const res = NextResponse.json(result);
+  // Integração B1×B2: DTO público mínimo (B2 — errorCode interno filtrado por
+  // allowlist) com x-request-id ecoado.
+  const res = NextResponse.json(toPublicChatDto(result), { headers: corrHeaders });
   return withRequestId(res, requestId);
 }
 

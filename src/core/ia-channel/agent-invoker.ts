@@ -3,10 +3,16 @@
 // O app só recebe o capability de emitir handles; o executor fica no agent.
 import {
   BRIDGE_RPC_VERSION,
+  ContractVersionMismatchError,
   type HandleIssuerBinding,
   type IssueHandleResult,
 } from '@/core/agent-bridge/rpc-contract';
 import type { PersonaType, RunTurnInput, RunTurnResult } from '@/core/ia-agent/types';
+import {
+  createTelemetryLogger,
+  resolveCorrelationId,
+  type TelemetrySink,
+} from '@/core/ia-agent/telemetry';
 
 // Fallback quando o DO/bridge falha ou estoura o timeout (anti-hang / worker-cancel).
 // Contrato: invokeAgentWithEnv SEMPRE resolve com um RunTurnResult controlado;
@@ -59,7 +65,7 @@ export interface InvokeAgentInput {
   userMessage: string;
   confirmedToken?: string;
   identityVerifiedToken?: string;
-  /** B1: rastreio fim-a-fim (x-request-id do route). Opcional, só observabilidade. */
+  /** Integração B1×B2: x-request-id da rota; gerado aqui quando ausente/inválido. Opcional, só observabilidade. */
   correlationId?: string;
 }
 
@@ -71,24 +77,32 @@ export interface InvokeAgentInput {
 export async function invokeAgentWithEnv(
   env: AgentEnv,
   input: InvokeAgentInput,
-  opts: { timeoutMs?: number } = {},
+  opts: { timeoutMs?: number; telemetry?: TelemetrySink } = {},
 ): Promise<RunTurnResult> {
   const timeoutMs = opts.timeoutMs ?? resolveRpcTimeoutMs();
+  // B2: correlation id ponta a ponta — a rota gera/ecoa x-request-id; aqui é
+  // o fallback de geração para callers que não passam (ex.: WhatsApp inbound).
+  // Validação de formato único (resolveCorrelationId): inválido → gera novo.
+  const correlationId = resolveCorrelationId(input.correlationId);
+  const emit = opts.telemetry ?? createTelemetryLogger('ia-channel:agent-invoker');
+  const startedAt = Date.now();
 
   const runOnce = async (): Promise<RunTurnResult> => {
     // 1. handle (ia-bridge é a autoridade do principal)
     const issued: IssueHandleResult = await env.IA_HANDLE_ISSUER.issueHandle({
       contractVersion: BRIDGE_RPC_VERSION,
+      // Integração B1×B2: SEMPRE o id resolvido/validado (nunca o raw do
+      // caller — raw inválido geraria PII/blob no downstream). Campo
+      // opcional/aditivo do contrato — servidores antigos ignoram.
+      correlationId,
       clinicId: input.clinicId,
       conversationId: input.conversationId,
       principalRef: input.principalRef,
       source: input.source,
       ttlSeconds: 120,
-      // B1: campo opcional/aditivo do contrato — servidores antigos ignoram.
-      ...(input.correlationId ? { correlationId: input.correlationId } : {}),
     });
     if (!('handle' in issued) || issued.contractVersion !== BRIDGE_RPC_VERSION) {
-      throw new Error('[agent-invoker] handle issuer contract version mismatch');
+      throw new ContractVersionMismatchError();
     }
     const { handle } = issued;
 
@@ -110,27 +124,46 @@ export async function invokeAgentWithEnv(
       userMessage: input.userMessage,
       confirmedToken: input.confirmedToken,
       identityVerifiedToken: input.identityVerifiedToken,
-      correlationId: input.correlationId,
-      // B1-review: dono do turno para o binding da pending no confirm
-      // (userId no chat; 'agente' no path WhatsApp).
+      // Integração B1×B2: correlation RESOLVIDO (validado/gerado acima) +
+      // clinicId (telemetria B2) + principalId (binding da pending B1 —
+      // userId no chat; 'agente' no path WhatsApp).
+      correlationId,
+      clinicId: input.clinicId,
       principalId: input.principalRef,
     });
   };
 
   try {
-    return await raceWithTimeout(runOnce(), timeoutMs, input);
+    return await raceWithTimeout(runOnce(), timeoutMs, input, correlationId);
   } catch (err) {
-    // Log estruturado para diagnístico sem expor PII; o caller HTTP recebe
-    // um fallback controlado e o Worker não é cancelado.
-    // eslint-disable-next-line no-console
-    console.error('[agent-invoker] runTurn failed, returning fallback reply', {
-      correlationId: input.correlationId,
-      conversationId: input.conversationId,
-      channel: input.channel,
-      timeoutMs,
-      error: err instanceof Error ? err.message : String(err),
+    // Integração B1×B2: log ESTRUTURADO (correlation id + code fechado — B2,
+    // sem PII). Texto da exceção NUNCA vai para o log; classificação por tipo,
+    // nunca por sniffing de mensagem. O caller HTTP recebe fallback controlado
+    // e o Worker não é cancelado (B1).
+    const code =
+      err instanceof RpcTimeoutError
+        ? 'rpc_timeout'
+        : err instanceof ContractVersionMismatchError
+          ? 'contract_version_mismatch'
+          : 'invoke_failed';
+    emit({
+      correlationId,
+      clinicId: input.clinicId,
+      operation: 'invoke_agent',
+      durationMs: Date.now() - startedAt,
+      status: 'fallback',
+      code,
     });
-    return { reply: FALLBACK_REPLY, turnsUsed: 0 };
+    return { reply: FALLBACK_REPLY, turnsUsed: 0, errorCode: code };
+  }
+}
+
+// Erro tipado de timeout (classificação por tipo, nunca por texto): evita
+// sniffing de mensagem de exceção que pode conter texto externo.
+class RpcTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RpcTimeoutError';
   }
 }
 
@@ -141,13 +174,14 @@ async function raceWithTimeout<T>(
   p: Promise<T>,
   ms: number,
   input: InvokeAgentInput,
+  correlationId: string,
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       reject(
-        new Error(
-          `[agent-invoker] RPC timeout after ${ms}ms (conversationId=${input.conversationId}, channel=${input.channel})`,
+        new RpcTimeoutError(
+          `[agent-invoker] RPC timeout after ${ms}ms (conversationId=${input.conversationId}, channel=${input.channel}, corr=${correlationId})`,
         ),
       );
     }, ms);

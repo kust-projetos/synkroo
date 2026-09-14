@@ -155,14 +155,18 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       expect(mockCtx.storage.get).toHaveBeenCalledWith('history');
       expect(mockCtx.storage.get).not.toHaveBeenCalledWith('pendingAction');
 
-      // Verify provider instantiation
-      expect(mockCreateZenProvider).toHaveBeenCalledWith({
-        apiKey: 'sk-zen-test-key-123',
-        model: 'zen/gpt-4o-mini',
-        baseUrl: 'https://llm.opencode.test/v1',
-      });
+      // Verify provider instantiation (B2: onMetric correlaciona provider_call)
+      expect(mockCreateZenProvider).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: 'sk-zen-test-key-123',
+          model: 'zen/gpt-4o-mini',
+          baseUrl: 'https://llm.opencode.test/v1',
+          onMetric: expect.any(Function),
+        }),
+      );
 
-      // Verify orchestrator execution (pending via peek + consume, não eager)
+      // Verify orchestrator execution: pending via peek + consume (B1, não
+      // eager) e correlationId validado/injetado no input (B2).
       expect(mockRunAgentTurn).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: expect.any(Object),
@@ -171,11 +175,13 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
           peekPendingAction: expect.any(Function),
           consumePendingAction: expect.any(Function),
         }),
-        {
+        expect.objectContaining({
           ...input,
           history: [],
-        },
-      );
+          // B1: pending NÃO é passada eager — o orchestrator consome via
+          // callback a partir do storage do DO.
+          correlationId: expect.stringMatching(/^[A-Za-z0-9_-]{1,128}$/),
+        }),
 
       // Verify storage persistence (history sim; pending keep → NÃO escreve)
       expect(mockCtx.storage.put).toHaveBeenCalledWith('history', [
