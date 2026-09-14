@@ -36,13 +36,15 @@ jest.mock('@/core/modules/gates', () => ({
   withModuleRoute: jest.fn(
     (moduleId: string, manifest?: { isEnabled: (id: string) => Promise<boolean> }) => {
       const m = manifest ?? require('@/core/modules/manifest').createManifest();
+      // Réplica do gate real (envelope canônico — review D2D3).
+      const { apiErrors, generateRequestId } = jest.requireActual('@/lib/api/response');
       return <H extends (...args: any[]) => Promise<Response>>(handler: H): H =>
         (async (...args: Parameters<H>) => {
           if (!(await m.isEnabled(moduleId))) {
-            return new Response(JSON.stringify({ error: 'not_found' }), {
-              status: 404,
-              headers: { 'content-type': 'application/json' },
-            });
+            const requestId = generateRequestId();
+            const res = apiErrors.notFound('Not found', requestId);
+            res.headers.set('x-request-id', requestId);
+            return res;
           }
           return handler(...args);
         }) as H;
@@ -125,7 +127,7 @@ describe('GET /api/contacts — CRM disabled → 404', () => {
     const r = await GET(mkReq('http://localhost/api/contacts'));
     const { status, body } = await read(r);
     expect(status).toBe(404);
-    expect(body).toEqual({ error: 'not_found' });
+    expect(body.error.code).toBe('NOT_FOUND');
     expect(mockRunCrmAction).not.toHaveBeenCalled();
   });
 });
@@ -154,7 +156,7 @@ describe('POST /api/contacts — 405 crm_mvp_read_only', () => {
     );
     const { status, body } = await read(r);
     expect(status).toBe(404);
-    expect(body).toEqual({ error: 'not_found' });
+    expect(body.error.code).toBe('NOT_FOUND');
   });
 });
 

@@ -147,6 +147,14 @@ describe('T8 budgets/[id]/accept — matriz', () => {
     expect((await r.json()).error.message).toMatch(/not found/i);
     expect(acceptBudget).not.toHaveBeenCalled();
   });
+  it('409 canônico em budget sent (service só aceita pending)', async () => {
+    authOk({ id: 'u1', clinic_id: 'clinic-a' });
+    (getBudget as jest.Mock).mockResolvedValue({ id: 'budget-1', clinicId: 'clinic-a', status: 'sent' });
+    const r = await BudgetAcceptPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any, routeParams);
+    expect(r.status).toBe(409);
+    expect((await r.json()).error.code).toBe('CONFLICT');
+    expect(acceptBudget).not.toHaveBeenCalled();
+  });
 });
 
 describe('T8 budgets/[id]/reject — matriz', () => {
