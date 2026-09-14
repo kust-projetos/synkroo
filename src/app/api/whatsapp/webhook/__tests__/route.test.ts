@@ -266,8 +266,7 @@ describe('WhatsApp Webhook', () => {
       expect(data.success).toBe(true)
     })
 
-    it('T1 b: invalid signature does not consume rate quota (auth before limiter)', async () => {
-      const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as { checkRateLimit: jest.Mock }
+    it('T1 b: invalid signature does not consume rate quota (auth before limiter)', async () => {      const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as { checkRateLimit: jest.Mock }
       checkRateLimit.mockClear()
       const payload = { object: 'whatsapp_business_account', entry: [] }
       const body = JSON.stringify(payload)
@@ -295,6 +294,90 @@ describe('WhatsApp Webhook', () => {
       // valid with ignored payload returns 200 (status ignored or success) but not 429/403
       expect([200].includes(validRes.status)).toBe(true)
       expect(checkRateLimit).toHaveBeenCalledTimes(1)
+    })
+
+    it('review D2D3: signed but unprocessable media → 200 ignored (no provider retry)', async () => {
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              metadata: { phone_number_id: '123456789' },
+              messages: [{
+                id: 'wamid.unprocessable',
+                from: '5511999999999',
+                timestamp: '1711534800',
+                type: 'image',
+                // sem chave `image` → parseMetaMessage null, evento identificado
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.status).toBe('ignored')
+    })
+
+    it('review D2D3: message without from/id → 400 (evento não identificável, preservado)', async () => {
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              metadata: { phone_number_id: '123456789' },
+              messages: [{
+                id: 'wamid.nofrom',
+                timestamp: '1711534800',
+                type: 'text',
+                text: { body: 'oi' },
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(400)
+    })
+
+    it('review D2D3: structurally invalid JSON body → 400 (preservado, antes da identificação)', async () => {
+      const body = 'not-json{{{'
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(400)
     })
   })
 })

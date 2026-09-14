@@ -63,7 +63,7 @@ export default function CrmPipelinePage() {
         window.location.reload()
       } else {
         const data = await response.json()
-        setError(data.error || 'Erro ao criar lead')
+        setError(data.error?.message || 'Erro ao criar lead')
       }
     } catch {
       setError('Erro ao criar lead')

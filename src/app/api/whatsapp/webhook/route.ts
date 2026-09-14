@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { runAtendimentoSystemActionResult } from '@/modules/atendimento/ui/route-adapter';
 import { resolveMetaInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
@@ -41,6 +42,7 @@ async function handlePOST(request: NextRequest) {
   const entries = Array.isArray(payload.entry) ? payload.entry : [];
   let processed = 0;
   let deduped = 0;
+  let ignored = 0;
   for (const entry of entries as Array<Record<string, unknown>>) {
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
     for (const change of changes as Array<Record<string, unknown>>) {
@@ -55,9 +57,17 @@ async function handlePOST(request: NextRequest) {
       for (const message of messages as Array<Record<string, unknown>>) {
         const from = typeof message.from === 'string' ? message.from : '';
         const externalMessageId = typeof message.id === 'string' ? message.id : '';
-        const parsed = parseMetaMessage(message);
-        if (!from || !externalMessageId || !parsed) {
+        // Sem remetente/id não há como identificar o evento → 400 (comportamento preservado).
+        if (!from || !externalMessageId) {
           return NextResponse.json({ error: 'Invalid WhatsApp message payload' }, { status: 400 });
+        }
+        // Assinatura válida + evento identificado, mas mídia não-processável →
+        // 200 ignore (sem retry/drop do provider). Log seguro, sem body.
+        const parsed = parseMetaMessage(message);
+        if (!parsed) {
+          logger.warn('whatsapp webhook message ignored', { phoneNumberId });
+          ignored++;
+          continue;
         }
         const result = await runAtendimentoSystemActionResult(receberMensagem, {
           externalConversationId: from,
@@ -78,8 +88,13 @@ async function handlePOST(request: NextRequest) {
     }
   }
 
+  // Lote só com mensagens ignoradas → semântica ignore, sem retry do provider.
+  if (processed === 0 && deduped === 0 && ignored > 0) {
+    return NextResponse.json({ status: 'ignored' });
+  }
+
   return NextResponse.json({
-    success: true, processed, deduped,
+    success: true, processed, deduped, ignored,
   });
 }
 

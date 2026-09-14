@@ -76,4 +76,29 @@ describe('D2 lote 2 / D3 — POST /api/leads (canônico, Zod na rota)', () => {
     expect(b.error.code).toBe('INVALID_INPUT')
     expect(runAction).not.toHaveBeenCalled()
   })
+
+  it.each([
+    'whatsapp', 'instagram', 'web', 'website', 'referral', 'campaign', 'manual', 'other',
+  ])('fonte %s passa pelo schema (nunca 400 de schema)', async (source) => {
+    authOk()
+    ;(runAction as jest.Mock).mockResolvedValue({ ok: true, data: { leadId: 'l1' } })
+    const r = await POST(new NextRequest('http://localhost/api/leads', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Ana', phone: '+5511999990001', source }),
+    }))
+    // 200/201 de negócio (ou 422 de negócio, conforme a Action) — nunca 400 de schema
+    expect(r.status).not.toBe(400)
+    expect(runAction).toHaveBeenCalled()
+  })
+
+  it('fonte fora do enum → 400 canônico', async () => {
+    authOk()
+    const r = await POST(new NextRequest('http://localhost/api/leads', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Ana', phone: '+5511999990001', source: 'carrier-pigeon' }),
+    }))
+    expect(r.status).toBe(400)
+    expect((await r.json()).error.code).toBe('INVALID_INPUT')
+    expect(runAction).not.toHaveBeenCalled()
+  })
 })

@@ -1,11 +1,17 @@
 import { z } from 'zod'
 import { emailSchema, phoneSchema } from './common'
 
+// Conjunto REAL de fontes do produto (review D2D3): a UI envia
+// whatsapp|instagram|web|referral|campaign|other; `website`/`manual`
+// mantidos por compatibilidade com dados já gravados. A Action
+// comercial.capturarLead aceita string livre — este enum é o único gate.
 export const leadSourceEnum = z.enum([
   'whatsapp',
   'instagram',
+  'web',
   'website',
   'referral',
+  'campaign',
   'manual',
   'other',
 ])
