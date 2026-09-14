@@ -1,6 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
 import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
+import {
+  createTelemetryLogger,
+  resolveCorrelationId,
+} from '@/core/ia-agent/telemetry';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
 import type { AppBinding } from '@/core/agent-bridge/rpc-contract';
 import type {
@@ -64,10 +68,28 @@ export class AgentOrchestrator extends DurableObject<Env> {
     // Carrega estado persistido entre turnos da mesma conversa.
     const history = (await this.ctx.storage.get<ChatMessage[]>('history')) ?? [];
 
+    // B2: telemetria estruturada edge-safe (JSON via console; sem src/lib/logger).
+    // O correlationId viaja no input (invoker → DO); validação de formato
+    // único — inválido/ausente gera novo em vez de logar texto externo.
+    const correlationId = resolveCorrelationId(input.correlationId);
+    const emit = createTelemetryLogger('ia-agent');
     const provider = createZenProvider({
       apiKey: this.env.OPENCODE_ZEN_API_KEY,
       model: this.env.IA_LLM_MODEL,
       baseUrl: this.env.IA_LLM_BASE_URL,
+      onMetric: (m) =>
+        emit({
+          correlationId: m.correlationId ?? correlationId,
+          clinicId: input.clinicId,
+          operation: 'provider_call',
+          durationMs: m.latencyMs,
+          status: m.success ? 'ok' : 'error',
+          code: m.errorCode,
+          attempt: m.attempt,
+          provider: m.provider,
+          model: m.model,
+          usage: m.usage,
+        }),
     });
 
     const app = this.env.APP as unknown as AppBinding;
@@ -76,6 +98,9 @@ export class AgentOrchestrator extends DurableObject<Env> {
         provider,
         app,
         now: new Date(),
+        // Integração B1×B2: telemetria estruturada (B2 — o DO injeta o sink
+        // real) + reserva atômica da pending (B1 — peek/consume).
+        telemetry: emit,
         // B1-review — peek lê sem destruir (mensagem normal nunca consome);
         // consume CONDICIONAL: dentro da MESMA transação, só deleta se o
         // valor atual ainda for o esperado (token+principal do peek). Se um
@@ -99,6 +124,7 @@ export class AgentOrchestrator extends DurableObject<Env> {
       },
       {
         ...input,
+        correlationId,
         history,
       },
     );

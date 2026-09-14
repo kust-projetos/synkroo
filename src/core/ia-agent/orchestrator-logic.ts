@@ -13,6 +13,12 @@ import type {
 import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 import { personaSystemPrompt, wrapUserData } from './personas';
 import { analyzeClinicalSafety } from './clinical-safety';
+import {
+  normalizeCode,
+  noopTelemetry,
+  type TelemetryEvent,
+  type TelemetrySink,
+} from './telemetry';
 
 /**
  * B1 — comparação constant-time de tokens (mesmo padrão do `matchesSecret`
@@ -75,6 +81,8 @@ export interface RunTurnDeps {
   consumePendingAction?: (
     expected: PendingConsumeExpected,
   ) => Promise<ConsumePendingResult>;
+  /** B2: sink de telemetria estruturada (default: noop — o DO injeta o real). */
+  telemetry?: TelemetrySink;
 }
 
 /**
@@ -103,9 +111,12 @@ function errorReply(error: string): string {
   return 'Não consegui concluir agora. Posso ajudar de outra forma?';
 }
 
-async function hasCurrentBridgeContract(app: AppBinding): Promise<boolean> {
+async function hasCurrentBridgeContract(
+  app: AppBinding,
+  correlationId?: string,
+): Promise<boolean> {
   try {
-    const ping = await app.ping({ contractVersion: BRIDGE_RPC_VERSION });
+    const ping = await app.ping({ contractVersion: BRIDGE_RPC_VERSION, correlationId });
     return ping.ok && ping.contractVersion === BRIDGE_RPC_VERSION;
   } catch {
     return false;
@@ -118,6 +129,24 @@ export async function runTurn(
 ): Promise<RunTurnResult> {
   const maxIterations = deps.maxIterations ?? 5;
   const newToken = deps.newToken ?? (() => crypto.randomUUID());
+  const emit: TelemetrySink = deps.telemetry ?? noopTelemetry;
+  const correlationId = input.correlationId;
+  const clinicId = input.clinicId;
+  const startedAt = Date.now();
+  const log = (e: Omit<TelemetryEvent, 'correlationId' | 'clinicId'>): void =>
+    emit({
+      correlationId,
+      clinicId,
+      durationMs: Date.now() - startedAt,
+      ...e,
+    });
+  // Fallback amigável ao usuário + erro estruturado preservado no log e no
+  // resultado interno (nunca vaza código/detalhe na reply; logs levam só code
+  // de allowlist + descrição estática — sem texto de exceção/payload).
+  const fallback = (code: string, turnsUsed = 0): RunTurnResult => {
+    log({ operation: 'run_turn', status: 'fallback', code });
+    return { reply: FALLBACK, turnsUsed, errorCode: code };
+  };
 
   // B1-review HIGH: deadline ÚNICO do turno, criado aqui e compartilhado por
   // confirm e loop — o confirm também está sob budget (antes ele executava
@@ -160,8 +189,10 @@ export async function runTurn(
 
   // O handshake é por turno para não deixar uma versão de bridge presa no
   // isolate. Nenhuma operação de tool é enviada sem confirmar v2.
-  if (!(await hasCurrentBridgeContract(deps.app))) {
-    return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
+  // Integração B1×B2: fallback estruturado com errorCode (log correlacionado)
+  // + pendingActionWrite 'keep' (at-most-once: nada reservado, nada se escreve).
+  if (!(await hasCurrentBridgeContract(deps.app, correlationId))) {
+    return { ...fallback('contract_version_mismatch'), pendingActionWrite: 'keep' as const };
   }
 
   // ── Caminho de confirmação ────────────────────────────────────────────────
@@ -223,6 +254,7 @@ export async function runTurn(
       (await safeTokenEquals(input.identityVerifiedToken, pa.token));
     const exec = await deps.app.executeAction({
       contractVersion: BRIDGE_RPC_VERSION,
+      correlationId,
       handle: input.handle,
       conversationId: input.conversationId,
       idempotencyKey: pa.token,
@@ -231,22 +263,49 @@ export async function runTurn(
       flags: { confirmed: true, identityVerified },
     });
     if (exec.contractVersion !== BRIDGE_RPC_VERSION) {
-      return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'clear', clearedToken: pa.token };
+      // Integração B1×B2: pós-reserva NÃO se re-arma (clear condicional da
+      // pending reservada) + errorCode estruturado no log/resultado.
+      return { ...fallback('contract_version_mismatch'), pendingActionWrite: 'clear' as const, clearedToken: pa.token };
     }
     if (!exec.ok) {
+      // needs_identity / needs_confirmation: a bridge pede outra rodada —
+      // re-arma a pending consumida (set) para a confirmação futura; o fluxo
+      // segue pedindo ao usuário em vez de executar.
+      if (exec.error === 'needs_identity' || exec.error === 'needs_confirmation') {
+        const ask =
+          exec.error === 'needs_identity'
+            ? 'preciso confirmar sua identidade'
+            : 'você confirma esta ação';
+        log({ operation: 'execute_action', status: 'ok', code: exec.error });
+        return {
+          reply: `Para prosseguir, ${ask}. Posso seguir?`,
+          turnsUsed: 1,
+          pendingAction: pa,
+          pendingActionWrite: 'set' as const,
+        };
+      }
+      log({
+        operation: 'execute_action',
+        status: 'error',
+        code: normalizeCode(exec.error, 'provider_error'),
+      });
       return {
         reply: errorReply(exec.error),
         turnsUsed: 1,
         escalated: exec.error === 'escalate_human',
         escalationReason: exec.error === 'escalate_human' ? 'action_escalate_human' : undefined,
-        pendingActionWrite: 'clear',
+        // Integração B1×B2: falha pós-reserva NÃO re-arma (clear condicional)
+        // + errorCode estruturado (log correlacionado, DTO filtra no HTTP).
+        pendingActionWrite: 'clear' as const,
         clearedToken: pa.token,
+        errorCode: normalizeCode(exec.error, 'provider_error'),
       };
     }
+    log({ operation: 'run_turn', status: 'ok', code: 'confirmed' });
     return {
       reply: 'Pronto, confirmado e executado.',
       turnsUsed: 1,
-      pendingActionWrite: 'clear',
+      pendingActionWrite: 'clear' as const,
       clearedToken: pa.token,
     };
   }
@@ -254,11 +313,17 @@ export async function runTurn(
   // ── 1. Catálogo ──────────────────────────────────────────────────────────
   const toolsResp = await deps.app.listTools({
     contractVersion: BRIDGE_RPC_VERSION,
+    correlationId,
     handle: input.handle,
     conversationId: input.conversationId,
   });
   if (!toolsResp.ok || toolsResp.contractVersion !== BRIDGE_RPC_VERSION)
-    return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
+    return {
+      ...fallback(
+        !toolsResp.ok ? normalizeCode(toolsResp.error, 'provider_error') : 'contract_version_mismatch',
+      ),
+      pendingActionWrite: 'keep' as const,
+    };
 
   const llmTools: LlmTool[] = toolsResp.catalog.tools.map((t) => ({
     type: 'function' as const,
@@ -306,7 +371,11 @@ export async function runTurn(
       return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
     }
     turnsUsed = i + 1;
-    // Aborta a chamada em curso ao estourar o deadline.
+    // Integração B1×B2: abort amarrado ao deadline (B1 — a chamada em curso
+    // é cancelada ao estourar o budget) + erro estruturado sem PII (B2 —
+    // nunca se loga texto de exceção/payload; só o code fechado).
+    // Erro não-abort vira fallback com errorCode (o invoker/DTO tratam o
+    // HTTP); abort do deadline vira fallback neutro com 'keep'.
     const iterController = new AbortController();
     const abortTimer = setTimeout(
       () => iterController.abort(),
@@ -315,30 +384,33 @@ export async function runTurn(
     let completion;
     try {
       completion = await deps.provider.complete(messages, llmTools, {
-        correlationId: input.correlationId,
+        correlationId,
         signal: iterController.signal,
       });
     } catch (err) {
-      // Abort do deadline → erro estruturado do turno (fallback), não crash.
+      // Abort do deadline → fallback neutro (sem código interno), não crash.
       if (isAbortError(err)) {
         // eslint-disable-next-line no-console
         console.error('[ia-agent] provider call aborted by turn deadline', {
-          correlationId: input.correlationId,
+          correlationId,
           conversationId: input.conversationId,
           iteration: i,
         });
-        return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
+        return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' as const };
       }
-      // B1: correlation presente no log de erro do orchestrator; o erro
-      // sobe para o DO → invoker, que devolve o fallback ao caller HTTP.
-      // eslint-disable-next-line no-console
-      console.error('[ia-agent] provider complete failed', {
-        correlationId: input.correlationId,
-        conversationId: input.conversationId,
-        iteration: i,
-        error: err instanceof Error ? err.message : String(err),
+      // Texto da exceção NUNCA vai para o log (pode conter corpo do provider).
+      // Lê-se só o code fechado (LlmError.code); o resto é descartado.
+      const rawCode =
+        err !== null && typeof err === 'object'
+          ? (err as { code?: unknown }).code
+          : undefined;
+      const code = normalizeCode(rawCode);
+      log({
+        operation: 'provider_call',
+        status: 'error',
+        code,
       });
-      throw err;
+      return { ...fallback(code, turnsUsed), pendingActionWrite: 'keep' as const };
     } finally {
       clearTimeout(abortTimer);
     }
@@ -352,8 +424,10 @@ export async function runTurn(
     // Sem tool calls → resposta final
     if (!completion.toolCalls.length) {
       const text = completion.text ?? '';
+      if (!text.trim()) return fallback('empty_completion', turnsUsed);
+      log({ operation: 'run_turn', status: 'ok' });
       return {
-        reply: text.trim() ? text : FALLBACK,
+        reply: text.trim(),
         turnsUsed,
         pendingActionWrite: 'keep',
       };
@@ -422,6 +496,7 @@ export async function runTurn(
 
       const exec = await deps.app.executeAction({
         contractVersion: BRIDGE_RPC_VERSION,
+        correlationId,
         handle: input.handle,
         conversationId: input.conversationId,
         idempotencyKey: call.id, // key crua (tool_call_id)
@@ -431,7 +506,7 @@ export async function runTurn(
       });
 
       if (exec.contractVersion !== BRIDGE_RPC_VERSION) {
-        return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
+        return { ...fallback('contract_version_mismatch'), pendingActionWrite: 'keep' as const };
       }
       if (!exec.ok) {
         if (
@@ -442,6 +517,7 @@ export async function runTurn(
             exec.error === 'needs_identity'
               ? 'preciso confirmar sua identidade'
               : 'você confirma esta ação';
+          log({ operation: 'execute_action', status: 'ok', code: exec.error });
           return {
             reply: `Para prosseguir, ${ask}. Posso seguir?`,
             turnsUsed,
@@ -450,16 +526,27 @@ export async function runTurn(
           };
         }
 
-        if (exec.error === 'escalate_human')
+        if (exec.error === 'escalate_human') {
+          log({ operation: 'execute_action', status: 'fallback', code: 'escalate_human' });
           return {
             reply: errorReply('escalate_human'),
             turnsUsed,
             escalated: true,
             escalationReason: 'action_escalate_human',
-            pendingActionWrite: 'keep',
+            // Integração B1×B2: nada a escrever na pending (keep) + errorCode
+            // estruturado (log correlacionado, DTO filtra no HTTP).
+            pendingActionWrite: 'keep' as const,
+            errorCode: 'escalate_human' as const,
           };
+        }
 
-        // Erro estruturado realimentado ao modelo
+        // Erro estruturado realimentado ao modelo (conteúdo de tool, não log)
+        // e registrado no log só com o code — sem exec.message.
+        log({
+          operation: 'execute_action',
+          status: 'error',
+          code: normalizeCode(exec.error, 'provider_error'),
+        });
         messages.push({
           role: 'tool',
           tool_call_id: call.id,
@@ -481,5 +568,7 @@ export async function runTurn(
     }
   }
 
-  return { reply: FALLBACK, turnsUsed, pendingActionWrite: 'keep' };
+  // Integração B1×B2: iterações esgotadas → fallback estruturado com code
+  // fechado + 'keep' (nada a escrever na pending).
+  return { ...fallback('max_iterations_exhausted', turnsUsed), pendingActionWrite: 'keep' as const };
 }

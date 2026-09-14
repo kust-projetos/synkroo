@@ -7,6 +7,7 @@ jest.mock('@/core/modules/manifest', () => ({ createManifest: () => ({}) }));
 
 import { NextRequest } from 'next/server';
 import { POST } from '../chat/route';
+import { toPublicChatDto } from '../chat/dto';
 import { resolveIaTimezone } from '../timezone';
 
 function req(body: unknown) {
@@ -76,5 +77,92 @@ describe('POST /api/ia/chat', () => {
   it('resolves configured timezone and falls back safely', () => {
     expect(resolveIaTimezone('Europe/Lisbon')).toBe('Europe/Lisbon');
     expect(resolveIaTimezone(undefined)).toBe('America/Sao_Paulo');
+  });
+
+  it('public DTO omite errorCode interno e preserva estado (B2)', () => {
+    expect(
+      toPublicChatDto({ reply: 'x', turnsUsed: 1, errorCode: 'forbidden' }),
+    ).toEqual({ reply: 'x', turnsUsed: 1 });
+    expect(
+      toPublicChatDto({
+        reply: 'y',
+        turnsUsed: 0,
+        escalated: true,
+        escalationReason: 'action_escalate_human',
+        errorCode: 'rpc_timeout',
+      }),
+    ).toEqual({
+      reply: 'y',
+      turnsUsed: 0,
+      escalated: true,
+      escalationReason: 'action_escalate_human',
+      errorCode: 'rpc_timeout',
+    });
+  });
+
+  it('echoes inbound x-request-id and propagates it as correlationId (B2)', async () => {
+    mockInvoke.mockResolvedValue({ reply: 'ok', turnsUsed: 1 });
+    const r = new Request('http://localhost/api/ia/chat', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: 'conv-1', message: 'oi' }),
+      headers: { 'Content-Type': 'application/json', 'x-request-id': 'req-abc' },
+    }) as unknown as NextRequest;
+    const res = await POST(r);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-request-id')).toBe('req-abc');
+    expect(mockInvoke).toHaveBeenCalledWith(
+      expect.objectContaining({ correlationId: 'req-abc' }),
+    );
+  });
+
+  it('generates x-request-id when the caller sends none (B2)', async () => {
+    mockInvoke.mockResolvedValue({ reply: 'ok', turnsUsed: 1 });
+    const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
+    const echoed = res.headers.get('x-request-id');
+    expect(typeof echoed).toBe('string');
+    expect(echoed!.length).toBeGreaterThan(0);
+    expect(mockInvoke).toHaveBeenCalledWith(
+      expect.objectContaining({ correlationId: echoed }),
+    );
+  });
+
+  it('rejects malicious x-request-id and uses a generated id (B2)', async () => {
+    mockInvoke.mockResolvedValue({ reply: 'ok', turnsUsed: 1 });
+    const evil = `cpf-123.456.789-00 <script>${'x'.repeat(1024)}</script>`;
+    const r = new Request('http://localhost/api/ia/chat', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: 'conv-1', message: 'oi' }),
+      headers: { 'Content-Type': 'application/json', 'x-request-id': evil },
+    }) as unknown as NextRequest;
+    const res = await POST(r);
+    expect(res.status).toBe(200);
+    const echoed = res.headers.get('x-request-id');
+    expect(echoed).not.toBe(evil);
+    expect(echoed).toMatch(/^[A-Za-z0-9_-]{1,128}$/);
+    expect(mockInvoke).toHaveBeenCalledWith(
+      expect.objectContaining({ correlationId: echoed }),
+    );
+  });
+
+  it('echoes x-request-id on 401 and 422 (B2)', async () => {
+    mockBuildCtx.mockRejectedValueOnce(new Error('unauthenticated'));
+    const unauth = new Request('http://localhost/api/ia/chat', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: 'conv-1', message: 'oi' }),
+      headers: { 'Content-Type': 'application/json', 'x-request-id': 'req-401' },
+    }) as unknown as NextRequest;
+    const res401 = await POST(unauth);
+    expect(res401.status).toBe(401);
+    expect(res401.headers.get('x-request-id')).toBe('req-401');
+
+    mockBuildCtx.mockResolvedValueOnce(ctxWith((k) => k === 'ia:chat'));
+    const bad = new Request('http://localhost/api/ia/chat', {
+      method: 'POST',
+      body: JSON.stringify({}),
+      headers: { 'Content-Type': 'application/json', 'x-request-id': 'req-422' },
+    }) as unknown as NextRequest;
+    const res422 = await POST(bad);
+    expect(res422.status).toBe(422);
+    expect(res422.headers.get('x-request-id')).toBe('req-422');
   });
 });

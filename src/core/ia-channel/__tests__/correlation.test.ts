@@ -51,13 +51,27 @@ describe('invokeAgentWithEnv — correlation id (B1)', () => {
     expect((calls.runTurn as { correlationId?: string }).correlationId).toBe('req-abc');
   });
 
-  it('omite correlationId do handle quando ausente (contrato antigo tolera)', async () => {
+  it('sempre propaga correlationId resolvido ao handle (integração B1×B2)', async () => {
+    // Integração: o invoker SEMPRE envia o id resolvido/validado (B2) — nunca
+    // o raw do caller. Sem input, um id válido é gerado (resolveCorrelationId).
     const calls: Record<string, unknown> = {};
     await invokeAgentWithEnv(makeEnv(calls), base);
-    expect(calls.issue as object).not.toHaveProperty('correlationId');
+    const sent = (calls.issue as { correlationId?: unknown }).correlationId;
+    expect(typeof sent).toBe('string');
+    expect(sent as string).toMatch(/^[A-Za-z0-9_-]{1,128}$/);
   });
 
-  it('log de erro contém o correlationId e retorna fallback', async () => {
+  it('nunca propaga raw inválido ao handle (resolve e gera novo)', async () => {
+    const calls: Record<string, unknown> = {};
+    await invokeAgentWithEnv(makeEnv(calls), { ...base, correlationId: 'cpf-123 <script>' });
+    const sent = (calls.issue as { correlationId?: unknown }).correlationId;
+    expect(sent).not.toBe('cpf-123 <script>');
+    expect(sent as string).toMatch(/^[A-Za-z0-9_-]{1,128}$/);
+  });
+
+  it('log de erro contém o correlationId e retorna fallback (integração B1×B2)', async () => {
+    // Integração: o catch emite evento estruturado (B2, sem texto de exceção)
+    // pelo sink default (JSON via console.error). O fallback leva errorCode.
     const calls: Record<string, unknown> = {};
     const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
     const out = await invokeAgentWithEnv(
@@ -66,10 +80,11 @@ describe('invokeAgentWithEnv — correlation id (B1)', () => {
       { timeoutMs: 1000 },
     );
     expect(out.turnsUsed).toBe(0);
-    expect(errSpy).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ correlationId: 'req-fail-1' }),
-    );
+    expect(out.errorCode).toBe('invoke_failed');
+    expect(errSpy).toHaveBeenCalled();
+    const logged = errSpy.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(logged).toContain('req-fail-1');
+    expect(logged).not.toContain('do-down');
     errSpy.mockRestore();
   });
 });

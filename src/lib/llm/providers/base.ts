@@ -4,10 +4,13 @@
 
 import type {
   ChatMessage,
+  LlmCallMetric,
+  LlmCallOpts,
   LlmCompletion,
   LlmProvider,
   LlmProviderConfig,
   LlmProviderType,
+  LlmTelemetrySink,
   LlmTool,
   ToolCall,
 } from '../types';
@@ -120,6 +123,7 @@ export abstract class BaseLlmProvider implements LlmProvider {
   protected readonly timeoutMs: number;
   protected readonly maxRetries: number;
   protected readonly fetchImpl: typeof fetch;
+  protected readonly onMetric?: LlmTelemetrySink;
 
   constructor(config: LlmProviderConfig, defaultModel: string, defaultBaseUrl: string) {
     if (!config.apiKey || config.apiKey.trim().length === 0) {
@@ -135,6 +139,7 @@ export abstract class BaseLlmProvider implements LlmProvider {
     this.timeoutMs = config.timeoutMs ?? 30000;
     this.maxRetries = config.maxRetries ?? 2;
     this.fetchImpl = config.fetchImpl ?? fetch;
+    this.onMetric = config.onMetric;
   }
 
   protected getEndpoint(): string {
@@ -168,12 +173,23 @@ export abstract class BaseLlmProvider implements LlmProvider {
     return false;
   }
 
-  public async complete(messages: ChatMessage[], tools: LlmTool[] = []): Promise<LlmCompletion> {
+  public async complete(messages: ChatMessage[], tools: LlmTool[] = [], opts: LlmCallOpts = {}): Promise<LlmCompletion> {
     let attempt = 0;
     const maxAttempts = 1 + Math.max(0, this.maxRetries);
+    const correlationId = opts.correlationId;
+
+    const emit = (m: Omit<LlmCallMetric, 'provider' | 'model'>): void => {
+      this.onMetric?.({
+        provider: this.providerName,
+        model: this.model,
+        correlationId,
+        ...m,
+      });
+    };
 
     while (attempt < maxAttempts) {
       attempt++;
+      const startedAt = Date.now();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -202,6 +218,7 @@ export abstract class BaseLlmProvider implements LlmProvider {
 
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) {
+            emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'unauthorized' });
             throw new LlmError({
               message: `Authentication failed with provider: HTTP ${res.status}`,
               code: 'unauthorized',
@@ -214,9 +231,11 @@ export abstract class BaseLlmProvider implements LlmProvider {
 
           if (res.status === 429) {
             if (attempt < maxAttempts) {
+              emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'rate_limited' });
               await new Promise((r) => setTimeout(r, attempt * 50));
               continue;
             }
+            emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'rate_limited' });
             throw new LlmError({
               message: `Rate limit exceeded from provider: HTTP 429`,
               code: 'rate_limited',
@@ -229,9 +248,11 @@ export abstract class BaseLlmProvider implements LlmProvider {
 
           if (res.status >= 500) {
             if (attempt < maxAttempts) {
+              emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'provider_down' });
               await new Promise((r) => setTimeout(r, attempt * 50));
               continue;
             }
+            emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'provider_down' });
             throw new LlmError({
               message: `Provider server error: HTTP ${res.status}`,
               code: 'provider_down',
@@ -242,6 +263,7 @@ export abstract class BaseLlmProvider implements LlmProvider {
             });
           }
 
+          emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'invalid_response' });
           throw new LlmError({
             message: `Provider error: HTTP ${res.status}`,
             code: 'invalid_response',
@@ -257,6 +279,7 @@ export abstract class BaseLlmProvider implements LlmProvider {
         try {
           json = JSON.parse(text);
         } catch (parseErr) {
+          emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'invalid_response' });
           throw new LlmError({
             message: `Invalid JSON response from provider: ${text.slice(0, 200)}`,
             code: 'invalid_response',
@@ -266,16 +289,23 @@ export abstract class BaseLlmProvider implements LlmProvider {
           });
         }
 
+        // Integração B1×B2: validação Zod do envelope (B1, fail-closed) COM
+        // métrica estruturada por tentativa (B2). Falha de schema →
+        // `invalid_response` sem retry; paths inválidos no erro, nunca o
+        // payload bruto (sem secrets/PII).
         const choice = ChatCompletionsEnvelopeSchema.safeParse(json);
         if (!choice.success) {
           const paths = choice.error.issues
             .map((i) => i.path.join('.') || '(root)')
             .slice(0, 5)
             .join(', ');
+          emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'invalid_response' });
           throw invalidEnvelopeError(this.providerName, this.apiKey, paths);
         }
 
-        return toCompletion(choice.data);
+        const completion = toCompletion(choice.data);
+        emit({ latencyMs: Date.now() - startedAt, success: true, attempt, usage: completion.usage });
+        return completion;
       } catch (err: unknown) {
         clearTimeout(timeoutId);
         if (err instanceof LlmError) {
@@ -284,6 +314,7 @@ export abstract class BaseLlmProvider implements LlmProvider {
 
         const isAbort = (err as Error)?.name === 'AbortError' || (err as Error)?.message?.includes('aborted');
         if (isAbort) {
+          emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'timeout' });
           throw new LlmError({
             message: `Request timed out after ${this.timeoutMs}ms`,
             code: 'timeout',
@@ -294,10 +325,12 @@ export abstract class BaseLlmProvider implements LlmProvider {
         }
 
         if (this.isRetryableError(err) && attempt < maxAttempts) {
+          emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'provider_down' });
           await new Promise((r) => setTimeout(r, attempt * 50));
           continue;
         }
 
+        emit({ latencyMs: Date.now() - startedAt, success: false, attempt, errorCode: 'provider_down' });
         throw new LlmError({
           message: `Network failure connecting to provider: ${(err as Error)?.message ?? 'Unknown error'}`,
           code: 'provider_down',

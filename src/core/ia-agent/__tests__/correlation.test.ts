@@ -46,21 +46,38 @@ describe('runTurn — correlation id (B1)', () => {
     expect(seen).toEqual(expect.objectContaining({ correlationId: 'req-xyz' }));
   });
 
-  it('falha do provider loga com correlationId e propaga (invoker dá fallback)', async () => {
+  it('falha do provider vira fallback com errorCode e evento sem PII (integração B1×B2)', async () => {
+    // Integração: o orchestrator NÃO propaga mais o throw (B1) — captura,
+    // registra evento estruturado SEM texto de exceção (redaction B2) e
+    // devolve fallback com errorCode. O abort do deadline continua neutro.
     const p: LlmProvider = {
       complete: async () => {
         throw new Error('provider-down');
       },
     };
-    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    await expect(
-      runTurn({ provider: p, app: okApp, now: new Date() }, { ...base, correlationId: 'req-log-1' }),
-    ).rejects.toThrow('provider-down');
-    expect(errSpy).toHaveBeenCalledWith(
-      '[ia-agent] provider complete failed',
-      expect.objectContaining({ correlationId: 'req-log-1' }),
+    const events: Array<Record<string, unknown>> = [];
+    const r = await runTurn(
+      {
+        provider: p,
+        app: okApp,
+        now: new Date(),
+        telemetry: (e) => {
+          events.push(e as unknown as Record<string, unknown>);
+        },
+      },
+      { ...base, correlationId: 'req-log-1' },
     );
-    errSpy.mockRestore();
+    expect(r.reply).toBe('Só um momento — vou verificar e já te retorno.');
+    expect(r.errorCode).toBe('provider_error');
+    expect(r.pendingActionWrite ?? 'keep').toBe('keep');
+    expect(JSON.stringify(events)).not.toContain('provider-down');
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        correlationId: 'req-log-1',
+        operation: 'provider_call',
+        status: 'error',
+      }),
+    );
   });
 
   it('erro HTTP do provider carrega o correlation', async () => {

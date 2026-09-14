@@ -19,49 +19,53 @@ export type RemoteTool = BridgeRemoteTool;
 
 type VersionedInput = { contractVersion: BridgeRpcVersion };
 
-export type ListToolsInput = VersionedInput & {
-  handle: string;
-  conversationId: string;
-};
+// B2: correlation id ponta a ponta (app → issueHandle → runTurn → provider).
+// Campo ADITIVO e opcional, apenas para telemetria: nunca participa da
+// resolução de versão (resolveContractVersion olha só contractVersion), logo
+// presença/ausência jamais dispara contract_version_mismatch (fail-closed
+// preservado). Calers antigos que não enviam continuam funcionando.
+
+export type WithCorrelation = { correlationId?: string };
+
+export type ListToolsInput = VersionedInput &
+  WithCorrelation & {
+    handle: string;
+    conversationId: string;
+  };
 export type CompatibleListToolsInput = Omit<ListToolsInput, 'contractVersion'> & {
   contractVersion?: unknown;
 };
 
-export type ExecuteInput = VersionedInput & {
-  handle: string;
-  conversationId: string;
-  idempotencyKey: string;
-  alias: string;
-  input: unknown;
-  flags: { confirmed: boolean; identityVerified?: boolean };
-};
+export type ExecuteInput = VersionedInput &
+  WithCorrelation & {
+    handle: string;
+    conversationId: string;
+    idempotencyKey: string;
+    alias: string;
+    input: unknown;
+    flags: { confirmed: boolean; identityVerified?: boolean };
+  };
 export type CompatibleExecuteInput = Omit<ExecuteInput, 'contractVersion'> & {
   contractVersion?: unknown;
 };
 
-export type IssueHandleInput = VersionedInput & {
-  clinicId: string;
-  conversationId: string;
-  principalRef: string;
-  source: 'system' | 'agent_delegated';
-  ttlSeconds?: number;
-  /**
-   * B1: rastreio fim-a-fim (x-request-id do route → invoker → DO).
-   * OPCIONAL e aditivo: servidores antigos ignoram o campo, e o
-   * fail-closed de versão (`resolveContractVersion`) não dispara por ele.
-   * Nunca entra no payload assinado do handle.
-   */
-  correlationId?: string;
-};
+export type IssueHandleInput = VersionedInput &
+  WithCorrelation & {
+    clinicId: string;
+    conversationId: string;
+    principalRef: string;
+    source: 'system' | 'agent_delegated';
+    ttlSeconds?: number;
+  };
 export type CompatibleIssueHandleInput = Omit<IssueHandleInput, 'contractVersion'> & {
   contractVersion?: unknown;
 };
 
-export type PingInput = VersionedInput;
-export type CompatiblePingInput = { contractVersion?: unknown };
+export type PingInput = VersionedInput & WithCorrelation;
+export type CompatiblePingInput = { contractVersion?: unknown; correlationId?: unknown };
 
-export type DbHealthInput = VersionedInput;
-export type CompatibleDbHealthInput = { contractVersion?: unknown };
+export type DbHealthInput = VersionedInput & WithCorrelation;
+export type CompatibleDbHealthInput = { contractVersion?: unknown; correlationId?: unknown };
 
 export type RpcError = {
   ok: false;
@@ -138,4 +142,15 @@ export function contractVersionMismatch(): MismatchError {
     error: 'contract_version_mismatch',
     contractVersion: BRIDGE_RPC_VERSION,
   };
+}
+
+/**
+ * Erro tipado de mismatch de versão (classificação por instanceof, nunca por
+ * sniffing de texto de mensagem — o texto pode conter conteúdo externo).
+ */
+export class ContractVersionMismatchError extends Error {
+  constructor(source = 'agent-invoker') {
+    super(`[${source}] handle issuer contract version mismatch`);
+    this.name = 'ContractVersionMismatchError';
+  }
 }
