@@ -6,7 +6,7 @@
  * NextAuth's `session.update`; this route never emits a parallel cookie.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requireActiveProfile } from '@/lib/auth/session';
 import { findUserProfileById } from '@/repositories/auth';
@@ -33,15 +33,12 @@ export async function POST(request: NextRequest) {
       return apiFailure('FORBIDDEN', 'No access to this clinic', requestId, 403);
     }
 
-    return NextResponse.json(
-      apiSuccess({
-        clinicId: targetProfile.clinicId,
-        role: targetProfile.role,
-        roleId: targetProfile.roleId,
-        switchedAt: new Date().toISOString(),
-      }).body,
-      { status: 200 },
-    );
+    return apiSuccess({
+      clinicId: targetProfile.clinicId,
+      role: targetProfile.role,
+      roleId: targetProfile.roleId,
+      switchedAt: new Date().toISOString(),
+    });
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return apiFailure('UNAUTHORIZED', 'Authentication required', requestId, 401);

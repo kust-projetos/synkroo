@@ -110,8 +110,9 @@ Que tal agendar uma consulta de retorno? Sua saúde bucal agradece! 🦷
     try {
       const response = await fetch(`/api/campaigns/segments/preview?type=${campaignType}`)
       if (response.ok) {
-        const data = await response.json()
-        setAudiencePreview(data)
+        const body = await response.json()
+        // Envelope canônico (R2): { data: { count, patients } }
+        setAudiencePreview(body.data)
       }
     } catch (error) {
       console.error('Error fetching audience preview:', error)

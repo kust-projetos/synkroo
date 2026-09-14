@@ -28,7 +28,8 @@ describe('POST /api/budgets/[id]/send',()=>{
     const r=await POST(new Request('http://x',{method:'POST',body:'{}'})as any,rParams);
     const b=await r.json();
     expect(r.status).toBe(200);
-    expect(b.budget.id).toBe('b1');
-    expect(b.whatsapp_sent).toBe(false);
+    // Envelope canônico (R2): { data: { budget, whatsapp_sent, whatsapp_error } }
+    expect(b.data.budget.id).toBe('b1');
+    expect(b.data.whatsapp_sent).toBe(false);
   })
 })

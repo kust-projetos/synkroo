@@ -86,14 +86,15 @@ export default function CampaignDetailsPage() {
     setLoading(true)
     try {
       const response = await fetch(`/api/campaigns/${campaignId}`)
-      const data = await response.json()
+      const body = await response.json()
 
       if (response.ok) {
-        setCampaign(data.campaign)
-        setStats(data.stats)
-        setRecipients(data.recentRecipients || [])
+        // Envelope canônico (R2): { data: { campaign, stats, recentRecipients } }
+        setCampaign(body.data.campaign)
+        setStats(body.data.stats)
+        setRecipients(body.data.recentRecipients || [])
       } else {
-        console.error('Failed to fetch campaign:', data.error)
+        console.error('Failed to fetch campaign:', body.error?.message ?? body.error)
       }
     } catch (error) {
       console.error('Error fetching campaign:', error)
@@ -123,7 +124,7 @@ export default function CampaignDetailsPage() {
         toast.showToast('Campanha atualizada com sucesso!', 'success')
         fetchCampaign()
       } else {
-        toast.showToast(data.error || 'Erro ao atualizar campanha', 'error')
+        toast.showToast(data.error?.message ?? data.error ?? 'Erro ao atualizar campanha', 'error')
       }
     } catch (error) {
       console.error('Error updating campaign:', error)
@@ -147,7 +148,7 @@ export default function CampaignDetailsPage() {
         router.push('/dashboard/campanhas')
       } else {
         const data = await response.json()
-        toast.showToast(data.error || 'Erro ao excluir campanha', 'error')
+        toast.showToast(data.error?.message ?? data.error ?? 'Erro ao excluir campanha', 'error')
       }
     } catch (error) {
       console.error('Error deleting campaign:', error)

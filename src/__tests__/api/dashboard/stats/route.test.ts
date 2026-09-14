@@ -108,28 +108,30 @@ describe('GET /api/dashboard/stats', () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body).toHaveProperty('today')
-    expect(body).toHaveProperty('metrics')
-    expect(body).toHaveProperty('inactivePatients')
+    // Envelope canônico (R2): { data: { today, metrics, inactivePatients } }
+    expect(body).toHaveProperty('data')
+    expect(body.data).toHaveProperty('today')
+    expect(body.data).toHaveProperty('metrics')
+    expect(body.data).toHaveProperty('inactivePatients')
 
     // today shape (agregado SQL enlatado: total 10, confirmed 4, pending 5)
-    expect(body.today).toMatchObject({
+    expect(body.data.today).toMatchObject({
       appointments: 10,
       confirmed: 4,
       pending: 5,
     })
 
     // metrics shape (confirmationRate = 60/100 = 60%)
-    expect(body.metrics.confirmationRate).toBe(60)
-    expect(body.metrics.activeCampaigns).toBe(2)
-    expect(body.metrics.openConversations).toBe(7)
-    expect(body.metrics.totalPatients).toBe(500)
+    expect(body.data.metrics.confirmationRate).toBe(60)
+    expect(body.data.metrics.activeCampaigns).toBe(2)
+    expect(body.data.metrics.openConversations).toBe(7)
+    expect(body.data.metrics.totalPatients).toBe(500)
 
     // nenhuma linha bruta: implementação não usa findByDateRange/findCampaignsByClinic
     expect(mockDb.select).toHaveBeenCalledTimes(5)
 
     // inactive shape
-    expect(body.inactivePatients.totalInactive).toBe(42)
-    expect(body.inactivePatients.bySegment).toEqual({ '30d': 10, '60d': 15, '90d': 17 })
+    expect(body.data.inactivePatients.totalInactive).toBe(42)
+    expect(body.data.inactivePatients.bySegment).toEqual({ '30d': 10, '60d': 15, '90d': 17 })
   })
 })

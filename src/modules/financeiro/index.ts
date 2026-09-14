@@ -57,6 +57,19 @@ export const financeiroActions = [
   deletarParcela,
 ];
 
+// ─── Seams públicos para services legados (R3) ───────────────────────────────
+// Re-exports nomeados do mesmo binding — sem mudança de comportamento.
+export { obterOrcamento } from './actions/obter-orcamento';
+export { atualizarOrcamento } from './actions/atualizar-orcamento';
+export { arquivarOrcamento } from './actions/arquivar-orcamento';
+export { getBudget, markBudgetSent } from './services/budget-service';
+export {
+  listOverdueCharges,
+  enrichOverdueCharges,
+  getCollectionStage,
+  sendReminder,
+} from './services/collection-service';
+
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { financeiroManifest } from './manifest';
 export { financeiroAccessPermissions } from './permissions';

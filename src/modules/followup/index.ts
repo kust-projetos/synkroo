@@ -32,6 +32,13 @@ export const followupActions = [
   listarTratamentosIncompletos,
 ];
 
+// ─── Seams públicos para services legados (R3) ───────────────────────────────
+// Re-exports nomeados do mesmo binding — sem mudança de comportamento.
+// (phone-resolver já exposto via `export *` abaixo.)
+export { executarFollowup } from './actions/executar-followup';
+export { detectarInativos } from './actions/detectar-inativos';
+export { executarCampanhas } from './actions/executar-campanhas';
+
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { followupManifest } from './manifest';
 export { followupAccessPermissions } from './permissions';

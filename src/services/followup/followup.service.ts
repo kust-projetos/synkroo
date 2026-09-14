@@ -12,7 +12,7 @@ import { procedureGuidelines, patientFeedback, patients, procedures, dentists } 
 import { clinics } from '@/lib/db/schema/core'
 import { dbLogger, whatsappLogger } from '@/lib/logger'
 import { createFeedback } from '@/repositories/followup'
-import { validateAndFormatPhone } from '@/modules/followup/services/phone-resolver'
+import { validateAndFormatPhone } from '@/modules/followup'
 
 // -- Types ------------------------------------------------------------------
 

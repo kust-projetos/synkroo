@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { eq, and, not, inArray, sql } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getCampaigns } from '@/services/followup/campaign.service'
 import { getDb } from '@/lib/db/client'
 import { leads } from '@/lib/db/schema'
@@ -16,23 +16,21 @@ import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rat
  * é carregada em memória.
  */
 export async function GET(request: Request) {
+  const requestId = generateRequestId()
   try {
     // Rate limit CRM stats endpoint
     const clientId = getClientIdentifier(request as any)
     const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId }, retryAfter: rateLimit.retryAfter },
         { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
       )
     }
 
     const authResult = await validateApiAuth()
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -149,7 +147,7 @@ export async function GET(request: Request) {
     const conversionRate = leadStats.total > 0 ? Math.round((convertedCount / leadStats.total) * 100) : 0
     const activeLeads = leadStats.total - convertedCount - lostCount
 
-    return NextResponse.json({
+    return apiSuccess({
       pipelineValue,
       campaignRoi,
       conversionRate,
@@ -162,6 +160,6 @@ export async function GET(request: Request) {
       campaignConversions,
     })
   } catch (error) {
-    return handleApiError(error)
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

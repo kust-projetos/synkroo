@@ -7,9 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { handleCanonicalAction } from '@/lib/api/action-route';
-import { obterOrcamento } from '@/modules/financeiro/actions/obter-orcamento';
-import { atualizarOrcamento } from '@/modules/financeiro/actions/atualizar-orcamento';
-import { arquivarOrcamento } from '@/modules/financeiro/actions/arquivar-orcamento';
+import { obterOrcamento, atualizarOrcamento, arquivarOrcamento } from '@/modules/financeiro';
 import { logger } from '@/lib/logger';
 
 type RouteParams = { params: Promise<{ id: string }> };

@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { eq, and, asc } from 'drizzle-orm'
+import { NextRequest } from 'next/server'
+import { eq, and } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { knowledgeBase } from '@/lib/db/schema/infra'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError, DatabaseError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 
 const KB = knowledgeBase
 
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const auth = await validateApiAuth('ia:chat')
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    if (!auth.success) return apiAuthFailure(auth.error, requestId)
     const clinicId = auth.profile!.clinic_id
     const db = getDb()
 
@@ -23,6 +24,6 @@ export async function GET(request: NextRequest) {
     const categories = Array.from(catMap.entries())
       .map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
 
-    return NextResponse.json({ categories })
-  } catch (error) { return handleApiError(error) }
+    return apiSuccess({ categories })
+  } catch (error) { return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500) }
 }

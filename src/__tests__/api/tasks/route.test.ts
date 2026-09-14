@@ -105,8 +105,8 @@ describe('GET /api/tasks', () => {
     const res = await GET(req as any);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.tasks).toHaveLength(1);
-    expect(body.tasks[0].title).toBe('Task 1');
+    expect(body.data.tasks).toHaveLength(1);
+    expect(body.data.tasks[0].title).toBe('Task 1');
   });
 
   it('returns tasks with lead info', async () => {
@@ -121,8 +121,8 @@ describe('GET /api/tasks', () => {
     const res = await GET(req as any);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.tasks[0].leads).not.toBeNull();
-    expect(body.tasks[0].leads.name).toBe('John Doe');
+    expect(body.data.tasks[0].leads).not.toBeNull();
+    expect(body.data.tasks[0].leads.name).toBe('John Doe');
   });
 
   it('filters by status and priority', async () => {
@@ -184,7 +184,7 @@ describe('POST /api/tasks', () => {
     const res = await POST(req as any);
     expect(res.status).toBe(201);
     const body = await res.json();
-    expect(body.task.title).toBe('New Task');
+    expect(body.data.task.title).toBe('New Task');
   });
 
   it('creates a task with lead_id', async () => {
@@ -222,7 +222,7 @@ describe('PUT /api/tasks', () => {
     const res = await PUT(req as any);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/id.*required/i);
+    expect(body.error.message).toMatch(/id.*required/i);
   });
 
   it('updates own clinic task and returns it', async () => {
@@ -234,7 +234,7 @@ describe('PUT /api/tasks', () => {
     const res = await PUT(req as any);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.task.id).toBe(TASK_ID);
+    expect(body.data.task.id).toBe(TASK_ID);
   });
 
   it('returns 404 when task belongs to another clinic', async () => {
@@ -293,7 +293,7 @@ describe('DELETE /api/tasks', () => {
     const res = await DELETE(req as any);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toMatch(/id.*required/i);
+    expect(body.error.message).toMatch(/id.*required/i);
   });
 
   it('deletes own clinic task and returns success', async () => {
@@ -303,7 +303,7 @@ describe('DELETE /api/tasks', () => {
     const res = await DELETE(req as any);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.success).toBe(true);
+    expect(body.data.success).toBe(true);
   });
 
   it('returns 404 when trying to delete another clinics task', async () => {
