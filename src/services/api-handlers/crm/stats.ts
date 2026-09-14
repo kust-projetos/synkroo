@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server'
 import { eq, and, not, inArray, sql } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
-import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { apiSuccess, apiFailure, apiAuthFailure, apiRateLimited, generateRequestId } from '@/lib/api/response'
 import { getCampaigns } from '@/services/followup/campaign.service'
 import { getDb } from '@/lib/db/client'
 import { leads } from '@/lib/db/schema'
@@ -22,10 +21,7 @@ export async function GET(request: Request) {
     const clientId = getClientIdentifier(request as any)
     const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId } },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } }
-      )
+      return apiRateLimited(requestId, rateLimit.retryAfter ?? 0)
     }
 
     const authResult = await validateApiAuth()

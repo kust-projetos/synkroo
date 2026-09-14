@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { apiFailure, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { apiFailure, apiRateLimited, apiSuccess, generateRequestId } from '@/lib/api/response';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { issueWidgetToken } from '@/lib/auth/widget-token';
 import { isAllowedWidgetOrigin, resolveWidgetInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
@@ -54,7 +54,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     `${installation.installationId}:${getClientIdentifier(request)}`,
     { ...rateLimitPresets.auth, keyPrefix: 'widget-session' },
   );
-  if (!rateLimit.allowed) return failure(origin, 'TOO_MANY_REQUESTS', 'Rate limit exceeded.', 429);
+  if (!rateLimit.allowed) return cors(apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0, 'Rate limit exceeded.'), origin);
 
   const secret = process.env.AUTH_SECRET ?? '';
   if (!secret) return failure(origin, 'INTERNAL_ERROR', 'Widget authentication is unavailable.', 500);
