@@ -4,6 +4,7 @@ import type {
   ChatMessage,
   LlmProvider,
   LlmTool,
+  PendingAction,
   RunTurnInput,
   RunTurnResult,
 } from './types';
