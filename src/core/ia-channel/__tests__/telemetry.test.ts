@@ -112,8 +112,10 @@ describe('B2 — invoker correlation id', () => {
     expect(out.reply).toContain('instabilidade');
     expect(out.reply).not.toContain('exploded');
     expect(out.errorCode).toBe('invoke_failed');
-    // log: erro estruturado com correlation
+    // log: erro estruturado com correlation — sem texto da exceção, sem detail
     expect(events).toHaveLength(1);
+    expect(JSON.stringify(events)).not.toContain('exploded');
+    expect(events[0]).not.toHaveProperty('detail');
     expect(events[0]).toMatchObject({
       correlationId: 'corr-fail-9',
       clinicId: 'c1',

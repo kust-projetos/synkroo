@@ -6,7 +6,7 @@ jest.mock('@/core/modules/gates', () => ({ withModuleRoute: () => (h: unknown) =
 jest.mock('@/core/modules/manifest', () => ({ createManifest: () => ({}) }));
 
 import { NextRequest } from 'next/server';
-import { POST } from '../chat/route';
+import { POST, toPublicChatDto } from '../chat/route';
 import { resolveIaTimezone } from '../timezone';
 
 function req(body: unknown) {
@@ -69,6 +69,27 @@ describe('POST /api/ia/chat', () => {
   it('resolves configured timezone and falls back safely', () => {
     expect(resolveIaTimezone('Europe/Lisbon')).toBe('Europe/Lisbon');
     expect(resolveIaTimezone(undefined)).toBe('America/Sao_Paulo');
+  });
+
+  it('public DTO omite errorCode interno e preserva estado (B2)', () => {
+    expect(
+      toPublicChatDto({ reply: 'x', turnsUsed: 1, errorCode: 'forbidden' }),
+    ).toEqual({ reply: 'x', turnsUsed: 1 });
+    expect(
+      toPublicChatDto({
+        reply: 'y',
+        turnsUsed: 0,
+        escalated: true,
+        escalationReason: 'action_escalate_human',
+        errorCode: 'rpc_timeout',
+      }),
+    ).toEqual({
+      reply: 'y',
+      turnsUsed: 0,
+      escalated: true,
+      escalationReason: 'action_escalate_human',
+      errorCode: 'rpc_timeout',
+    });
   });
 
   it('echoes inbound x-request-id and propagates it as correlationId (B2)', async () => {

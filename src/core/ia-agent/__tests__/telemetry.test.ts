@@ -131,6 +131,51 @@ describe('B2 — provider call registra latência + usage + retry', () => {
   });
 });
 
+describe('B2 — redaction: evento execute_action não carrega payload', () => {
+  it('log contém só code/descritor estático — sem input/args/handle', async () => {
+    const events: TelemetryEvent[] = [];
+    const token = 'tok-1';
+    const r = await runTurn(
+      {
+        provider: { complete: async () => ({ text: 'x', toolCalls: [] }) },
+        app: okApp({
+          executeAction: async () => ({
+            ok: false as const,
+            contractVersion: BRIDGE_RPC_VERSION,
+            error: 'forbidden',
+            level: 'proibido',
+            message: 'Sem permissão para TOPSECRET-ARGS.',
+          }),
+        }),
+        now: new Date(),
+        telemetry: sinkTo(events),
+      },
+      {
+        ...base,
+        handle: 'h-handle-SEGREDO-123',
+        pendingAction: {
+          alias: 'a',
+          args: { segredo: 'TOPSECRET-ARGS' },
+          token,
+        },
+        confirmedToken: token,
+      },
+    );
+
+    expect(r.errorCode).toBe('forbidden');
+    const dumped = JSON.stringify(events);
+    expect(dumped).not.toContain('TOPSECRET-ARGS');
+    expect(dumped).not.toContain('h-handle-SEGREDO-123');
+    expect(dumped).not.toContain('Sem permissão');
+    const ev = events.find((e) => e.operation === 'execute_action');
+    expect(ev).not.toHaveProperty('detail');
+    expect(ev).not.toHaveProperty('input');
+    expect(ev).not.toHaveProperty('args');
+    expect(ev).not.toHaveProperty('handle');
+    expect(ev).toMatchObject({ code: 'forbidden', status: 'error' });
+  });
+});
+
 describe('B2 — erro do orchestrator loga com correlationId e código estruturado', () => {
   it('provider throw vira fallback amigável com errorCode + evento provider_call', async () => {
     const events: TelemetryEvent[] = [];
@@ -152,7 +197,10 @@ describe('B2 — erro do orchestrator loga com correlationId e código estrutura
     // usuário recebe fallback amigável (sem código interno vazado)
     expect(r.reply).toBe('Só um momento — vou verificar e já te retorno.');
     expect(r.errorCode).toBe('timeout');
+    // texto da exceção ('boom') jamais chega ao log; sem campo detail
+    expect(JSON.stringify(events)).not.toContain('boom');
     const ev = events.find((e) => e.operation === 'provider_call');
+    expect(ev).not.toHaveProperty('detail');
     expect(ev).toMatchObject({
       correlationId: 'corr-123',
       clinicId: 'clinic-9',

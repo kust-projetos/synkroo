@@ -123,14 +123,15 @@ export async function invokeAgentWithEnv(
   try {
     return await raceWithTimeout(runOnce(), timeoutMs, input, correlationId);
   } catch (err) {
-    // Log estruturado para diagnóstico (com correlation id) sem expor PII;
-    // o caller HTTP recebe um fallback controlado e o Worker não é cancelado.
-    const message = err instanceof Error ? err.message : String(err);
-    const code = message.includes('RPC timeout')
-      ? 'rpc_timeout'
-      : message.includes('contract version mismatch')
-        ? 'contract_version_mismatch'
-        : 'invoke_failed';
+    // Log estruturado (correlation id + code fechado). Texto da exceção NUNCA
+    // vai para o log; classificação por tipo, nunca por sniffing de mensagem.
+    const code =
+      err instanceof RpcTimeoutError
+        ? 'rpc_timeout'
+        : err instanceof Error &&
+            err.message.includes('contract version mismatch')
+          ? 'contract_version_mismatch'
+          : 'invoke_failed';
     emit({
       correlationId,
       clinicId: input.clinicId,
@@ -138,9 +139,17 @@ export async function invokeAgentWithEnv(
       durationMs: Date.now() - startedAt,
       status: 'fallback',
       code,
-      detail: message.slice(0, 300),
     });
     return { reply: FALLBACK_REPLY, turnsUsed: 0, errorCode: code };
+  }
+}
+
+// Erro tipado de timeout (classificação por tipo, nunca por texto): evita
+// sniffing de mensagem de exceção que pode conter texto externo.
+class RpcTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RpcTimeoutError';
   }
 }
 
@@ -157,7 +166,7 @@ async function raceWithTimeout<T>(
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(() => {
       reject(
-        new Error(
+        new RpcTimeoutError(
           `[agent-invoker] RPC timeout after ${ms}ms (conversationId=${input.conversationId}, channel=${input.channel}, corr=${correlationId})`,
         ),
       );
