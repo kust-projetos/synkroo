@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { queryKeys, useResolvedClinicId } from './use-queries'
+import { invalidateDomainAllTenants, queryKeys, useResolvedClinicId } from './use-queries'
 import { isMockMode, getMockForUrl } from '@/lib/mocks'
 
 export interface WhatsAppMessage {
@@ -96,13 +96,9 @@ export function useSendWhatsAppMessage({ contactPhone, contactId, clinicId, onSu
           queryKey: queryKeys.whatsappMessages(contactId, resolvedClinicId),
         })
       } else {
-        // Sem contactId à mão: predicate restrito ao domínio escopado.
-        queryClient.invalidateQueries({
-          predicate: (q) =>
-            Array.isArray(q.queryKey) &&
-            q.queryKey[0] === 'clinic' &&
-            q.queryKey.includes('whatsapp-messages'),
-        })
+        // R4: sem contactId à mão — fallback amplo-por-domínio (qualquer
+        // tenant, só 'whatsapp-messages'), sem confundir telefone com id.
+        invalidateDomainAllTenants(queryClient, 'whatsapp-messages')
       }
       onSuccess?.()
     },
