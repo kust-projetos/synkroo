@@ -117,7 +117,6 @@ jest.mock('@/core/ia-channel/interlocutor', () => ({
   resolveFuncionario: jest.fn(),
 }))
 jest.mock('@/repositories/patients', () => ({ findPatientByPhone: jest.fn().mockResolvedValue(null) }))
-jest.mock('@/repositories/leads', () => ({ findLeadByPhone: jest.fn().mockResolvedValue(null) }))
 jest.mock('@/core/actions/run', () => ({ runAction: jest.fn().mockResolvedValue({ ok: true, data: { messageId: 'msg-123' } }) }))
 jest.mock('@/core/actions/context', () => ({ buildSystemContext: jest.fn().mockResolvedValue({ source: 'system', clinicId: 'c1', can: () => true, hasModule: () => true, audit: { actor: 'agente (sistema)' } }) }))
 jest.mock('@/modules/atendimento/actions/enviar-mensagem', () => ({
