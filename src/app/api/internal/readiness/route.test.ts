@@ -124,6 +124,22 @@ describe('GET /api/internal/readiness', () => {
     expect(JSON.stringify(body)).not.toContain(DRIVER_MARKER);
   });
 
+  it('timeout só no ledger (SET LOCAL + SELECT 1 ok) vira 503 db-unreachable', async () => {
+    // SET LOCAL ok, SELECT 1 ok, apenas a query do ledger rejeita (timeout)
+    mdb.execute
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+      .mockRejectedValueOnce(new Error('canceling statement due to statement timeout'));
+
+    const response = await GET(readinessRequest('test-cron-secret'));
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.status).toBe('not-ready');
+    expect(body.reason).toBe('db-unreachable');
+    expect(typeof body.durationMs).toBe('number');
+  });
+
   it('returns 503 quando ledger de migrations incompleto, com durationMs', async () => {
     // SET LOCAL ok, SELECT 1 ok, ledger com 5 aplicadas
     mdb.execute
