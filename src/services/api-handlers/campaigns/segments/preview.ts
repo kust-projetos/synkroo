@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
 import { patients } from '@/modules/operacional/schema'
 import { eq, and, isNull, isNotNull, ne } from 'drizzle-orm'
@@ -11,13 +12,11 @@ import { previewSegmentSize, getSegmentPatients } from '@/services/followup/segm
  * Migrated from Supabase to Drizzle ORM.
  */
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('followup:manage_segments')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status },
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -25,7 +24,7 @@ export async function GET(request: NextRequest) {
     const campaignType = searchParams.get('type')
 
     if (!campaignType) {
-      return NextResponse.json({ error: 'Campaign type is required' }, { status: 400 })
+      return apiFailure('INVALID_INPUT', 'Campaign type is required', requestId, 400)
     }
 
     // Map campaign types to segment criteria
@@ -50,7 +49,7 @@ export async function GET(request: NextRequest) {
         criteria = { status: 'active' }
         break
       default:
-        return NextResponse.json({ error: `Unknown campaign type: ${campaignType}` }, { status: 400 })
+        return apiFailure('INVALID_INPUT', `Unknown campaign type: ${campaignType}`, requestId, 400)
     }
 
     let count = 0
@@ -102,9 +101,9 @@ export async function GET(request: NextRequest) {
     // Get sample of first 10 patients for preview
     const patientsList = await getSegmentPatients(clinicId, criteria, 10)
 
-    return NextResponse.json({ count, patients: patientsList.slice(0, 10) })
+    return apiSuccess({ count, patients: patientsList.slice(0, 10) })
   } catch (error) {
     console.error('Campaign segments preview error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

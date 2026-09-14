@@ -71,8 +71,9 @@ export function AudiencePreview({ campaignType, filterCriteria }: AudiencePrevie
         const params = new URLSearchParams({ type: campaignType })
         const response = await fetch(`/api/campaigns/segments/preview?${params}`)
         if (response.ok) {
-          const result = await response.json()
-          setData(result)
+          const body = await response.json()
+          // Envelope canônico (R2): { data: { count, patients } }
+          setData(body.data)
         }
       } catch (error) {
         console.error('Error fetching audience preview:', error)
