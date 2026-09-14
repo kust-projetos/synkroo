@@ -65,6 +65,16 @@
 - Compatibilidade: old/new e version skew provados antes do rollout; DO `STATE_VERSION` versionado impede cruzar rollback gradual.
 - Sem push/merge/prod deploy sem owner explícito (global constraint); W12 piloto só com `docs/ops/w12-pilot-readiness.md` aprovado.
 
+## Constraint de agenda (E1 — verificação operacional)
+
+A garantia anti-overbooking vive no banco (`EXCLUDE USING gist`, criada pela migration `0001_dapper_overlap.sql`). Após cada deploy/migração em staging/produção, confirmar que a constraint existe:
+
+```sql
+SELECT conname FROM pg_constraint WHERE conrelid='appointments'::regclass AND conname='appointments_no_overlap';
+```
+
+Resultado esperado: 1 linha (`appointments_no_overlap`). Se vazia, a migration `0001` não foi aplicada — abortar o rollout e investigar antes do smoke.
+
 ## Referências
 - `scripts/verify.mjs:10` — `lint → typecheck → typecheck:bridge/agent → coverage → test:release`
 - `docs/superpowers/audits/roadmap-143-ledger.json` — W11 VERIFIED local
