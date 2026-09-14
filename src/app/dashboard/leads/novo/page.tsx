@@ -50,11 +50,13 @@ export default function NovoLeadPage() {
       })
 
       if (response.ok) {
-        const data = await response.json()
-        router.push(`/dashboard/leads/${data.lead.id}`)
+        const body = await response.json()
+        // Contrato canônico: POST /api/leads → { data: { leadId } }
+        // (a rota sempre respondeu {leadId} via Action; `data.lead.id` nunca existiu — bug pré-existente corrigido no consumidor)
+        router.push(`/dashboard/leads/${body.data?.leadId}`)
       } else {
-        const data = await response.json()
-        setError(data.error || 'Erro ao criar lead')
+        const body = await response.json()
+        setError(body.error?.message || 'Erro ao criar lead')
       }
     } catch (err) {
       setError('Erro ao criar lead')
