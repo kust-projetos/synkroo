@@ -1,6 +1,6 @@
 # ADR Index — Synkroo Foundations
 
-**Última atualização:** 2026-08-10
+**Última atualização:** 2026-09-14
 **Verificação:** remediation gates ✅ | outbox scheduled consumer ✅ | production audit high/critical ✅
 
 | ID | Decisão | Status | Gap |
@@ -18,7 +18,10 @@
 | [ADR-BASE-11](ADR-BASE-11-onboarding-gerenciado.md) | Onboarding gerenciado | ✅ Implementado | Nenhum |
 | [ADR-BASE-12](ADR-BASE-12-audit-allowlist.md) | Audit allowlist (LGPD) | ✅ Implementado | allowedAuditFields nas ações existentes |
 | [ADR-BASE-13](ADR-BASE-13-cloudflare-queues.md) | Outbox de jobs com consumer Cron Cloudflare | ✅ Implementado | Cloudflare Queue nativa é alternativa futura |
-| [ADR-BASE-14](ADR-BASE-14-sem-master.md) | Sem Master permanente no banco | 🔴 Decisão pendente | Remover isMaster, usar master:* |
+| [ADR-BASE-14](ADR-BASE-14-sem-master.md) | Sem Master permanente no banco | ✅ Implementado | Nenhum |
+| [ADR-BASE-15](ADR-BASE-15-multitenancy-boundary.md) | Boundary de tenancy (sessão→membership→ActionContext) | ✅ Implementado | Exceções documentadas (ex.: signup) |
+| [ADR-BASE-16](ADR-BASE-16-retry-idempotency-policy.md) | Política de timeout/retry/idempotência das integrações | ✅ Implementado | Nenhum |
+| [ADR-BASE-17](ADR-BASE-17-llm-untrusted-data.md) | Dados não confiáveis no LLM (delimitação, allowlist, validação) | ✅ Implementado | Eval adversarial periódico (complementar) |
 | [ADR-LLM-01](adr-llm-embedding.md) | Escolha de LLM Provider, Modelo de Embedding e Dimensão pgvector | ✅ Implementado | Nenhum |
 
 ## Gates

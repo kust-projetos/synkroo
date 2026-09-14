@@ -15,7 +15,7 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 | UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
 | LLM | MiniMax / OpenAI / OpenRouter (factory em `src/lib/llm/`) |
 | WhatsApp | Evolution API v2.3.7 + Playwright fallback |
-| Testes | Jest (unit/integration, 264 suites) + Playwright (E2E, 14 specs) + Stryker (mutation) |
+| Testes | Jest (unit/não-integração, 319 suites — medir com `npx jest --listTests | Measure-Object -Line`) + Playwright (E2E, 46 specs em `e2e/` — medir com glob `e2e/**/*.spec.ts`) + Stryker (mutation) |
 | CI | GitHub Actions (lint → typecheck → test → test:security → build → build:cf) |
 
 ## Comandos
@@ -157,16 +157,23 @@ src/
 - `exec_sql` RPC desativado (rota retorna 403)
 
 ## Testes
-- Unit/Integration: Jest (`src/**/__tests__/`) — 264 suites
-- E2E: Playwright (`e2e/`) — 14 specs
+- Unit/Integration: Jest (`src/**/__tests__/`) — 319 suites (default, sem `integration.test.ts`; medir com `npx jest --listTests | Measure-Object -Line`)
+- E2E: Playwright (`e2e/`) — 46 specs (medir com glob `e2e/**/*.spec.ts`)
 - Coverage threshold (efetivamente medido em `jest.config.js` global: branches 55 / functions 65 / lines 70 / statements 70; sem exclusões adicionais para mascarar quedas; `src/**/*.tsx`, `src/app/**`, `src/lib/db/**` excluídos por contrato)
 - Hardening: Stryker mutation testing em repositórios e services
 
 ## Direção da Stack & Roadmap
 - Stack real: Drizzle ORM + `pg` + NextAuth + Cloudflare Workers (OpenNext) + Workers Auxiliares (`ia-agent`, `ia-bridge`).
 - Fonte de verdade: `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`.
-- Roadmap 143: Ledger rigoroso de 143 itens (29 VERIFIED / 58 PARTIAL / 39 UNVERIFIED / 14 EXTERNAL / 3 DEFERRED) — O1-G03 F2.03-08 + F3.13 prod audit VERIFIED 2026-08-23.
+- Roadmap 143: Ledger rigoroso de 143 itens (`records=143 unique=143 VERIFIED=126 DEFERRED=3 EXTERNAL=14`, pós-2026-08-26) — estado canônico em `docs/goals/roadmap-143-resume.md`, autoridade via `npm run roadmap:check`.
 - Supabase removido; migrations convertidas para Drizzle em `src/lib/db/schema/`.
+
+## Débitos registrados (pós-hardening V1)
+
+- **Contrato de API (D2 residual):** ~17 handlers legados em `src/services/api-handlers/**` ainda respondem sem o envelope canônico `{ data, meta? }` / `{ error: { code, message, requestId } }` (ver `ADR-BASE-10`); consumidor acoplado conhecido: `src/components/campaigns/campaign-wizard.tsx` ↔ `campaigns/segments/preview`. Migrations de `services/api-handlers` para o envelope pendentes — migrar servidor + consumidor atomicamente no mesmo PR (ou adapter temporário com remoção após zero consumidores legados).
+- **Boundaries (F3 onda c):** `services/**` importando fundo de `modules/**` — 35 violações mapeadas; endurecer boundaries (via `eslint.rules.json`) antes de restringir o `default: allow`.
+- **Frontend (G1 residual):** predicates amplos de mutation/invalidação no frontend (over-invalidation — seguro, mas custoso); refinar para invalidação por clínica/recurso após D2.
+- **CI (F1):** remover `continue-on-error: true` do job "Production E2E (no retries)" em `.github/workflows/ci.yml:98` após estabilidade medida no CI — a flag não sai com suíte vermelha.
 
 ## VPS
 - Operação: `docs/ops/vps-access.md`.
