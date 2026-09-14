@@ -104,53 +104,79 @@ function createWrapper() {
 }
 
 describe('queryKeys factory functions', () => {
-  it('generates correct query keys for all domain keys', () => {
-    expect(queryKeys.dashboardStats).toEqual(['dashboard', 'stats']);
-    expect(queryKeys.patients()).toEqual(['patients', undefined]);
-    expect(queryKeys.patients('page=1')).toEqual(['patients', 'page=1']);
-    expect(queryKeys.inactivePatients()).toEqual(['patients', 'inactive', undefined]);
-    expect(queryKeys.inactivePatients('min_days=30')).toEqual(['patients', 'inactive', 'min_days=30']);
-    expect(queryKeys.inactiveStats).toEqual(['patients', 'inactive', 'stats']);
-    expect(queryKeys.dentists()).toEqual(['dentists', undefined]);
-    expect(queryKeys.dentists('clinic-1')).toEqual(['dentists', 'clinic-1']);
-    expect(queryKeys.procedures()).toEqual(['procedures', undefined]);
-    expect(queryKeys.procedures('clinic-1')).toEqual(['procedures', 'clinic-1']);
-    expect(queryKeys.appointments()).toEqual(['appointments', undefined]);
-    expect(queryKeys.appointments('status=scheduled')).toEqual(['appointments', 'status=scheduled']);
-    expect(queryKeys.leads()).toEqual(['leads', undefined]);
-    expect(queryKeys.leads('status=new')).toEqual(['leads', 'status=new']);
-    expect(queryKeys.leadStats).toEqual(['leads', 'stats']);
-    expect(queryKeys.leadNotifications).toEqual(['leads', 'notifications']);
-    expect(queryKeys.crmStats).toEqual(['crm', 'stats']);
-    expect(queryKeys.campaigns()).toEqual(['campaigns', undefined]);
-    expect(queryKeys.campaigns('page=1')).toEqual(['campaigns', 'page=1']);
-    expect(queryKeys.conversations()).toEqual(['conversations', undefined]);
-    expect(queryKeys.conversations('limit=10')).toEqual(['conversations', 'limit=10']);
-    expect(queryKeys.conversation('conv-1')).toEqual(['conversations', 'conv-1']);
-    expect(queryKeys.analytics()).toEqual(['analytics', undefined]);
-    expect(queryKeys.analytics('period=30d')).toEqual(['analytics', 'period=30d']);
-    expect(queryKeys.waitlist).toEqual(['waitlist']);
-    expect(queryKeys.settings).toEqual(['settings']);
-    expect(queryKeys.patient('p-1')).toEqual(['patients', 'p-1']);
-    expect(queryKeys.dentist('d-1')).toEqual(['dentists', 'd-1']);
-    expect(queryKeys.procedure('pr-1')).toEqual(['procedures', 'pr-1']);
-    expect(queryKeys.appointment('app-1')).toEqual(['appointments', 'app-1']);
-    expect(queryKeys.lead('l-1')).toEqual(['leads', 'l-1']);
-    expect(queryKeys.campaign('c-1')).toEqual(['campaigns', 'c-1']);
-    expect(queryKeys.contacts()).toEqual(['contacts', undefined]);
-    expect(queryKeys.contacts('page=1')).toEqual(['contacts', 'page=1']);
-    expect(queryKeys.contact('c-1', 'patient')).toEqual(['contacts', 'c-1', 'patient']);
-    expect(queryKeys.calendarEvents()).toEqual(['calendar-events', undefined]);
-    expect(queryKeys.calendarEvents('month=2026-08')).toEqual(['calendar-events', 'month=2026-08']);
-    expect(queryKeys.customFieldDefinitions()).toEqual(['custom-field-definitions', undefined]);
-    expect(queryKeys.customFieldDefinitions('clinic-1')).toEqual(['custom-field-definitions', 'clinic-1']);
-    expect(queryKeys.customFieldValues('c-1', 'patient')).toEqual(['custom-field-values', 'c-1', 'patient']);
-    expect(queryKeys.consents('c-1', 'lead')).toEqual(['consents', 'c-1', 'lead']);
-    expect(queryKeys.whatsappMessages('c-1')).toEqual(['whatsapp-messages', 'c-1']);
-    expect(queryKeys.kanbanLeads('clinic-1')).toEqual(['kanban-leads', 'clinic-1']);
-    expect(queryKeys.pipelineStages('clinic-1')).toEqual(['pipeline-stages', 'clinic-1']);
-    expect(duplicateKeys.all).toEqual(['duplicates']);
-    expect(duplicateKeys.list('param-1')).toEqual(['duplicates', 'list', 'param-1']);
+  it('generates tenant-scoped query keys via clinicScope (G1)', () => {
+    // G1: every multi-tenant key is ['clinic', clinicId, ...rest]
+    expect(queryKeys.dashboardStats('clinic-1')).toEqual(['clinic', 'clinic-1', 'dashboard', 'stats']);
+    expect(queryKeys.patients('page=1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'patients', 'page=1']);
+    expect(queryKeys.inactivePatients('min_days=30', 'clinic-1')).toEqual([
+      'clinic',
+      'clinic-1',
+      'patients',
+      'inactive',
+      'min_days=30',
+    ]);
+    expect(queryKeys.inactiveStats('clinic-1')).toEqual(['clinic', 'clinic-1', 'patients', 'inactive', 'stats']);
+    expect(queryKeys.dentists('clinic-1')).toEqual(['clinic', 'clinic-1', 'dentists', 'clinic-1']);
+    expect(queryKeys.procedures('clinic-1')).toEqual(['clinic', 'clinic-1', 'procedures', 'clinic-1']);
+    expect(queryKeys.appointments('status=scheduled', 'clinic-1')).toEqual([
+      'clinic',
+      'clinic-1',
+      'appointments',
+      'status=scheduled',
+    ]);
+    expect(queryKeys.leads('status=new', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'leads', 'status=new']);
+    expect(queryKeys.leadStats('clinic-1')).toEqual(['clinic', 'clinic-1', 'leads', 'stats']);
+    expect(queryKeys.leadNotifications('clinic-1')).toEqual(['clinic', 'clinic-1', 'leads', 'notifications']);
+    expect(queryKeys.crmStats('clinic-1')).toEqual(['clinic', 'clinic-1', 'crm', 'stats']);
+    expect(queryKeys.campaigns('page=1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'campaigns', 'page=1']);
+    expect(queryKeys.conversations('limit=10', 'clinic-1')).toEqual([
+      'clinic',
+      'clinic-1',
+      'conversations',
+      'limit=10',
+    ]);
+    expect(queryKeys.conversation('conv-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'conversations', 'conv-1']);
+    expect(queryKeys.analytics('period=30d', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'analytics', 'period=30d']);
+    expect(queryKeys.waitlist('clinic-1')).toEqual(['clinic', 'clinic-1', 'waitlist']);
+    expect(queryKeys.settings('clinic-1')).toEqual(['clinic', 'clinic-1', 'settings']);
+    expect(queryKeys.patient('p-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'patients', 'p-1']);
+    expect(queryKeys.dentist('d-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'dentists', 'd-1']);
+    expect(queryKeys.procedure('pr-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'procedures', 'pr-1']);
+    expect(queryKeys.appointment('app-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'appointments', 'app-1']);
+    expect(queryKeys.lead('l-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'leads', 'l-1']);
+    expect(queryKeys.campaign('c-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'campaigns', 'c-1']);
+    expect(queryKeys.contacts('page=1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'contacts', 'page=1']);
+    expect(queryKeys.contact('c-1', 'patient', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'contacts', 'c-1', 'patient']);
+    expect(queryKeys.calendarEvents('month=2026-08', 'clinic-1')).toEqual([
+      'clinic',
+      'clinic-1',
+      'calendar-events',
+      'month=2026-08',
+    ]);
+    expect(queryKeys.customFieldDefinitions('clinic-1')).toEqual([
+      'clinic',
+      'clinic-1',
+      'custom-field-definitions',
+      'clinic-1',
+    ]);
+    expect(queryKeys.customFieldValues('c-1', 'patient', 'clinic-1')).toEqual([
+      'clinic',
+      'clinic-1',
+      'custom-field-values',
+      'c-1',
+      'patient',
+    ]);
+    expect(queryKeys.consents('c-1', 'lead', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'consents', 'c-1', 'lead']);
+    expect(queryKeys.whatsappMessages('c-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'whatsapp-messages', 'c-1']);
+    expect(queryKeys.kanbanLeads('clinic-1')).toEqual(['clinic', 'clinic-1', 'kanban-leads', 'clinic-1']);
+    expect(queryKeys.pipelineStages('clinic-1')).toEqual(['clinic', 'clinic-1', 'pipeline-stages', 'clinic-1']);
+    expect(duplicateKeys.all('clinic-1')).toEqual(['clinic', 'clinic-1', 'duplicates']);
+    expect(duplicateKeys.list('param-1', 'clinic-1')).toEqual(['clinic', 'clinic-1', 'duplicates', 'list', 'param-1']);
+  });
+
+  it('falls back to the unscoped sentinel when no clinic is given', () => {
+    expect(queryKeys.dashboardStats()).toEqual(['clinic', 'unscoped', 'dashboard', 'stats']);
+    expect(queryKeys.patients()).toEqual(['clinic', 'unscoped', 'patients', undefined]);
   });
 });
 

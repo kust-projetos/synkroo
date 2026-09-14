@@ -16,6 +16,12 @@ jest.mock('@/lib/auth/context', () => ({
 jest.mock('@/lib/hooks/use-queries', () => ({
   useDentists: () => ({ data: { dentists: [] } }),
   useProcedures: () => ({ data: { procedures: [] } }),
+  // G1: factory escopada espelhada para o teste hermético.
+  clinicScope: (clinicId: string | undefined | null, ...segments: unknown[]) => [
+    'clinic',
+    clinicId ?? 'unscoped',
+    ...segments,
+  ],
 }));
 jest.mock('@/hooks/use-toast', () => ({
   useToast: () => ({ toast: mockToast }),
@@ -120,7 +126,9 @@ describe('T6 — AppointmentDialog response.ok/envelope', () => {
     fireEvent.change(screen.getByPlaceholderText('Nome do paciente'), { target: { value: 'Test Patient' } });
     fireEvent.click(screen.getByRole('button', { name: /Agendar|Salvar/ }));
     await waitFor(() => expect(mockCloseDialog).toHaveBeenCalled());
-    expect(mockInvalidate).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['appointments'] }));
+    expect(mockInvalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ queryKey: ['clinic', 'clinic-1', 'appointments'] }),
+    );
     expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Agendamento criado' }));
   });
 });

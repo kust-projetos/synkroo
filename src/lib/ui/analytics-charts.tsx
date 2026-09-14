@@ -6,6 +6,7 @@ import { StatsGrid } from '@/components/ui/stats-grid'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { CalendarDaysIcon, ClockIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
 import { isMockMode, getMockForUrl } from '@/lib/mocks'
+import { queryKeys } from '@/lib/hooks/use-queries'
 
 const HourlyChartRecharts = dynamic(
   () => import('@/components/charts/hourly-chart').then((m) => m.HourlyChartRecharts),
@@ -58,7 +59,8 @@ interface ClinicInsights {
 
 export function useAnalytics(clinicId: string | undefined) {
   const query = useQuery({
-    queryKey: ['analytics', 'insights', clinicId],
+    // G1: factory escopada — prefixo ['clinic', clinicId, ...].
+    queryKey: queryKeys.analytics('insights', clinicId),
     queryFn: async (): Promise<ClinicInsights> => {
       if (isMockMode()) {
         const data = getMockForUrl('/api/analytics/insights') as ClinicInsights | null
@@ -197,7 +199,8 @@ export interface ROIMetricsData {
 
 export function useROI(clinicId: string | undefined) {
   const query = useQuery({
-    queryKey: ['analytics', 'roi', clinicId],
+    // G1: factory escopada — prefixo ['clinic', clinicId, ...].
+    queryKey: queryKeys.analytics('roi', clinicId),
     queryFn: async (): Promise<ROIMetricsData> => {
       if (isMockMode()) {
         const data = getMockForUrl('/api/analytics/roi?period=month') as ROIMetricsData | null

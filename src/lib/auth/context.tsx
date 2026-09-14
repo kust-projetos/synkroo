@@ -46,7 +46,17 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+/**
+ * G1: safe current-clinic accessor — returns undefined outside a provider
+ * instead of throwing, so query hooks can resolve tenant without breaking
+ * standalone hook tests.
+ */
+export function useCurrentClinicId(): string | undefined {
+  const ctx = useContext(AuthContext)
+  return ctx?.profile?.clinic_id ?? undefined
+}
 
 async function readProfile(): Promise<UserProfile | null> {
   const response = await fetch('/api/auth/session')
@@ -122,6 +132,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
     if (!response.ok) return { error: 'Clínica indisponível' }
     await update({ clinicId })
+    // G1: cancel in-flight requests before dropping the cache so responses
+    // from clinic A can never resolve into clinic B's scope.
+    await queryClient.cancelQueries()
     queryClient.clear()
     await refreshProfile()
     router.refresh()

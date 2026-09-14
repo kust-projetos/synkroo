@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
-import { useDentists } from '@/lib/hooks/use-queries'
+import { useDentists, clinicScope } from '@/lib/hooks/use-queries'
 import { formatHourLabel } from './utils/date-utils'
 import { useToast } from '@/lib/ui/toast'
 import { useQueryClient } from '@tanstack/react-query'
@@ -111,7 +111,8 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
 
       showToast('Agendamento remarcado com sucesso!', 'success')
       closeDialog()
-      queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
+      // G1: invalida só o escopo da clínica atual.
+      queryClient.invalidateQueries({ queryKey: clinicScope(clinicId, 'calendar-events') })
     } catch (err) {
       const baseMsg =
         err instanceof Error ? err.message : 'Erro ao remarcar. Tente novamente.'
@@ -124,7 +125,7 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
     } finally {
       setSaving(false)
     }
-  }, [rescheduleInfo, hour, minute, dentistId, showToast, closeDialog, queryClient])
+  }, [rescheduleInfo, hour, minute, dentistId, showToast, closeDialog, queryClient, clinicId])
 
   if (!rescheduleInfo || !event) return null
 

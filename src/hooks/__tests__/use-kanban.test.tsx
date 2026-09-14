@@ -20,6 +20,11 @@ import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { DropResult } from '@hello-pangea/dnd';
 import { useKanbanBoard } from '../use-kanban';
+import { queryKeys } from '@/lib/hooks/use-queries';
+
+// G1: scoped kanban cache — tests pin a clinic so hook + cache share one key.
+const TEST_CLINIC = 'clinic-1';
+const kanbanKey = queryKeys.kanbanLeads(TEST_CLINIC);
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -78,7 +83,7 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper, queryClient } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
-      const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       const dropResult = createDropResult({
         draggableId: 'lead-1',
@@ -99,7 +104,7 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper, queryClient } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
-      const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       const dropResult = createDropResult({
         draggableId: 'lead-1',
@@ -117,7 +122,7 @@ describe('useKanbanBoard Hook Suite', () => {
 
     it('proceeds when droppableId is the same but index is different (reorder)', async () => {
       const { Wrapper } = createWrapper();
-      const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       const dropResult = createDropResult({
         draggableId: 'lead-1',
@@ -141,9 +146,9 @@ describe('useKanbanBoard Hook Suite', () => {
       ];
 
       const { Wrapper, queryClient } = createWrapper();
-      queryClient.setQueryData(['kanban-leads'], initialLeads);
+      queryClient.setQueryData(kanbanKey, initialLeads);
 
-      const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       const dropResult = createDropResult({
         draggableId: 'lead-1',
@@ -170,8 +175,8 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper, queryClient } = createWrapper();
 
       // 1. Lead has no updated_at
-      queryClient.setQueryData(['kanban-leads'], [{ id: 'lead-1', stage_id: 'stage-1' }]);
-      const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
+      queryClient.setQueryData(kanbanKey, [{ id: 'lead-1', stage_id: 'stage-1' }]);
+      const { result } = renderHook(() => useKanbanBoard({ clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       await act(async () => {
         await result.current.onDragEnd(
@@ -193,7 +198,7 @@ describe('useKanbanBoard Hook Suite', () => {
       });
 
       // 2. Cache is non-array object
-      queryClient.setQueryData(['kanban-leads'], { someData: 'non-array' });
+      queryClient.setQueryData(kanbanKey, { someData: 'non-array' });
       await act(async () => {
         await result.current.onDragEnd(
           createDropResult({
@@ -205,7 +210,7 @@ describe('useKanbanBoard Hook Suite', () => {
       });
 
       // 3. Cache is null/undefined
-      queryClient.setQueryData(['kanban-leads'], null);
+      queryClient.setQueryData(kanbanKey, null);
       await act(async () => {
         await result.current.onDragEnd(
           createDropResult({
@@ -219,7 +224,7 @@ describe('useKanbanBoard Hook Suite', () => {
 
     it('exercises optimistic updater with non-array and null old values', async () => {
       const { Wrapper, queryClient } = createWrapper();
-      const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       // Directly verify setQueriesData updater logic
       let capturedUpdater: any;
@@ -269,7 +274,7 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper, queryClient } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
-      const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ onError, clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       await act(async () => {
         await result.current.onDragEnd(
@@ -281,7 +286,7 @@ describe('useKanbanBoard Hook Suite', () => {
         );
       });
 
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: kanbanKey });
       expect(onError).not.toHaveBeenCalled();
     });
 
@@ -295,7 +300,7 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper, queryClient } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
-      const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ onError, clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       await act(async () => {
         await result.current.onDragEnd(
@@ -307,7 +312,7 @@ describe('useKanbanBoard Hook Suite', () => {
         );
       });
 
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: kanbanKey });
       expect(onError).toHaveBeenCalledWith(
         new Error('Lead was modified by another user. Please refresh.'),
         true,
@@ -324,7 +329,7 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper, queryClient } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
-      const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ onError, clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       await act(async () => {
         await result.current.onDragEnd(
@@ -336,7 +341,7 @@ describe('useKanbanBoard Hook Suite', () => {
         );
       });
 
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: kanbanKey });
       expect(onError).toHaveBeenCalledWith(
         new Error('Failed to update lead stage: 500'),
         false,
@@ -350,7 +355,7 @@ describe('useKanbanBoard Hook Suite', () => {
       const { Wrapper, queryClient } = createWrapper();
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
-      const { result } = renderHook(() => useKanbanBoard({ onError }), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ onError, clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       await act(async () => {
         await result.current.onDragEnd(
@@ -362,7 +367,7 @@ describe('useKanbanBoard Hook Suite', () => {
         );
       });
 
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: kanbanKey });
       expect(onError).toHaveBeenCalledWith(
         new Error('Network disconnected'),
         false,
@@ -379,7 +384,7 @@ describe('useKanbanBoard Hook Suite', () => {
       const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
 
       // No options passed
-      const { result } = renderHook(() => useKanbanBoard(), { wrapper: Wrapper });
+      const { result } = renderHook(() => useKanbanBoard({ clinicId: TEST_CLINIC }), { wrapper: Wrapper });
 
       await act(async () => {
         await result.current.onDragEnd(
@@ -391,7 +396,7 @@ describe('useKanbanBoard Hook Suite', () => {
         );
       });
 
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['kanban-leads'] });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: kanbanKey });
     });
   });
 });
