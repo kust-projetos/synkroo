@@ -64,7 +64,7 @@ describe('useTreatmentPlans Hook Suite', () => {
 
       global.fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ treatment_plans: mockPlans }),
+        json: async () => ({ data: { treatment_plans: mockPlans } }),
       } as Response);
 
       const { Wrapper } = createWrapper();
@@ -115,7 +115,7 @@ describe('useTreatmentPlans Hook Suite', () => {
 
       global.fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ treatment_plan: mockPlan }),
+        json: async () => ({ data: { treatment_plan: mockPlan } }),
       } as Response);
 
       const { Wrapper } = createWrapper();
@@ -165,7 +165,7 @@ describe('useTreatmentPlans Hook Suite', () => {
 
       global.fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ treatment_plan: createdPlan }),
+        json: async () => ({ data: { treatment_plan: createdPlan } }),
       } as Response);
 
       const { Wrapper, queryClient } = createWrapper();
@@ -221,7 +221,7 @@ describe('useTreatmentPlans Hook Suite', () => {
 
       global.fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ treatment_plan: updatedPlan }),
+        json: async () => ({ data: { treatment_plan: updatedPlan } }),
       } as Response);
 
       const { Wrapper, queryClient } = createWrapper();

@@ -230,23 +230,26 @@ describe('T8 reports/financial — matriz', () => {
 });
 
 // ── Treatment plans ────────────────────────────────────────────────────────
+// D2 lote 4/5 (operacional): envelope canônico.
 describe('T8 treatment-plans — matriz', () => {
-  it('GET /api/treatment-plans 401', async () => { authAnon(); const r = await TpListGET(new NextReq('http://x?patient_id=p1') as any); expect(r.status).toBe(401); });
+  it('GET /api/treatment-plans 401 (envelope canônico)', async () => { authAnon(); const r = await TpListGET(new NextReq('http://x?patient_id=p1') as any); expect(r.status).toBe(401); expect((await r.json()).error.code).toBe('UNAUTHORIZED'); });
   it('GET /api/treatment-plans 403', async () => { authForbidden(); const r = await TpListGET(new NextReq('http://x?patient_id=p1') as any); expect(r.status).toBe(403); });
-  it('GET /api/treatment-plans 200 tenant-scoped', async () => { authOk(); (getTreatmentPlansByPatient as jest.Mock).mockResolvedValue([]); const r = await TpListGET(new NextReq('http://x?patient_id=p1') as any); expect(r.status).toBe(200); expect(getTreatmentPlansByPatient).toHaveBeenCalledWith('p1', 'clinic-a'); });
+  it('GET /api/treatment-plans 200 tenant-scoped (envelope canônico)', async () => { authOk(); (getTreatmentPlansByPatient as jest.Mock).mockResolvedValue([]); const r = await TpListGET(new NextReq('http://x?patient_id=p1') as any); expect(r.status).toBe(200); expect(getTreatmentPlansByPatient).toHaveBeenCalledWith('p1', 'clinic-a'); expect((await r.json()).data.treatment_plans).toEqual([]); });
+  it('GET /api/treatment-plans 400 sem patient_id (envelope canônico)', async () => { authOk(); const r = await TpListGET(new NextReq('http://x') as any); expect(r.status).toBe(400); expect((await r.json()).error.code).toBe('INVALID_INPUT'); });
   it('POST 403', async () => { authForbidden(); const r = await TpCreatePOST(new NextReq('http://x', { method: 'POST', body: '{}' }) as any); expect(r.status).toBe(403); });
-  it('GET [id] 404 estrangeiro', async () => { authOk(); (getTreatmentPlanById as jest.Mock).mockResolvedValue(null); const r = await TpGetGET(new NextReq('http://x') as any, params('plan-foreign')); expect(r.status).toBe(404); });
+  it('GET [id] 404 estrangeiro (envelope canônico)', async () => { authOk(); (getTreatmentPlanById as jest.Mock).mockResolvedValue(null); const r = await TpGetGET(new NextReq('http://x') as any, params('plan-foreign')); expect(r.status).toBe(404); expect((await r.json()).error.code).toBe('NOT_FOUND'); });
   it('PATCH 403', async () => { authForbidden(); const r = await TpPatchPATCH(new NextReq('http://x', { method: 'PATCH', body: '{}' }) as any, params('plan-1')); expect(r.status).toBe(403); });
   it('DELETE 403', async () => { authForbidden(); const r = await TpDeleteDELETE(new NextReq('http://x', { method: 'DELETE' }) as any, params('plan-1')); expect(r.status).toBe(403); });
 });
 
 // ── Patients preferences ───────────────────────────────────────────────────
+// D2 lote 4/5 (operacional): envelope canônico.
 describe('T8 patients/[id]/preferences — matriz', () => {
-  it('GET 401', async () => { authAnon(); const r = await PrefGET(new Request('http://x') as any, params('pat-1')); expect(r.status).toBe(401); });
+  it('GET 401 (envelope canônico)', async () => { authAnon(); const r = await PrefGET(new Request('http://x') as any, params('pat-1')); expect(r.status).toBe(401); expect((await r.json()).error.code).toBe('UNAUTHORIZED'); });
   it('GET 403', async () => { authForbidden(); const r = await PrefGET(new Request('http://x') as any, params('pat-1')); expect(r.status).toBe(403); });
   it('GET 404 estrangeiro', async () => { authOk(); (findByIdScoped as jest.Mock).mockResolvedValue(null); const r = await PrefGET(new Request('http://x') as any, params('pat-foreign')); expect(r.status).toBe(404); });
-  it('GET 200 clínica correta', async () => { authOk(); (findByIdScoped as jest.Mock).mockResolvedValue({ id: 'pat-1', clinicId: 'clinic-a' }); (getPreferences as jest.Mock).mockResolvedValue([]); const r = await PrefGET(new Request('http://x') as any, params('pat-1')); expect(r.status).toBe(200); expect(getPreferences).toHaveBeenCalledWith('pat-1', undefined); });
+  it('GET 200 clínica correta (envelope canônico)', async () => { authOk(); (findByIdScoped as jest.Mock).mockResolvedValue({ id: 'pat-1', clinicId: 'clinic-a' }); (getPreferences as jest.Mock).mockResolvedValue([]); const r = await PrefGET(new Request('http://x') as any, params('pat-1')); expect(r.status).toBe(200); expect(getPreferences).toHaveBeenCalledWith('pat-1', undefined); expect((await r.json()).data.preferences).toEqual([]); });
   it('POST 403', async () => { authForbidden(); const r = await PrefPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any, params('pat-1')); expect(r.status).toBe(403); });
   it('POST 404 estrangeiro', async () => { authOk(); (findByIdScoped as jest.Mock).mockResolvedValue(null); const r = await PrefPOST(new Request('http://x', { method: 'POST', body: JSON.stringify({ key: 'k', value: 'v', category: 'general' }) }) as any, params('pat-foreign')); expect(r.status).toBe(404); });
-  it('POST 200 clínica correta', async () => { authOk(); (findByIdScoped as jest.Mock).mockResolvedValue({ id: 'pat-1', clinicId: 'clinic-a' }); (setPreference as jest.Mock).mockResolvedValue({ id: 'pref-1', key: 'k' }); const r = await PrefPOST(new Request('http://x', { method: 'POST', body: JSON.stringify({ key: 'k', value: 'v', category: 'general' }) }) as any, params('pat-1')); expect(r.status).toBe(200); });
+  it('POST 200 clínica correta (envelope canônico)', async () => { authOk(); (findByIdScoped as jest.Mock).mockResolvedValue({ id: 'pat-1', clinicId: 'clinic-a' }); (setPreference as jest.Mock).mockResolvedValue({ id: 'pref-1', key: 'k' }); const r = await PrefPOST(new Request('http://x', { method: 'POST', body: JSON.stringify({ key: 'k', value: 'v', category: 'general' }) }) as any, params('pat-1')); expect(r.status).toBe(200); expect((await r.json()).data.preference).toEqual({ id: 'pref-1', key: 'k' }); });
 });
