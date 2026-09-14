@@ -1,34 +1,40 @@
 /**
- * Budget Accept API — legacy adapter.
+ * Budget Accept API — contrato canônico (D2 lote 3/5).
  *
  * Thin wrapper over Financeiro budget service.
- * Preserves { budget, message } response shape.
+ * Resposta canônica: { data: { budget, message } }.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { validateApiAuth } from '@/lib/auth/session';
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response';
+import { withModuleRoute } from '@/core/modules/gates';
 import { getBudget, acceptBudget } from '@/modules/financeiro/services/budget-service';
-import { handleApiError } from '@/lib/errors';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+async function handlePOST(request: NextRequest, { params }: RouteParams) {
+  const requestId = generateRequestId();
   try {
     const auth = await validateApiAuth('financeiro:manage_budget');
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status });
+    if (!auth.success) return apiAuthFailure(auth.error, requestId);
     const clinicId = auth.profile!.clinic_id;
     const { id } = await params;
 
     const budget = await getBudget(id);
-    if (!budget) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-    if (budget.clinicId !== clinicId) return NextResponse.json({ error: 'Budget not found' }, { status: 404 });
-    if (budget.status && !['pending', 'sent'].includes(budget.status)) {
-      return NextResponse.json({ error: 'Budget cannot be accepted in current status' }, { status: 400 });
+    if (!budget) return apiFailure('NOT_FOUND', 'Budget not found', requestId, 404);
+    if (budget.clinicId !== clinicId) return apiFailure('NOT_FOUND', 'Budget not found', requestId, 404);
+    // Pré-condição espelha o service (acceptBudget só aceita 'pending'):
+    // estado não-aceitável → 409 canônico em vez de 500 do throw interno.
+    if (budget.status !== 'pending') {
+      return apiFailure('CONFLICT', 'Budget cannot be accepted in current status', requestId, 409);
     }
 
     const updated = await acceptBudget(id, clinicId);
-    return NextResponse.json({ budget: updated, message: 'Budget accepted successfully' });
-  } catch (error) {
-    return handleApiError(error);
+    return apiSuccess({ budget: updated, message: 'Budget accepted successfully' });
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500);
   }
 }
+
+export const POST = withModuleRoute('financeiro')(handlePOST);

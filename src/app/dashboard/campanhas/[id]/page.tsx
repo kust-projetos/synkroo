@@ -166,13 +166,13 @@ export default function CampaignDetailsPage() {
         method: 'POST',
       })
 
-      const data = await response.json()
+      const body = await response.json()
 
       if (response.ok) {
         toast.showToast('Campanha iniciada com sucesso!', 'success')
         fetchCampaign()
       } else {
-        toast.showToast(data.error || 'Erro ao iniciar campanha', 'error')
+        toast.showToast(body.error?.message || 'Erro ao iniciar campanha', 'error')
       }
     } catch (error) {
       console.error('Error starting campaign:', error)

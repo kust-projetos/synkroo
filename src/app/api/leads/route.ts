@@ -4,6 +4,8 @@ import { createManifest } from '@/core/modules/manifest';
 import { runComercialAction } from '@/modules/comercial/ui/route-adapter';
 import { listarLeads } from '@/modules/comercial/actions/listar-leads';
 import { capturarLead } from '@/modules/comercial/actions/capturar-lead';
+import { leadApiCreateSchema } from '@/lib/validations/lead';
+import { apiFailure, generateRequestId } from '@/lib/api/response';
 
 /**
  * GET /api/leads — List leads
@@ -27,16 +29,23 @@ const handleGet = async (request: NextRequest) => {
 
 /**
  * POST /api/leads — Create a lead
+ *
+ * D3: validação Zod de borda (leadApiCreateSchema) — payload inválido
+ * retorna 400 com envelope canônico antes de chegar à Action.
  */
 const handlePost = async (request: NextRequest) => {
-  const body = await request.json();
-  const { name, phone, source, email } = body;
+  const rawBody = await request.json().catch(() => ({}));
+  const parsed = leadApiCreateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return apiFailure('INVALID_INPUT', 'Validation failed', generateRequestId(), 400);
+  }
+  const { name, phone, source, email } = parsed.data;
 
   return runComercialAction(capturarLead, {
     name,
     phone,
     source: source || 'other',
-    email,
+    email: email ?? undefined,
   });
 };
 

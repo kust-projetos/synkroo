@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { runAtendimentoSystemActionResult } from '@/modules/atendimento/ui/route-adapter';
 import { resolveMetaInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
+import { parseMetaMessage } from '@/modules/atendimento/integrations/meta-message.schema';
 import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 
@@ -25,9 +27,17 @@ async function handlePOST(request: NextRequest) {
   const body = await request.text();
   if (!verifySignature(body, signature)) return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
 
+  // Rate limit pós-assinatura: excedido → 200 ignore (429 provocaria retry do
+  // provider). O GET verify não tem rate limit — menor risco é não adicionar.
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'wa-webhook' });
-  if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  if (!rateLimit.allowed) {
+    logger.warn('whatsapp webhook ignored', {
+      event: 'rate_limited',
+      reason: 'rate limit exceeded',
+    });
+    return NextResponse.json({ status: 'ignored' });
+  }
 
   let payload: Record<string, unknown>;
   try {
@@ -40,6 +50,7 @@ async function handlePOST(request: NextRequest) {
   const entries = Array.isArray(payload.entry) ? payload.entry : [];
   let processed = 0;
   let deduped = 0;
+  let ignored = 0;
   for (const entry of entries as Array<Record<string, unknown>>) {
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
     for (const change of changes as Array<Record<string, unknown>>) {
@@ -48,28 +59,75 @@ async function handlePOST(request: NextRequest) {
       if (messages.length === 0) continue;
       const metadata = value?.metadata as Record<string, unknown> | undefined;
       const phoneNumberId = typeof metadata?.phone_number_id === 'string' ? metadata.phone_number_id : '';
+      // Assinatura válida, mas instalação desconhecida: sem dedup/segredo por
+      // instalação aplicável → 200 ignore (sem retry do provider).
       const installation = await resolveMetaInstallation(phoneNumberId);
-      if (!installation) return NextResponse.json({ error: 'Invalid WhatsApp installation' }, { status: 403 });
+      if (!installation) {
+        logger.warn('whatsapp webhook change ignored', {
+          event: 'unknown_installation',
+          reason: 'no installation for phone_number_id',
+        });
+        ignored++;
+        continue;
+      }
 
       for (const message of messages as Array<Record<string, unknown>>) {
         const from = typeof message.from === 'string' ? message.from : '';
         const externalMessageId = typeof message.id === 'string' ? message.id : '';
-        const parsed = parseMetaMessage(message);
-        if (!from || !externalMessageId || !parsed) {
-          return NextResponse.json({ error: 'Invalid WhatsApp message payload' }, { status: 400 });
+        // Assinatura válida, mas evento sem remetente/id → 200 ignore.
+        if (!from || !externalMessageId) {
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'unidentified_message',
+            mid: externalMessageId || 'unknown',
+            reason: 'missing sender or mid',
+          });
+          ignored++;
+          continue;
         }
-        const result = await runAtendimentoSystemActionResult(receberMensagem, {
-          externalConversationId: from,
-          externalProvider: 'meta',
-          externalMessageId,
-          message: parsed.content,
-          channel: 'whatsapp',
-          messageType: parsed.messageType,
-          metadata: { phoneNumberId },
-        }, installation.clinicId);
+        // Assinatura válida + evento identificado, mas mídia não-processável →
+        // 200 ignore (sem retry/drop do provider). Log seguro, sem body.
+        const parsed = parseMetaMessage(message);
+        if (!parsed) {
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'unparseable_media',
+            mid: externalMessageId,
+            reason: 'parseMetaMessage null',
+          });
+          ignored++;
+          continue;
+        }
+        // Exceção da action não aborta o lote: ignora a mensagem e segue.
+        let result;
+        try {
+          result = await runAtendimentoSystemActionResult(receberMensagem, {
+            externalConversationId: from,
+            externalProvider: 'meta',
+            externalMessageId,
+            message: parsed.content,
+            channel: 'whatsapp',
+            messageType: parsed.messageType,
+            metadata: { phoneNumberId },
+          }, installation.clinicId);
+        } catch (error) {
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'action_exception',
+            mid: externalMessageId,
+            reason: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+          });
+          ignored++;
+          continue;
+        }
+        // Falha interna ao processar: retry da Meta não ajuda (inbound tem
+        // dedup, outbox cobre reprocessamento) → 200 ignore + warn. Infra
+        // continua visível em logs/metrics.
         if (!result.ok) {
-          const status = result.error.code === 'invalid_input' ? 422 : 500;
-          return NextResponse.json({ error: result.error.message }, { status });
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'action_failed',
+            mid: externalMessageId,
+            reason: result.error.code,
+          });
+          ignored++;
+          continue;
         }
         if (result.data && typeof result.data === 'object' && 'deduped' in result.data && result.data.deduped) deduped++;
         else processed++;
@@ -77,25 +135,14 @@ async function handlePOST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({
-    success: true, processed, deduped,
-  });
-}
-
-function parseMetaMessage(message: Record<string, unknown>): {
-  content: string;
-  messageType: 'text' | 'image' | 'audio' | 'document';
-} | null {
-  const type = typeof message.type === 'string' ? message.type : '';
-  const value = message[type] as Record<string, unknown> | undefined;
-  if (!value) return null;
-  if (type === 'text' && typeof value.body === 'string' && value.body) {
-    return { content: value.body, messageType: 'text' };
+  // Lote só com mensagens ignoradas → semântica ignore, sem retry do provider.
+  if (processed === 0 && deduped === 0 && ignored > 0) {
+    return NextResponse.json({ status: 'ignored' });
   }
-  if (type === 'image') return { content: typeof value.caption === 'string' && value.caption ? value.caption : '[Image]', messageType: 'image' };
-  if (type === 'audio') return { content: '[Audio]', messageType: 'audio' };
-  if (type === 'document') return { content: typeof value.caption === 'string' && value.caption ? value.caption : '[Document]', messageType: 'document' };
-  return null;
+
+  return NextResponse.json({
+    success: true, processed, deduped, ignored,
+  });
 }
 
 export const GET = withModuleRoute('atendimento')(handleGET);

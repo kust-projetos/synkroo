@@ -33,3 +33,28 @@ export const updateBudgetSchema = z.object({
   discount_percent: z.number().min(0).max(100).optional(),
   treatment_plan_id: z.string().uuid().optional(),
 })
+
+/**
+ * POST /api/budgets — schema legado snake_case (D3).
+ *
+ * Movido verbatim de `src/app/api/budgets/route.ts` sem alteração de regras.
+ * DIVERGÊNCIA REGISTRADA: difere de `createBudgetSchema` — aceita `lead_id`,
+ * não exige `procedure_id` nos itens, `unit_price` usa `.positive()` (vs `.min(0)`),
+ * `valid_until` é string livre (vs regex YYYY-MM-DD). Mantida a versão da rota
+ * (regra D3: em conflito, vale a rota).
+ */
+export const legacyCreateBudgetSchema = z.object({
+  patient_id: z.string().uuid(),
+  lead_id: z.string().uuid().optional(),
+  title: z.string().optional(),
+  description: z.string().optional(),
+  items: z.array(z.object({
+    procedure_name: z.string().min(1),
+    quantity: z.number().int().min(1).default(1),
+    unit_price: z.number().positive(),
+    discount_percent: z.number().optional(),
+    notes: z.string().optional(),
+  })).min(1),
+  discount_percent: z.number().min(0).max(100).optional(),
+  valid_until: z.string().optional(),
+})

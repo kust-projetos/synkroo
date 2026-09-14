@@ -91,10 +91,11 @@ export default function NovaCampanhaPage() {
         }),
       })
 
-      const data = await response.json()
+      const body = await response.json()
 
       if (!response.ok) {
-        toast.showToast(data.error || 'Erro ao criar campanha', 'error')
+        // Contrato canônico (D2 lote 5): { error: { code, message, requestId } }
+        toast.showToast(body.error?.message || 'Erro ao criar campanha', 'error')
         return
       }
 

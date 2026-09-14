@@ -1,42 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import {
   getTreatmentPlansByPatient,
   createTreatmentPlan,
 } from '@/services/treatment-plans/treatment-plan.service'
-import { handleApiError, ValidationError } from '@/lib/errors'
-
-const createTreatmentPlanSchema = z.object({
-  patient_id: z.string().uuid(),
-  title: z.string().min(1).max(255),
-  description: z.string().optional(),
-  total_sessions: z.number().int().positive(),
-  started_at: z.string().datetime().optional(),
-  expected_completion_at: z.string().datetime().optional(),
-  notes: z.string().optional(),
-  items: z.array(z.object({
-    procedure_id: z.string().uuid().optional().nullable(),
-    procedure_name: z.string().min(1),
-    session_number: z.number().int().positive().optional(),
-    appointment_id: z.string().uuid().optional().nullable(),
-    scheduled_at: z.string().datetime().optional(),
-    notes: z.string().optional(),
-  })).optional().default([]),
-})
+import { createTreatmentPlanSchema } from '@/lib/validations/treatment-plan'
 
 /**
  * GET /api/treatment-plans
  * List treatment-plans for a patient
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('operacional:view')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
     const clinicId = authResult.profile!.clinic_id
 
@@ -44,14 +25,14 @@ export async function GET(request: NextRequest) {
     const patientId = searchParams.get('patient_id')
 
     if (!patientId) {
-      return NextResponse.json({ error: 'patient_id is required' }, { status: 400 })
+      return apiFailure('INVALID_INPUT', 'patient_id is required', requestId, 400)
     }
 
     const plans = await getTreatmentPlansByPatient(patientId, clinicId)
 
-    return NextResponse.json({ treatment_plans: plans })
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess({ treatment_plans: plans })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -59,20 +40,22 @@ export async function GET(request: NextRequest) {
  * POST /api/treatment-plans
  * Create a new treatment-plan
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('operacional:manage_patients')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
     const clinicId = authResult.profile!.clinic_id
     const userId = authResult.profile!.id
 
     const rawBody = await request.json()
-    const body = createTreatmentPlanSchema.parse(rawBody)
+    const parsed = createTreatmentPlanSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return apiFailure('INVALID_INPUT', 'Validation failed', requestId, 400)
+    }
+    const body = parsed.data
 
     const plan = await createTreatmentPlan({
       clinic_id: clinicId,
@@ -91,11 +74,11 @@ export async function POST(request: NextRequest) {
       })),
     })
 
-    return NextResponse.json({ treatment_plan: plan }, { status: 201 })
-  } catch (error) {
-    if (error instanceof z.ZodError) {
-      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
-    }
-    return handleApiError(error)
+    return apiSuccess({ treatment_plan: plan }, undefined, 201)
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
+
+export const GET = withModuleRoute('operacional')(handleGET)
+export const POST = withModuleRoute('operacional')(handlePOST)

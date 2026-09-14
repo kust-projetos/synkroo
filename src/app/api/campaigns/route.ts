@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import {
   getCampaigns,
@@ -7,18 +7,20 @@ import {
 } from '@/services/followup/campaign.service'
 import { getInactivityStats } from '@/services/followup/inactive-patient.service'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import { createCampaignSchema } from '@/lib/validations'
-import { handleApiError, ValidationError } from '@/lib/errors'
 
 /**
  * GET /api/campaigns
  * List campaigns for authenticated user's clinic
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('followup:view')
     if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+      return apiAuthFailure(authResult.error, requestId)
     }
     const clinicId = authResult.profile!.clinic_id
 
@@ -27,9 +29,9 @@ export async function GET(request: NextRequest) {
 
     const campaigns = await getCampaigns(clinicId, status)
 
-    return NextResponse.json({ campaigns })
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess({ campaigns })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -37,16 +39,21 @@ export async function GET(request: NextRequest) {
  * POST /api/campaigns
  * Create a new campaign
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('followup:manage_campaigns')
     if (!authResult.success) {
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+      return apiAuthFailure(authResult.error, requestId)
     }
     const clinicId = authResult.profile!.clinic_id
 
     const rawBody = await request.json()
-    const body = createCampaignSchema.parse(rawBody)
+    const parsed = createCampaignSchema.safeParse(rawBody)
+    if (!parsed.success) {
+      return apiFailure('INVALID_INPUT', 'Validation failed', requestId, 400)
+    }
+    const body = parsed.data
 
     // Handle auto reactivation campaigns
     if (body.campaign_type === 'reactivation' && body.target_segment && body.auto_start) {
@@ -56,15 +63,12 @@ export async function POST(request: NextRequest) {
       )
 
       if (!result.success) {
-        return NextResponse.json(
-          { error: result.error },
-          { status: 400 }
-        )
+        return apiFailure('BAD_REQUEST', result.error ?? 'Failed to create reactivation campaign', requestId, 400)
       }
 
       const stats = await getInactivityStats(clinicId)
 
-      return NextResponse.json({
+      return apiSuccess({
         success: true,
         campaign_id: result.campaignId,
         target_segment: body.target_segment,
@@ -85,20 +89,20 @@ export async function POST(request: NextRequest) {
     })
 
     if (!result.success) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: 400 }
-      )
+      return apiFailure('BAD_REQUEST', result.error ?? 'Failed to create campaign', requestId, 400)
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       campaign: result.campaign,
     })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return handleApiError(new ValidationError('Validation failed', { issues: error.issues }))
+      return apiFailure('INVALID_INPUT', 'Validation failed', requestId, 400)
     }
-    return handleApiError(error)
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
+
+export const GET = withModuleRoute('followup')(handleGET)
+export const POST = withModuleRoute('followup')(handlePOST)

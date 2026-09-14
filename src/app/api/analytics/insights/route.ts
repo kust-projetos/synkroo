@@ -1,20 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getClinicInsights } from '@/services/analytics/analytics.service'
 
 /**
  * GET /api/analytics/insights
  * Get comprehensive clinic analytics
+ *
+ * Sem módulo correspondente (analytics é transversal): mantém validateApiAuth
+ * + envelope canônico mínimo, sem gate withModuleRoute. Justificativa D2.
  */
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -23,13 +24,13 @@ export async function GET(request: NextRequest) {
     const forecastDays = parseInt(searchParams.get('forecast_days') || '14')
     if (!Number.isInteger(trendDays) || trendDays < 1 || trendDays > 365 ||
       !Number.isInteger(forecastDays) || forecastDays < 1 || forecastDays > 90) {
-      return NextResponse.json({ error: 'Invalid analytics period' }, { status: 400 })
+      return apiFailure('INVALID_INPUT', 'Invalid analytics period', requestId, 400)
     }
 
     const insights = await getClinicInsights(clinicId, { trendDays, forecastDays })
 
-    return NextResponse.json({ ...insights, period: { trendDays, forecastDays } })
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess({ ...insights, period: { trendDays, forecastDays } })
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

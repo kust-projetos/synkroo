@@ -62,7 +62,9 @@ describe('POST /api/auth/change-password', () => {
     expect(response.headers.get('Retry-After')).toBe('17')
     expect(response.headers.get('X-RateLimit-Limit')).toBe('10')
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('0')
-    expect(await response.json()).toEqual({ error: 'Too many requests' })
+    expect(await response.json()).toEqual({
+      error: expect.objectContaining({ code: 'TOO_MANY_REQUESTS' }),
+    })
     expect(mockValidateApiAuth).not.toHaveBeenCalled()
     expect(mockChangeUserPassword).not.toHaveBeenCalled()
   })
@@ -71,7 +73,7 @@ describe('POST /api/auth/change-password', () => {
     const response = await POST(request({ currentPassword: 'oldpass', nextPassword: 'newpass' }))
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ success: true })
+    expect(await response.json()).toEqual({ data: { success: true } })
     expect(mockChangeUserPassword).toHaveBeenCalledWith('user-1', 'oldpass', 'newpass')
   })
 
@@ -81,7 +83,9 @@ describe('POST /api/auth/change-password', () => {
     const response = await POST(request({ currentPassword: 'wrongpass', nextPassword: 'newpass' }))
 
     expect(response.status).toBe(403)
-    expect(await response.json()).toEqual({ error: 'Current password is incorrect' })
+    expect(await response.json()).toEqual({
+      error: expect.objectContaining({ code: 'FORBIDDEN' }),
+    })
   })
 
   it('returns 400 for invalid password input', async () => {
@@ -100,7 +104,9 @@ describe('POST /api/auth/change-password', () => {
     const response = await POST(request({ currentPassword: 'oldpass', nextPassword: 'newpass' }))
 
     expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ error: 'Unauthorized' })
+    expect(await response.json()).toEqual({
+      error: expect.objectContaining({ code: 'UNAUTHORIZED' }),
+    })
     expect(mockChangeUserPassword).not.toHaveBeenCalled()
   })
 })

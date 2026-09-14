@@ -4,7 +4,6 @@
  * POST → crm.adicionarNotaContato (body: { type, content }).
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { runCrmAction } from '@/modules/crm/ui/route-adapter';
@@ -12,11 +11,7 @@ import {
   listarNotasContato,
   adicionarNotaContato,
 } from '@/modules/crm/actions';
-
-const addNoteSchema = z.object({
-  type: z.enum(['patient', 'lead']),
-  content: z.string().min(1),
-});
+import { addContactNoteSchema } from '@/lib/validations/contact';
 
 async function handleGET(
   request: NextRequest,
@@ -44,7 +39,7 @@ async function handlePOST(
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
-  const parsed = addNoteSchema.safeParse(body);
+  const parsed = addContactNoteSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.errors },
