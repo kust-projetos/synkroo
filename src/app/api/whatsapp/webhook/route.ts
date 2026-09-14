@@ -51,21 +51,42 @@ async function handlePOST(request: NextRequest) {
       if (messages.length === 0) continue;
       const metadata = value?.metadata as Record<string, unknown> | undefined;
       const phoneNumberId = typeof metadata?.phone_number_id === 'string' ? metadata.phone_number_id : '';
+      // Assinatura válida, mas instalação desconhecida: sem dedup/segredo por
+      // instalação aplicável → 200 ignore (sem retry do provider).
       const installation = await resolveMetaInstallation(phoneNumberId);
-      if (!installation) return NextResponse.json({ error: 'Invalid WhatsApp installation' }, { status: 403 });
+      if (!installation) {
+        logger.warn('whatsapp webhook change ignored', {
+          event: 'unknown_installation',
+          phoneNumberId: phoneNumberId || 'unknown',
+          reason: 'no installation for phone_number_id',
+        });
+        ignored++;
+        continue;
+      }
 
       for (const message of messages as Array<Record<string, unknown>>) {
         const from = typeof message.from === 'string' ? message.from : '';
         const externalMessageId = typeof message.id === 'string' ? message.id : '';
-        // Sem remetente/id não há como identificar o evento → 400 (comportamento preservado).
+        // Assinatura válida, mas evento sem remetente/id → 200 ignore.
         if (!from || !externalMessageId) {
-          return NextResponse.json({ error: 'Invalid WhatsApp message payload' }, { status: 400 });
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'unidentified_message',
+            mid: externalMessageId || 'unknown',
+            reason: 'missing sender or mid',
+          });
+          ignored++;
+          continue;
         }
         // Assinatura válida + evento identificado, mas mídia não-processável →
         // 200 ignore (sem retry/drop do provider). Log seguro, sem body.
         const parsed = parseMetaMessage(message);
         if (!parsed) {
-          logger.warn('whatsapp webhook message ignored', { phoneNumberId });
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'unparseable_media',
+            mid: externalMessageId,
+            phoneNumberId,
+            reason: 'parseMetaMessage null',
+          });
           ignored++;
           continue;
         }
@@ -78,9 +99,18 @@ async function handlePOST(request: NextRequest) {
           messageType: parsed.messageType,
           metadata: { phoneNumberId },
         }, installation.clinicId);
+        // Falha interna ao processar: retry da Meta não ajuda (inbound tem
+        // dedup, outbox cobre reprocessamento) → 200 ignore + warn. Infra
+        // continua visível em logs/metrics.
         if (!result.ok) {
-          const status = result.error.code === 'invalid_input' ? 422 : 500;
-          return NextResponse.json({ error: result.error.message }, { status });
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'action_failed',
+            mid: externalMessageId,
+            phoneNumberId,
+            reason: result.error.code,
+          });
+          ignored++;
+          continue;
         }
         if (result.data && typeof result.data === 'object' && 'deduped' in result.data && result.data.deduped) deduped++;
         else processed++;
