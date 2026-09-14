@@ -105,7 +105,7 @@
             { "name": "@/lib/db/client", "message": "Componentes não acessam o banco. Use uma Server Action ou route handler." }
           ],
           "patterns": [
-            { "group": ["@/lib/db/schema/*", "@/repositories/*"], "message": "Acesso a dados só via Action/service no servidor." }
+            { "group": ["@/lib/db/schema", "@/lib/db/schema/*", "@/repositories/*"], "message": "Acesso a dados só via Action/service no servidor." }
           ]
         }]
       }
