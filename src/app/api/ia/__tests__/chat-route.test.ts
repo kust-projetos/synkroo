@@ -70,4 +70,30 @@ describe('POST /api/ia/chat', () => {
     expect(resolveIaTimezone('Europe/Lisbon')).toBe('Europe/Lisbon');
     expect(resolveIaTimezone(undefined)).toBe('America/Sao_Paulo');
   });
+
+  it('echoes inbound x-request-id and propagates it as correlationId (B2)', async () => {
+    mockInvoke.mockResolvedValue({ reply: 'ok', turnsUsed: 1 });
+    const r = new Request('http://localhost/api/ia/chat', {
+      method: 'POST',
+      body: JSON.stringify({ conversationId: 'conv-1', message: 'oi' }),
+      headers: { 'Content-Type': 'application/json', 'x-request-id': 'req-abc' },
+    }) as unknown as NextRequest;
+    const res = await POST(r);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-request-id')).toBe('req-abc');
+    expect(mockInvoke).toHaveBeenCalledWith(
+      expect.objectContaining({ correlationId: 'req-abc' }),
+    );
+  });
+
+  it('generates x-request-id when the caller sends none (B2)', async () => {
+    mockInvoke.mockResolvedValue({ reply: 'ok', turnsUsed: 1 });
+    const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
+    const echoed = res.headers.get('x-request-id');
+    expect(typeof echoed).toBe('string');
+    expect(echoed!.length).toBeGreaterThan(0);
+    expect(mockInvoke).toHaveBeenCalledWith(
+      expect.objectContaining({ correlationId: echoed }),
+    );
+  });
 });
