@@ -106,8 +106,7 @@ async function checkLiveness(baseUrl, paths, fetchImpl) {
   );
   if (!response) return result("liveness", false, { status: null, ms, error });
   const payload = await safeJson(response);
-  // Main atual: { status: 'healthy' | 'unhealthy', checks, ... }.
-  // Aceitar também o formato legado { status: 'ok' } / { ok: true }.
+  // Main atual: { status: 'healthy' | 'unhealthy', checks, ... }. Aceitar também o formato legado { status: 'ok' } / { ok: true }.
   const bodyOk =
     payload !== null &&
     (payload.status === "healthy" ||
@@ -137,7 +136,7 @@ async function checkAuthPipeline(baseUrl, paths, fetchImpl) {
 }
 
 async function checkDb(baseUrl, paths, fetchImpl) {
-  // GET /api/health/db (público na main): { status: 'complete' | 'incomplete', ... }.
+  // GET /api/health/db (público na main): { data: { status: 'complete' | 'incomplete', ... } }.
   const { response, ms, error } = await timedFetch(
     fetchImpl,
     new URL(paths.db, baseUrl),
@@ -145,7 +144,7 @@ async function checkDb(baseUrl, paths, fetchImpl) {
   );
   if (!response) return result("db", false, { status: null, ms, error });
   const payload = await safeJson(response);
-  const ok = response.status === 200 && payload?.status === "complete";
+  const ok = response.status === 200 && payload?.data?.status === "complete";
   return result("db", ok, { status: response.status, ms });
 }
 
@@ -244,7 +243,7 @@ export function printHelp() {
     "Checks (somente GET, sem credenciais, sem mutacao):",
     "  liveness      GET /api/health        -> 200 { status: 'healthy' }",
     "  auth-pipeline GET /api/auth/session  -> 200/401 { authenticated: bool }",
-    "  db            GET /api/health/db     -> 200 { status: 'complete' }",
+    "  db            GET /api/health/db     -> 200 { data: { status: 'complete' } }",
     "  middleware    GET /api/patients      -> 401/403/3xx sem sessao",
     "  workers       skipped (service bindings; SMOKE_IA_BRIDGE_URL p/ override)",
     "",
