@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { validateApiAuth } from '@/lib/auth/session';
-import { handleApiError } from '@/lib/errors';
+import { logger } from '@/lib/logger';
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response';
 import { ragService } from '@/services/rag';
 
 /**
@@ -26,26 +27,24 @@ const clampNum = (v: number | undefined, fallback: number, lo: number, hi: numbe
  * Search knowledge base using vector similarity (pgvector) with keyword fallback.
  */
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId();
   try {
     const authResult = await validateApiAuth('ia:chat');
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status },
-      );
+      return apiAuthFailure(authResult.error, requestId);
     }
 
     const clinicId = authResult.profile!.clinic_id;
     const parsed = SearchBodySchema.safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) {
       const paths = parsed.error.issues.map((i) => String(i.path[0]));
-      return NextResponse.json(
-        {
-          error: paths.includes('query')
-            ? 'Missing required field: query'
-            : 'Invalid search parameters (limit 1–50, threshold 0–1)',
-        },
-        { status: 400 },
+      return apiFailure(
+        'INVALID_INPUT',
+        paths.includes('query')
+          ? 'Missing required field: query'
+          : 'Invalid search parameters (limit 1–50, threshold 0–1)',
+        requestId,
+        400,
       );
     }
     const { query, limit: rawLimit, threshold: rawThreshold } = parsed.data;
@@ -54,12 +53,13 @@ export async function POST(request: NextRequest) {
 
     const results = await ragService.searchKnowledge(clinicId, query, { limit, threshold });
 
-    return NextResponse.json({
+    return apiSuccess({
       query,
       results,
       count: results.length,
     });
   } catch (error) {
-    return handleApiError(error);
+    logger.error('[knowledge/search] Unexpected error', error, { requestId });
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500);
   }
 }

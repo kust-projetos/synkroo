@@ -74,7 +74,6 @@ export async function PUT(
       updateData.keywords = body.keywords.filter((keyword): keyword is string => typeof keyword === 'string')
     }
     if (typeof body.isActive === 'boolean') updateData.isActive = body.isActive
-    else if (typeof body.is_active === 'boolean') updateData.isActive = body.is_active
     if (Object.keys(updateData).length === 0) return apiFailure('INVALID_INPUT', 'No valid fields to update', requestId, 400)
 
     const [row] = await getDb().update(KB).set({ ...updateData, updatedAt: new Date() }).where(

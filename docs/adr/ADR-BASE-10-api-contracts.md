@@ -14,7 +14,7 @@ JSON e TypeScript usam `camelCase`. IDs são UUID. Datas ISO 8601 UTC.
 
 ## Evidência
 
-- `src/lib/api/response.ts`: builders `apiSuccess()`, `apiFailure()`, `apiErrors`, `generateRequestId()`
+- `src/lib/api/response.ts`: builders `apiSuccess()`, `apiFailure()`, `apiErrors`, `generateRequestId()`, `apiRateLimited()` (429 com `Retry-After` só em header)
 - `src/__tests__/api/contract/response-format.test.ts`: 17 contract tests validando formato
 - `src/lib/api/__tests__/response.test.ts`: unit tests para builders
 
@@ -36,9 +36,9 @@ Contratos fora do envelope, aceitos explicitamente — não são débito de migr
 
 Regra para novas superfícies: qualquer resposta fora do envelope exige entrada nesta tabela com justificativa.
 
-### Compatibilidade transitória de entrada (2026-09-14)
+### Compatibilidade transitória de entrada
 
-`PUT /api/knowledge/[id]` aceita `is_active` (snake_case legado) além do canônico `isActive`, com precedência de `isActive`. É shim de compatibilidade para clientes antigos — remover assim que confirmado zero consumidores legados (wave D2 futura). Não usar como precedente para novos campos.
+`PUT /api/knowledge/[id]` aceitou `is_active` (snake_case legado) como shim temporário. **Removido em 2026-09-14** após auditoria de zero consumidores legados — a rota aceita apenas `isActive`; body sem campos válidos responde 400 `INVALID_INPUT`.
 
 ## Gap (2026-08-28 W8 em progresso)
 
