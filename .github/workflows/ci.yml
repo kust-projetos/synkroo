@@ -96,10 +96,9 @@ jobs:
         run: npx playwright install --with-deps chromium
       # Production-mode E2E: build de producao (next build + next start local na
       # porta 3003) + Playwright — nao e smoke contra producao real.
-      # Politica: falha deve bloquear merge; `continue-on-error: true` e
-      # temporario ate estabilidade comprovada (remocao = etapa final da F1).
+      # Politica (F1 concluida 2026-09-14): BLOQUEANTE — verde no CI (runs
+      # 34846166474 e seguinte) apos estabilidade comprovada.
       - name: Production-mode E2E
-        continue-on-error: true
         run: npm run test:e2e:production
         env:
           CI: true
