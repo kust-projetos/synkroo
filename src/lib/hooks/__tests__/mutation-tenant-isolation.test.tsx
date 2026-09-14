@@ -19,6 +19,7 @@ import {
 } from '@/lib/hooks/use-queries';
 import { useCreateTreatmentPlan } from '@/hooks/useTreatmentPlans';
 import { useRecordPayment } from '@/hooks/usePayments';
+import { useSendWhatsAppMessage } from '@/lib/hooks/use-whatsapp-messages';
 import { AuthContext } from '@/lib/auth/context';
 
 function makeClient() {
@@ -133,6 +134,47 @@ describe('R4 — mutation escopada atinge só o tenant atual', () => {
     expect(predicate({ queryKey: ['clinic', 'clinic-A', 'payments', 'b-1'] })).toBe(true);
     expect(predicate({ queryKey: ['clinic', 'clinic-B', 'payments', 'b-1'] })).toBe(false);
     expect(predicate({ queryKey: ['clinic', 'clinic-A', 'payments', 'b-9'] })).toBe(false);
+  });
+
+  it('useSendWhatsAppMessage sem contactId e com tenant: escopado à clínica', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'msg-1', status: 'sent' }),
+    });
+    const qc = makeClient();
+    const spy = jest.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useSendWhatsAppMessage({ contactPhone: '+5511999999999' }), {
+      wrapper: wrapper(qc, 'clinic-A'),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ message: 'olá' });
+    });
+
+    const predicate = capturedPredicate(spy);
+    expect(predicate({ queryKey: ['clinic', 'clinic-A', 'whatsapp-messages', 'c-1'] })).toBe(true);
+    expect(predicate({ queryKey: ['clinic', 'clinic-B', 'whatsapp-messages', 'c-9'] })).toBe(false);
+    expect(predicate({ queryKey: ['clinic', 'clinic-A', 'contacts', 'c-1'] })).toBe(false);
+  });
+
+  it('useSendWhatsAppMessage sem contactId nem tenant: fallback amplo-por-domínio', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'msg-2', status: 'sent' }),
+    });
+    const qc = makeClient();
+    const spy = jest.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(() => useSendWhatsAppMessage({ contactPhone: '+5511999999999' }), {
+      wrapper: wrapper(qc),
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({ message: 'olá' });
+    });
+
+    const predicate = capturedPredicate(spy);
+    expect(predicate({ queryKey: ['clinic', 'clinic-B', 'whatsapp-messages', 'c-9'] })).toBe(true);
+    expect(predicate({ queryKey: ['clinic', 'clinic-A', 'contacts', 'c-1'] })).toBe(false);
   });
 });
 
