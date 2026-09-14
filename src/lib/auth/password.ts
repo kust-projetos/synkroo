@@ -120,14 +120,18 @@ function safeEqualHex(aHex: string, bHex: string): boolean {
  * Returns a versioned string "scrypt$v1$N$r$p$salt-hex$hash-hex".
  */
 export async function hashPassword(password: string): Promise<string> {
-  const saltHex = randomBytes(SALT_LENGTH).toString('hex');
+  // Buffer.from(): randomBytes/scrypt tipam como NonSharedBuffer no
+  // @types/node atual (sem overload toString(encoding)) — o wrap normaliza
+  // para Buffer completo nos dois tsconfigs (app e workers). Sem mudança
+  // de comportamento em runtime.
+  const saltHex = Buffer.from(randomBytes(SALT_LENGTH)).toString('hex');
   const derived = await scryptAsync(password, Buffer.from(saltHex, 'hex'), KEY_LENGTH, {
     N: SCRYPT_N,
     r: SCRYPT_R,
     p: SCRYPT_P,
     maxmem: v1Maxmem(SCRYPT_N, SCRYPT_R),
   });
-  return `${HASH_PREFIX}$${HASH_VERSION}$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${saltHex}$${derived.toString('hex')}`;
+  return `${HASH_PREFIX}$${HASH_VERSION}$${SCRYPT_N}$${SCRYPT_R}$${SCRYPT_P}$${saltHex}$${Buffer.from(derived).toString('hex')}`;
 }
 
 /**
@@ -146,14 +150,14 @@ export async function verifyPassword(password: string, stored: string): Promise<
         p: versioned.p,
         maxmem: v1Maxmem(versioned.n, versioned.r),
       });
-      return safeEqualHex(derived.toString('hex'), versioned.hashHex);
+      return safeEqualHex(Buffer.from(derived).toString('hex'), versioned.hashHex);
     }
     if (isLegacyFormat(stored)) {
       const sepIdx = stored.indexOf(LEGACY_SEPARATOR);
       const salt = stored.slice(0, sepIdx);
       const key = stored.slice(sepIdx + 1);
       const derived = await scryptAsync(password, salt, KEY_LENGTH);
-      return safeEqualHex(derived.toString('hex'), key);
+      return safeEqualHex(Buffer.from(derived).toString('hex'), key);
     }
     return false;
   } catch {
