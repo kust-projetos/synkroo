@@ -13,6 +13,8 @@
 import { EventEmitter } from 'events';
 import { dbLogger } from '@/lib/logger';
 import { getEvolutionService } from './evolution-service';
+import { fetchWithRetry, DEFAULT_EXTERNAL_TIMEOUT_MS } from '@/lib/http/fetch-with-retry';
+import { withOutboundIdempotency, OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -38,6 +40,8 @@ export interface SendResult {
   success: boolean;
   messageId?: string;
   error?: string;
+  /** true quando a duplicata foi suprimida pelo claim de idempotência (A3). */
+  deduplicated?: boolean;
 }
 
 // ─── Provider detection ────────────────────────────────────────
@@ -54,26 +58,59 @@ function isFallbackConfigured(): boolean {
 
 // ─── Unified send facade ───────────────────────────────────────
 
-/** Send a WhatsApp message using the configured provider. */
+/**
+ * Executa `op` sob UM único claim de idempotência (REVIEW-A2A3): Evolution +
+ * fallback sidecar contam como UMA operação lógica — em falha ambígua da
+ * Evolution o fallback continua, mas sob o mesmo claim (sem duplo-envio).
+ * Conflito (`in_progress`/`retry_after`) propaga como
+ * `OutboundSendConflictError` — o caller decide (retry do job / `conflict`).
+ */
+async function runIdempotentSend(
+  idempotencyKey: string | undefined,
+  op: () => Promise<SendResult>,
+  opts?: { jobType?: string; completedTtlMs?: number },
+): Promise<SendResult> {
+  if (!idempotencyKey) return op();
+  const guarded = await withOutboundIdempotency(idempotencyKey, op, {
+    ...(opts?.jobType ? { jobType: opts.jobType } : {}),
+    ...(opts?.completedTtlMs !== undefined ? { completedTtlMs: opts.completedTtlMs } : {}),
+    isSuccess: (r) => r.success,
+  });
+  if (guarded.deduped) return { success: true, deduplicated: true };
+  return guarded.result ?? { success: false, error: 'Idempotency claim failed' };
+}
+
+/**
+ * Send a WhatsApp message using the configured provider.
+ *
+ * `idempotencyKey` (opcional, A3) ancora a operação lógica (ex.:
+ * `whatsapp:send:<clinicId>:<messageId>` via `buildOutboundIdempotencyKey`).
+ * Sem a chave, o comportamento é o legado (envio direto).
+ */
 export async function sendWhatsAppMessage(
-  phone: string, message: string,
+  phone: string, message: string, idempotencyKey?: string,
 ): Promise<SendResult> {
   const provider = detectProvider();
 
   if (provider === 'evolution') {
     const evolutionService = getEvolutionService();
     if (evolutionService) {
-      try {
-        const result = await evolutionService.sendTextMessage(phone, message);
-        if (result.success || !isFallbackConfigured()) return result;
-        dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
-        return getWhatsAppService().sendMessage(phone, message);
-      } catch (err) {
-        if (!isFallbackConfigured()) throw err;
-        dbLogger.error('channel-service: evolution send failed', err);
-        dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
-        return getWhatsAppService().sendMessage(phone, message);
-      }
+      // Claim único englobando Evolution + fallback (sem repasse da chave ao
+      // leaf — o leaf mantém o param para chamadores diretos).
+      const attempt = async (): Promise<SendResult> => {
+        try {
+          const result = await evolutionService.sendTextMessage(phone, message);
+          if (result.success || !isFallbackConfigured()) return result;
+          dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
+          return getWhatsAppService().sendMessage(phone, message);
+        } catch (err) {
+          if (!isFallbackConfigured()) throw err;
+          dbLogger.error('channel-service: evolution send failed', err);
+          dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
+          return getWhatsAppService().sendMessage(phone, message);
+        }
+      };
+      return runIdempotentSend(idempotencyKey, attempt);
     }
 
     if (isFallbackConfigured()) return getWhatsAppService().sendMessage(phone, message);
@@ -81,7 +118,7 @@ export async function sendWhatsAppMessage(
 
   if (provider === 'playwright') {
     const service = getWhatsAppService();
-    return service.sendMessage(phone, message);
+    return runIdempotentSend(idempotencyKey, () => service.sendMessage(phone, message));
   }
 
   return { success: false, error: 'No WhatsApp provider available' };
@@ -105,49 +142,70 @@ export async function sendByChannel(
   }
 }
 
-export async function sendWhatsApp(to: string, text: string): Promise<SendResult> {
-  try {
-    const evolution = getEvolutionService();
-    if (!evolution) {
-      return isFallbackConfigured()
-        ? getWhatsAppService().sendMessage(to, text)
-        : { success: false, error: 'Evolution service not available' };
-    }
-    const result = await evolution.sendTextMessage(to, text);
-    if (result.success || !isFallbackConfigured()) return result;
-    dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
-    return getWhatsAppService().sendMessage(to, text);
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    dbLogger.error('channel-service: evolution send failed', err);
-    if (isFallbackConfigured()) {
-      dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
+export async function sendWhatsApp(
+  to: string,
+  text: string,
+  idempotencyKey?: string,
+  opts?: { completedTtlMs?: number },
+): Promise<SendResult> {
+  // Claim único englobando Evolution + fallback (sem repasse da chave ao leaf).
+  const attempt = async (): Promise<SendResult> => {
+    try {
+      const evolution = getEvolutionService();
+      if (!evolution) {
+        return isFallbackConfigured()
+          ? getWhatsAppService().sendMessage(to, text)
+          : { success: false, error: 'Evolution service not available' };
+      }
+      const result = await evolution.sendTextMessage(to, text);
+      if (result.success || !isFallbackConfigured()) return result;
+      dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
       return getWhatsAppService().sendMessage(to, text);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      dbLogger.error('channel-service: evolution send failed', err);
+      if (isFallbackConfigured()) {
+        dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
+        return getWhatsAppService().sendMessage(to, text);
+      }
+      return { success: false, error: msg };
     }
-    return { success: false, error: msg };
-  }
+  };
+  return runIdempotentSend(idempotencyKey, attempt, opts);
 }
 
-export async function sendInstagram(to: string, text: string): Promise<SendResult> {
+export async function sendInstagram(to: string, text: string, idempotencyKey?: string): Promise<SendResult> {
   const accountId = process.env.INSTAGRAM_ACCOUNT_ID;
   const accessToken = process.env.INSTAGRAM_ACCESS_TOKEN;
   if (!accountId || !accessToken) {
     return { success: false, error: 'Instagram provider not configured' };
   }
 
-  try {
-    const response = await fetch(`https://graph.facebook.com/v18.0/${accountId}/messages`, {
+  // A2: POST de envio com timeout obrigatório e SEM retry (mutação sem
+  // chave de idempotência do provider). A3: claim local opt-in via chave.
+  const send = async (): Promise<SendResult> => {
+    const response = await fetchWithRetry(`https://graph.facebook.com/v18.0/${accountId}/messages`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ recipient: { id: to }, message: { text } }),
-    });
+    }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS });
     if (!response.ok) return { success: false, error: 'Instagram provider request failed' };
-    const payload = await response.json() as { message_id?: string };
+    let payload: { message_id?: string };
+    try {
+      payload = await response.json() as { message_id?: string };
+    } catch {
+      payload = {};
+    }
     return { success: true, messageId: payload.message_id };
+  };
+
+  try {
+    return await runIdempotentSend(idempotencyKey, send, { jobType: 'instagram:outbound' });
   } catch (err: unknown) {
+    if (err instanceof OutboundSendConflictError) throw err;
     dbLogger.error('channel-service: instagram send failed', err);
     return { success: false, error: 'Instagram provider request failed' };
   }
@@ -179,13 +237,13 @@ export class WhatsAppService extends EventEmitter {
     }
 
     try {
-      const res = await fetch(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/session/status`, {
+      const res = await fetchWithRetry(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/session/status`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${fallbackSecret}`,
         },
-      });
+      }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS });
 
       if (res.ok) {
         const data = await res.json() as { isConnected?: boolean; phoneNumber?: string | null };
@@ -211,14 +269,16 @@ export class WhatsAppService extends EventEmitter {
     }
 
     try {
-      const res = await fetch(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/messages/send`, {
+      // A2: POST de envio com timeout obrigatório e SEM retry (mutação sem
+      // idempotência no sidecar). O dedup por chave vive nas facades acima.
+      const res = await fetchWithRetry(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/messages/send`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${fallbackSecret}`,
         },
         body: JSON.stringify({ phone: to, message }),
-      });
+      }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS });
 
       if (!res.ok) {
         const errPayload = await res.json().catch(() => ({})) as { error?: string };
@@ -246,12 +306,12 @@ export class WhatsAppService extends EventEmitter {
       return null;
     }
     try {
-      const res = await fetch(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/session/qrcode`, {
+      const res = await fetchWithRetry(`${fallbackUrl.replace(/\/+$/, '')}/api/v1/session/qrcode`, {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${fallbackSecret}`,
         },
-      });
+      }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS });
       if (!res.ok) return null;
       const data = await res.json() as { qrcode?: string | null };
       return data.qrcode ?? null;

@@ -13,6 +13,7 @@ import { dbLogger, whatsappLogger } from '@/lib/logger';
 import { getDb } from '@/lib/db/client';
 import { whatsappInstances } from '@/modules/atendimento/schema/integrations';
 import { eq } from 'drizzle-orm';
+import { fetchWithRetry, DEFAULT_EXTERNAL_TIMEOUT_MS } from '@/lib/http/fetch-with-retry';
 
 export interface EvolutionInstance {
   instance: {
@@ -66,6 +67,14 @@ export interface SendTextMessageInput {
     delay?: number;
     presence?: 'composing' | 'recording';
     linkPreview?: boolean;
+    /**
+     * Chave de idempotência da operação lógica — COMPAT: aceita e ignorada
+     * neste nível. O claim vive exclusivamente na facade (`channel-service`,
+     * que engloba Evolution + fallback sidecar numa única operação).
+     * NENHUM header de idempotência é enviado à Evolution (sem suporte nativo
+     * documentado).
+     */
+    idempotencyKey?: string;
   };
 }
 
@@ -105,18 +114,35 @@ export class EvolutionApiService extends EventEmitter {
   ): Promise<{ success: boolean; data?: T; error?: string }> {
     try {
       const url = `${this.baseUrl}${endpoint}`;
-      const response = await fetch(url, {
-        method,
-        headers: this.getHeaders(),
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const data = (await response.json()) as Record<string, unknown>;
+      // A2: timeout explícito em toda chamada; retry SOMENTE p/ GET/observação.
+      // POST de envio NÃO retrya no client (a proteção contra duplicação é o
+      // claim exclusivo da facade em `channel-service.runIdempotentSend`).
+      const response = await fetchWithRetry(
+        url,
+        {
+          method,
+          headers: this.getHeaders(),
+          body: body ? JSON.stringify(body) : undefined,
+        },
+        { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS, idempotent: method === 'GET' },
+      );
+      let data: Record<string, unknown>;
+      try {
+        data = (await response.json()) as Record<string, unknown>;
+      } catch {
+        data = {};
+      }
       if (!response.ok) {
-        whatsappLogger.error('Evolution API error', null, { status: response.status, data });
-        return { success: false, error: (data.message as string) || (data.error as string) || `HTTP ${response.status}` };
+        // REVIEW-A2A3: nunca logar o body do provider (pode conter apikey e
+        // outros segredos) — apenas status + mensagem sanitizada. O logger
+        // serializa message/stack (redige chaves sensíveis) e ignora `cause`.
+        const providerMessage = (data.message as string) || (data.error as string) || `HTTP ${response.status}`;
+        whatsappLogger.error('Evolution API error', null, { status: response.status, error: providerMessage });
+        return { success: false, error: providerMessage };
       }
       return { success: true, data: data as T };
     } catch (error) {
+      // ExternalHttpError já é sanitizado (método+host+path, sem headers/body/query).
       whatsappLogger.error('Evolution API request failed', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
@@ -192,10 +218,14 @@ export class EvolutionApiService extends EventEmitter {
 
   async sendTextMessage(
     number: string, text: string, options?: SendTextMessageInput['options'],
-  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  ): Promise<{ success: boolean; messageId?: string; error?: string; deduplicated?: boolean }> {
     let formattedNumber = number.replace(/\D/g, '');
     if (!formattedNumber.startsWith('55')) formattedNumber = '55' + formattedNumber;
 
+    // RE-REVIEW-A2A3: sem claim neste nível — o claim vive EXCLUSIVAMENTE na
+    // facade (`channel-service.runIdempotentSend`, que engloba Evolution +
+    // fallback sidecar). `options.idempotencyKey` é aceito por compat e
+    // ignorado aqui. Envio direto, sem retry de POST (ver `request`).
     // Evolution GO v0.7.2: POST /send/text (instance resolved by apikey token)
     const result = await this.request<{ data: { Info: { ID: string } } }>(
       'POST', '/send/text',
