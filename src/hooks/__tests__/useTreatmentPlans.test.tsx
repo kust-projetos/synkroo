@@ -244,8 +244,13 @@ describe('useTreatmentPlans Hook Suite', () => {
       });
 
       expect(result.current.data).toEqual(updatedPlan);
-      // G1: scoped keys — invalidation goes through a predicate.
-      expect(invalidateSpy).toHaveBeenCalledWith({ predicate: expect.any(Function) });
+      // G1: invalidações exatas — detail + lista do paciente (sem predicate amplo).
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['clinic', 'unscoped', 'treatment-plan', 'tp-10'],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['clinic', 'unscoped', 'treatment-plans', 'pat-200'],
+      });
     });
 
     it('throws error when update API request fails', async () => {
@@ -292,8 +297,10 @@ describe('useTreatmentPlans Hook Suite', () => {
       });
 
       expect(result.current.data).toEqual(sessionResult);
-      // G1: scoped keys — invalidation goes through a predicate.
-      expect(invalidateSpy).toHaveBeenCalledWith({ predicate: expect.any(Function) });
+      // G1: invalidação exata do detail (sem predicate amplo).
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['clinic', 'unscoped', 'treatment-plan', 'tp-50'],
+      });
     });
 
     it('throws error when session update API request fails', async () => {

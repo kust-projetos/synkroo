@@ -253,7 +253,7 @@ function WhatsAppTab({ contactPhone, contactId }: { contactPhone?: string; conta
           <EmptyState title="Sem mensagens" />
         )}
       </div>
-      <MessageComposer contactPhone={contactPhone} />
+      <MessageComposer contactPhone={contactPhone} contactId={contactId} />
     </div>
   )
 }

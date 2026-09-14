@@ -8,14 +8,17 @@ import { cn } from '@/lib/utils'
 
 interface MessageComposerProps {
   contactPhone: string
+  /** G1: id do contato — sem ele o hook cai no fallback de domínio inteiro. */
+  contactId?: string
   onMessageSent?: () => void
 }
 
-export function MessageComposer({ contactPhone, onMessageSent }: MessageComposerProps) {
+export function MessageComposer({ contactPhone, contactId, onMessageSent }: MessageComposerProps) {
   const [message, setMessage] = useState('')
 
   const sendMutation = useSendWhatsAppMessage({
     contactPhone,
+    contactId,
     onSuccess: () => {
       setMessage('')
       onMessageSent?.()

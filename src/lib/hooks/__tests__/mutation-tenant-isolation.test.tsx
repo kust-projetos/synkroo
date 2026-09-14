@@ -13,6 +13,7 @@ import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
+  invalidateCalendarDateKeys,
   invalidateClinicDomain,
   invalidateDomainAllTenants,
   useCreateTask,
@@ -115,7 +116,7 @@ describe('R4 — mutation escopada atinge só o tenant atual', () => {
     expect(predicate({ queryKey: ['clinic', 'clinic-1', 'treatment-plans', 'other'] })).toBe(false);
   });
 
-  it('useRecordPayment com tenant no contexto: match por budget_id restrito à clínica', async () => {
+  it('useRecordPayment: invalidação exata do budget + derivados, sem predicate amplo', async () => {
     (global.fetch as jest.Mock).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ data: { id: 'pay-1', budget_id: 'b-1' } }),
@@ -130,10 +131,22 @@ describe('R4 — mutation escopada atinge só o tenant atual', () => {
       await result.current.mutateAsync({ budget_id: 'b-1', amount: 50, payment_method: 'pix' });
     });
 
-    const predicate = capturedPredicate(spy);
-    expect(predicate({ queryKey: ['clinic', 'clinic-A', 'payments', 'b-1'] })).toBe(true);
-    expect(predicate({ queryKey: ['clinic', 'clinic-B', 'payments', 'b-1'] })).toBe(false);
-    expect(predicate({ queryKey: ['clinic', 'clinic-A', 'payments', 'b-9'] })).toBe(false);
+    // G1: key canônica exata do budget + derivado do dashboard.
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ['clinic', 'clinic-A', 'financeiro', 'payments', 'b-1'],
+    });
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ['clinic', 'clinic-A', 'financeiro', 'dashboard'],
+    });
+    // Derivado financial-summary: domínio da clínica (patientId indisponível na mutation).
+    const domainCall = spy.mock.calls.find(
+      (c) => typeof (c[0] as { predicate?: unknown })?.predicate === 'function',
+    );
+    expect(domainCall).toBeDefined();
+    const predicate = (domainCall![0] as { predicate: (q: any) => boolean }).predicate;
+    expect(predicate({ queryKey: ['clinic', 'clinic-A', 'financial-summary', 'p-1'] })).toBe(true);
+    expect(predicate({ queryKey: ['clinic', 'clinic-B', 'financial-summary', 'p-1'] })).toBe(false);
+    expect(predicate({ queryKey: ['clinic', 'clinic-A', 'financeiro', 'dashboard'] })).toBe(false);
   });
 
   it('useSendWhatsAppMessage sem contactId e com tenant: escopado à clínica', async () => {
@@ -175,6 +188,84 @@ describe('R4 — mutation escopada atinge só o tenant atual', () => {
     const predicate = capturedPredicate(spy);
     expect(predicate({ queryKey: ['clinic', 'clinic-B', 'whatsapp-messages', 'c-9'] })).toBe(true);
     expect(predicate({ queryKey: ['clinic', 'clinic-A', 'contacts', 'c-1'] })).toBe(false);
+  });
+
+  it('useSendWhatsAppMessage com contactId: invalidação exata da key', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 'msg-3', status: 'sent' }),
+    });
+    const qc = makeClient();
+    const spy = jest.spyOn(qc, 'invalidateQueries');
+    const { result } = renderHook(
+      () => useSendWhatsAppMessage({ contactPhone: '+5511999999999', contactId: 'c-1' }),
+      {
+        wrapper: wrapper(qc, 'clinic-A'),
+      },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({ message: 'olá' });
+    });
+
+    // G1: caminho quente — key exata, sem predicate de domínio.
+    expect(spy).toHaveBeenCalledWith({
+      queryKey: ['clinic', 'clinic-A', 'whatsapp-messages', 'c-1'],
+    });
+  });
+});
+
+describe('G1 — invalidateCalendarDateKeys (validação estrita, fallback conservador)', () => {
+  // Monta a qs como useCalendarEvents: clinic_id + start_date + end_date (+ filtros).
+  const qs = (start: string, end: string) =>
+    new URLSearchParams({ clinic_id: 'clinic-A', start_date: start, end_date: end }).toString();
+  const calKey = (clinic: string, q: unknown) => ({ queryKey: ['clinic', clinic, 'calendar-events', q] });
+
+  function runPredicate(qc: QueryClient, clinicId: string | undefined, ...dates: string[]) {
+    const spy = jest.spyOn(qc, 'invalidateQueries');
+    invalidateCalendarDateKeys(qc, clinicId, ...dates);
+    const call = spy.mock.calls[0]?.[0] as { predicate?: (q: any) => boolean };
+    expect(typeof call?.predicate).toBe('function');
+    return call.predicate!;
+  }
+
+  it('(a) faixa válida que contém a data afetada → true', () => {
+    const predicate = runPredicate(makeClient(), 'clinic-A', '2026-09-14');
+    expect(predicate(calKey('clinic-A', qs('2026-09-01', '2026-09-30')))).toBe(true);
+  });
+
+  it('(b) faixa válida sem sobreposição → false', () => {
+    const predicate = runPredicate(makeClient(), 'clinic-A', '2026-10-05');
+    expect(predicate(calKey('clinic-A', qs('2026-09-01', '2026-09-30')))).toBe(false);
+  });
+
+  it('(c) faixa com datas inválidas → true (nunca stale)', () => {
+    const predicate = runPredicate(makeClient(), 'clinic-A', '2026-09-14');
+    // Texto livre parseável mas fora do formato/calendário.
+    expect(predicate(calKey('clinic-A', 'start_date=invalid&end_date=invalid'))).toBe(true);
+    // Formato ok, calendário impossível (rollover silencioso do Date).
+    expect(predicate(calKey('clinic-A', qs('2026-02-30', '2026-03-02')))).toBe(true);
+    // Faixa invertida.
+    expect(predicate(calKey('clinic-A', qs('2026-09-30', '2026-09-01')))).toBe(true);
+  });
+
+  it('(d) params ausentes → true', () => {
+    const predicate = runPredicate(makeClient(), 'clinic-A', '2026-09-14');
+    expect(predicate(calKey('clinic-A', 'clinic_id=clinic-A'))).toBe(true);
+    expect(predicate(calKey('clinic-A', ''))).toBe(true);
+  });
+
+  it('(e) data afetada inválida → true', () => {
+    const predicate = runPredicate(makeClient(), 'clinic-A', 'not-a-date');
+    expect(predicate(calKey('clinic-A', qs('2026-09-01', '2026-09-30')))).toBe(true);
+  });
+
+  it('(f) outro tenant ou outro domínio → false', () => {
+    const predicate = runPredicate(makeClient(), 'clinic-A', '2026-09-14');
+    expect(predicate(calKey('clinic-B', qs('2026-09-01', '2026-09-30')))).toBe(false);
+    expect(
+      predicate({ queryKey: ['clinic', 'clinic-A', 'appointments', 'date=2026-09-14'] }),
+    ).toBe(false);
   });
 });
 

@@ -4,7 +4,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { clinicScope, invalidateClinicKeys, useResolvedClinicId } from '@/lib/hooks/use-queries'
+import { invalidateClinicDomain, queryKeys, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 export interface Payment {
   id: string
@@ -63,7 +63,9 @@ async function recordPayment(input: RecordPaymentInput): Promise<{
 export function usePayments(budgetId: string | null, clinicId?: string) {
   const resolved = useResolvedClinicId(clinicId)
   return useQuery({
-    queryKey: clinicScope(resolved, 'payments', budgetId),
+    // G1: key canônica — mesma factory usada em use-queries.ts
+    // ('financeiro','payments',budgetId); antes divergia ('payments',budgetId).
+    queryKey: queryKeys.budgetPayments(budgetId, resolved),
     queryFn: () => fetchPayments(budgetId!),
     enabled: !!budgetId,
   })
@@ -76,14 +78,15 @@ export function useRecordPayment() {
   return useMutation({
     mutationFn: recordPayment,
     onSuccess: (data, variables) => {
-      // R4: entidade pai (budget_id do retorno, senão das variáveis),
-      // tenant do contexto; match por id restrito ao tenant.
+      // G1: invalidação exata do budget + derivados (antes: predicate
+      // amplo `includes(budgetId)` restrito ao tenant).
       const budgetId = data?.payment?.budget_id ?? variables?.budget_id
-      invalidateClinicKeys(
-        queryClient,
-        clinicId,
-        (key) => budgetId != null && key.includes(budgetId),
-      )
+      if (budgetId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.budgetPayments(budgetId, clinicId) })
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.financeDashboard(clinicId) })
+      // Derivado sem patientId na mutation: domínio financial-summary da clínica.
+      invalidateClinicDomain(queryClient, clinicId, 'financial-summary')
     },
   })
 }
