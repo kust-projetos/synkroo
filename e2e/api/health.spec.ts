@@ -1,14 +1,11 @@
 import { test, expect } from '@playwright/test'
 test.describe('GET /api/health', () => {
-  test('returns health status', async ({ request }) => {
+  test('returns liveness status without DB dependency', async ({ request }) => {
     const response = await request.get('/api/health')
-    expect(response.status()).toBeLessThan(500)
+    expect(response.status()).toBe(200)
     const body = await response.json()
-    expect(body).toHaveProperty('status')
-    expect(body).toHaveProperty('checks')
-  })
-  test('includes database check', async ({ request }) => {
-    const body = await (await request.get('/api/health')).json()
-    expect(body.checks).toHaveProperty('database')
+    expect(body.status).toBe('ok')
+    expect(body).toHaveProperty('timestamp')
+    expect(body).not.toHaveProperty('checks')
   })
 })
