@@ -170,11 +170,10 @@ src/
 
 ## Débitos registrados (pós-hardening V1)
 
-- **Contrato de API (D2 residual):** ~17 handlers legados em `src/services/api-handlers/**` ainda respondem sem o envelope canônico `{ data, meta? }` / `{ error: { code, message, requestId } }` (ver `ADR-BASE-10`); consumidor acoplado conhecido: `src/components/campaigns/campaign-wizard.tsx` ↔ `campaigns/segments/preview`. Migrations de `services/api-handlers` para o envelope pendentes — migrar servidor + consumidor atomicamente no mesmo PR (ou adapter temporário com remoção após zero consumidores legados).
-- **Boundaries (F3 onda c):** `services/**` importando fundo de `modules/**` — 35 violações mapeadas; endurecer boundaries (via `eslint.rules.json`) antes de restringir o `default: allow`.
+- **Contrato de API (D2 — follow-up 2026-09-14):** handlers de `src/services/api-handlers/**` migrados ao envelope canônico (fatias health/db, 429, knowledge); exceções deliberadas documentadas no `ADR-BASE-10`. Residual: padrão 429 com `retryAfter` no body persiste em rotas fora de api-handlers (`waitlist`, `waitlist/fill`, `appointments`, `patients`, `cron/{smart-triggers,reminders,crm-duplicates}`, `api-handlers/cron/followups.ts`) — migrar para envelope com `Retry-After` só em header, atualizando `src/app/api/cron/crm-duplicates/route.test.ts` (asserção do body legado) no mesmo PR. Follow-ups menores: auditar `knowledge/{search,ingest}` quanto ao envelope; remover shim `is_active` do PUT knowledge após zero consumidores legados (data no ADR).
+- **Boundaries (F3 onda c):** `services/**` importando fundo de `modules/**` — varredura 2026-09-14 encontrou 20 ocorrências em ~11 arquivos (contagem 35 era stale); apenas 2 violações de fundo reais, ambas isentas em testes. Endurecer boundaries (via `eslint.rules.json`) antes de restringir o `default: allow`.
 - **Boundaries/plugin (R4 diagnóstico):** `boundaries/dependencies` (v6) não resolve o alias `@/` (trata como pacote externo — `SCOPED_PACKAGE_REGEX`) e os patterns v4-style não casam no `folder-mode` default; gate efetivo hoje é `no-restricted-imports` em `src/services/**`. Migração da config para semântica v6 ou resolver de alias é decisão arquitetural separada.
 - **Frontend (G1 residual):** predicates amplos de mutation/invalidação no frontend (over-invalidation — seguro, mas custoso); refinar para invalidação por clínica/recurso após D2.
-- **CI (F1):** remover `continue-on-error: true` do job "Production E2E (no retries)" em `.github/workflows/ci.yml:98` após estabilidade medida no CI — a flag não sai com suíte vermelha.
 
 ## VPS
 - Operação: `docs/ops/vps-access.md`.
