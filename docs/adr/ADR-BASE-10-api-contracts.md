@@ -33,6 +33,8 @@ Contratos fora do envelope, aceitos explicitamente — não são débito de migr
 | `GET /api/cron/cleanup` | `{ status, message, tasks, timestamp }` | Probe operacional de scheduler; o POST do mesmo handler segue o envelope |
 | `/api/seed` | Contrato próprio de provisioning | Protegido por `SEED_SECRET` (middleware `transportAuth`); usado também no setup E2E — não é contrato público de recurso |
 | `/api/budgets/[id]` (legado) | Payloads legados dependentes do método (`{ budget }`, `{ success: true }`, erros `{ error: string }`) + headers `Deprecation`/`Link rel=successor-version` | Strangler em extinção; sucessor canônico é `/api/financeiro/budgets/*` |
+| `POST /api/instagram/webhook` | 429 shape `{ error: 'Rate limit exceeded' }` sem header | Webhook de provedor externo que não consome o body; assinatura validada antes do rate limit |
+| `POST /api/messages/inbound` | 429 shape `{ error: 'Rate limit exceeded' }` sem header | Webhook de provedor externo que não consome o body; assinatura validada antes do rate limit |
 
 Regra para novas superfícies: qualquer resposta fora do envelope exige entrada nesta tabela com justificativa.
 

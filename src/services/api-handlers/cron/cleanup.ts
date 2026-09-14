@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import { lt } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { appointmentReminders, conversationStates, waitlist, conversationSessions } from '@/lib/db/schema'
-import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response'
+import { apiSuccess, apiFailure, apiRateLimited, generateRequestId } from '@/lib/api/response'
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
@@ -27,10 +27,7 @@ export async function POST(request: NextRequest) {
 
     const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
     if (!rateLimit.allowed) {
-      return NextResponse.json(
-        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId } },
-        { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
-      )
+      return apiRateLimited(requestId, rateLimit.retryAfter ?? 0)
     }
 
     const db = getDb()
