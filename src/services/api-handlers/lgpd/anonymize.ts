@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   try {
     const { buildUserContext } = await import('@/core/actions/context');
     const { runAction } = await import('@/core/actions/run');
-    const { anonimizarPaciente } = await import('@/modules/operacional/actions/anonimizar-paciente');
+    const { anonimizarPaciente } = await import('@/modules/operacional');
     const parsed = inputSchema.safeParse(await request.json());
     if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
     const result = await runAction(anonimizarPaciente, parsed.data, await buildUserContext());
