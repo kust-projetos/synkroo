@@ -1,4 +1,9 @@
 import type { NextConfig } from 'next'
+import withBundleAnalyzer from '@next/bundle-analyzer'
+
+const withAnalyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+})
 
 const nextConfig: NextConfig = {
   // Externalizar deps com APIs Node (fs/path/stream) — Workers fornece polyfills via nodejs_compat
@@ -68,4 +73,4 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+export default withAnalyzer(nextConfig)
