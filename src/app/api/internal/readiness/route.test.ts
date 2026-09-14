@@ -5,11 +5,13 @@ import { getDb } from '@/lib/db/client';
 
 jest.mock('@/lib/auth/session', () => ({ getSession: jest.fn() }));
 const mdb = {
-  execute: jest.fn().mockResolvedValue({ rows: [{ '?column?': 1 }] }),
+  execute: jest.fn().mockResolvedValue({ rows: [{ count: 30 }] }),
+  transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(mdb)),
 } as any;
 jest.mock('@/lib/db/client', () => ({ getDb: jest.fn(() => mdb) }));
 
 const mockGetSession = getSession as jest.MockedFunction<typeof getSession>;
+const mockGetDb = getDb as jest.Mock;
 const DRIVER_MARKER = 'DRIVER_SECRET_MARKER_9f8b';
 
 function readinessRequest(withSecret: string | null = null): NextRequest {
@@ -18,9 +20,22 @@ function readinessRequest(withSecret: string | null = null): NextRequest {
   return new NextRequest('http://localhost/api/internal/readiness', { headers });
 }
 
+/** Extrai o texto SQL estático dos chunks do template drizzle (white-box). */
+function executedSqlTexts(): string[] {
+  const chunkText = (c: { value?: unknown }): string => {
+    const values = Array.isArray(c?.value) ? c.value : [c?.value];
+    return values.filter((x): x is string => typeof x === 'string').join('');
+  };
+  return mdb.execute.mock.calls.map(([q]: any[]) =>
+    ((q?.queryChunks ?? []) as Array<{ value?: unknown }>).map(chunkText).join(''),
+  );
+}
+
 beforeEach(() => {
   jest.clearAllMocks();
-  mdb.execute.mockResolvedValue({ rows: [{ '?column?': 1 }] });
+  mdb.execute.mockResolvedValue({ rows: [{ count: 30 }] });
+  mdb.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(mdb));
+  mockGetDb.mockReturnValue(mdb);
   process.env.CRON_SECRET = 'test-cron-secret';
 });
 
@@ -64,6 +79,13 @@ describe('GET /api/internal/readiness', () => {
     expect((await response.json()).status).toBe('ready');
   });
 
+  it('aplica statement_timeout nas queries via transação', async () => {
+    await GET(readinessRequest('test-cron-secret'));
+
+    expect(mdb.transaction).toHaveBeenCalled();
+    expect(executedSqlTexts().some((t) => t.includes('statement_timeout'))).toBe(true);
+  });
+
   it('returns 503 com motivo estático quando DB falha, sem vazar driver', async () => {
     mdb.execute.mockRejectedValue(new Error(`${DRIVER_MARKER} connection refused`));
 
@@ -73,21 +95,48 @@ describe('GET /api/internal/readiness', () => {
     const body = await response.json();
     expect(body.status).toBe('not-ready');
     expect(body.reason).toBe('db-unreachable');
+    expect(typeof body.durationMs).toBe('number');
     expect(JSON.stringify(body)).not.toContain(DRIVER_MARKER);
   });
 
-  it('returns 503 quando migrations incompletas', async () => {
-    // SELECT 1 ok, mas primeira tabela ausente
+  it('estouro de statement_timeout vira 503 db-unreachable', async () => {
+    mdb.execute.mockRejectedValue(new Error('canceling statement due to statement timeout'));
+
+    const response = await GET(readinessRequest('test-cron-secret'));
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.reason).toBe('db-unreachable');
+    expect(typeof body.durationMs).toBe('number');
+  });
+
+  it('getDb() lançando vira 503 db-unreachable com durationMs', async () => {
+    mockGetDb.mockImplementation(() => {
+      throw new Error(`${DRIVER_MARKER} No database connection available`);
+    });
+
+    const response = await GET(readinessRequest('test-cron-secret'));
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.reason).toBe('db-unreachable');
+    expect(typeof body.durationMs).toBe('number');
+    expect(JSON.stringify(body)).not.toContain(DRIVER_MARKER);
+  });
+
+  it('returns 503 quando ledger de migrations incompleto, com durationMs', async () => {
+    // SET LOCAL ok, SELECT 1 ok, ledger com 5 aplicadas
     mdb.execute
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
-      .mockRejectedValueOnce(new Error(`${DRIVER_MARKER} relation does not exist`))
-      .mockResolvedValue({ rows: [{ '?column?': 1 }] });
+      .mockResolvedValue({ rows: [{ count: 5 }] });
 
     const response = await GET(readinessRequest('test-cron-secret'));
 
     expect(response.status).toBe(503);
     const body = await response.json();
     expect(body.reason).toBe('migrations-incomplete');
+    expect(typeof body.durationMs).toBe('number');
     expect(JSON.stringify(body)).not.toContain(DRIVER_MARKER);
   });
 });
