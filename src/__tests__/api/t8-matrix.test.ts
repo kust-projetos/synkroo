@@ -178,10 +178,11 @@ describe('T8 budgets/[id]/reject — matriz', () => {
 });
 
 // ── Campaigns segments ─────────────────────────────────────────────────────
+// D2 lote 5/5 (followup): envelope canônico.
 describe('T8 campaigns/segments — matriz', () => {
-  it('GET 401 anônimo', async () => { authAnon(); const r = await SegmentsGET(new Request('http://x') as any); expect(r.status).toBe(401); });
+  it('GET 401 anônimo (envelope canônico)', async () => { authAnon(); const r = await SegmentsGET(new Request('http://x') as any); expect(r.status).toBe(401); expect((await r.json()).error.code).toBe('UNAUTHORIZED'); });
   it('GET 403 sem permissão', async () => { authForbidden(); const r = await SegmentsGET(new Request('http://x') as any); expect(r.status).toBe(403); });
-  it('GET 200 clínica correta', async () => { authOk(); (listSegments as jest.Mock).mockResolvedValue([]); const r = await SegmentsGET(new Request('http://x') as any); expect(r.status).toBe(200); expect(listSegments).toHaveBeenCalledWith('clinic-a'); });
+  it('GET 200 clínica correta (envelope canônico)', async () => { authOk(); (listSegments as jest.Mock).mockResolvedValue([]); const r = await SegmentsGET(new Request('http://x') as any); expect(r.status).toBe(200); expect(listSegments).toHaveBeenCalledWith('clinic-a'); expect((await r.json()).data.segments).toEqual([]); });
   it('POST 401 anônimo', async () => { authAnon(); const r = await SegmentsPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any); expect(r.status).toBe(401); });
   it('POST 403 sem permissão', async () => { authForbidden(); const r = await SegmentsPOST(new Request('http://x', { method: 'POST', body: JSON.stringify({ name: 'x', criteria: {} }) }) as any); expect(r.status).toBe(403); });
   it('GET preview 401 anônimo', async () => { authAnon(); const r = await SegmentsPreviewGET(new Request('http://x?type=reactivation') as any); expect(r.status).toBe(401); });
@@ -223,10 +224,12 @@ describe('T8 knowledge — matriz', () => {
 });
 
 // ── Reports financial ──────────────────────────────────────────────────────
+// D2 lote 5/5: envelope canônico.
 describe('T8 reports/financial — matriz', () => {
-  it('401 anônimo', async () => { authAnon(); const r = await ReportsFinancialGET(new Request('http://x?period=month') as any); expect(r.status).toBe(401); });
+  it('401 anônimo (envelope canônico)', async () => { authAnon(); const r = await ReportsFinancialGET(new Request('http://x?period=month') as any); expect(r.status).toBe(401); expect((await r.json()).error.code).toBe('UNAUTHORIZED'); });
   it('403 sem permissão', async () => { authForbidden(); const r = await ReportsFinancialGET(new Request('http://x?period=month') as any); expect(r.status).toBe(403); });
-  it('200 clínica correta tenant-scoped', async () => { authOk(); (getFinancialReport as jest.Mock).mockResolvedValue({ period: '2026-09', revenue: 100, payments: 50, outstanding: 50, byProcedure: [] }); const r = await ReportsFinancialGET(new Request('http://x?period=month') as any); expect(r.status).toBe(200); expect(getFinancialReport).toHaveBeenCalledWith('clinic-a', 'month', expect.any(Date)); });
+  it('400 sem period (envelope canônico)', async () => { authOk(); const r = await ReportsFinancialGET(new Request('http://x') as any); expect(r.status).toBe(400); expect((await r.json()).error.code).toBe('INVALID_INPUT'); });
+  it('200 clínica correta tenant-scoped (envelope canônico)', async () => { authOk(); (getFinancialReport as jest.Mock).mockResolvedValue({ period: '2026-09', revenue: 100, payments: 50, outstanding: 50, byProcedure: [] }); const r = await ReportsFinancialGET(new Request('http://x?period=month') as any); expect(r.status).toBe(200); expect(getFinancialReport).toHaveBeenCalledWith('clinic-a', 'month', expect.any(Date)); expect((await r.json()).data.revenue).toBe(100); });
 });
 
 // ── Treatment plans ────────────────────────────────────────────────────────

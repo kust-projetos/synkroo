@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { addCampaignRecipients } from '@/services/followup/campaign.service'
 import { getPatientsForReactivation } from '@/services/followup/inactive-patient.service'
 import { validateApiAuth } from '@/lib/auth/session'
-import { handleApiError, ValidationError } from '@/lib/errors'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import * as campaignRepo from '@/repositories/campaigns'
 
 /**
@@ -10,29 +11,27 @@ import * as campaignRepo from '@/repositories/campaigns'
  * Add recipients to a campaign
  * Requires: owner or admin role
  */
-export async function POST(
+async function handlePOST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = generateRequestId()
   try {
     const { id: campaignId } = await params
     const body = await request.json()
 
     const authResult = await validateApiAuth('followup:manage_campaigns')
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const campaign = await campaignRepo.findCampaignById(campaignId)
     if (!campaign) {
-      return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
+      return apiFailure('NOT_FOUND', 'Campaign not found', requestId, 404)
     }
 
     if (campaign.clinicId !== authResult.profile!.clinic_id) {
-      return NextResponse.json({ error: 'Access denied to this campaign' }, { status: 403 })
+      return apiFailure('FORBIDDEN', 'Access denied to this campaign', requestId, 403)
     }
 
     if (body.auto_detect && body.target_segment) {
@@ -42,7 +41,7 @@ export async function POST(
       )
 
       if (patients.length === 0) {
-        return NextResponse.json({
+        return apiSuccess({
           success: true,
           added: 0,
           message: 'No patients found for this segment',
@@ -54,17 +53,19 @@ export async function POST(
         patients.map((p: any) => p.patientId)
       )
 
-      return NextResponse.json(result)
+      return apiSuccess(result)
     }
 
     if (!body.patient_ids || !Array.isArray(body.patient_ids)) {
-      return handleApiError(new ValidationError('patient_ids array is required'))
+      return apiFailure('INVALID_INPUT', 'patient_ids array is required', requestId, 400)
     }
 
     const result = await addCampaignRecipients(campaignId, body.patient_ids)
 
-    return NextResponse.json(result)
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess(result)
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
+
+export const POST = withModuleRoute('followup')(handlePOST)

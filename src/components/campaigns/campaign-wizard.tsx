@@ -160,12 +160,13 @@ Que tal agendar uma consulta de retorno? Sua saúde bucal agradece! 🦷
         }),
       })
 
-      const data = await response.json()
+      const body = await response.json()
 
       if (response.ok) {
         toast.showToast('Campanha criada com sucesso!', 'success')
         onOpenChange(false)
-        onComplete?.(data)
+        // Contrato canônico (D2 lote 5): { data: { success, campaign, ... } }
+        onComplete?.(body.data)
         setCurrentStep(1)
         setFormData({
           name: '',
@@ -175,7 +176,7 @@ Que tal agendar uma consulta de retorno? Sua saúde bucal agradece! 🦷
           startImmediately: true,
         })
       } else {
-        toast.showToast(data.error || 'Erro ao criar campanha', 'error')
+        toast.showToast(body.error?.message || 'Erro ao criar campanha', 'error')
       }
     } catch (error) {
       toast.showToast('Erro de conexão. Tente novamente.', 'error')

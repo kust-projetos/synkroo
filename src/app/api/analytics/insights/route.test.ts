@@ -29,22 +29,37 @@ beforeEach(() => {
 })
 
 describe('GET /api/analytics/insights', () => {
-  it('returns explicit period metadata', async () => {
+  it('returns explicit period metadata (envelope canônico)', async () => {
     const response = await GET(new NextRequest(
       'http://localhost/api/analytics/insights?trend_days=30&forecast_days=14',
     ))
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.period).toEqual(expect.objectContaining({ trendDays: 30, forecastDays: 14 }))
+    expect(body.data.period).toEqual(expect.objectContaining({ trendDays: 30, forecastDays: 14 }))
   })
 
-  it('rejects invalid period lengths before querying analytics', async () => {
+  it('rejects invalid period lengths before querying analytics (envelope canônico)', async () => {
     const response = await GET(new NextRequest(
       'http://localhost/api/analytics/insights?trend_days=0',
     ))
+    const body = await response.json()
 
     expect(response.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_INPUT')
+    expect(mockGetClinicInsights).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 envelope canônico quando não autenticado', async () => {
+    mockValidateApiAuth.mockResolvedValue({
+      success: false,
+      error: { message: 'Unauthorized', status: 401 },
+    })
+    const response = await GET(new NextRequest('http://localhost/api/analytics/insights'))
+    const body = await response.json()
+
+    expect(response.status).toBe(401)
+    expect(body.error.code).toBe('UNAUTHORIZED')
     expect(mockGetClinicInsights).not.toHaveBeenCalled()
   })
 })

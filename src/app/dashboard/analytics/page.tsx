@@ -59,8 +59,9 @@ export default function AnalyticsPage() {
       setRisksLoading(true)
       const response = await fetch('/api/analytics/noshow-prediction')
       if (response.ok) {
-        const data = await response.json()
-        setNoShowRisks(data.predictions || [])
+        const body = await response.json()
+        // Contrato canônico (D2 lote 5): { data: { predictions, summary } }
+        setNoShowRisks(body.data?.predictions || [])
       }
     } catch {
       setRisksError('Falha ao carregar previsões de no-show')
