@@ -20,15 +20,15 @@ import { buildCronContext } from '@/core/actions/context';
 import { getDb } from '@/lib/db/client';
 import { eq, isNull } from 'drizzle-orm';
 import { clinics } from '@/lib/db/schema/core';
-import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
+import { processarNotificacoesLeadsQuentes } from '@/modules/comercial';
 import { assertModuleForJob } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';
-import { executarFollowup } from '@/modules/followup/actions/executar-followup';
-import { detectarInativos } from '@/modules/followup/actions/detectar-inativos';
-import { executarCampanhas } from '@/modules/followup/actions/executar-campanhas';
+import { executarFollowup } from '@/modules/followup';
+import { detectarInativos } from '@/modules/followup';
+import { executarCampanhas } from '@/modules/followup';
 
 type CronResult = { task: string; clinicId: string; ok: boolean; data?: unknown; error?: string };
 

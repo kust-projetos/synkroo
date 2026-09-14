@@ -6,7 +6,7 @@ import { roles, rolePermissions, userClinicAccess } from '@/modules/core/schema/
 import * as dentistRepo from '@/repositories/dentists'
 import * as procedureRepo from '@/repositories/procedures'
 import * as appointmentRepo from '@/repositories/appointments'
-import { seedDefaultPipelineStages } from '@/modules/comercial/repositories/pipeline-repository'
+import { seedDefaultPipelineStages } from '@/modules/comercial'
 import { buildWaitlistSeed, buildLeadSeed, cleanupDemoSeedTables, leadStatusToStageIndex } from '@/lib/seed/helpers'
 
 const CLINIC_SLUG = 'clinica-demo'

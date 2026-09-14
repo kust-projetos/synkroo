@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { assertModuleForJob } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
-import { processarNotificacoesLeadsQuentes } from '@/modules/comercial/actions/processar-notificacoes-leads-quentes';
+import { processarNotificacoesLeadsQuentes } from '@/modules/comercial';
 import { runAction } from '@/core/actions/run';
 import { getDb } from '@/lib/db/client';
 import { clinics } from '@/lib/db/schema/core';
