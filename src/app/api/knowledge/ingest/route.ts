@@ -1,7 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { validateApiAuth } from '@/lib/auth/session';
 import { handleApiError } from '@/lib/errors';
 import { ragService } from '@/services/rag';
+
+/**
+ * B1 — bounds de chunking: chunkSize 100–2000, overlap 0–500.
+ * Fora da faixa FINITA → clamp; lixo não-numérico → 400. chunkSize absurdo
+ * estoura embedding/pgvector; overlap >= size gera loop de chunks vazios.
+ */
+const IngestBodySchema = z.object({
+  category: z.string().trim().min(1),
+  content: z.string().trim().min(1),
+  title: z.string().trim().min(1).optional(),
+  chunkSize: z.coerce.number().int().finite().optional(),
+  chunkOverlap: z.coerce.number().int().finite().optional(),
+});
+
+const clampInt = (v: number | undefined, fallback: number, lo: number, hi: number): number =>
+  Math.min(hi, Math.max(lo, Math.floor(v ?? fallback)));
 
 /**
  * POST /api/knowledge/ingest
@@ -18,29 +35,27 @@ export async function POST(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id;
-    const body = await request.json();
-    const { category, content, title, chunkSize, chunkOverlap } = body;
-
-    if (!category || typeof category !== 'string' || !category.trim()) {
+    const parsed = IngestBodySchema.safeParse(await request.json().catch(() => ({})));
+    if (!parsed.success) {
+      const paths = parsed.error.issues.map((i) => String(i.path[0]));
+      const missing = ['category', 'content'].find((f) => paths.includes(f));
       return NextResponse.json(
-        { error: 'Field "category" is required' },
+        {
+          error: missing
+            ? `Field "${missing}" is required`
+            : 'Invalid chunking parameters (chunkSize/chunkOverlap must be finite numbers)',
+        },
         { status: 400 },
       );
     }
-
-    if (!content || typeof content !== 'string' || !content.trim()) {
-      return NextResponse.json(
-        { error: 'Field "content" is required' },
-        { status: 400 },
-      );
-    }
+    const { category, content, title, chunkSize: rawSize, chunkOverlap: rawOverlap } = parsed.data;
 
     const result = await ragService.ingestDocument(clinicId, {
-      category: category.trim(),
-      content: content.trim(),
-      title: typeof title === 'string' ? title.trim() : undefined,
-      chunkSize: typeof chunkSize === 'number' ? chunkSize : undefined,
-      chunkOverlap: typeof chunkOverlap === 'number' ? chunkOverlap : undefined,
+      category,
+      content,
+      title,
+      chunkSize: rawSize === undefined ? undefined : clampInt(rawSize, 500, 100, 2000),
+      chunkOverlap: rawOverlap === undefined ? undefined : clampInt(rawOverlap, 50, 0, 500),
     });
 
     return NextResponse.json(

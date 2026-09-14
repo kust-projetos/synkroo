@@ -75,9 +75,14 @@ async function issueHandleRpc(
   if (!contractVersion) return contractVersionMismatch();
 
   validateBridgeEnv(env);
+  // B1: correlationId é metadado de rastreio fim-a-fim (route → invoker → DO);
+  // campo opcional/aditivo do contrato — NÃO entra no payload assinado.
+  const { contractVersion: _contractVersion, correlationId: _correlationId, ...unsigned } = input;
+  void _contractVersion;
+  void _correlationId;
   const { handle, payload } = await issueHandle(
     env.HANDLE_SECRET,
-    withoutContractVersion(input),
+    unsigned,
   );
   return {
     contractVersion,

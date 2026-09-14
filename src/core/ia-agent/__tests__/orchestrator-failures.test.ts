@@ -102,9 +102,57 @@ describe('runTurn — robustez', () => {
       { text: 'ok', toolCalls: [] },
     ]);
     expect(
-      (await runTurn({ provider: p, app: okApp, now: new Date() }, base))
-        .reply,
+      (
+        await runTurn(
+          {
+            provider: p,
+            app: {
+              ...okApp,
+              executeAction: async () => {
+                throw new Error('não deveria executar com args malformados');
+              },
+            },
+            now: new Date(),
+          },
+          base,
+        )
+      ).reply,
     ).toBe('ok');
+  });
+
+  it('B1: args não-objeto (array/escalar) → erro estruturado, sem execução', async () => {
+    const seenToolErrors: string[] = [];
+    const p = {
+      complete: async (m: Array<{ role: string; content?: string }>) => {
+        const last = m[m.length - 1];
+        if (last?.role === 'tool' && last.content) {
+          seenToolErrors.push(last.content);
+          return { text: 'ok', toolCalls: [] };
+        }
+        return {
+          text: null,
+          toolCalls: [
+            {
+              id: 'c9',
+              type: 'function' as const,
+              function: { name: 'operacional__consultarDisponibilidade', arguments: '[1,2]' },
+            },
+          ],
+        };
+      },
+    } as LlmProvider;
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    const r = await runTurn(
+      { provider: p, app: { ...okApp, executeAction: exec }, now: new Date() },
+      base,
+    );
+    expect(r.reply).toBe('ok');
+    expect(exec).not.toHaveBeenCalled();
+    expect(seenToolErrors.some((c) => c.includes('invalid_tool_call'))).toBe(true);
   });
 
   it('non-empty fallback on empty completion', async () => {
