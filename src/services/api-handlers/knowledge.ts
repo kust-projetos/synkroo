@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { eq, and, or, ilike, desc } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { knowledgeBase } from '@/lib/db/schema/infra'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiCreated, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 
 const KB = knowledgeBase
 
@@ -26,9 +27,10 @@ function toSnake(r: any) {
  * DB read — works without RAG.
  */
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const auth = await validateApiAuth('ia:chat')
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    if (!auth.success) return apiAuthFailure(auth.error, requestId)
     const clinicId = auth.profile!.clinic_id
     const db = getDb()
     const { searchParams } = new URL(request.url)
@@ -57,9 +59,9 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(KB.createdAt))
       .limit(limit)
 
-    return NextResponse.json({ data: rows.map(toSnake) })
+    return apiSuccess(rows.map(toSnake))
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -68,16 +70,17 @@ export async function GET(request: NextRequest) {
  * Create a tenant-scoped knowledge entry. Embeddings are optional and can be generated asynchronously.
  */
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const auth = await validateApiAuth('ia:manage')
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    if (!auth.success) return apiAuthFailure(auth.error, requestId)
 
     const body = await request.json() as Record<string, unknown>
     const category = typeof body.category === 'string' ? body.category.trim() : ''
     const question = typeof body.question === 'string' ? body.question.trim() : ''
     const answer = typeof body.answer === 'string' ? body.answer.trim() : ''
     if (!category || !question || !answer) {
-      return NextResponse.json({ error: 'category, question and answer are required' }, { status: 400 })
+      return apiFailure('INVALID_INPUT', 'category, question and answer are required', requestId, 400)
     }
 
     const keywords = Array.isArray(body.keywords)
@@ -92,8 +95,8 @@ export async function POST(request: NextRequest) {
       isActive: true,
     }).returning()
 
-    return NextResponse.json({ data: toSnake(row) }, { status: 201 })
+    return apiCreated(toSnake(row))
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

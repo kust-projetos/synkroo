@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { eq, and } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { knowledgeBase } from '@/lib/db/schema/infra'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 
 const KB = knowledgeBase
 
@@ -29,10 +30,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('ia:chat')
     if (!authResult.success)
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+      return apiAuthFailure(authResult.error, requestId)
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
     const db = getDb()
@@ -41,11 +43,11 @@ export async function GET(
       .select()
       .from(KB)
       .where(and(eq(KB.id, id), eq(KB.clinicId, clinicId)))
-    if (!row) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
+    if (!row) return apiFailure('NOT_FOUND', 'Entry not found', requestId, 404)
 
-    return NextResponse.json({ data: toSnake(row) })
+    return apiSuccess(toSnake(row))
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -57,9 +59,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = generateRequestId()
   try {
     const auth = await validateApiAuth('ia:manage')
-    if (!auth.success) return NextResponse.json({ error: auth.error!.message }, { status: auth.error!.status })
+    if (!auth.success) return apiAuthFailure(auth.error, requestId)
 
     const { id } = await params
     const body = await request.json() as Record<string, unknown>
@@ -71,15 +74,15 @@ export async function PUT(
       updateData.keywords = body.keywords.filter((keyword): keyword is string => typeof keyword === 'string')
     }
     if (typeof body.is_active === 'boolean') updateData.isActive = body.is_active
-    if (Object.keys(updateData).length === 0) return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
+    if (Object.keys(updateData).length === 0) return apiFailure('INVALID_INPUT', 'No valid fields to update', requestId, 400)
 
     const [row] = await getDb().update(KB).set({ ...updateData, updatedAt: new Date() }).where(
       and(eq(KB.id, id), eq(KB.clinicId, auth.profile!.clinic_id)),
     ).returning()
-    if (!row) return NextResponse.json({ error: 'Entry not found' }, { status: 404 })
-    return NextResponse.json({ data: toSnake(row) })
+    if (!row) return apiFailure('NOT_FOUND', 'Entry not found', requestId, 404)
+    return apiSuccess(toSnake(row))
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
@@ -91,17 +94,18 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth('ia:manage')
     if (!authResult.success)
-      return NextResponse.json({ error: authResult.error!.message }, { status: authResult.error!.status })
+      return apiAuthFailure(authResult.error, requestId)
     const clinicId = authResult.profile!.clinic_id
     const { id } = await params
     const db = getDb()
 
     await db.delete(KB).where(and(eq(KB.id, id), eq(KB.clinicId, clinicId)))
-    return NextResponse.json({ success: true })
+    return apiSuccess({ success: true })
   } catch (error) {
-    return NextResponse.json({ error: String(error) }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

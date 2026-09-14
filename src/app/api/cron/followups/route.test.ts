@@ -90,7 +90,8 @@ describe('POST /api/cron/followups', () => {
     const body = await response.json();
 
     expect(mockRunAction).toHaveBeenCalledTimes(2);
-    expect(body.results.followups).toMatchObject([
+    // Envelope canônico (R2): { data: { success, timestamp, results } }
+    expect(body.data.results.followups).toMatchObject([
       { task: 'followups', clinicId: 'clinic-a', ok: true, data: { processed: 1 } },
       { task: 'followups', clinicId: 'clinic-b', ok: false, error: 'clinic-b failed' },
     ]);
@@ -110,7 +111,7 @@ describe('POST /api/cron/followups', () => {
     const body = await response.json();
 
     expect(mockRunAction).toHaveBeenCalledTimes(1);
-    expect(body.results.campaigns).toMatchObject([
+    expect(body.data.results.campaigns).toMatchObject([
       { task: 'campaigns', clinicId: 'clinic-a', ok: true },
     ]);
   });
@@ -131,7 +132,7 @@ describe('POST /api/cron/followups', () => {
 
     // Only one clinic (active), no deleted clinic calls
     expect(mockRunAction).toHaveBeenCalledTimes(1);
-    expect(body.results.followups[0].clinicId).toBe('clinic-active');
+    expect(body.data.results.followups[0].clinicId).toBe('clinic-active');
   });
 
   it('returns 401 when CRON_SECRET is missing', async () => {

@@ -5,13 +5,14 @@
  * sends configured reminders. Tenant scope is enumerated server-side; the
  * request cannot select an arbitrary clinic through query parameters.
  */
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import crypto from "crypto";
 import { assertModuleForJob } from "@/core/modules/gates";
 import { createManifest } from '@/core/modules/manifest';
 import { getDb } from "@/lib/db/client";
 import { clinics } from "@/lib/db/schema/core";
 import { isNull } from "drizzle-orm";
+import { apiSuccess, apiFailure, generateRequestId } from "@/lib/api/response";
 import {
   listOverdueCharges,
   enrichOverdueCharges,
@@ -20,6 +21,7 @@ import {
 } from "@/modules/financeiro/services/collection-service";
 
 export async function POST(_request: NextRequest) {
+  const requestId = generateRequestId();
   try {
     const cronSecret = _request.headers.get("Authorization") || "";
     const expectedSecret = `Bearer ${process.env.CRON_SECRET}`;
@@ -32,7 +34,7 @@ export async function POST(_request: NextRequest) {
         Buffer.from(expectedSecret),
       )
     ) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return apiFailure("UNAUTHORIZED", "Unauthorized", requestId, 401);
     }
 
     await assertModuleForJob("financeiro", createManifest());
@@ -87,7 +89,7 @@ export async function POST(_request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
+    return apiSuccess({
       processed: results.reduce((total, result) => total + result.processed, 0),
       remindersSent: results.reduce(
         (total, result) => total + result.remindersSent,
@@ -98,6 +100,6 @@ export async function POST(_request: NextRequest) {
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return apiFailure("INTERNAL_ERROR", msg, requestId, 500);
   }
 }

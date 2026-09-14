@@ -3,7 +3,7 @@ import crypto from 'crypto'
 import { lt } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { appointmentReminders, conversationStates, waitlist, conversationSessions } from '@/lib/db/schema'
-import { handleApiError } from '@/lib/errors'
+import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response'
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
 
 /**
@@ -12,6 +12,7 @@ import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit'
  * Runs daily to remove old reminders, expired sessions, etc.
  */
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     // Verify CRON_SECRET before rate limit — invalid credentials must not consume scheduler quota (T1 DoS fix).
     const cronSecret = request.headers.get('Authorization') || ''
@@ -21,13 +22,13 @@ export async function POST(request: NextRequest) {
       cronSecret.length !== expectedSecret.length ||
       !crypto.timingSafeEqual(Buffer.from(cronSecret), Buffer.from(expectedSecret))
     ) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return apiFailure('UNAUTHORIZED', 'Unauthorized', requestId, 401)
     }
 
     const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
+        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId }, retryAfter: rateLimit.retryAfter },
         { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
       )
     }
@@ -64,13 +65,13 @@ export async function POST(request: NextRequest) {
 
     results.waitlist = 'cleaned'
 
-    return NextResponse.json({
+    return apiSuccess({
       success: true,
       timestamp: now.toISOString(),
       results,
     })
   } catch (error) {
-    return handleApiError(error)
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }
 
