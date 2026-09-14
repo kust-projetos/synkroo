@@ -73,6 +73,36 @@
       }
     },
     {
+      "files": ["src/services/**/*.{ts,tsx}"],
+      "rules": {
+        "boundaries/dependencies": ["error", {
+          "default": "allow",
+          "rules": [
+            {
+              "from": { "type": "legacy" },
+              "disallow": { "to": { "type": "module" } },
+              "message": "Services só importam módulos via seam público (index.ts, public.ts ou schema/**) — R3"
+            },
+            {
+              "from": { "type": "legacy" },
+              "allow": { "to": { "type": "module", "internalPath": "**/index.ts" } },
+              "message": "Seam público do módulo (index.ts)"
+            },
+            {
+              "from": { "type": "legacy" },
+              "allow": { "to": { "type": "module", "internalPath": "**/public.ts" } },
+              "message": "Seam público do módulo (public.ts)"
+            },
+            {
+              "from": { "type": "legacy" },
+              "allow": { "to": { "type": "module", "internalPath": "**/schema/**" } },
+              "message": "Schema do módulo permitido"
+            }
+          ]
+        }]
+      }
+    },
+    {
       "files": ["src/app/api/**/*.ts"],
       "rules": {
         "no-restricted-imports": ["error", {
