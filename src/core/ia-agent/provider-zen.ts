@@ -33,14 +33,30 @@ function toUsage(json: unknown): LlmUsage | undefined {
   };
 }
 
-function toErrorCode(e: unknown, status?: number): string {
-  if (typeof status === 'number') return `http_${status}`;
-  if (e instanceof Error) {
-    if (e.name === 'AbortError') return 'timeout';
-    const m = e.message.match(/HTTP (\d{3})/);
-    if (m) return `http_${m[1]}`;
+/**
+ * Erro tipado de HTTP do provider: carrega status e code fechado.
+ * O corpo da resposta NUNCA entra na mensagem (pode conter PII/conteúdo
+ * arbitrário). A métrica da tentativa já foi emitida no site do throw.
+ */
+export class ZenHttpError extends Error {
+  readonly status: number;
+  readonly code: 'http_4xx' | 'http_5xx' | 'http_unparseable';
+  constructor(status: number, code: 'http_4xx' | 'http_5xx' | 'http_unparseable') {
+    super('zen_http_error');
+    this.name = 'ZenHttpError';
+    this.status = status;
+    this.code = code;
   }
-  return 'provider_error';
+}
+
+function statusCode(status: number): 'http_4xx' | 'http_5xx' {
+  return status >= 500 ? 'http_5xx' : 'http_4xx';
+}
+
+function isRetryableStatus(status: number): boolean {
+  return (
+    status === 408 || status === 409 || status === 429 || status >= 500
+  );
 }
 
 export function createZenProvider(cfg: ZenConfig): LlmProvider {
@@ -84,17 +100,35 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
       });
       const text = await res.text();
       if (!res.ok) {
+        const code = statusCode(res.status);
         metric({
           latencyMs: Date.now() - start,
           success: false,
           attempt,
           correlationId,
-          errorCode: toErrorCode(undefined, res.status),
+          errorCode: code,
         });
-        throw new Error(`HTTP ${res.status}: ${text.slice(0, 300)}`);
+        throw new ZenHttpError(res.status, code);
       }
-      const json = JSON.parse(text);
-      const m = json.choices?.[0]?.message ?? {};
+      let json: unknown;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        // Corpo fora do formato esperado: classifica sem guardar o texto.
+        metric({
+          latencyMs: Date.now() - start,
+          success: false,
+          attempt,
+          correlationId,
+          errorCode: 'http_unparseable',
+        });
+        throw new ZenHttpError(res.status, 'http_unparseable');
+      }
+      const m = (json as { choices?: Array<{ message?: unknown }> }).choices?.[0]
+        ?.message ?? {};
+      const envelope = (
+        m !== null && typeof m === 'object' ? m : {}
+      ) as { content?: unknown; tool_calls?: unknown };
       const usage = toUsage(json);
       metric({
         latencyMs: Date.now() - start,
@@ -103,23 +137,19 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
         usage,
         correlationId,
       });
-      return { text: m.content ?? null, toolCalls: m.tool_calls ?? [], usage };
+      return {
+        text: typeof envelope.content === 'string' ? envelope.content : null,
+        toolCalls: Array.isArray(envelope.tool_calls)
+          ? (envelope.tool_calls as LlmCompletion['toolCalls'])
+          : [],
+        usage,
+      };
     } catch (e) {
-      // Falha de rede/abort/parse na tentativa final: registra antes de subir.
-      // (Falhas HTTP já emitiram acima; evita métrica duplicada checando a marca.)
-      if (
-        e instanceof Error &&
-        !/HTTP \d{3}/.test(e.message) &&
-        e.name !== 'AbortError'
-      ) {
-        metric({
-          latencyMs: Date.now() - start,
-          success: false,
-          attempt,
-          correlationId,
-          errorCode: toErrorCode(e),
-        });
-      } else if (e instanceof Error && e.name === 'AbortError') {
+      // Métrica já emitida no site para ZenHttpError: só repassa.
+      // Abort/rede/parse sem métrica ainda: registra aqui com code fechado.
+      // Nenhuma inferência por texto de mensagem (sem regex em e.message).
+      if (e instanceof ZenHttpError) throw e;
+      if (e instanceof Error && e.name === 'AbortError') {
         metric({
           latencyMs: Date.now() - start,
           success: false,
@@ -127,16 +157,28 @@ export function createZenProvider(cfg: ZenConfig): LlmProvider {
           correlationId,
           errorCode: 'timeout',
         });
+        throw e;
       }
+      metric({
+        latencyMs: Date.now() - start,
+        success: false,
+        attempt,
+        correlationId,
+        // SyntaxError = JSON.parse do corpo (não-retryable); resto = rede.
+        errorCode: e instanceof SyntaxError ? 'http_unparseable' : 'provider_error',
+      });
       throw e;
     } finally {
       clearTimeout(timeout);
     }
   }
 
+  // Retry por tipo/status — nunca por sniffing de texto da mensagem.
   const retryable = (e: unknown) =>
-    e instanceof Error &&
-    (e.name === 'AbortError' || /HTTP (408|409|429|5\d\d)/.test(e.message));
+    (e instanceof ZenHttpError &&
+      e.code !== 'http_unparseable' &&
+      isRetryableStatus(e.status)) ||
+    (e instanceof Error && e.name === 'AbortError');
 
   return {
     async complete(messages, tools, opts?: LlmCallOpts) {

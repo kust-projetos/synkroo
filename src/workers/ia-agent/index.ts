@@ -3,7 +3,7 @@ import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
 import {
   createTelemetryLogger,
-  extractCorrelationId,
+  resolveCorrelationId,
 } from '@/core/ia-agent/telemetry';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
 import type { AppBinding } from '@/core/agent-bridge/rpc-contract';
@@ -70,8 +70,9 @@ export class AgentOrchestrator extends DurableObject<Env> {
     const pendingAction = (await this.ctx.storage.get<PendingAction | null>('pendingAction')) ?? undefined;
 
     // B2: telemetria estruturada edge-safe (JSON via console; sem src/lib/logger).
-    // O correlationId viaja no input (invoker → DO); cai para extração defensiva.
-    const correlationId = input.correlationId ?? extractCorrelationId(input);
+    // O correlationId viaja no input (invoker → DO); validação de formato
+    // único — inválido/ausente gera novo em vez de logar texto externo.
+    const correlationId = resolveCorrelationId(input.correlationId);
     const emit = createTelemetryLogger('ia-agent');
     const provider = createZenProvider({
       apiKey: this.env.OPENCODE_ZEN_API_KEY,

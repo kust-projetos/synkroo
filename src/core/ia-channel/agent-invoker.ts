@@ -9,6 +9,7 @@ import {
 import type { PersonaType, RunTurnInput, RunTurnResult } from '@/core/ia-agent/types';
 import {
   createTelemetryLogger,
+  resolveCorrelationId,
   type TelemetrySink,
 } from '@/core/ia-agent/telemetry';
 
@@ -77,7 +78,8 @@ export async function invokeAgentWithEnv(
   const timeoutMs = opts.timeoutMs ?? resolveRpcTimeoutMs();
   // B2: correlation id ponta a ponta — a rota gera/ecoa x-request-id; aqui é
   // o fallback de geração para callers que não passam (ex.: WhatsApp inbound).
-  const correlationId = input.correlationId ?? crypto.randomUUID();
+  // Validação de formato único (resolveCorrelationId): inválido → gera novo.
+  const correlationId = resolveCorrelationId(input.correlationId);
   const emit = opts.telemetry ?? createTelemetryLogger('ia-channel:agent-invoker');
   const startedAt = Date.now();
 

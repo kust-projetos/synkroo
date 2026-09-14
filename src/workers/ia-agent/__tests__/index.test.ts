@@ -154,18 +154,19 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
         }),
       );
 
-      // Verify orchestrator execution
+      // Verify orchestrator execution (B2: correlationId validado/injetado)
       expect(mockRunAgentTurn).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: expect.any(Object),
           app: mockEnv.APP,
           now: expect.any(Date),
         }),
-        {
+        expect.objectContaining({
           ...input,
           history: [],
           pendingAction: undefined,
-        },
+          correlationId: expect.stringMatching(/^[A-Za-z0-9_-]{1,128}$/),
+        }),
       );
 
       // Verify storage persistence
