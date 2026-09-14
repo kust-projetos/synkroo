@@ -6,7 +6,7 @@
 
 import { NextRequest } from 'next/server';
 import { validateApiAuth } from '@/lib/auth/session';
-import { getBudget, markBudgetSent } from '@/modules/financeiro/services/budget-service';
+import { getBudget, markBudgetSent } from '@/modules/financeiro';
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response';
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         if (!patientPhone) {
           whatsappError = 'missing_patient_phone';
         } else {
-          const { enviarMensagemDireta } = await import('@/modules/atendimento/actions/enviar-mensagem-direta');
+          const { enviarMensagemDireta } = await import('@/modules/atendimento');
           const { runAction } = await import('@/core/actions/run');
           const { buildSystemContext } = await import('@/core/actions/context');
 
