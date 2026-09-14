@@ -27,9 +27,17 @@ async function handlePOST(request: NextRequest) {
   const body = await request.text();
   if (!verifySignature(body, signature)) return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
 
+  // Rate limit pós-assinatura: excedido → 200 ignore (429 provocaria retry do
+  // provider). O GET verify não tem rate limit — menor risco é não adicionar.
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.webhook, keyPrefix: 'wa-webhook' });
-  if (!rateLimit.allowed) return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+  if (!rateLimit.allowed) {
+    logger.warn('whatsapp webhook ignored', {
+      event: 'rate_limited',
+      reason: 'rate limit exceeded',
+    });
+    return NextResponse.json({ status: 'ignored' });
+  }
 
   let payload: Record<string, unknown>;
   try {
@@ -57,7 +65,6 @@ async function handlePOST(request: NextRequest) {
       if (!installation) {
         logger.warn('whatsapp webhook change ignored', {
           event: 'unknown_installation',
-          phoneNumberId: phoneNumberId || 'unknown',
           reason: 'no installation for phone_number_id',
         });
         ignored++;
@@ -84,21 +91,32 @@ async function handlePOST(request: NextRequest) {
           logger.warn('whatsapp webhook message ignored', {
             event: 'unparseable_media',
             mid: externalMessageId,
-            phoneNumberId,
             reason: 'parseMetaMessage null',
           });
           ignored++;
           continue;
         }
-        const result = await runAtendimentoSystemActionResult(receberMensagem, {
-          externalConversationId: from,
-          externalProvider: 'meta',
-          externalMessageId,
-          message: parsed.content,
-          channel: 'whatsapp',
-          messageType: parsed.messageType,
-          metadata: { phoneNumberId },
-        }, installation.clinicId);
+        // Exceção da action não aborta o lote: ignora a mensagem e segue.
+        let result;
+        try {
+          result = await runAtendimentoSystemActionResult(receberMensagem, {
+            externalConversationId: from,
+            externalProvider: 'meta',
+            externalMessageId,
+            message: parsed.content,
+            channel: 'whatsapp',
+            messageType: parsed.messageType,
+            metadata: { phoneNumberId },
+          }, installation.clinicId);
+        } catch (error) {
+          logger.warn('whatsapp webhook message ignored', {
+            event: 'action_exception',
+            mid: externalMessageId,
+            reason: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
+          });
+          ignored++;
+          continue;
+        }
         // Falha interna ao processar: retry da Meta não ajuda (inbound tem
         // dedup, outbox cobre reprocessamento) → 200 ignore + warn. Infra
         // continua visível em logs/metrics.
@@ -106,7 +124,6 @@ async function handlePOST(request: NextRequest) {
           logger.warn('whatsapp webhook message ignored', {
             event: 'action_failed',
             mid: externalMessageId,
-            phoneNumberId,
             reason: result.error.code,
           });
           ignored++;
