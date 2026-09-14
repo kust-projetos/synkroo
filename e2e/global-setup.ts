@@ -20,14 +20,27 @@ export default async function globalSetup(_config: FullConfig) {
   try {
     const page = await browser.newPage();
     // Retry seed fetch on ECONNRESET / compilation race (dev server may need warmup)
+    // and on 5xx responses (cold-start: server answers before the pool/DB is ready)
+    const RETRYABLE_SEED_STATUS = new Set([500, 502, 503, 504]);
     let seedResponse: import("@playwright/test").APIResponse | null = null;
     let lastErr: unknown = null;
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
-        seedResponse = await page.request.get(
+        const response = await page.request.get(
           `${BASE_URL}/api/seed?secret=${encodeURIComponent(seedSecret)}`,
           { timeout: 300_000 },
         );
+        if (RETRYABLE_SEED_STATUS.has(response.status()) && attempt < 5) {
+          const snippet = (await response.text())
+            .slice(0, 300)
+            .replace(/\s+/g, " ");
+          lastErr = new Error(
+            `E2E fixture seed retryable status=${response.status()}; body=${snippet}`,
+          );
+          await new Promise((r) => setTimeout(r, 1000 + (attempt - 1) * 500));
+          continue;
+        }
+        seedResponse = response;
         lastErr = null;
         break;
       } catch (e) {
