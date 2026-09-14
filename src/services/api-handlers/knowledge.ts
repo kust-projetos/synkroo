@@ -7,17 +7,17 @@ import { apiSuccess, apiCreated, apiFailure, apiAuthFailure, generateRequestId }
 
 const KB = knowledgeBase
 
-function toSnake(r: any) {
+function toCamel(r: any) {
   return {
     id: r.id,
-    clinic_id: r.clinicId,
+    clinicId: r.clinicId,
     category: r.category,
     question: r.question,
     answer: r.answer,
     keywords: r.keywords ?? [],
-    is_active: r.isActive,
-    created_at: r.createdAt?.toISOString?.() ?? null,
-    updated_at: r.updatedAt?.toISOString?.() ?? null,
+    isActive: r.isActive,
+    createdAt: r.createdAt?.toISOString?.() ?? null,
+    updatedAt: r.updatedAt?.toISOString?.() ?? null,
   }
 }
 
@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
     const rows = await db
       .select({
         id: KB.id,
+        clinicId: KB.clinicId,
         category: KB.category,
         question: KB.question,
         answer: KB.answer,
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
       .orderBy(desc(KB.createdAt))
       .limit(limit)
 
-    return apiSuccess(rows.map(toSnake))
+    return apiSuccess(rows.map(toCamel))
   } catch (error) {
     return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
       isActive: true,
     }).returning()
 
-    return apiCreated(toSnake(row))
+    return apiCreated(toCamel(row))
   } catch (error) {
     return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
