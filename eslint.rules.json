@@ -75,6 +75,11 @@
     {
       "files": ["src/services/**/*.{ts,tsx}"],
       "rules": {
+        "no-restricted-imports": ["error", {
+          "patterns": [
+            { "group": ["@/modules/*/services", "@/modules/*/services/*", "@/modules/*/repositories", "@/modules/*/repositories/*", "@/modules/*/actions", "@/modules/*/actions/*", "@/modules/*/integrations", "@/modules/*/integrations/*"], "message": "Services só importam módulos via seam público (index.ts/public.ts/schema) — R3" }
+          ]
+        }],
         "boundaries/dependencies": ["error", {
           "default": "allow",
           "rules": [
@@ -118,6 +123,7 @@
         "no-console": "off",
         "@typescript-eslint/no-require-imports": "off",
         "boundaries/dependencies": "off",
+        "no-restricted-imports": "off",
         "react/display-name": "off"
       }
     },

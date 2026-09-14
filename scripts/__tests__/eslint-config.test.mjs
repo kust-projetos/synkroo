@@ -22,3 +22,33 @@ test('globally ignores generated Next type entrypoint', async () => {
     true,
   );
 });
+
+test('R3 — services não importam fundo de módulos', async () => {
+  const eslint = new ESLint({ cwd: root });
+  // Path virtual sob src/services/** para ativar o override de files.
+  // NOTA: cobre import estático; dynamic import() não é avaliado pelo
+  // no-restricted-imports (verificado no ESLint 9.39) — blind spot registrado
+  // nos RISKS do commit R3 para hardening futuro.
+  const filePath = resolve(root, 'src/services/r3-negative-probe.ts');
+  const [res] = await eslint.lintText(
+    "import { x } from '@/modules/atendimento/services/foo';\nexport const y = x;\n",
+    { filePath },
+  );
+  const hits = res.messages.filter((m) => m.ruleId === 'no-restricted-imports');
+  assert.equal(hits.length, 1, `esperado 1 erro no-restricted-imports, obtido ${JSON.stringify(res.messages)}`);
+  assert.equal(hits[0].severity, 2);
+  assert.match(hits[0].message, /seam público.*R3/);
+});
+
+test('R3 — seam público do módulo (barrel) continua permitido em services', async () => {
+  const eslint = new ESLint({ cwd: root });
+  const filePath = resolve(root, 'src/services/r3-negative-probe.ts');
+  const [res] = await eslint.lintText(
+    "import { x } from '@/modules/atendimento';\nexport const y = x;\n",
+    { filePath },
+  );
+  assert.deepEqual(
+    res.messages.filter((m) => m.ruleId === 'no-restricted-imports'),
+    [],
+  );
+});
