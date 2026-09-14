@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
     if (!rateLimit.allowed) {
       return NextResponse.json(
-        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId }, retryAfter: rateLimit.retryAfter },
+        { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId } },
         { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
       )
     }
