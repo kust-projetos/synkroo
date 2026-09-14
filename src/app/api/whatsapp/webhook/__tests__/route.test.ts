@@ -332,7 +332,7 @@ describe('WhatsApp Webhook', () => {
       expect(data.status).toBe('ignored')
     })
 
-    it('review D2D3: message without from/id → 400 (evento não identificável, preservado)', async () => {
+    it('review D2D3 residual: message without sender/mid → 200 ignored (assinatura válida, sem retry)', async () => {
       const payload = {
         object: 'whatsapp_business_account',
         entry: [{
@@ -361,7 +361,97 @@ describe('WhatsApp Webhook', () => {
       })
 
       const response = await POST(request)
-      expect(response.status).toBe(400)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.status).toBe('ignored')
+    })
+
+    it('review D2D3 residual: unknown installation → 200 ignored + warn (assinatura válida)', async () => {
+      const { logger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } }
+      logger.warn.mockClear()
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              // sem phone_number_id → instalação não resolvível
+              metadata: {},
+              messages: [{
+                id: 'wamid.noinst',
+                from: '5511999999999',
+                timestamp: '1711534800',
+                type: 'text',
+                text: { body: 'oi' },
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.status).toBe('ignored')
+      expect(logger.warn).toHaveBeenCalledWith(
+        'whatsapp webhook change ignored',
+        expect.objectContaining({ event: 'unknown_installation' }),
+      )
+    })
+
+    it('review D2D3 residual: action failure → 200 ignored + warn (sem 422/500, sem retry)', async () => {
+      const { logger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } }
+      logger.warn.mockClear()
+      const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
+      runAction.mockResolvedValueOnce({ ok: false, error: { code: 'internal', message: 'boom' } })
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              metadata: { phone_number_id: '123456789' },
+              messages: [{
+                id: 'wamid.actionfail',
+                from: '5511999999999',
+                timestamp: '1711534800',
+                type: 'text',
+                text: { body: 'oi' },
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.status).toBe('ignored')
+      expect(logger.warn).toHaveBeenCalledWith(
+        'whatsapp webhook message ignored',
+        expect.objectContaining({ event: 'action_failed' }),
+      )
     })
 
     it('review D2D3: structurally invalid JSON body → 400 (preservado, antes da identificação)', async () => {
