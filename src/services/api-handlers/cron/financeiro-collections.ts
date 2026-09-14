@@ -18,7 +18,7 @@ import {
   enrichOverdueCharges,
   getCollectionStage,
   sendReminder,
-} from "@/modules/financeiro/services/collection-service";
+} from "@/modules/financeiro";
 
 export async function POST(_request: NextRequest) {
   const requestId = generateRequestId();
