@@ -80,13 +80,18 @@ describe('runTurn — deadline real do turno (B1-review)', () => {
     expect(r.turnsUsed).toBe(1);
   });
 
-  it('(c) budget esgotado entre iterações → tool posterior NÃO executa', async () => {
+  it('(c) budget consumido pela execução da tool → 2ª iteração nunca começa', async () => {
     let now = 0;
-    const exec = jest.fn(async () => ({
-      ok: true as const,
-      contractVersion: BRIDGE_RPC_VERSION,
-      data: {},
-    }));
+    let completes = 0;
+    const exec = jest.fn(async () => {
+      // a execução consome o restante do budget
+      now = 150;
+      return {
+        ok: true as const,
+        contractVersion: BRIDGE_RPC_VERSION,
+        data: {},
+      };
+    });
     const toolCall = {
       text: null as string | null,
       toolCalls: [
@@ -99,8 +104,8 @@ describe('runTurn — deadline real do turno (B1-review)', () => {
     };
     const p: LlmProvider = {
       complete: async () => {
-        // primeira chamada consome o budget inteiro
-        now = 150;
+        completes++;
+        now = 10;
         return toolCall;
       },
     };
@@ -115,8 +120,9 @@ describe('runTurn — deadline real do turno (B1-review)', () => {
       },
       base,
     );
-    // primeira iteração executou a tool; a segunda nunca começou
+    // primeira iteração executou a tool dentro do budget; a segunda nunca começou
     expect(exec).toHaveBeenCalledTimes(1);
+    expect(completes).toBe(1);
     expect(r.reply).toBeTruthy();
   });
 
@@ -136,5 +142,45 @@ describe('runTurn — deadline real do turno (B1-review)', () => {
     expect(exec).not.toHaveBeenCalled();
     expect(r.turnsUsed).toBe(0);
     expect(r.reply).toBeTruthy();
+  });
+
+  it('B1-review HIGH (a): budget estoura APÓS o complete → tool não executa, fallback', async () => {
+    let now = 0;
+    const exec = jest.fn(async () => ({
+      ok: true as const,
+      contractVersion: BRIDGE_RPC_VERSION,
+      data: {},
+    }));
+    const toolCall = {
+      text: null as string | null,
+      toolCalls: [
+        {
+          id: 'c1',
+          type: 'function' as const,
+          function: { name: 'operacional__consultarDisponibilidade', arguments: '{}' },
+        },
+      ],
+    };
+    const p: LlmProvider = {
+      complete: async () => {
+        // resposta chega, mas o budget estourou durante a chamada
+        now = 200;
+        return toolCall;
+      },
+    };
+    const r = await runTurn(
+      {
+        provider: p,
+        app: { ...okApp, executeAction: exec },
+        now: new Date(),
+        turnBudgetMs: 100,
+        nowMs: () => now,
+        maxIterations: 3,
+      },
+      base,
+    );
+    expect(exec).not.toHaveBeenCalled();
+    expect(r.reply).toBeTruthy();
+    expect(r.turnsUsed).toBe(1);
   });
 });

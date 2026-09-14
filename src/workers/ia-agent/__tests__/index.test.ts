@@ -162,12 +162,13 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
         baseUrl: 'https://llm.opencode.test/v1',
       });
 
-      // Verify orchestrator execution (pending via consumePendingAction, não eager)
+      // Verify orchestrator execution (pending via peek + consume, não eager)
       expect(mockRunAgentTurn).toHaveBeenCalledWith(
         expect.objectContaining({
           provider: expect.any(Object),
           app: mockEnv.APP,
           now: expect.any(Date),
+          peekPendingAction: expect.any(Function),
           consumePendingAction: expect.any(Function),
         }),
         {

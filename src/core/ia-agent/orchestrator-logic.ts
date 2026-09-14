@@ -64,10 +64,11 @@ export interface RunTurnDeps {
   turnBudgetMs?: number;
   nowMs?: () => number;
   /**
-   * B1-review — reserva atômica da pendingAction no DO storage (get+delete
-   * transacional por shard). Quando presente, o confirm consome por aqui em
-   * vez de `input.pendingAction`.
+   * B1-review — reserva validada da pendingAction no DO storage.
+   * `peek` lê sem destruir; `consume` lê+apaga na mesma transação (shard).
+   * Quando presentes, o confirm usa ambos (ver caminho de confirmação).
    */
+  peekPendingAction?: () => Promise<PendingAction | undefined>;
   consumePendingAction?: () => Promise<PendingAction | undefined>;
 }
 
@@ -140,25 +141,38 @@ export async function runTurn(
 
   // ── Caminho de confirmação ────────────────────────────────────────────────
   // Reexecuta os args ORIGINAIS (não os do modelo). Vincula alias+args.
-  // B1-review — reserva atômica + binding de principal:
-  //  - consome a pending do DO storage ANTES de executar (at-most-once via
-  //    `consumePendingAction`; sem callback, usa `input.pendingAction`);
-  //  - confirma só se token (timing-safe) E principalId casarem;
+  // B1-review — reserva validada + binding de principal:
+  //  - mensagem normal (sem confirmedToken) NUNCA toca a pending;
+  //  - com confirmedToken: peek (sem destruir) → valida token (timing-safe)
+  //    + principalId → consome atomicamente → revalida o reservado contra o
+  //    peek (perdeu a corrida = recusa, sem executar);
   //  - fail-closed: sem pending, sem token, ou principal ausente/divergente
   //    em qualquer lado → recusa (segue o fluxo normal, sem executar);
   //  - falha pós-reserva NÃO re-arma a pending: erro normal ao usuário.
-  const storedPa = deps.consumePendingAction
-    ? await deps.consumePendingAction()
-    : input.pendingAction;
-  if (
-    storedPa &&
-    input.confirmedToken &&
-    input.principalId &&
-    storedPa.principalId &&
-    input.principalId === storedPa.principalId &&
-    (await safeTokenEquals(input.confirmedToken, storedPa.token))
-  ) {
-    const pa = storedPa;
+  //  - sem callbacks (testes/unit), usa `input.pendingAction` direto.
+  let reservedPa: PendingAction | undefined;
+  if (input.confirmedToken) {
+    const peeked = deps.peekPendingAction
+      ? await deps.peekPendingAction()
+      : input.pendingAction;
+    if (
+      peeked &&
+      input.principalId &&
+      peeked.principalId &&
+      input.principalId === peeked.principalId &&
+      (await safeTokenEquals(input.confirmedToken, peeked.token))
+    ) {
+      const taken = deps.consumePendingAction
+        ? await deps.consumePendingAction()
+        : peeked;
+      // taken e peeked são ambos server-side: === aqui não vaza timing.
+      if (taken && taken.token === peeked.token && taken.principalId === peeked.principalId) {
+        reservedPa = taken;
+      }
+    }
+  }
+  if (reservedPa) {
+    const pa = reservedPa;
     const identityVerified =
       !!input.identityVerifiedToken &&
       (await safeTokenEquals(input.identityVerifiedToken, pa.token));
@@ -229,6 +243,17 @@ export async function runTurn(
   const turnBudgetMs = deps.turnBudgetMs ?? TURN_BUDGET_MS;
   const nowMs = deps.nowMs ?? Date.now;
   const deadline = nowMs() + turnBudgetMs;
+  // B1-review HIGH: budget revalidado (a) após cada complete, (b) antes de
+  // cada executeAction — tool execution também está sob o deadline.
+  const budgetExhausted = (where: string): boolean => {
+    if (nowMs() < deadline) return false;
+    // eslint-disable-next-line no-console
+    console.error('[ia-agent] turn budget exhausted, skipping ' + where, {
+      correlationId: input.correlationId,
+      conversationId: input.conversationId,
+    });
+    return true;
+  };
   let turnsUsed = 0;
   for (let i = 0; i < maxIterations; i++) {
     if (nowMs() >= deadline) {
@@ -277,6 +302,12 @@ export async function runTurn(
       throw err;
     } finally {
       clearTimeout(abortTimer);
+    }
+
+    // B1-review HIGH (a): budget pode ter estourado DURANTE o complete —
+    // revalida antes de usar a resposta; sem budget, fallback sem executar tool.
+    if (budgetExhausted('tool-batch')) {
+      return { reply: FALLBACK, turnsUsed };
     }
 
     // Sem tool calls → resposta final
@@ -341,6 +372,12 @@ export async function runTurn(
           }),
         });
         continue;
+      }
+
+      // B1-review HIGH (b): revalida o budget imediatamente ANTES de cada
+      // executeAction — sem budget, fallback e a tool NÃO executa.
+      if (budgetExhausted(`execute:${alias}`)) {
+        return { reply: FALLBACK, turnsUsed };
       }
 
       const exec = await deps.app.executeAction({
