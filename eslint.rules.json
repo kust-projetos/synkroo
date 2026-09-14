@@ -73,6 +73,16 @@
       }
     },
     {
+      "files": ["src/app/api/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": ["error", {
+          "patterns": [
+            { "group": ["@/lib/db/schema", "@/lib/db/schema/*"], "message": "Rotas não importam o schema direto. Use tipos de @/lib/db/types ou a camada de módulo/repository." }
+          ]
+        }]
+      }
+    },
+    {
       "files": ["**/__tests__/**/*.ts", "**/*.test.ts", "**/__tests__/**/*.tsx", "**/*.test.tsx"],
       "rules": {
         "no-console": "off",
@@ -88,14 +98,14 @@
       }
     },
     {
-      "files": ["src/components/**/*.tsx", "src/app/**/page.tsx", "src/app/**/*.client.tsx"],
+      "files": ["src/components/**/*.{ts,tsx}", "src/app/**/page.tsx", "src/app/**/*.client.tsx"],
       "rules": {
         "no-restricted-imports": ["error", {
           "paths": [
             { "name": "@/lib/db/client", "message": "Componentes não acessam o banco. Use uma Server Action ou route handler." }
           ],
           "patterns": [
-            { "group": ["@/lib/db/schema/*", "@/repositories/*"], "message": "Acesso a dados só via Action/service no servidor." }
+            { "group": ["@/lib/db/schema", "@/lib/db/schema/*", "@/repositories/*"], "message": "Acesso a dados só via Action/service no servidor." }
           ]
         }]
       }
