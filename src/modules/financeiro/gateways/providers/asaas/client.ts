@@ -21,6 +21,7 @@ import { registerGatewayProvider } from '../../registry';
 import { decryptGatewayCredentials } from '../../../lib/crypto';
 import { listGateways, getPaymentGateway } from '../../../repositories/financeiro-repository';
 import { normalizeAsaasWebhookEvent } from './webhook';
+import { fetchWithRetry, DEFAULT_EXTERNAL_TIMEOUT_MS } from '@/lib/http/fetch-with-retry';
 
 const ASAAS_API_BASE = process.env.ASAAS_API_URL || 'https://sandbox.asaas.com/api/v3';
 
@@ -64,11 +65,15 @@ export const asaasClient: PaymentGateway = {
       description: input.description ?? '',
       externalReference: input.clinicId,
     };
-    const res = await fetch(`${ASAAS_API_BASE}/payments`, {
+    // REVIEW-A2A3: mutação SEM retry HTTP (`maxRetries: 0`) — 3 tentativas aqui
+    // × 5 do outbox = 18 chamadas amplificariam o budget. O Asaas deduplica por
+    // `Idempotency-Key` e o retry com DLQ vive no outbox, não no transporte.
+    // Timeout explícito mantido; GETs (leitura) mantêm o retry padrão.
+    const res = await fetchWithRetry(`${ASAAS_API_BASE}/payments`, {
       method: 'POST',
       headers: reqHeaders(apiKey, input.idempotencyKey),
       body: JSON.stringify(body),
-    });
+    }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS, maxRetries: 0 });
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`Asaas createCharge failed: ${res.status} ${err}`);
@@ -84,9 +89,10 @@ export const asaasClient: PaymentGateway = {
 
   async getCharge(input: GetChargeInput): Promise<GetChargeResult> {
     const apiKey = await getApiKey(input.clinicId);
-    const res = await fetch(`${ASAAS_API_BASE}/payments/${input.externalChargeId}`, {
+    // A2: consulta GET — timeout + retry (idempotente por construção).
+    const res = await fetchWithRetry(`${ASAAS_API_BASE}/payments/${input.externalChargeId}`, {
       headers: reqHeaders(apiKey),
-    });
+    }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS });
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`Asaas getCharge failed: ${res.status} ${err}`);
@@ -102,10 +108,11 @@ export const asaasClient: PaymentGateway = {
 
   async cancelCharge(input: CancelChargeInput): Promise<CancelChargeResult> {
     const apiKey = await getApiKey(input.clinicId);
-    const res = await fetch(`${ASAAS_API_BASE}/payments/${input.externalChargeId}/cancel`, {
+    // REVIEW-A2A3: idem createCharge — sem retry HTTP; retry com DLQ no outbox.
+    const res = await fetchWithRetry(`${ASAAS_API_BASE}/payments/${input.externalChargeId}/cancel`, {
       method: 'POST',
       headers: reqHeaders(apiKey, input.idempotencyKey),
-    });
+    }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS, maxRetries: 0 });
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`Asaas cancelCharge failed: ${res.status} ${err}`);

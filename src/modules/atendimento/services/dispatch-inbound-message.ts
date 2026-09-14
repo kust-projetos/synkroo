@@ -1,6 +1,7 @@
 import { sendWhatsAppMessage } from './channel-service';
+import { buildOutboundIdempotencyKey, OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
+import { dbLogger, whatsappLogger } from '@/lib/logger';
 import { processConfirmationResponse, processWaitlistConfirmation } from '@/modules/operacional/public';
-import { whatsappLogger } from '@/lib/logger';
 import * as repo from '../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
@@ -48,7 +49,7 @@ export async function dispatchInboundMessageJob(job: OutboxJob): Promise<void> {
     input.content,
   );
   if (confirmation.processed && confirmation.responseMessage) {
-    await sendReply(input, confirmation.responseMessage, confirmation.action === 'confirmed' ? 'confirmacao' : 'cancelamento');
+    await sendReply(input, confirmation.responseMessage, job.id, confirmation.action === 'confirmed' ? 'confirmacao' : 'cancelamento');
     return;
   }
 
@@ -58,7 +59,7 @@ export async function dispatchInboundMessageJob(job: OutboxJob): Promise<void> {
     input.content,
   );
   if (waitlist.processed && waitlist.responseMessage) {
-    await sendReply(input, waitlist.responseMessage, 'agendamento');
+    await sendReply(input, waitlist.responseMessage, job.id, 'agendamento');
     return;
   }
 
@@ -80,7 +81,7 @@ export async function dispatchInboundMessageJob(job: OutboxJob): Promise<void> {
       },
     }, clinicId, phone),
     invokeAgent,
-    sendReply: async (_conversationId, message) => sendReply(input, message),
+    sendReply: async (_conversationId, message) => sendReply(input, message, job.id),
     timezone: 'America/Sao_Paulo',
   }, {
     clinicId: input.clinicId,
@@ -103,8 +104,34 @@ async function capturarLead(input: InboundMessageJobPayload): Promise<void> {
   });
 }
 
-async function sendReply(input: InboundMessageJobPayload, message: string, intent?: string): Promise<boolean> {
-  const sent = await sendWhatsAppMessage(input.externalConversationId, message);
+/**
+ * Responde via WhatsApp com idempotência outbound (A3).
+ *
+ * A chave ancora no OutboxJob estável (`whatsapp:send:<clinicId>:inbox:<jobId>`):
+ * o redelivery do mesmo job não reenvia ao provider (retorna dedup como
+ * sucesso). Conflito (`in_progress`/`retry_after`) NÃO é sucesso: warn + throw
+ * para o outbox re-tentar o job depois. O registro de histórico é mantido por
+ * execução (semântica de attempt-log); o invariante é o não-reenvio ao provider.
+ */
+async function sendReply(
+  input: InboundMessageJobPayload,
+  message: string,
+  jobId: string,
+  intent?: string,
+): Promise<boolean> {
+  const key = buildOutboundIdempotencyKey('whatsapp', input.clinicId, `inbox:${jobId}`);
+  let sent;
+  try {
+    sent = await sendWhatsAppMessage(input.externalConversationId, message, key);
+  } catch (err) {
+    if (err instanceof OutboundSendConflictError) {
+      dbLogger.warn('dispatch-inbound: send conflict; failing job for outbox retry', {
+        jobId,
+        state: err.state,
+      });
+    }
+    throw err;
+  }
   if (!sent.success) return false;
   await repo.appendOutboundMessage(input.clinicId, {
     conversationId: input.conversationId,
