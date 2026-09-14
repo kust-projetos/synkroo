@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   isCliInvocation,
   printHelp,
@@ -27,7 +29,8 @@ function allGreenFetch() {
       case "/api/health/db":
         return okJson({ status: "complete" });
       case "/api/patients":
-        return new Response("{}", { status: 401 });
+        // Comportamento real sem sessão: middleware redireciona p/ /login (307).
+        return new Response("{}", { status: 307 });
       default:
         return new Response("{}", { status: 404 });
     }
@@ -105,8 +108,8 @@ test("workers sem endpoint publico e skipped sem falhar", async () => {
   assert.match(workers.reason, /service bindings/i);
 });
 
-test("middleware aceita 401 e 403, rejeita 200", async () => {
-  for (const status of [401, 403]) {
+test("middleware aceita 401/403/3xx, rejeita 200 e 404", async () => {
+  for (const status of [401, 403, 301, 302, 307, 308]) {
     const results = await runSmokeDeploy("https://deploy.example.test", {
       fetchImpl: mockFetch((url) => {
         if (url.pathname === "/api/patients")
@@ -121,22 +124,114 @@ test("middleware aceita 401 e 403, rejeita 200", async () => {
     assert.equal(
       results.find(({ check }) => check === "middleware").ok,
       true,
+      `status ${status} deveria ser "protegido"`,
     );
   }
-  const leaked = await runSmokeDeploy("https://deploy.example.test", {
-    fetchImpl: mockFetch((url) => {
+  for (const status of [200, 404]) {
+    const body = status === 200 ? JSON.stringify([{ id: "1" }]) : "{}";
+    const leaked = await runSmokeDeploy("https://deploy.example.test", {
+      fetchImpl: mockFetch((url) => {
+        if (url.pathname === "/api/patients")
+          return new Response(body, { status });
+        if (url.pathname === "/api/health/db")
+          return okJson({ status: "complete" });
+        if (url.pathname === "/api/health")
+          return okJson({ status: "healthy" });
+        return okJson({ authenticated: false });
+      }),
+    });
+    assert.equal(
+      leaked.find(({ check }) => check === "middleware").ok,
+      false,
+      `status ${status} deveria falhar`,
+    );
+  }
+});
+
+test("requests usam GET, redirect manual e timeout por request", async () => {
+  const seen = new Map();
+  await runSmokeDeploy("https://deploy.example.test", {
+    fetchImpl: mockFetch((url, init) => {
+      seen.set(url.pathname, init);
       if (url.pathname === "/api/patients")
-        return okJson([{ id: "1" }], 200);
+        return new Response("{}", { status: 307 });
       if (url.pathname === "/api/health/db")
         return okJson({ status: "complete" });
-      if (url.pathname === "/api/health") return okJson({ status: "healthy" });
+      if (url.pathname === "/api/health")
+        return okJson({ status: "healthy" });
       return okJson({ authenticated: false });
     }),
   });
-  assert.equal(
-    leaked.find(({ check }) => check === "middleware").ok,
-    false,
+  for (const pathname of [
+    "/api/health",
+    "/api/auth/session",
+    "/api/health/db",
+    "/api/patients",
+  ]) {
+    const init = seen.get(pathname);
+    assert.ok(init, `esperava request para ${pathname}`);
+    assert.equal(init.method ?? "GET", "GET");
+    assert.equal(init.redirect, "manual");
+    assert.ok(
+      init.signal instanceof AbortSignal,
+      `${pathname} deve ter AbortSignal.timeout`,
+    );
+  }
+  // O check de middleware depende de redirect:"manual": sem ele o fetch
+  // seguiria o 307 e o status observado não seria o do middleware.
+  assert.equal(seen.get("/api/patients").redirect, "manual");
+});
+
+const SMOKE_SCRIPT = fileURLToPath(new URL("../smoke-deploy.mjs", import.meta.url));
+
+test("CLI --help via subprocesso sai 0 sem rede", () => {
+  const help = spawnSync(process.execPath, [SMOKE_SCRIPT, "--help"], {
+    encoding: "utf8",
+  });
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /SMOKE_BASE_URL/);
+  assert.match(help.stdout, /401\/403\/3xx/);
+});
+
+test("fluxo de saida do CLI: JSON por linha + exit via smokeFailed", async () => {
+  // NOTA: spawn do CLI contra um servidor HTTP local não é viável neste
+  // runner — loopback entre processos é bloqueado (fetch no processo filho
+  // morre em TimeoutError mesmo com o servidor no ar; verificado em
+  // 2026-09-14). O e2e real do CLI (exit 0/1 contra staging) fica para o
+  // runbook. Aqui cobrimos o mesmo fluxo: serialização + mapeamento de exit.
+  const toExitCode = (results) => (smokeFailed(results) ? 1 : 0);
+
+  const green = await runSmokeDeploy("https://deploy.example.test", {
+    fetchImpl: allGreenFetch(),
+  });
+  const greenLines = green.map((entry) => JSON.stringify(entry));
+  assert.deepEqual(
+    greenLines.map((line) => {
+      const { check, ok } = JSON.parse(line);
+      return { check, ok };
+    }),
+    [
+      { check: "liveness", ok: true },
+      { check: "auth-pipeline", ok: true },
+      { check: "db", ok: true },
+      { check: "middleware", ok: true },
+      { check: "workers", ok: true },
+    ],
   );
+  assert.equal(toExitCode(green), 0);
+
+  const broken = await runSmokeDeploy("https://deploy.example.test", {
+    fetchImpl: mockFetch((url) => {
+      if (url.pathname === "/api/health/db")
+        return okJson({ status: "incomplete" });
+      if (url.pathname === "/api/health")
+        return okJson({ status: "healthy" });
+      if (url.pathname === "/api/auth/session")
+        return okJson({ authenticated: false });
+      return new Response("{}", { status: 307 });
+    }),
+  });
+  assert.equal(toExitCode(broken), 1);
 });
 
 test("saida nunca expoe segredos", () => {

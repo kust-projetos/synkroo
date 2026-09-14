@@ -54,8 +54,18 @@ function isSuccess(status) {
   return status >= 200 && status < 300;
 }
 
-function isUnauthorized(status) {
-  return status === 401 || status === 403;
+function isProtected(status) {
+  // Sem sessão, o middleware redireciona rotas protegidas para /login
+  // (NextResponse.redirect → 307, ver src/middleware.ts) e as gates de rota
+  // respondem 401/403. Qualquer 2xx (vazou dado) ou 404 (rota sumiu) é falha.
+  return (
+    status === 401 ||
+    status === 403 ||
+    status === 301 ||
+    status === 302 ||
+    status === 307 ||
+    status === 308
+  );
 }
 
 async function safeJson(response) {
@@ -140,7 +150,11 @@ async function checkDb(baseUrl, paths, fetchImpl) {
 }
 
 async function checkMiddleware(baseUrl, paths, fetchImpl) {
-  // Rota autenticada sem sessão deve responder 401/403 — prova middleware ativo.
+  // Rota protegida sem sessão deve ser bloqueada: redirect 3xx para /login
+  // (comportamento real do middleware) ou 401/403 das gates — prova
+  // middleware ativo. 2xx/404 = falha (dado vazou ou rota sumiu).
+  // timedFetch usa redirect: "manual" para que o 307 chegue até aqui em vez
+  // de ser seguido automaticamente pelo fetch.
   const { response, ms, error } = await timedFetch(
     fetchImpl,
     new URL(paths.protectedApi, baseUrl),
@@ -154,7 +168,7 @@ async function checkMiddleware(baseUrl, paths, fetchImpl) {
   } catch {
     // Corpo ilegível não invalida o check — o status já prova o middleware.
   }
-  const ok = isUnauthorized(response.status);
+  const ok = isProtected(response.status);
   return result("middleware", ok, { status: response.status, ms });
 }
 
@@ -231,7 +245,7 @@ export function printHelp() {
     "  liveness      GET /api/health        -> 200 { status: 'healthy' }",
     "  auth-pipeline GET /api/auth/session  -> 200/401 { authenticated: bool }",
     "  db            GET /api/health/db     -> 200 { status: 'complete' }",
-    "  middleware    GET /api/patients      -> 401/403 sem sessao",
+    "  middleware    GET /api/patients      -> 401/403/3xx sem sessao",
     "  workers       skipped (service bindings; SMOKE_IA_BRIDGE_URL p/ override)",
     "",
     "Saida: um JSON por linha { check, ok, status, ms }. Exit 1 se algum check falhar.",

@@ -36,7 +36,7 @@ Requisitos: Node 18+ (usa `AbortSignal.timeout` e `fetch` nativo). Timeout de
 | `liveness` | `GET /api/health` | 200 `{ status: 'healthy' }` | Runtime + app responderam; inclui ping no DB (`checks.database`) |
 | `auth-pipeline` | `GET /api/auth/session` (sem cookie) | 200/401 `{ authenticated: bool }` | Pipeline Auth.js responde sem credenciais reais (`POST /api/auth/login` foi removido — login é exclusivo NextAuth) |
 | `db` | `GET /api/health/db` | 200 `{ status: 'complete' }` | Schema acessível (todas as tabelas esperadas existem) |
-| `middleware` | `GET /api/patients` (sem sessão) | 401/403 | Middleware/gates de auth ativos (rota protegida não vaza 200) |
+| `middleware` | `GET /api/patients` (sem sessão) | 401/403 ou 3xx (redirect p/ `/login`) | Middleware bloqueia anônimo: redirect 307 (`src/middleware.ts`) ou 401/403 das gates — dado nunca vaza 200 nem some em 404 |
 | `workers` | — (skipped) | `ok:true, skipped:true` | ia-bridge é chamado via **service bindings** (RPC interno, sem HTTP público) — sem endpoint externo a pingar; cobertura via `liveness` + `db` |
 
 Saída: um JSON por linha `{ check, ok, status, ms }` (segredos redatados).
@@ -59,12 +59,21 @@ do bridge, informe `SMOKE_IA_BRIDGE_URL=https://...` para pingá-lo (2xx = ok).
    - `auth-pipeline` falha → regressão no Auth.js/session (ver `src/lib/auth/`).
    - `db` = `incomplete` → migração não aplicada (`npm run db:migrate`) ou
      Hyperdrive apontando para o DB errado.
-   - `middleware` = 200 sem sessão → **tratar como incidente de segurança**:
+   - `middleware` = 2xx/404 sem sessão → **tratar como incidente de segurança**:
      gates de auth desabilitados; rollback imediato.
    - `workers` com `SMOKE_IA_BRIDGE_URL` falha → bridge fora do ar; sem o
      override, `skipped` nunca é falha.
-3. **Rollback**: `npx wrangler rollback` (ou `wrangler deploy --version
-   <version-id>`) — procedimento em `docs/runbook-deploy-instancia.md` §5.
+3. **Rollback por ambiente** — antes de executar, confira o version-id alvo
+   (`npx wrangler versions list` para produção, `npx wrangler versions list
+   --env staging` para staging) e só então reverta:
+   - Produção (worker `synkroo`, topo de `wrangler.toml`):
+     `npx wrangler rollback`
+   - Staging (worker `synkroo-staging`, `[env.staging]` em `wrangler.toml`):
+     `npx wrangler rollback --env staging`
+   - Alternativa pinnada numa versão específica:
+     `npx wrangler deploy --version <version-id>` (produção) ou
+     `npx wrangler deploy --version <version-id> --env staging` (staging)
+   — procedimento base em `docs/runbook-deploy-instancia.md` §5.
 4. Re Rode o smoke após o rollback para confirmar a versão restaurada.
 
 ## 6. Referências
