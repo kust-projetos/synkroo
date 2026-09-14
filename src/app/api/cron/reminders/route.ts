@@ -12,6 +12,7 @@ import { processAllReminders } from '@/modules/operacional/services/reminders-se
 import { assertModuleForJob } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
+import { apiRateLimited, generateRequestId } from '@/lib/api/response';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // Verify CRON_SECRET before rate limit — invalid credentials must not consume scheduler quota (T1 DoS fix).
@@ -27,10 +28,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
-    );
+    return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0);
   }
 
   // Module gate — skip if disabled (200, not error)

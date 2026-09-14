@@ -222,13 +222,23 @@ describe('POST /api/cron/crm-duplicates — execução per-clinic', () => {
 });
 
 describe('POST /api/cron/crm-duplicates — rate limit', () => {
-  it('429 quando rate limit excedido', async () => {
+  it('429 quando rate limit excedido: envelope exato sem retryAfter no body + header Retry-After', async () => {
     mockRateLimit.allowed = false;
     mockRateLimit.retryAfter = 30;
     const res = await POST(makeRequest(VALID_BEARER) as any);
     expect(res.status).toBe(429);
     const body = await res.json();
-    expect(body).toMatchObject({ error: 'Rate limit exceeded', retryAfter: 30 });
+    expect(typeof body?.error?.requestId).toBe('string');
+    expect(body).toEqual({
+      error: {
+        code: 'TOO_MANY_REQUESTS',
+        message: 'Rate limit exceeded',
+        requestId: body.error.requestId,
+      },
+    });
+    expect(body).not.toHaveProperty('retryAfter');
+    expect(body.error).not.toHaveProperty('retryAfter');
+    expect(res.headers.get('Retry-After')).toBe('30');
   });
 });
 

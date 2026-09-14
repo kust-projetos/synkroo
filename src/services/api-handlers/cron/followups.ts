@@ -25,7 +25,7 @@ import { assertModuleForJob } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
-import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';
+import { apiSuccess, apiFailure, apiRateLimited, generateRequestId } from '@/lib/api/response';
 import { executarFollowup } from '@/modules/followup';
 import { detectarInativos } from '@/modules/followup';
 import { executarCampanhas } from '@/modules/followup';
@@ -50,10 +50,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     maxRequests: 30,
   });
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: { code: 'TOO_MANY_REQUESTS', message: 'Rate limit exceeded', requestId }, retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
-    );
+    return apiRateLimited(requestId, rateLimit.retryAfter ?? 0);
   }
 
   // Module gate — skip if followup module is not contracted

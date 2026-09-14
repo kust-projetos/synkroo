@@ -11,6 +11,7 @@ import { createManifest } from '@/core/modules/manifest';
 import { runActionRoute } from '@/modules/operacional/ui/route-adapter';
 import { preencherWaitlist } from '@/modules/operacional/actions/preencher-waitlist';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
+import { apiRateLimited, generateRequestId } from '@/lib/api/response';
 
 const OPERACIONAL_MODULE = 'operacional';
 
@@ -18,10 +19,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.api, keyPrefix: 'waitlist-fill' });
   if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: 'Rate limit exceeded', retryAfter: rateLimit.retryAfter },
-      { status: 429, headers: { 'Retry-After': String(rateLimit.retryAfter) } },
-    );
+    return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0);
   }
   const body = await request.json();
   return runActionRoute(preencherWaitlist, body, { okStatus: 200 });

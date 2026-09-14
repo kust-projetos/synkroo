@@ -98,6 +98,20 @@ export const apiErrors = {
 };
 
 /**
+ * 429 rate-limit failure (ADR-BASE-10): canonical envelope with
+ * `Retry-After` in header only — never in the body.
+ */
+export function apiRateLimited(
+  requestId: string,
+  retryAfter: number,
+  message = 'Rate limit exceeded',
+): NextResponse<ApiFailure> {
+  const res = apiFailure('TOO_MANY_REQUESTS', message, requestId, 429);
+  res.headers.set('Retry-After', String(retryAfter));
+  return res;
+}
+
+/**
  * Generate a unique request ID for tracing.
  * Falls back to crypto.randomUUID() in modern runtimes.
  */
