@@ -3,6 +3,7 @@
 // O app só recebe o capability de emitir handles; o executor fica no agent.
 import {
   BRIDGE_RPC_VERSION,
+  ContractVersionMismatchError,
   type HandleIssuerBinding,
   type IssueHandleResult,
 } from '@/core/agent-bridge/rpc-contract';
@@ -95,7 +96,7 @@ export async function invokeAgentWithEnv(
       ttlSeconds: 120,
     });
     if (!('handle' in issued) || issued.contractVersion !== BRIDGE_RPC_VERSION) {
-      throw new Error('[agent-invoker] handle issuer contract version mismatch');
+      throw new ContractVersionMismatchError();
     }
     const { handle } = issued;
 
@@ -130,8 +131,7 @@ export async function invokeAgentWithEnv(
     const code =
       err instanceof RpcTimeoutError
         ? 'rpc_timeout'
-        : err instanceof Error &&
-            err.message.includes('contract version mismatch')
+        : err instanceof ContractVersionMismatchError
           ? 'contract_version_mismatch'
           : 'invoke_failed';
     emit({

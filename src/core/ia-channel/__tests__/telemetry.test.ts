@@ -124,4 +124,62 @@ describe('B2 — invoker correlation id', () => {
       code: 'invoke_failed',
     });
   });
+
+  it('mismatch de contrato classifica por tipo (contract_version_mismatch)', async () => {
+    const events: TelemetryEvent[] = [];
+    const env = {
+      IA_HANDLE_ISSUER: {
+        issueHandle: async () => ({
+          ok: false,
+          error: 'contract_version_mismatch',
+          contractVersion: BRIDGE_RPC_VERSION,
+        }),
+      },
+      AGENT: {
+        idFromName: () => ({ name: 'x' }),
+        get: () => ({ runTurn: async () => ({ reply: 'x', turnsUsed: 1 }) }),
+      },
+    };
+    const out = await invokeAgentWithEnv(
+      env as never,
+      { ...baseInput, correlationId: 'corr-mm-1' },
+      { telemetry: (e) => events.push(e), timeoutMs: 5000 },
+    );
+    expect(out.reply).toContain('instabilidade');
+    expect(out.errorCode).toBe('contract_version_mismatch');
+    expect(events[0]).toMatchObject({
+      correlationId: 'corr-mm-1',
+      status: 'fallback',
+      code: 'contract_version_mismatch',
+    });
+  });
+
+  it('exceção genérica contendo o texto NÃO classifica como mismatch', async () => {
+    const events: TelemetryEvent[] = [];
+    const env = {
+      IA_HANDLE_ISSUER: {
+        issueHandle: async () => ({
+          contractVersion: BRIDGE_RPC_VERSION,
+          handle: 'H',
+          expiresAt: '2026-08-29T12:00:00.000Z',
+        }),
+      },
+      AGENT: {
+        idFromName: () => ({ name: 'x' }),
+        get: () => ({
+          runTurn: async () => {
+            throw new Error('external contract version mismatch noise');
+          },
+        }),
+      },
+    };
+    const out = await invokeAgentWithEnv(
+      env as never,
+      { ...baseInput, correlationId: 'corr-txt-1' },
+      { telemetry: (e) => events.push(e), timeoutMs: 5000 },
+    );
+    expect(out.errorCode).toBe('invoke_failed');
+    expect(events[0]).toMatchObject({ code: 'invoke_failed' });
+    expect(JSON.stringify(events)).not.toContain('external contract');
+  });
 });
