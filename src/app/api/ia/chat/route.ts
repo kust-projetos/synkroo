@@ -7,6 +7,13 @@ import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
 import { resolveIaTimezone } from '../timezone';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
+  // B2: correlation id ponta a ponta — ecoa x-request-id do caller ou gera um
+  // novo; propagado a invokeAgent → issueHandle → runTurn → provider e
+  // devolvido no header da resposta para rastreabilidade do incidente.
+  const correlationId =
+    request.headers.get('x-request-id') ?? crypto.randomUUID();
+  const corrHeaders = { 'x-request-id': correlationId };
+
   // buildUserContext lança 'unauthenticated' sem sessão; dá user + can (RBAC real).
   let ctx: Awaited<ReturnType<typeof buildUserContext>>;
   try {
@@ -51,12 +58,16 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       userMessage: message,
       confirmedToken: body.confirmedToken,
       identityVerifiedToken: body.identityVerifiedToken,
+      correlationId,
     });
   } catch {
-    return NextResponse.json({ error: 'Internal server error', turnsUsed: 0 }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error', turnsUsed: 0 },
+      { status: 500, headers: corrHeaders },
+    );
   }
 
-  return NextResponse.json(result);
+  return NextResponse.json(result, { headers: corrHeaders });
 }
 
 export const POST = withModuleRoute('ia')(handlePOST);
