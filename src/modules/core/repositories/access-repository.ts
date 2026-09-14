@@ -51,25 +51,47 @@ export async function countActiveUsersWithRole(clinicId: string, roleId: string)
   return rows.length;
 }
 
+function isUniqueViolation(err: unknown): boolean {
+  return (err as { code?: unknown })?.code === '23505';
+}
+
 export async function upsertUserAccess(input: { userId: string; clinicId: string; roleId: string }) {
   const db = getDb();
-  await db.transaction(async (tx) => {
-    await tx.insert(userClinicAccess)
-      .values(input)
-      .onConflictDoUpdate({
-        target: [userClinicAccess.userId, userClinicAccess.clinicId],
-        set: {
-          roleId: input.roleId,
-          revokedAt: null,
-          expiresAt: null,
-          grantReason: null,
-          grantedBy: null,
-        },
-      });
-    await tx.update(users)
-      .set({ sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
-      .where(eq(users.id, input.userId));
-  });
+  const attempt = () =>
+    db.transaction(async (tx) => {
+      await tx.insert(userClinicAccess)
+        .values(input)
+        .onConflictDoUpdate({
+          target: [userClinicAccess.userId, userClinicAccess.clinicId],
+          set: {
+            roleId: input.roleId,
+            revokedAt: null,
+            expiresAt: null,
+            grantReason: null,
+            grantedBy: null,
+          },
+        });
+      await tx.update(users)
+        .set({ sessionVersion: sql`${users.sessionVersion} + 1`, updatedAt: new Date() })
+        .where(eq(users.id, input.userId));
+    });
+  try {
+    await attempt();
+  } catch (err) {
+    // W11: two concurrent assigns of the same (user, clinic) pair can both
+    // pass the pre-checks and race inside the write. If Postgres reports a
+    // unique violation the arbiter path missed, re-read: when the row now
+    // exists, a single retry converges it (idempotent success, same
+    // sessionVersion bump as the normal path). Anything else rethrows, so a
+    // genuine error never becomes a silent success.
+    if (!isUniqueViolation(err)) throw err;
+    const [current] = await db.select({ userId: userClinicAccess.userId })
+      .from(userClinicAccess)
+      .where(and(eq(userClinicAccess.userId, input.userId), eq(userClinicAccess.clinicId, input.clinicId)))
+      .limit(1);
+    if (!current) throw err;
+    await attempt();
+  }
 }
 
 export async function removeUserAccess(userId: string, clinicId: string) {
