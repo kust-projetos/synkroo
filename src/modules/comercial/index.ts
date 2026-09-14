@@ -65,6 +65,12 @@ export const comercialActions = [
   atualizarTagsLead,
 ];
 
+// ─── Seams públicos para services legados (R3) ───────────────────────────────
+// Re-exports nomeados do mesmo binding — sem mudança de comportamento.
+export { processarNotificacoesLeadsQuentes } from './actions/processar-notificacoes-leads-quentes';
+export { seedDefaultPipelineStages } from './repositories/pipeline-repository';
+export { listLeadsByClinic } from './repositories/leads-repository';
+
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { comercialManifest } from './manifest';
 export { registrarNotaLead } from './actions/registrar-nota-lead';

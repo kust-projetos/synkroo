@@ -5,7 +5,7 @@ import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib
 import { getDb } from '@/lib/db/client'
 import { conversations, appointments, patients } from '@/lib/db/schema'
 import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete-treatment.service'
-import { listLeadsByClinic } from '@/modules/comercial/repositories/leads-repository'
+import { listLeadsByClinic } from '@/modules/comercial'
 import { findUnconvertedBudgets } from '@/services/followup/budget-followup.service'
 
 // Minimal inferred shape for the hot-lead filter callback (TS7006).
