@@ -1,20 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getAttendanceMetrics } from '@/services/analytics/attendance-metrics.service'
-import { handleApiError } from '@/lib/errors'
 
 /**
  * GET /api/analytics/metrics
  * Get attendance metrics (message volume, intents, response time)
+ *
+ * Sem módulo correspondente (analytics é transversal): mantém validateApiAuth
+ * + envelope canônico mínimo, sem gate withModuleRoute. Justificativa D2.
  */
 export async function GET(request: NextRequest) {
+  const requestId = generateRequestId()
   try {
     const authResult = await validateApiAuth()
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status }
-      )
+      return apiAuthFailure(authResult.error, requestId)
     }
 
     const clinicId = authResult.profile!.clinic_id
@@ -49,11 +50,11 @@ export async function GET(request: NextRequest) {
     })
 
     if (!metrics) {
-      return NextResponse.json({ error: 'Failed to fetch metrics' }, { status: 500 })
+      return apiFailure('INTERNAL_ERROR', 'Failed to fetch metrics', requestId, 500)
     }
 
-    return NextResponse.json(metrics)
-  } catch (error) {
-    return handleApiError(error)
+    return apiSuccess(metrics)
+  } catch {
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)
   }
 }

@@ -43,7 +43,9 @@ export function FinancialReportsDashboard() {
     try {
       const res = await fetch(`/api/reports/financial?period=${period}&date=${selectedDate}`)
       if (!res.ok) throw new Error('Failed to fetch financial report')
-      const data: FinancialReport = await res.json()
+      const body = await res.json()
+      // Contrato canônico (D2 lote 5): { data: FinancialReport }
+      const data: FinancialReport = body.data
       setReport(data)
     } catch (err) {
       setError('Erro ao carregar dados. Tente novamente.')

@@ -68,7 +68,9 @@ export function useAnalytics(clinicId: string | undefined) {
       if (!response.ok) {
         throw new Error('Failed to fetch analytics')
       }
-      return response.json()
+      // Contrato canônico (D2 lote 5): { data: ClinicInsights }
+      const body = await response.json()
+      return body.data as ClinicInsights
     },
     enabled: !!clinicId,
     staleTime: 60 * 1000,
@@ -205,7 +207,9 @@ export function useROI(clinicId: string | undefined) {
       if (!response.ok) {
         throw new Error('Failed to fetch ROI data')
       }
-      return response.json()
+      // Contrato canônico (D2 lote 5): { data: ROIMetricsData }
+      const body = await response.json()
+      return body.data as ROIMetricsData
     },
     enabled: !!clinicId,
     staleTime: 60 * 1000,
