@@ -8,6 +8,11 @@ jest.mock('@/lib/auth/session', () => ({
   validateApiAuth: mockValidateApiAuth,
 }));
 
+jest.mock('@/lib/logger', () => ({
+  logger: { error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() },
+  dbLogger: { error: jest.fn(), info: jest.fn(), warn: jest.fn(), debug: jest.fn() },
+}));
+
 jest.mock('@/services/rag', () => ({
   ragService: {
     searchKnowledge: (...a: unknown[]) => mockSearchKnowledge(...a),
@@ -17,6 +22,7 @@ jest.mock('@/services/rag', () => ({
 
 import { POST as searchPOST } from '@/app/api/knowledge/search/route';
 import { POST as ingestPOST } from '@/app/api/knowledge/ingest/route';
+import { logger } from '@/lib/logger';
 
 const CLINIC = 'c1';
 
@@ -97,7 +103,13 @@ describe('knowledge clamps (B1)', () => {
       req('http://localhost/api/knowledge/ingest', { content: 'x' }),
     );
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: 'Field "category" is required' });
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'INVALID_INPUT',
+        message: 'Field "category" is required',
+        requestId: expect.any(String),
+      },
+    });
   });
 
   it('ingest: params válidos passam com clamp aplicado', async () => {
@@ -117,5 +129,29 @@ describe('knowledge clamps (B1)', () => {
       chunkSize: 300,
       chunkOverlap: 30,
     });
+  });
+
+  it('ingest: service failure → 500 envelope canônico com log', async () => {
+    const boom = new Error('boom');
+    mockIngestDocument.mockRejectedValueOnce(boom);
+    const res = await ingestPOST(
+      req('http://localhost/api/knowledge/ingest', {
+        category: 'horarios',
+        content: 'texto',
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Internal server error',
+        requestId: expect.any(String),
+      },
+    });
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('knowledge/ingest'),
+      boom,
+      expect.objectContaining({ requestId: expect.any(String) }),
+    );
   });
 });

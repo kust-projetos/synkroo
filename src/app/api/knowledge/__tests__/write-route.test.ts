@@ -201,33 +201,11 @@ describe('PUT /api/knowledge/[id]', () => {
     expect(payload.data.is_active).toBeUndefined()
   })
 
-  it('accepts legacy is_active:false and returns the camelCase payload', async () => {
-    mockUpdateReturning.mockResolvedValue([{ ...row, isActive: false }])
+  it('ignores legacy is_active alone and applies no update', async () => {
+    const response = await PUT(request('PUT', { is_active: true }), params)
 
-    const response = await PUT(request('PUT', { is_active: false }), params)
-    const payload = await response.json()
-
-    expect(response.status).toBeLessThan(300)
-    expect(mockUpdateBuilder.set).toHaveBeenCalledWith(expect.objectContaining({
-      isActive: false,
-      updatedAt: expect.any(Date),
-    }))
-    expect(payload.data.isActive).toBe(false)
-  })
-
-  it('prefers camelCase isActive when both isActive and is_active are sent', async () => {
-    mockUpdateReturning.mockResolvedValue([{ ...row, isActive: false }])
-
-    const response = await PUT(request('PUT', { isActive: false, is_active: true }), params)
-    const payload = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(mockUpdateBuilder.set).toHaveBeenCalledWith(expect.objectContaining({
-      isActive: false,
-      updatedAt: expect.any(Date),
-    }))
-    expect(payload.data.isActive).toBe(false)
-    expect(payload.data.is_active).toBeUndefined()
+    expect(response.status).toBe(400)
+    expect(mockUpdateReturning).not.toHaveBeenCalled()
   })
 })
 

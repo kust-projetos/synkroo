@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { validateApiAuth } from '@/lib/auth/session';
-import { handleApiError } from '@/lib/errors';
+import { logger } from '@/lib/logger';
+import { apiCreated, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response';
 import { ragService } from '@/services/rag';
 
 /**
@@ -25,13 +26,11 @@ const clampInt = (v: number | undefined, fallback: number, lo: number, hi: numbe
  * Ingest document with automatic chunking and embedding generation.
  */
 export async function POST(request: NextRequest) {
+  const requestId = generateRequestId();
   try {
     const authResult = await validateApiAuth('ia:manage');
     if (!authResult.success) {
-      return NextResponse.json(
-        { error: authResult.error!.message },
-        { status: authResult.error!.status },
-      );
+      return apiAuthFailure(authResult.error, requestId);
     }
 
     const clinicId = authResult.profile!.clinic_id;
@@ -39,13 +38,13 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
       const paths = parsed.error.issues.map((i) => String(i.path[0]));
       const missing = ['category', 'content'].find((f) => paths.includes(f));
-      return NextResponse.json(
-        {
-          error: missing
-            ? `Field "${missing}" is required`
-            : 'Invalid chunking parameters (chunkSize/chunkOverlap must be finite numbers)',
-        },
-        { status: 400 },
+      return apiFailure(
+        'INVALID_INPUT',
+        missing
+          ? `Field "${missing}" is required`
+          : 'Invalid chunking parameters (chunkSize/chunkOverlap must be finite numbers)',
+        requestId,
+        400,
       );
     }
     const { category, content, title, chunkSize: rawSize, chunkOverlap: rawOverlap } = parsed.data;
@@ -58,14 +57,9 @@ export async function POST(request: NextRequest) {
       chunkOverlap: rawOverlap === undefined ? undefined : clampInt(rawOverlap, 50, 0, 500),
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: result,
-      },
-      { status: 201 },
-    );
+    return apiCreated(result);
   } catch (error) {
-    return handleApiError(error);
+    logger.error('[knowledge/ingest] Unexpected error', error, { requestId });
+    return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500);
   }
 }
