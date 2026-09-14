@@ -2,9 +2,11 @@ import { z } from 'zod';
 import type {
   AppBinding,
   ChatMessage,
+  ConsumePendingResult,
   LlmProvider,
   LlmTool,
   PendingAction,
+  PendingConsumeExpected,
   RunTurnInput,
   RunTurnResult,
 } from './types';
@@ -65,11 +67,14 @@ export interface RunTurnDeps {
   nowMs?: () => number;
   /**
    * B1-review — reserva validada da pendingAction no DO storage.
-   * `peek` lê sem destruir; `consume` lê+apaga na mesma transação (shard).
+   * `peek` lê sem destruir; `consume` (condicional: só deleta se o valor
+   * atual casar com `expected`) reserva na mesma transação do storage.
    * Quando presentes, o confirm usa ambos (ver caminho de confirmação).
    */
   peekPendingAction?: () => Promise<PendingAction | undefined>;
-  consumePendingAction?: () => Promise<PendingAction | undefined>;
+  consumePendingAction?: (
+    expected: PendingConsumeExpected,
+  ) => Promise<ConsumePendingResult>;
 }
 
 /**
@@ -164,8 +169,9 @@ export async function runTurn(
   // B1-review — reserva validada + binding de principal:
   //  - mensagem normal (sem confirmedToken) NUNCA toca a pending;
   //  - com confirmedToken: peek (sem destruir) → valida token (timing-safe)
-  //    + principalId → consome atomicamente → revalida o reservado contra o
-  //    peek (perdeu a corrida = recusa, sem executar);
+  //    + principalId → consume CONDICIONAL (só deleta se o valor atual ainda
+  //    for o peekado) → revalida o reservado (mismatch/perdeu a corrida =
+  //    fallback fail-closed, sem executar);
   //  - fail-closed: sem pending, sem token, ou principal ausente/divergente
   //    em qualquer lado → recusa (segue o fluxo normal, sem executar);
   //  - falha pós-reserva NÃO re-arma a pending: erro normal ao usuário.
@@ -187,12 +193,26 @@ export async function runTurn(
       if (budgetExhausted('confirm-execute')) {
         return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'keep' };
       }
-      const taken = deps.consumePendingAction
-        ? await deps.consumePendingAction()
-        : peeked;
-      // taken e peeked são ambos server-side: === aqui não vaza timing.
-      if (taken && taken.token === peeked.token && taken.principalId === peeked.principalId) {
-        reservedPa = taken;
+      if (deps.consumePendingAction) {
+        const { reserved, mismatch } = await deps.consumePendingAction({
+          token: peeked.token,
+          principalId: peeked.principalId,
+        });
+        // taken e peeked são ambos server-side: === aqui não vaza timing.
+        if (
+          !mismatch &&
+          reserved &&
+          reserved.token === peeked.token &&
+          reserved.principalId === peeked.principalId
+        ) {
+          reservedPa = reserved;
+        } else {
+          // Pending trocada entre peek e consume (turno intercalado) —
+          // fail-closed: fallback sem executar, nova pending intacta.
+          return { reply: FALLBACK, turnsUsed: 1, pendingActionWrite: 'keep' };
+        }
+      } else {
+        reservedPa = peeked;
       }
     }
   }
@@ -211,7 +231,7 @@ export async function runTurn(
       flags: { confirmed: true, identityVerified },
     });
     if (exec.contractVersion !== BRIDGE_RPC_VERSION) {
-      return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'clear' };
+      return { reply: FALLBACK, turnsUsed: 0, pendingActionWrite: 'clear', clearedToken: pa.token };
     }
     if (!exec.ok) {
       return {
@@ -220,9 +240,15 @@ export async function runTurn(
         escalated: exec.error === 'escalate_human',
         escalationReason: exec.error === 'escalate_human' ? 'action_escalate_human' : undefined,
         pendingActionWrite: 'clear',
+        clearedToken: pa.token,
       };
     }
-    return { reply: 'Pronto, confirmado e executado.', turnsUsed: 1, pendingActionWrite: 'clear' };
+    return {
+      reply: 'Pronto, confirmado e executado.',
+      turnsUsed: 1,
+      pendingActionWrite: 'clear',
+      clearedToken: pa.token,
+    };
   }
 
   // ── 1. Catálogo ──────────────────────────────────────────────────────────

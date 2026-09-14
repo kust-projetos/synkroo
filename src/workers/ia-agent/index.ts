@@ -77,19 +77,24 @@ export class AgentOrchestrator extends DurableObject<Env> {
         app,
         now: new Date(),
         // B1-review — peek lê sem destruir (mensagem normal nunca consome);
-        // consume reserva atomicamente (get+delete na mesma transação).
+        // consume CONDICIONAL: dentro da MESMA transação, só deleta se o
+        // valor atual ainda for o esperado (token+principal do peek). Se um
+        // turno intercalou e trocou a pending, NÃO deleta (mismatch).
         peekPendingAction: async () =>
           (await this.ctx.storage.get<PendingAction | null>('pendingAction')) ?? undefined,
-        // B1-review — reserva atômica por shard: lê e apaga a pending na
-        // mesma transação. Segunda confirmação (concorrente ou seguida) do
-        // mesmo token recebe undefined → recusada (at-most-once).
-        consumePendingAction: async () => {
-          const taken = await this.ctx.storage.transaction(async (txn) => {
+        // B1-review — reserva atômica por shard: segunda confirmação
+        // (concorrente ou seguida) do mesmo token recebe reserved undefined
+        // → recusada (at-most-once).
+        consumePendingAction: async (expected) => {
+          return this.ctx.storage.transaction(async (txn) => {
             const cur = await txn.get<PendingAction | null>('pendingAction');
+            if (!cur) return { reserved: undefined, mismatch: false };
+            if (cur.token !== expected.token || cur.principalId !== expected.principalId) {
+              return { reserved: undefined, mismatch: true };
+            }
             await txn.delete('pendingAction');
-            return cur ?? undefined;
+            return { reserved: cur, mismatch: false };
           });
-          return taken;
         },
       },
       {
@@ -107,12 +112,27 @@ export class AgentOrchestrator extends DurableObject<Env> {
     await this.ctx.storage.put('history', nextHistory);
     // B1-review — semântica explícita de escrita da pending:
     // 'set' (orchestrator criou nova) → grava; 'clear' (confirm consumiu) →
-    // grava null; 'keep'/ausente (turno normal, confirm inválido, budget
-    // estourado) → NÃO escreve, preserva a existente.
+    // apaga SOMENTE se o valor atual for null/ausente ou a MESMA pending que
+    // esta execução reservou (`clearedToken`); pending nova de turno
+    // intercalado durante o await do executeAction é preservada;
+    // 'keep'/ausente (turno normal, confirm inválido, budget estourado,
+    // mismatch) → NÃO escreve, preserva a existente.
     if (result.pendingActionWrite === 'set') {
       await this.ctx.storage.put('pendingAction', result.pendingAction ?? null);
     } else if (result.pendingActionWrite === 'clear') {
-      await this.ctx.storage.put('pendingAction', null);
+      // Leitura+escrita na MESMA transação: sem janela check-then-act.
+      const clearedToken = result.clearedToken;
+      await this.ctx.storage.transaction(async (txn) => {
+        const cur = await txn.get<PendingAction | null>('pendingAction');
+        if (cur === null || cur === undefined || (clearedToken && cur.token === clearedToken)) {
+          await txn.put('pendingAction', null);
+        } else {
+          // eslint-disable-next-line no-console
+          console.warn('[ia-agent] clear condicional ignorado: pending nova preservada', {
+            conversationId: input.conversationId,
+          });
+        }
+      });
     }
     // F6.12 retention — reschedule purge alarm on every turn
     await this.ctx.storage.setAlarm(Date.now() + RETENTION_MS);

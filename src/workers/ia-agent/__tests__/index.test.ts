@@ -293,10 +293,11 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       );
       expect(mockCtx.storage.store.get('pendingAction')).toEqual(existing);
 
-      // confirm válido (consumiu) → clear grava null
+      // confirm válido (consumiu tok-x) → clear grava null
       mockRunAgentTurn.mockResolvedValueOnce({
         reply: 'Pronto, confirmado e executado.',
         pendingActionWrite: 'clear',
+        clearedToken: 'tok-x',
       });
       await orchestrator.runTurn({
         clinicId: 'clinic-1',
@@ -307,7 +308,7 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       expect(mockCtx.storage.put).toHaveBeenCalledWith('pendingAction', null);
     });
 
-    it('consumePendingAction reserves atomically: second take of same token → undefined', async () => {
+    it('consumePendingAction condicional: reserva quando casa, mismatch sem deletar', async () => {
       mockRunAgentTurn.mockResolvedValueOnce({ reply: 'ok' });
 
       await orchestrator.runTurn({
@@ -317,8 +318,8 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
         handle: 'handle-token-9',
       });
 
-      // O turno acima persiste pendingAction=null; simula a pending gravada
-      // por um turno anterior e então consome duas vezes.
+      // O turno acima não escreve pending (keep); simula a pending gravada
+      // por um turno anterior.
       mockCtx.storage.store.set('pendingAction', {
         alias: 'operacional__agendarConsulta',
         args: { date: '2026-08-25' },
@@ -327,13 +328,80 @@ describe('ia-agent DurableObject (AgentOrchestrator)', () => {
       });
 
       const deps = mockRunAgentTurn.mock.calls.at(-1)?.[0] as {
-        consumePendingAction: () => Promise<unknown>;
+        consumePendingAction: (expected: unknown) => Promise<{
+          reserved: unknown;
+          mismatch: boolean;
+        }>;
       };
       expect(typeof deps.consumePendingAction).toBe('function');
-      const first = (await deps.consumePendingAction()) as { token: string };
-      expect(first.token).toBe('tok-reserva');
-      await expect(deps.consumePendingAction()).resolves.toBeUndefined();
+
+      // (a) HIGH: pending trocada entre peek e consume → NÃO deleta, mismatch
+      const stale = await deps.consumePendingAction({ token: 'tok-antiga', principalId: 'user-A' });
+      expect(stale).toEqual({ reserved: undefined, mismatch: true });
+      expect(mockCtx.storage.store.get('pendingAction')).toEqual(
+        expect.objectContaining({ token: 'tok-reserva' }),
+      );
+
+      // reserva com a chave certa → entrega e apaga
+      const first = await deps.consumePendingAction({ token: 'tok-reserva', principalId: 'user-A' });
+      expect(first.mismatch).toBe(false);
+      expect(first.reserved).toEqual(expect.objectContaining({ token: 'tok-reserva' }));
+
+      // segunda tomada → ausente (não mismatch), sem segunda execução
+      const second = await deps.consumePendingAction({ token: 'tok-reserva', principalId: 'user-A' });
+      expect(second).toEqual({ reserved: undefined, mismatch: false });
       expect(mockCtx.storage.store.get('pendingAction')).toBeUndefined();
+    });
+
+    it('B1-review HIGH (b): clear NÃO apaga pending nova criada durante o executeAction', async () => {
+      // Turno retorna clear da pending que reservou (tok-old)...
+      mockRunAgentTurn.mockResolvedValueOnce({
+        reply: 'Pronto, confirmado e executado.',
+        pendingActionWrite: 'clear',
+        clearedToken: 'tok-old',
+      });
+      // ...mas durante o await uma pending NOVA foi criada pelo turno intercalado.
+      mockCtx.storage.store.set('pendingAction', {
+        alias: 'operacional__consultarDisponibilidade',
+        args: {},
+        token: 'tok-new',
+        principalId: 'user-A',
+      });
+
+      await orchestrator.runTurn({
+        clinicId: 'clinic-1',
+        conversationId: 'conv-100',
+        userMessage: 'sim, confirmo',
+        handle: 'handle-token-10',
+      });
+
+      expect(mockCtx.storage.put).not.toHaveBeenCalledWith('pendingAction', null);
+      expect(mockCtx.storage.store.get('pendingAction')).toEqual(
+        expect.objectContaining({ token: 'tok-new' }),
+      );
+    });
+
+    it('B1-review HIGH (c): clear com a mesma pending ainda lá → apaga', async () => {
+      mockCtx.storage.store.set('pendingAction', {
+        alias: 'x',
+        args: {},
+        token: 'tok-old',
+        principalId: 'user-A',
+      });
+      mockRunAgentTurn.mockResolvedValueOnce({
+        reply: 'Pronto, confirmado e executado.',
+        pendingActionWrite: 'clear',
+        clearedToken: 'tok-old',
+      });
+
+      await orchestrator.runTurn({
+        clinicId: 'clinic-1',
+        conversationId: 'conv-100',
+        userMessage: 'sim, confirmo',
+        handle: 'handle-token-11',
+      });
+
+      expect(mockCtx.storage.put).toHaveBeenCalledWith('pendingAction', null);
     });
 
     it('trims history to the last 20 messages when conversation grows beyond 20 turns', async () => {
