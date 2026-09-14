@@ -5,7 +5,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CreateTreatmentPlanInput, TreatmentPlan } from '@/services/treatment-plans/treatment-plan.service'
-import { clinicScope, useResolvedClinicId } from '@/lib/hooks/use-queries'
+import { clinicScope, invalidateClinicDomain, invalidateClinicKeys, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 const API_BASE = '/api/treatment-plans'
 
@@ -86,50 +86,50 @@ export function useTreatmentPlan(id: string | null, clinicId?: string) {
 
 export function useCreateTreatmentPlan() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
 
   return useMutation({
     mutationFn: createTreatmentPlan,
-    onSuccess: (data) => {
-      // G1: scoped keys — invalidate this patient's plans across tenants.
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) &&
-          q.queryKey.includes('treatment-plans') &&
-          q.queryKey.includes(data.patient_id),
-      })
+    onSuccess: (data, variables) => {
+      // R4: tenant do input/retorno, senão contexto; escopado ao paciente.
+      const tenant = variables?.clinic_id ?? data?.clinic_id ?? clinicId
+      invalidateClinicDomain(queryClient, tenant, 'treatment-plans', data.patient_id)
     },
   })
 }
 
 export function useUpdateTreatmentPlan() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
 
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Partial<CreateTreatmentPlanInput> }) =>
       updateTreatmentPlan(id, input),
     onSuccess: (data) => {
-      // G1: scoped keys — invalidate via predicate (mutation has no clinic id).
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) &&
-          (q.queryKey.includes(data.id) || q.queryKey.includes(data.patient_id)),
-      })
+      // R4: match por id restrito ao tenant do contexto.
+      invalidateClinicKeys(
+        queryClient,
+        clinicId,
+        (key) => key.includes(data.id) || key.includes(data.patient_id),
+      )
     },
   })
 }
 
 export function useUpdateSession() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
 
   return useMutation({
     mutationFn: ({ treatmentPlanId, treatmentPlanItemId }: { treatmentPlanId: string; treatmentPlanItemId: string }) =>
       updateSession(treatmentPlanId, treatmentPlanItemId),
     onSuccess: (_, variables) => {
-      // G1: scoped keys — invalidate via predicate.
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) && q.queryKey.includes(variables.treatmentPlanId),
-      })
+      // R4: match por id restrito ao tenant do contexto.
+      invalidateClinicKeys(
+        queryClient,
+        clinicId,
+        (key) => key.includes(variables.treatmentPlanId),
+      )
     },
   })
 }

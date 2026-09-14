@@ -4,7 +4,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { clinicScope, useResolvedClinicId } from '@/lib/hooks/use-queries'
+import { clinicScope, invalidateClinicKeys, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 export interface Payment {
   id: string
@@ -71,15 +71,19 @@ export function usePayments(budgetId: string | null, clinicId?: string) {
 
 export function useRecordPayment() {
   const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
 
   return useMutation({
     mutationFn: recordPayment,
-    onSuccess: (data) => {
-      // G1: scoped keys — invalidate this budget's payments via predicate.
-      queryClient.invalidateQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) && q.queryKey.includes(data.payment.budget_id),
-      })
+    onSuccess: (data, variables) => {
+      // R4: entidade pai (budget_id do retorno, senão das variáveis),
+      // tenant do contexto; match por id restrito ao tenant.
+      const budgetId = data?.payment?.budget_id ?? variables?.budget_id
+      invalidateClinicKeys(
+        queryClient,
+        clinicId,
+        (key) => budgetId != null && key.includes(budgetId),
+      )
     },
   })
 }
