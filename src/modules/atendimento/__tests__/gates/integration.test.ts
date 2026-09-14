@@ -21,7 +21,7 @@ process.env.WHATSAPP_APP_SECRET = 'test-wa-app-secret-32chars!!';
 process.env.INSTAGRAM_VERIFY_TOKEN = 'test-ig-token';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac } from 'crypto';
+import { createHmac, randomUUID } from 'crypto';
 import { Pool } from 'pg';
 import { withModuleRoute } from '@/core/modules/gates';
 import * as manifestModule from '@/core/modules/manifest';
@@ -33,7 +33,10 @@ const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 const describeOrSkip = SKIP ? describe.skip : describe;
 
 const VALID_SECRET = process.env.WEBHOOK_SECRET!;
-const CLINIC_ID = '00000000-0000-0000-0000-00000000a001';
+// Suite-owned clinic id (a071): other integration suites share ...a001 and
+// delete it in their own afterAll — using a dedicated id removes cross-suite
+// clinic churn for this file. P3 clinic (b003) is already unique to this file.
+const CLINIC_ID = '00000000-0000-0000-0000-00000000a071';
 const EVOLUTION_INSTANCE = 'test';
 const P3_EVOLUTION_INSTANCE = 'p3-evolution';
 
@@ -61,7 +64,13 @@ beforeAll(async () => {
 afterAll(async () => {
   if (SKIP || !pool) return;
   try {
-    await pool.query(`DELETE FROM instance_modules WHERE module_id = 'atendimento'`);
+    // Restore (don't delete) the global atendimento singleton: later suites
+    // read instance_modules through the real manifest, and a missing row
+    // would flip them to "disabled". Seed state is enabled=true.
+    await pool.query(
+      `INSERT INTO instance_modules (module_id, enabled) VALUES ('atendimento', true)
+       ON CONFLICT (module_id) DO UPDATE SET enabled = true`,
+    );
     await pool.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [CLINIC_ID]);
     await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [CLINIC_ID]);
     await pool.query(`DELETE FROM channel_installations WHERE installation_id = $1`, [EVOLUTION_INSTANCE]);
@@ -339,6 +348,17 @@ describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => 
 
 const P3_CLINIC_ID = '00000000-0000-0000-0000-00000000b003';
 
+// Per-run suffix for global-unique business keys. messages has a GLOBAL
+// unique index on (external_provider, external_message_id), so fixed ids
+// (ext-msg-001, evolution-duplicate-001) collide with leftovers from killed
+// runs or shared DBs that P3-scoped cleanup cannot remove — the insert then
+// silently dedups (onConflictDoNothing) and assertions on `deduped:false` /
+// count=1 flake. A per-run suffix makes every run independent.
+const RUN_ID = randomUUID().slice(0, 8);
+const P3_EXT_MSG_ID = `ext-msg-001-${RUN_ID}`;
+const P3_EVO_MSG_ID = `evolution-duplicate-001-${RUN_ID}`;
+const P3_CONV_EXTERNAL_ID = `+5511999990001-${RUN_ID}`;
+
 beforeAll(async () => {
   if (SKIP) return;
   // Ensure P3 clinic exists
@@ -519,7 +539,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     // Insert a conversation directly
     const { rows: convRows } = await pool!.query(
       `INSERT INTO conversations (clinic_id, channel, external_id, status) VALUES ($1, 'whatsapp', $2, 'active') RETURNING id`,
-      [P3_CLINIC_ID, '+5511999990001'],
+      [P3_CLINIC_ID, P3_CONV_EXTERNAL_ID],
     );
     const convId = convRows[0].id;
 
@@ -529,7 +549,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     const result1 = await repo.appendInboundMessageDeduped({
       conversationId: convId,
       content: 'Hello world',
-      externalMessageId: 'ext-msg-001',
+      externalMessageId: P3_EXT_MSG_ID,
       metadata: { source: 'whatsapp' },
     });
     expect(result1.deduped).toBe(false);
@@ -539,7 +559,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     const result2 = await repo.appendInboundMessageDeduped({
       conversationId: convId,
       content: 'Hello again (duplicate)',
-      externalMessageId: 'ext-msg-001',
+      externalMessageId: P3_EXT_MSG_ID,
     });
     expect(result2.deduped).toBe(true);
 
@@ -552,6 +572,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     expect(msgRows[0].content).toBe('Hello world');
   });
   it('duplicate Evolution delivery persists one inbound message in PostgreSQL', async () => {
+    await pool!.query(`DELETE FROM outbox_jobs WHERE clinic_id = $1`, [P3_CLINIC_ID]);
     await pool!.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [P3_CLINIC_ID]);
     await pool!.query(`DELETE FROM conversations WHERE clinic_id = $1`, [P3_CLINIC_ID]);
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
@@ -559,7 +580,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
       event: 'messages.upsert',
       instance: P3_EVOLUTION_INSTANCE,
       data: {
-        key: { id: 'evolution-duplicate-001', remoteJid: '5511999990001@s.whatsapp.net', fromMe: false },
+        key: { id: P3_EVO_MSG_ID, remoteJid: '5511999990001@s.whatsapp.net', fromMe: false },
         message: { conversation: 'Mensagem duplicada de teste' },
       },
     };
@@ -575,8 +596,10 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     expect(second.status).toBe(200);
 
     const { rows } = await pool!.query(
-      `SELECT count(*)::int AS count FROM messages WHERE metadata->>'whatsapp_message_id' = $1`,
-      ['evolution-duplicate-001'],
+      `SELECT count(*)::int AS count FROM messages m
+        JOIN conversations c ON c.id = m.conversation_id
+        WHERE c.clinic_id = $2 AND m.metadata->>'whatsapp_message_id' = $1`,
+      [P3_EVO_MSG_ID, P3_CLINIC_ID],
     );
     expect(rows[0].count).toBe(1);
   });
