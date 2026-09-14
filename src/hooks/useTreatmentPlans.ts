@@ -5,6 +5,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CreateTreatmentPlanInput, TreatmentPlan } from '@/services/treatment-plans/treatment-plan.service'
+import { clinicScope, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 const API_BASE = '/api/treatment-plans'
 
@@ -64,17 +65,19 @@ async function updateSession(treatmentPlanId: string, treatmentPlanItemId: strin
   return response.json()
 }
 
-export function useTreatmentPlans(patientId: string | null) {
+export function useTreatmentPlans(patientId: string | null, clinicId?: string) {
+  const resolved = useResolvedClinicId(clinicId)
   return useQuery({
-    queryKey: ['treatment-plans', patientId],
+    queryKey: clinicScope(resolved, 'treatment-plans', patientId),
     queryFn: () => fetchTreatmentPlans(patientId!),
     enabled: !!patientId,
   })
 }
 
-export function useTreatmentPlan(id: string | null) {
+export function useTreatmentPlan(id: string | null, clinicId?: string) {
+  const resolved = useResolvedClinicId(clinicId)
   return useQuery({
-    queryKey: ['treatment-plan', id],
+    queryKey: clinicScope(resolved, 'treatment-plan', id),
     queryFn: () => fetchTreatmentPlan(id!),
     enabled: !!id,
   })
@@ -86,9 +89,13 @@ export function useCreateTreatmentPlan() {
   return useMutation({
     mutationFn: createTreatmentPlan,
     onSuccess: (data) => {
-      // Invalidate patient treatment plans list
-      queryClient.invalidateQueries({ queryKey: ['treatment-plans', data.patient_id] })
-      queryClient.invalidateQueries({ queryKey: ['treatment-plans', null] })
+      // G1: scoped keys — invalidate this patient's plans across tenants.
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          q.queryKey.includes('treatment-plans') &&
+          q.queryKey.includes(data.patient_id),
+      })
     },
   })
 }
@@ -100,8 +107,12 @@ export function useUpdateTreatmentPlan() {
     mutationFn: ({ id, input }: { id: string; input: Partial<CreateTreatmentPlanInput> }) =>
       updateTreatmentPlan(id, input),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['treatment-plan', data.id] })
-      queryClient.invalidateQueries({ queryKey: ['treatment-plans', data.patient_id] })
+      // G1: scoped keys — invalidate via predicate (mutation has no clinic id).
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          (q.queryKey.includes(data.id) || q.queryKey.includes(data.patient_id)),
+      })
     },
   })
 }
@@ -113,8 +124,11 @@ export function useUpdateSession() {
     mutationFn: ({ treatmentPlanId, treatmentPlanItemId }: { treatmentPlanId: string; treatmentPlanItemId: string }) =>
       updateSession(treatmentPlanId, treatmentPlanItemId),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['treatment-plan', variables.treatmentPlanId] })
-      queryClient.invalidateQueries({ queryKey: ['treatment-plans'] })
+      // G1: scoped keys — invalidate via predicate.
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes(variables.treatmentPlanId),
+      })
     },
   })
 }
