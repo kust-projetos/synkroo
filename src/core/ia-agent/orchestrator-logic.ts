@@ -10,6 +10,7 @@ import { BRIDGE_RPC_VERSION } from '@/core/agent-bridge/rpc-contract';
 import { personaSystemPrompt } from './personas';
 import { analyzeClinicalSafety } from './clinical-safety';
 import {
+  normalizeCode,
   noopTelemetry,
   type TelemetryEvent,
   type TelemetrySink,
@@ -63,9 +64,10 @@ export async function runTurn(
       ...e,
     });
   // Fallback amigável ao usuário + erro estruturado preservado no log e no
-  // resultado interno (B2 req. 4 — nunca vaza código/detalhe na reply).
-  const fallback = (code: string, detail?: string, turnsUsed = 0): RunTurnResult => {
-    log({ operation: 'run_turn', status: 'fallback', code, detail });
+  // resultado interno (nunca vaza código/detalhe na reply; logs levam só code
+  // de allowlist + descrição estática — sem texto de exceção/payload).
+  const fallback = (code: string, turnsUsed = 0): RunTurnResult => {
+    log({ operation: 'run_turn', status: 'fallback', code });
     return { reply: FALLBACK, turnsUsed, errorCode: code };
   };
 
@@ -135,15 +137,14 @@ export async function runTurn(
       log({
         operation: 'execute_action',
         status: 'error',
-        code: exec.error,
-        detail: exec.message,
+        code: normalizeCode(exec.error, 'provider_error'),
       });
       return {
         reply: errorReply(exec.error),
         turnsUsed: 1,
         escalated: exec.error === 'escalate_human',
         escalationReason: exec.error === 'escalate_human' ? 'action_escalate_human' : undefined,
-        errorCode: exec.error,
+        errorCode: normalizeCode(exec.error, 'provider_error'),
       };
     }
     log({ operation: 'run_turn', status: 'ok', code: 'confirmed' });
@@ -159,8 +160,7 @@ export async function runTurn(
   });
   if (!toolsResp.ok || toolsResp.contractVersion !== BRIDGE_RPC_VERSION)
     return fallback(
-      !toolsResp.ok ? toolsResp.error : 'contract_version_mismatch',
-      !toolsResp.ok ? toolsResp.message : undefined,
+      !toolsResp.ok ? normalizeCode(toolsResp.error, 'provider_error') : 'contract_version_mismatch',
     );
 
   const llmTools: LlmTool[] = toolsResp.catalog.tools.map((t) => ({
@@ -197,15 +197,17 @@ export async function runTurn(
         correlationId,
       });
     } catch (e) {
-      const code =
-        typeof (e as { code?: unknown })?.code === 'string'
-          ? (e as { code: string }).code
-          : 'provider_error';
+      // Texto da exceção NUNCA vai para o log (pode conter corpo do provider).
+      // Lê-se só o code fechado (LlmError.code); o resto é descartado.
+      const rawCode =
+        e !== null && typeof e === 'object'
+          ? (e as { code?: unknown }).code
+          : undefined;
+      const code = normalizeCode(rawCode);
       log({
         operation: 'provider_call',
         status: 'error',
         code,
-        detail: e instanceof Error ? e.message.slice(0, 300) : String(e).slice(0, 300),
       });
       return { reply: FALLBACK, turnsUsed, errorCode: code };
     }
@@ -213,7 +215,7 @@ export async function runTurn(
     // Sem tool calls → resposta final
     if (!completion.toolCalls.length) {
       const text = completion.text ?? '';
-      if (!text.trim()) return fallback('empty_completion', undefined, turnsUsed);
+      if (!text.trim()) return fallback('empty_completion', turnsUsed);
       log({ operation: 'run_turn', status: 'ok' });
       return {
         reply: text.trim(),
@@ -278,12 +280,12 @@ export async function runTurn(
           };
         }
 
-        // Erro estruturado realimentado ao modelo (e registrado no log)
+        // Erro estruturado realimentado ao modelo (conteúdo de tool, não log)
+        // e registrado no log só com o code — sem exec.message.
         log({
           operation: 'execute_action',
           status: 'error',
-          code: exec.error,
-          detail: exec.message,
+          code: normalizeCode(exec.error, 'provider_error'),
         });
         messages.push({
           role: 'tool',
@@ -306,5 +308,5 @@ export async function runTurn(
     }
   }
 
-  return fallback('max_iterations_exhausted', undefined, turnsUsed);
+  return fallback('max_iterations_exhausted', turnsUsed);
 }

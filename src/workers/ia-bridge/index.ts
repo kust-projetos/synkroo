@@ -162,13 +162,13 @@ export class AppService extends WorkerEntrypoint<Env> {
       });
       return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
     } catch (err) {
+      // Texto da exceção nunca vai para o log — só o code fechado.
       emitBridge({
         correlationId,
         operation: 'list_tools',
         durationMs: Date.now() - startedAt,
         status: 'error',
         code: 'internal',
-        detail: err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300),
       });
       throw err;
     }
@@ -195,17 +195,16 @@ export class AppService extends WorkerEntrypoint<Env> {
         durationMs: Date.now() - startedAt,
         status: 'error',
         code: result.error,
-        detail: (result as { message?: string }).message?.slice(0, 300),
       });
       return { ok: false, contractVersion, error: result.error, level: (result as any).level, message: (result as any).message };
     } catch (err) {
+      // Texto da exceção nunca vai para o log — só o code fechado.
       emitBridge({
         correlationId,
         operation: 'execute_action',
         durationMs: Date.now() - startedAt,
         status: 'error',
         code: 'internal',
-        detail: err instanceof Error ? err.message.slice(0, 300) : String(err).slice(0, 300),
       });
       throw err;
     }
