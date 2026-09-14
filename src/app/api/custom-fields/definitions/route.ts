@@ -1,48 +1,23 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
+import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { withModuleRoute } from '@/core/modules/gates'
 import {
   getDefinitions,
-  getDefinitionById,
   createDefinition,
-  updateDefinition,
-  deleteDefinition,
   exportDefinitions,
   importDefinitions,
 } from '@/services/custom-fields/definitions.service'
+import {
+  createCustomFieldDefinitionSchema,
+} from '@/lib/validations/custom-fields'
 import { z } from 'zod'
 
-const createDefinitionSchema = z.object({
-  name: z.string().min(1),
-  field_type: z.enum(['text', 'number', 'date', 'select', 'checkbox']),
-  options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-  required: z.boolean().optional(),
-  sort_order: z.number().optional(),
-})
-
-const updateDefinitionSchema = z.object({
-  name: z.string().min(1).optional(),
-  options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-  required: z.boolean().optional(),
-  sort_order: z.number().optional(),
-  is_active: z.boolean().optional(),
-})
-
-const importSchema = z.object({
-  version: z.literal(1),
-  exported_at: z.string(),
-  definitions: z.array(z.object({
-    name: z.string(),
-    field_type: z.enum(['text', 'number', 'date', 'select', 'checkbox']),
-    options: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-    required: z.boolean().optional(),
-    sort_order: z.number().optional(),
-  })),
-})
-
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:view')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -51,17 +26,18 @@ export async function GET(request: NextRequest) {
   // Export mode
   if (searchParams.get('export') === 'true') {
     const exported = await exportDefinitions(clinicId)
-    return NextResponse.json(exported)
+    return apiSuccess(exported)
   }
 
   const definitions = await getDefinitions(clinicId)
-  return NextResponse.json({ data: definitions })
+  return apiSuccess(definitions)
 }
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
+  const requestId = generateRequestId()
   const auth = await validateApiAuth('crm:manage_tags')
   if (!auth.success) {
-    return NextResponse.json({ error: auth.error?.message }, { status: auth.error?.status })
+    return apiAuthFailure(auth.error, requestId)
   }
 
   const clinicId = auth.profile!.clinic_id
@@ -72,17 +48,20 @@ export async function POST(request: NextRequest) {
     // Import mode
     if (body.version && body.definitions) {
       const importResult = await importDefinitions(clinicId, body)
-      return NextResponse.json(importResult, { status: 201 })
+      return apiSuccess(importResult, undefined, 201)
     }
 
     // Create mode
-    const validated = createDefinitionSchema.parse(body)
+    const validated = createCustomFieldDefinitionSchema.parse(body)
     const definition = await createDefinition(clinicId, validated)
-    return NextResponse.json(definition, { status: 201 })
+    return apiSuccess(definition, undefined, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return apiFailure('INVALID_INPUT', 'Validation failed', requestId, 400)
     }
-    return NextResponse.json({ error: 'Failed to create definition' }, { status: 500 })
+    return apiFailure('INTERNAL_ERROR', 'Failed to create definition', requestId, 500)
   }
 }
+
+export const GET = withModuleRoute('crm')(handleGET)
+export const POST = withModuleRoute('crm')(handlePOST)

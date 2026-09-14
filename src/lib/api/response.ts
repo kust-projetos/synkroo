@@ -126,3 +126,17 @@ const actionErrorMap: Record<ActionErrorCode, { status: number; code: string }> 
 export function mapActionError(code: ActionErrorCode): { status: number; code: string } {
   return actionErrorMap[code] ?? { status: 500, code: 'INTERNAL_ERROR' };
 }
+
+// ── Legacy-auth bridge (D2) ──────────────────────────────
+// Rotas migradas que ainda usam `validateApiAuth` (sem Action correspondente)
+// convertem o AuthResult para o envelope canônico de falha.
+export function apiAuthFailure(
+  error: { message: string; status: number } | undefined,
+  requestId: string,
+): NextResponse<ApiFailure> {
+  const status = error?.status ?? 401;
+  if (status === 401) return apiErrors.unauthorized(error?.message ?? 'Unauthorized', requestId);
+  if (status === 403) return apiErrors.forbidden(error?.message ?? 'Forbidden', requestId);
+  if (status === 404) return apiErrors.notFound(error?.message ?? 'Not found', requestId);
+  return apiErrors.internal('Internal server error', requestId);
+}
