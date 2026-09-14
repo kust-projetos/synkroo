@@ -71,9 +71,10 @@ describe('invokeAgentWithEnv — correlation id (B1)', () => {
 
   it('log de erro contém o correlationId e retorna fallback (integração B1×B2)', async () => {
     // Integração: o catch emite evento estruturado (B2, sem texto de exceção)
-    // pelo sink default (JSON via console.error). O fallback leva errorCode.
+    // pelo sink default (JSON via console — status fallback usa console.log).
+    // O fallback leva errorCode.
     const calls: Record<string, unknown> = {};
-    const errSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     const out = await invokeAgentWithEnv(
       makeEnv(calls, true),
       { ...base, correlationId: 'req-fail-1' },
@@ -81,10 +82,10 @@ describe('invokeAgentWithEnv — correlation id (B1)', () => {
     );
     expect(out.turnsUsed).toBe(0);
     expect(out.errorCode).toBe('invoke_failed');
-    expect(errSpy).toHaveBeenCalled();
-    const logged = errSpy.mock.calls.map((c) => String(c[0])).join('\n');
+    expect(logSpy).toHaveBeenCalled();
+    const logged = logSpy.mock.calls.map((c) => String(c[0])).join('\n');
     expect(logged).toContain('req-fail-1');
     expect(logged).not.toContain('do-down');
-    errSpy.mockRestore();
+    logSpy.mockRestore();
   });
 });
