@@ -2,10 +2,11 @@ import { NextRequest } from 'next/server';
 import { GET } from './route';
 import { getSession } from '@/lib/auth/session';
 import { getDb } from '@/lib/db/client';
+import { EXPECTED_MIGRATIONS } from '@/services/api-handlers/health/db';
 
 jest.mock('@/lib/auth/session', () => ({ getSession: jest.fn() }));
 const mdb = {
-  execute: jest.fn().mockResolvedValue({ rows: [{ count: 30 }] }),
+  execute: jest.fn(),
   transaction: jest.fn(async (cb: (tx: unknown) => unknown) => cb(mdb)),
 } as any;
 jest.mock('@/lib/db/client', () => ({ getDb: jest.fn(() => mdb) }));
@@ -33,7 +34,9 @@ function executedSqlTexts(): string[] {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mdb.execute.mockResolvedValue({ rows: [{ count: 30 }] });
+  // Integração G4×F2: "tudo aplicado" acompanha EXPECTED_MIGRATIONS (31 após
+  // migration 0031) em vez de número fixo.
+  mdb.execute.mockResolvedValue({ rows: [{ count: EXPECTED_MIGRATIONS }] });
   mdb.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(mdb));
   mockGetDb.mockReturnValue(mdb);
   process.env.CRON_SECRET = 'test-cron-secret';

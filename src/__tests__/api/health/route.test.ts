@@ -3,7 +3,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 const mdb = {
-  execute: jest.fn().mockResolvedValue({ rows: [{ count: 30 }] }),
+  execute: jest.fn(),
 } as any
 jest.mock('@/lib/db/client', () => ({ getDb: jest.fn(() => mdb) }))
 
@@ -18,7 +18,11 @@ const DRIVER_MARKER = 'DRIVER_SECRET_MARKER_9f8b'
 
 beforeEach(() => {
   jest.clearAllMocks()
-  mdb.execute.mockResolvedValue({ rows: [{ count: 30 }] })
+  // Integração G4×F2: o mock "tudo aplicado" acompanha EXPECTED_MIGRATIONS
+  // (31 após migration 0031) em vez de número fixo — nova migration não
+  // quebra este teste; a sincronização com o journal é coberta pelo teste
+  // dedicado acima.
+  mdb.execute.mockResolvedValue({ rows: [{ count: EXPECTED_MIGRATIONS }] })
   mockGetDb.mockReturnValue(mdb)
 })
 
@@ -64,7 +68,7 @@ describe('health/db (ledger de migrations, sanitizado)', () => {
     expect(r.status).toBe(200)
     expect(b.status).toBe('complete')
     expect(b.complete).toBe(true)
-    expect(b.migrations_applied).toBe(30)
+    expect(b.migrations_applied).toBe(EXPECTED_MIGRATIONS)
     expect(b.migrations_expected).toBe(EXPECTED_MIGRATIONS)
     expect(b).not.toHaveProperty('tables')
   })

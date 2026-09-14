@@ -268,9 +268,12 @@ export async function runTurn(
       return { ...fallback('contract_version_mismatch'), pendingActionWrite: 'clear' as const, clearedToken: pa.token };
     }
     if (!exec.ok) {
-      // needs_identity / needs_confirmation: a bridge pede outra rodada —
-      // re-arma a pending consumida (set) para a confirmação futura; o fluxo
-      // segue pedindo ao usuário em vez de executar.
+      // needs_identity / needs_confirmation no CONFIRM: a bridge pede outra
+      // rodada, mas a reserva já foi consumida e NÃO é re-armada (B1
+      // at-most-once — re-arme via 'set' incondicional poderia sobrescrever
+      // pending nova de turno intercalado; o usuário re-inicia o fluxo).
+      // Resposta amigável nomeia o requisito (B2); errorCode fica interno
+      // (o DTO público filtra por allowlist).
       if (exec.error === 'needs_identity' || exec.error === 'needs_confirmation') {
         const ask =
           exec.error === 'needs_identity'
@@ -280,8 +283,9 @@ export async function runTurn(
         return {
           reply: `Para prosseguir, ${ask}. Posso seguir?`,
           turnsUsed: 1,
-          pendingAction: pa,
-          pendingActionWrite: 'set' as const,
+          pendingActionWrite: 'clear' as const,
+          clearedToken: pa.token,
+          errorCode: exec.error,
         };
       }
       log({

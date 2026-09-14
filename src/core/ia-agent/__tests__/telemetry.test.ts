@@ -229,7 +229,10 @@ describe('B2 — redaction: evento execute_action não carrega payload', () => {
           alias: 'a',
           args: { segredo: 'TOPSECRET-ARGS' },
           token,
+          // Integração B1×B2: confirm exige binding de principal (B1).
+          principalId: 'user-9',
         },
+        principalId: 'user-9',
         confirmedToken: token,
       },
     );
