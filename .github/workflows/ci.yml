@@ -94,7 +94,11 @@ jobs:
           SEED_SECRET: CI_PLACEHOLDER
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
-      - name: Production E2E (no retries)
+      # Production-mode E2E: build de producao (next build + next start local na
+      # porta 3003) + Playwright — nao e smoke contra producao real.
+      # Politica: falha deve bloquear merge; `continue-on-error: true` e
+      # temporario ate estabilidade comprovada (remocao = etapa final da F1).
+      - name: Production-mode E2E
         continue-on-error: true
         run: npm run test:e2e:production
         env:
