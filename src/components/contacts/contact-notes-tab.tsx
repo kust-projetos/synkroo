@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useContactNotes } from '@/lib/hooks/use-queries'
+import { useContactNotes, queryKeys } from '@/lib/hooks/use-queries'
+import { useCurrentClinicId } from '@/lib/auth/context'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -32,6 +33,8 @@ function formatRelativeTime(timestamp: string): string {
 export function ContactNotesTab({ contactId, contactType }: ContactNotesTabProps) {
   const queryClient = useQueryClient()
   const [noteContent, setNoteContent] = useState('')
+  // G1: invalidação no mesmo escopo da query (segmento [1] = clinicId).
+  const clinicId = useCurrentClinicId()
 
   const { data, isLoading } = useContactNotes(contactId, contactType)
 
@@ -46,7 +49,7 @@ export function ContactNotesTab({ contactId, contactType }: ContactNotesTabProps
       return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts', contactId, 'notes', contactType] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.contactNotes(contactId, contactType, clinicId) })
       setNoteContent('')
     },
   })

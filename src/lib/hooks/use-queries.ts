@@ -67,6 +67,8 @@ export const queryKeys = {
   contacts: (params?: string, clinicId?: string) => clinicScope(clinicId, 'contacts', params),
   contact: (id: string, type: string, clinicId?: string) => clinicScope(clinicId, 'contacts', id, type),
   contactNotes: (id: string, type: string, clinicId?: string) => clinicScope(clinicId, 'contacts', id, 'notes', type),
+  contactAppointments: (contactId: string, clinicId?: string) =>
+    clinicScope(clinicId, 'contacts', contactId, 'appointments'),
   calendarEvents: (params?: string, clinicId?: string) => clinicScope(clinicId, 'calendar-events', params),
   customFieldDefinitions: (clinicId?: string) => clinicScope(clinicId, 'custom-field-definitions', clinicId),
   customFieldValues: (contactId: string, contactType: string, clinicId?: string) =>

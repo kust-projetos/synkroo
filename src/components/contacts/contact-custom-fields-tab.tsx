@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useCustomFieldDefinitions, useCustomFieldValues } from '@/lib/hooks/use-queries'
+import { useCustomFieldDefinitions, useCustomFieldValues, queryKeys } from '@/lib/hooks/use-queries'
+import { useCurrentClinicId } from '@/lib/auth/context'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +23,8 @@ interface FieldValueState {
 
 export function ContactCustomFieldsTab({ contactId, contactType }: ContactCustomFieldsTabProps) {
   const queryClient = useQueryClient()
+  // G1: invalidação no mesmo escopo da query (antes usava até o domínio errado).
+  const clinicId = useCurrentClinicId()
   const [fieldValues, setFieldValues] = useState<FieldValueState>({})
   const [isDirty, setIsDirty] = useState(false)
 
@@ -61,7 +64,7 @@ export function ContactCustomFieldsTab({ contactId, contactType }: ContactCustom
       return res.json()
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customFieldValues', contactId, contactType] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.customFieldValues(contactId, contactType, clinicId) })
       setIsDirty(false)
     },
   })

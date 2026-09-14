@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { queryKeys } from './use-queries'
+import { queryKeys, useResolvedClinicId } from './use-queries'
 import { isMockMode, getMockForUrl } from '@/lib/mocks'
 
 export interface WhatsAppMessage {
@@ -17,6 +17,8 @@ export interface WhatsAppMessage {
 interface UseWhatsAppMessagesOptions {
   contactId?: string
   contactPhone?: string
+  /** G1: tenant explícito — omitido resolve do profile via contexto. */
+  clinicId?: string
 }
 
 interface UseWhatsAppMessagesResult {
@@ -37,9 +39,12 @@ async function fetchWhatsAppMessages(contactId: string, phone: string): Promise<
   return data.messages ?? []
 }
 
-export function useWhatsAppMessages({ contactId, contactPhone }: UseWhatsAppMessagesOptions): UseWhatsAppMessagesResult {
+export function useWhatsAppMessages({ contactId, contactPhone, clinicId }: UseWhatsAppMessagesOptions): UseWhatsAppMessagesResult {
+  // G1: contactId identifica o contato; clinicId (explícito ou do contexto)
+  // escopa o tenant. Nunca confundir os dois.
+  const resolvedClinicId = useResolvedClinicId(clinicId)
   const { data, isLoading, refetch } = useQuery({
-    queryKey: queryKeys.whatsappMessages(contactId ?? ''),
+    queryKey: queryKeys.whatsappMessages(contactId ?? '', resolvedClinicId),
     queryFn: () => fetchWhatsAppMessages(contactId!, contactPhone!),
     enabled: !!contactId && !!contactPhone,
     staleTime: 30 * 1000,
@@ -55,12 +60,17 @@ export function useWhatsAppMessages({ contactId, contactPhone }: UseWhatsAppMess
 
 interface UseSendWhatsAppMessageOptions {
   contactPhone: string
+  /** G1: id do contato (não é o telefone) — sem ele a invalidação usa predicate. */
+  contactId?: string
+  /** G1: tenant explícito — omitido resolve do profile via contexto. */
+  clinicId?: string
   onSuccess?: () => void
   onError?: (error: Error) => void
 }
 
-export function useSendWhatsAppMessage({ contactPhone, onSuccess, onError }: UseSendWhatsAppMessageOptions) {
+export function useSendWhatsAppMessage({ contactPhone, contactId, clinicId, onSuccess, onError }: UseSendWhatsAppMessageOptions) {
   const queryClient = useQueryClient()
+  const resolvedClinicId = useResolvedClinicId(clinicId)
 
   return useMutation({
     mutationFn: async ({ message }: { message: string }) => {
@@ -80,8 +90,19 @@ export function useSendWhatsAppMessage({ contactPhone, onSuccess, onError }: Use
       return response.json()
     },
     onSuccess: (_data, _variables) => {
-      if (contactPhone) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.whatsappMessages(contactPhone) })
+      if (contactId) {
+        // G1: invalidação exata — contactId (nunca o telefone) + tenant.
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.whatsappMessages(contactId, resolvedClinicId),
+        })
+      } else {
+        // Sem contactId à mão: predicate restrito ao domínio escopado.
+        queryClient.invalidateQueries({
+          predicate: (q) =>
+            Array.isArray(q.queryKey) &&
+            q.queryKey[0] === 'clinic' &&
+            q.queryKey.includes('whatsapp-messages'),
+        })
       }
       onSuccess?.()
     },

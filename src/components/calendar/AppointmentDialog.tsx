@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
-import { useDentists, useProcedures } from '@/lib/hooks/use-queries'
+import { useDentists, useProcedures, clinicScope } from '@/lib/hooks/use-queries'
 import { useToast } from '@/hooks/use-toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatHourLabel } from './utils/date-utils'
@@ -187,9 +187,9 @@ export function AppointmentDialog() {
         // Keep modal open for retry; do not invalidate
         throw new Error(msg)
       }
-      // Success — invalidate only after success
-      queryClient.invalidateQueries({ queryKey: ['appointments'] })
-      queryClient.invalidateQueries({ queryKey: ['calendar-events'] })
+      // Success — invalidate only after success (G1: escopo da clínica atual)
+      queryClient.invalidateQueries({ queryKey: clinicScope(clinicId, 'appointments') })
+      queryClient.invalidateQueries({ queryKey: clinicScope(clinicId, 'calendar-events') })
       toast({
         title: 'Agendamento criado',
         description: 'Consulta agendada com sucesso.',

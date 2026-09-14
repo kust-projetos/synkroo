@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { UsersIcon } from '@heroicons/react/24/outline'
+import { queryKeys } from '@/lib/hooks/use-queries'
+import { useCurrentClinicId } from '@/lib/auth/context'
 
 interface ContactCreateDialogProps {
   open: boolean
@@ -17,6 +19,8 @@ interface ContactCreateDialogProps {
 export function ContactCreateDialog({ open, onOpenChange }: ContactCreateDialogProps) {
   const router = useRouter()
   const queryClient = useQueryClient()
+  // G1: invalida a lista de contatos do escopo atual (prefixo da factory).
+  const clinicId = useCurrentClinicId()
   const [step, setStep] = useState<'type' | 'form'>('type')
   const [contactType, setContactType] = useState<'patient' | 'lead' | null>(null)
   const [formData, setFormData] = useState({ name: '', phone: '', email: '', source: '' })
@@ -32,7 +36,7 @@ export function ContactCreateDialog({ open, onOpenChange }: ContactCreateDialogP
       return res.json()
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['contacts'] })
+      queryClient.invalidateQueries({ queryKey: queryKeys.contacts(undefined, clinicId) })
       onOpenChange(false)
       setStep('type')
       setContactType(null)
