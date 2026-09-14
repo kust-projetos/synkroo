@@ -1,5 +1,4 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { withModuleRoute } from '@/core/modules/gates'
@@ -7,24 +6,7 @@ import {
   getTreatmentPlansByPatient,
   createTreatmentPlan,
 } from '@/services/treatment-plans/treatment-plan.service'
-
-const createTreatmentPlanSchema = z.object({
-  patient_id: z.string().uuid(),
-  title: z.string().min(1).max(255),
-  description: z.string().optional(),
-  total_sessions: z.number().int().positive(),
-  started_at: z.string().datetime().optional(),
-  expected_completion_at: z.string().datetime().optional(),
-  notes: z.string().optional(),
-  items: z.array(z.object({
-    procedure_id: z.string().uuid().optional().nullable(),
-    procedure_name: z.string().min(1),
-    session_number: z.number().int().positive().optional(),
-    appointment_id: z.string().uuid().optional().nullable(),
-    scheduled_at: z.string().datetime().optional(),
-    notes: z.string().optional(),
-  })).optional().default([]),
-})
+import { createTreatmentPlanSchema } from '@/lib/validations/treatment-plan'
 
 /**
  * GET /api/treatment-plans

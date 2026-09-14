@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
-import { z } from 'zod'
 import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { changePasswordSchema } from '@/lib/validations/auth'
 import {
   checkRateLimit,
   createRateLimitHeaders,
@@ -9,14 +9,6 @@ import {
   rateLimitPresets,
 } from '@/lib/rate-limit'
 import { changeUserPassword } from '@/repositories/auth'
-
-// NOTA D2 lote 5: sem módulo correspondente (auth é transversal) — mantém
-// validateApiAuth + envelope canônico mínimo, sem gate withModuleRoute.
-// O schema inline será consolidado em src/lib/validations/auth.ts na D3.
-const changePasswordSchema = z.object({
-  currentPassword: z.string().min(6, 'Current password is required'),
-  nextPassword: z.string().min(6, 'New password must be at least 6 characters').max(128),
-})
 
 export async function POST(request: NextRequest) {
   const requestId = generateRequestId()

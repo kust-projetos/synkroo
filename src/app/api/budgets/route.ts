@@ -5,8 +5,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { handleCanonicalAction } from '@/lib/api/action-route';
+import { legacyCreateBudgetSchema } from '@/lib/validations/budget';
 import { listarOrcamentos } from '@/modules/financeiro/actions/listar-orcamentos';
 import { criarOrcamento } from '@/modules/financeiro/actions/criar-orcamento';
 import { logger } from '@/lib/logger';
@@ -64,24 +64,9 @@ export async function GET(request: NextRequest) {
   return legacyHeaders(res, 'GET /api/budgets');
 }
 
-const legacyCreateBudgetSchema = z.object({
-  patient_id: z.string().uuid(),
-  lead_id: z.string().uuid().optional(),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  items: z.array(z.object({
-    procedure_name: z.string().min(1),
-    quantity: z.number().int().min(1).default(1),
-    unit_price: z.number().positive(),
-    discount_percent: z.number().optional(),
-    notes: z.string().optional(),
-  })).min(1),
-  discount_percent: z.number().min(0).max(100).optional(),
-  valid_until: z.string().optional(),
-});
-
 /**
  * POST /api/budgets — legacy
+ * Validação via `legacyCreateBudgetSchema` (src/lib/validations/budget.ts, D3).
  */
 export async function POST(request: NextRequest) {
   const rawBody = await request.json().catch(() => ({}));

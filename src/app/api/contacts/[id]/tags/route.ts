@@ -3,16 +3,11 @@
  * PUT → crm.atualizarTagsContato (body: { type, tags }).
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
 import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { runCrmAction } from '@/modules/crm/ui/route-adapter';
 import { atualizarTagsContato } from '@/modules/crm/actions';
-
-const updateTagsSchema = z.object({
-  type: z.enum(['patient', 'lead']),
-  tags: z.array(z.string()).default([]),
-});
+import { updateContactTagsSchema } from '@/lib/validations/contact';
 
 async function handlePUT(
   request: NextRequest,
@@ -24,7 +19,7 @@ async function handlePUT(
   } catch {
     return NextResponse.json({ error: 'invalid JSON body' }, { status: 400 });
   }
-  const parsed = updateTagsSchema.safeParse(body);
+  const parsed = updateContactTagsSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.errors },
