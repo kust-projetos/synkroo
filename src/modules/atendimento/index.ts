@@ -52,6 +52,10 @@ export const atendimentoActions = [
   enviarMensagemDireta,
 ];
 
+// ─── Seam público para services legados (R3) ─────────────────────────────────
+// Re-export nomeado do mesmo binding — sem mudança de comportamento.
+export { enviarMensagemDireta } from './actions/enviar-mensagem-direta';
+
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { atendimentoManifest } from './manifest';
 export { atendimentoAccessPermissions } from './permissions';
