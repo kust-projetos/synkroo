@@ -115,33 +115,36 @@ beforeEach(() => {
 });
 
 // ── Budgets accept/reject ──────────────────────────────────────────────────
+// D2 lote 3/5 (financeiro): envelope canônico.
 describe('T8 budgets/[id]/accept — matriz', () => {
   const routeParams = params('budget-1');
-  it('401 anônimo', async () => {
+  it('401 anônimo (envelope canônico)', async () => {
     authAnon();
     const r = await BudgetAcceptPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any, routeParams);
     expect(r.status).toBe(401);
+    expect((await r.json()).error.code).toBe('UNAUTHORIZED');
   });
-  it('403 autenticado sem permissão', async () => {
+  it('403 autenticado sem permissão (envelope canônico)', async () => {
     authForbidden();
     const r = await BudgetAcceptPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any, routeParams);
     expect(r.status).toBe(403);
+    expect((await r.json()).error.code).toBe('FORBIDDEN');
   });
-  it('200 clínica correta', async () => {
+  it('200 clínica correta (envelope canônico)', async () => {
     authOk({ id: 'u1', clinic_id: 'clinic-a' });
     (getBudget as jest.Mock).mockResolvedValue({ id: 'budget-1', clinicId: 'clinic-a', status: 'pending' });
     (acceptBudget as jest.Mock).mockResolvedValue({ id: 'budget-1', clinicId: 'clinic-a', status: 'accepted' });
     const r = await BudgetAcceptPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any, routeParams);
     expect(r.status).toBe(200);
     const b = await r.json();
-    expect(b.budget.status).toBe('accepted');
+    expect(b.data.budget.status).toBe('accepted');
   });
-  it('404 ID estrangeiro (tenant-scoped opaco)', async () => {
+  it('404 ID estrangeiro (tenant-scoped opaco, envelope canônico)', async () => {
     authOk({ id: 'u1', clinic_id: 'clinic-a' });
     (getBudget as jest.Mock).mockResolvedValue({ id: 'budget-1', clinicId: 'clinic-b', status: 'pending' });
     const r = await BudgetAcceptPOST(new Request('http://x', { method: 'POST', body: '{}' }) as any, routeParams);
     expect(r.status).toBe(404);
-    expect((await r.json()).error).toMatch(/not found/i);
+    expect((await r.json()).error.message).toMatch(/not found/i);
     expect(acceptBudget).not.toHaveBeenCalled();
   });
 });
