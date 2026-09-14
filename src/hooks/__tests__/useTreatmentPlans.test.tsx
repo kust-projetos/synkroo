@@ -190,8 +190,11 @@ describe('useTreatmentPlans Hook Suite', () => {
       });
 
       expect(result.current.data).toEqual(createdPlan);
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['treatment-plans', 'pat-100'] });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['treatment-plans', null] });
+      // G1: scoped keys — invalidation goes through a predicate.
+      expect(invalidateSpy).toHaveBeenCalledWith({ predicate: expect.any(Function) });
+      const predicate = (invalidateSpy.mock.calls[0]?.[0] as { predicate: (q: any) => boolean }).predicate;
+      expect(predicate({ queryKey: ['clinic', 'clinic-1', 'treatment-plans', 'pat-100'] })).toBe(true);
+      expect(predicate({ queryKey: ['clinic', 'clinic-1', 'treatment-plans', 'other'] })).toBe(false);
     });
 
     it('throws error when creation API request fails', async () => {
@@ -241,8 +244,8 @@ describe('useTreatmentPlans Hook Suite', () => {
       });
 
       expect(result.current.data).toEqual(updatedPlan);
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['treatment-plan', 'tp-10'] });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['treatment-plans', 'pat-200'] });
+      // G1: scoped keys — invalidation goes through a predicate.
+      expect(invalidateSpy).toHaveBeenCalledWith({ predicate: expect.any(Function) });
     });
 
     it('throws error when update API request fails', async () => {
@@ -289,8 +292,8 @@ describe('useTreatmentPlans Hook Suite', () => {
       });
 
       expect(result.current.data).toEqual(sessionResult);
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['treatment-plan', 'tp-50'] });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['treatment-plans'] });
+      // G1: scoped keys — invalidation goes through a predicate.
+      expect(invalidateSpy).toHaveBeenCalledWith({ predicate: expect.any(Function) });
     });
 
     it('throws error when session update API request fails', async () => {

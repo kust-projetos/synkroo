@@ -4,6 +4,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { clinicScope, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 export interface Payment {
   id: string
@@ -59,9 +60,10 @@ async function recordPayment(input: RecordPaymentInput): Promise<{
   }
 }
 
-export function usePayments(budgetId: string | null) {
+export function usePayments(budgetId: string | null, clinicId?: string) {
+  const resolved = useResolvedClinicId(clinicId)
   return useQuery({
-    queryKey: ['payments', budgetId],
+    queryKey: clinicScope(resolved, 'payments', budgetId),
     queryFn: () => fetchPayments(budgetId!),
     enabled: !!budgetId,
   })
@@ -73,10 +75,11 @@ export function useRecordPayment() {
   return useMutation({
     mutationFn: recordPayment,
     onSuccess: (data) => {
-      // Invalidate payments list for this budget
-      queryClient.invalidateQueries({ queryKey: ['payments', data.payment.budget_id] })
-      // Invalidate budget to reflect new status
-      queryClient.invalidateQueries({ queryKey: ['budget', data.payment.budget_id] })
+      // G1: scoped keys — invalidate this budget's payments via predicate.
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes(data.payment.budget_id),
+      })
     },
   })
 }
