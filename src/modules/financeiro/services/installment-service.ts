@@ -17,6 +17,7 @@ import {
 import { getBudgetForClinic } from '../repositories/financeiro-scope-repository';
 import { replaceInstallmentsAtomic } from '../repositories/installment-replacement-repository';
 import { ActionError } from '@/core/actions/types';
+import { centsToDecimal, splitCentsExact, toCents } from './money';
 
 export interface InstallmentInput {
   amount: number;
@@ -47,7 +48,9 @@ export async function replaceInstallments(
     budgetId,
     installments.map(inst => ({
       budgetId,
-      amount: String(inst.amount),
+      // Etapa 5.2: canonicalize through cents — rejects >2-decimal artifacts
+      // and persists a canonical 2-decimal string (e.g. '100.00').
+      amount: centsToDecimal(toCents(inst.amount)),
       dueDate: inst.dueDate,
       status: 'pending',
     })),
@@ -67,8 +70,17 @@ export async function listInstallments(clinicId: string, budgetId: string): Prom
 }
 
 /**
+ * Split a total into `count` installments that sum EXACTLY to the total.
+ * Remainder cents go to the FIRST installments (e.g. 100.00/3 →
+ * [33.34, 33.33, 33.33]). Pure exact-decimal math, no float drift.
+ */
+export function splitTotalIntoInstallments(total: string | number, count: number): number[] {
+  return splitCentsExact(toCents(total), count).map((c) => Number(c) / 100);
+}
+
+/**
  * Calculate the remaining balance for a budget — tenant-scoped.
- * Formula: finalValue - sum of settled payments.
+ * Formula: finalValue - sum of settled payments, in integer cents.
  * Throws not_found if budget not in clinic.
  */
 export async function calculateRemainingBalance(clinicId: string, budgetId: string): Promise<number> {
@@ -77,11 +89,12 @@ export async function calculateRemainingBalance(clinicId: string, budgetId: stri
     throw new ActionError('not_found', 'Budget not found');
   }
 
-  const finalValue = parseFloat(budget.finalValue ?? '0');
+  const finalCents = toCents(budget.finalValue ?? '0');
   const payments = await repoListPayments(clinicId, budgetId);
-  const paidTotal = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+  const paidCents = payments.reduce((sum, p) => sum + toCents(p.amount ?? '0'), 0n);
 
-  return Math.max(0, Math.round((finalValue - paidTotal) * 100) / 100);
+  const remaining = finalCents - paidCents;
+  return Number(remaining > 0n ? remaining : 0n) / 100;
 }
 
 /**

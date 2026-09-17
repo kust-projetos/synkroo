@@ -19,12 +19,25 @@ import { buildChargeInsert, findPaymentChargeByBudget } from '../repositories/fi
 import { getPaymentChargeForClinic } from '../repositories/financeiro-scope-repository';
 import { withIdempotency } from '@/lib/idempotency';
 import type { CreateChargeResult, GatewayProvider } from '../gateways/contracts';
+import { toCents } from './money';
 
 export interface CreateChargeInput {
   clinicId: string;
   budgetId: string;
   amount: number;
   dueDate: string;
+}
+
+/**
+ * Etapa 5.2: compare charge amount vs budget final value in integer cents.
+ * Preserves the legacy 1-cent tolerance (|diff| ≤ 1 cent passes) but proves
+ * it without float error (`|100.01 − 100|` in float is `0.010000000000005`
+ * and wrongly trips a `> 0.01` check).
+ */
+export function chargeAmountMatchesBudget(amount: number, budgetFinalValue: string): boolean {
+  const diff = toCents(amount) - toCents(budgetFinalValue);
+  const abs = diff < 0n ? -diff : diff;
+  return abs <= 1n;
 }
 
 /**
@@ -38,8 +51,7 @@ export async function createCharge(input: CreateChargeInput): Promise<{
 
   const budget = await getBudget(budgetId);
   if (!budget || budget.clinicId !== clinicId) throw new Error('Budget not found');
-  const expectedAmount = Number(budget.finalValue);
-  if (!Number.isFinite(expectedAmount) || Math.abs(amount - expectedAmount) > 0.01) {
+  if (!chargeAmountMatchesBudget(amount, budget.finalValue)) {
     throw new Error(`Charge amount ${amount} does not match budget final value ${budget.finalValue}`);
   }
 
