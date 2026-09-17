@@ -167,6 +167,7 @@ src/
 - Fonte de verdade: `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`.
 - Roadmap 143: Ledger rigoroso de 143 itens (`records=143 unique=143 VERIFIED=126 DEFERRED=3 EXTERNAL=14`, pós-2026-08-26) — estado canônico em `docs/goals/roadmap-143-resume.md`, autoridade via `npm run roadmap:check`.
 - Supabase removido; migrations convertidas para Drizzle em `src/lib/db/schema/`.
+- Hardening V2 (2026-09-17): 20 commits (`73754a9..cc49648d`) — cache invalidation central, suíte negativa cross-tenant (gate de CI), idempotência com fingerprint/result_ref (migrations 0032-0033), precisão monetária em centavos, SHA-pinning de Actions + Dependabot + job migrations-from-zero, redaction LGPD exportada do logger, rate limiting nos gaps, evals IA offline, inventário LGPD, runbooks DR. Baseline: `docs/audit/hardening-v2-baseline.md`; relatório: `docs/audit/hardening2-progress-report.md`; pendências runtime: `docs/ops/cloudflare-runtime-checklist.md`.
 
 ## Débitos registrados (pós-hardening V1)
 
