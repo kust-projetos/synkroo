@@ -31,36 +31,90 @@ export async function isIdempotencyKeyProcessed(key: string): Promise<boolean> {
 }
 
 /**
- * Read the stored claim row (status + fingerprint). Returns null when absent
- * or unreadable. Falls back to a fingerprint-less read on pre-migration DBs.
+ * Read the stored claim row (status + fingerprint + result_ref + claimed-at).
+ * Returns null when absent or unreadable. Falls back through legacy shapes
+ * on pre-migration DBs (sem result_ref → sem fingerprint).
  */
-async function readClaimRow(key: string): Promise<{ status: string | null; fingerprint: string | null } | null> {
+interface ClaimRowFull {
+  status: string | null;
+  fingerprint: string | null;
+  resultRef: string | null;
+  createdAt: Date | null;
+}
+
+async function readClaimRow(key: string): Promise<ClaimRowFull | null> {
   const db = getDb();
   try {
     const [row] = await db
-      .select({ status: idempotencyKeys.status, fingerprint: idempotencyKeys.fingerprint })
+      .select({
+        status: idempotencyKeys.status,
+        fingerprint: idempotencyKeys.fingerprint,
+        resultRef: idempotencyKeys.resultRef,
+        createdAt: idempotencyKeys.createdAt,
+      })
       .from(idempotencyKeys)
       .where(eq(idempotencyKeys.key, key))
       .limit(1);
-    return (row ?? null) as { status: string | null; fingerprint: string | null } | null;
-  } catch {
+    return (row ?? null) as ClaimRowFull | null;
+  } catch (err) {
+    if (!isMissingIdemColumn(err)) {
+      // Erro real (não é coluna ausente) — tenta formas legadas antes de desistir.
+    }
     try {
       const [row] = await db
-        .select({ status: idempotencyKeys.status })
+        .select({ status: idempotencyKeys.status, fingerprint: idempotencyKeys.fingerprint })
         .from(idempotencyKeys)
         .where(eq(idempotencyKeys.key, key))
         .limit(1);
-      return row ? { status: row.status, fingerprint: null } : null;
+      return row
+        ? { status: row.status, fingerprint: row.fingerprint, resultRef: null, createdAt: null }
+        : null;
     } catch {
-      return null;
+      try {
+        const [row] = await db
+          .select({ status: idempotencyKeys.status })
+          .from(idempotencyKeys)
+          .where(eq(idempotencyKeys.key, key))
+          .limit(1);
+        return row
+          ? { status: row.status, fingerprint: null, resultRef: null, createdAt: null }
+          : null;
+      } catch {
+        return null;
+      }
     }
   }
 }
 
+/** True when the DB error is a missing idempotency column (pre-migration). */
+function isMissingIdemColumn(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return (
+    /fingerprint|result_ref/i.test(msg) &&
+    /column|does not exist|no such column|undefined column/i.test(msg)
+  );
+}
+
 /** True when the DB error is a missing fingerprint column (pre-migration). */
 function isMissingFingerprintColumn(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return /fingerprint/i.test(msg) && /column|does not exist|no such column|undefined column/i.test(msg);
+  return isMissingIdemColumn(err);
+}
+
+/**
+ * Persiste o vínculo resultado→chave (result_ref) na linha do claim.
+ * Best-effort: pré-migration (coluna ausente) → comportamento legado, sem erro.
+ */
+async function persistResultRef(key: string, ref: string): Promise<void> {
+  try {
+    const db = getDb();
+    await db
+      .update(idempotencyKeys)
+      .set({ resultRef: ref })
+      .where(eq(idempotencyKeys.key, key));
+  } catch (err) {
+    if (isMissingIdemColumn(err)) return; // pré-migration: legado
+    dbLogger.warn('Failed to persist idempotency result_ref', { key });
+  }
 }
 
 /**
@@ -184,13 +238,49 @@ export async function markIdempotencyKeyFailed(key: string, error: string): Prom
  * `fingerprint` (optional, backward-compatible): when both the stored and
  * incoming fingerprints are present and differ, returns 'conflict' (same
  * path as divergent-payload replay) instead of reusing the prior result.
+ *
+ * `options.resultRef` (optional, backward-compatible): derives the
+ * result→key binding from the handler result; persisted on success and
+ * exposed as `resultRef` (+ `claimedAt`) on 'already_processed' replays.
+ * Callers sem option mantêm o comportamento legado. Pré-migration (coluna
+ * ausente) → fallback legado silencioso.
  */
+export interface WithIdempotencyOptions<T = unknown> {
+  /** Deriva o vínculo resultado→chave a partir do resultado (ex.: id criado). */
+  resultRef?: (result: T) => string | undefined;
+}
+
+export interface WithIdempotencyResult<T = unknown> {
+  status: 'completed' | 'already_processed' | 'conflict';
+  result?: T;
+  /** Vínculo resultado→chave (quando persistido); undefined no legado. */
+  resultRef?: string | null;
+  /** created_at do claim original — limite temporal do fallback por domínio. */
+  claimedAt?: Date | null;
+}
+
 export async function withIdempotency<T>(
   key: string,
   jobType: string,
   handler: () => Promise<T>,
   fingerprint?: string,
-): Promise<{ status: 'completed' | 'already_processed' | 'conflict'; result?: T }> {
+  options?: WithIdempotencyOptions<T>,
+): Promise<WithIdempotencyResult<T>>;
+export async function withIdempotency<T>(
+  key: string,
+  jobType: string,
+  handler: () => Promise<T>,
+  options?: WithIdempotencyOptions<T>,
+): Promise<WithIdempotencyResult<T>>;
+export async function withIdempotency<T>(
+  key: string,
+  jobType: string,
+  handler: () => Promise<T>,
+  fingerprintOrOptions?: string | WithIdempotencyOptions<T>,
+  maybeOptions?: WithIdempotencyOptions<T>,
+): Promise<WithIdempotencyResult<T>> {
+  const fingerprint = typeof fingerprintOrOptions === 'string' ? fingerprintOrOptions : undefined;
+  const options = typeof fingerprintOrOptions === 'object' ? fingerprintOrOptions : maybeOptions;
   // Already done? (fingerprint-aware: mismatch → conflict, never reuse.)
   if (fingerprint !== undefined) {
     const existing = await readClaimRow(key);
@@ -199,10 +289,21 @@ export async function withIdempotency<T>(
         dbLogger.warn('Idempotency fingerprint mismatch', { key, jobType });
         return { status: 'conflict' };
       }
-      return { status: 'already_processed' };
+      return {
+        status: 'already_processed',
+        resultRef: existing.resultRef ?? undefined,
+        claimedAt: existing.createdAt ?? undefined,
+      };
     }
-  } else if (await isIdempotencyKeyProcessed(key)) {
-    return { status: 'already_processed' };
+  } else {
+    if (await isIdempotencyKeyProcessed(key)) {
+      const existing = await readClaimRow(key);
+      return {
+        status: 'already_processed',
+        resultRef: existing?.resultRef ?? undefined,
+        claimedAt: existing?.createdAt ?? undefined,
+      };
+    }
   }
 
   // Claim it
@@ -214,6 +315,8 @@ export async function withIdempotency<T>(
   // Execute
   try {
     const result = await handler();
+    const ref = options?.resultRef?.(result);
+    if (ref) await persistResultRef(key, ref);
     await markIdempotencyKeyCompleted(key);
     return { status: 'completed', result };
   } catch (err) {

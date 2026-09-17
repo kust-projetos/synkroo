@@ -56,21 +56,33 @@ export async function agendarConsulta(input: AppointmentInput) {
   if (!rawKey) return createCore();
 
   // Idempotent creation (padrão charge-service): primeira execução processa,
-  // duplicata retorna o resultado original sem reinserir. Fingerprint
-  // 'clinic|patient|dentist|slot' vincula a chave ao payload: mesma chave +
-  // payload divergente → conflito (409), nunca reuso silencioso.
+  // duplicata retorna o resultado original via vínculo resultado→chave
+  // (result_ref), sem reinserir. Fingerprint
+  // 'clinic|patient|dentist|slot|duration|procedure' vincula a chave ao
+  // payload: mesma chave + payload divergente → conflito (409), nunca reuso
+  // silencioso. Campos opcionais normalizados como '' (ordem estável).
   const namespaced = `appointment:create:${input.clinicId}:${rawKey}`;
-  const fingerprint = `${input.clinicId}|${input.patientId}|${input.dentistId ?? ''}|${input.scheduledAt.toISOString()}`;
-  const outcome = await withIdempotency(namespaced, 'appointment_create', createCore, fingerprint);
+  const fingerprint = `${input.clinicId}|${input.patientId}|${input.dentistId ?? ''}|${input.scheduledAt.toISOString()}|${input.durationMinutes ?? ''}|${input.procedureId ?? ''}`;
+  const outcome = await withIdempotency(namespaced, 'appointment_create', createCore, fingerprint, {
+    resultRef: (created) => (created as { id?: string } | undefined)?.id,
+  });
   if (outcome.status === 'completed' && outcome.result) return outcome.result;
   if (outcome.status === 'conflict') {
     throw new ActionError('conflict', 'Agendamento em processamento. Tente novamente.');
+  }
+  // Replay vinculado: result_ref → busca POR ID com filtro de clínica
+  // (findById já é tenant-scoped). Só sem vínculo (crash entre insert e
+  // update) cai no lookup por domínio, RESTRITO a created_at >= claimedAt.
+  if (outcome.resultRef) {
+    const bound = await repo.findById(input.clinicId, outcome.resultRef);
+    if (bound) return { id: bound.id };
   }
   const original = await repo.findByExactSlot(
     input.clinicId,
     input.patientId,
     input.dentistId ?? null,
     input.scheduledAt,
+    outcome.claimedAt ? { since: outcome.claimedAt } : undefined,
   );
   if (original) return { id: original.id };
   throw new ActionError('conflict', 'Agendamento em processamento. Tente novamente.');

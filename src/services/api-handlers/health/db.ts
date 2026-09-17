@@ -9,7 +9,7 @@ import { getDb } from '@/lib/db/client'
  * Ao adicionar uma migration, atualize esta constante — o teste de sincronização
  * (`src/__tests__/api/health/route.test.ts`) quebra de propósito se divergir.
  */
-export const EXPECTED_MIGRATIONS = 31
+export const EXPECTED_MIGRATIONS = 33
 
 export interface MigrationStatus {
   complete: boolean
