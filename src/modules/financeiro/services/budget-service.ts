@@ -14,6 +14,7 @@ import {
   getBudgetForClinic as repoGetBudgetForClinic,
   type BudgetRow,
 } from '../repositories/financeiro-repository';
+import { lineTotalCents, percentOfCents } from './money';
 
 export interface BudgetItemInput {
   procedureName: string;
@@ -45,21 +46,23 @@ export interface BudgetTotals {
 
 /**
  * Calculate deterministic budget totals from items and optional discount.
+ *
+ * Etapa 5.1: exact-decimal cents arithmetic (half-up at cent level) — no
+ * binary-float math, so `3 × 0.1` is exactly `0.30`. Same return shape.
  */
 export function calculateBudgetTotals(items: BudgetItemInput[], discountPercent = 0): BudgetTotals {
-  const totalValue = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
-  const discountValue = discountPercent > 0
-    ? Math.round(totalValue * (discountPercent / 100) * 100) / 100
-    : 0;
-  const finalValue = Math.max(0, totalValue - discountValue);
-  return { totalValue, discountPercent, discountValue, finalValue };
+  const totalCents = items.reduce((sum, item) => sum + lineTotalCents(item.quantity, item.unitPrice), 0n);
+  const discountCents = discountPercent > 0 ? percentOfCents(totalCents, discountPercent) : 0n;
+  const finalCents = totalCents - discountCents >= 0n ? totalCents - discountCents : 0n;
+  const toNum = (c: bigint): number => Number(c) / 100;
+  return { totalValue: toNum(totalCents), discountPercent, discountValue: toNum(discountCents), finalValue: toNum(finalCents) };
 }
 
 function calculateItemTotal(quantity: number, unitPrice: number, discountPercent?: number): number {
-  const subtotal = quantity * unitPrice;
-  if (!discountPercent || discountPercent <= 0) return subtotal;
-  const discount = subtotal * (discountPercent / 100);
-  return Math.round((subtotal - discount) * 100) / 100;
+  const subtotalCents = lineTotalCents(quantity, unitPrice);
+  if (!discountPercent || discountPercent <= 0) return Number(subtotalCents) / 100;
+  const netCents = subtotalCents - percentOfCents(subtotalCents, discountPercent);
+  return Number(netCents) / 100;
 }
 
 /**

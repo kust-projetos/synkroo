@@ -65,7 +65,7 @@ describe('replaceInstallments', () => {
 
     expect(result).toEqual(mockRows);
     expect(atomicRepo.replaceInstallmentsAtomic).toHaveBeenCalledWith(CLINIC_ID, BUDGET_ID, [
-      { budgetId: BUDGET_ID, amount: '100', dueDate: '2026-08-15', status: 'pending' },
+      { budgetId: BUDGET_ID, amount: '100.00', dueDate: '2026-08-15', status: 'pending' },
     ]);
   });
 });

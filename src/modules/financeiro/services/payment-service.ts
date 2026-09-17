@@ -14,8 +14,9 @@ import {
 } from '../repositories/financeiro-repository';
 import { getBudgetForClinic } from '../repositories/financeiro-scope-repository';
 import { getDb } from '@/lib/db/client';
+import { withIdempotency } from '@/lib/idempotency';
 import { payments, paymentCharges, budgets, budgetInstallments } from '@/modules/financeiro/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { ActionError } from '@/core/actions/types';
 
 export interface RegisterManualPaymentInput {
@@ -27,6 +28,8 @@ export interface RegisterManualPaymentInput {
   paidAt?: string;
   notes?: string;
   actorUserId: string | null;
+  /** Client-supplied idempotency key (from `Idempotency-Key` header). Optional — absent = legacy behavior. */
+  idempotencyKey?: string;
 }
 
 function toCents(value: string | number): bigint {
@@ -57,7 +60,7 @@ export async function registerManualPayment(input: RegisterManualPaymentInput): 
   const amountCents = toCents(amount);
   if (amountCents <= 0n) throw new ActionError('invalid_input', 'Valor deve ser positivo');
 
-  return db.transaction(async (tx) => {
+  const executeCore = (): Promise<PaymentRow> => db.transaction(async (tx) => {
     // Tenant-scoped lock: budget must belong to clinic; predicate is in the query that protects the mutation.
     // Try FOR UPDATE when Drizzle exposes it; fallback to plain select if not available.
     let budgetRow: any;
@@ -138,6 +141,28 @@ export async function registerManualPayment(input: RegisterManualPaymentInput): 
 
     return payment as PaymentRow;
   });
+
+  const rawKey = input.idempotencyKey?.trim();
+  if (!rawKey) return executeCore();
+
+  // Idempotent registration (padrão charge-service): primeira execução processa,
+  // duplicata retorna o pagamento original sem reinserir (lookup por identidade
+  // do domínio, pois idempotency_keys não armazena payload de resultado).
+  const namespaced = `payment:manual:${clinicId}:${budgetId}:${rawKey}`;
+  const outcome = await withIdempotency(namespaced, 'payment_manual', executeCore);
+  if (outcome.status === 'completed' && outcome.result) return outcome.result;
+  const expectedAmount = centsToDecimal(amountCents);
+  const candidates = await db
+    .select()
+    .from(payments)
+    .where(and(eq(payments.clinicId, clinicId), eq(payments.budgetId, budgetId)))
+    .orderBy(desc(payments.createdAt))
+    .limit(10);
+  const original = candidates.find(
+    (p: any) => String(p.amount) === expectedAmount && p.paymentMethod === paymentMethod,
+  );
+  if (original) return original as PaymentRow;
+  throw new ActionError('conflict', 'Pagamento em processamento. Tente novamente.');
 }
 
 export async function listPayments(clinicId: string, budgetId: string): Promise<PaymentRow[]> {
