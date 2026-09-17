@@ -146,11 +146,16 @@ export async function registerManualPayment(input: RegisterManualPaymentInput): 
   if (!rawKey) return executeCore();
 
   // Idempotent registration (padrão charge-service): primeira execução processa,
-  // duplicata retorna o pagamento original sem reinserir (lookup por identidade
-  // do domínio, pois idempotency_keys não armazena payload de resultado).
+  // duplicata retorna o pagamento original sem reinserir. Fingerprint
+  // 'budget|amount-cents|method' vincula a chave ao payload: mesma chave +
+  // payload divergente → conflito (409), nunca reuso de outra requisição.
   const namespaced = `payment:manual:${clinicId}:${budgetId}:${rawKey}`;
-  const outcome = await withIdempotency(namespaced, 'payment_manual', executeCore);
+  const fingerprint = `${budgetId}|${amountCents.toString()}|${paymentMethod}`;
+  const outcome = await withIdempotency(namespaced, 'payment_manual', executeCore, fingerprint);
   if (outcome.status === 'completed' && outcome.result) return outcome.result;
+  if (outcome.status === 'conflict') {
+    throw new ActionError('conflict', 'Pagamento em processamento. Tente novamente.');
+  }
   const expectedAmount = centsToDecimal(amountCents);
   const candidates = await db
     .select()

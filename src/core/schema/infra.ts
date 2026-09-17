@@ -7,6 +7,7 @@ export const idempotencyKeys = pgTable('idempotency_keys', {
   jobType: text('job_type').notNull(),
   status: text('status').notNull().default('in_progress'),
   error: text('error'),
+  fingerprint: text('fingerprint'),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });

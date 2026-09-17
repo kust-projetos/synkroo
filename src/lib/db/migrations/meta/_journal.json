@@ -218,6 +218,13 @@
       "when": 1789357620101,
       "tag": "0031_g4_query_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1789357700000,
+      "tag": "0032_idempotency_fingerprint",
+      "breakpoints": true
     }
   ]
 }

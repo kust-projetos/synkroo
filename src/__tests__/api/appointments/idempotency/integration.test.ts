@@ -166,4 +166,53 @@ describeOrSkip('POST /api/appointments idempotency — route + DB real', () => {
     expect(id2).not.toBe(id1);
     expect(await countAppointments()).toBe(2);
   });
+
+  it('same key + DIFFERENT payload → conflito (409/422), nenhuma segunda linha', async () => {
+    authAs(CLINIC);
+    const key = `appt-idem-mismatch-${randomUUID()}`;
+    const base = {
+      patientId: PATIENT,
+      dentistId: DENTIST,
+      scheduledAt: '2026-11-03T10:00:00Z',
+      durationMinutes: 30,
+    };
+
+    const res1 = await postAppointment(base, key);
+    expect(res1.status).toBe(201);
+    expect((await res1.json()).data?.id).toBeDefined();
+
+    // Mesmo Idempotency-Key, slot divergente → fingerprint mismatch → conflito.
+    const res2 = await postAppointment({ ...base, scheduledAt: '2026-11-03T12:00:00Z' }, key);
+    expect([409, 422]).toContain(res2.status);
+
+    expect(await countAppointments()).toBe(1);
+  });
+
+  it('double-click concorrente (Promise.allSettled, mesma chave) → exatamente 1 linha', async () => {
+    authAs(CLINIC);
+    const key = `appt-idem-race-${randomUUID()}`;
+    const body = {
+      patientId: PATIENT,
+      dentistId: DENTIST,
+      scheduledAt: '2026-11-04T10:00:00Z',
+      durationMinutes: 30,
+    };
+
+    const [r1, r2] = await Promise.allSettled([
+      postAppointment(body, key),
+      postAppointment(body, key),
+    ]);
+    const responses = [r1, r2].map((r) => (r.status === 'fulfilled' ? r.value : null)).filter(Boolean) as Response[];
+    expect(responses).toHaveLength(2);
+    // 200/201-com-original OU 409/422-em-processo — ambos aceitos; exige 1 linha só.
+    for (const res of responses) {
+      expect([200, 201, 409, 422]).toContain(res.status);
+    }
+    expect(await countAppointments()).toBe(1);
+    if (responses[0].status === 201 && responses[1].status === 201) {
+      const j1 = await responses[0].json();
+      const j2 = await responses[1].json();
+      expect(j2.data?.id).toBe(j1.data?.id);
+    }
+  });
 });

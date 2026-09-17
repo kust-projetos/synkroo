@@ -14,7 +14,7 @@ import {
   getBudgetForClinic as repoGetBudgetForClinic,
   type BudgetRow,
 } from '../repositories/financeiro-repository';
-import { lineTotalCents, percentOfCents } from './money';
+import { lineTotalCents, percentOfCents, quantizePriceToCents, centsToDecimal } from './money';
 
 export interface BudgetItemInput {
   procedureName: string;
@@ -49,9 +49,18 @@ export interface BudgetTotals {
  *
  * Etapa 5.1: exact-decimal cents arithmetic (half-up at cent level) — no
  * binary-float math, so `3 × 0.1` is exactly `0.30`. Same return shape.
+ *
+ * Price rule: unitPrice is quantized to cents (half-up) at the entry
+ * boundary, so stored price × quantity == total exactly (numeric(10,2)).
  */
 export function calculateBudgetTotals(items: BudgetItemInput[], discountPercent = 0): BudgetTotals {
-  const totalCents = items.reduce((sum, item) => sum + lineTotalCents(item.quantity, item.unitPrice), 0n);
+  const totalCents = items.reduce((sum, item) => {
+    const unitCents = quantizePriceToCents(item.unitPrice);
+    const q = item.quantity;
+    // quantity up to 3 decimals; unit already in cents → single half-up step
+    const lineCents = lineTotalCents(q, centsToDecimal(unitCents));
+    return sum + lineCents;
+  }, 0n);
   const discountCents = discountPercent > 0 ? percentOfCents(totalCents, discountPercent) : 0n;
   const finalCents = totalCents - discountCents >= 0n ? totalCents - discountCents : 0n;
   const toNum = (c: bigint): number => Number(c) / 100;
@@ -59,7 +68,8 @@ export function calculateBudgetTotals(items: BudgetItemInput[], discountPercent 
 }
 
 function calculateItemTotal(quantity: number, unitPrice: number, discountPercent?: number): number {
-  const subtotalCents = lineTotalCents(quantity, unitPrice);
+  const quantized = centsToDecimal(quantizePriceToCents(unitPrice));
+  const subtotalCents = lineTotalCents(quantity, quantized);
   if (!discountPercent || discountPercent <= 0) return Number(subtotalCents) / 100;
   const netCents = subtotalCents - percentOfCents(subtotalCents, discountPercent);
   return Number(netCents) / 100;
@@ -90,13 +100,14 @@ export async function createBudget(input: CreateBudgetInput): Promise<BudgetRow>
     validUntil: input.validUntil ?? null,
   });
 
-  // Persist items — clinicId derived from budget tenant-scoped (W2)
+  // Persist items — clinicId derived from budget tenant-scoped (W2).
+  // Unit price is quantized to cents so stored price × qty == total exactly.
   const items = input.items.map(item => ({
     clinicId: input.clinicId,
     budgetId: budget.id,
     procedureName: item.procedureName,
     quantity: item.quantity,
-    unitPrice: String(item.unitPrice),
+    unitPrice: centsToDecimal(quantizePriceToCents(item.unitPrice)),
     discountPercent: String(item.discountPercent ?? 0),
     totalPrice: String(calculateItemTotal(item.quantity, item.unitPrice, item.discountPercent)),
     notes: item.notes ?? null,

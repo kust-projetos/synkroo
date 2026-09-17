@@ -175,6 +175,7 @@ export function invalidateAppointmentChanged(
   appointmentId?: string | null,
   ...dateKeys: readonly string[]
 ) {
+  if (!clinicId) return; // fail-closed: sem tenant nunca invalida cross-tenant
   invalidateClinicDomain(queryClient, clinicId, 'appointments')
   if (appointmentId) {
     queryClient.invalidateQueries({

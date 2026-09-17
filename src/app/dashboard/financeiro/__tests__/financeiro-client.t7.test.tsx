@@ -8,6 +8,8 @@ jest.mock('@/lib/hooks/use-queries', () => ({
   useCollections: jest.fn(() => ({ data: { collections: [] }, isLoading: false })),
   useGateways: jest.fn(() => ({ data: { gateways: [] }, isLoading: false })),
   usePayments: jest.fn(() => ({ data: { payments: [] }, isLoading: false })),
+  useUpdateBudgetStatus: jest.fn(() => ({ mutate: jest.fn(), isPending: false, variables: undefined })),
+  useCancelCharge: jest.fn(() => ({ mutate: jest.fn(), isPending: false, variables: undefined })),
 }));
 
 const mockProfileOwner = { id: 'u1', role: 'owner', clinic_id: 'c1' };
