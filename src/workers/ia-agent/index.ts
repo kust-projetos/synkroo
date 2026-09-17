@@ -3,6 +3,7 @@ import { createZenProvider } from '@/core/ia-agent/provider-zen';
 import { runTurn as runAgentTurn } from '@/core/ia-agent/orchestrator-logic';
 import {
   createTelemetryLogger,
+  isValidCorrelationId,
   resolveCorrelationId,
 } from '@/core/ia-agent/telemetry';
 import { parseRuntimeEnv } from '@/lib/runtime-env';
@@ -153,9 +154,21 @@ export class AgentOrchestrator extends DurableObject<Env> {
         if (cur === null || cur === undefined || (clearedToken && cur.token === clearedToken)) {
           await txn.put('pendingAction', null);
         } else {
+          // ETAPA11-OBS: sem @/lib/logger aqui (acoplado a process.env —
+          // ver telemetry.ts). Emite via telemetria edge-safe (sem PII) e
+          // valida conversationId contra o formato fechado antes de logar
+          // (rejeita blob/PII injetado em vez de ecoar texto externo).
+          emit({
+            correlationId,
+            clinicId: input.clinicId,
+            operation: 'pending_clear_skipped',
+            status: 'ok',
+          });
           // eslint-disable-next-line no-console
           console.warn('[ia-agent] clear condicional ignorado: pending nova preservada', {
-            conversationId: input.conversationId,
+            conversationId: isValidCorrelationId(input.conversationId)
+              ? input.conversationId
+              : '[REDACTED]',
           });
         }
       });

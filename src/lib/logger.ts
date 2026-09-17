@@ -28,12 +28,21 @@ const LOG_LEVELS: Record<LogLevel, number> = {
   error: 3,
 }
 
-const SENSITIVE_LOG_KEYS = new Set([
+export const SENSITIVE_LOG_KEYS = new Set([
   'apikey', 'authorization', 'connectionstring', 'cookie', 'databaseurl', 'password',
   'refreshtoken', 'secret', 'setcookie', 'token',
+  // ETAPA11-OBS (SPEC §21 — LGPD/PII): chaves conservadoras em minúsculas,
+  // casando a normalização de redactLogValue (lowercase + strip -_).
+  // Inclui variantes com/sem acento ('endereco'/'endereço') porque a
+  // normalização NÃO remove acentos. NÃO inclui 'name'/'patient'/'status':
+  // genéricas demais — redigir 'patient' apagaria contexto operacional
+  // (ids, contadores) sem proteger PII real; PII viaja em chaves específicas.
+  'cpf', 'cnpj', 'rg', 'telefone', 'phone', 'phonenumber', 'celular',
+  'whatsapp', 'email', 'endereco', 'endereço', 'address', 'carteirinha',
+  'insurance',
 ])
 
-function redactLogValue(value: unknown, key?: string): unknown {
+export function redactLogValue(value: unknown, key?: string): unknown {
   const normalizedKey = key?.toLowerCase().replace(/[-_]/g, '')
   if (normalizedKey && SENSITIVE_LOG_KEYS.has(normalizedKey)) return '[REDACTED]'
   if (Array.isArray(value)) return value.map((item) => redactLogValue(item))
