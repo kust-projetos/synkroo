@@ -45,7 +45,7 @@ describeOrSkip('Atendimento concurrency dedup — persistInboundMessage (W6.3)',
     expect(results.filter((r) => r.deduped).length).toBe(9);
     expect(results.filter((r) => !r.deduped).length).toBe(1);
     const db = getDb();
-    const [conv] = await db.select().from(conversations).where(eq(conversations.externalId, EXTERNAL_CONV)).limit(1);
+    const [conv] = await db.select().from(conversations).where(and(eq(conversations.clinicId, CLINIC), eq(conversations.externalId, EXTERNAL_CONV))).limit(1);
     expect(conv).toBeDefined();
     expect(conv.messageCount).toBe(1);
     const msgs = await db.select().from(messages).where(eq(messages.conversationId, conv.id));
@@ -61,7 +61,7 @@ describeOrSkip('Atendimento concurrency dedup — persistInboundMessage (W6.3)',
       Array.from({ length: 10 }, (_, i) => persistInboundMessage({ ...base, externalMessageId: `diff-id-${i}-${Date.now()}` })),
     );
     expect(results.filter((r) => !r.deduped).length).toBe(10);
-    const [conv] = await db.select().from(conversations).where(eq(conversations.externalId, EXTERNAL_CONV)).limit(1);
+    const [conv] = await db.select().from(conversations).where(and(eq(conversations.clinicId, CLINIC), eq(conversations.externalId, EXTERNAL_CONV))).limit(1);
     expect(conv.messageCount).toBe(10);
   });
 });
