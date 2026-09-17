@@ -20,7 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { POST as PaymentsPOST } from '@/app/api/budgets/[id]/payments/route';
-import { registerManualPayment } from '@/modules/financeiro/services/payment-service';
+import { POST as FinanceiroPaymentsPOST } from '@/app/api/financeiro/budgets/[id]/payments/route';
 import * as contextModule from '@/core/actions/context';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
@@ -60,6 +60,17 @@ function postPayment(budgetId: string, body: Record<string, unknown>, key?: stri
   return PaymentsPOST(req as any, { params: Promise.resolve({ id: budgetId }) } as any);
 }
 
+function postFinanceiroPayment(budgetId: string, body: Record<string, unknown>, key?: string) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (key) headers['Idempotency-Key'] = key;
+  const req = new Request(`http://localhost/api/financeiro/budgets/${budgetId}/payments`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  return FinanceiroPaymentsPOST(req as any, { params: Promise.resolve({ id: budgetId }) } as any);
+}
+
 async function countPayments(budgetId: string): Promise<number> {
   const db = getDb();
   const { rows } = await db.execute(
@@ -71,6 +82,7 @@ async function countPayments(budgetId: string): Promise<number> {
 describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real', () => {
   beforeAll(async () => {
     const db = getDb();
+    await db.execute(sql`INSERT INTO instance_modules (module_id, enabled) VALUES ('financeiro', true) ON CONFLICT (module_id) DO UPDATE SET enabled = true`);
     await db.execute(sql`INSERT INTO clinics (id, name, slug, phone, email) VALUES (${CLINIC}, 'Pay Idem Clinic', 'pay-idem', '11999990401', 'pay-idem@test.com') ON CONFLICT (id) DO NOTHING`);
     await db.execute(sql`INSERT INTO users (id, clinic_id, email, name, role) VALUES (${USER}, ${CLINIC}, 'pay-idem@test.local', 'Pay Idem', 'owner') ON CONFLICT (id) DO NOTHING`);
     await db.execute(sql`INSERT INTO payment_gateways (id, clinic_id, provider, is_default, is_enabled, masked_label) VALUES (${GATEWAY}, ${CLINIC}, 'audit', true, true, 'gw-idem') ON CONFLICT (id) DO NOTHING`);
@@ -171,60 +183,51 @@ describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real'
   });
 
   it('same key + chargeId divergente → 409, nenhuma segunda linha', async () => {
-    // Via serviço (a rota legada achata chargeId): fingerprint inclui chargeId.
+    // HTTP real na rota canônica (única que encaminha chargeId via spread do body).
+    authAs(CLINIC);
     const key = `pay-idem-charge-${randomUUID()}`;
-    const first = await registerManualPayment({
-      clinicId: CLINIC,
-      budgetId: BUDGET_CHARGE,
-      amount: 100,
-      paymentMethod: 'pix',
-      actorUserId: USER,
-      idempotencyKey: key,
-    });
-    expect(first?.id).toBeDefined();
+
+    const res1 = await postFinanceiroPayment(BUDGET_CHARGE, { amount: 100, paymentMethod: 'pix' }, key);
+    expect(res1.status).toBe(201);
+    const json1 = await res1.json();
+    expect(json1.data?.id).toBeDefined();
 
     // Mesma chave, demais campos iguais, chargeId divergente → fingerprint mismatch → conflito.
-    await expect(
-      registerManualPayment({
-        clinicId: CLINIC,
-        budgetId: BUDGET_CHARGE,
-        chargeId: randomUUID(),
-        amount: 100,
-        paymentMethod: 'pix',
-        actorUserId: USER,
-        idempotencyKey: key,
-      }),
-    ).rejects.toMatchObject({ code: 'conflict' });
+    const res2 = await postFinanceiroPayment(
+      BUDGET_CHARGE,
+      { amount: 100, paymentMethod: 'pix', chargeId: randomUUID() },
+      key,
+    );
+    expect(res2.status).toBe(409);
+    const json2 = await res2.json();
+    expect(json2.error?.code).toBe('CONFLICT');
 
     expect(await countPayments(BUDGET_CHARGE)).toBe(1);
   });
 
   it('same key + paidAt divergente → 409, nenhuma segunda linha', async () => {
-    // Via serviço (a rota legada achata paidAt): fingerprint usa o input bruto de paidAt.
+    // HTTP real na rota canônica (única que encaminha paidAt via spread do body).
+    authAs(CLINIC);
     const key = `pay-idem-paidat-${randomUUID()}`;
-    const first = await registerManualPayment({
-      clinicId: CLINIC,
-      budgetId: BUDGET_PAIDAT,
-      amount: 100,
-      paymentMethod: 'pix',
-      paidAt: '2026-10-01T10:00:00.000Z',
-      actorUserId: USER,
-      idempotencyKey: key,
-    });
-    expect(first?.id).toBeDefined();
+
+    const res1 = await postFinanceiroPayment(
+      BUDGET_PAIDAT,
+      { amount: 100, paymentMethod: 'pix', paidAt: '2026-10-01T10:00:00.000Z' },
+      key,
+    );
+    expect(res1.status).toBe(201);
+    const json1 = await res1.json();
+    expect(json1.data?.id).toBeDefined();
 
     // Mesma chave, demais campos iguais, paidAt divergente → fingerprint mismatch → conflito.
-    await expect(
-      registerManualPayment({
-        clinicId: CLINIC,
-        budgetId: BUDGET_PAIDAT,
-        amount: 100,
-        paymentMethod: 'pix',
-        paidAt: '2026-10-02T10:00:00.000Z',
-        actorUserId: USER,
-        idempotencyKey: key,
-      }),
-    ).rejects.toMatchObject({ code: 'conflict' });
+    const res2 = await postFinanceiroPayment(
+      BUDGET_PAIDAT,
+      { amount: 100, paymentMethod: 'pix', paidAt: '2026-10-02T10:00:00.000Z' },
+      key,
+    );
+    expect(res2.status).toBe(409);
+    const json2 = await res2.json();
+    expect(json2.error?.code).toBe('CONFLICT');
 
     expect(await countPayments(BUDGET_PAIDAT)).toBe(1);
   });
