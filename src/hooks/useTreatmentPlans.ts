@@ -5,7 +5,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CreateTreatmentPlanInput, TreatmentPlan } from '@/services/treatment-plans/treatment-plan.service'
-import { clinicScope, invalidateClinicDomain, useResolvedClinicId } from '@/lib/hooks/use-queries'
+import { invalidateClinicDomain, queryKeys, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 const API_BASE = '/api/treatment-plans'
 
@@ -54,7 +54,10 @@ async function updateTreatmentPlan(id: string, input: Partial<CreateTreatmentPla
   return data.data.treatment_plan
 }
 
-async function updateSession(treatmentPlanId: string, treatmentPlanItemId: string): Promise<unknown> {
+async function updateSession(
+  treatmentPlanId: string,
+  treatmentPlanItemId: string,
+): Promise<{ treatment_plan_item: unknown; patient_id?: string | null }> {
   const response = await fetch(`${API_BASE}/${treatmentPlanId}/sessions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -63,13 +66,15 @@ async function updateSession(treatmentPlanId: string, treatmentPlanItemId: strin
   if (!response.ok) {
     throw new Error('Failed to update session')
   }
-  return response.json()
+  const body = await response.json()
+  // Contrato canônico (D2): { data: { treatment_plan_item, patient_id } }
+  return body.data ?? body
 }
 
 export function useTreatmentPlans(patientId: string | null, clinicId?: string) {
   const resolved = useResolvedClinicId(clinicId)
   return useQuery({
-    queryKey: clinicScope(resolved, 'treatment-plans', patientId),
+    queryKey: queryKeys.treatmentPlans(patientId, resolved),
     queryFn: () => fetchTreatmentPlans(patientId!),
     enabled: !!patientId,
   })
@@ -78,7 +83,7 @@ export function useTreatmentPlans(patientId: string | null, clinicId?: string) {
 export function useTreatmentPlan(id: string | null, clinicId?: string) {
   const resolved = useResolvedClinicId(clinicId)
   return useQuery({
-    queryKey: clinicScope(resolved, 'treatment-plan', id),
+    queryKey: queryKeys.treatmentPlan(id!, resolved),
     queryFn: () => fetchTreatmentPlan(id!),
     enabled: !!id,
   })
@@ -110,10 +115,10 @@ export function useUpdateTreatmentPlan() {
       // amplos `includes(id)` restritos ao tenant). Tenant do retorno, senão contexto.
       const tenant = data?.clinic_id ?? clinicId
       if (data?.id) {
-        queryClient.invalidateQueries({ queryKey: clinicScope(tenant, 'treatment-plan', data.id) })
+        queryClient.invalidateQueries({ queryKey: queryKeys.treatmentPlan(data.id, tenant) })
       }
       if (data?.patient_id) {
-        queryClient.invalidateQueries({ queryKey: clinicScope(tenant, 'treatment-plans', data.patient_id) })
+        queryClient.invalidateQueries({ queryKey: queryKeys.treatmentPlans(data.patient_id, tenant) })
       }
     },
   })
@@ -126,13 +131,21 @@ export function useUpdateSession() {
   return useMutation({
     mutationFn: ({ treatmentPlanId, treatmentPlanItemId }: { treatmentPlanId: string; treatmentPlanItemId: string }) =>
       updateSession(treatmentPlanId, treatmentPlanItemId),
-    onSuccess: (_, variables) => {
-      // G1: invalidação exata do detail (antes: predicate amplo `includes(id)`
-      // restrito ao tenant). Lista do paciente indisponível aqui (sem patient_id
-      // nas variáveis nem no retorno) — ver FINDINGS.
+    onSuccess: (data, variables) => {
+      // Etapa 1: detail + lista do paciente + resumo financeiro — patient_id vem
+      // do servidor (somente cache), nunca do cliente. Sem wildcard global.
       if (variables?.treatmentPlanId) {
         queryClient.invalidateQueries({
-          queryKey: clinicScope(clinicId, 'treatment-plan', variables.treatmentPlanId),
+          queryKey: queryKeys.treatmentPlan(variables.treatmentPlanId, clinicId),
+        })
+      }
+      const patientId = data?.patient_id ?? null
+      if (patientId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.treatmentPlans(patientId, clinicId),
+        })
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.financialSummary(patientId, clinicId),
         })
       }
     },

@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select'
 import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
-import { useDentists, invalidateCalendarDateKeys } from '@/lib/hooks/use-queries'
+import { useDentists, invalidateAppointmentChanged } from '@/lib/hooks/use-queries'
 import { formatDateKey, formatHourLabel } from './utils/date-utils'
 import { useToast } from '@/lib/ui/toast'
 import { useQueryClient } from '@tanstack/react-query'
@@ -113,10 +113,12 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
       closeDialog()
       // G1: invalida só as faixas de calendário que contêm a data origem ou
       // destino (mês/semana/dia) — antes: prefixo de todas as faixas da clínica.
+      // Etapa 1: coleção + detalhe + dashboard junto (helper central).
       const originKey = event ? formatDateKey(event.start) : null
-      invalidateCalendarDateKeys(
+      invalidateAppointmentChanged(
         queryClient,
         clinicId,
+        rescheduleInfo.eventId,
         ...(originKey
           ? [originKey, rescheduleInfo.targetDateKey]
           : [rescheduleInfo.targetDateKey]),
@@ -146,7 +148,7 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && closeDialog()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" aria-busy={saving}>
         <DialogHeader>
           <DialogTitle>Reagendar Consulta</DialogTitle>
           <DialogDescription>
@@ -253,11 +255,15 @@ export function RescheduleDialog({ events }: RescheduleDialogProps) {
           <Button
             onClick={handleConfirm}
             disabled={saving || !hour || !dentistId}
+            aria-busy={saving}
             className="bg-teal-600 hover:bg-teal-700"
           >
             {saving ? 'Reagendando...' : 'Confirmar Reagendamento'}
           </Button>
         </DialogFooter>
+        {saving && (
+          <p aria-live="polite" className="sr-only">Reagendando consulta...</p>
+        )}
       </DialogContent>
     </Dialog>
   )

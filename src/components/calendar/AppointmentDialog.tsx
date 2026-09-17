@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useCalendarStore } from './store/calendar-store'
 import { useAuth } from '@/lib/auth/context'
-import { useDentists, useProcedures, clinicScope, invalidateCalendarDateKeys } from '@/lib/hooks/use-queries'
+import { useDentists, useProcedures, invalidateAppointmentChanged } from '@/lib/hooks/use-queries'
 import { useToast } from '@/hooks/use-toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatHourLabel } from './utils/date-utils'
@@ -188,11 +188,12 @@ export function AppointmentDialog() {
         throw new Error(msg)
       }
       // Success — invalidate only after success (G1: escopo da clínica atual).
-      // appointments: prefixo mantido — o filtro ativo da lista (status/data
-      // selecionados no ListView) não está disponível neste dialog.
-      queryClient.invalidateQueries({ queryKey: clinicScope(clinicId, 'appointments') })
-      // calendar-events: só as faixas que contêm a data criada (antes: todas).
-      invalidateCalendarDateKeys(queryClient, clinicId, form.date)
+      // appointments: coleção ampla mantida — o filtro ativo da lista
+      // (status/data selecionados no ListView) não está disponível neste dialog.
+      // SYN-CACHE-003: chaves de agendamento por paciente não adotadas sem
+      // evidência medida de refetch — escopo por clínica é suficiente.
+      const createdId = apptJson?.data?.appointment?.id ?? apptJson?.appointment?.id
+      invalidateAppointmentChanged(queryClient, clinicId, createdId, form.date)
       toast({
         title: 'Agendamento criado',
         description: 'Consulta agendada com sucesso.',
@@ -220,7 +221,7 @@ export function AppointmentDialog() {
 
   return (
     <Dialog open={dialog.open && (dialog.mode === 'create' || dialog.mode === 'edit')} onOpenChange={(open) => !open && closeDialog()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg" aria-busy={saving}>
         <DialogHeader>
           <DialogTitle>
             {isCreate ? 'Novo Agendamento' : 'Editar Agendamento'}
@@ -348,11 +349,15 @@ export function AppointmentDialog() {
           <Button
             onClick={handleSave}
             disabled={saving || !form.patientName || !form.date}
+            aria-busy={saving}
             className="bg-teal-600 hover:bg-teal-700"
           >
             {saving ? 'Salvando...' : isCreate ? 'Agendar' : 'Salvar'}
           </Button>
         </DialogFooter>
+        {saving && (
+          <p aria-live="polite" className="sr-only">Salvando agendamento...</p>
+        )}
       </DialogContent>
     </Dialog>
   )

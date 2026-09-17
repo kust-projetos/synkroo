@@ -165,6 +165,29 @@ export function invalidateCalendarDateKeys(
 }
 
 /**
+ * Etapa 1 (cache consistency): invalidação por mudança de agendamento.
+ * Coleção + detalhe + faixas de calendário afetadas + dashboard da clínica.
+ * Escopo sempre restrito ao tenant atual; sem wildcard global.
+ */
+export function invalidateAppointmentChanged(
+  queryClient: QueryClient,
+  clinicId: string | undefined | null,
+  appointmentId?: string | null,
+  ...dateKeys: readonly string[]
+) {
+  invalidateClinicDomain(queryClient, clinicId, 'appointments')
+  if (appointmentId) {
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.appointment(appointmentId, clinicId ?? undefined),
+    })
+  }
+  if (dateKeys.length > 0) {
+    invalidateCalendarDateKeys(queryClient, clinicId, ...dateKeys)
+  }
+  invalidateClinicDomain(queryClient, clinicId, 'dashboard')
+}
+
+/**
  * Shared query keys for cache invalidation.
  * G1: ALL multi-tenant keys are tenant-scoped via `clinicScope`.
  * Convention: (params?, clinicId?) — params first for backwards compat;
@@ -225,6 +248,11 @@ export const queryKeys = {
   activities: (options?: unknown, clinicId?: string) => clinicScope(clinicId, 'activities', 'all', options),
   duplicates: (clinicId?: string) => clinicScope(clinicId, 'duplicates'),
   duplicateList: (params?: string, clinicId?: string) => clinicScope(clinicId, 'duplicates', 'list', params),
+  treatmentPlans: (patientId: string | null, clinicId?: string) =>
+    clinicScope(clinicId, 'treatment-plans', patientId),
+  treatmentPlan: (id: string, clinicId?: string) => clinicScope(clinicId, 'treatment-plan', id),
+  financialSummary: (patientId: string | null, clinicId?: string) =>
+    clinicScope(clinicId, 'financial-summary', patientId),
 }
 
 /**
@@ -815,6 +843,34 @@ export function useUpdateBudgetStatus() {
       invalidateClinicDomain(queryClient, tenant, 'financeiro', 'budgets')
       // G1: derivado sub-invalidado — dashboard agrega conversão/cobranças de budgets.
       queryClient.invalidateQueries({ queryKey: queryKeys.financeDashboard(tenant) })
+    },
+  })
+}
+
+// ─── Etapa 13 (FE hardening): cancelamento de cobrança — canônico (T5) ──
+// POST charges id/cancel; antes: fetch cru + window.location.reload()
+// dentro do CollectionTab (sem pending/error/success UX).
+export function useCancelCharge() {
+  const queryClient = useQueryClient()
+  const clinicId = useResolvedClinicId()
+  return useMutation({
+    mutationFn: async (chargeId: string) => {
+      const res = await fetch(`/api/financeiro/charges/${chargeId}/cancel`, {
+        method: 'POST',
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        const msg =
+          (body as { error?: string } | null)?.error ?? 'Falha ao cancelar cobrança'
+        throw new Error(msg)
+      }
+      return res.json().catch(() => null)
+    },
+    onSuccess: () => {
+      // R4: escopado por clínica (tenant do contexto); fallback amplo-por-domínio.
+      invalidateClinicDomain(queryClient, clinicId, 'financeiro', 'collections')
+      // G1: derivado sub-invalidado — dashboard agrega cobranças vencidas.
+      queryClient.invalidateQueries({ queryKey: queryKeys.financeDashboard(clinicId) })
     },
   })
 }
