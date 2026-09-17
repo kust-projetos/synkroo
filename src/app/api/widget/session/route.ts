@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { apiFailure, apiRateLimited, apiSuccess, generateRequestId } from '@/lib/api/response';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { issueWidgetToken } from '@/lib/auth/widget-token';
@@ -24,6 +25,14 @@ function queryInstallationId(request: NextRequest): string {
   return request.nextUrl.searchParams.get('installationId') ?? '';
 }
 
+// Etapa 2.5 (SYN-API-003): o body só carrega `installationId` (chave opaca de
+// lookup, resolvida de forma fail-closed contra allowlist de origem). Não
+// havia schema de runtime — só `typeof` inline. Schema mínimo na borda;
+// comportamento idêntico (fallback '' → 403 na resolução).
+const widgetSessionBodySchema = z.object({
+  installationId: z.string().min(1).optional(),
+});
+
 async function resolveRequestInstallation(request: NextRequest, installationId: string) {
   const origin = request.headers.get('origin') ?? '';
   if (!isAllowedWidgetOrigin(origin)) return { origin, installation: null };
@@ -44,9 +53,10 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const origin = request.headers.get('origin') ?? '';
   if (!isAllowedWidgetOrigin(origin)) return failure(origin, 'FORBIDDEN', 'Origin not allowed.', 403);
 
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const installationId = queryInstallationId(request)
-    || (typeof body?.installationId === 'string' ? body.installationId : '');
+  const rawBody = await request.json().catch(() => null) as unknown;
+  const parsedBody = widgetSessionBodySchema.safeParse(rawBody ?? {});
+  const bodyInstallationId = parsedBody.success ? (parsedBody.data.installationId ?? '') : '';
+  const installationId = queryInstallationId(request) || bodyInstallationId;
   const { installation } = await resolveRequestInstallation(request, installationId);
   if (!installation) return failure(origin, 'FORBIDDEN', 'Invalid widget installation.', 403);
 
