@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server'
 import { validateApiAuth } from '@/lib/auth/session'
-import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { apiSuccess, apiFailure, apiAuthFailure, apiRateLimited, generateRequestId } from '@/lib/api/response'
 import { changePasswordSchema } from '@/lib/validations/auth'
 import {
   checkRateLimit,
-  createRateLimitHeaders,
   getClientIdentifier,
   rateLimitPresets,
 } from '@/lib/rate-limit'
@@ -17,17 +16,7 @@ export async function POST(request: NextRequest) {
     rateLimitPresets.auth,
   )
   if (!rateLimit.allowed) {
-    const headers = createRateLimitHeaders(
-      rateLimit.remaining,
-      rateLimit.resetTime,
-      rateLimitPresets.auth.maxRequests,
-    )
-    if (rateLimit.retryAfter !== undefined) {
-      headers['Retry-After'] = String(rateLimit.retryAfter)
-    }
-    const res = apiFailure('TOO_MANY_REQUESTS', 'Too many requests', requestId, 429)
-    for (const [k, v] of Object.entries(headers)) res.headers.set(k, v)
-    return res
+    return apiRateLimited(requestId, rateLimit.retryAfter ?? 0, 'Too many requests')
   }
 
   const authResult = await validateApiAuth()
