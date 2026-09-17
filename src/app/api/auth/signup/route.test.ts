@@ -7,6 +7,15 @@ jest.mock('@/repositories/auth', () => ({
   findUserByEmail: jest.fn(),
 }))
 
+const mockCheckRateLimit = jest.fn()
+const mockGetClientIdentifier = jest.fn()
+
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: (...args: unknown[]) => mockCheckRateLimit(...args),
+  getClientIdentifier: (...args: unknown[]) => mockGetClientIdentifier(...args),
+  rateLimitPresets: { auth: { windowMs: 60_000, maxRequests: 10 } },
+}))
+
 const mockFindUserByEmail = findUserByEmail as jest.MockedFunction<typeof findUserByEmail>
 const originalNodeEnv = process.env.NODE_ENV
 
@@ -24,6 +33,15 @@ function request() {
 }
 
 describe('POST /api/auth/signup', () => {
+  beforeEach(() => {
+    mockGetClientIdentifier.mockReturnValue('198.51.100.10')
+    mockCheckRateLimit.mockReturnValue({
+      allowed: true,
+      remaining: 9,
+      resetTime: Date.now() + 60_000,
+    })
+  })
+
   afterEach(() => {
     ;(process.env as Record<string, string | undefined>).NODE_ENV = originalNodeEnv
     jest.clearAllMocks()
@@ -46,5 +64,24 @@ describe('POST /api/auth/signup', () => {
 
     expect(response.status).toBe(409)
     expect(mockFindUserByEmail).toHaveBeenCalledWith('new@example.com')
+  })
+
+  it('returns 429 with Retry-After header only when the auth limit is exceeded', async () => {
+    ;(process.env as Record<string, string | undefined>).NODE_ENV = 'test'
+    mockCheckRateLimit.mockReturnValue({
+      allowed: false,
+      remaining: 0,
+      resetTime: Date.now() + 60_000,
+      retryAfter: 42,
+    })
+
+    const response = await POST(request())
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('42')
+    expect(await response.json()).toEqual({
+      error: expect.objectContaining({ code: 'TOO_MANY_REQUESTS' }),
+    })
+    expect(mockFindUserByEmail).not.toHaveBeenCalled()
   })
 })

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { apiFailure, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { apiFailure, apiRateLimited, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { ActionError } from '@/core/actions/types';
 
 const inputSchema = z.object({ patientId: z.string().uuid() }).strict();
@@ -25,7 +26,19 @@ export async function POST(request: Request) {
     const { exportarDadosPaciente } = await import('@/modules/operacional');
     const parsed = inputSchema.safeParse(await request.json());
     if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
-    const result = await runAction(exportarDadosPaciente, parsed.data, await buildUserContext());
+    // Auth-before-limiter (padrão cron/webhook): o contexto (sessão) é
+    // resolvido primeiro — chamadas não autenticadas lançam
+    // 'unauthenticated' e caem no 401 abaixo sem consumir quota.
+    // O ctx pré-construído é reaproveitado no runAction (sem rebuild).
+    const ctx = await buildUserContext();
+    const exportLimit = checkRateLimit(`user:${ctx.user?.id ?? 'unknown'}`, {
+      ...rateLimitPresets.api,
+      keyPrefix: 'lgpd-export',
+    });
+    if (!exportLimit.allowed) {
+      return responseWithId(apiRateLimited(requestId, exportLimit.retryAfter ?? 0, 'Rate limit exceeded.'), requestId);
+    }
+    const result = await runAction(exportarDadosPaciente, parsed.data, ctx);
     if (!result.ok) return responseWithId(apiFailure(result.error.code.toUpperCase(), result.error.message, requestId, statusFor(result.error.code)), requestId);
     return responseWithId(apiSuccess(result.data), requestId);
   } catch (error) {

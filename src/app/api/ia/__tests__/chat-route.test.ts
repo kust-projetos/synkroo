@@ -4,6 +4,10 @@ const mockBuildCtx = jest.fn();
 jest.mock('@/core/actions/context', () => ({ buildUserContext: () => mockBuildCtx() }));
 jest.mock('@/core/modules/gates', () => ({ withModuleRoute: () => (h: unknown) => h }));
 jest.mock('@/core/modules/manifest', () => ({ createManifest: () => ({}) }));
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn().mockReturnValue({ allowed: true, remaining: 29, resetTime: Date.now() + 60000 }),
+  rateLimitPresets: { messages: { windowMs: 60_000, maxRequests: 30 } },
+}));
 
 import { NextRequest } from 'next/server';
 import { POST } from '../chat/route';
@@ -145,6 +149,7 @@ describe('POST /api/ia/chat', () => {
   });
 
   it('echoes x-request-id on 401 and 422 (B2)', async () => {
+
     mockBuildCtx.mockRejectedValueOnce(new Error('unauthenticated'));
     const unauth = new Request('http://localhost/api/ia/chat', {
       method: 'POST',
@@ -164,5 +169,18 @@ describe('POST /api/ia/chat', () => {
     const res422 = await POST(bad);
     expect(res422.status).toBe(422);
     expect(res422.headers.get('x-request-id')).toBe('req-422');
+  });
+
+  it('429 with canonical envelope when the per-user bucket is exhausted', async () => {
+    const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as { checkRateLimit: jest.Mock };
+    checkRateLimit.mockReturnValueOnce({ allowed: false, remaining: 0, resetTime: Date.now() + 60000, retryAfter: 25 });
+    mockBuildCtx.mockResolvedValueOnce(ctxWith((k) => k === 'ia:chat'));
+    const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('25');
+    expect(await res.json()).toEqual({
+      error: expect.objectContaining({ code: 'TOO_MANY_REQUESTS' }),
+    });
+    expect(mockInvoke).not.toHaveBeenCalled();
   });
 });

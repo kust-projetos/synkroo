@@ -8,6 +8,12 @@ jest.mock('@/modules/operacional/actions/exportar-dados-paciente', () => ({
   exportarDadosPaciente: { name: 'operacional.exportarDadosPaciente' },
 }));
 
+const mockCheckRateLimit = jest.fn();
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: (...args: unknown[]) => mockCheckRateLimit(...args),
+  rateLimitPresets: { api: { windowMs: 60_000, maxRequests: 60 } },
+}));
+
 function mockRequest(body: unknown, headers: Record<string, string> = {}): Request {
   return {
     json: () => Promise.resolve(body),
@@ -21,6 +27,7 @@ beforeEach(() => {
     source: 'user', clinicId: 'c1', user: { id: 'u1', email: 'u@example.com', name: 'User' },
     can: () => true, hasModule: () => true, audit: { actor: 'u1' },
   });
+  mockCheckRateLimit.mockReturnValue({ allowed: true, remaining: 59, resetTime: Date.now() + 60_000 });
 });
 
 describe('POST /api/lgpd/export', () => {
@@ -54,5 +61,22 @@ describe('POST /api/lgpd/export', () => {
     const res = await POST(mockRequest({ patientId: '00000000-0000-4000-8000-000000000002' }));
     expect(res.status).toBe(404);
     expect((await res.json()).error.code).toBe('NOT_FOUND');
+  });
+
+  it('returns 429 with Retry-After when the per-user bucket is exhausted (auth before limiter)', async () => {
+    mockCheckRateLimit.mockReturnValueOnce({ allowed: false, remaining: 0, resetTime: Date.now() + 60_000, retryAfter: 15 });
+    const res = await POST(mockRequest({ patientId: '00000000-0000-4000-8000-000000000001' }));
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('15');
+    expect((await res.json()).error.code).toBe('TOO_MANY_REQUESTS');
+    expect(runAction).not.toHaveBeenCalled();
+  });
+
+  it('does not consume quota when unauthenticated (limiter after auth)', async () => {
+    (buildUserContext as jest.Mock).mockRejectedValueOnce(new Error('unauthenticated'));
+    mockCheckRateLimit.mockClear();
+    const res = await POST(mockRequest({ patientId: '00000000-0000-4000-8000-000000000001' }));
+    expect(res.status).toBe(401);
+    expect(mockCheckRateLimit).not.toHaveBeenCalled();
   });
 });

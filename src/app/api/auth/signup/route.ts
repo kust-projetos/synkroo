@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { signupSchema } from '@/lib/validations';
 import { createUserWithClinic, findUserByEmail } from '@/repositories/auth';
+import { apiRateLimited, generateRequestId } from '@/lib/api/response';
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  rateLimitPresets,
+} from '@/lib/rate-limit';
 
 /**
  * POST /api/auth/signup
@@ -13,6 +19,20 @@ import { createUserWithClinic, findUserByEmail } from '@/repositories/auth';
 export async function POST(request: NextRequest) {
   if (process.env.NODE_ENV === 'production') {
     return new NextResponse(null, { status: 404 });
+  }
+
+  // Auth preset (SPEC §41): signup is a sensitive account-creation endpoint
+  // even though it only exists outside production.
+  const rateLimit = checkRateLimit(
+    getClientIdentifier(request),
+    rateLimitPresets.auth,
+  );
+  if (!rateLimit.allowed) {
+    return apiRateLimited(
+      generateRequestId(),
+      rateLimit.retryAfter ?? 0,
+      'Too many signup attempts.',
+    );
   }
 
   try {
