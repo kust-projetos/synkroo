@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useCollections } from '@/lib/hooks/use-queries';
+import { useCancelCharge, useCollections } from '@/lib/hooks/use-queries';
+import { useToast } from '@/hooks/use-toast';
 
 interface Charge { id: string; status: string; dueDate?: string; amount?: string; }
 
@@ -11,36 +11,34 @@ export interface CollectionTabProps {
 
 /**
  * Collections tab — carrega cobranças via useCollections hook (Task 7).
- * Exibe loading/error/empty/data states. Cancel charge button dispara
- * POST /api/financeiro/charges/[id]/cancel.
+ * Exibe loading/error/empty/data states. Cancel charge via useCancelCharge
+ * (Etapa 13: pending por linha + toast de sucesso/erro, sem reload de página).
  */
 export function CollectionTab({ canManageBudget = false }: CollectionTabProps) {
   const { data, isLoading, error } = useCollections();
-  const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
-  const [cancelError, setCancelError] = useState<string | null>(null);
+  const cancelCharge = useCancelCharge();
+  const { toast } = useToast();
 
   const charges: Charge[] = (data as any)?.charges ?? [];
   const openCharges = charges.filter(c => c.status === 'pending' || c.status === 'overdue');
+  const pendingId = cancelCharge.isPending ? cancelCharge.variables : undefined;
 
-  async function handleCancel(chargeId: string) {
-    setCancellingIds(prev => new Set(prev).add(chargeId));
-    setCancelError(null);
-    try {
-      const res = await fetch(`/api/financeiro/charges/${chargeId}/cancel`, { method: 'POST' });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({ error: 'Erro ao cancelar' }));
-        setCancelError(body.error || 'Erro ao cancelar cobrança');
-      }
-      window.location.reload();
-    } catch {
-      setCancelError('Erro de conexão ao cancelar cobrança');
-    } finally {
-      setCancellingIds(prev => {
-        const next = new Set(prev);
-        next.delete(chargeId);
-        return next;
-      });
-    }
+  function handleCancel(chargeId: string) {
+    cancelCharge.mutate(chargeId, {
+      onSuccess: () => {
+        toast({
+          title: 'Cobrança cancelada',
+          description: 'A cobrança foi cancelada com sucesso.',
+        });
+      },
+      onError: (err) => {
+        toast({
+          title: 'Erro ao cancelar cobrança',
+          description: err instanceof Error ? err.message : 'Não foi possível cancelar. Tente novamente.',
+          variant: 'destructive',
+        });
+      },
+    });
   }
 
   if (isLoading) {
@@ -70,12 +68,6 @@ export function CollectionTab({ canManageBudget = false }: CollectionTabProps) {
         Cobranças atrasadas e pendentes.
       </p>
 
-      {cancelError && (
-        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          {cancelError}
-        </div>
-      )}
-
       {openCharges.length === 0 && (
         <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
           Nenhuma cobrança pendente ou atrasada.
@@ -83,30 +75,38 @@ export function CollectionTab({ canManageBudget = false }: CollectionTabProps) {
       )}
 
       {openCharges.length > 0 && (
-        <div className="space-y-2">
-          {openCharges.map(charge => (
-            <div key={charge.id} className="flex items-center justify-between rounded-lg border p-4">
-              <div>
-                <p className="text-sm font-medium">Cobrança {charge.id.slice(0, 8)}</p>
-                <p className="text-xs text-muted-foreground">
-                  Status: {charge.status}
-                  {charge.dueDate && ` | Vencimento: ${charge.dueDate}`}
-                </p>
+        <div className="space-y-2" aria-live="polite">
+          {openCharges.map(charge => {
+            const isCancelling = pendingId === charge.id;
+            return (
+              <div key={charge.id} className="flex items-center justify-between rounded-lg border p-4">
+                <div>
+                  <p className="text-sm font-medium">Cobrança {charge.id.slice(0, 8)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Status: {charge.status}
+                    {charge.dueDate && ` | Vencimento: ${charge.dueDate}`}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  {canManageBudget && (charge.status === 'pending' || charge.status === 'overdue') && (
+                    <button
+                      className="rounded bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20 disabled:opacity-50"
+                      onClick={() => handleCancel(charge.id)}
+                      disabled={isCancelling}
+                      aria-busy={isCancelling}
+                    >
+                      {isCancelling ? 'Cancelando...' : 'Cancelar cobrança'}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex gap-2">
-                {canManageBudget && (charge.status === 'pending' || charge.status === 'overdue') && (
-                  <button
-                    className="rounded bg-destructive/10 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20 disabled:opacity-50"
-                    onClick={() => handleCancel(charge.id)}
-                    disabled={cancellingIds.has(charge.id)}
-                  >
-                    {cancellingIds.has(charge.id) ? 'Cancelando...' : 'Cancelar cobrança'}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      )}
+
+      {cancelCharge.isPending && (
+        <p aria-live="polite" className="sr-only">Cancelando cobrança...</p>
       )}
     </div>
   );
