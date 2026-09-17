@@ -94,6 +94,15 @@ describe('POST /api/ia/chat — cap de payload (B1)', () => {
     expect(invokeAgent).toHaveBeenCalledTimes(1);
   });
 
+  it('conversationId não-string → 422 com schema de runtime, sem chamar o agente (Etapa 2.5)', async () => {
+    const res = await POST(
+      req({ conversationId: 12345, message: 'oi' }, { 'x-request-id': 'req-zod-1' }),
+    );
+    expect(res.status).toBe(422);
+    expect(res.headers.get('x-request-id')).toBe('req-zod-1');
+    expect(invokeAgent).not.toHaveBeenCalled();
+  });
+
   it('401 sem sessão e sem acionar o agente (tokens do body nunca lidos)', async () => {
     buildUserContext.mockRejectedValue(new Error('unauthenticated'));
     const res = await POST(

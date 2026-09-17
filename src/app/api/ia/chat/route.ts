@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
@@ -42,6 +43,21 @@ function withRequestId(res: NextResponse, requestId: string): NextResponse {
 function asOptionalToken(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
+
+// Etapa 2.5 (SYN-API-003): `chat/dto.ts` valida só a SAÍDA (toPublicChatDto).
+// A entrada tinha checagem manual que aceitava `conversationId` não-string
+// (só testava truthiness) e repassava ao invokeAgent. Schema de runtime na
+// borda; falhas mantêm o contrato 422 existente da rota. O teto de `message`
+// continua no gate dedicado abaixo (400 PAYLOAD_TOO_LARGE), por isso o schema
+// não repete o `.max()` — evita mascarar o envelope canônico daquele gate.
+const iaChatBodySchema = z.object({
+  conversationId: z.string().min(1),
+  message: z.string().min(1),
+  // Tokens: `z.unknown()` deliberado — o contrato B1 tolera não-string e os
+  // descarta via `asOptionalToken` (teste fixado); o schema só ancora a forma.
+  confirmedToken: z.unknown().optional(),
+  identityVerifiedToken: z.unknown().optional(),
+});
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   // Integração B1×B2: correlation id ponta a ponta (B2) — ecoa x-request-id
@@ -91,15 +107,15 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   }
 
   const body = await request.json().catch(() => ({}));
-  const conversationId: string = body.conversationId;
-  const message: string = body.message;
-
-  if (!conversationId || typeof message !== 'string' || !message) {
+  const parsed = iaChatBodySchema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
       { error: 'conversationId e message são obrigatórios.' },
       { status: 422, headers: corrHeaders },
     );
   }
+  const conversationId: string = parsed.data.conversationId;
+  const message: string = parsed.data.message;
 
   if (message.length > IA_CHAT_MAX_MESSAGE_LENGTH) {
     return withRequestId(
@@ -129,8 +145,8 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       userMessage: message,
       // Integração B1×B2: tokens sanitizados na borda (B1 — não-string
       // descartados) + correlation validado (B2).
-      confirmedToken: asOptionalToken(body.confirmedToken),
-      identityVerifiedToken: asOptionalToken(body.identityVerifiedToken),
+      confirmedToken: asOptionalToken(parsed.data.confirmedToken),
+      identityVerifiedToken: asOptionalToken(parsed.data.identityVerifiedToken),
       correlationId,
     });
   } catch {
