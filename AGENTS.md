@@ -15,7 +15,7 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 | UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
 | LLM | MiniMax / OpenAI / OpenRouter (factory em `src/lib/llm/`) |
 | WhatsApp | Evolution API v2.3.7 + Playwright fallback |
-| Testes | Jest (unit/não-integração, 319 suites — medir com `npx jest --listTests | Measure-Object -Line`) + Playwright (E2E, 46 specs em `e2e/` — medir com glob `e2e/**/*.spec.ts`) + Stryker (mutation) |
+| Testes | Jest (unit/não-integração — medir com `npx jest --listTests | Measure-Object -Line`) + Playwright (E2E em `e2e/` — medir com glob `e2e/**/*.spec.ts`) + Stryker (mutation). Não hardcodar contagens (SYN-DOC-001) |
 | CI | GitHub Actions (lint → typecheck → test → test:security → build → build:cf) |
 
 ## Comandos
@@ -157,8 +157,8 @@ src/
 - `exec_sql` RPC desativado (rota retorna 403)
 
 ## Testes
-- Unit/Integration: Jest (`src/**/__tests__/`) — 319 suites (default, sem `integration.test.ts`; medir com `npx jest --listTests | Measure-Object -Line`)
-- E2E: Playwright (`e2e/`) — 46 specs (medir com glob `e2e/**/*.spec.ts`)
+- Unit/Integration: Jest (`src/**/__tests__/`) — default, sem `integration.test.ts`; medir com `npx jest --listTests | Measure-Object -Line` (não hardcodar contagens)
+- E2E: Playwright (`e2e/`) — medir com glob `e2e/**/*.spec.ts`
 - Coverage threshold (efetivamente medido em `jest.config.js` global: branches 55 / functions 65 / lines 70 / statements 70; sem exclusões adicionais para mascarar quedas; `src/**/*.tsx`, `src/app/**`, `src/lib/db/**` excluídos por contrato)
 - Hardening: Stryker mutation testing em repositórios e services
 

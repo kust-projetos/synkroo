@@ -77,7 +77,7 @@ src/
 | LLM | Multi-provider factory (MiniMax, OpenAI, OpenRouter) |
 | WhatsApp | Evolution API v2.3.7 + Playwright fallback |
 | Validação | Zod (11 schemas dedicados) |
-| Testes | Jest (264 suites) + Playwright (14 specs E2E) + Stryker (mutation) |
+| Testes | Jest + Playwright (E2E) + Stryker (mutation) — contagens derivadas pela CI (`npx jest --listTests`, glob `e2e/**/*.spec.ts`) |
 
 ## Comandos Principais
 
@@ -111,7 +111,7 @@ npm run dev:ia-bridge        # Dev server do worker bridge de mensageria
 ## Documentação
 
 - [Arquitetura Técnica Base](./docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md) - Especificação técnica modular
-- [Índice de Decisões de Arquitetura (ADRs)](./docs/adr/INDEX.md) - Registros de decisões de arquitetura
+- [Índice de Decisões de Arquitetura (ADRs)](./docs/adr/ADR-INDEX.md) - Registros de decisões de arquitetura
 - [Plano Mestre de Pendências](./docs/superpowers/plans/2026-08-15-synkroo-roadmap-pendencias-master-plan.md) - Roadmap de conformidade
 - [PRD](./docs/planning/prd-v3.2.md) - Requisitos do produto
 - [UX Design](./docs/ux-design.md) - Design system e interfaces
