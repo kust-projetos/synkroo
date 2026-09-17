@@ -4,7 +4,11 @@ import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
 import { resolveFuncionario } from '@/core/ia-channel/interlocutor';
-import { apiFailure } from '@/lib/api/response';
+import { apiFailure, apiRateLimited } from '@/lib/api/response';
+import {
+  checkRateLimit,
+  rateLimitPresets,
+} from '@/lib/rate-limit';
 import { IA_CHAT_MAX_MESSAGE_LENGTH } from '@/core/ia-channel/chat-limits';
 import { resolveIaTimezone } from '../timezone';
 import { resolveCorrelationId } from '@/core/ia-agent/telemetry';
@@ -70,6 +74,21 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const userId = ctx.user!.id;
   const name = ctx.user!.name;
   const clinicId = ctx.clinicId;
+
+  // Auth-before-limiter (padrão cron/webhook): sessão + RBAC `ia:chat`
+  // validados acima, então o bucket por usuário não é consumido por
+  // chamadas não autenticadas. Chave por userId (não por IP) impede
+  // bypass por rotação de IP num endpoint de IA com custo por chamada.
+  const chatLimit = checkRateLimit(`user:${userId}`, {
+    ...rateLimitPresets.messages,
+    keyPrefix: 'ia-chat',
+  });
+  if (!chatLimit.allowed) {
+    return withRequestId(
+      apiRateLimited(requestId, chatLimit.retryAfter ?? 0, 'Rate limit exceeded.'),
+      requestId,
+    );
+  }
 
   const body = await request.json().catch(() => ({}));
   const conversationId: string = body.conversationId;

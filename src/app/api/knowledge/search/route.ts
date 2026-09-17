@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { validateApiAuth } from '@/lib/auth/session';
 import { logger } from '@/lib/logger';
-import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response';
+import { apiSuccess, apiFailure, apiAuthFailure, apiRateLimited, generateRequestId } from '@/lib/api/response';
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { ragService } from '@/services/rag';
 
 /**
@@ -35,6 +36,17 @@ export async function POST(request: NextRequest) {
     }
 
     const clinicId = authResult.profile!.clinic_id;
+
+    // Auth-before-limiter (padrão cron/webhook): bucket por tenant, com
+    // chave estável (clinicId) em vez de IP — busca vetorial tem custo
+    // de embedding/pgvector por chamada.
+    const searchLimit = checkRateLimit(`tenant:${clinicId}`, {
+      ...rateLimitPresets.api,
+      keyPrefix: 'knowledge-search',
+    });
+    if (!searchLimit.allowed) {
+      return apiRateLimited(requestId, searchLimit.retryAfter ?? 0, 'Rate limit exceeded.');
+    }
     const parsed = SearchBodySchema.safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) {
       const paths = parsed.error.issues.map((i) => String(i.path[0]));

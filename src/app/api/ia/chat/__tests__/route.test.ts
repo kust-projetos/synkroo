@@ -26,11 +26,19 @@ jest.mock('../../timezone', () => ({
   resolveIaTimezone: jest.fn(() => 'America/Sao_Paulo'),
 }));
 
+jest.mock('@/lib/rate-limit', () => ({
+  checkRateLimit: jest.fn(),
+  rateLimitPresets: { messages: { windowMs: 60_000, maxRequests: 30 } },
+}));
+
 const { buildUserContext } = jest.requireMock('@/core/actions/context') as {
   buildUserContext: jest.Mock;
 };
 const { invokeAgent } = jest.requireMock('@/core/ia-channel/agent-invoker') as {
   invokeAgent: jest.Mock;
+};
+const { checkRateLimit } = jest.requireMock('@/lib/rate-limit') as {
+  checkRateLimit: jest.Mock;
 };
 
 function authed() {
@@ -53,6 +61,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   authed();
   invokeAgent.mockResolvedValue({ reply: 'ok', turnsUsed: 1 });
+  checkRateLimit.mockReturnValue({ allowed: true, remaining: 29, resetTime: Date.now() + 60_000 });
 });
 
 describe('POST /api/ia/chat — cap de payload (B1)', () => {
@@ -124,5 +133,32 @@ describe('POST /api/ia/chat — cap de payload (B1)', () => {
     expect(invokeAgent).toHaveBeenCalledWith(
       expect.objectContaining({ confirmedToken: 'tok-servidor' }),
     );
+  });
+
+  it('429 com envelope canônico quando o bucket do usuário esgota (auth antes do limiter)', async () => {
+    checkRateLimit.mockReturnValue({
+      allowed: false,
+      remaining: 0,
+      resetTime: Date.now() + 60_000,
+      retryAfter: 25,
+    });
+    const res = await POST(
+      req({ conversationId: 'conv-1', message: 'oi' }, { 'x-request-id': 'req-ia-429' }),
+    );
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('25');
+    expect(res.headers.get('x-request-id')).toBe('req-ia-429');
+    expect(await res.json()).toEqual({
+      error: expect.objectContaining({ code: 'TOO_MANY_REQUESTS', requestId: 'req-ia-429' }),
+    });
+    expect(invokeAgent).not.toHaveBeenCalled();
+  });
+
+  it('não consome quota do usuário em 401 (limiter após auth)', async () => {
+    buildUserContext.mockRejectedValue(new Error('unauthenticated'));
+    checkRateLimit.mockClear();
+    const res = await POST(req({ conversationId: 'conv-1', message: 'oi' }));
+    expect(res.status).toBe(401);
+    expect(checkRateLimit).not.toHaveBeenCalled();
   });
 });
