@@ -16,7 +16,7 @@ import { getBudgetForClinic } from '../repositories/financeiro-scope-repository'
 import { getDb } from '@/lib/db/client';
 import { withIdempotency } from '@/lib/idempotency';
 import { payments, paymentCharges, budgets, budgetInstallments } from '@/modules/financeiro/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, gte } from 'drizzle-orm';
 import { ActionError } from '@/core/actions/types';
 
 export interface RegisterManualPaymentInput {
@@ -146,21 +146,40 @@ export async function registerManualPayment(input: RegisterManualPaymentInput): 
   if (!rawKey) return executeCore();
 
   // Idempotent registration (padrão charge-service): primeira execução processa,
-  // duplicata retorna o pagamento original sem reinserir. Fingerprint
-  // 'budget|amount-cents|method' vincula a chave ao payload: mesma chave +
-  // payload divergente → conflito (409), nunca reuso de outra requisição.
+  // duplicata retorna o pagamento original via vínculo resultado→chave
+  // (result_ref), sem reinserir. Fingerprint
+  // 'budget|amount-cents|method|charge|paidAt|notes' vincula a chave ao
+  // payload: mesma chave + payload divergente → conflito (409), nunca reuso
+  // de outra requisição. Campos opcionais normalizados como '' (ordem estável).
+  // paidAt usa o input bruto (não o default `new Date()` por chamada):
+  // default server-side é ruído por tentativa e quebraria retry idêntico.
   const namespaced = `payment:manual:${clinicId}:${budgetId}:${rawKey}`;
-  const fingerprint = `${budgetId}|${amountCents.toString()}|${paymentMethod}`;
-  const outcome = await withIdempotency(namespaced, 'payment_manual', executeCore, fingerprint);
+  const fingerprint = `${budgetId}|${amountCents.toString()}|${paymentMethod}|${chargeId ?? ''}|${input.paidAt ?? ''}|${notes ?? ''}`;
+  const outcome = await withIdempotency(namespaced, 'payment_manual', executeCore, fingerprint, {
+    resultRef: (payment) => (payment as PaymentRow | undefined)?.id,
+  });
   if (outcome.status === 'completed' && outcome.result) return outcome.result;
   if (outcome.status === 'conflict') {
     throw new ActionError('conflict', 'Pagamento em processamento. Tente novamente.');
   }
+  // Replay vinculado: result_ref → busca POR ID com filtro de clínica
+  // (tenant-scoped). Só sem vínculo (crash entre insert e update) cai no
+  // lookup por domínio, RESTRITO a created_at >= claimedAt do claim.
+  if (outcome.resultRef) {
+    const [bound] = await db
+      .select()
+      .from(payments)
+      .where(and(eq(payments.id, outcome.resultRef), eq(payments.clinicId, clinicId)))
+      .limit(1);
+    if (bound) return bound as PaymentRow;
+  }
   const expectedAmount = centsToDecimal(amountCents);
+  const replayConditions = [eq(payments.clinicId, clinicId), eq(payments.budgetId, budgetId)];
+  if (outcome.claimedAt) replayConditions.push(gte(payments.createdAt, outcome.claimedAt));
   const candidates = await db
     .select()
     .from(payments)
-    .where(and(eq(payments.clinicId, clinicId), eq(payments.budgetId, budgetId)))
+    .where(and(...replayConditions))
     .orderBy(desc(payments.createdAt))
     .limit(10);
   const original = candidates.find(

@@ -364,12 +364,15 @@ export async function updateAppointment(
  * Idempotency replay lookup: most recent appointment matching the exact
  * creation fingerprint (clinic + patient + dentist + scheduledAt).
  * Usado para devolver o resultado original em retry com a mesma chave.
+ * `opts.since` restringe à janela do claim (created_at >= claimedAt) —
+ * fallback pós-crash sem result_ref nunca alcança linhas mais antigas.
  */
 export async function findByExactSlot(
   clinicId: string,
   patientId: string,
   dentistId: string | null,
   scheduledAt: Date,
+  opts?: { since?: Date | null },
 ) {
   const db = getDb();
   const conditions = [
@@ -379,6 +382,7 @@ export async function findByExactSlot(
     eq(appointments.scheduledAt, scheduledAt),
     sql`${appointments.deletedAt} IS NULL`,
   ];
+  if (opts?.since) conditions.push(gte(appointments.createdAt, opts.since));
   const rows = await db
     .select()
     .from(appointments)

@@ -30,6 +30,7 @@ const GATEWAY = '00000000-0000-0000-0000-0000d0020001';
 const BUDGET_SAME = '00000000-0000-0000-0000-0000c0020001';
 const BUDGET_DIFF = '00000000-0000-0000-0000-0000c0020002';
 const BUDGET_MISMATCH = '00000000-0000-0000-0000-0000c0020003';
+const BUDGET_NOTES = '00000000-0000-0000-0000-0000c0020005';
 const BUDGET_RACE = '00000000-0000-0000-0000-0000c0020004';
 const buildUserContextMock = jest.spyOn(contextModule, 'buildUserContext');
 
@@ -73,15 +74,16 @@ describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real'
     await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_SAME}, ${CLINIC}, 'Pay Idem Same', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
     await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_DIFF}, ${CLINIC}, 'Pay Idem Diff', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
     await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_MISMATCH}, ${CLINIC}, 'Pay Idem Mismatch', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_NOTES}, ${CLINIC}, 'Pay Idem Notes', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
     await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_RACE}, ${CLINIC}, 'Pay Idem Race', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
   });
 
   afterAll(async () => {
     const db = getDb();
-    await db.execute(sql`DELETE FROM payments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_RACE})`);
+    await db.execute(sql`DELETE FROM payments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE})`);
     await db.execute(sql`DELETE FROM idempotency_keys WHERE key LIKE ${'payment:manual:' + CLINIC + ':%'}`);
-    await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_RACE})`);
-    await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_RACE})`);
+    await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE})`);
+    await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE})`);
     await db.execute(sql`DELETE FROM payment_gateways WHERE id = ${GATEWAY}`);
     await db.execute(sql`DELETE FROM users WHERE id = ${USER}`);
     await db.execute(sql`DELETE FROM clinics WHERE id = ${CLINIC}`);
@@ -129,7 +131,7 @@ describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real'
     expect(await countPayments(BUDGET_DIFF)).toBe(2);
   });
 
-  it('same key + DIFFERENT payload → conflito (409/422), nenhuma segunda linha', async () => {
+  it('same key + DIFFERENT payload → 409 CONFLICT, nenhuma segunda linha', async () => {
     authAs(CLINIC);
     const key = `pay-idem-mismatch-${randomUUID()}`;
 
@@ -138,10 +140,29 @@ describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real'
     expect((await res1.json()).payment?.id).toBeDefined();
 
     // Mesma chave, valor divergente → fingerprint mismatch → conflito.
+    // A rota legada achata o envelope canônico para { error: "<message>" }
+    // (sem `code`), mas preserva o status 409 do mapActionError('conflict').
     const res2 = await postPayment(BUDGET_MISMATCH, { amount: 120, payment_method: 'pix' }, key);
-    expect([409, 422]).toContain(res2.status);
+    expect(res2.status).toBe(409);
+    expect((await res2.json()).error).toBeDefined();
 
     expect(await countPayments(BUDGET_MISMATCH)).toBe(1);
+  });
+
+  it('same key + mesmo valor + notes divergente → 409, nenhuma segunda linha', async () => {
+    authAs(CLINIC);
+    const key = `pay-idem-notes-${randomUUID()}`;
+
+    const res1 = await postPayment(BUDGET_NOTES, { amount: 100, payment_method: 'pix', notes: 'parcela 1' }, key);
+    expect(res1.status).toBe(201);
+    expect((await res1.json()).payment?.id).toBeDefined();
+
+    // notes faz parte do fingerprint → mismatch → conflito.
+    const res2 = await postPayment(BUDGET_NOTES, { amount: 100, payment_method: 'pix', notes: 'parcela 2' }, key);
+    expect(res2.status).toBe(409);
+    expect((await res2.json()).error).toBeDefined();
+
+    expect(await countPayments(BUDGET_NOTES)).toBe(1);
   });
 
   it('double-click concorrente (Promise.allSettled, mesma chave) → exatamente 1 linha', async () => {

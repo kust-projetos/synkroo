@@ -167,7 +167,7 @@ describeOrSkip('POST /api/appointments idempotency — route + DB real', () => {
     expect(await countAppointments()).toBe(2);
   });
 
-  it('same key + DIFFERENT payload → conflito (409/422), nenhuma segunda linha', async () => {
+  it('same key + DIFFERENT payload → 409 CONFLICT, nenhuma segunda linha', async () => {
     authAs(CLINIC);
     const key = `appt-idem-mismatch-${randomUUID()}`;
     const base = {
@@ -182,8 +182,32 @@ describeOrSkip('POST /api/appointments idempotency — route + DB real', () => {
     expect((await res1.json()).data?.id).toBeDefined();
 
     // Mesmo Idempotency-Key, slot divergente → fingerprint mismatch → conflito.
+    // ActionError('conflict') → mapActionError → 409 + code CONFLICT (canônico).
     const res2 = await postAppointment({ ...base, scheduledAt: '2026-11-03T12:00:00Z' }, key);
-    expect([409, 422]).toContain(res2.status);
+    expect(res2.status).toBe(409);
+    expect((await res2.json()).error?.code).toBe('CONFLICT');
+
+    expect(await countAppointments()).toBe(1);
+  });
+
+  it('same key + mesma slot + durationMinutes divergente → 409 CONFLICT, nenhuma segunda linha', async () => {
+    authAs(CLINIC);
+    const key = `appt-idem-duration-${randomUUID()}`;
+    const base = {
+      patientId: PATIENT,
+      dentistId: DENTIST,
+      scheduledAt: '2026-11-05T10:00:00Z',
+      durationMinutes: 30,
+    };
+
+    const res1 = await postAppointment(base, key);
+    expect(res1.status).toBe(201);
+    expect((await res1.json()).data?.id).toBeDefined();
+
+    // durationMinutes faz parte do fingerprint → mismatch → conflito.
+    const res2 = await postAppointment({ ...base, durationMinutes: 60 }, key);
+    expect(res2.status).toBe(409);
+    expect((await res2.json()).error?.code).toBe('CONFLICT');
 
     expect(await countAppointments()).toBe(1);
   });

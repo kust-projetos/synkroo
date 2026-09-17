@@ -8,6 +8,7 @@ export const idempotencyKeys = pgTable('idempotency_keys', {
   status: text('status').notNull().default('in_progress'),
   error: text('error'),
   fingerprint: text('fingerprint'),
+  resultRef: text('result_ref'),
   expiresAt: timestamp('expires_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
 });

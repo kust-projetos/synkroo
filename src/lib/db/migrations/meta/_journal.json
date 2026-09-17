@@ -225,6 +225,13 @@
       "when": 1789357700000,
       "tag": "0032_idempotency_fingerprint",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789357800000,
+      "tag": "0033_idempotency_result_ref",
+      "breakpoints": true
     }
   ]
 }
