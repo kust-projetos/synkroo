@@ -8,6 +8,8 @@ export const agendarConsulta = defineAction({
   module: 'operacional',
   requires: 'operacional:manage_appointments',
   label: 'Agendar consulta',
+  // Etapa 5.3: audit schedule mutation (ADR-BASE-12). `notes` excluded.
+  auditFields: ['patientId', 'dentistId', 'scheduledAt'],
   input: z.object({
     patientId: z.string().uuid(),
     dentistId: z.string().uuid().optional(),
@@ -15,6 +17,7 @@ export const agendarConsulta = defineAction({
     scheduledAt: z.coerce.date(),
     durationMinutes: z.number().int().positive().default(30),
     notes: z.string().max(1000).optional(),
+    idempotencyKey: z.string().min(1).max(200).optional(),
   }),
   handler: async (input, ctx: ActionContext) =>
     scheduling({ clinicId: ctx.clinicId, ...input }),

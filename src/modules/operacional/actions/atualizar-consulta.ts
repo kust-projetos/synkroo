@@ -11,6 +11,9 @@ export const atualizarConsulta = defineAction({
   module: 'operacional',
   requires: 'operacional:manage_appointments',
   label: 'Atualizar consulta (PATCH)',
+  // Etapa 5.3 + SYN-API-002: audit schedule mutation; the patientId allowlist
+  // IS the reassignment telemetry. `notes` excluded (may carry health data).
+  auditFields: ['id', 'patientId', 'dentistId', 'status', 'scheduledAt'],
   input: z.object({
     id: z.string().uuid(),
     patientId: z.string().uuid().optional(),
@@ -48,20 +51,26 @@ export const atualizarConsulta = defineAction({
     if (input.status !== undefined) updateData.status = input.status;
     if (input.notes !== undefined) updateData.notes = input.notes;
 
-    // Use clinicId in WHERE to prevent cross-tenant update
-    const updated = await repo.updateAppointment(ctx.clinicId, input.id, updateData);
-
-    // Update patient's last_visit with clinic-scoped predicate
+    // Use clinicId in WHERE to prevent cross-tenant update.
+    // updateAppointment + last_visit são aplicados atomicamente no repositório
+    // (updateAppointmentAndTouchVisit) — nunca meio-aplicados.
     const patientIdForVisit = input.patientId ?? current.patientId;
-    if (input.status === 'completed' && patientIdForVisit) {
-      const at = input.scheduledAt instanceof Date ? input.scheduledAt : current.scheduledAt;
-      // patientsRepo.updatePatientLastVisit expects (clinicId, patientId, at) if available, fallback to legacy
-      if ((patientsRepo as any).updatePatientLastVisit) {
-        const fn = (patientsRepo as any).updatePatientLastVisit;
-        if (fn.length >= 3) await fn(ctx.clinicId, patientIdForVisit, at);
-        else await fn(patientIdForVisit, at);
-      }
-    }
+    const touchVisit =
+      input.status === 'completed' && patientIdForVisit
+        ? {
+            patientId: patientIdForVisit as string,
+            at:
+              input.scheduledAt instanceof Date
+                ? input.scheduledAt
+                : (current.scheduledAt as Date),
+          }
+        : null;
+    const updated = await repo.updateAppointmentAndTouchVisit(
+      ctx.clinicId,
+      input.id,
+      updateData,
+      touchVisit,
+    );
 
     if (!updated) throw new ActionError('internal', 'Erro ao atualizar agendamento.');
     const refreshed = await repo.findByIdWithJoins(input.id, ctx.clinicId);

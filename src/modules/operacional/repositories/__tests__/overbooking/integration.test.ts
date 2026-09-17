@@ -270,3 +270,56 @@ describe('appointments_no_overlap constraint (F2a)', () => {
     expect(err.constraint).toBe('appointments_no_overlap');
   });
 });
+
+describe('appointments_no_overlap — concurrent UPDATE races (Etapa 4)', () => {
+  afterEach(async () => {
+    if (!pool) return;
+    try {
+      await pool.query(`DELETE FROM appointments WHERE clinic_id = $1`, [CLINIC_ID]);
+    } catch {
+      // non-fatal
+    }
+  });
+
+  it('two concurrent moveSlot of DIFFERENT appointments into the same free slot → exactly 1 success + 1 rejected 23P01', async () => {
+    const a = await insertViaPool('2026-07-02T10:00:00Z', DENTIST_ID, 30);
+    const b = await insertViaPool('2026-07-02T12:00:00Z', DENTIST_ID, 30);
+    const target = '2026-07-02T14:00:00Z';
+
+    const [r1, r2] = await Promise.allSettled([
+      pool.query(`UPDATE appointments SET scheduled_at = $1, updated_at = NOW() WHERE id = $2 RETURNING id`, [target, a]),
+      pool.query(`UPDATE appointments SET scheduled_at = $1, updated_at = NOW() WHERE id = $2 RETURNING id`, [target, b]),
+    ]);
+
+    const successes = [r1, r2].filter((r) => r.status === 'fulfilled');
+    const rejections = [r1, r2].filter((r) => r.status === 'rejected');
+    expect(successes.length).toBe(1);
+    expect(rejections.length).toBe(1);
+    const err = (rejections[0] as PromiseRejectedResult).reason as any;
+    expect(err.code).toBe('23P01');
+    expect(err.constraint).toBe('appointments_no_overlap');
+  });
+
+  it('concurrent create + moveSlot into the same free slot → exactly 1 winner', async () => {
+    const a = await insertViaPool('2026-07-02T10:00:00Z', DENTIST_ID, 30);
+    const target = '2026-07-02T14:00:00Z';
+
+    const [rIns, rUpd] = await Promise.allSettled([
+      pool.query(
+        `INSERT INTO appointments (clinic_id, patient_id, dentist_id, scheduled_at, duration_minutes, status, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, 'Etapa4 create-vs-move race')
+         RETURNING id`,
+        [CLINIC_ID, PATIENT_ID, DENTIST_ID, target, 30, 'scheduled'],
+      ),
+      pool.query(`UPDATE appointments SET scheduled_at = $1, updated_at = NOW() WHERE id = $2 RETURNING id`, [target, a]),
+    ]);
+
+    const successes = [rIns, rUpd].filter((r) => r.status === 'fulfilled');
+    const rejections = [rIns, rUpd].filter((r) => r.status === 'rejected');
+    expect(successes.length).toBe(1);
+    expect(rejections.length).toBe(1);
+    const err = (rejections[0] as PromiseRejectedResult).reason as any;
+    expect(err.code).toBe('23P01');
+    expect(err.constraint).toBe('appointments_no_overlap');
+  });
+});

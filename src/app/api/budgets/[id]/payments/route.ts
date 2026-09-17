@@ -73,6 +73,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     amount: parsed.amount,
     paymentMethod: parsed.payment_method,
     notes: parsed.notes,
+    // Idempotency-Key (case-insensitive per Fetch spec) → threaded through action input
+    ...(request.headers.get('idempotency-key')?.trim()
+      ? { idempotencyKey: request.headers.get('idempotency-key')!.trim() }
+      : {}),
   };
   const canonical = await handleCanonicalAction(request, registrarPagamento, input);
   const body: any = await canonical.clone().json().catch(() => ({}));
