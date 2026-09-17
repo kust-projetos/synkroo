@@ -78,10 +78,36 @@ export function percentOfCents(totalCents: bigint, percent: string | number): bi
 }
 
 /**
+ * Quantize a unit price to integer cents (half-up). Accepts up to 3 decimals
+ * (millesimal input, e.g. `1.005` → `101` cents).
+ *
+ * Rule: prices are quantized to cents at the entry boundary, so the stored
+ * price × quantity == line total exactly (no millesime drift vs numeric(10,2)).
+ */
+export function quantizePriceToCents(value: string | number): bigint {
+  const { n, d } = parseDecimalExact(value, 3);
+  return halfUpDiv(n * 100n, d);
+}
+
+/** Quantized unit price as a number with exactly 2 decimals (e.g. 1.005 → 1.01). */
+export function quantizeUnitPrice(value: string | number): number {
+  return Number(quantizePriceToCents(value)) / 100;
+}
+
+/** Quantized unit price as canonical 2-decimal string for numeric(10,2) persistence. */
+export function quantizePriceDecimal(value: string | number): string {
+  return centsToDecimal(quantizePriceToCents(value));
+}
+
+/**
  * Exact line total in cents: `quantity × unitPrice` with a single half-up
  * rounding step. Both operands are parsed as exact decimals (unitPrice up to
  * 3 decimals, e.g. `1.005`; quantity up to 3 decimals), so `10 × 1.005`
  * is exactly `1005` cents — never `1004.999...`.
+ *
+ * NOTE: callers that persist unitPrice to numeric(10,2) MUST quantize the
+ * price first (quantizePriceToCents) — otherwise stored price × qty diverges
+ * from this millesime-exact total. See budget-service.
  */
 export function lineTotalCents(quantity: string | number, unitPrice: string | number): bigint {
   const q = parseDecimalExact(quantity, 3);

@@ -56,11 +56,16 @@ export async function agendarConsulta(input: AppointmentInput) {
   if (!rawKey) return createCore();
 
   // Idempotent creation (padrão charge-service): primeira execução processa,
-  // duplicata retorna o resultado original sem reinserir (lookup por identidade
-  // do domínio, pois idempotency_keys não armazena payload de resultado).
+  // duplicata retorna o resultado original sem reinserir. Fingerprint
+  // 'clinic|patient|dentist|slot' vincula a chave ao payload: mesma chave +
+  // payload divergente → conflito (409), nunca reuso silencioso.
   const namespaced = `appointment:create:${input.clinicId}:${rawKey}`;
-  const outcome = await withIdempotency(namespaced, 'appointment_create', createCore);
+  const fingerprint = `${input.clinicId}|${input.patientId}|${input.dentistId ?? ''}|${input.scheduledAt.toISOString()}`;
+  const outcome = await withIdempotency(namespaced, 'appointment_create', createCore, fingerprint);
   if (outcome.status === 'completed' && outcome.result) return outcome.result;
+  if (outcome.status === 'conflict') {
+    throw new ActionError('conflict', 'Agendamento em processamento. Tente novamente.');
+  }
   const original = await repo.findByExactSlot(
     input.clinicId,
     input.patientId,

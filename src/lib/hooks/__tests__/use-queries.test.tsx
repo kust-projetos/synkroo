@@ -1358,3 +1358,24 @@ describe('Duplicate suggestions query, hooks & mutations', () => {
     });
   });
 });
+
+describe('invalidateAppointmentChanged fail-closed', () => {
+  it('sem clinicId → no-op (invalidateQueries NÃO chamado)', async () => {
+    const mod = await import('@/lib/hooks/use-queries');
+    const queryClient = new QueryClient();
+    const spy = jest.spyOn(queryClient, 'invalidateQueries').mockResolvedValue([] as never);
+    mod.invalidateAppointmentChanged(queryClient as any, undefined, 'appt-1');
+    mod.invalidateAppointmentChanged(queryClient as any, null);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('com clinicId → invalida escopo do tenant', async () => {
+    const mod = await import('@/lib/hooks/use-queries');
+    const queryClient = new QueryClient();
+    const spy = jest.spyOn(queryClient, 'invalidateQueries').mockResolvedValue([] as never);
+    mod.invalidateAppointmentChanged(queryClient as any, 'clinic-1', 'appt-1');
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});

@@ -31,27 +31,100 @@ export async function isIdempotencyKeyProcessed(key: string): Promise<boolean> {
 }
 
 /**
+ * Read the stored claim row (status + fingerprint). Returns null when absent
+ * or unreadable. Falls back to a fingerprint-less read on pre-migration DBs.
+ */
+async function readClaimRow(key: string): Promise<{ status: string | null; fingerprint: string | null } | null> {
+  const db = getDb();
+  try {
+    const [row] = await db
+      .select({ status: idempotencyKeys.status, fingerprint: idempotencyKeys.fingerprint })
+      .from(idempotencyKeys)
+      .where(eq(idempotencyKeys.key, key))
+      .limit(1);
+    return (row ?? null) as { status: string | null; fingerprint: string | null } | null;
+  } catch {
+    try {
+      const [row] = await db
+        .select({ status: idempotencyKeys.status })
+        .from(idempotencyKeys)
+        .where(eq(idempotencyKeys.key, key))
+        .limit(1);
+      return row ? { status: row.status, fingerprint: null } : null;
+    } catch {
+      return null;
+    }
+  }
+}
+
+/** True when the DB error is a missing fingerprint column (pre-migration). */
+function isMissingFingerprintColumn(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  return /fingerprint/i.test(msg) && /column|does not exist|no such column|undefined column/i.test(msg);
+}
+
+/**
  * Claim an idempotency key atomically.
  * Returns true if this caller successfully claimed the key.
  * If the key already exists (completed or in-progress), returns false.
+ *
+ * `fingerprint` (optional, backward-compatible): domain payload digest bound
+ * to the key at claim time. When both the stored and incoming fingerprints
+ * are present and differ, the claim is refused (false) — same path as a
+ * divergent-payload replay, never a silent reuse.
  */
 export async function tryClaimIdempotencyKey(
   key: string,
   jobType: string,
   ttlSeconds = 3600,
+  fingerprint?: string,
 ): Promise<boolean> {
   const db = getDb();
   try {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
 
+    // Fingerprint guard pre-insert: same key + divergent payload → conflict.
+    if (fingerprint !== undefined) {
+      const existing = await readClaimRow(key);
+      if (existing && existing.fingerprint != null && existing.fingerprint !== fingerprint) {
+        dbLogger.warn('Idempotency fingerprint mismatch', { key, jobType });
+        return false;
+      }
+    }
+
     // INSERT ... ON CONFLICT DO NOTHING — atomic first claim.
-    const rows = await db
-      .insert(idempotencyKeys)
-      .values({ key, jobType, status: 'in_progress', expiresAt })
-      .onConflictDoNothing()
-      .returning({ key: idempotencyKeys.key });
+    const values: Record<string, unknown> = { key, jobType, status: 'in_progress', expiresAt };
+    if (fingerprint !== undefined) values.fingerprint = fingerprint;
+    let rows: Array<{ key: string }>;
+    try {
+      rows = await db
+        .insert(idempotencyKeys)
+        .values(values as never)
+        .onConflictDoNothing()
+        .returning({ key: idempotencyKeys.key });
+    } catch (err) {
+      // Pre-migration DB without the fingerprint column → retry legacy shape.
+      if (fingerprint !== undefined && isMissingFingerprintColumn(err)) {
+        rows = await db
+          .insert(idempotencyKeys)
+          .values({ key, jobType, status: 'in_progress', expiresAt })
+          .onConflictDoNothing()
+          .returning({ key: idempotencyKeys.key });
+      } else {
+        throw err;
+      }
+    }
     if (rows.length === 1) return true;
+
+    // Lost the insert race — re-read and enforce fingerprint before reclaim.
+    if (fingerprint !== undefined) {
+      const existing = await readClaimRow(key);
+      if (existing && existing.fingerprint != null && existing.fingerprint !== fingerprint) {
+        dbLogger.warn('Idempotency fingerprint mismatch', { key, jobType });
+        return false;
+      }
+    }
 
     // A failed/expired claim may be retried, but only one caller can win the
     // conditional UPDATE. Completed or live in-progress claims remain closed.
@@ -107,19 +180,33 @@ export async function markIdempotencyKeyFailed(key: string, error: string): Prom
  * If the key was already processed, returns 'already_processed'.
  * If the key was claimed by another instance, returns 'conflict'.
  * Otherwise, executes the handler and marks completed/failed.
+ *
+ * `fingerprint` (optional, backward-compatible): when both the stored and
+ * incoming fingerprints are present and differ, returns 'conflict' (same
+ * path as divergent-payload replay) instead of reusing the prior result.
  */
 export async function withIdempotency<T>(
   key: string,
   jobType: string,
   handler: () => Promise<T>,
+  fingerprint?: string,
 ): Promise<{ status: 'completed' | 'already_processed' | 'conflict'; result?: T }> {
-  // Already done?
-  if (await isIdempotencyKeyProcessed(key)) {
+  // Already done? (fingerprint-aware: mismatch → conflict, never reuse.)
+  if (fingerprint !== undefined) {
+    const existing = await readClaimRow(key);
+    if (existing?.status === 'completed') {
+      if (existing.fingerprint != null && existing.fingerprint !== fingerprint) {
+        dbLogger.warn('Idempotency fingerprint mismatch', { key, jobType });
+        return { status: 'conflict' };
+      }
+      return { status: 'already_processed' };
+    }
+  } else if (await isIdempotencyKeyProcessed(key)) {
     return { status: 'already_processed' };
   }
 
   // Claim it
-  const claimed = await tryClaimIdempotencyKey(key, jobType);
+  const claimed = await tryClaimIdempotencyKey(key, jobType, 3600, fingerprint);
   if (!claimed) {
     return { status: 'conflict' };
   }

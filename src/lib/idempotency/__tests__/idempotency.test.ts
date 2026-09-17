@@ -65,7 +65,8 @@ describe('Idempotency Helper (ADR-BASE-13)', () => {
   it('withIdempotency type signature is correct', () => {
     const mod = require('@/lib/idempotency/index');
     // Validates function exists and accepts correct arity
+    // (4th optional `fingerprint` param is backward-compatible: length >= 3)
     expect(mod.withIdempotency).toBeDefined();
-    expect(mod.withIdempotency.length).toBe(3); // key, jobType, handler
+    expect(mod.withIdempotency.length).toBeGreaterThanOrEqual(3); // key, jobType, handler (+ fingerprint?)
   });
 });

@@ -54,9 +54,9 @@ describe('Etapa 5.1 — budget totals (exact decimal, half-up)', () => {
     expect(t.totalValue).toBe(0.3);
   });
 
-  it('10 × 1.005 totals exactly 10.05 (millesimal unit price, single rounding)', () => {
+  it('10 × 1.005 → price quantized to 1.01, total exactly 10.10 (price rule: unitPrice quantized to cents at entry)', () => {
     const t = calculateBudgetTotals([{ procedureName: 'X', quantity: 10, unitPrice: 1.005 }]);
-    expect(t.totalValue).toBe(10.05);
+    expect(t.totalValue).toBe(10.1);
   });
 
   it('discount is half-up at cent level: 10% of 0.30 → 0.03 discount, 0.27 final', () => {
