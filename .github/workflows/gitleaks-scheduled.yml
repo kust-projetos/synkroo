@@ -16,12 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (full history)
-        uses: actions/checkout@v4
+        # actions/checkout v4.4.0
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
 
       # O1-G01: scheduled full-history scan remains redacted and blocking.
+      # Scanner binary version pinned via GITLEAKS_VERSION (sem prefixo `v`).
+      # A action cobre o trigger `schedule` com o mesmo step do ci.yml
+      # (ver README da gitleaks-action v2.3.9: matriz push/PR/schedule).
       - name: Run Gitleaks (full history)
-        run: |
-          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz | tar xz -C /usr/local/bin gitleaks
-          gitleaks detect --source . --log-opts="--all" --verbose --redact
+        # gitleaks/gitleaks-action v2.3.9
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.24.0
