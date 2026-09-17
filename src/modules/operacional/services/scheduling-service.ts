@@ -73,6 +73,7 @@ export async function agendarConsulta(input: AppointmentInput) {
   // Replay vinculado: result_ref → busca POR ID com filtro de clínica
   // (findById já é tenant-scoped). Só sem vínculo (crash entre insert e
   // update) cai no lookup por domínio, RESTRITO a created_at >= claimedAt.
+  // Seguro por construção: findByExactSlot exige patient+dentist+slot idênticos e a constraint de overlap impede duplicata.
   if (outcome.resultRef) {
     const bound = await repo.findById(input.clinicId, outcome.resultRef);
     if (bound) return { id: bound.id };

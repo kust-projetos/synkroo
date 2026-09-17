@@ -52,6 +52,8 @@ const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : de
 const CLINIC = '00000000-0000-0000-0000-00000000d101';
 const DENTIST = '00000000-0000-0000-0000-00000000d102';
 const PATIENT = '00000000-0000-0000-0000-00000000d103';
+const PROCEDURE_A = '00000000-0000-0000-0000-00000000d104';
+const PROCEDURE_B = '00000000-0000-0000-0000-00000000d105';
 
 function authAs(clinicId: string) {
   (getUserProfile as jest.Mock).mockResolvedValue({
@@ -99,12 +101,23 @@ describeOrSkip('POST /api/appointments idempotency — route + DB real', () => {
           VALUES (${PATIENT}, ${CLINIC}, 'Idem Patient', '11999990303')
           ON CONFLICT (id) DO NOTHING`,
     );
+    await db.execute(
+      sql`INSERT INTO procedures (id, clinic_id, name, duration_minutes, price)
+          VALUES (${PROCEDURE_A}, ${CLINIC}, 'Idem Procedure A', 30, '150.00')
+          ON CONFLICT (id) DO NOTHING`,
+    );
+    await db.execute(
+      sql`INSERT INTO procedures (id, clinic_id, name, duration_minutes, price)
+          VALUES (${PROCEDURE_B}, ${CLINIC}, 'Idem Procedure B', 30, '200.00')
+          ON CONFLICT (id) DO NOTHING`,
+    );
   });
 
   afterAll(async () => {
     const db = getDb();
     await db.execute(sql`DELETE FROM appointments WHERE clinic_id = ${CLINIC}`);
     await db.execute(sql`DELETE FROM idempotency_keys WHERE key LIKE ${'appointment:create:' + CLINIC + ':%'}`);
+    await db.execute(sql`DELETE FROM procedures WHERE id IN (${PROCEDURE_A}, ${PROCEDURE_B})`);
     await db.execute(sql`DELETE FROM patients WHERE id = ${PATIENT}`);
     await db.execute(sql`DELETE FROM dentists WHERE id = ${DENTIST}`);
     await db.execute(sql`DELETE FROM clinics WHERE id = ${CLINIC}`);
@@ -206,6 +219,29 @@ describeOrSkip('POST /api/appointments idempotency — route + DB real', () => {
 
     // durationMinutes faz parte do fingerprint → mismatch → conflito.
     const res2 = await postAppointment({ ...base, durationMinutes: 60 }, key);
+    expect(res2.status).toBe(409);
+    expect((await res2.json()).error?.code).toBe('CONFLICT');
+
+    expect(await countAppointments()).toBe(1);
+  });
+
+  it('same key + procedureId divergente → 409 CONFLICT, nenhuma segunda linha', async () => {
+    authAs(CLINIC);
+    const key = `appt-idem-procedure-${randomUUID()}`;
+    const base = {
+      patientId: PATIENT,
+      dentistId: DENTIST,
+      procedureId: PROCEDURE_A,
+      scheduledAt: '2026-11-06T10:00:00Z',
+      durationMinutes: 30,
+    };
+
+    const res1 = await postAppointment(base, key);
+    expect(res1.status).toBe(201);
+    expect((await res1.json()).data?.id).toBeDefined();
+
+    // procedureId faz parte do fingerprint → mismatch → conflito.
+    const res2 = await postAppointment({ ...base, procedureId: PROCEDURE_B }, key);
     expect(res2.status).toBe(409);
     expect((await res2.json()).error?.code).toBe('CONFLICT');
 

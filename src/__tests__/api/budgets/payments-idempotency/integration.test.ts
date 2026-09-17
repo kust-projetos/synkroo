@@ -20,6 +20,7 @@ import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { getDb, closeDb } from '@/lib/db/client';
 import { POST as PaymentsPOST } from '@/app/api/budgets/[id]/payments/route';
+import { registerManualPayment } from '@/modules/financeiro/services/payment-service';
 import * as contextModule from '@/core/actions/context';
 
 const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
@@ -32,6 +33,8 @@ const BUDGET_DIFF = '00000000-0000-0000-0000-0000c0020002';
 const BUDGET_MISMATCH = '00000000-0000-0000-0000-0000c0020003';
 const BUDGET_NOTES = '00000000-0000-0000-0000-0000c0020005';
 const BUDGET_RACE = '00000000-0000-0000-0000-0000c0020004';
+const BUDGET_CHARGE = '00000000-0000-0000-0000-0000c0020006';
+const BUDGET_PAIDAT = '00000000-0000-0000-0000-0000c0020007';
 const buildUserContextMock = jest.spyOn(contextModule, 'buildUserContext');
 
 function authAs(clinicId: string) {
@@ -76,14 +79,16 @@ describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real'
     await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_MISMATCH}, ${CLINIC}, 'Pay Idem Mismatch', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
     await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_NOTES}, ${CLINIC}, 'Pay Idem Notes', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
     await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_RACE}, ${CLINIC}, 'Pay Idem Race', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_CHARGE}, ${CLINIC}, 'Pay Idem Charge', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_PAIDAT}, ${CLINIC}, 'Pay Idem PaidAt', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
   });
 
   afterAll(async () => {
     const db = getDb();
-    await db.execute(sql`DELETE FROM payments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE})`);
+    await db.execute(sql`DELETE FROM payments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE}, ${BUDGET_CHARGE}, ${BUDGET_PAIDAT})`);
     await db.execute(sql`DELETE FROM idempotency_keys WHERE key LIKE ${'payment:manual:' + CLINIC + ':%'}`);
-    await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE})`);
-    await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE})`);
+    await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE}, ${BUDGET_CHARGE}, ${BUDGET_PAIDAT})`);
+    await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_SAME}, ${BUDGET_DIFF}, ${BUDGET_MISMATCH}, ${BUDGET_NOTES}, ${BUDGET_RACE}, ${BUDGET_CHARGE}, ${BUDGET_PAIDAT})`);
     await db.execute(sql`DELETE FROM payment_gateways WHERE id = ${GATEWAY}`);
     await db.execute(sql`DELETE FROM users WHERE id = ${USER}`);
     await db.execute(sql`DELETE FROM clinics WHERE id = ${CLINIC}`);
@@ -163,6 +168,65 @@ describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real'
     expect((await res2.json()).error).toBeDefined();
 
     expect(await countPayments(BUDGET_NOTES)).toBe(1);
+  });
+
+  it('same key + chargeId divergente → 409, nenhuma segunda linha', async () => {
+    // Via serviço (a rota legada achata chargeId): fingerprint inclui chargeId.
+    const key = `pay-idem-charge-${randomUUID()}`;
+    const first = await registerManualPayment({
+      clinicId: CLINIC,
+      budgetId: BUDGET_CHARGE,
+      amount: 100,
+      paymentMethod: 'pix',
+      actorUserId: USER,
+      idempotencyKey: key,
+    });
+    expect(first?.id).toBeDefined();
+
+    // Mesma chave, demais campos iguais, chargeId divergente → fingerprint mismatch → conflito.
+    await expect(
+      registerManualPayment({
+        clinicId: CLINIC,
+        budgetId: BUDGET_CHARGE,
+        chargeId: randomUUID(),
+        amount: 100,
+        paymentMethod: 'pix',
+        actorUserId: USER,
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'conflict' });
+
+    expect(await countPayments(BUDGET_CHARGE)).toBe(1);
+  });
+
+  it('same key + paidAt divergente → 409, nenhuma segunda linha', async () => {
+    // Via serviço (a rota legada achata paidAt): fingerprint usa o input bruto de paidAt.
+    const key = `pay-idem-paidat-${randomUUID()}`;
+    const first = await registerManualPayment({
+      clinicId: CLINIC,
+      budgetId: BUDGET_PAIDAT,
+      amount: 100,
+      paymentMethod: 'pix',
+      paidAt: '2026-10-01T10:00:00.000Z',
+      actorUserId: USER,
+      idempotencyKey: key,
+    });
+    expect(first?.id).toBeDefined();
+
+    // Mesma chave, demais campos iguais, paidAt divergente → fingerprint mismatch → conflito.
+    await expect(
+      registerManualPayment({
+        clinicId: CLINIC,
+        budgetId: BUDGET_PAIDAT,
+        amount: 100,
+        paymentMethod: 'pix',
+        paidAt: '2026-10-02T10:00:00.000Z',
+        actorUserId: USER,
+        idempotencyKey: key,
+      }),
+    ).rejects.toMatchObject({ code: 'conflict' });
+
+    expect(await countPayments(BUDGET_PAIDAT)).toBe(1);
   });
 
   it('double-click concorrente (Promise.allSettled, mesma chave) → exatamente 1 linha', async () => {
