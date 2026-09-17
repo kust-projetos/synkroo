@@ -51,7 +51,7 @@ function setupFetchMocks(scenario: 'success' | '409' | '500') {
       if (scenario === '500') {
         return { ok: false, status: 500, json: async () => ({ error: 'Erro interno' }) } as any;
       }
-      return { ok: true, status: 200, json: async () => ({ success: true }) } as any;
+      return { ok: true, status: 200, json: async () => ({ success: true, data: { appointment: { id: 'appt-1' } } }) } as any;
     }
     return { ok: true, json: async () => ({}) } as any;
   });
@@ -126,13 +126,19 @@ describe('T6 — AppointmentDialog response.ok/envelope', () => {
     fireEvent.change(screen.getByPlaceholderText('Nome do paciente'), { target: { value: 'Test Patient' } });
     fireEvent.click(screen.getByRole('button', { name: /Agendar|Salvar/ }));
     await waitFor(() => expect(mockCloseDialog).toHaveBeenCalled());
-    expect(mockInvalidate).toHaveBeenCalledWith(
-      expect.objectContaining({ queryKey: ['clinic', 'clinic-1', 'appointments'] }),
-    );
+    // Etapa 1: helper central — coleção via predicate escopado, detalhe exato.
+    const predCalls = mockInvalidate.mock.calls.filter((c: any) => c[0]?.predicate);
+    const matches = (key: unknown[]) => predCalls.some((c: any) => c[0].predicate({ queryKey: key }));
+    expect(matches(['clinic', 'clinic-1', 'appointments', 'status=scheduled'])).toBe(true);
+    expect(matches(['clinic', 'clinic-OTHER', 'appointments', 'status=scheduled'])).toBe(false);
     // G1: calendar-events refinado por sobreposição de faixa (predicate), não mais prefixo.
-    expect(mockInvalidate).toHaveBeenCalledWith(
-      expect.objectContaining({ predicate: expect.any(Function) }),
-    );
+    expect(matches(['clinic', 'clinic-1', 'calendar-events', 'start_date=2026-09-01&end_date=2026-09-30'])).toBe(true);
+    expect(matches(['clinic', 'clinic-1', 'calendar-events', 'start_date=2026-01-01&end_date=2026-01-31'])).toBe(false);
+    // Dashboard da clínica invalidado junto.
+    expect(matches(['clinic', 'clinic-1', 'dashboard', 'stats'])).toBe(true);
+    expect(mockInvalidate).toHaveBeenCalledWith({
+      queryKey: ['clinic', 'clinic-1', 'appointments', 'appt-1'],
+    });
     expect(mockToast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Agendamento criado' }));
   });
 });

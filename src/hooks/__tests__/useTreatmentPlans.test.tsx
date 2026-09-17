@@ -270,12 +270,15 @@ describe('useTreatmentPlans Hook Suite', () => {
   });
 
   describe('useUpdateSession', () => {
-    it('posts session update, returns payload, and invalidates plan and plans caches', async () => {
-      const sessionResult = { ok: true, session_id: 'sess-123' };
+    it('posts session update, returns payload, and invalidates plan, list and financial summary', async () => {
+      const sessionResult = {
+        treatment_plan_item: { id: 'sess-123', status: 'completed' },
+        patient_id: 'pat-100',
+      };
 
       global.fetch = jest.fn().mockResolvedValueOnce({
         ok: true,
-        json: async () => sessionResult,
+        json: async () => ({ data: sessionResult }),
       } as Response);
 
       const { Wrapper, queryClient } = createWrapper();
@@ -297,7 +300,38 @@ describe('useTreatmentPlans Hook Suite', () => {
       });
 
       expect(result.current.data).toEqual(sessionResult);
-      // G1: invalidação exata do detail (sem predicate amplo).
+      // Etapa 1: invalidações exatas — detail + lista + resumo financeiro do paciente.
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['clinic', 'unscoped', 'treatment-plan', 'tp-50'],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['clinic', 'unscoped', 'treatment-plans', 'pat-100'],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['clinic', 'unscoped', 'financial-summary', 'pat-100'],
+      });
+      expect(invalidateSpy).toHaveBeenCalledTimes(3);
+    });
+
+    it('invalidates only the plan detail when the response carries no patient_id', async () => {
+      global.fetch = jest.fn().mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { treatment_plan_item: { id: 'sess-1' } } }),
+      } as Response);
+
+      const { Wrapper, queryClient } = createWrapper();
+      const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+      const { result } = renderHook(() => useUpdateSession(), { wrapper: Wrapper });
+
+      result.current.mutate({
+        treatmentPlanId: 'tp-50',
+        treatmentPlanItemId: 'item-88',
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+      expect(invalidateSpy).toHaveBeenCalledTimes(1);
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: ['clinic', 'unscoped', 'treatment-plan', 'tp-50'],
       });

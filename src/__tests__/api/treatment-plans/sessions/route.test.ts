@@ -112,7 +112,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
 
   it('passes the authenticated route plan id to session progress for nominal update', async () => {
     auth({ id: 'u1', clinic_id: 'c1', role: 'owner' });
-    ok([{ id: 'plan1', clinicId: 'c1' }]);
+    ok([{ id: 'plan1', clinicId: 'c1', patientId: 'pat-100' }]);
     (updateSessionProgress as jest.Mock).mockResolvedValue({ id: 'i1', treatment_plan_id: 'plan1', status: 'completed' });
 
     const r = await POST(new Request('http://localhost/api/treatment-plans/plan1/sessions', {
@@ -122,7 +122,7 @@ describe('POST /api/treatment-plans/[id]/sessions — tenancy & cross-plan bound
 
     expect(r.status).toBe(200);
     const data = await r.json();
-    expect(data).toEqual({ data: { treatment_plan_item: { id: 'i1', treatment_plan_id: 'plan1', status: 'completed' } } });
+    expect(data).toEqual({ data: { treatment_plan_item: { id: 'i1', treatment_plan_id: 'plan1', status: 'completed' }, patient_id: 'pat-100' } });
     expect(updateSessionProgress).toHaveBeenCalledWith('i1', 'plan1', 'c1');
   });
 });
