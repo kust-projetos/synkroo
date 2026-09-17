@@ -8,6 +8,8 @@ export const remarcarConsulta = defineAction({
   module: 'operacional',
   requires: 'operacional:manage_appointments',
   label: 'Remarcar consulta',
+  // Etapa 5.3: audit schedule mutation (ADR-BASE-12).
+  auditFields: ['id', 'scheduledAt', 'durationMinutes'],
   input: z.object({
     id: z.string().uuid(),
     scheduledAt: z.coerce.date(),

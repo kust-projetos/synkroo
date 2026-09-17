@@ -8,6 +8,8 @@ export const cancelarConsulta = defineAction({
   module: 'operacional',
   requires: 'operacional:manage_appointments',
   label: 'Cancelar consulta',
+  // Etapa 5.3: audit schedule mutation (ADR-BASE-12).
+  auditFields: ['id', 'reason'],
   input: z.object({
     id: z.string().uuid(),
     reason: z.string().optional(),

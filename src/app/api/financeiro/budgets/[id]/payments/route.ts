@@ -13,7 +13,8 @@ async function handleGET(request: NextRequest, { params }: { params: Promise<{ i
 async function handlePOST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
-  return runFinanceiroAction(registrarPagamento, { budgetId: id, ...body }, { request, okStatus: 201 });
+  const idempotencyKey = request.headers.get('idempotency-key')?.trim();
+  return runFinanceiroAction(registrarPagamento, { budgetId: id, ...body, ...(idempotencyKey ? { idempotencyKey } : {}) }, { request, okStatus: 201 });
 }
 
 export const GET = withModuleRoute('financeiro')(handleGET);

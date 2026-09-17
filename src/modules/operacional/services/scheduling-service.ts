@@ -11,6 +11,7 @@ import * as repo from '../repositories/appointments-repository';
 import * as patientsRepo from '../repositories/patients-repository';
 import * as catalogRepo from '../repositories/catalog-repository';
 import * as waitlistRepo from '../repositories/waitlist-repository';
+import { withIdempotency } from '@/lib/idempotency';
 
 export interface AppointmentInput {
   clinicId: string;
@@ -20,6 +21,8 @@ export interface AppointmentInput {
   scheduledAt: Date;
   durationMinutes?: number;
   notes?: string;
+  /** Client-supplied idempotency key (from `Idempotency-Key` header). Optional — absent = legacy behavior. */
+  idempotencyKey?: string;
 }
 
 export async function agendarConsulta(input: AppointmentInput) {
@@ -34,18 +37,38 @@ export async function agendarConsulta(input: AppointmentInput) {
     const procedure = await catalogRepo.findProcedureById(input.clinicId, input.procedureId);
     if (!procedure) throw new ActionError('not_found', 'Procedimento não encontrado.');
   }
-  try {
-    const appt = await repo.createAppointment(input);
-    if (!appt) throw new ActionError('internal', 'Erro ao criar agendamento.');
-    return { id: appt.id };
-  } catch (err: unknown) {
-    // Drizzle wraps pg errors in err.cause — check both for safety
-    const code = (err as { cause?: { code?: string } })?.cause?.code;
-    if (code === '23P01') {
-      throw new ActionError('conflict', 'Horário indisponível para este dentista.');
+  const createCore = async () => {
+    try {
+      const appt = await repo.createAppointment(input);
+      if (!appt) throw new ActionError('internal', 'Erro ao criar agendamento.');
+      return { id: appt.id };
+    } catch (err: unknown) {
+      // Drizzle wraps pg errors in err.cause — check both for safety
+      const code = (err as { cause?: { code?: string } })?.cause?.code;
+      if (code === '23P01') {
+        throw new ActionError('conflict', 'Horário indisponível para este dentista.');
+      }
+      throw err;
     }
-    throw err;
-  }
+  };
+
+  const rawKey = input.idempotencyKey?.trim();
+  if (!rawKey) return createCore();
+
+  // Idempotent creation (padrão charge-service): primeira execução processa,
+  // duplicata retorna o resultado original sem reinserir (lookup por identidade
+  // do domínio, pois idempotency_keys não armazena payload de resultado).
+  const namespaced = `appointment:create:${input.clinicId}:${rawKey}`;
+  const outcome = await withIdempotency(namespaced, 'appointment_create', createCore);
+  if (outcome.status === 'completed' && outcome.result) return outcome.result;
+  const original = await repo.findByExactSlot(
+    input.clinicId,
+    input.patientId,
+    input.dentistId ?? null,
+    input.scheduledAt,
+  );
+  if (original) return { id: original.id };
+  throw new ActionError('conflict', 'Agendamento em processamento. Tente novamente.');
 }
 
 export async function remarcarConsulta(input: {
@@ -82,6 +105,8 @@ export async function cancelarConsulta(input: { clinicId: string; id: string; re
   });
 
   // Check waitlist for the freed slot (same dentist or same procedure timeframe)
+  // Exceção deliberada: o toque na waitlist é best-effort e fica FORA de transação
+  // com o cancelamento — falhar a notificação não pode reverter o cancelamento.
   try {
     const waitlist = await waitlistRepo.listWaitlist(input.clinicId);
     const candidate = waitlist.find((w) =>

@@ -71,7 +71,10 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   else if (body.duration_minutes !== undefined)
     normalized.durationMinutes = body.duration_minutes;
   if (body.notes !== undefined) normalized.notes = body.notes;
-  return runActionRoute(agendarConsulta, normalized, { okStatus: 201 });
+  // Idempotency-Key (case-insensitive per Fetch spec) → threaded through action input
+  const idempotencyKey = request.headers.get('idempotency-key')?.trim();
+  if (idempotencyKey) normalized.idempotencyKey = idempotencyKey;
+  return runActionRoute(agendarConsulta, normalized, { okStatus: 201, request });
 }
 
 const wrappedGET = withModuleRoute(

@@ -9,7 +9,7 @@
  * remain in src/repositories/appointments/ until migrated.
  */
 
-import { eq, and, gte, lte, asc, inArray, sql } from 'drizzle-orm';
+import { desc, eq, and, gte, isNull, lte, asc, inArray, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import {
   appointments,
@@ -358,6 +358,63 @@ export async function updateAppointment(
     .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
     .returning();
   return row;
+}
+
+/**
+ * Idempotency replay lookup: most recent appointment matching the exact
+ * creation fingerprint (clinic + patient + dentist + scheduledAt).
+ * Usado para devolver o resultado original em retry com a mesma chave.
+ */
+export async function findByExactSlot(
+  clinicId: string,
+  patientId: string,
+  dentistId: string | null,
+  scheduledAt: Date,
+) {
+  const db = getDb();
+  const conditions = [
+    eq(appointments.clinicId, clinicId),
+    eq(appointments.patientId, patientId),
+    dentistId ? eq(appointments.dentistId, dentistId) : isNull(appointments.dentistId),
+    eq(appointments.scheduledAt, scheduledAt),
+    sql`${appointments.deletedAt} IS NULL`,
+  ];
+  const rows = await db
+    .select()
+    .from(appointments)
+    .where(and(...conditions))
+    .orderBy(desc(appointments.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+/**
+ * Atomic update path (repo-owns-tx): atualiza o agendamento e o last_visit
+ * do paciente na MESMA transação — nunca meio-aplicado.
+ */
+export async function updateAppointmentAndTouchVisit(
+  clinicId: string,
+  id: string,
+  patch: Record<string, unknown>,
+  visit: { patientId: string; at: Date } | null,
+) {
+  const db = getDb();
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(appointments)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .set({ ...patch, updatedAt: new Date() } as any)
+      .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
+      .returning();
+    if (row && visit) {
+      await tx
+        .update(patients)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .set({ lastVisitAt: visit.at, updatedAt: new Date() } as any)
+        .where(and(eq(patients.id, visit.patientId), eq(patients.clinicId, clinicId)));
+    }
+    return row;
+  });
 }
 
 // ─── Availability helpers ─────────────────────────────────────────────────────

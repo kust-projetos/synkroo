@@ -1,0 +1,127 @@
+/**
+ * Integration test: POST /api/budgets/[id]/payments idempotency (Etapa 4).
+ *
+ * Proves the Idempotency-Key contract on manual payment registration:
+ *   - 2 POSTs with the SAME key + same body → 201 both, SAME payment id, exactly 1 row;
+ *   - 2 POSTs with DIFFERENT keys → 201 both, different ids, 2 rows.
+ *
+ * Each case uses its own budget fixture so cases stay order-independent.
+ * buildUserContext is spied (proven pattern from payments-scope); repositories
+ * hit the real Drizzle DB.
+ *
+ * Run via: npm run test:integration:run -- src/__tests__/api/budgets/payments-idempotency/integration.test.ts
+ */
+
+/** @jest-environment node */
+
+jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn(), getUserProfile: jest.fn() }));
+
+import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
+import { getDb, closeDb } from '@/lib/db/client';
+import { POST as PaymentsPOST } from '@/app/api/budgets/[id]/payments/route';
+import * as contextModule from '@/core/actions/context';
+
+const describeOrSkip = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
+
+const CLINIC = '00000000-0000-0000-0000-0000a0020001';
+const USER = '00000000-0000-0000-0000-00000000a102';
+const GATEWAY = '00000000-0000-0000-0000-0000d0020001';
+const BUDGET_SAME = '00000000-0000-0000-0000-0000c0020001';
+const BUDGET_DIFF = '00000000-0000-0000-0000-0000c0020002';
+const buildUserContextMock = jest.spyOn(contextModule, 'buildUserContext');
+
+function authAs(clinicId: string) {
+  buildUserContextMock.mockResolvedValue({
+    source: 'user',
+    clinicId,
+    user: { id: USER, email: 'pay-idem@test.local', name: 'Pay Idem' },
+    role: 'owner',
+    can: () => true,
+    hasModule: () => true,
+    audit: { actor: USER },
+  } as any);
+}
+
+function postPayment(budgetId: string, body: Record<string, unknown>, key?: string) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (key) headers['Idempotency-Key'] = key;
+  const req = new Request(`http://localhost/api/budgets/${budgetId}/payments`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+  });
+  return PaymentsPOST(req as any, { params: Promise.resolve({ id: budgetId }) } as any);
+}
+
+async function countPayments(budgetId: string): Promise<number> {
+  const db = getDb();
+  const { rows } = await db.execute(
+    sql`SELECT count(*) as c FROM payments WHERE budget_id = ${budgetId}`,
+  );
+  return Number((rows as any)[0].c);
+}
+
+describeOrSkip('POST /api/budgets/[id]/payments idempotency — route + DB real', () => {
+  beforeAll(async () => {
+    const db = getDb();
+    await db.execute(sql`INSERT INTO clinics (id, name, slug, phone, email) VALUES (${CLINIC}, 'Pay Idem Clinic', 'pay-idem', '11999990401', 'pay-idem@test.com') ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`INSERT INTO users (id, clinic_id, email, name, role) VALUES (${USER}, ${CLINIC}, 'pay-idem@test.local', 'Pay Idem', 'owner') ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`INSERT INTO payment_gateways (id, clinic_id, provider, is_default, is_enabled, masked_label) VALUES (${GATEWAY}, ${CLINIC}, 'audit', true, true, 'gw-idem') ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_SAME}, ${CLINIC}, 'Pay Idem Same', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
+    await db.execute(sql`INSERT INTO budgets (id, clinic_id, title, total_value, final_value, status) VALUES (${BUDGET_DIFF}, ${CLINIC}, 'Pay Idem Diff', '500.00', '500.00', 'pending') ON CONFLICT (id) DO NOTHING`);
+  });
+
+  afterAll(async () => {
+    const db = getDb();
+    await db.execute(sql`DELETE FROM payments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF})`);
+    await db.execute(sql`DELETE FROM idempotency_keys WHERE key LIKE ${'payment:manual:' + CLINIC + ':%'}`);
+    await db.execute(sql`DELETE FROM budget_installments WHERE budget_id IN (${BUDGET_SAME}, ${BUDGET_DIFF})`);
+    await db.execute(sql`DELETE FROM budgets WHERE id IN (${BUDGET_SAME}, ${BUDGET_DIFF})`);
+    await db.execute(sql`DELETE FROM payment_gateways WHERE id = ${GATEWAY}`);
+    await db.execute(sql`DELETE FROM users WHERE id = ${USER}`);
+    await db.execute(sql`DELETE FROM clinics WHERE id = ${CLINIC}`);
+    buildUserContextMock.mockRestore();
+    await closeDb();
+  });
+
+  beforeEach(() => {
+    buildUserContextMock.mockReset();
+  });
+
+  it('duplicate retry with the SAME key returns the ORIGINAL payment, no second row', async () => {
+    authAs(CLINIC);
+    const key = `pay-idem-same-${randomUUID()}`;
+    const body = { amount: 100, payment_method: 'pix' };
+
+    const res1 = await postPayment(BUDGET_SAME, body, key);
+    expect(res1.status).toBe(201);
+    const json1 = await res1.json();
+    const id1 = json1.payment?.id;
+    expect(id1).toBeDefined();
+
+    const res2 = await postPayment(BUDGET_SAME, body, key);
+    expect(res2.status).toBe(201);
+    const json2 = await res2.json();
+    expect(json2.payment?.id).toBe(id1);
+
+    expect(await countPayments(BUDGET_SAME)).toBe(1);
+  });
+
+  it('two POSTs with DIFFERENT keys create two payments', async () => {
+    authAs(CLINIC);
+
+    const res1 = await postPayment(BUDGET_DIFF, { amount: 100, payment_method: 'pix' }, `pay-idem-diff-${randomUUID()}`);
+    expect(res1.status).toBe(201);
+    const id1 = (await res1.json()).payment?.id;
+
+    const res2 = await postPayment(BUDGET_DIFF, { amount: 120, payment_method: 'pix' }, `pay-idem-diff-${randomUUID()}`);
+    expect(res2.status).toBe(201);
+    const id2 = (await res2.json()).payment?.id;
+
+    expect(id1).toBeDefined();
+    expect(id2).toBeDefined();
+    expect(id2).not.toBe(id1);
+    expect(await countPayments(BUDGET_DIFF)).toBe(2);
+  });
+});
