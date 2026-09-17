@@ -14,11 +14,6 @@ jest.mock('@/repositories/auth', () => ({
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: (...args: unknown[]) => mockCheckRateLimit(...args),
   getClientIdentifier: (...args: unknown[]) => mockGetClientIdentifier(...args),
-  createRateLimitHeaders: (remaining: number, resetTime: number, limit: number) => ({
-    'X-RateLimit-Limit': String(limit),
-    'X-RateLimit-Remaining': String(remaining),
-    'X-RateLimit-Reset': String(Math.ceil(resetTime / 1000)),
-  }),
   rateLimitPresets: { auth: { windowMs: 60_000, maxRequests: 10 } },
 }))
 
@@ -60,13 +55,33 @@ describe('POST /api/auth/change-password', () => {
 
     expect(response.status).toBe(429)
     expect(response.headers.get('Retry-After')).toBe('17')
-    expect(response.headers.get('X-RateLimit-Limit')).toBe('10')
-    expect(response.headers.get('X-RateLimit-Remaining')).toBe('0')
+    // Canonical envelope (apiRateLimited): Retry-After header ONLY, no X-RateLimit-* extras
+    expect(response.headers.get('X-RateLimit-Limit')).toBeNull()
+    expect(response.headers.get('X-RateLimit-Remaining')).toBeNull()
+    expect(response.headers.get('X-RateLimit-Reset')).toBeNull()
     expect(await response.json()).toEqual({
       error: expect.objectContaining({ code: 'TOO_MANY_REQUESTS' }),
     })
     expect(mockValidateApiAuth).not.toHaveBeenCalled()
     expect(mockChangeUserPassword).not.toHaveBeenCalled()
+  })
+
+  it('returns 429 with Retry-After 0 when retryAfter is undefined', async () => {
+    mockCheckRateLimit.mockReturnValue({
+      allowed: false,
+      remaining: 0,
+      resetTime: 1_700_000_060_000,
+    })
+
+    const response = await POST(request({ currentPassword: 'oldpass', nextPassword: 'newpass' }))
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('Retry-After')).toBe('0')
+    expect(response.headers.get('X-RateLimit-Limit')).toBeNull()
+    expect(await response.json()).toEqual({
+      error: expect.objectContaining({ code: 'TOO_MANY_REQUESTS' }),
+    })
+    expect(mockValidateApiAuth).not.toHaveBeenCalled()
   })
 
   it('changes the authenticated user password', async () => {

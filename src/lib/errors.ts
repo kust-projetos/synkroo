@@ -87,6 +87,12 @@ export class ConflictError extends AppError {
   }
 }
 
+/**
+ * @deprecated Legacy rate-limit error shape. Kept only for existing tests/mocks —
+ * zero production usage. For 429 route responses use `apiRateLimited()` from
+ * `@/lib/api/response` (canonical ADR-BASE-10 envelope: 429 + `Retry-After`
+ * header only, no `X-RateLimit-*` extras).
+ */
 export class RateLimitError extends AppError {
   constructor(retryAfter: number) {
     super('Rate limit exceeded', 'RATE_LIMITED', 429, true, { retryAfter })
@@ -124,6 +130,12 @@ export class DatabaseError extends AppError {
 import { NextResponse } from 'next/server'
 import { logger } from './logger'
 
+/**
+ * @deprecated Legacy error-shape handler. Kept only for existing tests/mocks —
+ * zero production usage. For route responses use `apiFailure()` / `apiErrors`
+ * from `@/lib/api/response` (canonical ADR-BASE-10 envelope
+ * `{ error: { code, message, requestId } }`).
+ */
 export function handleApiError(error: unknown): NextResponse {
   logger.error('API Error', error)
 
