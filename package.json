@@ -63,7 +63,6 @@
     "@event-calendar/core": "^5.6.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@heroicons/react": "^2.2.0",
-    "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
@@ -103,6 +102,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@cloudflare/workers-types": "^5.20260729.1",
     "@eslint/eslintrc": "^3.3.5",
     "@next/bundle-analyzer": "^15.5.25",
