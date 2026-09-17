@@ -86,6 +86,7 @@ export function FinanceDashboard({ metrics, canManageBudget = false }: FinanceDa
           <BudgetTab
             selectedBudgetId={selectedBudgetId}
             onSelectBudget={handleSelectBudget}
+            canManageBudget={canManageBudget}
           />
         )}
         {activeTab === 'payments' && (
