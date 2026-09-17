@@ -113,7 +113,7 @@
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.0",
     "@types/jest": "^29.5.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.5.1",
     "@types/pg": "^8.20.0",
     "@types/qrcode-terminal": "^0.12.2",
     "@types/react": "^19.0.0",
