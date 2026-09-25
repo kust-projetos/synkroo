@@ -19,13 +19,17 @@ jobs:
         with:
           fetch-depth: 0
       # O1-G01: blocking scan covers tree and full history; output is always redacted.
-      # Scanner binary version pinned via GITLEAKS_VERSION (sem prefixo `v`).
+      # Binário OSS direto: a wrapper gitleaks-action v2 exige licença paga em
+      # organizações (falha "missing gitleaks license"). Versão + sha256 fixados.
+      - name: Install Gitleaks (pinned 8.24.0, checksum-verified)
+        run: |
+          curl -sSfL -o /tmp/gitleaks.tgz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz"
+          echo "cb49b7de5ee986510fe8666ca0273a6cc15eb82571f2f14832c9e8920751f3a4  /tmp/gitleaks.tgz" | sha256sum -c -
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          sudo install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks
       - name: Run Gitleaks (tree + full history)
-        # gitleaks/gitleaks-action v2.3.9
-        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_VERSION: 8.24.0
+        run: gitleaks detect --source . --log-opts="--all" --redact
 
   ci:
     name: Build & Test
