@@ -296,7 +296,7 @@ describe('Seed Helpers Unit Tests', () => {
 
       expect(rows.length).toBeGreaterThanOrEqual(25);
       expect(rows.length).toBeLessThan(50);
-      expect(rows.some((r: any) => r.name.includes('Renata'))).toBe(true);
+      expect(rows.some((r: any) => r.name.includes('Lead Demo'))).toBe(true);
     });
   });
 
