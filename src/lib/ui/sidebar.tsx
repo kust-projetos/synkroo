@@ -242,7 +242,7 @@ function SidebarContent({
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="text-sm font-bold text-foreground tracking-tight">Synkroo</span>
-              <span className="text-[9px] font-extrabold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/80 border border-teal-200/60 dark:border-teal-800/60 px-1.5 py-0.2 rounded-md uppercase tracking-wider">
+              <span className="text-[9px] font-extrabold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/80 border border-teal-200/60 dark:border-teal-800/60 px-1.5 py-0.2 rounded-md uppercase tracking-wider">
                 v2.4
               </span>
             </div>
@@ -318,7 +318,7 @@ function SidebarContent({
             className={cn(
               "rounded-lg p-1.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500",
               collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
-              theme === "light" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-700 font-semibold" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              theme === "light" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-700 font-semibold" : "text-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-300"
             )}
           >
             <SunIcon aria-hidden="true" className="h-3.5 w-3.5" />
@@ -332,7 +332,7 @@ function SidebarContent({
             className={cn(
               "rounded-lg p-1.5 transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500",
               collapsed ? "" : "flex-1 flex items-center justify-center gap-1.5",
-              theme === "dark" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-400 font-semibold" : "text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              theme === "dark" ? "bg-white dark:bg-zinc-800 shadow-sm text-teal-400 font-semibold" : "text-zinc-600 hover:text-zinc-800 dark:hover:text-zinc-300"
             )}
           >
             <MoonIcon aria-hidden="true" className="h-3.5 w-3.5" />
@@ -352,7 +352,7 @@ function SidebarContent({
             <>
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-semibold text-foreground truncate">{profile?.name || "Dr. Profissional"}</div>
-                <div className="text-[10px] text-teal-600 dark:text-teal-400 font-medium capitalize truncate">{profile?.role || "Administrador"}</div>
+                <div className="text-[10px] text-teal-700 dark:text-teal-400 font-medium capitalize truncate">{profile?.role || "Administrador"}</div>
               </div>
               <button type="button" onClick={() => logout()} title="Sair da conta" aria-label="Sair da conta" className="p-1 text-zinc-400 hover:text-red-500 transition-colors rounded-lg hover:bg-red-50 dark:hover:bg-red-950/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
                 <LogoutIcon aria-hidden="true" className="h-4 w-4" />

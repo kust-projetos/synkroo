@@ -86,7 +86,7 @@ function LoginForm() {
       <Button
         type="submit"
         disabled={loading}
-        className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400"
+        className="w-full bg-teal-700 hover:bg-teal-800 disabled:bg-teal-400"
         size="lg"
       >
         {loading ? (
