@@ -28,7 +28,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
   if (!rateLimit.allowed) {
-    return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0);
+    return apiRateLimited(generateRequestId(), rateLimit.retryAfter);
   }
 
   // Module gate — skip if disabled (200, not error)

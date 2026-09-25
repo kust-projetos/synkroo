@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const clientId = getClientIdentifier(request as any)
     const rateLimit = checkRateLimit(clientId, rateLimitPresets.api)
     if (!rateLimit.allowed) {
-      return apiRateLimited(requestId, rateLimit.retryAfter ?? 0)
+      return apiRateLimited(requestId, rateLimit.retryAfter)
     }
 
     const authResult = await validateApiAuth()

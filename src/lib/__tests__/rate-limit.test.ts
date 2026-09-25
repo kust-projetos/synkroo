@@ -49,7 +49,7 @@ describe('Rate Limiting Utility', () => {
       const r4 = checkRateLimit(key, config)
       expect(r4.allowed).toBe(false)
       expect(r4.remaining).toBe(0)
-      expect(r4.retryAfter).toBeDefined()
+      expect(r4.allowed === false ? r4.retryAfter : undefined).toBeDefined()
     })
 
     it('should reset after window expires', async () => {

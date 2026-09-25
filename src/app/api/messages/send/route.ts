@@ -22,7 +22,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   if (!rateLimit.allowed) {
     return apiRateLimited(
       generateRequestId(),
-      rateLimit.retryAfter ?? 0,
+      rateLimit.retryAfter,
       'Rate limit exceeded.',
     );
   }

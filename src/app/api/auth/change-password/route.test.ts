@@ -66,11 +66,12 @@ describe('POST /api/auth/change-password', () => {
     expect(mockChangeUserPassword).not.toHaveBeenCalled()
   })
 
-  it('returns 429 with Retry-After 0 when retryAfter is undefined', async () => {
+  it('returns 429 with Retry-After 0 when the bucket reports zero backoff', async () => {
     mockCheckRateLimit.mockReturnValue({
       allowed: false,
       remaining: 0,
       resetTime: 1_700_000_060_000,
+      retryAfter: 0,
     })
 
     const response = await POST(request({ currentPassword: 'oldpass', nextPassword: 'newpass' }))

@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { apiFailure, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { apiFailure, apiRateLimited, apiSuccess, generateRequestId } from '@/lib/api/response';
+import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { ActionError } from '@/core/actions/types';
 
 const inputSchema = z.object({ patientId: z.string().uuid() }).strict();
@@ -26,7 +27,18 @@ export async function POST(request: Request) {
     const { anonimizarPaciente } = await import('@/modules/operacional');
     const parsed = inputSchema.safeParse(await request.json());
     if (!parsed.success) return responseWithId(apiFailure('INVALID_INPUT', 'Dados inválidos.', requestId, 400), requestId);
-    const result = await runAction(anonimizarPaciente, parsed.data, await buildUserContext());
+    // Auth-before-limiter (padrão lgpd/export): o contexto (sessão) é
+    // resolvido primeiro — chamadas não autenticadas lançam
+    // 'unauthenticated' e caem no 401 abaixo sem consumir quota.
+    const ctx = await buildUserContext();
+    const anonymizeLimit = checkRateLimit(getClientIdentifier(request), {
+      ...rateLimitPresets.api,
+      keyPrefix: 'lgpd-anonymize',
+    });
+    if (!anonymizeLimit.allowed) {
+      return responseWithId(apiRateLimited(requestId, anonymizeLimit.retryAfter, 'Rate limit exceeded.'), requestId);
+    }
+    const result = await runAction(anonimizarPaciente, parsed.data, ctx);
     if (!result.ok) return responseWithId(apiFailure(result.error.code.toUpperCase(), result.error.message, requestId, statusFor(result.error.code)), requestId);
     return responseWithId(apiSuccess(result.data), requestId);
   } catch (error) {

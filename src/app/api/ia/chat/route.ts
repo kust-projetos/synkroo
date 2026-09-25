@@ -101,7 +101,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   });
   if (!chatLimit.allowed) {
     return withRequestId(
-      apiRateLimited(requestId, chatLimit.retryAfter ?? 0, 'Rate limit exceeded.'),
+      apiRateLimited(requestId, chatLimit.retryAfter, 'Rate limit exceeded.'),
       requestId,
     );
   }

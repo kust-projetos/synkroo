@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       keyPrefix: 'knowledge-search',
     });
     if (!searchLimit.allowed) {
-      return apiRateLimited(requestId, searchLimit.retryAfter ?? 0, 'Rate limit exceeded.');
+      return apiRateLimited(requestId, searchLimit.retryAfter, 'Rate limit exceeded.');
     }
     const parsed = SearchBodySchema.safeParse(await request.json().catch(() => ({})));
     if (!parsed.success) {

@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     rateLimitPresets.auth,
   )
   if (!rateLimit.allowed) {
-    return apiRateLimited(requestId, rateLimit.retryAfter ?? 0, 'Too many requests')
+    return apiRateLimited(requestId, rateLimit.retryAfter, 'Too many requests')
   }
 
   const authResult = await validateApiAuth()

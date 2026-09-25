@@ -50,7 +50,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     maxRequests: 30,
   });
   if (!rateLimit.allowed) {
-    return apiRateLimited(requestId, rateLimit.retryAfter ?? 0);
+    return apiRateLimited(requestId, rateLimit.retryAfter);
   }
 
   // Module gate — skip if followup module is not contracted
