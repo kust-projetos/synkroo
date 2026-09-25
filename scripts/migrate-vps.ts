@@ -15,21 +15,34 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as fs from 'fs';
 import * as path from 'path';
 
-function loadVpsEnv(): Record<string, string> {
+/**
+ * Parses `.env` content into a key/value map.
+ *
+ * Exported for unit testing (scripts/__tests__/migrate-vps-env.test.mjs).
+ * Splits on `/\r?\n/` so files with Windows (CRLF) line endings parse the
+ * same as LF: a trailing `\r` would otherwise defeat the end-of-line `$`
+ * anchor and silently drop the line.
+ */
+export function parseVpsEnvContent(content: string): Record<string, string> {
   const env: Record<string, string> = {};
-  const envPath = path.resolve(process.cwd(), '..', 'vps-hostinger', '.env');
-  if (fs.existsSync(envPath)) {
-    const lines = fs.readFileSync(envPath, 'utf8').split('\n');
-    for (const line of lines) {
-      const match = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)$/);
-      if (match) {
-        const key = match[1].trim();
-        const val = match[2].trim().replace(/^['"]|['"]$/g, '');
-        env[key] = val;
-      }
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const match = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)$/);
+    if (match) {
+      const key = match[1].trim();
+      const val = match[2].trim().replace(/^['"]|['"]$/g, '');
+      env[key] = val;
     }
   }
   return env;
+}
+
+function loadVpsEnv(): Record<string, string> {
+  const envPath = path.resolve(process.cwd(), '..', 'vps-hostinger', '.env');
+  if (fs.existsSync(envPath)) {
+    return parseVpsEnvContent(fs.readFileSync(envPath, 'utf8'));
+  }
+  return {};
 }
 
 interface TargetConfig {
