@@ -3,6 +3,10 @@ import baseConfig from "./playwright.config";
 
 loadEnvConfig(process.cwd());
 
+// Sinaliza aos specs que rodam sob `next start` (NODE_ENV=production).
+// Usado para pular fluxos bloqueados de propósito em prod (ex.: /signup → 404, ADR-BASE-11).
+process.env.E2E_PRODUCTION = '1';
+
 function normalizeDatabaseUrl(value: string | undefined): string | undefined {
   if (!value) return value;
 

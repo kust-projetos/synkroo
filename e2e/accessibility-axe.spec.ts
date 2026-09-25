@@ -11,6 +11,8 @@ import type { Page } from '@playwright/test'
  */
 const AXE_MODULE_SPECIFIER = '@axe-core/playwright'
 
+const IS_PRODUCTION = process.env.E2E_PRODUCTION === '1'
+
 interface AxeViolation {
   id: string
   impact?: string
@@ -37,6 +39,8 @@ async function loadAxeBuilder(): Promise<null | (new (args: { page: Page }) => A
 test.describe('Automated accessibility (axe)', () => {
   for (const path of ['/login', '/signup']) {
     test(`sem violacoes criticas/graves (wcag2a, wcag2aa) em ${path}`, async ({ page }) => {
+      // /signup é 404 deliberado em produção (ADR-BASE-11); axe contra 404 não faz sentido.
+      test.skip(IS_PRODUCTION && path === '/signup', 'ADR-BASE-11: /signup retorna 404 em produção')
       const AxeBuilder = await loadAxeBuilder()
       if (!AxeBuilder) {
         test.skip(true, '@axe-core/playwright ainda nao instalado — spec pulado ate a instalacao')

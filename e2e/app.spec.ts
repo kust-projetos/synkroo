@@ -2,6 +2,8 @@ import { test, expect, Page } from '@playwright/test'
 
 const BASE_URL = 'http://127.0.0.1:3003'
 
+const IS_PRODUCTION = process.env.E2E_PRODUCTION === '1'
+
 // This file exercises login and logout flows; inherited authenticated state would redirect /login.
 test.use({ storageState: { cookies: [], origins: [] } })
 
@@ -86,6 +88,8 @@ test.describe('Authentication Flow', () => {
   })
 
   test('should logout successfully', async ({ page }) => {
+    // ADR-BASE-11: /signup é 404 em produção — fluxo via usuário descartável só existe em dev.
+    test.skip(IS_PRODUCTION, 'ADR-BASE-11: /signup retorna 404 em produção; logout via signup só em dev')
     // Use a disposable signup user so that session revocation (revokeUserSession)
     // does not invalidate the shared admin storageState (e2e/.auth/admin.json)
     // used by all other authenticated tests. Creating a new clinic isolates the DB side-effect.

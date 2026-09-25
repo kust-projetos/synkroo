@@ -4,7 +4,8 @@ import path from 'path'
 const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json') })
 
 async function openContact(page: Page): Promise<void> {
-  const contactItem = page.locator('main button.w-full').first()
+  // Exclui os filtros Todos/Pacientes/Leads (role="tab"); clica numa linha de contato real.
+  const contactItem = page.locator('[data-testid="contact-list"] button:not([role="tab"])').first()
   await expect(contactItem).toBeVisible({ timeout: 15000 })
   await contactItem.click()
   await page.waitForLoadState('networkidle')

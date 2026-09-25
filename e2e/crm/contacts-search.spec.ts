@@ -5,7 +5,8 @@ const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json'
 const contactSearch = 'input[placeholder="Buscar por nome, telefone ou email..."]'
 
 async function expectContactList(page: import('@playwright/test').Page) {
-  const list = page.locator('main button.w-full').first()
+  // Exclui os filtros Todos/Pacientes/Leads (role="tab"); mira linhas de contato reais.
+  const list = page.locator('[data-testid="contact-list"] button:not([role="tab"])').first()
   await expect(list).toBeVisible({ timeout: 15000 })
 }
 

@@ -133,20 +133,25 @@ test.describe("Campaign List", () => {
     const response = await page.request.get(`${BASE_URL}/api/campaigns`);
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as {
+      data?: { campaigns?: Array<{ id: string }> };
       campaigns?: Array<{ id: string }>;
     };
-    expect(body.campaigns).toBeDefined();
-    expect(body.campaigns!.length).toBeGreaterThan(0);
+    // GET /api/campaigns responde no envelope D2 {data: {campaigns}}.
+    const campaigns = body.data?.campaigns ?? body.campaigns;
+    expect(campaigns).toBeDefined();
+    expect(campaigns!.length).toBeGreaterThan(0);
   });
 
   test("should expose status for every seeded campaign", async ({ page }) => {
     const response = await page.request.get(`${BASE_URL}/api/campaigns`);
     expect(response.ok()).toBe(true);
     const body = (await response.json()) as {
+      data?: { campaigns?: Array<{ status: string }> };
       campaigns?: Array<{ status: string }>;
     };
+    const campaigns = body.data?.campaigns ?? body.campaigns;
     expect(
-      body.campaigns?.every((campaign) =>
+      campaigns?.every((campaign) =>
         [
           "draft",
           "scheduled",
