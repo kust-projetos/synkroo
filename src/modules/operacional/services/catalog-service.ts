@@ -2,6 +2,7 @@
  * Catalog service — thin layer between actions and repository.
  */
 
+import { ActionError } from '@/core/actions/types';
 import * as repo from '../repositories/catalog-repository';
 
 // ─── Dentists ────────────────────────────────────────────────────────────────
@@ -32,6 +33,7 @@ export async function listarDentistas(clinicId: string, opts?: { activeOnly?: bo
 
 export async function obterDentista(clinicId: string, id: string) {
   const dentist = await repo.findDentistById(clinicId, id);
+  if (!dentist) throw new ActionError('not_found', 'Dentista não encontrado.');
   return dentist;
 }
 
@@ -48,7 +50,7 @@ export async function atualizarDentista(
   }>,
 ) {
   const existing = await repo.findDentistById(clinicId, id);
-  if (!existing) return null;
+  if (!existing) throw new ActionError('not_found', 'Dentista não encontrado.');
   return repo.updateDentist(id, data);
 }
 
@@ -80,6 +82,7 @@ export async function listarProcedimentos(clinicId: string, opts?: { activeOnly?
 
 export async function obterProcedimento(clinicId: string, id: string) {
   const procedure = await repo.findProcedureById(clinicId, id);
+  if (!procedure) throw new ActionError('not_found', 'Procedimento não encontrado.');
   return procedure;
 }
 
@@ -96,6 +99,6 @@ export async function atualizarProcedimento(
   }>,
 ) {
   const existing = await repo.findProcedureById(clinicId, id);
-  if (!existing) return null;
+  if (!existing) throw new ActionError('not_found', 'Procedimento não encontrado.');
   return repo.updateProcedure(id, data);
 }

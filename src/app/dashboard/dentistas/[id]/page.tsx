@@ -16,11 +16,15 @@ import { EmptyState } from '@/components/ui/empty-state'
 interface Dentist {
   id: string
   name: string
-  phone: string
-  email: string
-  specialty: string
-  cro_number: string
-  is_active: boolean
+  phone?: string | null
+  email?: string | null
+  specialty?: string | null
+  // Canônico (Drizzle/camelCase) + legado (snake_case) — API retorna camelCase
+  cro?: string | null
+  croNumber?: string | null
+  cro_number?: string | null
+  isActive?: boolean
+  is_active?: boolean
 }
 
 export default function DentistaDetalhePage() {
@@ -44,16 +48,29 @@ export default function DentistaDetalhePage() {
   const fetchDentist = async () => {
     try {
       const response = await fetch(`/api/dentists/${dentistId}?clinic_id=${profile?.clinic_id}`)
+      // 404 canônico (inexistente ou cross-tenant opaco) → estado "não encontrado"
+      if (response.status === 404) {
+        setDentist(null)
+        return
+      }
       if (response.ok) {
-        const data = await response.json()
-        setDentist(data.dentist)
+        const body = await response.json()
+        // Envelope canônico { data } (com fallback legado { dentist })
+        const item = (body?.data ?? body?.dentist ?? null) as Dentist | null
+        if (!item) {
+          setDentist(null)
+          return
+        }
+        setDentist(item)
         setForm({
-          name: data.dentist.name,
-          phone: data.dentist.phone || '',
-          email: data.dentist.email || '',
-          specialty: data.dentist.specialty || '',
-          cro_number: data.dentist.cro_number || '',
+          name: item.name ?? '',
+          phone: item.phone || '',
+          email: item.email || '',
+          specialty: item.specialty || '',
+          cro_number: item.croNumber ?? item.cro ?? item.cro_number ?? '',
         })
+      } else {
+        setError('Falha ao carregar dados do dentista')
       }
     } catch {
       setError('Falha ao carregar dados do dentista')
@@ -70,10 +87,18 @@ export default function DentistaDetalhePage() {
 
   const handleUpdate = async () => {
     try {
+      // Payload em chaves canônicas (a action ignora chaves desconhecidas)
+      const payload = {
+        name: form.name,
+        phone: form.phone,
+        email: form.email,
+        specialty: form.specialty,
+        cro: form.cro_number,
+      }
       const response = await fetch(`/api/dentists/${dentistId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
@@ -139,6 +164,9 @@ export default function DentistaDetalhePage() {
     )
   }
 
+  const isActive = dentist.isActive ?? dentist.is_active ?? false
+  const croDisplay = dentist.croNumber ?? dentist.cro ?? dentist.cro_number ?? null
+
   const actions = editing ? undefined : (
     <>
       <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
@@ -156,7 +184,7 @@ export default function DentistaDetalhePage() {
     <DetailPage
       title={editing ? 'Editar Dentista' : dentist.name}
       backHref="/dashboard/dentistas"
-      status={editing ? undefined : { type: dentist.is_active ? 'success' : 'error', label: dentist.is_active ? 'Ativo' : 'Inativo' }}
+      status={editing ? undefined : { type: isActive ? 'success' : 'error', label: isActive ? 'Ativo' : 'Inativo' }}
       actions={actions}
     >
       <Card className="max-w-2xl p-6">
@@ -246,7 +274,7 @@ export default function DentistaDetalhePage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">CRO</p>
-                <p className="font-medium text-foreground">{dentist.cro_number || '-'}</p>
+                <p className="font-medium text-foreground">{croDisplay || '-'}</p>
               </div>
             </div>
           </div>

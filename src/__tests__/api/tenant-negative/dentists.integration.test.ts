@@ -2,17 +2,15 @@
  * Integration test: dentists cross-tenant negative suite (Etapa 3).
  *
  * Tenant B owns the dentist; Tenant A (Owner session) attempts:
- *   GET /api/dentists/[id]   → opaco, sem vazamento, DB intacto
- *   PATCH /api/dentists/[id] → opaco, sem vazamento, DB intacto
+ *   GET /api/dentists/[id]   → 404 opaco, sem vazamento, DB intacto
+ *   PATCH /api/dentists/[id] → 404 opaco, sem vazamento, DB intacto
  *   DELETE → 405 (indisponível por desenho), DB intacto (controle)
  *
- * GAP DE CONTRATO PROVADO (sem vazamento): obter/atualizar dentista retornam
- * `null` em vez de lançar ActionError not_found, de modo que o cross-tenant
- * responde 200 `{ data: null }` em vez do 404 opaco canônico. Nenhum byte do
- * tenant B é exposto e nada é alterado — os testes fixam esse comportamento
- * real (200 + data null + sem vazamento + DB intacto). A correção em produção
- * (lançar not_found) NÃO foi feita aqui — ver BLOCKERS do relatório Etapa 3
- * e docs/audit/tenant-resource-matrix.md.
+ * CONTRATO CANÔNICO (SYNK-IMPL-404): obter/atualizar dentista lançam
+ * ActionError not_found para id inexistente ou de outra clínica, de modo que
+ * o cross-tenant responde 404 `{ error: { code: 'NOT_FOUND', ... } }` —
+ * idêntico ao inexistente (opaco). Nenhum byte do tenant B é exposto e nada
+ * é alterado. Ver docs/audit/tenant-resource-matrix.md.
  *
  * Auth/RBAC/manifest mockados (padrão patient-reassignment); rota + DB reais.
  *
@@ -98,7 +96,7 @@ describeOrSkip('Tenant-negative dentists — rota + DB real', () => {
     (getUserProfile as jest.Mock).mockReset();
   });
 
-  it('GET de dentista de outra clínica → opaco (200 data:null), sem vazamento, DB intacto', async () => {
+  it('GET de dentista de outra clínica → 404 opaco (idêntico a inexistente), sem vazamento, DB intacto', async () => {
     authAsOwner(getUserProfile as jest.Mock, TN_CLINIC_A);
     const db = getDb();
     const before = await snapshotDentist(db, DENTIST_B);
@@ -109,16 +107,17 @@ describeOrSkip('Tenant-negative dentists — rota + DB real', () => {
       new Request(`http://localhost/api/dentists/${DENTIST_B}`) as any,
       ctxFor(DENTIST_B) as any,
     );
-    // Comportamento canônico real (gap de contrato, sem vazamento): 200 data:null.
-    expect(res.status).toBe(200);
+    // Contrato canônico opaco: 404 com envelope { error: { code, message, requestId } }.
+    expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.data).toBeNull();
+    expect(body.error?.code).toBe('NOT_FOUND');
+    expect(body.data).toBeUndefined();
     expectNoLeak(body, [SECRET_NAME, DENTIST_B]);
 
     expect(await snapshotDentist(db, DENTIST_B)).toEqual(before);
   });
 
-  it('PATCH em dentista de outra clínica → opaco (200 data:null), sem vazamento, DB intacto', async () => {
+  it('PATCH em dentista de outra clínica → 404 opaco, sem vazamento, DB intacto', async () => {
     authAsOwner(getUserProfile as jest.Mock, TN_CLINIC_A);
     const db = getDb();
     const before = await snapshotDentist(db, DENTIST_B);
@@ -130,9 +129,10 @@ describeOrSkip('Tenant-negative dentists — rota + DB real', () => {
       body: JSON.stringify({ name: 'Hacked' }),
     });
     const res = await PATCH(req as any, ctxFor(DENTIST_B) as any);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     const body = await res.json();
-    expect(body.data).toBeNull();
+    expect(body.error?.code).toBe('NOT_FOUND');
+    expect(body.data).toBeUndefined();
     expectNoLeak(body, [SECRET_NAME, DENTIST_B]);
 
     expect(await snapshotDentist(db, DENTIST_B)).toEqual(before);
