@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { eq, asc, and } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { clinics, users, leads, leadActivities, campaigns, campaignRecipients, waitlist, patientFeedback, procedureGuidelines, scheduleBlocks, followUpConfigs, pipelineStages, patients, conversations, messages, instanceModules } from '@/lib/db/schema'
-import { roles, rolePermissions, userClinicAccess } from '@/modules/core/schema/rbac'
+import { roles, rolePermissions, permissions, userClinicAccess } from '@/modules/core/schema/rbac'
 import * as dentistRepo from '@/repositories/dentists'
 import * as procedureRepo from '@/repositories/procedures'
 import * as appointmentRepo from '@/repositories/appointments'
-import { seedDefaultPipelineStages } from '@/modules/comercial'
+import { seedDefaultPipelineStages, comercialAccessPermissions } from '@/modules/comercial'
 import { buildWaitlistSeed, buildLeadSeed, cleanupDemoSeedTables, leadStatusToStageIndex } from '@/lib/seed/helpers'
 
 const CLINIC_SLUG = 'clinica-demo'
@@ -128,6 +128,7 @@ export async function GET(request: NextRequest) {
   if (userId) {
     const adminRole = await db.select({ id: roles.id }).from(roles).where(and(eq(roles.clinicId, cid), eq(roles.name, 'Administrador'))).limit(1)
     if (adminRole[0]) {
+      await db.insert(permissions).values(comercialAccessPermissions).onConflictDoNothing()
       const comercialPermissions = ['comercial:view', 'comercial:capture_leads', 'comercial:edit_leads', 'comercial:manage_pipeline', 'comercial:manage_tasks', 'comercial:manage_hot_leads']
       await db.insert(rolePermissions).values(comercialPermissions.map((permissionKey) => ({ roleId: adminRole[0].id, permissionKey }))).onConflictDoNothing()
       await db.insert(userClinicAccess).values({ userId, clinicId: cid, roleId: adminRole[0].id }).onConflictDoUpdate({ target: [userClinicAccess.userId, userClinicAccess.clinicId], set: { roleId: adminRole[0].id } })

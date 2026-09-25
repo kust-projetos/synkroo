@@ -38,6 +38,7 @@ import * as dentistRepo from '@/repositories/dentists';
 import * as procedureRepo from '@/repositories/procedures';
 import * as appointmentRepo from '@/repositories/appointments';
 import * as pipelineRepo from '@/modules/comercial/repositories/pipeline-repository';
+import { permissions, rolePermissions } from '@/modules/core/schema/rbac';
 import {
   buildWaitlistSeed,
   buildLeadSeed,
@@ -67,6 +68,7 @@ interface MockDbConfig {
   appointmentCreateThrows?: boolean;
   dbExecuteThrows?: boolean;
   topLevelInsertThrows?: boolean;
+  gateCatalogUpsert?: boolean;
 }
 
 let dbConfig: MockDbConfig = {};
@@ -74,6 +76,10 @@ let leadIdCounter = 1;
 let campaignIdCounter = 1;
 let conversationIdCounter = 1;
 let patientSelectCallCount = 0;
+let permissionCatalogKeys = new Set<string>();
+let roleGrantPairs = new Set<string>();
+let catalogGatePromise: Promise<void> | null = null;
+let catalogGateResolve: (() => void) | null = null;
 
 const createMockDb = () => {
   return {
@@ -115,7 +121,44 @@ const createMockDb = () => {
 
           return {
             onConflictDoUpdate: jest.fn().mockResolvedValue(undefined),
-            onConflictDoNothing: jest.fn().mockResolvedValue(undefined),
+            onConflictDoNothing: jest.fn(() => {
+              if (table === permissions) {
+                const rows = Array.isArray(_val) ? _val : [_val];
+                const persist = () => {
+                  for (const row of rows) {
+                    if (row?.key) permissionCatalogKeys.add(row.key);
+                  }
+                };
+                if (dbConfig.gateCatalogUpsert && catalogGatePromise) {
+                  return catalogGatePromise.then(persist);
+                }
+                persist();
+                return Promise.resolve(undefined);
+              }
+              if (table === rolePermissions) {
+                const rows = Array.isArray(_val) ? _val : [_val];
+                for (const row of rows) {
+                  if (
+                    typeof row?.permissionKey === 'string' &&
+                    !permissionCatalogKeys.has(row.permissionKey)
+                  ) {
+                    return Promise.reject(
+                      Object.assign(
+                        new Error(
+                          `insert on table role_permissions violates foreign key permission_key ${row.permissionKey} not present in catalog (SQLSTATE 23503)`,
+                        ),
+                        { code: '23503' },
+                      ),
+                    );
+                  }
+                }
+                for (const row of rows) {
+                  roleGrantPairs.add(`${row?.roleId}::${row?.permissionKey}`);
+                }
+                return Promise.resolve(undefined);
+              }
+              return Promise.resolve(undefined);
+            }),
             returning: jest.fn().mockImplementation(() => {
               if (table === leads) {
                 return Promise.resolve([{ id: `lead-${leadIdCounter++}` }]);
@@ -318,6 +361,10 @@ describe('GET /api/seed Handler', () => {
     campaignIdCounter = 1;
     conversationIdCounter = 1;
     patientSelectCallCount = 0;
+    permissionCatalogKeys = new Set<string>();
+    roleGrantPairs = new Set<string>();
+    catalogGatePromise = null;
+    catalogGateResolve = null;
     jest.clearAllMocks();
 
     // Default repo mocks for success path
@@ -640,6 +687,107 @@ describe('GET /api/seed Handler', () => {
       expect(data.success).toBe(false);
       expect(data.error).toBe('E2E fixture seed failed');
       expect(data.details).toBe('String crash exception');
+    });
+  });
+
+  describe('RBAC permission catalog backfill (CI-E2E-SEED-001)', () => {
+    const COMERCIAL_KEYS = [
+      'comercial:view',
+      'comercial:capture_leads',
+      'comercial:edit_leads',
+      'comercial:manage_pipeline',
+      'comercial:manage_tasks',
+      'comercial:manage_hot_leads',
+    ];
+
+    function collectInsertPayloads(): Array<{ order: number; values: unknown }> {
+      const out: Array<{ order: number; values: unknown }> = [];
+      const insertMock = mockDbInstance.insert as jest.Mock;
+      insertMock.mock.results.forEach((result: any, order: number) => {
+        const valuesMock = result?.value?.values as jest.Mock | undefined;
+        const calls = valuesMock?.mock?.calls ?? [];
+        for (const call of calls) {
+          out.push({ order, values: call[0] });
+        }
+      });
+      return out;
+    }
+
+    function findPayloadIndex(
+      payloads: Array<{ order: number; values: unknown }>,
+      predicate: (values: unknown) => boolean,
+    ): number {
+      const found = payloads.find((p) => predicate(p.values));
+      return found ? found.order : -1;
+    }
+
+    it('resolves the comercial catalog upsert before starting Administrador grants', async () => {
+      dbConfig.clinicRows = [{ id: 'clinic-demo-id' }];
+      dbConfig.userRows = [{ id: 'admin-user-id' }];
+      dbConfig.adminRoleRows = [{ id: 'admin-role-id' }];
+      dbConfig.gateCatalogUpsert = true;
+      catalogGatePromise = new Promise<void>((resolve) => {
+        catalogGateResolve = resolve;
+      });
+
+      const pending = GET(makeReq(`/api/seed?secret=${SEED_SECRET}`));
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 25);
+      });
+
+      const calledTables = (mockDbInstance.insert as jest.Mock).mock.calls.map(
+        (call: any) => call[0],
+      );
+      expect(calledTables).toContain(permissions);
+      expect(calledTables).not.toContain(rolePermissions);
+
+      catalogGateResolve?.();
+      const res = await pending;
+
+      expect(res.status).toBe(200);
+      const settledTables = (mockDbInstance.insert as jest.Mock).mock.calls.map(
+        (call: any) => call[0],
+      );
+      expect(settledTables).toContain(rolePermissions);
+      const payloads = collectInsertPayloads();
+      const catalogIndex = findPayloadIndex(
+        payloads,
+        (values) =>
+          Array.isArray(values) &&
+          COMERCIAL_KEYS.every((key) => values.some((entry: any) => entry?.key === key)),
+      );
+      const grantsIndex = findPayloadIndex(
+        payloads,
+        (values) =>
+          Array.isArray(values) &&
+          values.length === COMERCIAL_KEYS.length &&
+          values.every((entry: any) => typeof entry?.permissionKey === 'string'),
+      );
+
+      expect(catalogIndex).toBeGreaterThanOrEqual(0);
+      expect(grantsIndex).toBeGreaterThanOrEqual(0);
+      expect(catalogIndex).toBeLessThan(grantsIndex);
+    });
+
+    it('remains idempotent across reruns with an empty permissions catalog', async () => {
+      dbConfig.clinicRows = [{ id: 'clinic-demo-id' }];
+      dbConfig.userRows = [{ id: 'admin-user-id' }];
+      dbConfig.adminRoleRows = [{ id: 'admin-role-id' }];
+
+      const first = await GET(makeReq(`/api/seed?secret=${SEED_SECRET}`));
+      expect(first.status).toBe(200);
+      expect((await first.json()).success).toBe(true);
+      expect(permissionCatalogKeys.size).toBe(COMERCIAL_KEYS.length);
+      const grantsAfterFirst = roleGrantPairs.size;
+      expect(grantsAfterFirst).toBe(COMERCIAL_KEYS.length);
+
+      const second = await GET(makeReq(`/api/seed?secret=${SEED_SECRET}`));
+      expect(second.status).toBe(200);
+      const data = await second.json();
+      expect(data.success).toBe(true);
+      expect(data.fixtures.admin).toBe(1);
+      expect(permissionCatalogKeys.size).toBe(COMERCIAL_KEYS.length);
+      expect(roleGrantPairs.size).toBe(grantsAfterFirst);
     });
   });
 });
