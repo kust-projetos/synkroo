@@ -34,7 +34,8 @@ export function ConsentSection({ contactId, contactType }: ConsentSectionProps) 
   const grantMutation = useGrantConsent()
   const revokeMutation = useRevokeConsent()
 
-  const consents = data?.data ?? []
+  const unwrapped = Array.isArray(data) ? data : (data as { data?: unknown } | undefined)?.data
+  const consents = (Array.isArray(unwrapped) ? unwrapped : []) as any[]
 
   const getConsent = (purpose: string) =>
     consents.find((c: any) => c.purpose === purpose)

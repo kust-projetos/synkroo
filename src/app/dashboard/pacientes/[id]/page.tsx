@@ -37,7 +37,7 @@ export default function PatientDetailPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setPatient(data.patient ?? data)
+        setPatient(data.data ?? data.patient ?? data)
       } else {
         console.error('Failed to fetch patient:', data.error)
       }
@@ -73,7 +73,8 @@ export default function PatientDetailPage() {
     }
   }
 
-  const formatPhone = (phone: string) => {
+  const formatPhone = (phone?: string | null) => {
+    if (!phone) return ''
     if (phone.length === 11) {
       return `(${phone.slice(0, 2)}) ${phone.slice(2, 7)}-${phone.slice(7)}`
     }

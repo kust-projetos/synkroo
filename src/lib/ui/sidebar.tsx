@@ -285,7 +285,7 @@ function SidebarContent({
             return (
               <div key={section} className={cn(si > 0 && "pt-3")}>
                 {!collapsed && (
-                  <div className="px-3 pb-1.5 text-[9px] font-extrabold text-zinc-400 dark:text-zinc-500 uppercase tracking-[0.1em]">
+                  <div className="px-3 pb-1.5 text-[9px] font-extrabold text-zinc-500 dark:text-zinc-400 uppercase tracking-[0.1em]">
                     {sectionLabels[section]}
                   </div>
                 )}

@@ -60,7 +60,8 @@ export function ContactNotesTab({ contactId, contactType }: ContactNotesTabProps
     addNoteMutation.mutate(noteContent.trim())
   }
 
-  const notes = data?.data ?? []
+  const unwrapped = Array.isArray(data) ? data : (data as { data?: unknown } | undefined)?.data
+  const notes = (Array.isArray(unwrapped) ? unwrapped : []) as any[]
 
   return (
     <div className="flex flex-col h-full">
