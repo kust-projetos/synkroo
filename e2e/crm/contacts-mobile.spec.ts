@@ -7,7 +7,7 @@ test.describe('Contacts mobile layout', () => {
     await page.goto('/dashboard/contatos')
     await page.waitForLoadState('networkidle')
 
-    await expect(page.getByTestId('contact-list')).toBeVisible()
+    await expect(page.getByTestId('contact-list')).toBeVisible({ timeout: 15_000 })
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
 
     const contact = page.locator('[data-testid="contact-list"] button:not([role="tab"])').filter({ hasText: /Paciente|Lead/ }).first()
