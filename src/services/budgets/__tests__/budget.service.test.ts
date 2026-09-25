@@ -10,6 +10,7 @@ import {
 	updateBudgetStatus,
 	deleteBudget,
 	getBudgetStats,
+	getBudgetWithInstallments,
 } from "../budget.service";
 
 // Mock the budgets repository
@@ -20,6 +21,7 @@ jest.mock("@/repositories/budgets", () => ({
 	hardDeleteBudget: jest.fn(),
 	softDeleteBudget: jest.fn(),
 	getStatsByClinic: jest.fn(),
+	findByIdWithInstallments: jest.fn(),
 }));
 
 const mockRepo = jest.mocked(require("@/repositories/budgets"));
@@ -88,6 +90,34 @@ describe("Budget Service", () => {
 			expect(result.total_value).toBe(99.99);
 			expect(result.final_value).toBe(99.99);
 		});
+
+		it("precisão: 3 × 0.1 totaliza exatamente 0.30 (sem 0.30000000000000004)", () => {
+			const result = calculateBudgetTotals([
+				{ quantity: 3, unit_price: 0.1, discount_percent: 0 },
+			]);
+
+			expect(result.total_value).toBe(0.3);
+			expect(result.final_value).toBe(0.3);
+		});
+
+		it("precisão: 0.1 + 0.2 totaliza exatamente 0.30", () => {
+			const result = calculateBudgetTotals([
+				{ quantity: 1, unit_price: 0.1, discount_percent: 0 },
+				{ quantity: 1, unit_price: 0.2, discount_percent: 0 },
+			]);
+
+			expect(result.total_value).toBe(0.3);
+			expect(result.final_value).toBe(0.3);
+		});
+
+		it("precisão: preço 1.005 é quantizado para 1.01 (10 × 1.005 → 10.10)", () => {
+			const result = calculateBudgetTotals([
+				{ quantity: 10, unit_price: 1.005, discount_percent: 0 },
+			]);
+
+			expect(result.total_value).toBe(10.1);
+			expect(result.final_value).toBe(10.1);
+		});
 	});
 
 	describe("createBudget", () => {
@@ -140,6 +170,73 @@ describe("Budget Service", () => {
 			expect(result.items).toHaveLength(1);
 		});
 
+		it("persiste linhas QUANTIZADAS que somam o total (10.005 → 10.01, 20.005 → 20.01)", async () => {
+			let captured: any = null;
+			mockRepo.createWithItems.mockImplementation(async (data: any) => {
+				captured = data;
+				return {
+					budget: {
+						id: "budget-q",
+						clinicId: "c1",
+						patientId: "p1",
+						status: "pending",
+						totalValue: data.totalValue,
+						discountPercent: "0",
+						discountValue: "0",
+						finalValue: data.finalValue,
+					},
+					items: data.items.map((it: any, i: number) => ({
+						id: `item-q${i}`,
+						budgetId: "budget-q",
+						procedureId: it.procedureId,
+						procedureName: it.procedureName,
+						quantity: it.quantity,
+						unitPrice: it.unitPrice,
+						discountPercent: it.discountPercent,
+						totalPrice: it.totalPrice,
+						notes: null,
+						createdAt: new Date(),
+					})),
+				} as any;
+			});
+
+			const result = await createBudget({
+				clinic_id: "c1",
+				patient_id: "p1",
+				items: [
+					{
+						procedure_name: "A",
+						quantity: 1,
+						unit_price: 10.005,
+						discount_percent: 0,
+						total_price: 10.005,
+					},
+					{
+						procedure_name: "B",
+						quantity: 1,
+						unit_price: 20.005,
+						discount_percent: 0,
+						total_price: 20.005,
+					},
+				],
+			});
+
+			// Valores quantizados na borda de persistência (não os originais).
+			expect(captured.items.map((i: any) => i.unitPrice)).toEqual([
+				"10.01",
+				"20.01",
+			]);
+			expect(captured.items.map((i: any) => i.totalPrice)).toEqual([
+				"10.01",
+				"20.01",
+			]);
+			// Leitura pós-gravação: soma dos itens == total persistido.
+			const sumItems = result
+				.items!.reduce((s, it) => s + Math.round(it.total_price * 100), 0);
+			expect(sumItems).toBe(Math.round(result.total_value * 100));
+			expect(result.total_value).toBe(30.02);
+		});
+
 		it("should throw on budget creation error", async () => {
 			mockRepo.createWithItems.mockRejectedValue(new Error("DB error"));
 
@@ -152,8 +249,7 @@ describe("Budget Service", () => {
 			).rejects.toThrow("Failed to create budget");
 		});
 
-		it("should cleanup budget when items fail", async () => {
-			mockRepo.hardDeleteBudget.mockResolvedValue();
+		it("should cleanup budget when items fail", async () => {			mockRepo.hardDeleteBudget.mockResolvedValue();
 			mockRepo.createWithItems.mockImplementation(async (_data: any) => {
 				throw new Error("Items error");
 			});
@@ -293,5 +389,46 @@ describe("Budget Service", () => {
 			expect(stats.total).toBe(0);
 			expect(stats.conversion_rate).toBe(0);
 		});
+
+		it("precisão: total_value soma em centavos (0.10 + 0.20 = 0.30 exato)", async () => {
+			mockRepo.getStatsByClinic.mockResolvedValue([
+				{ status: "accepted", finalValue: "0.10" },
+				{ status: "accepted", finalValue: "0.20" },
+			] as any);
+
+			const stats = await getBudgetStats("c1");
+
+			expect(stats.total_value).toBe(0.3);
+		});
+	});
+});
+
+describe("getBudgetWithInstallments (precisão)", () => {
+	beforeEach(() => {
+		jest.clearAllMocks();
+	});
+
+	it("mapeia installments em centavos exatos (0.10 → 0.1)", async () => {
+		mockRepo.findByIdWithInstallments.mockResolvedValue({
+			id: "b1",
+			clinicId: "c1",
+			patientId: "p1",
+			status: "pending",
+			totalValue: "0.30",
+			discountPercent: "0",
+			discountValue: "0",
+			finalValue: "0.30",
+			items: [],
+			installments: [
+				{ id: "i1", budgetId: "b1", amount: "0.10", dueDate: new Date(), status: "pending", paidAt: null, paymentId: null },
+				{ id: "i2", budgetId: "b1", amount: "0.20", dueDate: new Date(), status: "pending", paidAt: null, paymentId: null },
+			],
+		} as any);
+
+		const result = await getBudgetWithInstallments("b1");
+
+		expect(result).not.toBeNull();
+		expect(result!.final_value).toBe(0.3);
+		expect(result!.installments!.map((i) => i.amount)).toEqual([0.1, 0.2]);
 	});
 });

@@ -17,6 +17,13 @@ import {
 	findByTreatmentPlan,
 	findByIdWithInstallments,
 } from "@/repositories/budgets";
+import {
+	toCents,
+	centsToDecimal,
+	percentOfCents,
+	quantizePriceToCents,
+	lineTotalCents,
+} from "@/modules/financeiro";
 
 export type BudgetStatus =
 	| "pending"
@@ -124,7 +131,18 @@ function toSnakeBudget(row: Record<string, unknown>): Budget {
 			result[snake] = v;
 		}
 	}
-	// Parse numeric strings back to numbers
+	// Parse numeric strings back to numbers.
+	// Campos monetários (numeric(10,2)) via centavos exatos — sem float;
+	// demais campos (percentuais, contadores) mantêm coerção Number simples
+	// pois são apenas saída, sem aritmética monetária aqui.
+	const moneyFields = new Set([
+		"total_value",
+		"discount_value",
+		"final_value",
+		"unit_price",
+		"total_price",
+		"amount",
+	]);
 	const numFields = [
 		"total_value",
 		"discount_percent",
@@ -138,8 +156,12 @@ function toSnakeBudget(row: Record<string, unknown>): Budget {
 	];
 	for (const f of numFields) {
 		if (result[f] !== undefined && result[f] !== null) {
-			const n = Number(result[f]);
-			result[f] = isNaN(n) ? 0 : n;
+			if (moneyFields.has(f)) {
+				result[f] = Number(toCents(String(result[f]))) / 100;
+			} else {
+				const n = Number(result[f]);
+				result[f] = isNaN(n) ? 0 : n;
+			}
 		}
 	}
 	return result as unknown as Budget;
@@ -159,33 +181,45 @@ function toSnakeItem(row: Record<string, unknown>): BudgetItem {
 	];
 	for (const f of numFields) {
 		if (result[f] !== undefined && result[f] !== null) {
-			const n = Number(result[f]);
-			result[f] = isNaN(n) ? 0 : n;
+			if (f === "unit_price" || f === "total_price") {
+				result[f] = Number(toCents(String(result[f]))) / 100;
+			} else {
+				const n = Number(result[f]);
+				result[f] = isNaN(n) ? 0 : n;
+			}
 		}
 	}
 	return result as unknown as BudgetItem;
 }
 
 /**
- * Calculate budget totals from items
+ * Calculate budget totals from items.
+ *
+ * Aritmética exata em centavos bigint (half-up), padrão do budget-service
+ * canônico: preço unitário quantizado na borda de entrada, linha via
+ * lineTotalCents, descontos via percentOfCents. Semântica legada preservada
+ * (desconto por item + desconto global); mesma assinatura e mesmo shape.
  */
 export function calculateBudgetTotals(
 	items: Pick<BudgetItem, "quantity" | "unit_price" | "discount_percent">[],
 	discountPercent: number = 0,
 ): { total_value: number; discount_value: number; final_value: number } {
-	const total_value = items.reduce((sum, item) => {
-		const itemTotal = item.quantity * item.unit_price;
-		const itemDiscount = itemTotal * (item.discount_percent / 100);
-		return sum + (itemTotal - itemDiscount);
-	}, 0);
+	const totalCents = items.reduce((sum, item) => {
+		const unitCents = quantizePriceToCents(item.unit_price);
+		const lineCents = lineTotalCents(item.quantity, centsToDecimal(unitCents));
+		const netCents =
+			item.discount_percent > 0 ? lineCents - percentOfCents(lineCents, item.discount_percent) : lineCents;
+		return sum + netCents;
+	}, 0n);
 
-	const discount_value = total_value * (discountPercent / 100);
-	const final_value = total_value - discount_value;
+	const discountCents = discountPercent > 0 ? percentOfCents(totalCents, discountPercent) : 0n;
+	const finalCents = totalCents - discountCents >= 0n ? totalCents - discountCents : 0n;
 
+	const toNum = (c: bigint): number => Number(c) / 100;
 	return {
-		total_value: Math.round(total_value * 100) / 100,
-		discount_value: Math.round(discount_value * 100) / 100,
-		final_value: Math.round(final_value * 100) / 100,
+		total_value: toNum(totalCents),
+		discount_value: toNum(discountCents),
+		final_value: toNum(finalCents),
 	};
 }
 
@@ -197,6 +231,32 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
 	const totals = calculateBudgetTotals(input.items, discount_percent);
 
 	try {
+		// Linhas QUANTIZADAS que compõem o total calculado: unitPrice vai
+		// quantizado para centavos (half-up) e totalPrice é a linha exata
+		// (quantidade × unit quantizado − desconto do item), de modo que
+		// sum(items.totalPrice) == budget.totalValue persistidos. Persistir os
+		// valores ORIGINAIS do input divergiria do total sempre que o input
+		// exigisse quantização (ex.: unit_price 10.005).
+		const quantizedItems = input.items.map((item) => {
+			const unitCents = quantizePriceToCents(item.unit_price);
+			const lineCents = lineTotalCents(
+				item.quantity,
+				centsToDecimal(unitCents),
+			);
+			const netCents =
+				item.discount_percent > 0
+					? lineCents - percentOfCents(lineCents, item.discount_percent)
+					: lineCents;
+			return {
+				procedureId: item.procedure_id ?? null,
+				procedureName: item.procedure_name,
+				quantity: item.quantity,
+				unitPrice: centsToDecimal(unitCents),
+				discountPercent: String(item.discount_percent || 0),
+				totalPrice: centsToDecimal(netCents),
+				notes: item.notes ?? null,
+			};
+		});
 		const { budget, items } = await createWithItems({
 			clinicId: input.clinic_id,
 			patientId: input.patient_id,
@@ -211,15 +271,7 @@ export async function createBudget(input: CreateBudgetInput): Promise<Budget> {
 			validUntil: input.valid_until ? new Date(input.valid_until) : undefined,
 			notes: input.notes ?? null,
 			createdBy: input.created_by ?? null,
-			items: input.items.map((item) => ({
-				procedureId: item.procedure_id ?? null,
-				procedureName: item.procedure_name,
-				quantity: item.quantity,
-				unitPrice: String(item.unit_price),
-				discountPercent: String(item.discount_percent || 0),
-				totalPrice: String(item.total_price),
-				notes: item.notes ?? null,
-			})),
+			items: quantizedItems,
 		});
 
 		const budgetSnake = toSnakeBudget(
@@ -433,6 +485,11 @@ export async function getBudgetStats(clinicId: string): Promise<{
 }> {
 	try {
 		const rows = await getStatsByClinic(clinicId);
+		// Soma em centavos bigint — sem drift float no total_value.
+		const totalValueCents = rows.reduce(
+			(sum, r) => sum + toCents(String(r.finalValue ?? '0')),
+			0n,
+		);
 		const stats = {
 			total: rows.length,
 			pending: rows.filter((r) => r.status === "pending").length,
@@ -440,10 +497,7 @@ export async function getBudgetStats(clinicId: string): Promise<{
 			accepted: rows.filter((r) => r.status === "accepted").length,
 			rejected: rows.filter((r) => r.status === "rejected").length,
 			converted: rows.filter((r) => r.status === "converted").length,
-			total_value: rows.reduce(
-				(sum, r) => sum + (Number(r.finalValue) || 0),
-				0,
-			),
+			total_value: Number(totalValueCents) / 100,
 			conversion_rate: 0,
 		};
 		const totalResponded = stats.accepted + stats.rejected + stats.converted;
@@ -504,7 +558,7 @@ export async function getBudgetWithInstallments(
 				({
 					id: i.id,
 					budget_id: i.budgetId,
-					amount: Number(i.amount) || 0,
+					amount: Number(toCents(String(i.amount ?? '0'))) / 100,
 					due_date: (i.dueDate as unknown as string) || "",
 					status: i.status || "pending",
 					paid_at: i.paidAt ? i.paidAt.toISOString() : null,

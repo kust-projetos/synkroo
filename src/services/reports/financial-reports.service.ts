@@ -11,6 +11,7 @@ import { eq, and, gte, lte, lt, or, isNull, inArray, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { budgets, budgetItems, payments, patients, treatmentPlans } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
+import { toCents } from '@/modules/financeiro'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -129,42 +130,90 @@ export async function getFinancialReport(clinicId: string, period: PeriodType, d
       .select({ amount: payments.amount, paidAt: payments.paidAt, budgetId: payments.budgetId })
       .from(payments).where(and(eq(payments.clinicId, clinicId), gte(payments.paidAt, start), lte(payments.paidAt, end)))
 
-    let revenue = 0
-    const procMap = new Map<string, ProcedureBreakdown>()
+    // Precisão monetária (SYNK-IMPL-FLOATS): toda a agregação em centavos
+    // bigint; a conversão para number só ocorre na borda de saída
+    // (Number(cents)/100 — duplo exato do decimal, sem aritmética float).
+    let revenueCents = 0n
+    const procRevenueCents = new Map<string, bigint>()
+    const procPaymentsCents = new Map<string, bigint>()
+    const procMeta = new Map<string, string>()
     for (const b of budgetRows) {
-      revenue += Number(b.finalValue ?? 0)
+      revenueCents += toCents(String(b.finalValue ?? '0'))
       for (const item of itemRows.filter(i => i.budgetId === b.id)) {
         const pid = item.procedureId || 'unknown'
-        let breakdown = procMap.get(pid)
-        if (!breakdown) { breakdown = { procedureId: pid, procedureName: item.procedureName || 'Procedimento', revenue: 0, payments: 0 }; procMap.set(pid, breakdown) }
-        breakdown.revenue += Number(item.totalPrice ?? 0)
+        if (!procMeta.has(pid)) procMeta.set(pid, item.procedureName || 'Procedimento')
+        procRevenueCents.set(pid, (procRevenueCents.get(pid) ?? 0n) + toCents(String(item.totalPrice ?? '0')))
       }
     }
 
-    let totalPayments = 0
+    let totalPaymentsCents = 0n
     for (const p of paymentRows) {
-      totalPayments += Number(p.amount ?? 0)
+      const payCents = toCents(String(p.amount ?? '0'))
+      totalPaymentsCents += payCents
       if (p.budgetId) {
         const bgt = budgetRows.find(b => b.id === p.budgetId)
         if (bgt) {
           const items = itemRows.filter(i => i.budgetId === bgt.id)
-          for (const item of items) {
-            const breakdown = procMap.get(item.procedureId || 'unknown')
-            if (breakdown && Number(bgt.finalValue) > 0) {
-              breakdown.payments += Number(p.amount ?? 0) * (Number(item.totalPrice ?? 0) / Number(bgt.finalValue))
+          if (items.length > 0) {
+            // Rateio proporcional exato (largest remainder canônico) contra
+            // W = soma dos pesos CLAMPADOS (item.totalPrice em centavos,
+            // negativo/inválido = 0) — NÃO contra budget.finalValue: com
+            // desconto global (itens 100+100, final 180) o denominador
+            // finalValue faria as quotas somarem ~200, não 180.
+            // Simétrico: calcula sobre |payCents| e reaplica o sinal, de modo
+            // que soma(quota) == payCents para qualquer sinal de payCents.
+            // POLÍTICA W == 0: nenhuma linha de alocação — pagamento sem itens
+            // com peso não é atribuível a procedimento; a agregação de receita
+            // do relatório não depende dessas linhas (PROIBIDO inventar linha
+            // pseudo-procedimento para "preservar soma").
+            const weights = items.map(i => {
+              try {
+                const w = toCents(String(i.totalPrice ?? '0'))
+                return w < 0n ? 0n : w
+              } catch {
+                return 0n
+              }
+            })
+            const W = weights.reduce((a, b) => a + b, 0n)
+            if (W > 0n) {
+              const sign = payCents < 0n ? -1n : 1n
+              const absPay = payCents < 0n ? -payCents : payCents
+              const floors = weights.map(w => (absPay * w) / W)
+              const remainders = weights.map((w, idx) => ({ idx, rem: (absPay * w) % W }))
+              let distributed = floors.reduce((a, b) => a + b, 0n)
+              // Ordem estável/determinística: maior resíduo primeiro, índice como desempate.
+              remainders.sort((a, b) => (a.rem > b.rem ? -1 : a.rem < b.rem ? 1 : a.idx - b.idx))
+              const shares = [...floors]
+              for (const { idx } of remainders) {
+                if (distributed >= absPay) break
+                shares[idx] += 1n
+                distributed += 1n
+              }
+              items.forEach((item, idx) => {
+                const pid = item.procedureId || 'unknown'
+                if (!procMeta.has(pid)) procMeta.set(pid, item.procedureName || 'Procedimento')
+                procPaymentsCents.set(pid, (procPaymentsCents.get(pid) ?? 0n) + shares[idx] * sign)
+              })
             }
           }
         }
       }
     }
 
-    const outstanding = revenue - totalPayments
+    const outstandingCents = revenueCents - totalPaymentsCents
+    const toNum = (c: bigint): number => Number(c) / 100
+    const byProcedure: ProcedureBreakdown[] = [...procMeta.entries()].map(([pid, procedureName]) => ({
+      procedureId: pid,
+      procedureName,
+      revenue: toNum(procRevenueCents.get(pid) ?? 0n),
+      payments: toNum(procPaymentsCents.get(pid) ?? 0n),
+    }))
     return {
       period: formatPeriodString(period, date),
-      revenue: Math.round(revenue * 100) / 100,
-      payments: Math.round(totalPayments * 100) / 100,
-      outstanding: Math.round(outstanding * 100) / 100,
-      byProcedure: [...procMap.values()].map(b => ({ ...b, revenue: Math.round(b.revenue * 100) / 100, payments: Math.round(b.payments * 100) / 100 })),
+      revenue: toNum(revenueCents),
+      payments: toNum(totalPaymentsCents),
+      outstanding: toNum(outstandingCents),
+      byProcedure,
     }
   } catch (error) {
     dbLogger.error('Error in getFinancialReport', error)

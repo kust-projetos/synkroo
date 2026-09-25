@@ -231,4 +231,45 @@ describe('T1 dispatchChargeJob — isolamento por clínica', () => {
     await expect(dispatchChargeJob(job)).resolves.toBeUndefined();
     expect(providerMock.createCharge).toHaveBeenCalledWith(expect.objectContaining({ clinicId: clinicA }));
   });
+
+  test('precisão: amount de 2 decimais passa normalizado e exato (100.01 → 100.01)', async () => {
+    const job: any = {
+      id: 'job-7',
+      clinicId: clinicA,
+      operation: 'financeiro.charge.create',
+      businessKey: 'charge:create:clinicA:budgetA',
+      payload: {
+        chargeId: chargeA,
+        gatewayId: gatewayA,
+        amount: 100.01,
+        dueDate: '2026-08-10',
+      },
+      status: 'pending',
+      attempts: 0,
+    };
+
+    await expect(dispatchChargeJob(job)).resolves.toBeUndefined();
+    expect(providerMock.createCharge).toHaveBeenCalledWith(expect.objectContaining({ amount: 100.01 }));
+  });
+
+  test('precisão: artefato float (0.1+0.2) é rejeitado antes de qualquer chamada externa', async () => {
+    const job: any = {
+      id: 'job-8',
+      clinicId: clinicA,
+      operation: 'financeiro.charge.create',
+      businessKey: 'charge:create:clinicA:budgetA',
+      payload: {
+        chargeId: chargeA,
+        gatewayId: gatewayA,
+        amount: 0.1 + 0.2, // 0.30000000000000004 — não é decimal exato de 2 casas
+        dueDate: '2026-08-10',
+      },
+      status: 'pending',
+      attempts: 0,
+    };
+
+    await expect(dispatchChargeJob(job)).rejects.toThrow();
+    expect(providerMock.createCharge).not.toHaveBeenCalled();
+    expect(mockUpdatePaymentChargeForClinic).not.toHaveBeenCalled();
+  });
 });

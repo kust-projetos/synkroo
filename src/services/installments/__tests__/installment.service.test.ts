@@ -26,4 +26,20 @@ describe('Installment Service', () => {
   it('getRemainingBalance no budget', async () => { seed([]); const r = await getRemainingBalance('b1'); expect(r).toBe(0) })
   it('markInstallmentPaid', async () => { seed([mk({ status: 'paid', paidAt: new Date(), paymentId: 'p1' })]); const r = await markInstallmentPaid('i1', 'p1'); expect(r?.status).toBe('paid') })
   it('deleteInstallment throws if paid', async () => { seed([mk({ status: 'paid' })]); await expect(deleteInstallment('i1')).rejects.toThrow('Cannot delete') })
+
+  describe('precisão monetária (centavos exatos)', () => {
+    it('1.00 − (0.10 + 0.20) = exatamente 0.70 (float daria 0.6999999999999999)', async () => {
+      seed([{ finalValue: '1.00' }], [{ amount: '0.10', status: 'paid' }, { amount: '0.20', status: 'paid' }]);
+      await expect(getRemainingBalance('b1')).resolves.toBe(0.7)
+    })
+    it('0.30 − (0.10 + 0.20) = exatamente 0', async () => {
+      seed([{ finalValue: '0.30' }], [{ amount: '0.10', status: 'paid' }, { amount: '0.20', status: 'paid' }]);
+      await expect(getRemainingBalance('b1')).resolves.toBe(0)
+    })
+    it('mapeia amount canônico sem drift (0.10 → 0.1 exato)', async () => {
+      seed([mk({ amount: '0.10' })]);
+      const r = await getInstallmentsByBudget('b1');
+      expect(r[0].amount).toBe(0.1)
+    })
+  })
 })

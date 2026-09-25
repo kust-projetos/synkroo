@@ -8,6 +8,7 @@ import {
 import { dispatchNextOutbox } from '@/lib/outbox/dispatch-outbox';
 import type { OutboxJob } from '@/lib/outbox/outbox-repository';
 import type { GatewayProvider } from '../gateways/contracts';
+import { toCents } from './money';
 
 export async function dispatchChargeJob(job: OutboxJob): Promise<void> {
   const clinicId = job.clinicId;
@@ -31,9 +32,13 @@ export async function dispatchChargeJob(job: OutboxJob): Promise<void> {
   if (!provider) throw new Error('PAYMENT_GATEWAY_PROVIDER_NOT_REGISTERED');
 
   if (job.operation === 'financeiro.charge.create') {
+    // Valida o amount em centavos exatos antes de qualquer chamada externa:
+    // rejeita artefatos float (>2 decimais) e normaliza para o duplo exato
+    // do decimal — o contrato do provider (amount: number) é preservado.
+    const amountCents = toCents(payload.amount as string | number);
     const result = await provider.createCharge({
       clinicId,
-      amount: Number(payload.amount),
+      amount: Number(amountCents) / 100,
       dueDate: String(payload.dueDate),
       customerName: 'Cliente',
       idempotencyKey: job.businessKey,
