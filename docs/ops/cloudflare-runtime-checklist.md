@@ -83,10 +83,17 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
 
 ## 8. Backups / restore
 
-- ❌ Nenhum artefato de backup/restore no repo.
-- **PENDENTE-RUNTIME:** definir RPO/RTO, rotina de dump do Postgres, teste de
-  restore documentado e recibo do drill (cf.
-  `docs/ops/outage-drill-matrix.md`).
+- ✅ Artefatos no repo: `scripts/db-backup.mjs` (dump `pg_dump -Fc` + gzip +
+  `.sha256`; modos `--local` via `docker exec synkroo-db` e `--url
+  $DATABASE_URL` p/ VPS; retenção `--keep`, padrão 7 dias; connection string
+  nunca exibida) e `scripts/db-restore.mjs` (dry-run por padrão, restore real
+  só com `--yes`, verificação pós-restore das tabelas core `clinics`, `users`,
+  `patients`, `appointments`); rotina + cron sugerido (dump diário 02:00 UTC)
+  + roteiro do drill em `docs/runbooks/database-recovery.md` §2.3 (RPO ≤ 24 h
+  / RTO ≤ 4 h seguem **A CONFIRMAR pelo owner**).
+- **PENDENTE-RUNTIME:** drill real de restore contra backup de produção com
+  recibo no checklist do runbook (§5) + confirmação de RPO/RTO pelo owner
+  (cf. `docs/ops/outage-drill-matrix.md`).
 
 ## 9. Request IDs em produção
 

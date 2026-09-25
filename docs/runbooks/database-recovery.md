@@ -82,6 +82,58 @@ confere com a cadeia canônica e o smoke de liveness contra esse banco passa
 um backup real de produção é PENDENTE-RUNTIME** — requer acesso ao backup de
 produção e não é executável nesta sessão.
 
+### 2.3. Rotina de backup (scripts do repo)
+
+Artefatos canônicos (sem segredos no repo; a connection string nunca é aceita
+via argv nem exibida em logs — só o rótulo seguro `host/dbname` é impresso):
+
+| Artefato | Caminho | Uso |
+|---|---|---|
+| Backup | `scripts/db-backup.mjs` | dump `pg_dump -Fc` + gzip + `.sha256`, retenção por idade |
+| Restore | `scripts/db-restore.mjs` | dry-run por padrão; restore real só com `--yes`; verificação pós-restore (contagem de `clinics`, `users`, `patients`, `appointments`) |
+
+```bash
+# Local (dump via docker exec no container synkroo-db — pg_dump roda DENTRO
+# do container, não precisa de cliente Postgres no host):
+node scripts/db-backup.mjs --local
+node scripts/db-backup.mjs --local --out-dir ./backups --keep 7
+
+# VPS/staging (pg_dump direto; exige postgresql-client no host; a string de
+# conexão vem SOMENTE de $DATABASE_URL do processo — nunca via argv, nunca
+# exibida em logs; só o rótulo host/dbname é impresso):
+DATABASE_URL="..." node scripts/db-backup.mjs --url --out-dir /var/backups/synkroo
+
+# Restore — DRY-RUN por padrão (nada é alterado, exit 0):
+node scripts/db-restore.mjs ./backups/synkroo-<timestamp>.dump.gz --local
+# Restore real (destrutivo no alvo — exige confirmação explícita):
+node scripts/db-restore.mjs ./backups/synkroo-<timestamp>.dump.gz --local --yes
+```
+
+Agendamento sugerido na VPS (atende o RPO ≤ 24 h proposto em §1 —
+**RPO/RTO seguem A CONFIRMAR pelo owner**, ver §1):
+
+```cron
+# crontab na VPS — dump diário 02:00 UTC, retenção de 7 dias
+# (DATABASE_URL exportada no ambiente do cron; nunca inline como argumento)
+0 2 * * * /usr/bin/node /opt/synkroo/scripts/db-backup.mjs --url --out-dir /var/backups/synkroo --keep 7 >> /var/log/synkroo-backup.log 2>&1
+```
+
+Regras: nunca manter o único exemplar no mesmo volume de dados do banco;
+copiar para off-host; registrar hash + data no checklist (§6).
+
+Restore drill (roteiro testável — registrar recibo no checklist §6):
+
+1. `DATABASE_URL="..." node scripts/db-backup.mjs --url` (gera
+   `synkroo-<timestamp>.dump.gz` + `.sha256`).
+2. Subir alvo isolado (Opção A ou B do §2.2 — **nunca** produção/dev local).
+3. Dry-run: `node scripts/db-restore.mjs <arquivo>.dump.gz --local`
+   (mostra o plano, exit 0, sem alterar dados).
+4. Restore real no alvo isolado: mesmo comando + `--yes`.
+5. Conferir a verificação pós-restore impressa pelo script (contagem das 4
+   tabelas core) + ledger de migrations (§2.2) + smoke (§4).
+6. Preencher o bloco de evidência do §5. **Drill real contra backup de
+   produção: PENDENTE — requer confirmação de RPO/RTO pelo owner.**
+
 ## 3. Runbooks por cenário
 
 Ordem geral em qualquer cenário: conter → preservar evidência (backup do
