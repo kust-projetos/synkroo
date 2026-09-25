@@ -66,8 +66,16 @@ describe('Catalog Service - Dentistas (F5.02)', () => {
     const result = await service.obterDentista('c1', 'd1');
     expect(result).toEqual(expect.objectContaining({ id: 'd1', name: 'Dr. Silva' }));
 
-    const crossResult = await service.obterDentista('c2', 'd1');
-    expect(crossResult).toBeNull();
+    // Opacidade cross-tenant: mesmo contrato 404 de recurso inexistente
+    await expect(service.obterDentista('c2', 'd1')).rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('obter dentista inexistente → not_found (404 opaco)', async () => {
+    mockedRepo.findDentistById.mockResolvedValue(null);
+    await expect(service.obterDentista('c1', 'missing')).rejects.toMatchObject({
+      code: 'not_found',
+      message: 'Dentista não encontrado.',
+    });
   });
 
   it('atualiza e desativa dentista (PATCH/DELETE logic)', async () => {
@@ -77,6 +85,16 @@ describe('Catalog Service - Dentistas (F5.02)', () => {
     const result = await service.atualizarDentista('c1', 'd1', { isActive: false });
     expect(result).toEqual(expect.objectContaining({ id: 'd1', isActive: false }));
     expect(mockedRepo.updateDentist).toHaveBeenCalledWith('d1', { isActive: false });
+  });
+
+  it('atualizar dentista inexistente ou cross-tenant → not_found sem escrever', async () => {
+    mockedRepo.findDentistById.mockResolvedValue(null);
+
+    await expect(service.atualizarDentista('c1', 'missing', { name: 'X' })).rejects.toMatchObject({
+      code: 'not_found',
+      message: 'Dentista não encontrado.',
+    });
+    expect(mockedRepo.updateDentist).not.toHaveBeenCalled();
   });
 });
 
@@ -119,5 +137,22 @@ describe('Catalog Service - Procedimentos (F5.06)', () => {
 
     const updated = await service.atualizarProcedimento('c1', 'proc-1', { price: '300.00' });
     expect(updated).toEqual(expect.objectContaining({ id: 'proc-1', price: '300.00' }));
+  });
+
+  it('obter procedimento inexistente ou cross-tenant → not_found (404 opaco)', async () => {
+    mockedRepo.findProcedureById.mockResolvedValue(null);
+    await expect(service.obterProcedimento('c1', 'missing')).rejects.toMatchObject({
+      code: 'not_found',
+      message: 'Procedimento não encontrado.',
+    });
+  });
+
+  it('atualizar procedimento inexistente ou cross-tenant → not_found sem escrever', async () => {
+    mockedRepo.findProcedureById.mockResolvedValue(null);
+
+    await expect(
+      service.atualizarProcedimento('c1', 'missing', { price: '300.00' }),
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Procedimento não encontrado.' });
+    expect(mockedRepo.updateProcedure).not.toHaveBeenCalled();
   });
 });

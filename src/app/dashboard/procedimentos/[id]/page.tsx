@@ -11,14 +11,18 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface Procedure {
   id: string
   name: string
-  description: string
-  duration_minutes: number
-  price: number
-  is_active: boolean
+  description?: string | null
+  // Canônico (Drizzle/camelCase) + legado (snake_case) — API retorna camelCase
+  durationMinutes?: number | string | null
+  duration_minutes?: number | string | null
+  price?: number | string | null
+  isActive?: boolean
+  is_active?: boolean
 }
 
 export default function ProcedimentoDetalhePage() {
@@ -29,6 +33,7 @@ export default function ProcedimentoDetalhePage() {
 
   const [procedure, setProcedure] = useState<Procedure | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({
     name: '',
@@ -46,18 +51,32 @@ export default function ProcedimentoDetalhePage() {
   const fetchProcedure = async () => {
     try {
       const response = await fetch(`/api/procedures/${procedureId}?clinic_id=${profile?.clinic_id}`)
+      // 404 canônico (inexistente ou cross-tenant opaco) → estado "não encontrado"
+      if (response.status === 404) {
+        setProcedure(null)
+        return
+      }
       if (response.ok) {
-        const data = await response.json()
-        setProcedure(data.procedure)
+        const body = await response.json()
+        // Envelope canônico { data } (com fallback legado { procedure })
+        const item = (body?.data ?? body?.procedure ?? null) as Procedure | null
+        if (!item) {
+          setProcedure(null)
+          return
+        }
+        setProcedure(item)
         setForm({
-          name: data.procedure.name,
-          description: data.procedure.description || '',
-          duration_minutes: data.procedure.duration_minutes || 30,
-          price: data.procedure.price || 0,
+          name: item.name ?? '',
+          description: item.description || '',
+          duration_minutes: Number(item.durationMinutes ?? item.duration_minutes ?? 30) || 30,
+          price: Number(item.price ?? 0) || 0,
         })
+      } else {
+        setError('Falha ao carregar dados do procedimento')
       }
     } catch (error) {
       console.error('Error fetching procedure:', error)
+      setError('Falha ao carregar dados do procedimento')
     } finally {
       setIsLoading(false)
     }
@@ -71,10 +90,17 @@ export default function ProcedimentoDetalhePage() {
 
   const handleUpdate = async () => {
     try {
+      // Payload em chaves canônicas (a action ignora chaves desconhecidas)
+      const payload = {
+        name: form.name,
+        description: form.description,
+        durationMinutes: form.duration_minutes,
+        price: String(form.price),
+      }
       const response = await fetch(`/api/procedures/${procedureId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
@@ -118,9 +144,37 @@ export default function ProcedimentoDetalhePage() {
     )
   }
 
-  if (!user || !profile || !procedure) {
+  if (!user || !profile) {
     return null
   }
+
+  if (error) {
+    return (
+      <div className="p-4 lg:p-8">
+        <EmptyState
+          title="Erro ao carregar"
+          description={error}
+          action={{ label: "Tentar novamente", onClick: fetchProcedure }}
+        />
+      </div>
+    )
+  }
+
+  if (!procedure) {
+    return (
+      <div className="p-4 lg:p-8">
+        <EmptyState
+          title="Procedimento não encontrado"
+          description="O procedimento que você está procurando não existe ou foi removido."
+          action={{ label: "Voltar para lista", onClick: () => router.push('/dashboard/procedimentos') }}
+        />
+      </div>
+    )
+  }
+
+  const isActive = procedure.isActive ?? procedure.is_active ?? false
+  const durationDisplay = Number(procedure.durationMinutes ?? procedure.duration_minutes ?? 30) || 30
+  const priceValue = Number(procedure.price ?? 0) || 0
 
   const actions = editing ? undefined : (
     <>
@@ -139,7 +193,7 @@ export default function ProcedimentoDetalhePage() {
     <DetailPage
       title={editing ? 'Editar Procedimento' : procedure.name}
       backHref="/dashboard/procedimentos"
-      status={editing ? undefined : { type: procedure.is_active ? 'success' : 'error', label: procedure.is_active ? 'Ativo' : 'Inativo' }}
+      status={editing ? undefined : { type: isActive ? 'success' : 'error', label: isActive ? 'Ativo' : 'Inativo' }}
       actions={actions}
     >
       <Card className="max-w-2xl p-6">
@@ -206,14 +260,14 @@ export default function ProcedimentoDetalhePage() {
                   <ClockIcon className="h-4 w-4" />
                   Duração
                 </p>
-                <p className="font-medium text-foreground">{procedure.duration_minutes} minutos</p>
+                <p className="font-medium text-foreground">{durationDisplay} minutos</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground flex items-center gap-1">
                   <CurrencyDollarIcon className="h-4 w-4" />
                   Preço
                 </p>
-                <p className="font-medium text-teal-600 text-lg">{formatPrice(procedure.price)}</p>
+                <p className="font-medium text-teal-600 text-lg">{formatPrice(priceValue)}</p>
               </div>
             </div>
           </div>
