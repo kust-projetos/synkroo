@@ -130,3 +130,6 @@ dayprof_after.txt
 
 # Generated Stryker reports; durable metrics live in docs/superpowers/audits/
 reports/mutation/
+
+# Database backup artifacts (scripts/db-backup.mjs)
+backups/
