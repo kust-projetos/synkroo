@@ -63,7 +63,25 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   `localConnectionString`); resolvido SEM alterar `wrangler.toml`/código via
   env var de processo
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` apontando ao
-  Postgres local documentado — `wrangler.toml` intacto.
+   Postgres local documentado — `wrangler.toml` intacto.
+- ✅ Evidência PRODUÇÃO 2026-09-25 (fecha o item no plano config+binding —
+  dashboard visual segue opcional): `npm run build:cf` OK sem env extra (prod
+  tem `localConnectionString` em `wrangler.toml:40`); `npm run deploy:cf`
+  (`opennextjs-cloudflare deploy`, SEM `--env`) OK → worker `synkroo`
+  `https://synkroo.walissonead.workers.dev`, Version ID
+  `fd5197a7-50db-4401-8b92-3f8663d1c302`. Bindings confirmados no output:
+  `AGENT` via `synkroo-ia-agent`, `NEXT_INC_CACHE_KV 8f2a4d...`, `HYPERDRIVE
+  be5a789a...`, `IA_HANDLE_ISSUER`→`synkroo-ia-bridge#HandleIssuerService`,
+  `WORKER_SELF_REFERENCE`→`synkroo`, `ASSETS`, `schedule: */5 * * * *`
+  (475 assets, 3 novos, startup 42 ms). Liveness: `GET /api/health` → 200
+  `{"status":"ok",...}`; `GET /api/health/db` → 200
+  `{"data":{"status":"complete","complete":true,"migrationsApplied":33,"migrationsExpected":33}}`
+  (33/33 — prod à frente do staging, que estava 30/33);
+  `node scripts/smoke-deploy.mjs https://synkroo.walissonead.workers.dev` →
+  liveness/auth-pipeline/db/middleware pass, workers skipped by design, exit 0.
+  Nota: deploy emitiu warning de que `DOQueueHandler` não é exportado do
+  worker (só afeta chamadas diretas a esse DO; deploy e smoke íntegros) —
+  registrado como risco, sem alteração de código nesta etapa.
 
 ## 2. Secrets por ambiente
 
@@ -87,7 +105,15 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   `SEED_SECRET`, `WEBHOOK_SECRET`, `WHATSAPP_APP_SECRET`,
   `WHATSAPP_VERIFY_TOKEN`. Nenhum valor exibido, criado ou alterado (nenhum
   `secret put/delete` executado). Divergências de nomes entre ambientes
-  registradas, sem juízo de valor — rotação/valores seguem fora de escopo.
+   registradas, sem juízo de valor — rotação/valores seguem fora de escopo.
+- ✅ Reconfirmação PRODUÇÃO 2026-09-25 (NOMES apenas, sem valores):
+  `npx wrangler secret list` (default/prod) → mesmos 13 nomes
+  (`AUTH_SECRET`, `AUTH_URL`, `CRON_SECRET`, `EVOLUTION_API_KEY`,
+  `EVOLUTION_API_URL`, `EVOLUTION_INSTANCE_NAME`,
+  `EVOLUTION_WEBHOOK_SECRET`, `JWT_SECRET`, `NEXTAUTH_URL`, `SEED_SECRET`,
+  `WEBHOOK_SECRET`, `WHATSAPP_FALLBACK_SECRET`, `WHATSAPP_FALLBACK_URL`);
+  nenhum `secret put/delete` executado. `CRON_SECRET` + `WEBHOOK_SECRET`
+  presentes em prod — coerente com os 401 medidos no §11.
 
 ## 3. Limites CPU / subrequests / payload
 
@@ -118,7 +144,14 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   vazamento); `GET /api/patients` sem cookie → 307
   `Location: /login?redirectTo=%2Fapi%2Fpatients` (middleware). Flags
   `Secure/HttpOnly/SameSite` + prefixo `__Secure-`/`__Host-` + bypass de dev
-  seguem exigindo sessão autenticada real em staging/prod.
+   seguem exigindo sessão autenticada real em staging/prod.
+- ✅ Evidência PRODUÇÃO 2026-09-25 (parcial — mesmo limite: sem sessão
+  autenticada não há flags para auditar, item segue PENDENTE-RUNTIME para
+  `Secure/HttpOnly/SameSite`/prefixo): `curl.exe -s -D -` em
+  `https://synkroo.walissonead.workers.dev/api/auth/session` → 200 (sem
+  vazamento, corpo `authenticated:false`) e `/api/patients` → 307
+  `Location: /login?redirectTo=%2Fapi%2Fpatients` — NENHUM `Set-Cookie` em
+  respostas anônimas (correto). Bypass de dev não observado em prod.
 
 ## 5. Headers (CSP / HSTS)
 
@@ -139,10 +172,21 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:;
   frame-ancestors 'none'; base-uri 'self'; form-action 'self'` (nome do header
   em minúsculas via edge, trade-off `unsafe-inline`/`unsafe-eval` confirmado
-  em runtime); `x-content-type-options: nosniff`; `x-frame-options: DENY`;
-  `referrer-policy: strict-origin-when-cross-origin`; `permissions-policy:
-  camera=(), microphone=(), geolocation=()`. Prod + stripping por proxy/CDN
-  seguem PENDENTE-RUNTIME.
+   em runtime); `x-content-type-options: nosniff`; `x-frame-options: DENY`;
+   `referrer-policy: strict-origin-when-cross-origin`; `permissions-policy:
+   camera=(), microphone=(), geolocation=()`. Prod + stripping por proxy/CDN
+   seguem PENDENTE-RUNTIME.
+- ✅ Evidência PRODUÇÃO 2026-09-25 (`curl.exe -sI`
+  `https://synkroo.walissonead.workers.dev/` + `/login`, ambos 200, e
+  headers de `/api/auth/session` + `/api/patients`): TODOS os headers do
+  contrato presentes — `Strict-Transport-Security: max-age=31536000;
+  includeSubDomains`, CSP idêntica ao staging (`frame-ancestors 'none'`,
+  trade-off `unsafe-inline`/`unsafe-eval` confirmado), `x-frame-options:
+  DENY`, `x-content-type-options: nosniff`, `referrer-policy:
+  strict-origin-when-cross-origin`, `permissions-policy: camera=(),
+  microphone=(), geolocation=()`. HSTS em prod confirmado em runtime
+  (fecha a metade "prod" do item; stripping por proxy/CDN à frente do
+  Worker segue PENDENTE-RUNTIME).
 
 ## 6. CORS / CSRF
 
@@ -211,7 +255,17 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   /api/messages/send` (307) — header `x-request-id` AUSENTE em todas as
   respostas de borda observadas (busca case-insensitive; só `CF-RAY` de
   correlação edge presente). Correlação ponta a ponta `ia/chat` → DO →
-  provider e workers `ia-agent`/`ia-bridge` não validados.
+   provider e workers `ia-agent`/`ia-bridge` não validados.
+- ✅ Evidência negativa PRODUÇÃO 2026-09-25 (item segue PENDENTE-RUNTIME):
+  dumps `curl.exe -s -D -` em `/` + `/login` (200), `/api/health` (200),
+  `/api/auth/session` (200), `/api/patients` (307) e `POST
+  /api/messages/send` não testado em prod — header `x-request-id` AUSENTE
+  em todas as respostas de borda (só `CF-RAY` presente). Observação nova:
+  `POST /api/cron/cleanup` sem secret → 401 com `requestId` NO CORPO
+  (`{"error":{"code":"UNAUTHORIZED",...,"requestId":"0f6149f4-..."}}`) —
+  o app gera correlation ID mesmo rejeitando, mas não o ecoa como header
+  `x-request-id`. Correlação ponta a ponta `ia/chat` → DO → provider e
+  workers seguem não validados.
 
 ## 10. Rate limiting distribuído
 
@@ -232,7 +286,17 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   (`timingSafeEqual` rejeita ausente como esperado). Trigger agendado
   provisionado no deploy staging (`schedule: */5 * * * *`, deploy output).
   Disparo agendado real sob clock + `CRON_SECRET` por ambiente + 5 jobs sem
-  limiter seguem PENDENTE-RUNTIME.
+   Disparo agendado real sob clock + `CRON_SECRET` por ambiente + 5 jobs sem
+   limiter seguem PENDENTE-RUNTIME.
+- ✅ Evidência PRODUÇÃO 2026-09-25 (contrato validado sem expor o valor):
+  `curl.exe -X POST https://synkroo.walissonead.workers.dev/api/cron/reminders`
+  sem secret → 401 `{"error":"Unauthorized"}`; `POST .../api/cron/cleanup`
+  sem secret → 401 com envelope + `requestId` no corpo. Trigger agendado
+  provisionado no deploy prod (`schedule: */5 * * * *`, deploy output).
+  Nota: formato do corpo 401 difere entre as duas rotas (reminders simples
+  vs cleanup envelope com `requestId`) — inconsistência cosmética registrada,
+  sem alteração. Disparo agendado real sob clock + 5 jobs sem limiter seguem
+  PENDENTE-RUNTIME.
 
 ## 12. Observabilidade
 
