@@ -36,9 +36,9 @@ test('suppression file is fingerprint inventory, not a broad allowlist', () => {
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#'))
 
-  // 19 = 5 false-positivos de docs + 14 fixtures de teste (pós reescrita de
-  // histórico de 2026-09-25, que eliminou as suppressions por hash de commit).
-  assert.equal(entries.length, 19)
+  // 31 = 13 docs placeholder + 16 fixtures/CI + 2 fingerprints completos de
+  // commits reescritos (pós reescrita de histórico de 2026-09-25).
+  assert.equal(entries.length, 31)
   assert.ok(entries.every((entry) => entry.includes(':')))
   assert.ok(!entries.some((entry) => entry === '*' || entry === '.*' || entry.includes('**/')))
 

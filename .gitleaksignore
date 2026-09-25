@@ -11,10 +11,19 @@
 docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:62
 docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:67
 docs/GUIA-CONFIGURACAO.md:curl-auth-header:176
+docs/GUIA-CONFIGURACAO.md:curl-auth-header:177
 docs/GUIA-CONFIGURACAO.md:curl-auth-header:184
+docs/GUIA-CONFIGURACAO.md:curl-auth-header:185
+docs/DATABASE_SETUP.md:generic-api-key:37
+docs/DATABASE_SETUP.md:generic-api-key:38
+docs/supabase-setup.md:generic-api-key:42
+docs/supabase-setup.md:generic-api-key:43
 docs/superpowers/plans/2026-06-19-fechamento-fundacao-rbac.md:generic-api-key:139
+scripts/setup-env.sh:generic-api-key:17
+scripts/setup-env.sh:generic-api-key:62
 
 # — TEST: Fixtures com valores placeholder/mock —
+.github/workflows/ci.yml:jwt:40
 src/components/pi-finance/__tests__/pi-finance-app.test.tsx:generic-api-key:12
 src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:81
 src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:86
@@ -25,7 +34,11 @@ src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-acces
 src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:299
 src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:306
 src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:307
+# Histórico pós-rewrite (commits reescritos — fingerprint completo necessário)
+c8a6b57db9579b8a8981779ea40f1ddae9752b5d:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:170
+cdda2aab65c8e4041f94a17df0e7850e93aa094e:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:170
 src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:17
 src/repositories/auth/__tests__/integration.test.ts:generic-api-key:44
+src/repositories/auth/__tests__/integration.test.ts:generic-api-key:45
 src/repositories/auth/__tests__/integration.test.ts:generic-api-key:46
 src/repositories/auth/__tests__/integration.test.ts:generic-api-key:49
