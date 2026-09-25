@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
         .select({
           total: sql<number>`count(*)::int`,
           confirmed: sql<number>`count(*) filter (where ${appointmentsTable.status} = 'confirmed')::int`,
-          pending: sql<number>`count(*) filter (where ${appointmentsTable.status} in ('scheduled', 'pending'))::int`,
+          pending: sql<number>`count(*) filter (where ${appointmentsTable.status} = 'scheduled')::int`,
         })
         .from(appointmentsTable)
         .where(
