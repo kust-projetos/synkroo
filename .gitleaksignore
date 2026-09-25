@@ -1,104 +1,31 @@
 # Gitleaks ignore — somente fixtures de teste e false-positivos comprovados
-# Fase 0: todas as suppressions "confirmed" removidas.
+# Pós reescrita de histórico (2026-09-25): suppressions por hash de commit foram
+# removidas (os SHAs antigos deixaram de existir). Todas as entries atuais são
+# worktree/history-scoped (path:rule:line) — imunes a reescritas.
 # Credenciais reais expostas devem falhar o scanner.
-# O1-G01: cada entry abaixo permanece fingerprint-scoped; não adicionar wildcard/path suppressions.
-# O1-G01: confirmed-owner-action entries require an owner rotation receipt before removal.
-# Ver docs/security/credential-inventory.md para classificação completa.
+# Ver docs/security/credential-inventory.md para a classificação completa.
+# NOTA: os arquivos cobertos abaixo contêm APENAS valores placeholder/mock de
+# teste (verificados na auditoria pré-publicação de 2026-09-25).
 
-# ── FALSE-POSITIVE: Documentação e exemplos ──────────────────────
-# Entradas sem hash = worktree (--no-git) + todos os commits.
-# Entradas com hash = commit específico (histórico).
-
+# — FALSE-POSITIVE: Documentação e exemplos —
 docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:62
 docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:67
 docs/GUIA-CONFIGURACAO.md:curl-auth-header:176
 docs/GUIA-CONFIGURACAO.md:curl-auth-header:184
 docs/superpowers/plans/2026-06-19-fechamento-fundacao-rbac.md:generic-api-key:139
-d6138f853e156981eb2d25afb107a28bc7825928:docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:62
-d6138f853e156981eb2d25afb107a28bc7825928:docs/CONFIGURACAO-LEMBRETES.md:curl-auth-header:67
-d6138f853e156981eb2d25afb107a28bc7825928:docs/DATABASE_SETUP.md:generic-api-key:37
-d6138f853e156981eb2d25afb107a28bc7825928:docs/DATABASE_SETUP.md:generic-api-key:38
-d6138f853e156981eb2d25afb107a28bc7825928:docs/GUIA-CONFIGURACAO.md:curl-auth-header:177
-d6138f853e156981eb2d25afb107a28bc7825928:docs/GUIA-CONFIGURACAO.md:curl-auth-header:185
-d6138f853e156981eb2d25afb107a28bc7825928:docs/supabase-setup.md:generic-api-key:42
-d6138f853e156981eb2d25afb107a28bc7825928:docs/supabase-setup.md:generic-api-key:43
-d6138f853e156981eb2d25afb107a28bc7825928:scripts/setup-env.sh:generic-api-key:17
-d6138f853e156981eb2d25afb107a28bc7825928:scripts/setup-env.sh:generic-api-key:62
-8447795ec72935cfbecfbd2a7e074781342c6373:docs/superpowers/plans/2026-06-19-fechamento-fundacao-rbac.md:generic-api-key:139
-dd8422b5b237507fc5a2ee1a70ee3a07de145bc8:docs/superpowers/plans/2026-06-19-fechamento-fundacao-rbac.md:generic-api-key:139
 
-# CI placeholder (valor fake, não funcional)
-590fdd50fee083274d5b5d30ad506f045893bc07:.github/workflows/ci.yml:jwt:40
-
-# ── TEST: Fixtures de teste com valores placeholder/mock ────────
-# Entradas sem hash = worktree (--no-git) + todos os commits.
-
+# — TEST: Fixtures com valores placeholder/mock —
 src/components/pi-finance/__tests__/pi-finance-app.test.tsx:generic-api-key:12
 src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:81
 src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:86
 src/lib/pi-finance/seed.ts:generic-api-key:7
-src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:170
+src/modules/financeiro/__tests__/routes.test.ts:generic-api-key:78
+src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:generic-api-key:170
+src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:289
+src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:299
+src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:306
+src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:307
 src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:17
 src/repositories/auth/__tests__/integration.test.ts:generic-api-key:44
-00ca1bd0db3459fbd3c48b73ef6eb354bbefebc6:src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:20
-135f6478792342121994ce8ff29bf94f500da89e:src/modules/financeiro/__tests__/routes.test.ts:generic-api-key:78
-23c911429bb55f3aed47597eb4997cf32fbbef8f:src/lib/pi-finance/seed.ts:generic-api-key:7
-423e3bdc4df32a5ed69927b4d28416de13385374:src/components/pi-finance/__tests__/pi-finance-app.test.tsx:generic-api-key:12
-423e3bdc4df32a5ed69927b4d28416de13385374:src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:81
-423e3bdc4df32a5ed69927b4d28416de13385374:src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:86
-71d9e313f067cd49f11332520b52bffc23b832bc:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:generic-api-key:170
-71d9e313f067cd49f11332520b52bffc23b832bc:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:289
-71d9e313f067cd49f11332520b52bffc23b832bc:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:299
-71d9e313f067cd49f11332520b52bffc23b832bc:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:306
-71d9e313f067cd49f11332520b52bffc23b832bc:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:307
-8447795ec72935cfbecfbd2a7e074781342c6373:src/components/pi-finance/__tests__/pi-finance-app.test.tsx:generic-api-key:12
-8447795ec72935cfbecfbd2a7e074781342c6373:src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:81
-8447795ec72935cfbecfbd2a7e074781342c6373:src/components/pi-finance/__tests__/slice-c-drilldowns.test.tsx:generic-api-key:86
-8447795ec72935cfbecfbd2a7e074781342c6373:src/lib/pi-finance/seed.ts:generic-api-key:7
-8447795ec72935cfbecfbd2a7e074781342c6373:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:170
-8447795ec72935cfbecfbd2a7e074781342c6373:src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:17
-8447795ec72935cfbecfbd2a7e074781342c6373:src/repositories/auth/__tests__/integration.test.ts:generic-api-key:44
-9184e97b3bdade30299e957c80b08f24456298f9:src/repositories/auth/__tests__/integration.test.ts:generic-api-key:45
-
-# Commits alternativos (mesmos fixtures, rebase/cherry-pick)
-ae34c827073b4a7dd9691e2c6058591fbdf0faef:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:generic-api-key:170
-ae34c827073b4a7dd9691e2c6058591fbdf0faef:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:289
-ae34c827073b4a7dd9691e2c6058591fbdf0faef:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:299
-ae34c827073b4a7dd9691e2c6058591fbdf0faef:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:306
-ae34c827073b4a7dd9691e2c6058591fbdf0faef:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:307
-e399c4a90d3d3a8352db52045f388e0ef383f658:src/modules/financeiro/__tests__/routes.test.ts:generic-api-key:78
-a81414932f3ddfe35c1dff00a72ac77e167963d5:src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:20
-5a6d1bd90512c014af0d50d0520446d2caedee92:src/repositories/auth/__tests__/integration.test.ts:generic-api-key:45
-
-# Historical fixture/documentation placeholders after secret-history rewrite
-9da5d4edee82bdcdd8f1e92a0daa6bcd1975a65b:src/modules/financeiro/__tests__/routes.test.ts:generic-api-key:78
-6f3f32e68734f255bc930fdcebbf6c9fd811dfc1:src/modules/financeiro/__tests__/routes.test.ts:generic-api-key:78
-1e4388fba892e2b3ab91f70be23bb90c9cd512be:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:generic-api-key:170
-d7613b6de2b4519e2a6c458fd40cf05001736baf:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:generic-api-key:170
-1e4388fba892e2b3ab91f70be23bb90c9cd512be:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:289
-1e4388fba892e2b3ab91f70be23bb90c9cd512be:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:299
-1e4388fba892e2b3ab91f70be23bb90c9cd512be:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:306
-1e4388fba892e2b3ab91f70be23bb90c9cd512be:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:307
-d7613b6de2b4519e2a6c458fd40cf05001736baf:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:289
-d7613b6de2b4519e2a6c458fd40cf05001736baf:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:299
-d7613b6de2b4519e2a6c458fd40cf05001736baf:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:306
-d7613b6de2b4519e2a6c458fd40cf05001736baf:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:307
-b3a06369a26799f62fc145ad391805d2de6b6d1b:src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:20
-d7d8dbc68808b50303871c27109bae0b3ac7ed77:src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:20
-01fd57bc543a51632dd09601503e91e2512e75e6:src/repositories/auth/__tests__/integration.test.ts:generic-api-key:45
-05ad1df9df36a0c7f364ffcbf3356254f593f5e3:src/repositories/auth/__tests__/integration.test.ts:generic-api-key:45
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:docs/GUIA-CONFIGURACAO.md:curl-auth-header:177
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:docs/GUIA-CONFIGURACAO.md:curl-auth-header:185
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:docs/DATABASE_SETUP.md:generic-api-key:37
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:docs/DATABASE_SETUP.md:generic-api-key:38
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:docs/supabase-setup.md:generic-api-key:42
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:docs/supabase-setup.md:generic-api-key:43
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:scripts/setup-env.sh:generic-api-key:17
-b6f2bdaf2b48f86906adadbfeb6bc3cdd74ddd6a:scripts/setup-env.sh:generic-api-key:62
-716669617714dd61d614f1dd61d2d205b249e644:.github/workflows/ci.yml:jwt:40
-dda6bee48b3e0d0be975ea33d3927b1dbe279bab:scripts/seed-e2e-clinic.js:jwt:4
-7ba34ec2e8d0070ba0b7b617c768a03ae7a7eecd:scripts/seed-e2e-data.js:jwt:6
-9b79dc21b2a2ddb0d79d231bae37068e4592bd06:api-nemotron.bat:generic-api-key:2
-67f72ab6ad33c3ba7d6a0e84a80edeff5cdad26f:api-glm.bat:generic-api-key:2
-67f72ab6ad33c3ba7d6a0e84a80edeff5cdad26f:api-minimax.bat:generic-api-key:2
-ce6348bb3124e3cae377912ab8c61f8d37c144fc:scripts/seed-scale-data.js:jwt:11
+src/repositories/auth/__tests__/integration.test.ts:generic-api-key:46
+src/repositories/auth/__tests__/integration.test.ts:generic-api-key:49
