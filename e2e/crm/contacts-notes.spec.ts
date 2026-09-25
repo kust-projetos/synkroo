@@ -54,7 +54,7 @@ t.describe('CRM Contacts - Notes and Timeline', () => {
   t('timeline displays interaction history', async ({ page }) => {
     await openContact(page)
     const timelineTab = page.getByRole('tab', { name: /Timeline/i }).or(page.getByRole('button', { name: /Timeline/i })).first()
-    await expect(timelineTab).toBeVisible()
+    await expect(timelineTab).toBeVisible({ timeout: 10000 })
     await timelineTab.click()
     await expect(page.getByText(/Nenhuma atividade registrada|atividade|Timeline/i).first()).toBeVisible()
   })

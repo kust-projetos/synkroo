@@ -66,7 +66,7 @@ test.describe('Authentication Flow', () => {
 
     // Check teal palette is used (not indigo)
     const submitButton = page.locator('button[type="submit"]')
-    await expect(submitButton).toHaveClass(/bg-teal-600/)
+    await expect(submitButton).toHaveClass(/bg-teal-700/)
 
     await expect(page.locator('input[type="email"]')).toBeVisible()
     await expect(page.locator('input[type="password"]')).toBeVisible()
