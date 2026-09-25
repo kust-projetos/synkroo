@@ -22,7 +22,6 @@ jest.mock('@/lib/db/client', () => ({
   setDbConnectionString: jest.fn(),
 }))
 jest.mock('@/lib/errors', () => ({
-  handleApiError: jest.fn((e: any) => new Response(JSON.stringify({ error: 'Internal' }), { status: 500 })),
   ValidationError: class extends Error { constructor(msg: string, _ctx?: any) { super(msg) } },
 }))
 jest.mock('@/modules/financeiro/services/budget-service', () => ({

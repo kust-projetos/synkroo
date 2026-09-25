@@ -103,10 +103,6 @@ jest.mock('@/lib/errors', () => {
     constructor(m: string, opts?: any) { super(m); this.issues = opts?.issues ?? []; }
   }
   return {
-    handleApiError: jest.fn((err: any) => {
-      const s = err.status || 500;
-      return { status: s, json: () => Promise.resolve({ error: err.message }) } as any;
-    }),
     ValidationError: MockValidationError,
   };
 });

@@ -1,7 +1,7 @@
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: jest.fn() }))
 const mockDb = { select: jest.fn(function(this:any){return this}), from: jest.fn(function(this:any){return this}), where: jest.fn(function(this:any){return this}), then: jest.fn(), update: jest.fn(function(this:any){return this}), set: jest.fn(function(this:any){return this}) } as any
 jest.mock('@/lib/db/client', () => ({ getDb: jest.fn(() => mockDb) }))
-jest.mock('@/lib/errors', () => { const cls = class extends Error { status:number; constructor(m:string,s=400){super(m);this.status=s} }; return { handleApiError: jest.fn((e:any)=>({status:500,json:async()=>({error:e?.message||'err'})}) as any), ValidationError: cls, NotFoundError: cls, DatabaseError: cls } })
+jest.mock('@/lib/errors', () => { const cls = class extends Error { status:number; constructor(m:string,s=400){super(m);this.status=s} }; return { ValidationError: cls, NotFoundError: cls, DatabaseError: cls } })
 
 import { GET, PUT } from '@/app/api/clinics/settings/route'
 import { validateApiAuth } from '@/lib/auth/session'

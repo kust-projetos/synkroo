@@ -13,7 +13,7 @@ import {
   formatPhone,
   formatCPF,
 } from '@/lib/validation';
-import { ValidationError, AppError, NotFoundError, UnauthorizedError, ForbiddenError, ConflictError, RateLimitError, ExternalServiceError, DatabaseError } from '@/lib/errors';
+import { ValidationError, AppError, NotFoundError, UnauthorizedError, ForbiddenError, ConflictError, ExternalServiceError, DatabaseError } from '@/lib/errors';
 import { zonedTimeToUtc, getDayOfWeekInTimezone, getDayRangeUtc, resolveClinicTimezone } from '@/lib/timezone';
 import { normalizeEmail } from '@/lib/validations/common';
 import {
@@ -29,7 +29,6 @@ import { createCampaignSchema } from '@/lib/validations/campaign';
 import { createDentistSchema } from '@/lib/validations/dentist';
 import { sendMessageSchema } from '@/lib/validations/message';
 import { withRetry, CircuitBreaker, tryCatch } from '@/lib/retry';
-import { handleApiError } from '@/lib/errors';
 import { createLogger } from '@/lib/logger';
 
 describe('coverage-boost pure helpers', () => {
@@ -100,7 +99,6 @@ describe('coverage-boost pure helpers', () => {
     expect(new UnauthorizedError().statusCode).toBe(401);
     expect(new ForbiddenError().statusCode).toBe(403);
     expect(new ConflictError('dup').statusCode).toBe(409);
-    expect(new RateLimitError(60).statusCode).toBe(429);
     expect(new ExternalServiceError('evolution', new Error('oops')).code).toBe('EXTERNAL_SERVICE_ERROR');
     expect(new DatabaseError('fail', new Error('db')).code).toBe('DATABASE_ERROR');
   });
@@ -164,18 +162,11 @@ describe('coverage-boost pure helpers', () => {
     expect(breaker.getState()).toBe('closed');
   });
 
-  test('tryCatch and handleApiError branches', async () => {
+  test('tryCatch branches', async () => {
     const ok = await tryCatch(async () => 7);
     expect(ok).toEqual({ success: true, data: 7 });
     const fail = await tryCatch(async () => { throw new Error('oops'); });
     expect(fail.success).toBe(false);
-
-    const errRes = handleApiError(new ValidationError('bad'));
-    expect(errRes.status).toBe(400);
-    const genericRes = handleApiError(new Error('boom'));
-    expect(genericRes.status).toBe(500);
-    const unknownRes = handleApiError('string error' as unknown as Error);
-    expect(unknownRes.status).toBe(500);
   });
 
   test('logger redaction and child', () => {
@@ -224,19 +215,10 @@ describe('coverage-boost pure helpers', () => {
     expect(() => requireFields({ a: '' } as any, ['a', 'b'])).toThrow(/Missing required fields/);
   });
 
-  test('handleApiError — AppError branches (NotFound/Forbidden/RateLimit/External)', () => {
-    const notFound = handleApiError(new NotFoundError('Patient', 'p1'));
-    expect(notFound.status).toBe(404);
-    const forbidden = handleApiError(new ForbiddenError('nope'));
-    expect(forbidden.status).toBe(403);
-    const rateLimited = handleApiError(new RateLimitError(30));
-    expect(rateLimited.status).toBe(429);
-    const external = handleApiError(new ExternalServiceError('asaas', new Error('timeout')));
-    expect(external.status).toBe(502);
-    const dbErr = handleApiError(new DatabaseError('db down'));
-    expect(dbErr.status).toBe(500);
+  test('AppError toJSON includes details when provided', () => {
     // AppError toJSON with details
     expect(new ValidationError('bad', { field: 'email' }).toJSON()).toHaveProperty('details');
+    expect(new NotFoundError('Patient', 'p1').toJSON()).not.toHaveProperty('details');
   });
 
   test('withRetry — non-Error throw + isRetryable null + custom retryableErrors', async () => {

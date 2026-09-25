@@ -50,11 +50,6 @@ jest.mock('@/lib/errors', () => {
     constructor(msg: string, status = 400) { super(msg); this.status = status }
   }
   return {
-    handleApiError: jest.fn((err) => {
-      const msg = (err instanceof Error) ? err.message : String(err)
-      const json = async () => ({ error: msg })
-      return { status: 500, json } as any
-    }),
     ValidationError: cls,
     NotFoundError: cls,
     DatabaseError: cls,
