@@ -72,6 +72,49 @@ describe('Payment Service', () => {
       const r = await recordPayment({ budget_id: 'b1', amount: 300, payment_method: 'pix', created_by: 'u1' })
       expect(r.sessions_completed).toBe(0)
     })
+
+    it('persists canonical 2-decimal string (0.3 → "0.30", not "0.3")', async () => {
+      seed([pRow], [{ finalValue: '500', treatmentPlanId: null }], [{ finalValue: '500' }], [])
+      const r = await recordPayment({ budget_id: 'b1', amount: 0.3, payment_method: 'pix', created_by: 'u1' })
+      expect(r.payment.amount).toBe(0.3)
+      expect(mdb.values).toHaveBeenCalledWith(expect.objectContaining({ amount: '0.30' }))
+    })
+
+    it('enforces overpayment boundary in cents (100 ok, 100.01 exceeds)', async () => {
+      ;(getRemainingBalance as jest.Mock).mockResolvedValue(100)
+      seed([pRow], [{ finalValue: '500', treatmentPlanId: null }], [{ finalValue: '500' }], [])
+      await expect(recordPayment({ budget_id: 'b1', amount: 100, payment_method: 'pix', created_by: 'u1' })).resolves.toBeDefined()
+      await expect(recordPayment({ budget_id: 'b1', amount: 100.01, payment_method: 'pix', created_by: 'u1' })).rejects.toThrow('exceeds')
+    })
+
+    it('marks budget converted on exact cents (0.10 + 0.20 >= 0.30)', async () => {
+      ;(getRemainingBalance as jest.Mock).mockResolvedValue(500)
+      seed(
+        [pRow],
+        [{ finalValue: '0.30', treatmentPlanId: null }],
+        [{ finalValue: '0.30' }],
+        [{ amount: '0.10', status: 'paid' }, { amount: '0.20', status: 'paid' }],
+      )
+      await recordPayment({ budget_id: 'b1', amount: 0.1, payment_method: 'pix', created_by: 'u1' })
+      expect(mdb.update).toHaveBeenCalled()
+      expect(mdb.set).toHaveBeenCalledWith(expect.objectContaining({ status: 'converted' }))
+    })
+
+    it('computes covered sessions exactly in cents (0.10 of 0.30/3 → 1 session)', async () => {
+      (getRemainingBalance as jest.Mock).mockResolvedValue(1000)
+      seed(
+        [pRow],
+        [{ finalValue: '0.30', treatmentPlanId: 'tp1' }],
+        [{ totalSessions: 3 }],
+        [{ treatmentPlanId: 'tp1' }],
+        [{ clinicId: 'clinic-1' }],
+        [{ id: 'ti1' }],
+        [{ finalValue: '0.30' }],
+        [{ amount: '0.10', status: 'paid' }],
+      )
+      const r = await recordPayment({ budget_id: 'b1', amount: 0.1, payment_method: 'pix', created_by: 'u1' })
+      expect(r.sessions_completed).toBe(1)
+    })
   })
 
   describe('getPaymentsByBudget', () => {

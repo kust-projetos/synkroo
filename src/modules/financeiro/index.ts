@@ -62,6 +62,17 @@ export const financeiroActions = [
 export { obterOrcamento } from './actions/obter-orcamento';
 export { atualizarOrcamento } from './actions/atualizar-orcamento';
 export { arquivarOrcamento } from './actions/arquivar-orcamento';
+// Seam de precisão monetária (SYNK-IMPL-FLOATS): helpers canônicos de centavos
+// para os services legados em src/services/{reports,installments,payments,budgets}.
+// Importar via '@/modules/financeiro' — nunca via caminho profundo (gate R4).
+export {
+  toCents,
+  centsToDecimal,
+  percentOfCents,
+  quantizePriceToCents,
+  lineTotalCents,
+  splitCentsExact,
+} from './services/money';
 export { getBudget, markBudgetSent } from './services/budget-service';
 export {
   listOverdueCharges,

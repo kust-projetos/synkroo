@@ -5,6 +5,7 @@ import { budgets, budgetInstallments, payments, treatmentPlans, treatmentPlanIte
 import { dbLogger } from '@/lib/logger'
 import { getRemainingBalance } from '@/services/installments/installment.service'
 import { updateSessionProgress } from '@/services/treatment-plans/treatment-plan.service'
+import { toCents, centsToDecimal } from '@/modules/financeiro'
 
 export interface Payment {
   id?: string
@@ -36,7 +37,7 @@ function toSnake(r: any): Payment {
   return {
     id: r.id,
     budget_id: r.budgetId,
-    amount: Number(r.amount ?? 0),
+    amount: Number(toCents(String(r.amount ?? '0'))) / 100,
     payment_method: r.paymentMethod,
     paid_at: r.paidAt?.toISOString?.() ?? '',
     notes: r.notes,
@@ -46,7 +47,10 @@ function toSnake(r: any): Payment {
   }
 }
 
-async function getSessionCost(budgetId: string): Promise<number | null> {
+// Custo por sessão como racional exato em centavos (finalCents/totalSessions):
+// evita a antiga divisão em ponto flutuante e permite o cálculo de sessões
+// cobertas via floor exato em bigint puro.
+async function getSessionCostParts(budgetId: string): Promise<{ finalCents: bigint; totalSessions: number } | null> {
   const db = getDb()
   const [budget] = await db
     .select({ finalValue: budgets.finalValue, treatmentPlanId: budgets.treatmentPlanId })
@@ -62,7 +66,7 @@ async function getSessionCost(budgetId: string): Promise<number | null> {
 
   if (!plan) return null
   const totalSessions = plan.totalSessions || 1
-  return Number(budget.finalValue ?? 0) / totalSessions
+  return { finalCents: toCents(String(budget.finalValue ?? '0')), totalSessions }
 }
 
 async function autoCompleteSessions(
@@ -113,11 +117,11 @@ async function checkAndUpdateBudgetStatus(budgetId: string): Promise<void> {
     .where(eq(budgetInstallments.budgetId, budgetId))
   if (!installments.length) return
 
-  const totalPaid = installments
+  const totalPaidCents = installments
     .filter((i) => i.status === 'paid')
-    .reduce((sum, i) => sum + Number(i.amount ?? 0), 0)
+    .reduce((sum, i) => sum + toCents(String(i.amount ?? '0')), 0n)
 
-  if (totalPaid >= Number(budget.finalValue ?? 0)) {
+  if (totalPaidCents >= toCents(String(budget.finalValue ?? '0'))) {
     await db
       .update(budgets)
       .set({ status: 'converted', updatedAt: new Date() } as any)
@@ -129,7 +133,9 @@ export async function recordPayment(input: RecordPaymentInput): Promise<PaymentR
   const db = getDb()
   const remainingBalance = await getRemainingBalance(input.budget_id)
 
-  if (input.amount > remainingBalance) {
+  // Comparação em centavos bigint (padrão payment-service canônico).
+  const amountCents = toCents(input.amount)
+  if (amountCents > toCents(String(remainingBalance))) {
     throw new Error(
       `Payment amount (${input.amount}) exceeds remaining balance (${remainingBalance})`,
     )
@@ -140,7 +146,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<PaymentR
     .insert(payments)
     .values({
       budgetId: input.budget_id,
-      amount: String(input.amount),
+      amount: centsToDecimal(amountCents),
       paymentMethod: input.payment_method,
       paidAt: new Date(),
       notes: input.notes ?? null,
@@ -154,10 +160,11 @@ export async function recordPayment(input: RecordPaymentInput): Promise<PaymentR
   }
 
   let sessionsCompleted = 0
-  const sessionCost = await getSessionCost(input.budget_id)
+  const costParts = await getSessionCostParts(input.budget_id)
 
-  if (sessionCost && sessionCost > 0) {
-    const sessionsToComplete = Math.floor(input.amount / sessionCost)
+  if (costParts && costParts.finalCents > 0n) {
+    // Sessões cobertas: floor exato em bigint, sem divisão float.
+    const sessionsToComplete = Number((amountCents * BigInt(costParts.totalSessions)) / costParts.finalCents)
     const [budgetData] = await db
       .select({ treatmentPlanId: budgets.treatmentPlanId })
       .from(budgets)
@@ -178,7 +185,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<PaymentR
     payment: {
       id: paymentRow.id,
       budget_id: input.budget_id,
-      amount: input.amount,
+      amount: Number(amountCents) / 100,
       payment_method: input.payment_method,
       paid_at: now,
       notes: input.notes ?? null,

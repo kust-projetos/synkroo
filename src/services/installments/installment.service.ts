@@ -3,6 +3,7 @@ import { eq, and, asc, desc } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { budgetInstallments, budgets } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
+import { toCents, centsToDecimal } from '@/modules/financeiro'
 
 export type InstallmentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled'
 
@@ -19,7 +20,7 @@ const BI = budgetInstallments
 
 function toSnake(r: any): BudgetInstallment {
   return {
-    id: r.id, budget_id: r.budgetId, amount: Number(r.amount ?? 0),
+    id: r.id, budget_id: r.budgetId, amount: Number(toCents(String(r.amount ?? '0'))) / 100,
     due_date: r.dueDate?.toISOString?.() ?? r.dueDate ?? '',
     status: r.status as InstallmentStatus,
     paid_at: r.paidAt?.toISOString?.() ?? null, payment_id: r.paymentId ?? null,
@@ -29,7 +30,9 @@ function toSnake(r: any): BudgetInstallment {
 
 export async function createInstallments(budgetId: string, installments: CreateInstallmentInput[]): Promise<BudgetInstallment[]> {
   const db = getDb()
-  const rows = installments.map((i) => ({ budgetId, amount: String(i.amount), dueDate: new Date(i.due_date), status: 'pending' }))
+  // Etapa 5.2/canônico: canonicaliza via centavos — rejeita artefatos >2 decimais
+  // e persiste string canônica de 2 decimais (numeric(12,2)).
+  const rows = installments.map((i) => ({ budgetId, amount: centsToDecimal(toCents(i.amount)), dueDate: new Date(i.due_date), status: 'pending' }))
   const data = await db.insert(BI).values(rows as any).returning()
   return data.map(toSnake)
 }
@@ -52,7 +55,7 @@ export async function updateInstallment(id: string, input: UpdateInstallmentInpu
   if (existing && existing.status === 'paid') throw new Error('Cannot update a paid installment')
 
   const set: any = { updatedAt: new Date() }
-  if (input.amount !== undefined) set.amount = String(input.amount)
+  if (input.amount !== undefined) set.amount = centsToDecimal(toCents(input.amount))
   if (input.due_date !== undefined) set.dueDate = new Date(input.due_date)
 
   const [data] = await db.update(BI).set(set).where(eq(BI.id, id)).returning()
@@ -80,6 +83,9 @@ export async function getRemainingBalance(budgetId: string): Promise<number> {
   if (!budget) return 0
 
   const paid = await db.select({ amount: BI.amount }).from(BI).where(and(eq(BI.budgetId, budgetId), eq(BI.status, 'paid')))
-  const paidSum = paid.reduce((s, i) => s + Number(i.amount ?? 0), 0)
-  return Math.max(0, Number(budget.finalValue ?? 0) - paidSum)
+  // Saldo em centavos bigint (padrão installment-service canônico) — sem float.
+  const finalCents = toCents(String(budget.finalValue ?? '0'))
+  const paidCents = paid.reduce((s, i) => s + toCents(String(i.amount ?? '0')), 0n)
+  const remaining = finalCents - paidCents
+  return Number(remaining > 0n ? remaining : 0n) / 100
 }
