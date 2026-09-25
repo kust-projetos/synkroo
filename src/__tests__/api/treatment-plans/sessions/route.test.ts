@@ -20,10 +20,6 @@ jest.mock('@/lib/errors', () => {
     }
   };
   return {
-    handleApiError: jest.fn((e: any) => ({
-      status: e?.status || 500,
-      json: async () => ({ error: e?.message || 'err' }),
-    }) as any),
     ValidationError: c,
     NotFoundError: c,
     DatabaseError: c,

@@ -1,7 +1,7 @@
 jest.mock('@/lib/auth/session',()=>({validateApiAuth:jest.fn()}))
 const mdb={select:jest.fn(function(this:any){return this}),from:jest.fn(function(this:any){return this}),where:jest.fn(function(this:any){return this}),limit:jest.fn(function(this:any){return this}),offset:jest.fn(function(this:any){return this}),orderBy:jest.fn(function(this:any){return this}),then:jest.fn()} as any
 jest.mock('@/lib/db/client',()=>({getDb:jest.fn(()=>mdb)}))
-jest.mock('@/lib/errors',()=>{const c=class extends Error{status:number;constructor(m:string,s=400){super(m);this.status=s}};return{handleApiError:jest.fn((e:any)=>({status:500,json:async()=>({error:e?.message||'err'})}) as any),ValidationError:c}})
+jest.mock('@/lib/errors',()=>{const c=class extends Error{status:number;constructor(m:string,s=400){super(m);this.status=s}};return{ValidationError:c}})
 import{GET}from'@/app/api/reports/patients/route'
 import{validateApiAuth}from'@/lib/auth/session'
 function auth(p:any={id:'u1',clinic_id:'c1',role:'owner'}){(validateApiAuth as jest.Mock).mockResolvedValue({success:true,profile:p})}

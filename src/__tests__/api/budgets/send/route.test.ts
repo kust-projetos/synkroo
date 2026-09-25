@@ -1,5 +1,4 @@
 jest.mock('@/lib/auth/session',()=>({validateApiAuth:jest.fn()}))
-jest.mock('@/lib/errors',()=>({handleApiError:jest.fn((e:any)=>({status:500,json:async()=>({error:e?.message||'err'})}) as any)}))
 jest.mock('@/modules/financeiro/services/budget-service', () => ({
   getBudget: jest.fn(),
   markBudgetSent: jest.fn(),

@@ -87,19 +87,6 @@ export class ConflictError extends AppError {
   }
 }
 
-/**
- * @deprecated Legacy rate-limit error shape. Kept only for existing tests/mocks —
- * zero production usage. For 429 route responses use `apiRateLimited()` from
- * `@/lib/api/response` (canonical ADR-BASE-10 envelope: 429 + `Retry-After`
- * header only, no `X-RateLimit-*` extras).
- */
-export class RateLimitError extends AppError {
-  constructor(retryAfter: number) {
-    super('Rate limit exceeded', 'RATE_LIMITED', 429, true, { retryAfter })
-    this.name = 'RateLimitError'
-  }
-}
-
 export class ExternalServiceError extends AppError {
   constructor(service: string, originalError?: Error) {
     super(
@@ -124,53 +111,4 @@ export class DatabaseError extends AppError {
     )
     this.name = 'DatabaseError'
   }
-}
-
-// Error handler helper for API routes
-import { NextResponse } from 'next/server'
-import { logger } from './logger'
-
-/**
- * @deprecated Legacy error-shape handler. Kept only for existing tests/mocks —
- * zero production usage. For route responses use `apiFailure()` / `apiErrors`
- * from `@/lib/api/response` (canonical ADR-BASE-10 envelope
- * `{ error: { code, message, requestId } }`).
- */
-export function handleApiError(error: unknown): NextResponse {
-  logger.error('API Error', error)
-
-  if (error instanceof AppError) {
-    return NextResponse.json(error.toJSON(), { status: error.statusCode })
-  }
-
-  // Map ActionError (from @/core/actions/types) without creating a hard import cycle
-  if (error instanceof Error && typeof (error as any).code === 'string') {
-    const code = (error as any).code as string
-    const map: Record<string, number> = {
-      not_found: 404,
-      forbidden: 403,
-      invalid_input: 400,
-      unauthenticated: 401,
-      conflict: 409,
-      module_disabled: 403,
-    }
-    if (map[code]) {
-      const bodyCode = code === 'not_found' ? 'NOT_FOUND' : code.toUpperCase()
-      return NextResponse.json({ error: error.message, code: bodyCode }, { status: map[code] })
-    }
-  }
-
-  if (error instanceof Error) {
-    // Generic error
-    return NextResponse.json(
-      { error: 'Internal server error', code: 'INTERNAL_ERROR' },
-      { status: 500 }
-    )
-  }
-
-  // Unknown error type
-  return NextResponse.json(
-    { error: 'An unexpected error occurred', code: 'INTERNAL_ERROR' },
-    { status: 500 }
-  )
 }

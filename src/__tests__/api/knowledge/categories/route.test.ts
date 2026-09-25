@@ -1,7 +1,7 @@
 /** Tests for knowledge/categories route */
 const mockValidateApiAuth = jest.fn()
 jest.mock('@/lib/auth/session', () => ({ validateApiAuth: mockValidateApiAuth }))
-jest.mock('@/lib/errors', () => ({ handleApiError: jest.fn((e: any) => new Response(JSON.stringify({ error: 'Internal' }), { status: 500 })), DatabaseError: class extends Error { constructor(msg: string, cause: any) { super(msg) } } }))
+jest.mock('@/lib/errors', () => ({ DatabaseError: class extends Error { constructor(msg: string, cause: any) { super(msg) } } }))
 
 let results: any[][] = [], counter = 0
 const mdb = {
