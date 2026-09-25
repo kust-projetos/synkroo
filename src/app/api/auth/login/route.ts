@@ -19,7 +19,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!rateLimit.allowed) {
     return apiRateLimited(
       generateRequestId(),
-      rateLimit.retryAfter ?? 0,
+      rateLimit.retryAfter,
       'Too many login attempts.',
     );
   }

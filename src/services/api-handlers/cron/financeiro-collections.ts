@@ -12,7 +12,8 @@ import { createManifest } from '@/core/modules/manifest';
 import { getDb } from "@/lib/db/client";
 import { clinics } from "@/lib/db/schema/core";
 import { isNull } from "drizzle-orm";
-import { apiSuccess, apiFailure, generateRequestId } from "@/lib/api/response";
+import { apiSuccess, apiFailure, apiRateLimited, generateRequestId } from "@/lib/api/response";
+import { checkRateLimit, rateLimitPresets } from "@/lib/rate-limit";
 import {
   listOverdueCharges,
   enrichOverdueCharges,
@@ -38,6 +39,12 @@ export async function POST(_request: NextRequest) {
     }
 
     await assertModuleForJob("financeiro", createManifest());
+
+    // Auth-before-limiter (padrão cleanup.ts): credencial inválida não consome quota.
+    const rateLimit = checkRateLimit("cron", rateLimitPresets.cron);
+    if (!rateLimit.allowed) {
+      return apiRateLimited(requestId, rateLimit.retryAfter);
+    }
 
     const db = getDb();
     const activeClinics = await db

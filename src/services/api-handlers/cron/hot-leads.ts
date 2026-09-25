@@ -15,9 +15,10 @@ import { createManifest } from '@/core/modules/manifest';
 import { processarNotificacoesLeadsQuentes } from '@/modules/comercial';
 import { runAction } from '@/core/actions/run';
 import { getDb } from '@/lib/db/client';
+import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { clinics } from '@/lib/db/schema/core';
 import { isNull } from 'drizzle-orm';
-import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';
+import { apiSuccess, apiFailure, apiRateLimited, generateRequestId } from '@/lib/api/response';
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const requestId = generateRequestId();
@@ -39,6 +40,13 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     return apiSuccess(
       { success: true, skipped: 'comercial module disabled', timestamp: new Date().toISOString() },
     );
+  }
+
+  // Auth-before-limiter (padrão cleanup.ts): credencial inválida e módulo
+  // desabilitado não consomem quota do scheduler.
+  const rateLimit = checkRateLimit('cron', rateLimitPresets.cron);
+  if (!rateLimit.allowed) {
+    return apiRateLimited(requestId, rateLimit.retryAfter);
   }
 
   // Resolve all clinics and process hot leads for each

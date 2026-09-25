@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       keyPrefix: 'lgpd-export',
     });
     if (!exportLimit.allowed) {
-      return responseWithId(apiRateLimited(requestId, exportLimit.retryAfter ?? 0, 'Rate limit exceeded.'), requestId);
+      return responseWithId(apiRateLimited(requestId, exportLimit.retryAfter, 'Rate limit exceeded.'), requestId);
     }
     const result = await runAction(exportarDadosPaciente, parsed.data, ctx);
     if (!result.ok) return responseWithId(apiFailure(result.error.code.toUpperCase(), result.error.message, requestId, statusFor(result.error.code)), requestId);

@@ -76,7 +76,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
 
   const clientKey = `${installation.installationId}:${getClientIdentifier(request)}`;
   const rateLimit = checkRateLimit(clientKey, { ...rateLimitPresets.messages, keyPrefix: 'widget-message' });
-  if (!rateLimit.allowed) return withCors(apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0, 'Rate limit exceeded.'), origin);
+  if (!rateLimit.allowed) return withCors(apiRateLimited(generateRequestId(), rateLimit.retryAfter, 'Rate limit exceeded.'), origin);
 
   const visitorId = typeof body.visitorId === 'string' ? body.visitorId : '';
   const idempotencyKey = request.headers.get('idempotency-key')

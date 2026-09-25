@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   if (!rateLimit.allowed) {
     return apiRateLimited(
       generateRequestId(),
-      rateLimit.retryAfter ?? 0,
+      rateLimit.retryAfter,
       'Too many signup attempts.',
     );
   }

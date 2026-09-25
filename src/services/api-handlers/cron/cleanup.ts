@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const rateLimit = checkRateLimit('cron', rateLimitPresets.cron)
     if (!rateLimit.allowed) {
-      return apiRateLimited(requestId, rateLimit.retryAfter ?? 0)
+      return apiRateLimited(requestId, rateLimit.retryAfter)
     }
 
     const db = getDb()

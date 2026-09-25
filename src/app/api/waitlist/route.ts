@@ -41,7 +41,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, { ...rateLimitPresets.api, keyPrefix: 'waitlist-create' });
   if (!rateLimit.allowed) {
-    return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0);
+    return apiRateLimited(generateRequestId(), rateLimit.retryAfter);
   }
   const body = await request.json();
   return runActionRoute(entrarWaitlist, body, { okStatus: 201 });

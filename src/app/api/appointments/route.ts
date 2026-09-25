@@ -26,7 +26,7 @@ async function handleGET(request: NextRequest): Promise<NextResponse> {
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, rateLimitPresets.api);
   if (!rateLimit.allowed) {
-    return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0);
+    return apiRateLimited(generateRequestId(), rateLimit.retryAfter);
   }
   const sp = new URL(request.url).searchParams;
   const input = {
@@ -49,7 +49,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const clientId = getClientIdentifier(request);
   const rateLimit = checkRateLimit(clientId, rateLimitPresets.api);
   if (!rateLimit.allowed) {
-    return apiRateLimited(generateRequestId(), rateLimit.retryAfter ?? 0);
+    return apiRateLimited(generateRequestId(), rateLimit.retryAfter);
   }
   const body = await request.json();
   // Normalize legacy snake_case payload to canonical camelCase for action input schema

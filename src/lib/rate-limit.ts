@@ -31,17 +31,31 @@ cleanupInterval.unref?.();
 
 /**
  * Check rate limit for a given key
- * Returns { allowed: boolean, remaining: number, resetTime: number }
+ *
+ * União discriminada por `allowed`: o ramo bloqueado (`allowed: false`)
+ * sempre carrega `retryAfter` (segundos até a janela resetar); o ramo
+ * permitido nunca tem a propriedade. Call sites devem fazer narrowing via
+ * `if (!result.allowed)` e usar `result.retryAfter` direto, sem `?? 0`.
  */
+export type RateLimitAllowed = {
+  allowed: true;
+  remaining: number;
+  resetTime: number;
+};
+
+export type RateLimitBlocked = {
+  allowed: false;
+  remaining: number;
+  resetTime: number;
+  retryAfter: number;
+};
+
+export type RateLimitResult = RateLimitAllowed | RateLimitBlocked;
+
 export function checkRateLimit(
   key: string,
   config: RateLimitConfig,
-): {
-  allowed: boolean;
-  remaining: number;
-  resetTime: number;
-  retryAfter?: number;
-} {
+): RateLimitResult {
   const now = Date.now();
   const fullKey = config.keyPrefix ? `${config.keyPrefix}:${key}` : key;
   const entry = store.get(fullKey);
