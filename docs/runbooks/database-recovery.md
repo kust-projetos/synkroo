@@ -16,15 +16,17 @@
 
 ## 1. Objetivos (RPO/RTO)
 
-Valores abaixo são **ALVO — A CONFIRMAR (owner: operação)**. Frequência e
-retenção são **proposta — decisão operacional pendente**.
+Valores abaixo são **ALVO — datapoint parcial de restore MEDIDO em drill
+2026-09-25 (restore + ledger verificados, sem smoke/switch); RPO e RTO fim a fim
+NÃO medidos, A RATIFICAR pelo owner**. Frequência e retenção são **proposta —
+decisão operacional pendente**.
 
 | Objetivo | Alvo proposto | Status |
 |---|---|---|
-| RPO (perda máxima aceitável de dados) | ≤ 24 h (backup diário) | **A CONFIRMAR (owner: operação)** |
-| RTO (tempo máximo de restauração do serviço) | ≤ 4 h (restore + smoke + switch) | **A CONFIRMAR (owner: operação)** |
-| Frequência de backup (proposta) | 1×/dia (cheio, `pg_dump` custom) + WAL/backup contínuo se o volume justificar | Proposta — decisão operacional pendente |
-| Retenção (proposta) | 7 diários + 4 semanais + 3 mensais; cópia off-host (fora da VPS) | Proposta — decisão operacional pendente |
+| RPO (perda máxima aceitável de dados) | ≤ 24 h (backup diário) | **NÃO MEDIDO** (não havia backup anterior em 2026-09-25) — A RATIFICAR pelo owner |
+| RTO (tempo máximo de restauração do serviço) | ≤ 4 h (restore + smoke + switch) | **datapoint parcial de restore: < 60 s (77 MiB); fim a fim (smoke + switch) NÃO MEDIDO** — A RATIFICAR pelo owner |
+| Frequência de backup (proposta) | 1×/dia (cheio, `pg_dump` custom) + WAL/backup contínuo se o volume justificar | Proposta — decisão operacional pendente; em 2026-09-25 sem agendamento automático evidenciado (primeiro backup canônico gerado no drill) |
+| Retenção (proposta) | 7 diários + 4 semanais + 3 mensais; cópia off-host (fora da VPS) | Proposta — decisão operacional pendente; cópia off-host e cron NÃO configurados (sem backup automático em 2026-09-25) |
 | Restore test (prova de validade) | 1×/mês em ambiente isolado, com checklist registrado (§6) | Proposta — decisão operacional pendente |
 
 ## 2. Princípio: backup sem restore comprovado não é backup
@@ -79,8 +81,11 @@ pg_restore -h 127.0.0.1 -p 55434 -U synkroo_test -d synkroo_remediation --no-own
 Critério de aceite do teste: restore conclui sem erro, contagem de migrations
 confere com a cadeia canônica e o smoke de liveness contra esse banco passa
 (ver §5). Registrar tudo no checklist (§6). **O primeiro restore test contra
-um backup real de produção é PENDENTE-RUNTIME** — requer acesso ao backup de
-produção e não é executável nesta sessão.
+um backup real de produção foi EXECUTADO em 2026-09-25** — evidência em
+[restore-tests/2026-09-25-prod-drill.md](restore-tests/2026-09-25-prod-drill.md)
+(restore + ledger verificados; smoke pós-restore pendente por desenho do
+drill). A partir daqui, o restore test passa a ser rotina mensal proposta
+(§1).
 
 ### 2.3. Rotina de backup (scripts do repo)
 
@@ -132,7 +137,9 @@ Restore drill (roteiro testável — registrar recibo no checklist §6):
 5. Conferir a verificação pós-restore impressa pelo script (contagem das 4
    tabelas core) + ledger de migrations (§2.2) + smoke (§4).
 6. Preencher o bloco de evidência do §5. **Drill real contra backup de
-   produção: PENDENTE — requer confirmação de RPO/RTO pelo owner.**
+   produção: EXECUTADO em 2026-09-25** (evidência em
+   [restore-tests/2026-09-25-prod-drill.md](restore-tests/2026-09-25-prod-drill.md));
+    datapoint parcial de restore medido segue A RATIFICAR pelo owner (§1).
 
 ## 3. Runbooks por cenário
 
@@ -246,5 +253,7 @@ RESTORE TEST — <AAAA-MM-DD>
 - Responsável: <nome> — Operação ciente: <nome/data>
 ```
 
-**Primeiro restore test contra backup real de produção: PENDENTE-RUNTIME**
-(requer acesso ao backup de produção; não executável nesta sessão).
+**Primeiro restore test contra backup real de produção: EXECUTADO em
+2026-09-25** — evidência em
+[restore-tests/2026-09-25-prod-drill.md](restore-tests/2026-09-25-prod-drill.md).
+Próximos drills seguem a rotina mensal proposta (§1).

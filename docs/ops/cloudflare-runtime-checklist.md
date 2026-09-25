@@ -15,11 +15,55 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   `NEXT_CACHE_DO_QUEUE` + migração `v1` (`wrangler.toml:25-31`),
   KV `NEXT_INC_CACHE_KV` (`wrangler.toml:33-35`), Hyperdrive `HYPERDRIVE`
   (`wrangler.toml:37-40`); staging espelha tudo (`wrangler.toml:45-79`).
-- **PENDENTE-RUNTIME:** confirmar no dashboard/`wrangler deploy --dry-run` que
-  cada binding resolve no ambiente certo (prod vs staging); Vectorize **não**
-  aparece no `wrangler.toml` — confirmar se a busca vetorial usa pgvector
-  (ver `POST /api/knowledge/search`) e remover Vectorize da lista de
-  dependências se não houver binding.
+- ✅ Dry-run estático 2026-09-25 (`wrangler 4.131.2`, sem auth, sem deploy):
+  `npx wrangler deploy --dry-run` → 475 files, `Total Upload: 17449.28 KiB`,
+  bindings prod (`HYPERDRIVE be5a789a...`, `KV 8f2a4d...`, DO `AGENT` via
+  `synkroo-ia-agent`, `IA_HANDLE_ISSUER`→`synkroo-ia-bridge#HandleIssuerService`,
+  `WORKER_SELF_REFERENCE`→`synkroo`, `ASSETS`); `--env staging` → mesmos 475
+  files, `HYPERDRIVE e0033a75...`, `KV f2ad31...`, `AGENT` via
+  `synkroo-ia-agent-staging`, `IA_HANDLE_ISSUER`→`synkroo-ia-bridge-staging`;
+  `wrangler.ia-bridge.jsonc` → 2088.44 KiB (`IA_SEEN` KV + `HYPERDRIVE`);
+  `src/workers/ia-agent/wrangler.jsonc` → 161.14 KiB (DO `AGENT` +
+  `APP`→`synkroo-ia-bridge#AppService`); 4× `--dry-run: exiting now.`,
+  zero erros de binding, sem `VECTORIZE` em nenhum output.
+- ✅ Vectorize — RESOLVIDO (estático): zero ocorrências em `wrangler.toml`,
+  `wrangler.ia-bridge.jsonc` e `src/workers/ia-agent/wrangler.jsonc`
+  (`Select-String -Pattern "vectorize"` → zero matches); busca vetorial usa
+  pgvector — `src/modules/ia/schema/knowledge.ts:11`
+  (`vector('embedding', { dimensions: 1536 })`),
+  `src/services/rag/rag.service.ts:314,330` (busca via pgvector + fallback
+  keyword), `src/app/api/knowledge/search/route.ts:28`,
+  `src/workers/ia-agent/index.ts:41` (purge via pgvector, "não Vectorize"),
+  decisão `docs/adr/ADR-BASE-04-pgvector.md:8,15` (pgvector único, sem
+  Vectorize simultâneo), gate `src/__tests__/cloudflare/remediation-config.test.ts:18-19`
+  (`not.toContain('VECTORIZE')`). Vectorize removido da lista de dependências
+  de runtime deste checklist.
+- **PENDENTE-RUNTIME:** dry-run acima antecipa parcialmente (config resolve
+  estaticamente), mas NÃO fecha o item — falta confirmação real em
+  staging/prod: deploy + dashboard (bindings por ambiente) + `GET /health`
+  e smoke das rotas quentes.
+- ✅ Evidência STAGING 2026-09-25 (parcial, não fecha o item — dashboard +
+  prod seguem pendentes): `npm run build:cf` OK (OpenNext bundle +
+  `inject-pg-global`); `npx opennextjs-cloudflare deploy --env staging` OK →
+  `https://synkroo-staging.walissonead.workers.dev`, Version ID
+  `6f34e733-...` (deploy output completo no log da sessão; sem `--env`
+  staging nada foi tocado em prod). Bindings confirmados no output do deploy:
+  `AGENT` via `synkroo-ia-agent-staging`, `NEXT_INC_CACHE_KV f2ad31...`,
+  `HYPERDRIVE e0033a75...`, `IA_HANDLE_ISSUER`→`synkroo-ia-bridge-staging`,
+  `WORKER_SELF_REFERENCE`→`synkroo-staging`, `ASSETS`, `schedule: */5 * * * *`.
+  Liveness: `GET /api/health` → 200 `{"status":"ok",...}` (~0.88 s);
+  `GET /api/health/db` → 200
+  `{"data":{"status":"incomplete","complete":false,"migrationsApplied":30,"migrationsExpected":33}}`
+  (Hyperdrive alcança o DB, mas 30/33 migrations — smoke `db` FAIL, ver abaixo).
+  `node scripts/smoke-deploy.mjs https://synkroo-staging.walissonead.workers.dev`
+  → liveness pass (200), auth-pipeline pass (200), middleware pass (307),
+  workers skipped by design (service bindings sem HTTP público), db FAIL
+  (200 com `complete:false`), exit 1. Nota de deploy: primeira tentativa sem
+  env falhou com `no local hyperdrive connection string` (staging não define
+  `localConnectionString`); resolvido SEM alterar `wrangler.toml`/código via
+  env var de processo
+  `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` apontando ao
+  Postgres local documentado — `wrangler.toml` intacto.
 
 ## 2. Secrets por ambiente
 
@@ -31,6 +75,19 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   (`AUTH_SECRET`, `JWT_SECRET`, `DATABASE_URL`/Hyperdrive, `CRON_SECRET`,
   `WEBHOOK_SECRET`, chaves de provider LLM/WhatsApp); segredos nunca no repo
   (config privada em `../vps-hostinger/.env`).
+- ✅ Evidência 2026-09-25 (NOMES apenas — `secret list` nunca expõe valores):
+  `npx wrangler secret list` (prod/default) → 13 nomes: `AUTH_SECRET`,
+  `AUTH_URL`, `CRON_SECRET`, `EVOLUTION_API_KEY`, `EVOLUTION_API_URL`,
+  `EVOLUTION_INSTANCE_NAME`, `EVOLUTION_WEBHOOK_SECRET`, `JWT_SECRET`,
+  `NEXTAUTH_URL`, `SEED_SECRET`, `WEBHOOK_SECRET`, `WHATSAPP_FALLBACK_SECRET`,
+  `WHATSAPP_FALLBACK_URL`; `npx wrangler secret list --env staging` → 15
+  nomes: `AUTH_SECRET`, `CRON_SECRET`, `DATABASE_URL`, `ENCRYPTION_KEY`,
+  `EVOLUTION_API_KEY`, `EVOLUTION_API_URL`, `EVOLUTION_INSTANCE_NAME`,
+  `EVOLUTION_WEBHOOK_SECRET`, `JWT_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`,
+  `SEED_SECRET`, `WEBHOOK_SECRET`, `WHATSAPP_APP_SECRET`,
+  `WHATSAPP_VERIFY_TOKEN`. Nenhum valor exibido, criado ou alterado (nenhum
+  `secret put/delete` executado). Divergências de nomes entre ambientes
+  registradas, sem juízo de valor — rotação/valores seguem fora de escopo.
 
 ## 3. Limites CPU / subrequests / payload
 
@@ -51,6 +108,17 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   `Secure`, `HttpOnly`, `SameSite=Lax` (ou `Strict` onde couber) e prefixo
   `__Secure-`/`__Host-`; confirmar que o bypass de dev
   (`src/middleware.ts:70-75`) nunca ativa em prod.
+- ✅ Evidência STAGING 2026-09-25 (parcial — sem sessão autenticada não há
+  flags para auditar, item segue PENDENTE-RUNTIME): `curl.exe -sI` em `/`,
+  `/api/health`, `/login` e dump de headers (`-D -`) em `/api/auth/session`,
+  `/api/patients` (307) e `POST /api/messages/send` (307) — NENHUM
+  `Set-Cookie` emitido em respostas anônimas (correto: sem sessão, sem cookie;
+  sem valores para ecoar). Comportamento auth sem cookie: `GET
+  /api/auth/session` → 200 `{"authenticated":false,"user":null,...}` (sem
+  vazamento); `GET /api/patients` sem cookie → 307
+  `Location: /login?redirectTo=%2Fapi%2Fpatients` (middleware). Flags
+  `Secure/HttpOnly/SameSite` + prefixo `__Secure-`/`__Host-` + bypass de dev
+  seguem exigindo sessão autenticada real em staging/prod.
 
 ## 5. Headers (CSP / HSTS)
 
@@ -62,6 +130,19 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   define headers de segurança (só CSRF/body-limit) — registrado, sem alteração.
 - **PENDENTE-RUNTIME:** `curl -I` em prod e staging confirmando CSP + HSTS
   efetivos (atenção a stripping por proxy/CDN na frente do Worker).
+- ✅ Evidência STAGING 2026-09-25 (`curl.exe -sI`
+  `https://synkroo-staging.walissonead.workers.dev/` + `/api/health` +
+  `/login`, todos 200): `Strict-Transport-Security: max-age=31536000;
+  includeSubDomains` PRESENTE (inclusive em staging);
+  `content-security-policy: default-src 'self'; script-src 'self'
+  'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src
+  'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:;
+  frame-ancestors 'none'; base-uri 'self'; form-action 'self'` (nome do header
+  em minúsculas via edge, trade-off `unsafe-inline`/`unsafe-eval` confirmado
+  em runtime); `x-content-type-options: nosniff`; `x-frame-options: DENY`;
+  `referrer-policy: strict-origin-when-cross-origin`; `permissions-policy:
+  camera=(), microphone=(), geolocation=()`. Prod + stripping por proxy/CDN
+  seguem PENDENTE-RUNTIME.
 
 ## 6. CORS / CSRF
 
@@ -80,6 +161,13 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
 - **PENDENTE-RUNTIME:** `max_connections` efetivo, latência p95 sob carga,
   comportamento com pool esgotado; ligar aos alertas de
   `docs/ops/observability.md` (DB indisponível / pool esgotado).
+- 🛡️ Mitigação 2026-09-25 (**ROLLBACK** — 15432 segue exposta): restringir
+  `15432/tcp` aos ranges Cloudflare publicados quebrou o Hyperdrive staging
+  (`/api/health/db` → `complete:false`; egresso Hyperdrive fora dos ranges
+  publicados) e foi revertida com staging/prod íntegros; achado: `DOCKER-USER`
+  vazia contorna o ufw p/ portas publicadas pelo Docker. Detalhe, comandos de
+  rollback e pendências em `docs/ops/vps-access.md` § "Firewall do Postgres
+  (2026-09-25)".
 
 ## 8. Backups / restore
 
@@ -94,6 +182,19 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
 - **PENDENTE-RUNTIME:** drill real de restore contra backup de produção com
   recibo no checklist do runbook (§5) + confirmação de RPO/RTO pelo owner
   (cf. `docs/ops/outage-drill-matrix.md`).
+- ✅ Drill LOCAL executado em 2026-09-25 (Opção A, alvo descartável
+  `synkroo-restore-test`; origem dev local; restore + verificação ≈ 20 s;
+  ledger 31/31 idêntico ao dev) — evidência em
+  `docs/runbooks/restore-tests/2026-09-25-local-drill.md`.
+- ✅ Drill de PRODUÇÃO EXECUTADO em 2026-09-25 (autorizado pelo owner; alvo
+  descartável `synkroo-prod-drill` na VPS, porta só em loopback; dump
+  `synkroo-prod-20260925-143506.dump`, 184.231 bytes, com hash registrado;
+  `pg_restore --no-owner` OK sem erros em ~1 s; contagens core zeradas —
+  banco de produção vazio; ledger 33/33 idêntico à produção; produção
+  permaneceu `healthy`) — evidência em
+  `docs/runbooks/restore-tests/2026-09-25-prod-drill.md`. RTO medido:
+  restore + verificação < 60 s (banco de 77 MiB). RPO/RTO permanecem
+  **medidos, A RATIFICAR pelo owner**.
 
 ## 9. Request IDs em produção
 
@@ -104,6 +205,13 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
 - **PENDENTE-RUNTIME:** confirmar propagação end-to-end em prod, incluindo os
   workers `ia-agent`/`ia-bridge` (`src/workers/*`, `wrangler.ia-bridge.jsonc`,
   `src/workers/ia-agent/wrangler.jsonc`).
+- ✅ Evidência negativa STAGING 2026-09-25 (item segue PENDENTE-RUNTIME):
+  dump completo de headers (`curl.exe -s -D -`) em `/api/health` (200),
+  `/api/auth/session` (200), `/api/patients` (307) e `POST
+  /api/messages/send` (307) — header `x-request-id` AUSENTE em todas as
+  respostas de borda observadas (busca case-insensitive; só `CF-RAY` de
+  correlação edge presente). Correlação ponta a ponta `ia/chat` → DO →
+  provider e workers `ia-agent`/`ia-bridge` não validados.
 
 ## 10. Rate limiting distribuído
 
@@ -118,6 +226,13 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   `src/app/api/cron/*`; 3 com preset `cron` (ver `docs/ops/rate-limiting.md`).
 - **PENDENTE-RUNTIME:** validar disparo agendado em prod/staging, `CRON_SECRET`
   por ambiente e comportamento dos 5 jobs sem limiter sob clock real.
+- ✅ Evidência STAGING 2026-09-25 (contrato validado sem expor o valor):
+  `curl.exe -X POST .../api/cron/reminders` sem secret → 401;
+  `curl.exe -X POST .../api/cron/cleanup` sem secret → 401
+  (`timingSafeEqual` rejeita ausente como esperado). Trigger agendado
+  provisionado no deploy staging (`schedule: */5 * * * *`, deploy output).
+  Disparo agendado real sob clock + `CRON_SECRET` por ambiente + 5 jobs sem
+  limiter seguem PENDENTE-RUNTIME.
 
 ## 12. Observabilidade
 
