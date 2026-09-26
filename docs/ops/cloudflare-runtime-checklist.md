@@ -209,10 +209,13 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   `gated(handleOPTIONS)`; rejeição de origem cruzada validada). Allowlist de
   origem real do widget (domínios das clínicas) segue cadastro de dados —
   não é gate de deploy.
-- ⚠️ **PRODUÇÃO STALE (2026-09-26):** o mesmo probe em prod retorna **404**
-  — o deploy de prod é anterior à rota atual (`handleOPTIONS` existe na
-  `main`). Fechar este item exige deploy de prod; re-testar preflight
-  (esperado 403) e rejeição de POST cross-origin (esperado 403) após.
+- ✅ PRODUÇÃO 2026-09-26 (pós-deploy `2ecaf33f`): o mesmo probe em prod
+  retorna **404** — esclarecido: é o **Gate 1 por design**
+  (`src/core/modules/gates.ts:10-25`): módulo `atendimento` desativado na
+  instância de produção → 404 canônico antes do handler (não é stale — o
+  header `x-request-id` na resposta prova a versão nova). Validar preflight
+  real (esperado 403 p/ origem fora da allowlist) quando o módulo widget for
+  habilitado em prod — escopo do piloto W12.
 
 ## 7. Pool Hyperdrive sob carga
 
