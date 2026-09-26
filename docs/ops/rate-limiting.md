@@ -33,10 +33,12 @@ header**, nunca no body (ADR-BASE-10).
 | `POST /api/ia/chat` | `messages` (`keyPrefix: ia-chat`) | 30/min | `user:userId` | sessão + RBAC `ia:chat` → limiter |
 | `POST /api/knowledge/search` | `api` (`keyPrefix: knowledge-search`) | 60/min | `tenant:clinicId` | auth → limiter |
 | `POST /api/lgpd/export` | `api` (`keyPrefix: lgpd-export`) | 60/min | `user:userId` | contexto → limiter (ctx reaproveitado no `runAction`) |
+| `POST /api/lgpd/anonymize` | `api` (`keyPrefix: lgpd-anonymize`) | 60/min | IP (`getClientIdentifier`) | contexto → limiter (auth-before-limiter; `src/services/api-handlers/lgpd/anonymize.ts:34-39`) |
+| `POST /api/auth/[...nextauth]` | `api` (`keyPrefix: nextauth`) | 60/min | IP (`getClientIdentifier`) | limiter → handler (`src/app/api/auth/[...nextauth]/route.ts:14-21`; só POST; GET sem limiter) |
 | `GET/POST /api/appointments` | `api` | 60/min | IP | limiter → auth |
 | `GET/POST /api/patients` | `api` | 60/min | IP | limiter → auth |
 | `POST /api/waitlist` (+ `fill`) | `api` (`keyPrefix: waitlist-create` / `waitlist-fill`) | 60/min | IP | limiter → auth |
-| `POST /api/cron/{smart-triggers,reminders,crm-duplicates}` | `cron` | 20/min | chave fixa `'cron'` | `CRON_SECRET` → limiter |
+| `POST /api/cron/*` (8/8 rotas: outbox, reminders, smart-triggers, crm-duplicates via `route.ts`; cleanup, followups, hot-leads, financeiro-collections via `src/services/api-handlers/cron/*`) | `cron` | 20/min (exceção: `followups` com override `maxRequests: 30` — `src/services/api-handlers/cron/followups.ts:48-51`) | chave fixa `'cron'` | `CRON_SECRET` → limiter |
 
 ## Convenção de ordem
 
@@ -64,13 +66,15 @@ essa migração: taxa de 429 por rota/5min, custo IA/hora, falhas de webhook.
 
 ## Lacunas conhecidas (fora do escopo desta etapa)
 
-- `POST /api/lgpd/anonymize` — sem limiter (mesmo perfil de `export`;
-  candidato natural ao preset `api` com chave por usuário).
-- `POST /api/cron/{cleanup,outbox,hot-leads,followups,financeiro-collections}`
-  — sem limiter (só 3 das 8 rotas cron têm preset `cron`).
-- `[...nextauth]` (credencial real de login, `src/app/api/auth/[...nextauth]/route.ts`)
-  — handler framework-owned, sem limiter na camada de rota; brute-force real
-  depende de proteção nesse handler.
+- Todas as 8 rotas `/api/cron/*` têm preset `cron` (4 em `route.ts`, 4 via
+  `src/services/api-handlers/cron/*`) — sem gap restante neste grupo;
+  exceção conhecida: `followups` usa override `maxRequests: 30`
+  (`src/services/api-handlers/cron/followups.ts:48-51`).
+- `POST /api/lgpd/anonymize` TEM limiter (preset `api`, `keyPrefix:
+  lgpd-anonymize`, `src/services/api-handlers/lgpd/anonymize.ts:34-39`).
+- `[...nextauth]` TEM limiter no POST (preset `api`, `keyPrefix: nextauth`,
+  `src/app/api/auth/[...nextauth]/route.ts:14-21`); GET (session polling)
+  sem limiter por decisão deliberada.
 - `src/app/api/crm/stats/route.test.ts` mocka `@/lib/rate-limit`, mas a rota
   não usa o limiter — mock obsoleto (inofensivo).
 

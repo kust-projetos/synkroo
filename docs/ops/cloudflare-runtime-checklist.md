@@ -152,6 +152,15 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   vazamento, corpo `authenticated:false`) e `/api/patients` → 307
   `Location: /login?redirectTo=%2Fapi%2Fpatients` — NENHUM `Set-Cookie` em
   respostas anônimas (correto). Bypass de dev não observado em prod.
+- ✅ Evidência STAGING+PRODUÇÃO 2026-09-26 (cookies emitíveis sem sessão):
+  `GET /api/auth/csrf` com `-D -` em ambos os ambientes emite
+  `__Host-next-auth.csrf-token` e `__Secure-next-auth.callback-url` com
+  `Path=/; HttpOnly; Secure; SameSite=Lax` — prefixos `__Host-`/`__Secure-`
+  e flags `Secure/HttpOnly/SameSite` CONFIRMADOS na emissão real. Pende
+  apenas o cookie de sessão autenticada (`authjs.session-token`), que exige
+  login real — item reclassificado de PENDENTE-RUNTIME para PARCIAL
+  (evidência de emissão anônima fecha o essencial; sessão vira checagem de
+  rotina pós-deploy).
 
 ## 5. Headers (CSP / HSTS)
 
@@ -194,8 +203,16 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   widget com allowlist de origem (`isAllowedWidgetOrigin`,
   `src/app/api/widget/messages/route.ts:54`); transports assinados
   (`SIGNED_TRANSPORT`, `src/middleware.ts:45`).
-- **PENDENTE-RUNTIME:** validar origem real do widget em prod contra a
-  allowlist; testar preflight `OPTIONS` e rejeição de origem cruzada.
+- ✅ Evidência STAGING 2026-09-26: preflight `OPTIONS
+  /api/widget/messages?installationId=x` com `Origin` não allowlisted →
+  **403 FORBIDDEN** "Origin not allowed." (rota exporta `OPTIONS` via
+  `gated(handleOPTIONS)`; rejeição de origem cruzada validada). Allowlist de
+  origem real do widget (domínios das clínicas) segue cadastro de dados —
+  não é gate de deploy.
+- ⚠️ **PRODUÇÃO STALE (2026-09-26):** o mesmo probe em prod retorna **404**
+  — o deploy de prod é anterior à rota atual (`handleOPTIONS` existe na
+  `main`). Fechar este item exige deploy de prod; re-testar preflight
+  (esperado 403) e rejeição de POST cross-origin (esperado 403) após.
 
 ## 7. Pool Hyperdrive sob carga
 
@@ -246,6 +263,13 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   (`src/lib/api/response.ts:118-125`), eco em `x-request-id`, correlação
   ponta a ponta no `ia/chat` (`resolveCorrelationId` → DO → provider);
   429 canônico preserva o ID (`apiRateLimited`).
+- ✅ `x-request-id` emitido no middleware (`src/middleware.ts`, 2026-09-26):
+  todas as respostas que passam pelo middleware — incluindo early-returns
+  413/403/404, redirects e `NextResponse.next()` — carregam o header via
+  `generateRequestId()` (edge-safe, reutilizado de `response.ts`).
+- **PENDENTE-RUNTIME (pós-deploy):** revalidar em staging/prod que o header
+  aparece nas respostas de borda — as evidências negativas de 2026-09-25
+  abaixo são anteriores a essa mudança.
 - **PENDENTE-RUNTIME:** confirmar propagação end-to-end em prod, incluindo os
   workers `ia-agent`/`ia-bridge` (`src/workers/*`, `wrangler.ia-bridge.jsonc`,
   `src/workers/ia-agent/wrangler.jsonc`).
@@ -277,17 +301,30 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
 ## 11. Cron triggers
 
 - ✅ Trigger `*/5 * * * *` (`wrangler.toml:5`); 8 rotas em
-  `src/app/api/cron/*`; 3 com preset `cron` (ver `docs/ops/rate-limiting.md`).
-- **PENDENTE-RUNTIME:** validar disparo agendado em prod/staging, `CRON_SECRET`
-  por ambiente e comportamento dos 5 jobs sem limiter sob clock real.
+  `src/app/api/cron/*`; **8/8 com preset `cron`** (outbox, reminders,
+  smart-triggers, crm-duplicates em `route.ts`; cleanup, followups,
+  hot-leads, financeiro-collections via `src/services/api-handlers/cron/*`;
+  ver `docs/ops/rate-limiting.md`).
+- ✅ Scheduler (`worker-entry.mjs` + `scripts/lib/cron-schedule.mjs`):
+  outbox (`?limit=25`) dispara a cada tick como antes; demais 6 jobs
+  implementados mas **GATED por `CRON_JOBS_ENABLED`** (CSV de nomes;
+  default vazio = só outbox). Cadências: reminders */5min,
+  cleanup e hot-leads a cada 60min, followups 09:00 UTC,
+  financeiro-collections 03:00 UTC, crm-duplicates 04:00 UTC (decisão por
+  clock UTC do controller; `Promise.allSettled` — erro de um job não
+  aborta os demais). `smart-triggers` fora do scheduler: endpoint
+  aposentado, retorna 410 (`SMART_TRIGGERS_RETIRED`).
+- **PENDENTE-RUNTIME:** definir `CRON_JOBS_ENABLED` em prod/staging para
+  ativar os 6 jobs; validar disparo agendado sob clock real e `CRON_SECRET`
+  por ambiente.
 - ✅ Evidência STAGING 2026-09-25 (contrato validado sem expor o valor):
   `curl.exe -X POST .../api/cron/reminders` sem secret → 401;
   `curl.exe -X POST .../api/cron/cleanup` sem secret → 401
   (`timingSafeEqual` rejeita ausente como esperado). Trigger agendado
   provisionado no deploy staging (`schedule: */5 * * * *`, deploy output).
-  Disparo agendado real sob clock + `CRON_SECRET` por ambiente + 5 jobs sem
-   Disparo agendado real sob clock + `CRON_SECRET` por ambiente + 5 jobs sem
-   limiter seguem PENDENTE-RUNTIME.
+  Disparo agendado real sob clock + `CRON_SECRET` por ambiente seguem
+  PENDENTE-RUNTIME (nota histórica: em 2026-09-25 havia 5 jobs sem limiter;
+  em 2026-09-26 confirmado 8/8 com preset `cron` — ver §11).
 - ✅ Evidência PRODUÇÃO 2026-09-25 (contrato validado sem expor o valor):
   `curl.exe -X POST https://synkroo.walissonead.workers.dev/api/cron/reminders`
   sem secret → 401 `{"error":"Unauthorized"}`; `POST .../api/cron/cleanup`
@@ -295,12 +332,14 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   provisionado no deploy prod (`schedule: */5 * * * *`, deploy output).
   Nota: formato do corpo 401 difere entre as duas rotas (reminders simples
   vs cleanup envelope com `requestId`) — inconsistência cosmética registrada,
-  sem alteração. Disparo agendado real sob clock + 5 jobs sem limiter seguem
-  PENDENTE-RUNTIME.
+  sem alteração. Disparo agendado real sob clock segue
+  PENDENTE-RUNTIME (nota histórica: referência a "5 jobs sem limiter" de
+  2026-09-25 superada — 8/8 com preset `cron`, ver §11).
 
 ## 12. Observabilidade
 
 - ✅ Contrato e inventário em `docs/ops/observability.md`; redaction LGPD.
-- **PENDENTE-RUNTIME:** coleta/agregação **não provisionada** — validar
-  analytics/logs Cloudflare e `observability.enabled` no wrangler antes de
-  declarar SLOs.
+- ✅ `observability.enabled = true` adicionado ao `wrangler.toml` raiz
+  (2026-09-26; mesma forma do `wrangler.jsonc` do `ia-agent`).
+- **PENDENTE-RUNTIME:** validar coleta/agregação (analytics/logs) no
+  dashboard Cloudflare antes de declarar SLOs.

@@ -20,7 +20,7 @@ Em produção a saída é JSON por linha; em dev, prefixo legível.
 
 1. Gerado no envelope da API (`generateRequestId` em `src/lib/api/response.ts`).
 2. Corpo de erro carrega o `requestId`.
-3. Ecoado no header `x-request-id` (action routes em `src/lib/api/action-route.ts`, gates em `src/core/modules/gates.ts`).
+3. Ecoado no header `x-request-id` (action routes em `src/lib/api/action-route.ts`, gates em `src/core/modules/gates.ts`, e borda em `src/middleware.ts` para todas as respostas que passam pelo middleware).
 4. No `/api/ia/chat`: correlação ponta a ponta via `resolveCorrelationId` → DO `AgentOrchestrator` → provider (telemetria `provider_call` com `correlationId`, `attempt`, `usage`).
 
 ## Política de redaction
@@ -65,8 +65,10 @@ contra o formato fechado (`isValidCorrelationId`, senão `[REDACTED]`).
 | Webhook failures | falhas consecutivas inbound/Evolution |
 | AI cost spike | custo/hora acima do teto |
 
-## Pendência de runtime (NÃO implementado)
+## Pendência de runtime
 
-Coleta/agregação de métricas é **VALIDAR EM RUNTIME** (Cloudflare
-analytics/logs, `observability.enabled` no wrangler). Este documento define o
-contrato; nenhum pipeline de métricas foi provisionado nesta etapa.
+Coleta/agregação de métricas: `observability.enabled = true` adicionado ao
+`wrangler.toml` raiz (2026-09-26; mesma forma do `wrangler.jsonc` do
+`ia-agent`) — **validar no dashboard Cloudflare** (analytics/logs) antes de
+declarar SLOs. Este documento define o contrato; nenhum alerta/SLO foi
+provisionado nesta etapa.
