@@ -1,5 +1,6 @@
 import { getToken } from 'next-auth/jwt';
 import { NextResponse, type NextRequest } from 'next/server';
+import { generateRequestId } from '@/lib/api/response';
 import { exceedsBodyLimit, shouldRejectCsrf } from '@/lib/security/request-guards';
 
 /**
@@ -48,13 +49,27 @@ export function isPublicPath(pathname: string): boolean {
   return PUBLIC_EXACT.has(pathname) || PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix));
 }
 
+function withRequestId<T extends NextResponse>(response: T): T {
+  response.headers.set('x-request-id', generateRequestId());
+  return response;
+}
+
+function nextWithRequestId(request: NextRequest): NextResponse {
+  const requestId = generateRequestId();
+  const headers = new Headers(request.headers);
+  headers.set('x-request-id', requestId);
+  const response = NextResponse.next({ request: { headers } });
+  response.headers.set('x-request-id', requestId);
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
   if (exceedsBodyLimit(request)) {
-    return NextResponse.json({ error: 'Request body too large' }, { status: 413 });
+    return withRequestId(NextResponse.json({ error: 'Request body too large' }, { status: 413 }));
   }
   const isNextAuthRoute = request.nextUrl.pathname.startsWith('/api/auth/') && !CUSTOM_AUTH_ROUTES.has(request.nextUrl.pathname);
   if (!isNextAuthRoute && shouldRejectCsrf(request)) {
-    return NextResponse.json({ error: 'Invalid request origin' }, { status: 403 });
+    return withRequestId(NextResponse.json({ error: 'Invalid request origin' }, { status: 403 }));
   }
 
   const pathname = request.nextUrl.pathname;
@@ -62,7 +77,7 @@ export async function middleware(request: NextRequest) {
     process.env.NODE_ENV === 'production' &&
     (pathname === '/signup' || pathname === '/api/auth/signup')
   ) {
-    return new NextResponse(null, { status: 404 });
+    return withRequestId(new NextResponse(null, { status: 404 }));
   }
   const AUTH_SECRET = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
 
@@ -71,7 +86,7 @@ export async function middleware(request: NextRequest) {
     process.env.NODE_ENV === 'development' &&
     (!AUTH_SECRET || process.env.NEXT_PUBLIC_USE_MOCKS === 'true')
   ) {
-    return NextResponse.next({ request });
+    return nextWithRequestId(request);
   }
 
   // Decode and verify the session JWT from request cookies
@@ -89,17 +104,17 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('redirectTo', pathname);
-    return NextResponse.redirect(url);
+    return withRequestId(NextResponse.redirect(url));
   }
 
   // If logged in and trying to access login page, redirect to dashboard
   if (token && pathname === '/login') {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    return withRequestId(NextResponse.redirect(url));
   }
 
-  return NextResponse.next({ request });
+  return nextWithRequestId(request);
 }
 
 export const config = {
