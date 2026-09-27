@@ -44,7 +44,7 @@ localConnectionString = "postgres://synkroo:change-me-local-dev-password@localho
 
 [vars]
 NODE_ENV = "production"
-CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates"
+CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates,followups,financeiro-collections"
 
 [env.staging]
 name = "synkroo-staging"
@@ -52,7 +52,7 @@ name = "synkroo-staging"
 [env.staging.vars]
 NODE_ENV = "production"
 ENVIRONMENT = "staging"
-CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates"
+CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates,followups,financeiro-collections"
 [[env.staging.services]]
 binding = "IA_HANDLE_ISSUER"
 service = "synkroo-ia-bridge-staging"

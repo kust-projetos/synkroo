@@ -317,9 +317,14 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   clock UTC do controller; `Promise.allSettled` — erro de um job não
   aborta os demais). `smart-triggers` fora do scheduler: endpoint
   aposentado, retorna 410 (`SMART_TRIGGERS_RETIRED`).
-- **PENDENTE-RUNTIME:** definir `CRON_JOBS_ENABLED` em prod/staging para
-  ativar os 6 jobs; validar disparo agendado sob clock real e `CRON_SECRET`
-  por ambiente.
+- ✅ ATIVO EM PROD/STAGING 2026-09-26 (autorização do owner na sessão):
+  `CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates,followups,financeiro-collections"`
+  definido em `wrangler.toml` `[vars]` (prod) e `[env.staging.vars]`
+  (deploys `56af9067`+). Com banco vazio e WhatsApp sem parear, os jobs
+  rodam como no-op; passam a agir quando houver dados/canal. Pende
+  **validação sob clock real** (observar Workers Logs: disparos nos horários
+  UTC + ausência de `console.error` por job) e `CRON_SECRET` por ambiente
+  (presente em prod conforme `wrangler secret list`).
 - ✅ Evidência STAGING 2026-09-25 (contrato validado sem expor o valor):
   `curl.exe -X POST .../api/cron/reminders` sem secret → 401;
   `curl.exe -X POST .../api/cron/cleanup` sem secret → 401
