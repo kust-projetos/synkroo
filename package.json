@@ -110,7 +110,7 @@
     "@playwright/test": "^1.59.1",
     "@stryker-mutator/core": "8.7.1",
     "@stryker-mutator/jest-runner": "8.7.1",
-    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.0.0",
     "@types/jest": "^29.5.0",
     "@types/node": "^22.0.0",
