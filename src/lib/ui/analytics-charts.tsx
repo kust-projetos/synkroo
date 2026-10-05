@@ -307,7 +307,7 @@ export function ROICard({
               {formatCurrency(roiData.revenue.totalRevenue)}
             </div>
             <div className="text-xs text-muted-foreground">
-              Receita ({roiData.revenue.appointmentsBooked} agendamentos)
+              Receita estimada ({roiData.revenue.appointmentsBooked} agend. por intenção)
             </div>
           </div>
           <div>

@@ -40,18 +40,18 @@
 
 ### Código/scripts
 
-- [ ] substituir dependência fixa de `../vps-hostinger/.env`;
-- [ ] aceitar caminho explícito via `SYNKROO_VPS_ENV`;
-- [ ] manter fallback legado apenas durante a migração, com deprecation;
+- [x] substituir dependência fixa de `../vps-hostinger/.env` nos três scripts operacionais;
+- [x] aceitar caminho explícito via `SYNKROO_VPS_ENV`;
+- [x] manter fallback legado apenas durante a migração, com deprecation;
 - [ ] separar configuração source/target;
-- [ ] impedir fallback de credencial staging→prod;
-- [ ] preflight sem imprimir secrets.
+- [x] impedir fallback de credencial staging→prod;
+- [x] preflight sem imprimir secrets.
 
 ### Documentação
 
-- [ ] atualizar `docs/ops/vps-access.md`;
+- [x] atualizar `docs/ops/vps-access.md`;
 - [ ] padronizar `VPS_SOURCE_*` e `VPS_TARGET_*` nos runbooks de migração;
-- [ ] não renomear secrets de runtime Cloudflare sem necessidade.
+- [x] não renomear secrets de runtime Cloudflare sem necessidade.
 
 ## 4. P2 — Hostinger → Contabo
 

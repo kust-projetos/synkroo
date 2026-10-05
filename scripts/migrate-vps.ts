@@ -7,43 +7,28 @@
  *   npx tsx scripts/migrate-vps.ts --target=production
  *   npx tsx scripts/migrate-vps.ts --target=staging
  *   npx tsx scripts/migrate-vps.ts --target=all
+ *
+ * Env file resolution (provider-neutral, see scripts/lib/vps-env.mjs):
+ *   1. SYNKROO_VPS_ENV (explicit path; invalid values abort — no fallback)
+ *   2. legacy ../vps-hostinger/.env (temporary, warns)
  */
 
 import { Client } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
-import * as fs from 'fs';
 import * as path from 'path';
 
-/**
- * Parses `.env` content into a key/value map.
- *
- * Exported for unit testing (scripts/__tests__/migrate-vps-env.test.mjs).
- * Splits on `/\r?\n/` so files with Windows (CRLF) line endings parse the
- * same as LF: a trailing `\r` would otherwise defeat the end-of-line `$`
- * anchor and silently drop the line.
- */
-export function parseVpsEnvContent(content: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  const lines = content.split(/\r?\n/);
-  for (const line of lines) {
-    const match = line.match(/^\s*([^#=\s]+)\s*=\s*(.*)$/);
-    if (match) {
-      const key = match[1].trim();
-      const val = match[2].trim().replace(/^['"]|['"]$/g, '');
-      env[key] = val;
-    }
-  }
-  return env;
-}
+import {
+  loadVpsEnv,
+  readVpsSetting,
+  repoRootFromModuleUrl,
+  vpsEnvSourceHint,
+} from './lib/vps-env.mjs';
 
-function loadVpsEnv(): Record<string, string> {
-  const envPath = path.resolve(process.cwd(), '..', 'vps-hostinger', '.env');
-  if (fs.existsSync(envPath)) {
-    return parseVpsEnvContent(fs.readFileSync(envPath, 'utf8'));
-  }
-  return {};
-}
+// Re-exported to preserve this module's public surface: the parser now lives
+// in the shared provider-neutral module (CRLF-safe), still covered by
+// scripts/__tests__/migrate-vps-env.test.mjs.
+export { parseVpsEnvContent } from './lib/vps-env.mjs';
 
 interface TargetConfig {
   name: string;
@@ -101,26 +86,27 @@ async function runMigrationForTarget(
 }
 
 async function main() {
-  const vpsEnv = loadVpsEnv();
-  // All connection values come exclusively from process.env or ../vps-hostinger/.env.
-  // No credentials, hosts, or ports are hardcoded in this file.
-  const host = process.env.VPS_IP || vpsEnv.VPS_IP;
+  const { values, path: envPath, source } = loadVpsEnv();
+  const hint = vpsEnvSourceHint({ path: envPath, source });
+  // All connection values come exclusively from process.env or the resolved
+  // private env file. No credentials, hosts, or ports are hardcoded in this file.
+  const host = readVpsSetting('VPS_IP', { values });
   if (!host) {
-    throw new Error('VPS_IP is missing: set it in process.env or ../vps-hostinger/.env');
+    throw new Error(`VPS_IP is missing: set it in process.env or ${hint}`);
   }
-  const portRaw = process.env.VPS_PG_PORT || vpsEnv.VPS_PG_PORT;
+  const portRaw = readVpsSetting('VPS_PG_PORT', { values });
   if (!portRaw) {
-    throw new Error('VPS_PG_PORT is missing: set it in process.env or ../vps-hostinger/.env');
+    throw new Error(`VPS_PG_PORT is missing: set it in process.env or ${hint}`);
   }
   const port = parseInt(portRaw, 10);
   if (!Number.isFinite(port)) {
-    throw new Error('VPS_PG_PORT is invalid: expected a numeric port in process.env or ../vps-hostinger/.env');
+    throw new Error(`VPS_PG_PORT is invalid: expected a numeric port in process.env or ${hint}`);
   }
-  const prodPassword = process.env.VPS_POSTGRES_PASSWORD || vpsEnv.VPS_POSTGRES_PASSWORD;
+  const prodPassword = readVpsSetting('VPS_POSTGRES_PASSWORD', { values });
   // Strict credential separation: the staging password comes ONLY from
-  // VPS_STAGING_PASSWORD (env or vpsEnv). Never fall back to the production
+  // VPS_STAGING_PASSWORD (env or env file). Never fall back to the production
   // password — cross-environment credential reuse is a P1 finding.
-  const stagingPassword = process.env.VPS_STAGING_PASSWORD || vpsEnv.VPS_STAGING_PASSWORD;
+  const stagingPassword = readVpsSetting('VPS_STAGING_PASSWORD', { values });
 
   const args = process.argv.slice(2);
   const targetArg = args.find((a) => a.startsWith('--target='))?.split('=')[1] || 'production';
@@ -131,13 +117,15 @@ async function main() {
   }
 
   if ((targetArg === 'production' || targetArg === 'all') && !prodPassword) {
-    throw new Error('VPS_POSTGRES_PASSWORD is missing: set it in process.env or ../vps-hostinger/.env');
+    throw new Error(`VPS_POSTGRES_PASSWORD is missing: set it in process.env or ${hint}`);
   }
   if ((targetArg === 'staging' || targetArg === 'all') && !stagingPassword) {
-    throw new Error('VPS_STAGING_PASSWORD is missing: set it in process.env or ../vps-hostinger/.env');
+    throw new Error(`VPS_STAGING_PASSWORD is missing: set it in process.env or ${hint}`);
   }
 
-  const migrationsFolder = path.resolve(process.cwd(), 'src', 'lib', 'db', 'migrations');
+  // Repo-root derived from this script's location (not process.cwd()), so the
+  // migration folder resolves the same regardless of the caller's directory.
+  const migrationsFolder = path.resolve(repoRootFromModuleUrl(), 'src', 'lib', 'db', 'migrations');
 
   const targets: TargetConfig[] = [];
   if (targetArg === 'production' || targetArg === 'all') {

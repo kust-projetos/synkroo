@@ -180,4 +180,4 @@ src/
 
 ## VPS
 - Operação: `docs/ops/vps-access.md`.
-- Configuração privada: `../vps-hostinger/.env`; nunca copiar segredos para este repositório.
+- Scripts operacionais: definir `SYNKROO_VPS_ENV` para o caminho do `.env` privado fora deste repositório. Há apenas um fallback temporário e deprecated para `../vps-hostinger/.env`; nunca copiar segredos para este repositório.

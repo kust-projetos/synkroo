@@ -4,33 +4,82 @@
 
 > **Migração 2026-10-05:** Hostinger é o **source** atual e Contabo é o **target** planejado. Ver `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md`.
 
-Execute comandos a partir da raiz deste projeto. Enquanto P1 provider-neutral não for implementado, a configuração privada do source continua em `../vps-hostinger/.env`. O alvo vNext deve usar caminho explícito/provider-neutral (por exemplo `SYNKROO_VPS_ENV`) e não introduzir `../vps-contabo` hardcoded no código.
+Execute comandos a partir da raiz deste projeto. A configuração privada da VPS é resolvida por `scripts/lib/vps-env.mjs`, compartilhado por `scripts/migrate-vps.ts`, `scripts/update-hyperdrive.ts` e `scripts/setup-staging-db.ts`, com esta precedência:
 
-Nunca copie senha, token, chave privada ou valor de `.env` para este repositório.
+1. `SYNKROO_VPS_ENV` — caminho explícito e provider-neutral (absoluto, ou relativo ao diretório de trabalho atual). **Falha fechada:** se a variável estiver definida e apontar para algo que não é um arquivo legível, o script aborta — nunca cai silenciosamente no fallback legado.
+2. `../vps-hostinger/.env` — fallback legado **temporário**, resolvido a partir da raiz do repositório (não do diretório de trabalho atual), acompanhado de aviso `[deprecation]` em stderr. Deve ser removido ao fim da migração P2.
+
+Definido mas vazio/branco (`SYNKROO_VPS_ENV=`) é tratado como não definido, preservando a semântica de shell usual. Nenhum literal `../vps-contabo` é usado em código: o caminho do alvo é sempre fornecido pelo operador.
+
+Nunca copie senha, token, chave privada ou valor de `.env` para este repositório. Nenhum script imprime valores de credencial; mensagens e avisos carregam apenas o **caminho** do arquivo e nomes de chave.
+
+Exemplo (a partir da raiz do repositório):
+
+```bash
+export SYNKROO_VPS_ENV=../vps-hostinger/.env
+npx tsx scripts/setup-staging-db.ts
+```
+
+### Falha fechada em `setup-staging-db.ts`
+
+A senha de staging **efetiva** é sempre planejada para persistência antes de qualquer mutação no banco: `required` quando gerada no próprio script, e sincronizada quando `process.env` fornece um valor que o arquivo ainda não tem (divergente ou ausente). Um valor que veio do arquivo não gera escrita. Sem esse gate, o role `synkroo_staging` receberia uma senha que não existiria em disco em nenhum lugar.
+
+A gravação é atômica (arquivo temporário no mesmo diretório + `rename`) e **sempre** com modo `0600`: a substituição não reaproveita a permissão anterior, para que um arquivo de credenciais previamente group/world-readable não continue legível por outros usuários.
+
+O `CREATE`/`ALTER ROLE` é montado por `scripts/lib/pg-ddl.mjs`, que escapa a senha como literal `E'…'` (aspas e barras escapadas, NUL rejeitado). Não há interpolação de senha em SQL cru no script.
+
+### Sem shell em `update-hyperdrive.ts`
+
+A CLI do Wrangler local (`node_modules/wrangler/bin/wrangler.js`) é executada como argv explícito via `execFileSync(process.execPath, argv)`, sem shell. Uma senha com espaço, aspas, `;`, `$(…)` ou crase permanece em um único elemento de argv e não consegue iniciar um segundo comando. Se o entry local do Wrangler não existir, o script falha fechado pedindo `npm ci`.
 
 ### Bash/Git Bash
 
+Use a mesma variável para as sessões shell manuais, para que o operador e os scripts apontem sempre para o mesmo arquivo:
+
 ```bash
-VPS_ENV=../vps-hostinger/.env
+export SYNKROO_VPS_ENV=../vps-hostinger/.env   # enquanto o fallback legado existir
 set -a
-. "$VPS_ENV"
+. "$SYNKROO_VPS_ENV"
 set +a
 : "${VPS_IP:?VPS_IP ausente}"
 : "${VPS_SSH_USER:?VPS_SSH_USER ausente}"
 : "${VPS_SSH_KEY_PATH:?VPS_SSH_KEY_PATH ausente}"
 ```
 
+### Formato do arquivo
+
+Os valores gravados pelos scripts usam **aspas simples POSIX**: `CHAVE='valor'`, com uma aspa simples interna escrita como `'\''`. Uma senha com espaço, `$`, `;`, crase ou aspas nas bordas continua sendo **um único valor exato** — tanto na leitura do parser quanto no `source` do shell (`set -a; . "$SYNKROO_VPS_ENV"`).
+
+- Valores legados (`CHAVE=valor`, `CHAVE="valor"`, `CHAVE='valor'`) continuam sendo lidos como antes, com `trim` e remoção das aspas de borda. Arquivos existentes não precisam ser migrados.
+- Leitura é **last-wins** em chaves duplicadas; por isso o writer reescreve **todas** as ocorrências de uma chave, para que nenhuma credencial obsoleta prevaleça.
+- `NUL`, `CR` e `LF` não são representáveis e são **rejeitados** antes de qualquer conexão ao banco (`SYNKROO_ENV_VALUE_UNREPRESENTABLE`); nada é gravado. Um segredo vindo de `process.env` sem arquivo segue rodando sem persistência, porque é de fonte externa.
+
 ### PowerShell
 
+O arquivo usa quoting POSIX (`'\''`), que o `ConvertFrom-StringData` não decodifica. Para leitura pontual use o parser canônico:
+
 ```powershell
-$envFile = Resolve-Path ..\vps-hostinger\.env
-$values = Get-Content $envFile |
-  Where-Object { $_ -match '^\s*[^#\s][^=]*=' } |
-  ConvertFrom-StringData
-$VPS_IP = $values.VPS_IP
-$VPS_SSH_USER = $values.VPS_SSH_USER
-$VPS_SSH_KEY_PATH = $values.VPS_SSH_KEY_PATH
+node -e "const {loadVpsEnv}=await import('./scripts/lib/vps-env.mjs');console.log(loadVpsEnv().values.VPS_IP)"
 ```
+
+Para sessões manuais, `set -a; . "$SYNKROO_VPS_ENV"` em Git Bash é o caminho fiel.
+
+### Mensagens de erro
+
+As mensagens de `migrate-vps.ts`, `update-hyperdrive.ts` e `setup-staging-db.ts` nomeiam a **origem** dos valores (`SYNKROO_VPS_ENV=<caminho>`, o fallback legado, ou a instrução de definir a variável) e nunca o conteúdo do arquivo:
+
+- `SYNKROO_VPS_ENV is set to "<caminho>" but no file exists there` — caminho definido e inválido; corrija ou use `unset`.
+- `<CHAVE> is missing: set it in process.env or SYNKROO_VPS_ENV=/absolute/path/to/.env` — chave ausente no env e no arquivo.
+- `Cannot persist generated VPS_STAGING_PASSWORD: no VPS env file was found` — falha fechada antes de mutar o banco.
+- `Refusing to persist <CHAVE>: the value contains NUL, CR or LF, which the quoted .env format cannot represent` — nada foi gravado e nada foi conectado; troque a credencial.
+- `[deprecation] SYNKROO_VPS_ENV is not set: falling back to the legacy path "<caminho>"` — aviso, não erro.
+
+Falha de banco em `setup-staging-db.ts` **nunca** imprime texto do driver (o `CREATE/ALTER ROLE` carrega a senha em texto claro e o driver ecoa a statement). A saída é um código allowlisted ou uma mensagem fixa:
+
+- `Setup failed: database operation failed (code: 28P01)` — código de transporte/SQLSTATE allowlisted (`28P01`, `42501`, `ECONNREFUSED`, `ETIMEDOUT`, …).
+- `Setup failed: database operation failed (details redacted to avoid leaking credentials)` — qualquer outro código; nada do erro bruto é exibido.
+
+Erros de preflight deste repo (`SYNKROO_*`) mantêm a mensagem original, que só contém caminho e nome de chave.
 
 ## Conexão
 

@@ -4,8 +4,32 @@ import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
 import { appointments, patients, leads, conversations, dentists, procedures } from '@/lib/db/schema'
+import { appointmentStatus } from '@/lib/db/schema/enums'
 import { redactPII } from '@/lib/reports/redact-pii'
 import { escapeCsvCell } from '@/app/api/reports/export/csv'
+
+type ParseEnumResult<T extends string> = { ok: true; values: T[] } | { ok: false; message: string }
+
+/**
+ * Valida um filtro vindo de query string contra os valores canonicos do enum
+ * ANTES de montar a query. Sem isso, `status=bogus` virava `inArray` com valor
+ * inexistente e a rota respondia 200 com zero linhas — indistinguivel de
+ * "nenhum agendamento no periodo". Colunas text livre nao usam isto.
+ */
+function parseEnumFilter<T extends string>(raw: string, allowed: readonly T[]): ParseEnumResult<T> {
+  const requested = raw.split(',').map((v) => v.trim()).filter(Boolean)
+  if (!requested.length) {
+    return { ok: false, message: `Empty enum filter. Allowed: ${allowed.join(', ')}` }
+  }
+  const invalid = requested.filter((v) => !(allowed as readonly string[]).includes(v))
+  if (invalid.length) {
+    return {
+      ok: false,
+      message: `Invalid status: ${invalid.join(', ')}. Allowed: ${allowed.join(', ')}`,
+    }
+  }
+  return { ok: true, values: requested as T[] }
+}
 
 export async function GET(request: NextRequest) {
   const requestId = generateRequestId()
@@ -33,7 +57,11 @@ export async function GET(request: NextRequest) {
         const conds: any[] = [eq(appointments.clinicId, clinicId)]
         if (startDate) conds.push(gte(appointments.scheduledAt, new Date(startDate)))
         if (endDate) conds.push(lte(appointments.scheduledAt, new Date(endDate + 'T23:59:59')))
-        if (statusFilter) conds.push(inArray(appointments.status as any, statusFilter.split(',')))
+        if (statusFilter) {
+          const statuses = parseEnumFilter(statusFilter, appointmentStatus.enumValues)
+          if (!statuses.ok) return apiFailure('INVALID_INPUT', statuses.message, requestId, 400)
+          conds.push(inArray(appointments.status, statuses.values))
+        }
         if (dentistId) conds.push(eq(appointments.dentistId, dentistId))
         if (procedureId) conds.push(eq(appointments.procedureId, procedureId))
         const rows = await db.select({
@@ -58,8 +86,10 @@ export async function GET(request: NextRequest) {
         const conds: any[] = [eq(leads.clinicId, clinicId)]
         if (startDate) conds.push(gte(leads.createdAt, new Date(startDate)))
         if (endDate) conds.push(lte(leads.createdAt, new Date(endDate + 'T23:59:59')))
-        if (statusFilter) conds.push(inArray(leads.status as any, statusFilter.split(',')))
-        if (sourceFilter) conds.push(inArray(leads.source as any, sourceFilter.split(',')))
+        // leads.status/source/temperature sao text livre no schema (sem enum
+        // canonico) — nao ha taxonomia para validar; o filtro segue aceito.
+        if (statusFilter) conds.push(inArray(leads.status, statusFilter.split(',')))
+        if (sourceFilter) conds.push(inArray(leads.source, sourceFilter.split(',')))
         const rows = await db.select({ id: leads.id, name: leads.name, phone: leads.phone, email: leads.email, source: leads.source, status: leads.status, temperature: leads.temperature, score: leads.score, dealValue: leads.dealValue, interest: leads.interest, createdAt: leads.createdAt })
           .from(leads).where(and(...conds)).orderBy(desc(leads.createdAt))
         data = rows.map(r => ({ ...r, budget_value: r.dealValue }))
@@ -67,7 +97,7 @@ export async function GET(request: NextRequest) {
         break
       }
       case 'financial': {
-        const conds: any[] = [eq(appointments.clinicId, clinicId), inArray(appointments.status as any, ['completed', 'confirmed'])]
+        const conds: any[] = [eq(appointments.clinicId, clinicId), inArray(appointments.status, ['completed', 'confirmed'])]
         if (startDate) conds.push(gte(appointments.scheduledAt, new Date(startDate)))
         if (endDate) conds.push(lte(appointments.scheduledAt, new Date(endDate + 'T23:59:59')))
         if (dentistId) conds.push(eq(appointments.dentistId, dentistId))

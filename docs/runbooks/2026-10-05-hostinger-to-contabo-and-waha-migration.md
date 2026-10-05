@@ -45,7 +45,12 @@ cleanup/decommission
 - URL pública esperada.
 
 ### Configuração operacional
-Documentação/scripts ainda assumem `../vps-hostinger/.env`.
+Os três scripts operacionais aceitam `SYNKROO_VPS_ENV` apontando para um `.env`
+privado fora do repositório. Se a variável estiver definida mas o caminho for
+inválido, o script falha sem usar fallback. Durante a migração, ainda existe um
+fallback temporário e deprecated para `../vps-hostinger/.env`; removê-lo e
+separar explicitamente as configurações source/target continuam pendentes antes
+da execução do rehearsal.
 
 ## 3. Inventário obrigatório na Hostinger
 

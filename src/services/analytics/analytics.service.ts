@@ -39,7 +39,10 @@ export async function getAppointmentTrends(clinicId: string, days = 30): Promise
       no_show: Number(r.no_show ?? 0),
       completed: Number(r.completed ?? 0),
     }))
-  } catch (e) { dbLogger.error('Error fetching appointment trends', e); return [] }
+  } catch (e) {
+    // Fail-closed: erro de DB não pode virar série vazia com aparência de "sem dados".
+    dbLogger.error('Error fetching appointment trends', e); throw e
+  }
 }
 
 export async function getHourlyDistribution(clinicId: string, days = 90): Promise<HourlyDistribution[]> {
@@ -53,7 +56,7 @@ export async function getHourlyDistribution(clinicId: string, days = 90): Promis
     const counts = new Array(24).fill(0); let total = 0
     for (const r of rows) { const h = Number(r.hour); const c = Number(r.count ?? 0); if (h >= 0 && h < 24) { counts[h] += c; total += c } }
     return counts.map((c, h) => ({ hour: h, count: c, percentage: total > 0 ? Math.round((c / total) * 100) : 0 }))
-  } catch (e) { dbLogger.error('Error fetching hourly distribution', e); return [] }
+  } catch (e) { dbLogger.error('Error fetching hourly distribution', e); throw e }
 }
 
 export async function getDayOfWeekDistribution(clinicId: string, days = 90): Promise<DayOfWeekDistribution[]> {
@@ -68,7 +71,7 @@ export async function getDayOfWeekDistribution(clinicId: string, days = 90): Pro
     const counts = new Array(7).fill(0); let total = 0
     for (const r of rows) { const d = Number(r.dow); const c = Number(r.count ?? 0); if (d >= 0 && d < 7) { counts[d] += c; total += c } }
     return counts.map((c, i) => ({ day: dayNames[i], dayIndex: i, count: c, percentage: total > 0 ? Math.round((c / total) * 100) : 0 }))
-  } catch (e) { dbLogger.error('Error fetching day of week distribution', e); return [] }
+  } catch (e) { dbLogger.error('Error fetching day of week distribution', e); throw e }
 }
 
 export async function getHighRiskPatients(clinicId: string, limit = 20): Promise<PatientRiskAnalysis[]> {
@@ -80,7 +83,7 @@ export async function getHighRiskPatients(clinicId: string, limit = 20): Promise
 
     const patientIds = pRows.map(p => p.id)
     const aRows = await db.select({ patientId: appointments.patientId, status: appointments.status })
-      .from(appointments).where(and(inArray(appointments.patientId, patientIds) as any, eq(appointments.clinicId, clinicId)))
+      .from(appointments).where(and(inArray(appointments.patientId, patientIds), eq(appointments.clinicId, clinicId)))
 
     const apptMap = new Map<string, Array<{ status: string }>>()
     for (const a of aRows) { const arr = apptMap.get(a.patientId) || []; arr.push(a); apptMap.set(a.patientId, arr) }
@@ -98,7 +101,7 @@ export async function getHighRiskPatients(clinicId: string, limit = 20): Promise
       if (totalVisits > 0 && cancelledCount / totalVisits > 0.3) factors.push('Alta taxa de cancelamento')
       return { patient_id: p.id, patient_name: p.name, phone: p.phone ?? '', risk_score: Number(p.riskScore ?? 0), risk_factors: factors, last_visit: p.lastVisit?.toISOString?.() ?? null, total_visits: totalVisits, cancelled_count: cancelledCount, no_show_count: noShowCount }
     })
-  } catch (e) { dbLogger.error('Error analyzing high risk patients', e); return [] }
+  } catch (e) { dbLogger.error('Error analyzing high risk patients', e); throw e }
 }
 
 export async function getDemandForecast(clinicId: string, days = 14): Promise<DemandForecast[]> {
@@ -134,7 +137,7 @@ export async function getDemandForecast(clinicId: string, days = 14): Promise<De
       forecasts.push({ date: ds, predicted_appointments: Math.round(avg), confidence: Math.round(confidence * 100) / 100, based_on: `${counts.length} semanas de dados` })
     }
     return forecasts
-  } catch (e) { dbLogger.error('Error generating demand forecast', e); return [] }
+  } catch (e) { dbLogger.error('Error generating demand forecast', e); throw e }
 }
 
 async function calculateAvgConfirmationTime(clinicId: string): Promise<number> {
@@ -149,7 +152,7 @@ async function calculateAvgConfirmationTime(clinicId: string): Promise<number> {
       .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, ninetyDaysAgo), isNotNull(appointments.confirmationSentAt)))
     const avg = Number(row?.avgHours ?? 0)
     return avg > 0 ? Math.round(avg * 10) / 10 : 0
-  } catch (e) { dbLogger.error('Error calculating avg confirmation time', e); return 0 }
+  } catch (e) { dbLogger.error('Error calculating avg confirmation time', e); throw e }
 }
 
 export async function getClinicInsights(clinicId: string, options: { trendDays?: number; forecastDays?: number } = {}): Promise<ClinicInsights> {
@@ -170,5 +173,9 @@ export async function getClinicInsights(clinicId: string, options: { trendDays?:
       highRiskPatients: riskPatients, demandForecast: forecast,
       metrics: { avgAppointmentsPerDay: Math.round(avgPerDay * 10) / 10, peakHour, peakDay, cancellationRate: total > 0 ? Math.round((totalCancelled / total) * 100) : 0, noShowRate: total > 0 ? Math.round((totalNoShow / total) * 100) : 0, avgConfirmationTime },
     }
-  } catch (e) { dbLogger.error('Error getting clinic insights', e); return { appointmentTrends: [], hourlyDistribution: [], dayOfWeekDistribution: [], highRiskPatients: [], demandForecast: [], metrics: { avgAppointmentsPerDay: 0, peakHour: 9, peakDay: 'Seg', cancellationRate: 0, noShowRate: 0, avgConfirmationTime: 0 } } }
+  } catch (e) {
+    // Fail-closed: insights com todos os blocos zerados são indistinguíveis de
+    // "clínica sem dados" para o consumidor. Propaga para a rota devolver 500.
+    dbLogger.error('Error getting clinic insights', e); throw e
+  }
 }

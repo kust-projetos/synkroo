@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server'
 import { eq, and, gte, lt, inArray, sql } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
-import { dbLogger } from '@/lib/logger'
 import { getDb } from '@/lib/db/client'
 import {
   appointments as appointmentsTable,
@@ -65,11 +64,9 @@ export async function GET(request: NextRequest) {
             notDeleted
           )
         )
-        .then(([r]) => r ?? { total: 0, confirmed: 0, pending: 0 })
-        .catch((err) => {
-          dbLogger.error('Dashboard stats: todayAppointments failed', { error: String(err) })
-          return { total: 0, confirmed: 0, pending: 0 }
-        }),
+        // Fail-closed: nada de .catch com zero — erro de DB propaga para o
+        // try/catch da rota e vira 500 com envelope canônico.
+        .then(([r]) => r ?? { total: 0, confirmed: 0, pending: 0 }),
 
       // 2. Last 30 days for confirmation rate — agregação SQL direta
       db
@@ -86,17 +83,11 @@ export async function GET(request: NextRequest) {
             notDeleted
           )
         )
-        .then(([r]) => r ?? { total: 0, confirmed: 0 })
-        .catch((err) => {
-          dbLogger.error('Dashboard stats: recentAppointments failed', { error: String(err) })
-          return { total: 0, confirmed: 0 }
-        }),
+        .then(([r]) => r ?? { total: 0, confirmed: 0 }),
 
-      // 3. Inactive patients (isolated from failures)
-      getInactivityStats(clinicId).catch((err) => {
-        dbLogger.error('Dashboard stats: inactivityStats failed', { error: String(err) })
-        return { totalInactive: 0, bySegment: {}, atRiskRevenue: 0 }
-      }),
+      // 3. Inactive patients — fail-closed junto com o resto (falso zero
+      // esconderia pacientes inativos de um dashboard com aparência saudável)
+      getInactivityStats(clinicId),
 
       // 4. Active campaigns (running or scheduled) — contagem direta SQL
       db
@@ -108,11 +99,7 @@ export async function GET(request: NextRequest) {
             inArray(campaignsTable.status, ['running', 'scheduled'])
           )
         )
-        .then(([r]) => r?.count ?? 0)
-        .catch((err) => {
-          dbLogger.error('Dashboard stats: campaigns failed', { error: String(err) })
-          return 0
-        }),
+        .then(([r]) => r?.count ?? 0),
 
       // 5. Open conversations (active + waiting) — contagem direta SQL única
       db
@@ -121,25 +108,17 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             eq(conversations.clinicId, clinicId),
-            inArray(conversations.status, ['active', 'waiting'] as any)
+            inArray(conversations.status, ['active', 'waiting'])
           )
         )
-        .then(([r]) => r?.count ?? 0)
-        .catch((err) => {
-          dbLogger.error('Dashboard stats: conversations failed', { error: String(err) })
-          return 0
-        }),
+        .then(([r]) => r?.count ?? 0),
 
       // 6. Total patients count
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(patientsTable)
         .where(eq(patientsTable.clinicId, clinicId))
-        .then(([r]) => r?.count ?? 0)
-        .catch((err) => {
-          dbLogger.error('Dashboard stats: patients count failed', { error: String(err) })
-          return 0
-        }),
+        .then(([r]) => r?.count ?? 0),
     ])
 
     // Valores já agregados no banco — nenhuma linha bruta em memória

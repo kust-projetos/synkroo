@@ -23,13 +23,20 @@ const cannedRows: any[][] = [
 ]
 let selectCall = 0
 
+/** Modo de falha: a Nª query rejeita (simula erro de DB). */
+let failingSelect = -1
+
 const mockDb = {
   select: jest.fn(() => {
-    const rows = cannedRows[selectCall++] ?? [{ count: 0 }]
+    const call = selectCall++
+    const rows = cannedRows[call] ?? [{ count: 0 }]
     return {
       from: jest.fn(() => ({
         where: jest.fn(() => ({
-          then: (fn: any) => Promise.resolve().then(() => fn(rows)),
+          then: (fn: any) =>
+            failingSelect === call
+              ? Promise.reject(new Error('db down'))
+              : Promise.resolve().then(() => fn(rows)),
         })),
       })),
     }
@@ -61,12 +68,9 @@ jest.mock('@/lib/db/schema', () => {
   return actual;
 });
 
+const mockGetInactivityStats = jest.fn()
 jest.mock('@/services/followup/inactive-patient.service', () => ({
-  getInactivityStats: jest.fn().mockResolvedValue({
-    totalInactive: 42,
-    bySegment: { '30d': 10, '60d': 15, '90d': 17 },
-    atRiskRevenue: 5000,
-  }),
+  getInactivityStats: (...args: unknown[]) => mockGetInactivityStats(...args),
 }))
 
 import { GET } from '@/app/api/dashboard/stats/route'
@@ -87,6 +91,12 @@ function makeReq(): Request {
 beforeEach(() => {
   jest.clearAllMocks()
   selectCall = 0
+  failingSelect = -1
+  mockGetInactivityStats.mockResolvedValue({
+    totalInactive: 42,
+    bySegment: { '30d': 10, '60d': 15, '90d': 17 },
+    atRiskRevenue: 5000,
+  })
 })
 
 describe('GET /api/dashboard/stats', () => {
@@ -128,5 +138,66 @@ describe('GET /api/dashboard/stats', () => {
     // inactive shape
     expect(body.data.inactivePatients.totalInactive).toBe(42)
     expect(body.data.inactivePatients.bySegment).toEqual({ '30d': 10, '60d': 15, '90d': 17 })
+  })
+
+  // Fail-closed (P1 analytics): erro de DB no dashboard precisa virar 500 com
+  // envelope canônico — nunca 200 com contagens zeradas (falso "clínica sadia").
+  describe('fail-closed em erro de DB', () => {
+    afterEach(() => { failingSelect = -1 })
+
+    it('retorna 500 quando a query de hoje falha', async () => {
+      mockAuth()
+      failingSelect = 0
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(500)
+      expect(body.error.code).toBe('INTERNAL_ERROR')
+      expect(body.error.requestId).toEqual(expect.any(String))
+      expect(body.data).toBeUndefined()
+    })
+
+    it('retorna 500 quando a query de 30 dias falha', async () => {
+      mockAuth()
+      failingSelect = 1
+
+      const res = await GET(makeReq() as any)
+      expect(res.status).toBe(500)
+      expect((await res.json()).error.code).toBe('INTERNAL_ERROR')
+    })
+
+    it('retorna 500 quando a contagem de campanhas falha', async () => {
+      mockAuth()
+      failingSelect = 2
+
+      const res = await GET(makeReq() as any)
+      expect(res.status).toBe(500)
+    })
+
+    it('retorna 500 quando a contagem de conversas falha', async () => {
+      mockAuth()
+      failingSelect = 3
+
+      const res = await GET(makeReq() as any)
+      expect(res.status).toBe(500)
+    })
+
+    it('retorna 500 quando a contagem de pacientes falha', async () => {
+      mockAuth()
+      failingSelect = 4
+
+      const res = await GET(makeReq() as any)
+      expect(res.status).toBe(500)
+    })
+
+    it('retorna 500 quando getInactivityStats falha (não isola mais em zero)', async () => {
+      mockAuth()
+      mockGetInactivityStats.mockRejectedValueOnce(new Error('db down'))
+
+      const res = await GET(makeReq() as any)
+      expect(res.status).toBe(500)
+      expect((await res.json()).error.code).toBe('INTERNAL_ERROR')
+    })
   })
 })

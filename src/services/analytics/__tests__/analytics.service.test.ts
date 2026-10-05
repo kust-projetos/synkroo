@@ -2,16 +2,30 @@
 jest.mock('@/lib/logger', () => ({ dbLogger: { error: jest.fn(), info: jest.fn() } }))
 
 let results: any[][] = [], counter = 0
+/** Modo de falha: a Nª query rejeita (simula erro de DB). */
+let failAt = -1
 const mdb = {
   select: jest.fn(function (this: any) { return this }), from: jest.fn(function (this: any) { return this }), where: jest.fn(function (this: any) { return this }),
   orderBy: jest.fn(function (this: any) { return this }), limit: jest.fn(function (this: any) { return this }),
   groupBy: jest.fn(function (this: any) { return this }),
-  then: jest.fn(function (this: any, onF: any) { const d = results[counter++] ?? results[results.length - 1] ?? []; return Promise.resolve(typeof onF === 'function' ? onF(d) : d) }),
+  // Thenable de verdade: o `await` do service encadeia nos handlers, então a
+  // rejeição precisa passar por `onRejected` (devolver a promise rejeitada sem
+  // chamar o handler deixaria o await pendurado).
+  then: jest.fn(function (this: any, onF: any, onR: any) {
+    const call = counter++
+    const pending = failAt === call
+      ? Promise.reject(new Error('db down'))
+      : Promise.resolve(results[call] ?? results[results.length - 1] ?? [])
+    return pending.then(
+      (d) => (typeof onF === 'function' ? onF(d) : d),
+      (err) => (typeof onR === 'function' ? onR(err) : Promise.reject(err)),
+    )
+  }),
 } as any
 jest.mock('@/lib/db/client', () => { let d: any = null; return { getDb: jest.fn(() => { if (!d) d = mdb; return d }) } })
 
 function seed(...s: any[][]) { counter = 0; results = s }
-beforeEach(() => { counter = 0; results = []; jest.clearAllMocks() })
+beforeEach(() => { counter = 0; results = []; failAt = -1; jest.clearAllMocks() })
 
 import { getAppointmentTrends, getHourlyDistribution, getDayOfWeekDistribution, getHighRiskPatients, getDemandForecast, getClinicInsights } from '../analytics.service'
 
@@ -73,6 +87,49 @@ describe('Analytics Service', () => {
     it('returns safe defaults with empty data', async () => {
       seed([], [], [], [], [], [], [])
       const r = await getClinicInsights('c1'); expect(r.appointmentTrends).toEqual([]); expect(r.metrics.cancellationRate).toBe(0)
+    })
+  })
+
+  // ─── Fail-closed (P1 analytics) ────────────────────────────────────────
+  // Zero/[] retornado como se fosse sucesso é indistinguível de "sem dados".
+  describe('fail-closed em erro de DB', () => {
+    const cases: Array<[string, () => Promise<unknown>, () => void]> = [
+      ['getAppointmentTrends', () => getAppointmentTrends('c1'), () => { seed([]); failAt = 0 }],
+      ['getHourlyDistribution', () => getHourlyDistribution('c1'), () => { seed([]); failAt = 0 }],
+      ['getDayOfWeekDistribution', () => getDayOfWeekDistribution('c1'), () => { seed([]); failAt = 0 }],
+      ['getHighRiskPatients', () => getHighRiskPatients('c1'), () => { seed([]); failAt = 0 }],
+      ['getDemandForecast', () => getDemandForecast('c1'), () => { seed([]); failAt = 0 }],
+    ]
+    for (const [name, run, arrange] of cases) {
+      it(`${name} propaga o erro em vez de devolver vazio`, async () => {
+        arrange()
+        await expect(run()).rejects.toThrow('db down')
+      })
+    }
+
+    it('getClinicInsights propaga erro de QUALQUER subquery (sem insights zerados)', async () => {
+      // Índices das queries disparadas por getClinicInsights com seed vazio:
+      // 0 trends, 1 hourly, 2 dow, 3 patients, 4 forecast, 5 avg confirmation.
+      // (getHighRiskPatients retorna cedo quando não há pacientes — a 2ª query
+      // dele só roda no teste seguinte.)
+      for (const i of [0, 1, 2, 3, 4, 5]) {
+        seed([], [], [], [], [], []); failAt = i
+        await expect(getClinicInsights('c1')).rejects.toThrow('db down')
+      }
+    })
+
+    it('getClinicInsights propaga erro na 2ª query de getHighRiskPatients', async () => {
+      // Com um paciente, a query de histórico é a 7ª iniciada (índice 6):
+      // as seis primeiras cobrem trends/hourly/dow/paciente/forecast/confirmação.
+      seed([], [], [], [mkPatient()], [], []); failAt = 6
+      await expect(getClinicInsights('c1')).rejects.toThrow('db down')
+    })
+
+    it('não engole o erro: dbLogger.error é chamado antes de propagar', async () => {
+      const { dbLogger } = await import('@/lib/logger')
+      seed([]); failAt = 0
+      await expect(getAppointmentTrends('c1')).rejects.toThrow('db down')
+      expect(dbLogger.error).toHaveBeenCalled()
     })
   })
 })

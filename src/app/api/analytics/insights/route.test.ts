@@ -62,4 +62,18 @@ describe('GET /api/analytics/insights', () => {
     expect(body.error.code).toBe('UNAUTHORIZED')
     expect(mockGetClinicInsights).not.toHaveBeenCalled()
   })
+
+  // Fail-closed (P1 analytics): insights zerados com 200 são indistinguíveis de
+  // "clínica sem dados" — erro de DB precisa virar 500 com envelope canônico.
+  it('returns 500 envelope canônico quando analytics falha (sem insights vazios)', async () => {
+    mockGetClinicInsights.mockRejectedValue(new Error('db down'))
+
+    const response = await GET(new NextRequest('http://localhost/api/analytics/insights'))
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body.error.code).toBe('INTERNAL_ERROR')
+    expect(body.error.requestId).toEqual(expect.any(String))
+    expect(body.data).toBeUndefined()
+  })
 })

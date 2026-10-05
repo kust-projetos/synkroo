@@ -1,6 +1,7 @@
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { ActionContext, ActionDefinition } from '@/core/actions/types';
 import { getActions } from '@/core/actions/registry';
+import { isAgentSafeAction } from './tool-policy';
 import type { RemoteTool, ToolCatalog } from './types';
 
 // Zen (e function-calling em geral) rejeita '.' no nome da tool → HTTP 400.
@@ -22,12 +23,14 @@ function flattenSchema(name: string, schema: any): Record<string, unknown> {
   return clone;
 }
 
-export function toRemoteTool(
-  action: Pick<
-    ActionDefinition<any, any>,
-    'name' | 'module' | 'requires' | 'label' | 'description' | 'input'
-  >,
-): RemoteTool {
+// Metadata mínima necessária para descrever uma tool remota. Deliberadamente
+// sem `handler`: o catálogo é serialização, nunca capacidade de execução.
+type CatalogAction = Pick<
+  ActionDefinition<any, any>,
+  'name' | 'module' | 'requires' | 'label' | 'description' | 'input'
+>;
+
+export function toRemoteTool(action: CatalogAction): RemoteTool {
   const raw = zodToJsonSchema(action.input as never, action.name);
   return {
     name: action.name,
@@ -39,14 +42,10 @@ export function toRemoteTool(
   };
 }
 
-// Catálogo a partir de uma lista de actions já filtrada — reutilizável e testável.
+// Serializador interno — recebe lista JÁ autorizada e produz o ToolCatalog.
+// Não decide autorização: chamador único é `buildToolCatalog` (abaixo).
 // Versionado pelo conjunto ordenado de aliases (detecta drift).
-export function buildToolCatalogFromList(
-  actions: Pick<
-    ActionDefinition<any, any>,
-    'name' | 'module' | 'requires' | 'label' | 'description' | 'input'
-  >[],
-): ToolCatalog {
+function buildToolCatalogFromList(actions: CatalogAction[]): ToolCatalog {
   const tools = actions.map(toRemoteTool);
   const joined = [...tools.map((t) => t.alias)].sort().join('|');
   let h = 0;
@@ -56,9 +55,36 @@ export function buildToolCatalogFromList(
   return { version: `v${(h >>> 0).toString(16)}`, tools };
 }
 
-// Catálogo filtrado pelo ctx (manifesto + permissão), sobre o registry global.
-export function buildToolCatalog(ctx: ActionContext): ToolCatalog {
+/**
+ * Catálogo de tools da bridge IA — seletor de METADATA, deny-by-default.
+ *
+ * Interseção (as três condições precisam ser verdadeiras):
+ *   1. `isAgentSafeAction(a.name)` — allowlist literal da bridge IA (`tool-policy`);
+ *   2. `ctx.hasModule(a.module)` — manifesto do módulo;
+ *   3. `ctx.can(a.requires)` — permissão do principal.
+ *
+ * É o mesmo seletor usado por `listToolsLogic` (descoberta via handle), então
+ * descoberta e catálogo público não podem divergir.
+ *
+ * O catálogo carrega apenas metadata (alias, descrição, JSON Schema, módulo,
+ * permissão): nenhum callback executável é exposto. A execução continua
+ * exclusiva de `executeActionLogic`, que revalida a allowlist antes de marcar
+ * idempotência e antes do `runAction`.
+ *
+ * `actions` é opcional (default: registry global) para permitir injeção de
+ * registry em testes e consumidores — o filtro é aplicado sobre a lista
+ * recebida, nunca sobre a allowlist.
+ */
+export function buildToolCatalog(
+  ctx: ActionContext,
+  actions: CatalogAction[] = getActions(),
+): ToolCatalog {
   return buildToolCatalogFromList(
-    getActions().filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires)),
+    actions.filter(
+      (a) =>
+        isAgentSafeAction(a.name) &&
+        ctx.hasModule(a.module) &&
+        ctx.can(a.requires),
+    ),
   );
 }
