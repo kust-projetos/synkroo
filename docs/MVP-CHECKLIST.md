@@ -11,7 +11,7 @@
 ### Setup & Infraestrutura
 - [x] Criar repositório GitHub
 - [x] Setup Next.js 15 + App Router
-- [x] Configurar Supabase (projeto, auth, database)
+- [x] Configurar PostgreSQL + Drizzle (banco gerenciado, migrations em `src/lib/db/schema/`)
 - [x] Implementar RLS (Row-Level Security)
 - [x] Configurar variáveis de ambiente
 
@@ -124,7 +124,7 @@
 - [ ] Dashboard de analytics (UI)
 
 ### Memória do Agente
-- [x] RAG básico (pgvector) - Migration aplicada no Supabase
+- [x] RAG básico (pgvector) - Migration aplicada no PostgreSQL
 - [x] Contexto de conversas anteriores - RAG service
 - [x] Knowledge base com embeddings - 15 entradas seedadas
 - [x] Funções RPC para busca semântica - search_knowledge_base, etc

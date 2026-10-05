@@ -37,17 +37,19 @@ O agente entregou tudo no seu escopo; o restante depende de acesso a dashboards 
 
 **Risco:** Acesso total ao GitHub (repos, workflows, secrets). Revogar imediatamente.
 
-## CONFIRMED — Supabase
+## CONFIRMED — Supabase — Status: REMOVIDO DO RUNTIME (revogação no provedor NÃO comprovada)
+
+**Ação pendente do owner:** a remoção da stack está registrada no ADR-BASE-03, mas isso **não comprova** exclusão do projeto remoto nem revogação das chaves no lado Supabase. Confirmar no dashboard/provedor que o projeto foi deletado ou as keys revogadas (guardar recibo), ou registrar o risco como aceito. Enquanto não houver recibo, tratar as chaves abaixo como potencialmente válidas em contenção. Mantidas aqui como registro histórico do incidente; a higiene do histórico git (C04-C08) segue válida como sanitation.
 
 | # | Fingerprint | Arquivo | Commit | Linha | Ação Owner |
 |---|---|---|---|---|---|
-| C04 | `jwt:1` | `.open-next/cloudflare/next-env.mjs` | `359dce6` | 1 | Rotacionar NEXT_PUBLIC_SUPABASE_ANON_KEY no dashboard Supabase |
-| C05 | `jwt:2` | `.open-next/cloudflare/next-env.mjs` | `359dce6` | 2 | Rotacionar SUPABASE_SERVICE_ROLE_KEY (crítico — bypass RLS) |
-| C06 | `jwt:6` | `scripts/seed-e2e-data.js` | `7ba34ec` | 6 | Mesma SERVICE_ROLE_KEY de C05 hardcoded como fallback |
-| C07 | `jwt:11` | `scripts/seed-scale-data.js` | `ce6348b` | 11 | Mesma SERVICE_ROLE_KEY de C05 hardcoded |
-| C08 | `jwt:4` | `scripts/seed-e2e-clinic.js` | `dda6bee` | 4 | JWT de seed; verificar se é derivado da mesma chave |
+| C04 | `jwt:1` | `.open-next/cloudflare/next-env.mjs` | `359dce6` | 1 | ~~Rotacionar NEXT_PUBLIC_SUPABASE_ANON_KEY~~ — N/A, credencial REMOVIDA com a plataforma (ADR-BASE-03) |
+| C05 | `jwt:2` | `.open-next/cloudflare/next-env.mjs` | `359dce6` | 2 | ~~Rotacionar SUPABASE_SERVICE_ROLE_KEY~~ — N/A, credencial REMOVIDA com a plataforma (ADR-BASE-03) |
+| C06 | `jwt:6` | `scripts/seed-e2e-data.js` | `7ba34ec` | 6 | Mesma SERVICE_ROLE_KEY de C05 hardcoded como fallback — valor obsoleto, remover do histórico |
+| C07 | `jwt:11` | `scripts/seed-scale-data.js` | `ce6348b` | 11 | Mesma SERVICE_ROLE_KEY de C05 hardcoded — valor obsoleto, remover do histórico |
+| C08 | `jwt:4` | `scripts/seed-e2e-clinic.js` | `dda6bee` | 4 | JWT de seed; valor obsoleto, remover do histórico |
 
-**Risco:** SERVICE_ROLE_KEY exposta = bypass total de Row Level Security. ANON_KEY exposta = acesso público ao projeto Supabase.
+**Risco (histórico):** SERVICE_ROLE_KEY exposta = bypass total de Row Level Security. ANON_KEY exposta = acesso público ao projeto Supabase. Sem risco residual **no runtime atual** — RLS/Supabase não fazem mais parte da stack (ADR-BASE-03); risco residual **externo** permanece enquanto a revogação no provedor não tiver recibo (ver nota da seção).
 
 ## CONFIRMED — LLM API Keys
 
@@ -230,7 +232,7 @@ enxergam. A rotação é responsabilidade do owner.
 | SecretClass | Fingerprint (last 4) | Owner | Rotated | Evidence |
 |---|---|---|---|---|
 | `github-fine-grained-pat` GH_TOKEN/GITHUB_TOKEN/GH_ORG_TOKEN | `****` (`.dev.vars:10-13` `pat_****`, `.env.local:5-6`, histórico C01-C03 `.open-next/...` 359dce6) | owner GitHub |  | PREPARED — `gh auth login` com nova credencial + `gitleaks CI` verde |
-| `jwt` Supabase ANON/SERVICE_ROLE | `****` (`.dev.vars:8-9`, `.env.local:3-4`, histórico C04-C08 359dce6/7ba34ec/ce6348b/dda6bee) | owner Supabase |  | PREPARED — dashboard rotation + `gitleaks` 0 |
+| `jwt` Supabase ANON/SERVICE_ROLE | `****` (`.dev.vars:8-9`, `.env.local:3-4`, histórico C04-C08 359dce6/7ba34ec/ce6348b/dda6bee) | owner (recibo de revogação pendente) | n/a | REMOVIDO DO RUNTIME (ADR-BASE-03); **revogação no provedor não comprovada** — confirmar exclusão do projeto/keys no Supabase ou registrar risco aceito; sanitation de histórico feita (`gitleaks` 0) |
 | `generic-api-key` LLM (GLM/MiniMax/OpenRouter) | `****` (`api-*.bat:2`, `OPENCODE_ZEN_API_KEY` `.dev.vars:26` `.env.local:19,25,27,31,34`) | owner LLM |  | PREPARED — provider revoke |
 | `generic-api-key` + `jwt` worktree + `private-key` build artifact | `****` (`.open-next/handler.mjs` C12-C14 359dce6/8447795/dd8422b) | owner GH/Cloudflare |  | PREPARED — history sanitation após backup + clone invalidation |
 | `DATABASE_URL` / Hyperdrive | `****` (`postgres://****` local 55432/synkroo, Hyperdrive `be5a...` prod / `e0033a75...` staging) | owner DB/Cloudflare |  | PREPARED — `wrangler deploy --dry-run --env staging` EXIT 0, `HYPERDRIVE` sem `VECTORIZE` |

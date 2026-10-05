@@ -152,7 +152,7 @@ Configure webhooks para:
 
 ### 6.1 Backup Automático
 
-O Supabase realiza backup automático diário. Para backup adicional:
+Os backups são executados com `node scripts/db-backup.mjs` (ver `docs/runbooks/database-recovery.md`). Para backup adicional:
 
 1. Exporte dados via Dashboard
 2. Salve localmente ou em nuvem
