@@ -75,10 +75,34 @@ O DB `synkroo_rehearsal` foi mantido no target como evidência até o go do cuto
 
 - `cloud-init-main.service` (Contabo NoCloud, falha de módulo final no boot de 2026-10-02): desabilitado via `/etc/cloud/cloud-init.disabled`, `reset-failed` aplicado — `systemctl --failed` = **0 unidades**.
 
-## 6. Pendências para o cutover (decisões owner)
+## 6. Cutover §5.4 — EXECUTADO (2026-10-05 21:04 UTC)
 
-1. **Rota Hyperdrive/tunnel** no target (Cloudflare-side) — principal bloqueio de rede.
-2. **Staging apontado ao target** (`setup-staging-db` precisa da rota TCP acima).
-3. **Janela de cutover** + freeze/final sync (§5.4) — Hostinger segue intacta (rollback window preservada).
-4. **Ratificação do perfil de dados** (1 clinic/1 user — pré-piloto).
-5. (Opcional) UUID healthchecks.io para o monitor do backup do target.
+Evidências (runbook §14):
+
+| Passo §5.4 | Evidência |
+|---|---|
+| Final sync | dump fresco da source `synkroo-source-final-<ts>.dump` (186.306 B, SHA-256 `b9d94e1f…a08dc95` verificado no destino) |
+| Restore no target | DB `synkroo` recriado + `pg_restore` exit 0 |
+| Smoke pré-flip | 68 tabelas, ledger 33, 528 constraints, extensões ok, perfil test-only (1/1) ratificado pelo owner |
+| Exposição de rede | `0.0.0.0:15433` publicada; ufw **só ranges Cloudflare** (15 regras v4, `sslmode require`); regra temporária do operador adicionada/removida para validação |
+| Staging no target | `setup-staging-db.ts --side=target` (role+DB+extensões+senha persistida) + `migrate-vps.ts --side=target --target=staging` (68 tabelas) |
+| **Flip Hyperdrive** | `update-hyperdrive.ts --side=target` — staging `e0033a75…` e produção `be5a789a…` → `213.199.37.252:15433` (`modified_on` 2026-10-05T21:04Z) |
+| Smoke pós-flip | `smoke-deploy.mjs`: **produção exit 0** e **staging exit 0** (liveness/auth-pipeline/db/middleware ok) |
+
+**Rollback (1 comando)**, se necessário durante a janela de observação:
+
+```bash
+$env:SYNKROO_VPS_ENV = 'D:\projetos\vps-hostinger\.env'
+npx tsx scripts/update-hyperdrive.ts --side=source
+```
+
+Hostinger segue **intacta e acessível** (rollback window aberta; decommission só após §12/observação).
+
+## 7. Pendências para o fechamento do P2 (fim da migração)
+
+1. Janela de observação pós-cutover (24–48h: erros de app, latência, no-show de queries).
+2. `setup-staging-db`/runbooks futuros dependem do TCP CF-only — o acesso do operador continua sendo via `docker exec` SSH (rota canônica) ou regra temporária.
+3. **Remoção do fallback legado** `../vps-hostinger/.env` (vps-access.md §Fonte) — agora com `.env` próprio do target (`D:\projetos\vps-contabo\.env`).
+4. Monitoramento do backup do target: opcional `BACKUP_HC_PING_URL` em `/opt/synkroo/backup/.env`.
+5. §12 Cleanup da Hostinger — SOMENTE após a janela de observação e backup final.
+6. P3 (WAHA): decidir provider real (WAHA já ativo na source sem volume de sessão vs. config Evolution do app).

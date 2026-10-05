@@ -108,11 +108,11 @@ Pendência de higiene: `cloud-init-main.service` failed (`systemctl --failed`) �
 - [x] extensões (`vector` + `btree_gist` no rehearsal);
 - [x] migration ledger (33 migrações pós-restore);
 - [x] smoke (8/9 tabelas + 528 constraints; `contacts` não existe no schema);
-- [ ] staging apontado ao target (depende da rota TCP/tunnel);
-- [ ] teste Hyperdrive (decisão de rota — owner);
-- [ ] freeze/final sync;
-- [ ] cutover;
-- [ ] janela de rollback com Hostinger intacta (Hostinger **segue intacta** — nada foi destruído).
+- [x] staging apontado ao target (`setup-staging-db --side=target` + `migrate-vps --target=staging`: 68 tabelas);
+- [x] teste Hyperdrive (`update-hyperdrive --side=target` + `smoke-deploy` verde em staging e produção);
+- [x] freeze/final sync (dump final `b9d94e1f…` verificado no destino + restore no DB prod do target);
+- [x] cutover (2026-10-05 21:04 UTC — Hyperdrives staging+produção → Contabo; smoke exit 0 nos dois ambientes);
+- [x] janela de rollback com Hostinger intacta (preservada; decommission só após §12/observação).
 
 **Gate:** não iniciar cutover do WhatsApp no mesmo momento do cutover de DB.
 
