@@ -1,5 +1,7 @@
 # MVP Checklist - Synkroo
 
+> **Nota 2026-10-05 (P0 vNext):** documento **histórico** de planejamento inicial. Itens que mencionam Supabase (projeto, auth, database, RLS, Dashboard) refletem uma stack **removida** — a stack real é PostgreSQL 17 + Drizzle + `pg` + NextAuth (ver `docs/superpowers/specs/2026-07-28-synkroo-canonical-product-architecture.md`). Não usar este checklist como fonte de verdade operacional.
+
 **Versão:** 1.5
 **Data:** 2026-03-28
 **Baseado em:** PRD v3.4 + Architecture v1.1

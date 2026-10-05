@@ -18,16 +18,15 @@ O sistema de lembretes automáticos está **95% implementado**:
 
 ### 1. Configurar Variáveis de Ambiente
 
-No **Supabase Dashboard** ou **Vercel Dashboard**, adicione:
+> **Nota 2026-10-05 (P0 vNext):** este guia é **histórico** e estava desatualizado. Supabase foi removido; `WHATSAPP_API_URL`/`WHATSAPP_TOKEN` **não existem** no schema de env (`src/lib/env.ts`) — a integração atual usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` (com migração vNext planejada para WAHA, ver `docs/adr/ADR-BASE-08-evolution-provider.md`). Configure secrets no painel Cloudflare/`wrangler`, não em dashboard de BaaS.
 
 ```bash
 # Obrigatório para lembretes
 CRON_SECRET=seu-secret-aleatorio-aqui
-WHATSAPP_API_URL=https://graph.facebook.com/v18.0/SEU_PHONE_NUMBER_ID/messages
-WHATSAPP_TOKEN=seu-token-do-whatsapp-business
 
-# Opcional (já configurado)
-MINIMAX_API_KEY=sua-chave-minimax
+# WhatsApp (provider atual)
+EVOLUTION_API_URL=...
+EVOLUTION_API_KEY=...
 ```
 
 ### 2. Gerar CRON_SECRET
@@ -60,12 +59,12 @@ Os cron jobs serão registrados automaticamente.
 ```bash
 # Testar endpoint de lembretes
 curl -X POST https://seu-dominio.vercel.app/api/cron/reminders \
-  -H "Authorization: Bearer seu-secret-aleatorio-aqui" \
+  -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json"
 
 # Testar endpoint de follow-ups
 curl -X POST https://seu-dominio.vercel.app/api/cron/followups \
-  -H "Authorization: Bearer seu-secret-aleatorio-aqui" \
+  -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json"
 ```
 

@@ -45,6 +45,18 @@ ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_IP" \
   'hostname; uptime; docker ps; docker compose ls; systemctl --failed'
 ```
 
+## VPS Contabo (nova — destino de migração, 2026-10)
+
+Segunda VPS do parque, já com bootstrap+hardening concluídos. Credenciais no
+mesmo `../vps-hostinger/.env`, no bloco `CONTABO_VPS_*`:
+
+- `CONTABO_VPS_IP` (213.199.37.252), `CONTABO_VPS_SSH_USER` (deploy),
+  `CONTABO_VPS_SSH_KEY_PATH` (`~/.ssh/id_ed25519_contabo_vps`, chave dedicada).
+- Login exclusivamente por chave (root/senha desativados via SSH). Ubuntu 26.04,
+  8 GB RAM, 96 GB disco, UFW (22/tcp), fail2ban, unattended-upgrades, swap 2 GB.
+- Doc completo de acesso/operação/recuperação: `../vps-hostinger/docs/contabo-vps.md`.
+- Estado inicial: sem Docker/Traefik — instalação faz parte da migração.
+
 ## Administração
 
 Acesso administrativo amplo está disponível via usuário SSH e `sudo`, conforme permissões da VPS. Não presuma diretório, container ou unit: descubra o serviço antes de agir.

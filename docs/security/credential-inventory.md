@@ -39,6 +39,8 @@ O agente entregou tudo no seu escopo; o restante depende de acesso a dashboards 
 
 ## CONFIRMED — Supabase
 
+> **Nota 2026-10-05 (P0 vNext):** o Supabase foi **removido da stack** (`ADR-BASE-03`). Os itens C04–C07 abaixo são registros históricos de remediação; as chaves `NEXT_PUBLIC_SUPABASE_ANON_KEY`/`SUPABASE_SERVICE_ROLE_KEY` não fazem mais parte do schema de env (`src/lib/env.ts`). Se algum valor ainda estiver vivo em algum lugar, revogar no painel do projeto Supabase original e registrar evidência.
+
 | # | Fingerprint | Arquivo | Commit | Linha | Ação Owner |
 |---|---|---|---|---|---|
 | C04 | `jwt:1` | `.open-next/cloudflare/next-env.mjs` | `359dce6` | 1 | Rotacionar NEXT_PUBLIC_SUPABASE_ANON_KEY no dashboard Supabase |
