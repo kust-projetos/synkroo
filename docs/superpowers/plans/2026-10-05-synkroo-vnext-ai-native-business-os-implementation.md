@@ -89,14 +89,16 @@ Descobrir:
 
 ### Contabo foundation
 
-- [ ] SSH key-only;
-- [ ] usuário admin não-root;
-- [ ] firewall default-deny;
-- [ ] Docker/Compose;
-- [ ] NTP/timezone;
-- [ ] diretórios de app/backups;
-- [ ] monitoramento;
-- [ ] backup off-host.
+- [x] SSH key-only (verificado 2026-10-05: `docs/inventory/2026-10-05-contabo-target-findings.md`);
+- [x] usuário admin não-root (`deploy`, pré-existente);
+- [x] firewall default-deny (ufw ativo: OpenSSH/80/443, PostgreSQL sem regra);
+- [x] Docker/Compose (29.1.3 / 2.40.3);
+- [x] NTP/timezone (chronyd sincronizado; TZ host `Europe/Berlin` mantida de propósito, TZ do banco será fixa no compose);
+- [x] diretórios de app/backups (`/opt/synkroo`, `/var/backups/synkroo` criados 2026-10-05);
+- [ ] monitoramento (decisão owner);
+- [ ] backup off-host (decisão owner).
+
+Pendência de higiene: `cloud-init-main.service` failed (`systemctl --failed`) — diagnosticar/mascarar antes do Go/No-Go.
 
 ### Banco
 
