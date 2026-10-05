@@ -117,7 +117,9 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 5. Unconfirmed appointments today (pending status)
+    // 5. Unconfirmed appointments today (status 'scheduled' — valor válido do
+    // enum appointment_status; o literal 'pending' as any tornava este alerta
+    // permanentemente vazio)
     const today = new Date()
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate())
     const todayEnd = new Date(todayStart.getTime() + 24 * 3600 * 1000)
@@ -134,7 +136,7 @@ export async function GET(request: NextRequest) {
       .where(
         and(
           eq(appointments.clinicId, clinicId),
-          eq(appointments.status, 'pending' as any),
+          eq(appointments.status, 'scheduled'),
           gte(appointments.scheduledAt, todayStart),
           lt(appointments.scheduledAt, todayEnd),
         ),

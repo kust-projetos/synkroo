@@ -161,27 +161,24 @@ function buildPatientHistoryMap(raw: ApptHistoryRow[]): Map<string, PatientHisto
 // Main exports
 // ══════════════════════════════════════
 
-export async function predictNoShowRisk(patientId: string, scheduledAt: string, _procedureId?: string): Promise<NoShowPrediction> {
+export async function predictNoShowRisk(
+  clinicId: string,
+  patientId: string,
+  scheduledAt: string,
+  _procedureId?: string
+): Promise<NoShowPrediction | null> {
   const db = getDb()
   try {
+    // Tenant scope obrigatório: paciente só é resolvido dentro da clínica do
+    // contexto autenticado. Sem isso, a rota vira IDOR cross-tenant (PHI).
     const [pt] = await db
       .select({ id: patients.id, name: patients.name, riskScore: patients.riskScore })
-      .from(patients).where(eq(patients.id, patientId))
+      .from(patients)
+      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
 
-    // Patient not found — return default medium risk without timing calculation
+    // Paciente inexistente ou de outra clínica: sem predição fabricada.
     if (!pt) {
-      return {
-        patient_id: patientId,
-        patient_name: 'Unknown',
-        scheduled_at: scheduledAt,
-        risk_score: 40,
-        riskLevel: 'medium',
-        factors: [
-          { name: 'patient_history', impact: 0.2, description: 'Paciente não encontrado' },
-          { name: 'inactivity', impact: 0.2, description: 'Sem histórico de visitas' },
-        ],
-        recommendations: ['Verificar dados do paciente'],
-      }
+      return null
     }
 
     const history = await getPatientHistory(patientId)
@@ -205,9 +202,9 @@ export async function predictNoShowRisk(patientId: string, scheduledAt: string, 
       recommendations: generateRecommendations(factors, riskScore),
     }
   } catch (err) {
+    // Fail-closed: erro de DB não pode virar score fabricado.
     dbLogger.error('Error predicting no-show risk', err)
-    return { patient_id: patientId, patient_name: 'Unknown', scheduled_at: scheduledAt, risk_score: 50, riskLevel: 'medium',
-      factors: [{ name: 'error', impact: 0.5, description: 'Erro ao calcular risco' }], recommendations: ['Verificar dados do paciente'] }
+    throw err
   }
 }
 
