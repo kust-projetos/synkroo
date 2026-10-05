@@ -98,7 +98,20 @@ npx tsx scripts/update-hyperdrive.ts --side=source
 
 Hostinger segue **intacta e acessível** (rollback window aberta; decommission só após §12/observação).
 
-## 7. Pendências para o fechamento do P2 (fim da migração)
+## 7. Pós-cutover — credenciais demo garantidas no target (2026-10-05)
+
+- O restore trouxe a clinic demo mas **não** o usuário demo (a source tinha só o owner `walissonead@gmail.com`).
+- `seed-test-clinic.mjs` executado contra o target (idempotente): `admin@clinicademo.com` / `demo123` criados com RBAC completo (role `owner` em `users`, membership **Owner** em `user_clinic_access`, roles de sistema + grants de módulos).
+- Verificação em 3 camadas: hash valida `demo123` via o próprio `verifyPassword` do repo (`src/lib/auth/password.ts`, formato legacy `salt:hash`) ✓; `user_clinic_access` correto ✓; **login HTTP real** pelo NextAuth em produção: CSRF 200 → callback 200 + cookie de sessão → `/api/auth/session` 200 com `user=admin@clinicademo.com` ✓.
+
+### Gotchas registrados para operação futura
+
+1. **`sslmode=require` em DATABASE_URL (node-pg ≥8) é tratado como `verify-full`** → rejeita o TLS self-signed do cluster. Scripts que montam URL precisam de `uselibpqcompat=true&sslmode=require` (ou params discretos com `ssl: { rejectUnauthorized: false }`, o padrão do repo). Hyperdrive não é afetado (semântica libpq nativa).
+2. **Senhas de role devem ser hex/base64url-safe** ao circular em DATABASE_URL: o percent-encoding do parser de URL do pg não decodou a senha de forma confiável nesta versão — senha hex (`openssl rand -hex 24`) elimina a classe de problema (role `synkroo` do target foi rotacionada para hex em 2026-10-05; `.env` do target e local já atualizados).
+3. **Rate limiter do login**: rajadas de teste em sequência retornam 401 (limiter em memória por instância) — aguardar a janela antes de retestar; não é falha de credencial.
+4. O payload de sessão não carrega `role`/`clinicId` (design do app): a role efetiva é resolvida por request a partir de `user_clinic_access`.
+
+## 8. Pendências para o fechamento do P2 (fim da migração)
 
 1. Janela de observação pós-cutover (24–48h: erros de app, latência, no-show de queries).
 2. `setup-staging-db`/runbooks futuros dependem do TCP CF-only — o acesso do operador continua sendo via `docker exec` SSH (rota canônica) ou regra temporária.
