@@ -209,7 +209,13 @@ describe('safeDbErrorSummary — saída sem segredo', () => {
 });
 
 describe('contrato source/target nos scripts operacionais', () => {
-  const SCRIPTS = ['migrate-vps.ts', 'update-hyperdrive.ts', 'setup-staging-db.ts'];
+  const SCRIPTS = [
+    'migrate-vps.ts',
+    'update-hyperdrive.ts',
+    'setup-staging-db.ts',
+    'backup-vps-db.ts',
+    'restore-vps-db.ts',
+  ];
 
   test('todos resolvem a configuração pelo side explícito', () => {
     for (const name of SCRIPTS) {

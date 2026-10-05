@@ -57,6 +57,16 @@
 
 Executar conforme `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md`.
 
+### Tooling repo-side (2026-10-05)
+
+- [x] coletor de inventário redated (`ops/vps/inventory/collect-inventory.sh` + README);
+- [x] foundation Contabo idempotente (`ops/vps/contabo/bootstrap.sh`, dry-run default, firewall em `--apply-firewall`);
+- [x] dump/restore com contrato source/target (`scripts/backup-vps-db.ts` / `scripts/restore-vps-db.ts`: gate SHA-256, metadata redatada, rehearsal isolado com extensões + ledger + smoke);
+- [x] suíte `db-backup-restore` (órfã desde a criação) e as novas suítes anexadas ao `test:release`;
+- [ ] remover fallback legado `../vps-hostinger/.env` — ao fim da migração P2 (`docs/ops/vps-access.md` §Fonte de configuração).
+
+Os itens operacionais abaixo exigem execução nas VPS pelo operador.
+
 ### Inventário Hostinger
 
 Confirmado pelo repo:

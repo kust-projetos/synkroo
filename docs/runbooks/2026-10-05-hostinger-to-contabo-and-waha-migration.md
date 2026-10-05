@@ -87,7 +87,9 @@ preenchida com a de produção, em nenhum dos lados.
 
 ## 3. Inventário obrigatório na Hostinger
 
-Antes de copiar qualquer coisa, coletar somente metadados/redacted output:
+Antes de copiar qualquer coisa, coletar somente metadados/redacted output.
+
+Ferramenta: `ops/vps/inventory/collect-inventory.sh` — roda na própria VPS (`--side=source|target` obrigatório, redação best-effort + revisão manual antes de compartilhar; ver `ops/vps/inventory/README.md`).
 
 ```bash
 hostname
@@ -126,6 +128,8 @@ Nunca copiar output contendo secret para issue/commit.
 
 ## 4. Contabo foundation
 
+Ferramenta: `ops/vps/contabo/bootstrap.sh` — idempotente, dry-run por default, firewall em gate separado (`--apply-firewall`) e teste de login por chave em segundo terminal obrigatório antes dele. Sequência completa em `ops/vps/contabo/README.md`.
+
 ### Host
 
 - atualizar sistema;
@@ -162,6 +166,8 @@ PostgreSQL não deve ficar globalmente exposto só para facilitar Hyperdrive. Pr
 
 ### 5.2 Backup source
 
+Ferramenta: `npx tsx scripts/backup-vps-db.ts --side=source` (dump custom `-Fc` + SHA-256 + `*.meta.json` redatado, delegando ao `scripts/db-backup.mjs`).
+
 Usar scripts canônicos de backup quando aplicáveis. Produzir:
 - dump custom format;
 - hash SHA-256;
@@ -173,6 +179,8 @@ Nunca depender do único backup no mesmo host.
 ### 5.3 Restore rehearsal Contabo
 
 Restaurar primeiro em DB isolado.
+
+Ferramenta: `npx tsx scripts/restore-vps-db.ts --side=target --from <dump.gz> --create-db synkroo_rehearsal` (gate SHA-256 antes do restore, `--create-db` isolado, extensões `vector`/`btree_gist`, ledger Drizzle e smoke de tabelas-chave).
 
 Validar:
 - pgvector;

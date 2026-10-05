@@ -4,7 +4,7 @@
 
 > **Migração 2026-10-05:** Hostinger é o **source** atual e Contabo é o **target** planejado. Ver `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md`.
 
-Execute comandos a partir da raiz deste projeto. A configuração privada da VPS é resolvida por `scripts/lib/vps-env.mjs`, compartilhado por `scripts/migrate-vps.ts`, `scripts/update-hyperdrive.ts` e `scripts/setup-staging-db.ts`, com esta precedência:
+Execute comandos a partir da raiz deste projeto. A configuração privada da VPS é resolvida por `scripts/lib/vps-env.mjs`, compartilhado por `scripts/migrate-vps.ts`, `scripts/update-hyperdrive.ts`, `scripts/setup-staging-db.ts`, `scripts/backup-vps-db.ts` e `scripts/restore-vps-db.ts`, com esta precedência:
 
 1. `SYNKROO_VPS_ENV` — caminho explícito e provider-neutral (absoluto, ou relativo ao diretório de trabalho atual). **Falha fechada:** se a variável estiver definida e apontar para algo que não é um arquivo legível, o script aborta — nunca cai silenciosamente no fallback legado.
 2. `../vps-hostinger/.env` — fallback legado **temporário**, resolvido a partir da raiz do repositório (não do diretório de trabalho atual), acompanhado de aviso `[deprecation]` em stderr. Deve ser removido ao fim da migração P2.
