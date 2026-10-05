@@ -2,6 +2,8 @@
  * Tests for No-Show Prediction Service — migrated to Drizzle mocks.
  */
 import { predictNoShowRisk, getUpcomingAppointmentRisks } from '@/services/analytics/noshow-prediction.service'
+import { and, eq } from 'drizzle-orm'
+import { patients } from '@/lib/db/schema'
 
 jest.mock('@/lib/logger', () => ({ dbLogger: { error: jest.fn(), info: jest.fn() } }))
 
@@ -34,13 +36,18 @@ const patientId = 'patient-123'
 const clinicId = 'clinic-123'
 
 /** Coleta nomes de colunas drizzle (objetos com `name` + `table`) dentro do
- * predicado capturado em `.where()` — usado para fixar o predicado de tenant. */
+ * predicado capturado em `.where()`.
+ * Coluna é nó TERMINAL: NÃO descer em `.table` — senão qualquer eq(col,…)
+ * traria todas as colunas da tabela e o teste viraria falso-positivo. */
 function collectColumnNames(node: unknown, acc: Set<string> = new Set(), seen: Set<object> = new Set()): Set<string> {
   if (!node || typeof node !== 'object') return acc
   const obj = node as Record<string, unknown>
   if (seen.has(obj)) return acc
   seen.add(obj)
-  if (typeof obj.name === 'string' && obj.table && typeof obj.table === 'object') acc.add(obj.name)
+  if (typeof obj.name === 'string' && obj.table && typeof obj.table === 'object') {
+    acc.add(obj.name)
+    return acc
+  }
   for (const value of Object.values(obj)) {
     if (value && typeof value === 'object') collectColumnNames(value, acc, seen)
   }
@@ -85,6 +92,18 @@ describe('No-Show Prediction Service', () => {
       expect(columns.has('id')).toBe(true)
       // Drizzle colunas expõem o nome físico ('clinic_id'); TS prop é 'clinicId'.
       expect(columns.has('clinic_id') || columns.has('clinicId')).toBe(true)
+    })
+
+    it('walker: controle negativo — eq só de id NÃO revela clinic_id (mutação seria detectada)', () => {
+      const hasClinic = (s: Set<string>) => s.has('clinic_id') || s.has('clinicId')
+
+      const idOnly = collectColumnNames(eq(patients.id, 'x'))
+      expect(idOnly.has('id')).toBe(true)
+      expect(hasClinic(idOnly)).toBe(false)
+
+      const both = collectColumnNames(and(eq(patients.id, 'x'), eq(patients.clinicId, 'c')))
+      expect(both.has('id')).toBe(true)
+      expect(hasClinic(both)).toBe(true)
     })
 
     it('rethrowa falha na query de histórico (sem virar "paciente novo" com score fabricado)', async () => {
