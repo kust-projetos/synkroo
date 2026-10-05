@@ -118,6 +118,10 @@ Pendência de higiene: `cloud-init-main.service` failed (`systemctl --failed`) �
 
 ## 5. P3 — Evolution → WAHA
 
+> **Decisão do owner (2026-10-05):** o canal será **WAHA**; a Evolution API será **descontinuada** (sem rollback para Evolution como objetivo). Reforça o ADR-BASE de WhatsApp (superseded para WAHA).
+>
+> **Contexto de partida (inventário P2):** já existe um container `waha` (`devlikeapro/waha:latest`, **tag não pinada**, **sem volume de sessão**, sem porta pública) rodando na **source** (Hostinger) — deploy provisório/exploratório; chaves `WAHA_*` já presentes no `.env` privado. Não há container Evolution na source; o app ainda tem config `EVOLUTION_GO_*` e o sidecar Playwright é o fallback. O P3 deve começar pelo deployment WAHA **adequado** no **target** (§6.1: imagem pinada, volume de sessão, API key, webhook HMAC, HTTPS via traefik), seguido da abstração de provider (§7) e do cleanup Evolution (§12).
+
 ### P3.1 Provider abstraction
 
 Criar `WhatsAppProviderAdapter` e registry.
