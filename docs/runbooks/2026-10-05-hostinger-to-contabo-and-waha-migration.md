@@ -91,6 +91,8 @@ Antes de copiar qualquer coisa, coletar somente metadados/redacted output.
 
 Ferramenta: `ops/vps/inventory/collect-inventory.sh` — roda na própria VPS (`--side=source|target` obrigatório, redação best-effort + revisão manual antes de compartilhar; ver `ops/vps/inventory/README.md`).
 
+**Executado (2026-10-05):** inventário coletado e revisado — ver docs/inventory/2026-10-05-hostinger-source.txt e ...-findings.md.
+
 ```bash
 hostname
 uname -a
@@ -154,6 +156,8 @@ PostgreSQL não deve ficar globalmente exposto só para facilitar Hyperdrive. Pr
 ## 5. Migração PostgreSQL
 
 ### 5.1 Pré-check
+
+**Executado (2026-10-05):** ver docs/inventory/2026-10-05-hostinger-findings.md (PG 17.11, 11 MB, ledger 33, extensões ok).
 
 - confirmar versão source;
 - listar extensions;

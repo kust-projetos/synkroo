@@ -1,0 +1,141 @@
+=== INVENTARIO VPS SYNKROO (metadados redatados) ===
+side: source
+timestamp-utc: 20261005T201036Z
+hostname: srv1773156
+gerado-por: ops/vps/inventory/collect-inventory.sh
+runbook: docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md secao 3
+
+REVISAR ANTES DE COMPARTILHAR - crontab/configs podem conter segredos.
+Nenhum dump, volume, log ou arquivo de configuracao e copiado por este script.
+
+
+=== hostname ===
+$ hostname
+srv1773156
+
+=== uname -a ===
+$ uname -a
+Linux srv1773156 6.8.0-138-generic #138-Ubuntu SMP PREEMPT_DYNAMIC Fri Jul 31 22:41:49 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux
+
+=== df -h ===
+$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs           392M  3.7M  388M   1% /run
+/dev/sda1        48G   42G  6.3G  87% /
+tmpfs           2.0G     0  2.0G   0% /dev/shm
+tmpfs           5.0M     0  5.0M   0% /run/lock
+/dev/sda16      881M  117M  703M  15% /boot
+/dev/sda15      105M  6.2M   99M   6% /boot/efi
+tmpfs           392M   16K  392M   1% /run/user/1000
+
+=== free -h ===
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:           3.8Gi       2.4Gi       190Mi        55Mi       1.6Gi       1.4Gi
+Swap:          2.0Gi       884Mi       1.1Gi
+
+=== docker ps ===
+$ docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+NAMES                           IMAGE                                       STATUS                  PORTS
+ai-memory-bridge-252            python:3.12-alpine                          Up 30 hours             
+ai-memory-prod                  akitaonrails/ai-memory:2.5.2                Up 31 hours (healthy)   127.0.0.1:49374->49374/tcp
+iptv-infisical                  infisical/infisical:v0.165.16               Up 5 days (healthy)     443/tcp, 127.0.0.1:8080->8080/tcp
+iptv-infisical-postgres         postgres:17-alpine                          Up 6 days (healthy)     5432/tcp
+iptv-infisical-redis            redis:7-alpine                              Up 6 days (healthy)     6379/tcp
+waha                            devlikeapro/waha:latest                     Up 8 days               3000/tcp
+synkroo-prod-postgres           pgvector/pgvector:pg17                      Up 4 weeks (healthy)    0.0.0.0:15432->5432/tcp, [::]:15432->5432/tcp
+synkroo-prod-whatsapp-sidecar   synkroo-whatsapp-sidecar-whatsapp-sidecar   Up 4 weeks (healthy)    127.0.0.1:3030->3030/tcp, 127.0.0.1:6080->6080/tcp
+synkroo-prod-db-tunnel          cloudflare/cloudflared:2026.7.2             Up 4 weeks              
+traefik                         traefik:latest                              Up 4 weeks              0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+
+=== docker compose ls ===
+$ docker compose ls
+NAME                       STATUS              CONFIG FILES
+ai-memory-prod-252         running(2)          /home/deploy/infra/ai-memory/production/production-cutover-252.yml
+infisical                  running(3)          /home/deploy/infisical/docker-compose.infisical.yml
+synkroo-prod-postgres      running(2)          /home/deploy/infra/synkroo-prod-postgres/docker-compose.yml
+synkroo-whatsapp-sidecar   running(1)          /home/deploy/infra/synkroo-whatsapp-sidecar/docker-compose.yml
+traefik                    running(1)          /home/deploy/infra/traefik/docker-compose.yml
+waha                       running(1)          /home/deploy/infra/waha/docker-compose.yml
+
+=== docker network ls ===
+$ docker network ls
+NETWORK ID     NAME                            DRIVER    SCOPE
+84a4a7cc5b9b   ai-memory-staging_default       bridge    local
+8e8f5d176dff   bridge                          bridge    local
+771862ccf39d   host                            host      local
+038092daa297   infisical_infisical-net         bridge    local
+2def9e21a830   none                            null      local
+938e2ada355a   proxy                           bridge    local
+55c6413f0938   synkroo-prod-postgres_default   bridge    local
+
+=== docker volume ls ===
+$ docker volume ls
+DRIVER    VOLUME NAME
+local     ai-memory-evo252-s-20261003234037z
+local     ai-memory-evo-probe-restore
+local     ai-memory-prod-data-20260930-FRESH
+local     ai-memory-prod-data-20261004-CUT
+local     ai-memory-prod-data-20261005-RECOVERY-REHEARSAL
+local     infisical_infisical_pgdata
+local     infisical_infisical_redisdata
+local     synkroo-prod-postgres_synkroo_prod_pgdata
+local     synkroo-whatsapp-sidecar_synkroo_whatsapp_session
+
+=== systemctl --failed ===
+$ systemctl --failed
+  UNIT LOAD ACTIVE SUB DESCRIPTION
+
+0 loaded units listed.
+
+=== systemctl list-timers --all ===
+$ systemctl list-timers --all
+NEXT                            LEFT LAST                               PASSED UNIT                           ACTIVATES
+Mon 2026-10-05 20:16:06 UTC     5min Mon 2026-10-05 19:34:14 UTC     36min ago fwupd-refresh.timer            fwupd-refresh.service
+Mon 2026-10-05 20:20:00 UTC     9min Mon 2026-10-05 20:10:02 UTC       51s ago sysstat-collect.timer          sysstat-collect.service
+Mon 2026-10-05 20:41:13 UTC    30min Wed 2026-09-30 15:22:13 UTC    5 days ago update-notifier-motd.timer     update-notifier-motd.service
+Mon 2026-10-05 22:22:39 UTC 2h 11min Mon 2026-10-05 15:43:07 UTC  4h 27min ago apt-daily.timer                apt-daily.service
+Tue 2026-10-06 00:07:00 UTC 3h 56min Mon 2026-10-05 00:07:17 UTC       20h ago sysstat-summary.timer          sysstat-summary.service
+Tue 2026-10-06 00:07:44 UTC 3h 56min Mon 2026-10-05 10:10:17 UTC       10h ago man-db.timer                   man-db.service
+Tue 2026-10-06 02:42:22 UTC       6h Mon 2026-10-05 01:08:06 UTC       19h ago logrotate.timer                logrotate.service
+Tue 2026-10-06 02:48:02 UTC       6h Mon 2026-10-05 02:16:41 UTC       17h ago dpkg-db-backup.timer           dpkg-db-backup.service
+Tue 2026-10-06 03:04:19 UTC       6h Mon 2026-10-05 18:09:34 UTC   2h 1min ago motd-news.timer                motd-news.service
+Tue 2026-10-06 06:40:17 UTC      10h Mon 2026-10-05 06:57:14 UTC       13h ago apt-daily-upgrade.timer        apt-daily-upgrade.service
+Tue 2026-10-06 15:13:17 UTC      19h Mon 2026-10-05 15:13:17 UTC  4h 57min ago update-notifier-download.timer update-notifier-download.service
+Tue 2026-10-06 15:23:49 UTC      19h Mon 2026-10-05 15:23:49 UTC  4h 47min ago systemd-tmpfiles-clean.timer   systemd-tmpfiles-clean.service
+Sun 2026-10-11 03:10:07 UTC   5 days Sun 2026-10-04 03:10:17 UTC 1 day 17h ago e2scrub_all.timer              e2scrub_all.service
+Mon 2026-10-12 01:15:35 UTC   6 days Mon 2026-10-05 01:34:35 UTC       18h ago fstrim.timer                   fstrim.service
+-                                  - -                                       - apport-autoreport.timer        apport-autoreport.service
+-                                  - -                                       - snapd.snap-repair.timer        snapd.snap-repair.service
+-                                  - -                                       - ua-timer.timer                 ua-timer.service
+
+17 timers listed.
+
+=== crontab -l ===
+$ crontab -l
+*/30 * * * * /home/deploy/infra/monitor/healthcheck.sh
+30 3 * * * /home/deploy/infra/backup/backup.sh >> /home/deploy/infra/backup/cron.log 2>&1
+
+=== ss -lntup ===
+$ sudo -n ss -lntup || ss -lntup
+Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                                    
+udp   UNCONN 0      0          127.0.0.1:1721       0.0.0.0:*    users:(("monarx-agent",pid=2190022,fd=8))                 
+udp   UNCONN 0      0         127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=1938316,fd=16))             
+udp   UNCONN 0      0      127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=1938316,fd=14))             
+tcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=1938316,fd=15))             
+tcp   LISTEN 0      4096       127.0.0.1:49374      0.0.0.0:*    users:(("docker-proxy",pid=2085060,fd=8))                 
+tcp   LISTEN 0      4096       127.0.0.1:3030       0.0.0.0:*    users:(("docker-proxy",pid=1940,fd=8))                    
+tcp   LISTEN 0      4096         0.0.0.0:443        0.0.0.0:*    users:(("docker-proxy",pid=2013,fd=8))                    
+tcp   LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=1938317,fd=3),("systemd",pid=1,fd=226))
+tcp   LISTEN 0      4096         0.0.0.0:80         0.0.0.0:*    users:(("docker-proxy",pid=1990,fd=8))                    
+tcp   LISTEN 0      4096       127.0.0.1:65529      0.0.0.0:*    users:(("monarx-agent",pid=2190022,fd=11))                
+tcp   LISTEN 0      4096       127.0.0.1:6080       0.0.0.0:*    users:(("docker-proxy",pid=1965,fd=8))                    
+tcp   LISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=1938316,fd=17))             
+tcp   LISTEN 0      4096       127.0.0.1:8080       0.0.0.0:*    users:(("docker-proxy",pid=1120365,fd=8))                 
+tcp   LISTEN 0      4096         0.0.0.0:15432      0.0.0.0:*    users:(("docker-proxy",pid=1354559,fd=8))                 
+tcp   LISTEN 0      4096            [::]:443           [::]:*    users:(("docker-proxy",pid=2017,fd=8))                    
+tcp   LISTEN 0      4096            [::]:22            [::]:*    users:(("sshd",pid=1938317,fd=4),("systemd",pid=1,fd=227))
+tcp   LISTEN 0      4096            [::]:80            [::]:*    users:(("docker-proxy",pid=1994,fd=8))                    
+tcp   LISTEN 0      4096            [::]:15432         [::]:*    users:(("docker-proxy",pid=1354563,fd=8))                 
+
+Lembrete final: revise manualmente a secao "crontab -l" (e qualquer linha com marker de indisponibilidade) antes de compartilhar, abrir issue ou versionar este arquivo.
