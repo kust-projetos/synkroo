@@ -33,6 +33,20 @@ beforeEach(() => {
 const patientId = 'patient-123'
 const clinicId = 'clinic-123'
 
+/** Coleta nomes de colunas drizzle (objetos com `name` + `table`) dentro do
+ * predicado capturado em `.where()` — usado para fixar o predicado de tenant. */
+function collectColumnNames(node: unknown, acc: Set<string> = new Set(), seen: Set<object> = new Set()): Set<string> {
+  if (!node || typeof node !== 'object') return acc
+  const obj = node as Record<string, unknown>
+  if (seen.has(obj)) return acc
+  seen.add(obj)
+  if (typeof obj.name === 'string' && obj.table && typeof obj.table === 'object') acc.add(obj.name)
+  for (const value of Object.values(obj)) {
+    if (value && typeof value === 'object') collectColumnNames(value, acc, seen)
+  }
+  return acc
+}
+
 describe('No-Show Prediction Service', () => {
   describe('predictNoShowRisk', () => {
     it('should return prediction with risk factors', async () => {
@@ -55,6 +69,32 @@ describe('No-Show Prediction Service', () => {
       const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
       const prediction = await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
       expect(prediction).toBeNull()
+    })
+
+    it('escopa a query por patientId AND clinicId (regressão anti-IDOR no nível da query)', async () => {
+      // Se o predicado clinicId for removido do service, este teste quebra —
+      // o mock devolve dados independente do where, então inspecionamos o
+      // próprio predicado capturado.
+      mockChainReturn([])
+      const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
+      await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+
+      expect(mockDb.where).toHaveBeenCalled()
+      const predicate = mockDb.where.mock.calls[0][0]
+      const columns = collectColumnNames(predicate)
+      expect(columns.has('id')).toBe(true)
+      // Drizzle colunas expõem o nome físico ('clinic_id'); TS prop é 'clinicId'.
+      expect(columns.has('clinic_id') || columns.has('clinicId')).toBe(true)
+    })
+
+    it('rethrowa falha na query de histórico (sem virar "paciente novo" com score fabricado)', async () => {
+      // 1º await (paciente) OK; 2º await (histórico) falha — o catch interno
+      // de getPatientHistory foi removido: o erro deve propagar.
+      mockDb.then = jest.fn()
+        .mockImplementationOnce((resolve: (data: unknown[]) => void) => resolve([{ id: patientId, name: 'Ana Lima', riskScore: '0' }]))
+        .mockImplementationOnce((_resolve: unknown, reject: (e: Error) => void) => reject(new Error('history down')))
+      const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
+      await expect(predictNoShowRisk(clinicId, patientId, futureDate.toISOString())).rejects.toThrow('history down')
     })
 
     it('rethrowa erro de DB (fail-closed, sem score default)', async () => {

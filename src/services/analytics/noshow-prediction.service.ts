@@ -38,45 +38,42 @@ interface PatientHistory {
 // Pure functions (data-access-free)
 // ══════════════════════════════════════
 
-/** Get patient's appointment history — Drizzle. */
+/** Get patient's appointment history — Drizzle.
+ * Erro de DB PROPAGA: histórico vazio fabricaria "paciente novo" e poluiria
+ * o score de risco (fail-closed; quem loga é o caller `predictNoShowRisk`). */
 async function getPatientHistory(patientId: string): Promise<PatientHistory> {
   const db = getDb()
-  try {
-    const rows = await db
-      .select({
-        status: appointments.status,
-        scheduledAt: appointments.scheduledAt,
-        confirmationSentAt: appointments.confirmationSentAt,
-      })
-      .from(appointments)
-      .where(eq(appointments.patientId, patientId))
+  const rows = await db
+    .select({
+      status: appointments.status,
+      scheduledAt: appointments.scheduledAt,
+      confirmationSentAt: appointments.confirmationSentAt,
+    })
+    .from(appointments)
+    .where(eq(appointments.patientId, patientId))
 
-    const total = rows.length
-    const completed = rows.filter(a => a.status === 'completed').length
-    const cancelled = rows.filter(a => a.status === 'cancelled').length
-    const no_shows = rows.filter(a => a.status === 'no_show').length
+  const total = rows.length
+  const completed = rows.filter(a => a.status === 'completed').length
+  const cancelled = rows.filter(a => a.status === 'cancelled').length
+  const no_shows = rows.filter(a => a.status === 'no_show').length
 
-    const completedAppts = rows.filter(a => a.status === 'completed')
-    const lastVisit = completedAppts.length > 0
-      ? completedAppts.sort((a, b) => (b.scheduledAt?.getTime() ?? 0) - (a.scheduledAt?.getTime() ?? 0))[0].scheduledAt?.toISOString() ?? null
-      : null
+  const completedAppts = rows.filter(a => a.status === 'completed')
+  const lastVisit = completedAppts.length > 0
+    ? completedAppts.sort((a, b) => (b.scheduledAt?.getTime() ?? 0) - (a.scheduledAt?.getTime() ?? 0))[0].scheduledAt?.toISOString() ?? null
+    : null
 
-    const confirmedAppts = rows.filter(a => a.confirmationSentAt && a.scheduledAt && a.scheduledAt > a.confirmationSentAt)
-    let avgConfirmationTime: number | null = null
-    if (confirmedAppts.length > 0) {
-      const totalHours = confirmedAppts.reduce((sum, a) => {
-        const scheduled = a.scheduledAt!.getTime()
-        const confirmed = a.confirmationSentAt!.getTime()
-        return sum + (scheduled - confirmed) / (1000 * 60 * 60)
-      }, 0)
-      avgConfirmationTime = Math.round((totalHours / confirmedAppts.length) * 10) / 10
-    }
-
-    return { total_appointments: total, completed, cancelled, no_shows, last_visit: lastVisit, average_confirmation_time: avgConfirmationTime }
-  } catch (error) {
-    dbLogger.error('Error fetching patient history', error)
-    return { total_appointments: 0, completed: 0, cancelled: 0, no_shows: 0, last_visit: null, average_confirmation_time: null }
+  const confirmedAppts = rows.filter(a => a.confirmationSentAt && a.scheduledAt && a.scheduledAt > a.confirmationSentAt)
+  let avgConfirmationTime: number | null = null
+  if (confirmedAppts.length > 0) {
+    const totalHours = confirmedAppts.reduce((sum, a) => {
+      const scheduled = a.scheduledAt!.getTime()
+      const confirmed = a.confirmationSentAt!.getTime()
+      return sum + (scheduled - confirmed) / (1000 * 60 * 60)
+    }, 0)
+    avgConfirmationTime = Math.round((totalHours / confirmedAppts.length) * 10) / 10
   }
+
+  return { total_appointments: total, completed, cancelled, no_shows, last_visit: lastVisit, average_confirmation_time: avgConfirmationTime }
 }
 
 function calculateHistoryRisk(history: PatientHistory): RiskFactor {
