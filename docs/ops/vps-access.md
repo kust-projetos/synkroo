@@ -2,7 +2,9 @@
 
 ## Fonte de configuração
 
-Execute comandos a partir da raiz deste projeto. Configuração privada fica em `../vps-hostinger/.env`.
+> **Migração 2026-10-05:** Hostinger é o **source** atual e Contabo é o **target** planejado. Ver `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md`.
+
+Execute comandos a partir da raiz deste projeto. Enquanto P1 provider-neutral não for implementado, a configuração privada do source continua em `../vps-hostinger/.env`. O alvo vNext deve usar caminho explícito/provider-neutral (por exemplo `SYNKROO_VPS_ENV`) e não introduzir `../vps-contabo` hardcoded no código.
 
 Nunca copie senha, token, chave privada ou valor de `.env` para este repositório.
 
@@ -59,7 +61,9 @@ ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_IP" 'pwd; docker ps --format "tab
 
 ## Topologia conhecida
 
-O runtime de produção documentado do Synkroo é Cloudflare Workers/OpenNext. Não há diretório de serviço VPS confirmado nos documentos do projeto; faça descoberta remota antes de deploy ou restart.
+O runtime de aplicação continua Cloudflare Workers/OpenNext. A VPS hospeda componentes stateful/auxiliares. O repo confirma PostgreSQL 17 + pgvector, cloudflared/tunnel e sidecar Playwright; Evolution e outros serviços devem ser confirmados por descoberta remota antes da migração.
+
+O target é Contabo. WAHA deve ser provisionado diretamente no target e substituir Evolution em uma janela separada do cutover de banco.
 
 ## Operações destrutivas
 
