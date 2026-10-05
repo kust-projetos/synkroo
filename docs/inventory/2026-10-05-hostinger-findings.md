@@ -34,6 +34,16 @@ Docs-irmãos: [inventário de runtime](2026-10-05-runtime-inventory.md) · [cat�
 
 ### Achado inesperado — WAHA já ativo na source
 
+> **Addendum 2026-10-05 (tarde) — gaps fechados em segunda passada (leitura read-only):**
+>
+> | Gap anterior | Resolução |
+> |---|---|
+> | bind mounts ❌ | `docker inspect` executado: PG monta volume `synkroo_prod_pgdata` + binds `postgresql.conf`, `pg_hba.conf` e `certs → /etc/postgresql/tls` (TLS custom em `/home/deploy/infra/synkroo-prod-postgres/certs/`, `server.key` 0600 de uid alheio — motivo do `sudo tar` no backup); sidecar monta só o volume de sessão |
+> | certificados ❌ | `/home/deploy/infra/traefik/acme.json` presente (116 KB, Let's Encrypt, renovado 2026-09-30); `.env` do traefik 0600 |
+> | backup ⚠️ | `backup.sh` inspecionado: tar de `/home/deploy/infra` (sudo, exclui node_modules/logs) + tar de **todos** os volumes docker (alpine, read-only) + rclone (`~/.config/rclone/rclone.conf`, 530 B — GDrive) + ping healthchecks (`HC_PING_URL_BACKUP`), retenção 14 |
+> | staging ⚠️ | DB `synkroo_staging` **existe** no cluster da source: 11 MB (mesma dimensão da prod — é uma cópia); roles `synkroo` + `synkroo_staging` |
+> | Evolution ❌ | segue em aberto — `EVOLUTION_GO_URL` aponta para fora desta VPS; decisão do owner (bloqueia P3 junto do achado WAHA) |
+
 O container `waha` (`devlikeapro/waha:latest`, Up 8 days, **tag não pinada**) está **rodando** na source, com compose próprio em `/home/deploy/infra/waha/docker-compose.yml`, e chaves `WAHA_*` já presentes no `.env` privado — enquanto o app ainda está configurado com Evolution (`EVOLUTION_GO_*`) e não há container Evolution nesta VPS.
 
 Observado no inventário: sem porta publicada no host (apenas `3000/tcp` exposto no namespace do container), **sem volume** (nada de persistência de sessão), sem healthcheck reportado, sem dependência de banco (compose `running(1)`).

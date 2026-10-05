@@ -40,10 +40,45 @@ SSHD: a política efetiva vem de `/etc/ssh/sshd_config.d/10-hardening.conf` (`Pe
 - `cloud-init-main.service` em **failed** (`systemctl --failed`) — inofensivo em runtime, mas deve ser diagnosticado/mascarado para não poluir o gate de Go/No-Go (§13 exige DB health verde; unidade falha não bloqueia, porém suja o inventário).
 - Inventário não distinguiu qual branch do `sudo -n ss || ss` rodou — irrelevante para as conclusões.
 
-## 4. Implicações para o P2
+## 5. PG do Synkroo no target + Rehearsal §5.3 (2026-10-05)
 
-1. **§5.3 restore rehearsal** é o próximo passo de verdade: requer subir o Postgres do Synkroo na Contabo (`ops/vps/synkroo-prod-postgres/`) — container novo, sem afetar pi-finance.
-2. **Rota de acesso**: na source, o TCP direto ao PG é bloqueado na borda (tunnel-only). O target precisa da decisão de rota Hyperdrive **antes** do cutover (§4 Rede do runbook: identificar a origem real do tráfego). Esta é a principal decisão de rede pendente.
-3. **Portas no target**: Postgres do Synkroo não deve publicar porta de host; acesso pelo compose network + túnel/rota validada, reproduzindo o modelo da source.
-4. **TZ no compose do target**: fixar explicitamente (a source roda GMT; o host está em CEST) para não herdar TZ do host por acidente.
-5. `cloudflared`: o tunnel da source (`synkroo-prod-db-tunnel`) é credenciado na Cloudflare — mover/criar rota é mudança no lado Cloudflare, decisão visível ao owner.
+### Deploy
+
+- `synkroo-prod-postgres` (pgvector/pgvector:pg17) **healthy** em `/opt/synkroo/synkroo-prod-postgres/`:
+  volume nomeado, configs bind-mounted (mesmos `postgresql.conf`/`pg_hba.conf` do repo), TLS self-signed gerado no host (key 999:999 0600), TZ fixa `GMT` no compose, **sem porta pública** (apenas `127.0.0.1:15433` para debug — mesmo modelo tunnel-only da source).
+- O serviço `cloudflared` do compose do repo **foi deliberadamente omitido**: mover/criar rota na Cloudflare é decisão do owner (§4 Rede).
+- Senha do cluster gerada no próprio host, em `/opt/synkroo/synkroo-prod-postgres/.env` (0600) — nunca transitou por sessão/repo.
+
+### Rehearsal §5.3 — GREEN
+
+| Gate | Resultado |
+|---|---|
+| Transfer do dump (186 KB) + SHA-256 no destino | `1b6394e0…8ac002` local = remoto ✅ |
+| DB isolado `synkroo_rehearsal` + extensões | `vector` + `btree_gist` ✅ |
+| `pg_restore --no-owner --role=synkroo` | exit 0 ✅ |
+| Migration ledger | `drizzle.__drizzle_migrations` = **33** ✅ |
+| Smoke (9 tabelas-chave) | 8/9 presentes e consistentes; `contacts` não existe no schema (desvio documentado: CRM = patients+leads) ✅ |
+| Constraints | 528 ✅ |
+| Tamanho pós-restore | 11 MB (espelha a source) ✅ |
+| Perfil de dados | `clinics=1`, `users=1`, demais=0 — **confirma pré-piloto; owner deve ratificar** |
+
+O DB `synkroo_rehearsal` foi mantido no target como evidência até o go do cutover.
+
+### Backup off-host — implementado e validado
+
+- `ops/vps/contabo/backup/backup-synkroo.sh` (versionado no repo, instalado em `/opt/synkroo/backup/`, 0750): dump lógico prod + staging condicional, tar do volume físico, configs (inclui `.env` — mesmo padrão da source), manifest SHA-256, retenção 14 dias.
+- `rclone.conf` replicado da source (GDrive) — copiado source→target por SSH, sem passar por sessão/repo. **Execução real moviu o tar.gz para `gdrive:synkroo-contabo-backups/`** ✅ (primeira execução 2026-10-05 22:44 UTC).
+- Cron `deploy`: `30 5 * * *` (= 03:30 UTC, mesmo horário da source, sem colidir com `backup-pi` às 03:30 CEST).
+- Monitoramento (ping healthchecks): pendente UUID do target — o script já suporta via `BACKUP_HC_PING_URL` em `/opt/synkroo/backup/.env`.
+
+### Higiene
+
+- `cloud-init-main.service` (Contabo NoCloud, falha de módulo final no boot de 2026-10-02): desabilitado via `/etc/cloud/cloud-init.disabled`, `reset-failed` aplicado — `systemctl --failed` = **0 unidades**.
+
+## 6. Pendências para o cutover (decisões owner)
+
+1. **Rota Hyperdrive/tunnel** no target (Cloudflare-side) — principal bloqueio de rede.
+2. **Staging apontado ao target** (`setup-staging-db` precisa da rota TCP acima).
+3. **Janela de cutover** + freeze/final sync (§5.4) — Hostinger segue intacta (rollback window preservada).
+4. **Ratificação do perfil de dados** (1 clinic/1 user — pré-piloto).
+5. (Opcional) UUID healthchecks.io para o monitor do backup do target.

@@ -95,24 +95,24 @@ Descobrir:
 - [x] Docker/Compose (29.1.3 / 2.40.3);
 - [x] NTP/timezone (chronyd sincronizado; TZ host `Europe/Berlin` mantida de propósito, TZ do banco será fixa no compose);
 - [x] diretórios de app/backups (`/opt/synkroo`, `/var/backups/synkroo` criados 2026-10-05);
-- [ ] monitoramento (decisão owner);
-- [ ] backup off-host (decisão owner).
+- [ ] monitoramento (decisão owner — healthchecks UUID do target; script já suporta `BACKUP_HC_PING_URL`);
+- [x] backup off-host (2026-10-05: rclone gdrive replicado da source, primeira execução moveu para `gdrive:synkroo-contabo-backups/`, retenção 14d, cron 03:30 UTC).
 
 Pendência de higiene: `cloud-init-main.service` failed (`systemctl --failed`) — diagnosticar/mascarar antes do Go/No-Go.
 
 ### Banco
 
-- [ ] dump consistente;
-- [ ] SHA-256;
-- [ ] restore isolado na Contabo;
-- [ ] extensões;
-- [ ] migration ledger;
-- [ ] smoke;
-- [ ] staging apontado ao target;
-- [ ] teste Hyperdrive;
+- [x] dump consistente (2026-10-05, custom `-Fc`, stream SSH docker exec, 186 KB);
+- [x] SHA-256 (`1b6394e0…8ac002`, sidecar + verificação no destino);
+- [x] restore isolado na Contabo (`synkroo_rehearsal`, exit 0 — ver `docs/inventory/2026-10-05-contabo-target-findings.md` §5);
+- [x] extensões (`vector` + `btree_gist` no rehearsal);
+- [x] migration ledger (33 migrações pós-restore);
+- [x] smoke (8/9 tabelas + 528 constraints; `contacts` não existe no schema);
+- [ ] staging apontado ao target (depende da rota TCP/tunnel);
+- [ ] teste Hyperdrive (decisão de rota — owner);
 - [ ] freeze/final sync;
 - [ ] cutover;
-- [ ] janela de rollback com Hostinger intacta.
+- [ ] janela de rollback com Hostinger intacta (Hostinger **segue intacta** — nada foi destruído).
 
 **Gate:** não iniciar cutover do WhatsApp no mesmo momento do cutover de DB.
 
