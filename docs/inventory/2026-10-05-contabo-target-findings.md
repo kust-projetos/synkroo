@@ -107,7 +107,7 @@ Hostinger segue **intacta e acessível** (rollback window aberta; decommission s
 ### Gotchas registrados para operação futura
 
 1. **`sslmode=require` em DATABASE_URL (node-pg ≥8) é tratado como `verify-full`** → rejeita o TLS self-signed do cluster. Scripts que montam URL precisam de `uselibpqcompat=true&sslmode=require` (ou params discretos com `ssl: { rejectUnauthorized: false }`, o padrão do repo). Hyperdrive não é afetado (semântica libpq nativa).
-2. **Senhas de role devem ser hex/base64url-safe** ao circular em DATABASE_URL: o percent-encoding do parser de URL do pg não decodou a senha de forma confiável nesta versão — senha hex (`openssl rand -hex 24`) elimina a classe de problema (role `synkroo` do target foi rotacionada para hex em 2026-10-05; `.env` do target e local já atualizados).
+2. **Senhas de role devem ser hex/base64url-safe** ao circular em DATABASE_URL: o percent-encoding do parser de URL do pg não decodou a senha de forma confiável nesta versão — senha hex (`openssl rand -hex 24`) elimina a classe de problema (role `synkroo` do target foi rotacionada para hex em 2026-10-05; `.env` do target e local já atualizados). **Acoplamento: rotacionar senha de role exige re-executar `update-hyperdrive.ts --side=<side>`** — a config do Hyperdrive carrega a senha na origem; feito e re-smoked (verde nos dois ambientes) em 2026-10-05.
 3. **Rate limiter do login**: rajadas de teste em sequência retornam 401 (limiter em memória por instância) — aguardar a janela antes de retestar; não é falha de credencial.
 4. O payload de sessão não carrega `role`/`clinicId` (design do app): a role efetiva é resolvida por request a partir de `user_clinic_access`.
 
