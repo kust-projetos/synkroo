@@ -208,6 +208,99 @@ describe('safeDbErrorSummary — saída sem segredo', () => {
   });
 });
 
+describe('contrato source/target nos scripts operacionais', () => {
+  const SCRIPTS = ['migrate-vps.ts', 'update-hyperdrive.ts', 'setup-staging-db.ts'];
+
+  test('todos resolvem a configuração pelo side explícito', () => {
+    for (const name of SCRIPTS) {
+      const src = read(name);
+      assert.match(src, /resolveVpsSideSettings\(/, `${name} deve usar o resolver por side`);
+      assert.match(src, /from '\.\/lib\/vps-env\.mjs'/, `${name} deve importar o módulo compartilhado`);
+      assert.ok(
+        !/VPS_IP'|VPS_PG_PORT'|VPS_POSTGRES_PASSWORD'|VPS_STAGING_PASSWORD'/.test(src),
+        `${name} ainda fixa uma chave genérica em vez das prefixadas por side`,
+      );
+    }
+  });
+
+  test('side ausente ou inválido aponta SYNKROO_VPS_SIDE_INVALID e o uso do script', () => {
+    for (const name of SCRIPTS) {
+      const src = read(name);
+      assert.match(src, /VPS_SIDE_INVALID_CODE/, `${name} deve citar o code de side inválido`);
+      assert.match(src, /--side is required/, `${name} deve explicar que --side é obrigatório`);
+      assert.match(src, /--side="\$\{side\}" is not a valid side/, `${name} deve rejeitar side inválido`);
+      assert.match(src, /readCliFlag\(/, `${name} deve ler --side via argv`);
+      assert.match(src, /VPS_SIDES\.includes\(side\)/, `${name} deve validar contra a lista de lados`);
+      assert.match(src, /process\.exit\(1\)/, `${name} deve sair com código 1`);
+    }
+  });
+
+  test('nenhum log interpola credencial', () => {
+    // Um template literal de console.* não pode referenciar uma senha: nem
+    // interpolada, nem via spread/objeto, nem por reatribuição com nome alike.
+    const forbidden = /stagingPassword|postgresPassword|staging\.value|prodPassword|secrets\b/;
+    for (const name of SCRIPTS) {
+      const src = read(name);
+      const logLines = src.split(/\r?\n/).filter((line) => /console\.(log|warn|error|info)\(/.test(line));
+      assert.ok(logLines.length > 0, `${name} deve manter ao menos um log`);
+      for (const line of logLines) {
+        assert.ok(
+          !forbidden.test(line),
+          `${name}: log não pode referenciar credencial — ${line.trim()}`,
+        );
+      }
+    }
+  });
+
+  test('o aviso de deprecation lista apenas nomes de chave', () => {
+    for (const name of SCRIPTS) {
+      const src = read(name);
+      assert.match(
+        src,
+        /\[deprecated\] side="\$\{side\}" ainda lê as chaves genéricas/,
+        `${name} deve avisar sobre as chaves genéricas em uso`,
+      );
+      assert.match(src, /usedLegacyKeys\.length > 0/, `${name} só avisa quando há alias em uso`);
+    }
+  });
+
+  test('migrate-vps documenta --side e --target como eixos ortogonais', () => {
+    const src = read('migrate-vps.ts');
+    assert.match(src, /--side\s+\(REQUIRED\) which VPS/);
+    assert.match(src, /which database INSIDE that VPS/);
+    assert.match(src, /Orthogonal to --side/);
+    // --target continua aceitando os três valores
+    for (const target of ['production', 'staging', 'all']) {
+      assert.ok(src.includes(`'${target}'`), `migrate-vps deve aceitar --target=${target}`);
+    }
+  });
+
+  test('setup-staging-db grava na chave de origem do valor efetivo', () => {
+    const src = read('setup-staging-db.ts');
+    assert.match(src, /const stagingKey = settings\.keys\.stagingPassword;/);
+    assert.match(src, /const postgresKey = settings\.keys\.postgresPassword;/);
+    assert.match(src, /\[stagingKey\]: \{ value: stagingPassword, required: stagingGenerated \}/);
+    assert.match(src, /\[postgresKey\]: \{ value: prodPassword, required: false \}/);
+    // A senha de staging continua não sendo exigida: ela é gerada e persistida.
+    assert.match(src, /require: \['IP', 'PG_PORT', 'POSTGRES_PASSWORD'\]/);
+    assert.match(src, /crypto\.randomBytes\(24\)\.toString\('hex'\)/);
+  });
+
+  test('update-hyperdrive continua sem shell e atualiza as duas configs por execução', () => {
+    const src = read('update-hyperdrive.ts');
+    assert.ok(!/execSync/.test(src), 'não deve importar execSync');
+    assert.ok(!/\bshell\s*:/.test(src), 'não deve habilitar shell');
+    assert.equal(
+      (src.match(/runWranglerCli\(\{/g) ?? []).length,
+      2,
+      'staging e production devem ser atualizados na mesma execução',
+    );
+    assert.match(src, /resolveVpsSideSettings\(/);
+    assert.match(src, /readCliFlag\(/);
+    assert.match(src, /side=\$\{side\} host=/);
+  });
+});
+
 describe('Wrangler argv — sem shell', () => {
   const HOSTILE = 'p w"; rm -rf /tmp/x #$(id)`id`\\';
   const entry = '/repo/node_modules/wrangler/bin/wrangler.js';

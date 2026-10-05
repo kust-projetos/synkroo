@@ -16,6 +16,11 @@
  *
  * Secrets policy: no value read from the env file ever reaches a log line, a
  * warning or an exception message. Only paths and key names are surfaced.
+ *
+ * Source/target contract (P1): the side of the migration is never inferred.
+ * Callers pass an explicit `--side`, and connection values come from
+ * `VPS_<SIDE>_*` keys, with the deprecated generic `VPS_*` keys honoured as a
+ * per-key fallback while operator files are being migrated.
  */
 
 import * as fs from 'node:fs';
@@ -244,6 +249,195 @@ export function readVpsSettingWithOrigin(key, options = {}) {
  */
 export function readVpsSetting(key, options = {}) {
   return readVpsSettingWithOrigin(key, options).value;
+}
+
+/* -------------------------------------------------------------------------- *
+ * Source/target contract
+ * -------------------------------------------------------------------------- */
+
+/**
+ * The two sides of the Hostinger → Contabo migration. `source` is the VPS the
+ * data is copied FROM, `target` the VPS it is copied TO. The side is never
+ * inferred from a file, a hostname or a default: it is an explicit `--side`,
+ * so a run can never touch the wrong host by omission.
+ */
+export const VPS_SIDES = ['source', 'target'];
+
+/**
+ * Fields resolved per side, named by the suffix shared by the prefixed key
+ * (`VPS_TARGET_PG_PORT`) and its deprecated generic alias (`VPS_PG_PORT`).
+ * Iteration order is also the precedence order of the "missing" error.
+ */
+export const VPS_SIDE_FIELDS = ['IP', 'PG_PORT', 'POSTGRES_PASSWORD', 'STAGING_PASSWORD'];
+
+export const VPS_SIDE_INVALID_CODE = 'SYNKROO_VPS_SIDE_INVALID';
+export const VPS_PORT_INVALID_CODE = 'SYNKROO_VPS_PORT_INVALID';
+export const VPS_SETTING_MISSING_CODE = 'SYNKROO_VPS_SETTING_MISSING';
+
+/**
+ * Reads a CLI flag in both accepted spellings: `--name=value` and `--name value`.
+ *
+ * `--name --other` yields `undefined` for `name` (the next token is another
+ * flag, not the value), so a missing value is reported as missing instead of
+ * silently swallowing the following argument.
+ *
+ * @param {string[]} argv
+ * @param {string} name
+ * @returns {string|undefined}
+ */
+export function readCliFlag(argv, name) {
+  const args = Array.isArray(argv) ? argv : [];
+  const inline = args.find((arg) => typeof arg === 'string' && arg.startsWith(`--${name}=`));
+  if (inline !== undefined) return inline.slice(`--${name}=`.length);
+  const index = args.indexOf(`--${name}`);
+  if (index === -1) return undefined;
+  const next = args[index + 1];
+  if (typeof next !== 'string' || next.startsWith('--')) return undefined;
+  return next;
+}
+
+const PORT_INTEGER = /^\d+$/;
+
+/**
+ * Parses a PostgreSQL port, rejecting anything a socket would not accept.
+ *
+ * `parseInt` alone is not enough: it turns `"5432abc"` into `5432`, accepts
+ * `"0"`/`"70000"` (which `pg` rejects at connect time, far from the cause) and
+ * `NaN` flows on as a port. Only ASCII digits are accepted — no hex (`0x10`),
+ * no exponent (`1e3`), no sign — and the range is the real TCP port range.
+ *
+ * The message cites the key NAME and the reason only, never the value: the
+ * module's contract is that no setting value ever reaches an error string.
+ *
+ * @param {string} rawValue
+ * @param {string} [key] key name cited in the message
+ * @returns {number}
+ */
+export function parseVpsPort(rawValue, key = 'VPS_PG_PORT') {
+  const raw = String(rawValue ?? '').trim();
+  const port = Number(raw);
+  if (!PORT_INTEGER.test(raw) || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw envFileError(
+      VPS_PORT_INVALID_CODE,
+      `${key} is invalid: expected an integer port between 1 and 65535. ` +
+        `Fix the value in process.env or in the private VPS .env file.`,
+    );
+  }
+  return port;
+}
+
+/**
+ * Resolves every connection value for ONE side, with prefixed-key precedence and
+ * a per-key fallback to the deprecated generic keys.
+ *
+ * For each field: `VPS_<SIDE>_<FIELD>` wins; otherwise `VPS_<FIELD>` is used
+ * and recorded in `usedLegacyKeys` with one deprecation warning per key (names
+ * only, never the value). Missing on both sides fails closed naming the
+ * PREFIXED key — the one the operator should create.
+ *
+ * `require` narrows the fail-closed set to the fields a given script needs, so a
+ * `--target=staging` run does not demand the production password. A field that
+ * is not required comes back `undefined` with `keys[field]` already pointing at
+ * the prefixed key — the correct destination for a generated credential.
+ *
+ * @param {string} side
+ * @param {{env?: Record<string,string|undefined>, values?: Record<string,string>, warn?: (message: string) => void, hint?: string, require?: string[]}} [options]
+ * @returns {{side: string, ip: string|undefined, pgPort: number|undefined, postgresPassword: string|undefined, stagingPassword: string|undefined, usedLegacyKeys: string[], keys: Record<string,string>, origins: Record<string,string|undefined>}}
+ */
+/**
+ * Reads one field of a resolved side as definitely present, failing closed with
+ * the PREFIXED key name and the origin hint.
+ *
+ * Split out of {@link resolveVpsSideSettings} because that resolver may be asked
+ * for a narrower `require` set (setup-staging-db generates the staging password,
+ * migrate-vps only needs one of the two passwords), so its return type keeps the
+ * non-required fields optional. A caller that needs one of them anyway must
+ * still narrow — never dial an undefined host or send an undefined password.
+ *
+ * @param {{ip?: string, pgPort?: number, postgresPassword?: string, stagingPassword?: string, keys: Record<string,string>}} settings
+ * @param {'ip'|'pgPort'|'postgresPassword'|'stagingPassword'} field
+ * @param {string} [hint]
+ * @returns {string|number}
+ */
+export function requireVpsSideSetting(settings, field, hint) {
+  const value = settings?.[field];
+  if (value !== undefined) return value;
+  const key = settings?.keys?.[field] ?? 'VPS_SETTING';
+  const origin = hint ? `set it in process.env or ${hint}` : 'set it in process.env';
+  throw envFileError(VPS_SETTING_MISSING_CODE, `${key} is missing: ${origin}`);
+}
+
+export function resolveVpsSideSettings(side, options = {}) {
+  const requested = String(side ?? '').trim().toLowerCase();
+  if (!VPS_SIDES.includes(requested)) {
+    throw envFileError(
+      VPS_SIDE_INVALID_CODE,
+      `--side is missing or invalid: expected one of ${VPS_SIDES.join(', ')}. ` +
+        `Pass --side=source (the VPS the data is copied from) or ` +
+        `--side=target (the VPS it is copied to).`,
+    );
+  }
+
+  const env = options.env ?? process.env;
+  const values = options.values ?? {};
+  const warn = options.warn ?? ((message) => console.warn(message));
+  const requiredFields = options.require ?? VPS_SIDE_FIELDS;
+  const hint = options.hint ?? `the private VPS .env file pointed to by ${VPS_ENV_PATH_VAR}`;
+
+  const keys = {};
+  const origins = {};
+  const resolved = {};
+  const usedLegacyKeys = [];
+
+  for (const field of VPS_SIDE_FIELDS) {
+    const prefixedKey = `VPS_${requested.toUpperCase()}_${field}`;
+    const legacyKey = `VPS_${field}`;
+    // The destination stays the prefixed key until a legacy alias is actually
+    // used, so a generated credential lands on the key the operator should keep.
+    keys[field] = prefixedKey;
+    let read = readVpsSettingWithOrigin(prefixedKey, { env, values });
+    if (read.value === undefined) {
+      const legacy = readVpsSettingWithOrigin(legacyKey, { env, values });
+      if (legacy.value !== undefined) {
+        read = legacy;
+        keys[field] = legacyKey;
+        usedLegacyKeys.push(legacyKey);
+        warn(
+          `[deprecated] chave genérica ${legacyKey} usada para ${prefixedKey} — ` +
+            `atualize o .env para a chave prefixada durante a migração`,
+        );
+      }
+    }
+    origins[field] = read.origin;
+    resolved[field] = read.value;
+    if (read.value === undefined && requiredFields.includes(field)) {
+      throw envFileError(
+        VPS_SETTING_MISSING_CODE,
+        `${prefixedKey} is missing: set it in process.env or ${hint}`,
+      );
+    }
+  }
+
+  return {
+    side: requested,
+    ip: resolved.IP,
+    pgPort: resolved.PG_PORT === undefined ? undefined : parseVpsPort(resolved.PG_PORT, keys.PG_PORT),
+    postgresPassword: resolved.POSTGRES_PASSWORD,
+    stagingPassword: resolved.STAGING_PASSWORD,
+    usedLegacyKeys,
+    keys: {
+      ip: keys.IP,
+      pgPort: keys.PG_PORT,
+      postgresPassword: keys.POSTGRES_PASSWORD,
+      stagingPassword: keys.STAGING_PASSWORD,
+    },
+    origins: {
+      ip: origins.IP,
+      pgPort: origins.PG_PORT,
+      postgresPassword: origins.POSTGRES_PASSWORD,
+      stagingPassword: origins.STAGING_PASSWORD,
+    },
+  };
 }
 
 function escapeRegExp(value) {

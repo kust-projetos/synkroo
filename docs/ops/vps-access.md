@@ -17,12 +17,75 @@ Exemplo (a partir da raiz do repositório):
 
 ```bash
 export SYNKROO_VPS_ENV=../vps-hostinger/.env
-npx tsx scripts/setup-staging-db.ts
+npx tsx scripts/setup-staging-db.ts --side=source
 ```
+
+## Contrato source/target (P1)
+
+Os três scripts operacionais recebem `--side=source|target` **obrigatório**: qual VPS a execução toca. Não há default e não há inferência a partir do arquivo de `.env` ou do hostname — ausente ou inválido, o script imprime o uso e sai com código 1.
+
+- `source` — a VPS de onde os dados são copiados (atualmente Hostinger).
+- `target` — a VPS para onde os dados serão copiados (Contabo).
+
+Em `migrate-vps.ts`, `--side` e `--target` são eixos ortogonais: `--side` escolhe **qual VPS**, `--target` escolhe **qual banco dentro daquela VPS** (`production`, `staging` ou `all`; padrão `production`).
+
+### Chaves por lado
+
+Cada lado tem quatro chaves próprias no `.env` privado, resolvidas por `scripts/lib/vps-env.mjs`:
+
+| Chave | Conteúdo |
+|---|---|
+| `VPS_SOURCE_IP` / `VPS_TARGET_IP` | IP/host da VPS |
+| `VPS_SOURCE_PG_PORT` / `VPS_TARGET_PG_PORT` | porta do PostgreSQL (inteiro 1–65535) |
+| `VPS_SOURCE_POSTGRES_PASSWORD` / `VPS_TARGET_POSTGRES_PASSWORD` | senha do role `synkroo` (produção) |
+| `VPS_SOURCE_STAGING_PASSWORD` / `VPS_TARGET_STAGING_PASSWORD` | senha do role `synkroo_staging` |
+
+A separação de credenciais continua estrita: a senha de staging **nunca** é preenchida com a de produção, em nenhum lado.
+
+### Aliases genéricos (deprecated)
+
+As quatro chaves genéricas `VPS_IP`, `VPS_PG_PORT`, `VPS_POSTGRES_PASSWORD` e `VPS_STAGING_PASSWORD` continuam funcionando como **fallback por chave**, com aviso `[deprecated]` por chave usada durante a migração. A precedência é por chave, não por arquivo:
+
+1. `VPS_<SIDE>_<CAMPO>` (prefixada) — sempre vence.
+2. `VPS_<CAMPO>` (genérica, deprecated) — usada só quando a prefixada está ausente ou vazia, com aviso.
+3. Ausente nas duas → falha fechada `SYNKROO_VPS_SETTING_MISSING`, citando a chave **prefixada** (a que o operador deve criar).
+
+O aviso nunca imprime valor de credencial — apenas nomes de chave. Porta inválida (vazia, `NaN`, `0`, `70000`, texto) falha com `SYNKROO_VPS_PORT_INVALID`, citando a chave resolvida.
+
+Exemplo de `.env` do source:
+
+```bash
+VPS_SOURCE_IP='<ip-do-source>'
+VPS_SOURCE_PG_PORT='15432'
+VPS_SOURCE_POSTGRES_PASSWORD='<senha>'
+VPS_SOURCE_STAGING_PASSWORD='<senha>'
+```
+
+### Um `.env` por lado (recomendado)
+
+Cada lado tem seu próprio arquivo privado, apontado por `SYNKROO_VPS_ENV` na sessão. Isso elimina a dependência do fallback genérico e impede que uma execução leia a VPS errada:
+
+```bash
+# source
+export SYNKROO_VPS_ENV=../vps-hostinger/.env
+npx tsx scripts/migrate-vps.ts --side=source --target=all
+
+# target (após provisionar o .env com as chaves VPS_TARGET_*)
+export SYNKROO_VPS_ENV=../vps-contabo/.env
+npx tsx scripts/migrate-vps.ts --side=target --target=all
+npx tsx scripts/setup-staging-db.ts --side=target
+npx tsx scripts/update-hyperdrive.ts --side=target
+```
+
+Os caminhos acima são ilustrativos: `SYNKROO_VPS_ENV` é provider-neutral e nenhum caminho é fixado em código. Nenhum literal de provider aparece nos scripts.
+
+`update-hyperdrive.ts` atualiza as duas configs (staging e produção) na mesma execução; ambos os bancos vivem na VPS escolhida por `--side`.
 
 ### Falha fechada em `setup-staging-db.ts`
 
 A senha de staging **efetiva** é sempre planejada para persistência antes de qualquer mutação no banco: `required` quando gerada no próprio script, e sincronizada quando `process.env` fornece um valor que o arquivo ainda não tem (divergente ou ausente). Um valor que veio do arquivo não gera escrita. Sem esse gate, o role `synkroo_staging` receberia uma senha que não existiria em disco em nenhum lugar.
+
+A chave de destino acompanha a origem do valor efetivo: uma senha gerada (ou ausente) é gravada na chave **prefixada** `VPS_<SIDE>_STAGING_PASSWORD`; um valor resolvido por alias genérico continua sendo gravado na chave genérica, para que o script não reintroduza um alias que o operador já tenha migrado. O script não exige `VPS_<SIDE>_STAGING_PASSWORD` — ele a gera quando ausente, e a falha fechada abaixo garante que a credencial gerada não se perca.
 
 A gravação é atômica (arquivo temporário no mesmo diretório + `rename`) e **sempre** com modo `0600`: a substituição não reaproveita a permissão anterior, para que um arquivo de credenciais previamente group/world-readable não continue legível por outros usuários.
 
@@ -41,7 +104,9 @@ export SYNKROO_VPS_ENV=../vps-hostinger/.env   # enquanto o fallback legado exis
 set -a
 . "$SYNKROO_VPS_ENV"
 set +a
-: "${VPS_IP:?VPS_IP ausente}"
+# Expanda a chave do lado em uso (source nesta sessão):
+: "${VPS_SOURCE_IP:?VPS_SOURCE_IP ausente}"
+: "${VPS_SOURCE_PG_PORT:?VPS_SOURCE_PG_PORT ausente}"
 : "${VPS_SSH_USER:?VPS_SSH_USER ausente}"
 : "${VPS_SSH_KEY_PATH:?VPS_SSH_KEY_PATH ausente}"
 ```
@@ -59,7 +124,8 @@ Os valores gravados pelos scripts usam **aspas simples POSIX**: `CHAVE='valor'`,
 O arquivo usa quoting POSIX (`'\''`), que o `ConvertFrom-StringData` não decodifica. Para leitura pontual use o parser canônico:
 
 ```powershell
-node -e "const {loadVpsEnv}=await import('./scripts/lib/vps-env.mjs');console.log(loadVpsEnv().values.VPS_IP)"
+# Chave do lado em uso (source neste exemplo); com o arquivo migrado, as prefixadas são a fonte.
+node -e "const {loadVpsEnv}=await import('./scripts/lib/vps-env.mjs');console.log(loadVpsEnv().values.VPS_SOURCE_IP)"
 ```
 
 Para sessões manuais, `set -a; . "$SYNKROO_VPS_ENV"` em Git Bash é o caminho fiel.
@@ -69,10 +135,13 @@ Para sessões manuais, `set -a; . "$SYNKROO_VPS_ENV"` em Git Bash é o caminho f
 As mensagens de `migrate-vps.ts`, `update-hyperdrive.ts` e `setup-staging-db.ts` nomeiam a **origem** dos valores (`SYNKROO_VPS_ENV=<caminho>`, o fallback legado, ou a instrução de definir a variável) e nunca o conteúdo do arquivo:
 
 - `SYNKROO_VPS_ENV is set to "<caminho>" but no file exists there` — caminho definido e inválido; corrija ou use `unset`.
-- `<CHAVE> is missing: set it in process.env or SYNKROO_VPS_ENV=/absolute/path/to/.env` — chave ausente no env e no arquivo.
+- `<CHAVE> is missing: set it in process.env or SYNKROO_VPS_ENV=/absolute/path/to/.env` — chave ausente no env e no arquivo. Com `--side`, `<CHAVE>` é a prefixada do lado (`VPS_TARGET_IP`), nunca a genérica.
 - `Cannot persist generated VPS_STAGING_PASSWORD: no VPS env file was found` — falha fechada antes de mutar o banco.
 - `Refusing to persist <CHAVE>: the value contains NUL, CR or LF, which the quoted .env format cannot represent` — nada foi gravado e nada foi conectado; troque a credencial.
 - `[deprecation] SYNKROO_VPS_ENV is not set: falling back to the legacy path "<caminho>"` — aviso, não erro.
+- `[deprecated] chave genérica VPS_IP usada para VPS_TARGET_IP — atualize o .env para a chave prefixada durante a migração` — aviso por chave genérica em uso; nunca imprime valor. Quando há genéricas em uso, os scripts também imprimem um **resumo agregado** por execução: `[deprecated] side="target" ainda lê as chaves genéricas VPS_IP, VPS_PG_PORT — renomeie para as chaves VPS_TARGET_* no .env`. Um `.env` 100% genérico produz, portanto, 1 linha por chave + 1 resumo.
+- `--side is required (SYNKROO_VPS_SIDE_INVALID): expected source or target.` + uso do script — exit 1, sem conexão tentada. O mesmo acontece com `--target=` **vazio** em `migrate-vps.ts`: antes cairia no default `production`; agora é erro explícito (fail-closed).
+- `<CHAVE> is invalid: expected an integer port between 1 and 65535` — `SYNKROO_VPS_PORT_INVALID`; só a chave e o motivo, nunca o valor.
 
 Falha de banco em `setup-staging-db.ts` **nunca** imprime texto do driver (o `CREATE/ALTER ROLE` carrega a senha em texto claro e o driver ecoa a statement). A saída é um código allowlisted ou uma mensagem fixa:
 
@@ -84,13 +153,13 @@ Erros de preflight deste repo (`SYNKROO_*`) mantêm a mensagem original, que só
 ## Conexão
 
 ```bash
-ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_IP"
+ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP"
 ```
 
 Valide identidade antes de alterar qualquer coisa:
 
 ```bash
-ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_IP" \
+ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP" \
   'hostname; uptime; docker ps; docker compose ls; systemctl --failed'
 ```
 
@@ -99,7 +168,7 @@ ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_IP" \
 Acesso administrativo amplo está disponível via usuário SSH e `sudo`, conforme permissões da VPS. Não presuma diretório, container ou unit: descubra o serviço antes de agir.
 
 ```bash
-ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_IP" 'pwd; docker ps --format "table {{.Names}}\t{{.Status}}"; systemctl list-units --type=service --state=running --no-pager'
+ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP" 'pwd; docker ps --format "table {{.Names}}\t{{.Status}}"; systemctl list-units --type=service --state=running --no-pager'
 ```
 
 - Docker: inspecione compose, volumes e saúde antes de `up`, restart ou migração.

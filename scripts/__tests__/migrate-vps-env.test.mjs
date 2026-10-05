@@ -27,12 +27,21 @@ import {
   SETTING_ORIGIN_FILE,
   SETTING_ORIGIN_PROCESS,
   VPS_ENV_PATH_VAR,
+  VPS_PORT_INVALID_CODE,
+  VPS_SIDE_FIELDS,
+  VPS_SIDE_INVALID_CODE,
+  VPS_SIDES,
+  VPS_SETTING_MISSING_CODE,
   loadVpsEnv,
   parseVpsEnvContent,
+  parseVpsPort,
   planEnvFileWrites,
+  readCliFlag,
   readVpsSetting,
   readVpsSettingWithOrigin,
+  requireVpsSideSetting,
   resolveVpsEnvPath,
+  resolveVpsSideSettings,
   upsertEnvValue,
 } from '../lib/vps-env.mjs';
 
@@ -640,8 +649,10 @@ describe('persistência da senha de staging efetiva', () => {
 
   test('setup-staging-db planeja as duas chaves e escreve antes do connect', () => {
     const src = readFileSync(resolve(root, 'scripts', 'setup-staging-db.ts'), 'utf8');
-    assert.match(src, /VPS_STAGING_PASSWORD: \{ value: stagingPassword, required: stagingGenerated \}/);
-    assert.match(src, /VPS_POSTGRES_PASSWORD: \{ value: prodPassword, required: false \}/);
+    // A chave de destino vem do side resolvido (prefixada ou alias genérico),
+    // então o override é indexado pelo nome derivado, não por um literal fixo.
+    assert.match(src, /\[stagingKey\]: \{ value: stagingPassword, required: stagingGenerated \}/);
+    assert.match(src, /\[postgresKey\]: \{ value: prodPassword, required: false \}/);
     const writeIndex = src.indexOf('applyEnvFileWrites(target, writes)');
     const connectIndex = src.indexOf('adminClient.connect()');
     assert.ok(writeIndex > 0 && connectIndex > 0 && writeIndex < connectIndex);
@@ -687,8 +698,487 @@ describe('os três scripts consomem o módulo compartilhado', () => {
 
   test('setup-staging-db mantém a separação staging/produção', () => {
     const src = readFileSync(resolve(root, 'scripts', 'setup-staging-db.ts'), 'utf8');
-    assert.match(src, /readVpsSettingWithOrigin\('VPS_STAGING_PASSWORD', \{ values \}\)/);
-    assert.match(src, /readVpsSetting\('VPS_POSTGRES_PASSWORD', \{ values \}\)/);
+    // A separação passa a ser estrutural: nenhuma credencial cruza de campo
+    // (staging nunca é preenchida com a de produção) e o destino da escrita é a
+    // chave de origem do valor efetivo.
+    assert.match(src, /resolveVpsSideSettings\(side, \{/);
+    assert.match(src, /require: \['IP', 'PG_PORT', 'POSTGRES_PASSWORD'\]/);
+    assert.match(src, /stagingPassword = settings\.stagingPassword/);
+    assert.match(src, /const stagingKey = settings\.keys\.stagingPassword;/);
+    assert.ok(
+      !/readVpsSetting(?:WithOrigin)?\(/.test(src),
+      'setup-staging-db não deve ler chaves VPS_* diretamente: a resolução é do resolver por side',
+    );
+  });
+});
+
+describe('parseVpsPort — validação estrita de porta', () => {
+  test('porta válida é convertida para número', () => {
+    assert.equal(parseVpsPort('5432', 'VPS_SOURCE_PG_PORT'), 5432);
+    assert.equal(parseVpsPort(' 15432 ', 'VPS_SOURCE_PG_PORT'), 15432);
+    assert.equal(parseVpsPort('1', 'VPS_SOURCE_PG_PORT'), 1);
+    assert.equal(parseVpsPort('65535', 'VPS_TARGET_PG_PORT'), 65535);
+  });
+
+  test('vazio, NaN, fora de faixa e sufixo textual abortam citando a chave', () => {
+    for (const bad of ['', '   ', 'abc', '5432abc', '0', '70000', '-1', '1e3', '0x10']) {
+      assert.throws(
+        () => parseVpsPort(bad, 'VPS_TARGET_PG_PORT'),
+        (err) => {
+          assert.equal(err.code, VPS_PORT_INVALID_CODE);
+          assert.match(err.message, /VPS_TARGET_PG_PORT/);
+          assert.ok(
+            bad === '' || !err.message.includes(bad),
+            'a mensagem não deve ecoar o valor',
+          );
+          return true;
+        },
+        `valor ${JSON.stringify(bad)} deveria ser rejeitado`,
+      );
+    }
+    assert.throws(() => parseVpsPort(undefined, 'VPS_SOURCE_PG_PORT'), /VPS_SOURCE_PG_PORT/);
+    assert.throws(() => parseVpsPort(null, 'VPS_SOURCE_PG_PORT'), /VPS_SOURCE_PG_PORT/);
+  });
+});
+
+describe('readCliFlag — --name=value e --name value', () => {
+  test('as duas grafias são equivalentes', () => {
+    assert.equal(readCliFlag(['--side=target'], 'side'), 'target');
+    assert.equal(readCliFlag(['--side', 'target'], 'side'), 'target');
+    assert.equal(readCliFlag(['--target=all', '--side=source'], 'side'), 'source');
+  });
+
+  test('flag ausente, sem valor ou seguida de outra flag retorna undefined', () => {
+    assert.equal(readCliFlag([], 'side'), undefined);
+    assert.equal(readCliFlag(['--target=all'], 'side'), undefined);
+    assert.equal(readCliFlag(['--side'], 'side'), undefined);
+    // A próxima flag não pode ser consumida como valor de --side.
+    assert.equal(readCliFlag(['--side', '--target=all'], 'side'), undefined);
+    assert.equal(readCliFlag(['--side='], 'side'), '');
+  });
+
+  test('--sideAccepted não é confundido com --side', () => {
+    assert.equal(readCliFlag(['--sideAccepted=x'], 'side'), undefined);
+  });
+});
+
+describe('resolveVpsSideSettings — contrato source/target', () => {
+  const PREFIXED = {
+    VPS_SOURCE_IP: '10.0.0.1',
+    VPS_SOURCE_PG_PORT: '15432',
+    VPS_SOURCE_POSTGRES_PASSWORD: 'segredo-producao-prefixado',
+    VPS_SOURCE_STAGING_PASSWORD: 'segredo-staging-prefixado',
+  };
+  const LEGACY = {
+    VPS_IP: '10.9.9.9',
+    VPS_PG_PORT: '25432',
+    VPS_POSTGRES_PASSWORD: 'segredo-producao-generico',
+    VPS_STAGING_PASSWORD: 'segredo-staging-generico',
+  };
+
+  test('a chave prefixada vence a genérica em todos os campos', () => {
+    const settings = resolveVpsSideSettings('source', {
+      env: {},
+      values: { ...LEGACY, ...PREFIXED },
+      warn: () => {},
+    });
+    assert.equal(settings.side, 'source');
+    assert.equal(settings.ip, '10.0.0.1');
+    assert.equal(settings.pgPort, 15432);
+    assert.equal(settings.postgresPassword, 'segredo-producao-prefixado');
+    assert.equal(settings.stagingPassword, 'segredo-staging-prefixado');
+    assert.deepEqual(settings.usedLegacyKeys, []);
+    assert.deepEqual(settings.keys, {
+      ip: 'VPS_SOURCE_IP',
+      pgPort: 'VPS_SOURCE_PG_PORT',
+      postgresPassword: 'VPS_SOURCE_POSTGRES_PASSWORD',
+      stagingPassword: 'VPS_SOURCE_STAGING_PASSWORD',
+    });
+  });
+
+  test('process.env prefixado também vence a genérica do arquivo', () => {
+    const settings = resolveVpsSideSettings('source', {
+      env: { VPS_SOURCE_IP: '10.5.5.5' },
+      values: { ...LEGACY, ...PREFIXED },
+      warn: () => {},
+    });
+    assert.equal(settings.ip, '10.5.5.5');
+    assert.equal(settings.origins.ip, SETTING_ORIGIN_PROCESS);
+  });
+
+  test('os dois lados não se misturam: source lê VPS_SOURCE_*, target lê VPS_TARGET_*', () => {
+    const values = {
+      ...LEGACY,
+      ...PREFIXED,
+      VPS_TARGET_IP: '10.7.7.7',
+      VPS_TARGET_PG_PORT: '35432',
+      VPS_TARGET_POSTGRES_PASSWORD: 'segredo-producao-alvo',
+      VPS_TARGET_STAGING_PASSWORD: 'segredo-staging-alvo',
+    };
+    const warnings = [];
+    const target = resolveVpsSideSettings('target', { env: {}, values, warn: (m) => warnings.push(m) });
+    assert.equal(target.ip, '10.7.7.7');
+    assert.equal(target.pgPort, 35432);
+    assert.equal(target.stagingPassword, 'segredo-staging-alvo');
+    assert.equal(target.keys.ip, 'VPS_TARGET_IP');
+    // O source não enxerga nada do target: cada lado é resolvido isoladamente.
+    const source = resolveVpsSideSettings('source', { env: {}, values, warn: () => {} });
+    assert.equal(source.ip, '10.0.0.1');
+    assert.equal(source.stagingPassword, 'segredo-staging-prefixado');
+    assert.deepEqual(warnings, [], 'nenhum alias genérico foi usado');
+  });
+
+  test('fallback por chave genérica registra usedLegacyKeys e avisa 1x por chave, sem valor', () => {
+    const warnings = [];
+    const settings = resolveVpsSideSettings('target', {
+      env: {},
+      values: LEGACY,
+      warn: (message) => warnings.push(message),
+    });
+    assert.equal(settings.ip, '10.9.9.9');
+    assert.equal(settings.pgPort, 25432);
+    assert.equal(settings.postgresPassword, 'segredo-producao-generico');
+    assert.equal(settings.stagingPassword, 'segredo-staging-generico');
+    assert.deepEqual(settings.usedLegacyKeys, [
+      'VPS_IP',
+      'VPS_PG_PORT',
+      'VPS_POSTGRES_PASSWORD',
+      'VPS_STAGING_PASSWORD',
+    ]);
+    // A chave de destino acompanha a origem do valor (comportamento atual).
+    assert.equal(settings.keys.stagingPassword, 'VPS_STAGING_PASSWORD');
+    assert.equal(settings.keys.ip, 'VPS_IP');
+
+    assert.equal(warnings.length, 4, 'um aviso por chave genérica usada');
+    for (const warning of warnings) {
+      assert.match(warning, /^\[deprecated\] chave genérica /);
+      assert.match(warning, /atualize o \.env para a chave prefixada/);
+    }
+    assert.match(warnings[0], /VPS_IP usada para VPS_TARGET_IP/);
+    for (const value of Object.values(LEGACY)) {
+      assert.ok(
+        !warnings.some((warning) => warning.includes(value)),
+        'aviso não pode conter valor de credencial nem IP/porta',
+      );
+    }
+  });
+
+  test('prefixado vazio em process.env e ausente no arquivo cai para o genérico', () => {
+    const warnings = [];
+    const settings = resolveVpsSideSettings('source', {
+      env: { VPS_SOURCE_PG_PORT: '' },
+      values: {
+        VPS_SOURCE_IP: '10.0.0.1',
+        VPS_SOURCE_POSTGRES_PASSWORD: 'segredo-producao',
+        VPS_SOURCE_STAGING_PASSWORD: 'segredo-staging',
+        VPS_PG_PORT: '25432',
+      },
+      warn: (message) => warnings.push(message),
+    });
+    // Mesma regra de antes: valor vazio/unset cai através, e o alias usado é
+    // registrado como tal (inclusive a chave que o portão de escrita deve usar).
+    assert.equal(settings.pgPort, 25432);
+    assert.deepEqual(settings.usedLegacyKeys, ['VPS_PG_PORT']);
+    assert.equal(settings.keys.pgPort, 'VPS_PG_PORT');
+    assert.equal(warnings.length, 1);
+  });
+
+  test('o prefixado válido no arquivo vence o genérico mesmo vazio no process.env', () => {
+    const warnings = [];
+    const settings = resolveVpsSideSettings('source', {
+      env: { VPS_SOURCE_PG_PORT: '' },
+      values: { ...PREFIXED, VPS_PG_PORT: '25432' },
+      warn: (message) => warnings.push(message),
+    });
+    assert.equal(settings.pgPort, 15432);
+    assert.deepEqual(settings.usedLegacyKeys, []);
+    assert.deepEqual(warnings, []);
+  });
+
+  test('ausente em ambas aborta fail closed citando a chave prefixada', () => {
+    assert.throws(
+      () => resolveVpsSideSettings('target', { env: {}, values: { VPS_IP: '10.9.9.9' }, warn: () => {} }),
+      (err) => {
+        assert.equal(err.code, VPS_SETTING_MISSING_CODE);
+        assert.match(err.message, /VPS_TARGET_PG_PORT is missing/);
+        return true;
+      },
+    );
+    assert.throws(
+      () => resolveVpsSideSettings('target', { env: {}, values: {}, warn: () => {} }),
+      /VPS_TARGET_IP is missing/,
+    );
+    // A primeira ausente no mais interno (IP, PG_PORT, senhas) é a reportada.
+    assert.throws(
+      () => resolveVpsSideSettings('source', { env: {}, values: {}, warn: () => {} }),
+      (err) => {
+        assert.equal(err.code, VPS_SETTING_MISSING_CODE);
+        assert.match(err.message, /VPS_SOURCE_IP is missing/);
+        return true;
+      },
+    );
+    assert.throws(
+      () =>
+        resolveVpsSideSettings('source', {
+          env: {},
+          values: { VPS_SOURCE_IP: '10.0.0.1', VPS_SOURCE_PG_PORT: '15432' },
+          warn: () => {},
+        }),
+      /VPS_SOURCE_POSTGRES_PASSWORD is missing/,
+    );
+  });
+
+  test('a mensagem de ausência nomeia a chave e a origem, nunca um valor', () => {
+    assert.throws(
+      () =>
+        resolveVpsSideSettings('target', {
+          env: {},
+          values: {},
+          hint: `SYNKROO_VPS_ENV=${legacyEnvPath}`,
+          warn: () => {},
+        }),
+      (err) => {
+        assert.match(err.message, /set it in process\.env or SYNKROO_VPS_ENV=/);
+        assert.ok(!/segredo/.test(err.message));
+        return true;
+      },
+    );
+  });
+
+  test('campo não exigido fica undefined mas a chave de destino já é a prefixada', () => {
+    const warnings = [];
+    const settings = resolveVpsSideSettings('source', {
+      env: {},
+      values: {
+        VPS_SOURCE_IP: '10.0.0.1',
+        VPS_SOURCE_PG_PORT: '15432',
+        VPS_SOURCE_POSTGRES_PASSWORD: 'segredo-producao',
+      },
+      require: ['IP', 'PG_PORT', 'POSTGRES_PASSWORD'],
+      warn: (message) => warnings.push(message),
+    });
+    assert.equal(settings.stagingPassword, undefined);
+    assert.equal(settings.origins.stagingPassword, undefined);
+    assert.equal(settings.keys.stagingPassword, 'VPS_SOURCE_STAGING_PASSWORD');
+    assert.deepEqual(settings.usedLegacyKeys, []);
+    assert.deepEqual(warnings, []);
+  });
+
+  test('side ausente ou inválido aborta com SYNKROO_VPS_SIDE_INVALID e lista os lados', () => {
+    for (const bad of [undefined, null, '', '  ', 'origin', 'SOURCE-1', 'prod']) {
+      assert.throws(
+        () => resolveVpsSideSettings(bad, { env: {}, values: PREFIXED, warn: () => {} }),
+        (err) => {
+          assert.equal(err.code, VPS_SIDE_INVALID_CODE);
+          assert.match(err.message, /--side=source/);
+          assert.match(err.message, /--side=target/);
+          return true;
+        },
+        `side ${JSON.stringify(bad)} deveria ser rejeitado`,
+      );
+    }
+  });
+
+  test('side é normalizado (trim + case) e a chave usada reflete o valor normalizado', () => {
+    const settings = resolveVpsSideSettings(' TARGET ', {
+      env: {},
+      values: {
+        ...PREFIXED,
+        VPS_TARGET_IP: '10.7.7.7',
+        VPS_TARGET_PG_PORT: '35432',
+        VPS_TARGET_POSTGRES_PASSWORD: 'alvo-producao',
+        VPS_TARGET_STAGING_PASSWORD: 'alvo-staging',
+      },
+      warn: () => {},
+    });
+    assert.equal(settings.side, 'target');
+    assert.equal(settings.ip, '10.7.7.7');
+    assert.equal(settings.pgPort, 35432);
+    assert.equal(settings.keys.stagingPassword, 'VPS_TARGET_STAGING_PASSWORD');
+  });
+
+  test('a porta inválida aborta com o code de porta, citando a chave resolvida', () => {
+    const targetBase = {
+      VPS_TARGET_IP: '10.7.7.7',
+      VPS_TARGET_POSTGRES_PASSWORD: 'alvo-producao',
+      VPS_TARGET_STAGING_PASSWORD: 'alvo-staging',
+    };
+    assert.throws(
+      () =>
+        resolveVpsSideSettings('target', {
+          env: {},
+          values: { ...targetBase, VPS_TARGET_PG_PORT: 'portao' },
+          warn: () => {},
+        }),
+      (err) => {
+        assert.equal(err.code, VPS_PORT_INVALID_CODE);
+        assert.match(err.message, /VPS_TARGET_PG_PORT/);
+        return true;
+      },
+    );
+    // Alias genérico inválido também é rejeitado, citando a chave genérica.
+    assert.throws(
+      () =>
+        resolveVpsSideSettings('source', {
+          env: {},
+          values: {
+            VPS_SOURCE_IP: '10.0.0.1',
+            VPS_SOURCE_POSTGRES_PASSWORD: 'segredo-producao',
+            VPS_SOURCE_STAGING_PASSWORD: 'segredo-staging',
+            VPS_PG_PORT: '70000',
+          },
+          warn: () => {},
+        }),
+      (err) => {
+        assert.equal(err.code, VPS_PORT_INVALID_CODE);
+        assert.match(err.message, /VPS_PG_PORT/);
+        return true;
+      },
+    );
+  });
+
+  test('os campos e lados exportados são exatamente os do contrato', () => {
+    assert.deepEqual([...VPS_SIDES], ['source', 'target']);
+    assert.deepEqual([...VPS_SIDE_FIELDS], [
+      'IP',
+      'PG_PORT',
+      'POSTGRES_PASSWORD',
+      'STAGING_PASSWORD',
+    ]);
+  });
+
+  test('requireVpsSideSetting estreita um campo opcional ou falha fechado com a chave', () => {
+    const settings = resolveVpsSideSettings('target', {
+      env: {},
+      values: {
+        VPS_TARGET_IP: '10.7.7.7',
+        VPS_TARGET_PG_PORT: '35432',
+        VPS_TARGET_POSTGRES_PASSWORD: 'alvo-producao',
+      },
+      require: ['IP', 'PG_PORT', 'POSTGRES_PASSWORD'],
+      warn: () => {},
+    });
+    assert.equal(requireVpsSideSetting(settings, 'ip', 'hint'), '10.7.7.7');
+    assert.equal(requireVpsSideSetting(settings, 'pgPort', 'hint'), 35432);
+    assert.equal(requireVpsSideSetting(settings, 'postgresPassword', 'hint'), 'alvo-producao');
+    // A senha ausente de staging NÃO pode ser usada: falha fechada, e a mensagem
+    // cita a chave prefixada (a que o operador deve criar), nunca um valor.
+    assert.throws(
+      () => requireVpsSideSetting(settings, 'stagingPassword', `SYNKROO_VPS_ENV=${legacyEnvPath}`),
+      (err) => {
+        assert.equal(err.code, VPS_SETTING_MISSING_CODE);
+        assert.match(err.message, /VPS_TARGET_STAGING_PASSWORD is missing/);
+        assert.match(err.message, /SYNKROO_VPS_ENV=/);
+        return true;
+      },
+    );
+  });
+
+  test('os três scripts exigem --side e resolvem por side', () => {
+    for (const name of ['migrate-vps.ts', 'update-hyperdrive.ts', 'setup-staging-db.ts']) {
+      const src = readFileSync(resolve(root, 'scripts', name), 'utf8');
+      assert.match(src, /resolveVpsSideSettings\(/, `${name} deve resolver as chaves por side`);
+      assert.match(
+        src,
+        /readCliFlag\(.*'side'\)/,
+        `${name} deve ler --side de forma obrigatório`,
+      );
+      assert.ok(
+        /VPS_SIDE_INVALID_CODE/.test(src),
+        `${name} deve citar o code de side inválido na mensagem`,
+      );
+      assert.match(src, /side=\$\{side\} host=/, `${name} deve rotular a execução com o side`);
+    }
+  });
+});
+
+describe('roteamento da chave de gravação - fluxo real do setup-staging-db', () => {
+  // Espelha o pipeline completo resolveVpsSideSettings → planEnvFileWrites →
+  // assertEnvFileWritable → applyEnvFileWrites → reparse, travando por teste
+  // funcional (não só regex de fonte) o contrato: credencial gerada/ausente
+  // grava na chave PREFIXADA; alias genérico em uso grava no próprio alias.
+  test('senha de staging gerada com .env só genérico grava na chave prefixada sem ressuscitar o alias', () => {
+    const envPath = writeEnvFile(
+      'route-generated.env',
+      'VPS_IP=10.7.0.1\nVPS_PG_PORT=15432\nVPS_POSTGRES_PASSWORD=prod-do-arquivo\n',
+    );
+    const values = parseVpsEnvContent(readFileSync(envPath, 'utf8'));
+    const warnings = [];
+    const settings = resolveVpsSideSettings('target', {
+      env: {},
+      values,
+      require: ['IP', 'PG_PORT', 'POSTGRES_PASSWORD'],
+      warn: (message) => warnings.push(message),
+    });
+    // stagingPassword ausente → cenário "gerada": destino é a PREFIXADA.
+    assert.equal(settings.stagingPassword, undefined);
+    assert.equal(settings.keys.stagingPassword, 'VPS_TARGET_STAGING_PASSWORD');
+    // Alias genérico em uso nos demais campos → destino continua o próprio alias.
+    assert.equal(settings.keys.postgresPassword, 'VPS_POSTGRES_PASSWORD');
+    assert.deepEqual(settings.usedLegacyKeys, ['VPS_IP', 'VPS_PG_PORT', 'VPS_POSTGRES_PASSWORD']);
+
+    const stagingPassword = 'staging-gerada-no-teste';
+    const { writes } = planEnvFileWrites({
+      envPath,
+      fileValues: values,
+      overrides: {
+        [settings.keys.stagingPassword]: { value: stagingPassword, required: true },
+        [settings.keys.postgresPassword]: { value: settings.postgresPassword, required: false },
+      },
+    });
+    // Só a staging é gravada: o valor de produção veio igual do arquivo.
+    assert.deepEqual(writes, { VPS_TARGET_STAGING_PASSWORD: stagingPassword });
+
+    const target = assertEnvFileWritable({ envPath, writes });
+    assert.equal(target, envPath);
+    applyEnvFileWrites(target, writes);
+    const reparsed = parseVpsEnvContent(readFileSync(envPath, 'utf8'));
+    assert.equal(reparsed.VPS_TARGET_STAGING_PASSWORD, stagingPassword);
+    assert.ok(
+      !('VPS_STAGING_PASSWORD' in reparsed),
+      'alias genérico de staging não deve ser ressuscitado pela gravação',
+    );
+    assert.equal(reparsed.VPS_IP, '10.7.0.1');
+    assert.equal(reparsed.VPS_POSTGRES_PASSWORD, 'prod-do-arquivo');
+  });
+
+  test('override prefixado via process.env grava na prefixada e preserva o alias genérico órfão', () => {
+    const envPath = writeEnvFile(
+      'route-override.env',
+      'VPS_IP=10.7.0.2\nVPS_PG_PORT=15432\nVPS_POSTGRES_PASSWORD=prod-do-arquivo\nVPS_STAGING_PASSWORD=staging-antigo-do-arquivo\n',
+    );
+    const values = parseVpsEnvContent(readFileSync(envPath, 'utf8'));
+    const settings = resolveVpsSideSettings('target', {
+      env: { VPS_TARGET_STAGING_PASSWORD: 'staging-novo-do-process-env' },
+      values,
+      warn: () => {},
+    });
+    // Prefixada vence: valor e destino vêm dela; o genérico nem é lido p/ staging.
+    assert.equal(settings.stagingPassword, 'staging-novo-do-process-env');
+    assert.equal(settings.keys.stagingPassword, 'VPS_TARGET_STAGING_PASSWORD');
+    assert.equal(settings.origins.stagingPassword, SETTING_ORIGIN_PROCESS);
+    assert.ok(!settings.usedLegacyKeys.includes('VPS_STAGING_PASSWORD'));
+
+    const { writes } = planEnvFileWrites({
+      envPath,
+      fileValues: values,
+      overrides: {
+        [settings.keys.stagingPassword]: { value: settings.stagingPassword, required: false },
+        [settings.keys.postgresPassword]: { value: settings.postgresPassword, required: false },
+      },
+    });
+    // Staging difere do arquivo (na prefixada, ausente) → grava; produção é igual → não grava.
+    assert.deepEqual(writes, { VPS_TARGET_STAGING_PASSWORD: 'staging-novo-do-process-env' });
+
+    applyEnvFileWrites(assertEnvFileWritable({ envPath, writes }), writes);
+    const reparsed = parseVpsEnvContent(readFileSync(envPath, 'utf8'));
+    assert.equal(reparsed.VPS_TARGET_STAGING_PASSWORD, 'staging-novo-do-process-env');
+    // Órfão preservado sem ambiguidade: a próxima leitura prefere a prefixada.
+    assert.equal(reparsed.VPS_STAGING_PASSWORD, 'staging-antigo-do-arquivo');
+    // Round-trip: o resolver passa a ver o novo valor direto da prefixada.
+    const reread = resolveVpsSideSettings('target', { env: {}, values: reparsed, warn: () => {} });
+    assert.equal(reread.stagingPassword, 'staging-novo-do-process-env');
+    assert.ok(!reread.usedLegacyKeys.includes('VPS_STAGING_PASSWORD'));
   });
 });
 

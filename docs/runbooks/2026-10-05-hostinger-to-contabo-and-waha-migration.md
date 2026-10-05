@@ -47,10 +47,43 @@ cleanup/decommission
 ### Configuração operacional
 Os três scripts operacionais aceitam `SYNKROO_VPS_ENV` apontando para um `.env`
 privado fora do repositório. Se a variável estiver definida mas o caminho for
-inválido, o script falha sem usar fallback. Durante a migração, ainda existe um
-fallback temporário e deprecated para `../vps-hostinger/.env`; removê-lo e
-separar explicitamente as configurações source/target continuam pendentes antes
-da execução do rehearsal.
+inválido, o script falha sem usar fallback. Ainda existe um fallback temporário
+e deprecated para `../vps-hostinger/.env`; a remoção dele é pendência de P2.
+
+A separação source/target está implementada (P1 do plano vNext, ver
+`docs/ops/vps-access.md` §Contrato source/target):
+
+- `--side=source|target` é **obrigatório** nos três scripts
+  (`migrate-vps.ts`, `setup-staging-db.ts`, `update-hyperdrive.ts`). Ausente ou
+  inválido: imprime o uso e sai com código 1, sem tocar em conexão nenhuma.
+- Cada lado tem chaves próprias no `.env`: `VPS_SOURCE_{IP,PG_PORT,POSTGRES_PASSWORD,STAGING_PASSWORD}`
+  e `VPS_TARGET_{IP,PG_PORT,POSTGRES_PASSWORD,STAGING_PASSWORD}`. As chaves
+  genéricas (`VPS_IP`, `VPS_PG_PORT`, `VPS_POSTGRES_PASSWORD`,
+  `VPS_STAGING_PASSWORD`) são aliases deprecated: fallback **por chave**, com
+  aviso `[deprecated]` e sem vazar valor.
+- Em `migrate-vps.ts`, `--side` (qual VPS) e `--target` (qual banco dentro
+  daquela VPS: `production`/`staging`/`all`) são eixos ortogonais.
+
+**Antes do rehearsal**, criar o `.env` do target com as chaves `VPS_TARGET_*`
+(IP, porta, e as duas senhas) fora deste repositório e apontar `SYNKROO_VPS_ENV`
+para ele nas sessões do target. Um `.env` por lado é o recomendado: evita o
+fallback genérico e impede que a execução leia a VPS errada.
+
+```bash
+# source
+export SYNKROO_VPS_ENV=../vps-hostinger/.env
+npx tsx scripts/migrate-vps.ts --side=source --target=all
+npx tsx scripts/setup-staging-db.ts --side=source
+
+# target
+export SYNKROO_VPS_ENV=../vps-contabo/.env   # caminho ilustrativo
+npx tsx scripts/migrate-vps.ts --side=target --target=all
+npx tsx scripts/setup-staging-db.ts --side=target
+npx tsx scripts/update-hyperdrive.ts --side=target
+```
+
+A porta é validada estritamente (inteiro 1–65535); a senha de staging nunca é
+preenchida com a de produção, em nenhum dos lados.
 
 ## 3. Inventário obrigatório na Hostinger
 

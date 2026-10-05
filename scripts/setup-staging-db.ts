@@ -1,11 +1,22 @@
 /**
  * scripts/setup-staging-db.ts
  *
- * Configures the synkroo_staging role and database on the VPS PostgreSQL instance.
+ * Configures the synkroo_staging role and database on ONE VPS PostgreSQL
+ * instance.
+ *
+ * Usage:
+ *   npx tsx scripts/setup-staging-db.ts --side=source
+ *   npx tsx scripts/setup-staging-db.ts --side=target
+ *
+ *   --side (REQUIRED) source = the current VPS, target = the destination VPS.
+ *          There is no default: a missing or invalid side aborts.
  *
  * Env file resolution (provider-neutral, see scripts/lib/vps-env.mjs):
  *   1. SYNKROO_VPS_ENV (explicit path; invalid values abort — no fallback)
  *   2. legacy ../vps-hostinger/.env (temporary, warns)
+ *
+ * Connection values come from VPS_<SIDE>_{IP,PG_PORT,POSTGRES_PASSWORD,STAGING_PASSWORD},
+ * each falling back to its deprecated generic VPS_* alias with a warning.
  *
  * Fail-closed preflight: the effective credentials are persisted BEFORE any
  * database mutation — a generated staging password, or a process.env override
@@ -22,12 +33,15 @@ import { Client } from 'pg';
 import * as crypto from 'crypto';
 
 import {
+  VPS_SIDE_INVALID_CODE,
+  VPS_SIDES,
   applyEnvFileWrites,
   assertEnvFileWritable,
   loadVpsEnv,
   planEnvFileWrites,
-  readVpsSetting,
-  readVpsSettingWithOrigin,
+  readCliFlag,
+  requireVpsSideSetting,
+  resolveVpsSideSettings,
   SETTING_ORIGIN_PROCESS,
   vpsEnvSourceHint,
 } from './lib/vps-env.mjs';
@@ -43,41 +57,57 @@ import {
 const STAGING_ROLE = 'synkroo_staging';
 const STAGING_DATABASE = 'synkroo_staging';
 
-/** Missing-setting errors are operator-authored from key names + origin hints. */
-function missingSettingError(key: string, hint: string): Error {
-  const error = new Error(`${key} is missing: set it in process.env or ${hint}`) as Error & {
-    code?: string;
-  };
-  error.code = 'SYNKROO_MISSING_SETTING';
-  return error;
-}
+const USAGE = [
+  'Usage:',
+  '  npx tsx scripts/setup-staging-db.ts --side=source|target',
+  '',
+  '  --side REQUIRED. source = current VPS, target = destination VPS.',
+].join('\n');
 
 async function main() {
+  const side = readCliFlag(process.argv.slice(2), 'side');
+  if (side === undefined || !VPS_SIDES.includes(side)) {
+    console.error(
+      side === undefined
+        ? `--side is required (${VPS_SIDE_INVALID_CODE}): expected ${VPS_SIDES.join(' or ')}.`
+        : `--side="${side}" is not a valid side (${VPS_SIDE_INVALID_CODE}): expected ${VPS_SIDES.join(' or ')}.`,
+    );
+    console.error(USAGE);
+    process.exit(1);
+  }
+
   const { values, path: envPath, source } = loadVpsEnv();
   const hint = vpsEnvSourceHint({ path: envPath, source });
+  // The staging password is NOT required here: when absent it is generated
+  // below and persisted before any mutation. Every other value must resolve.
+  const settings = resolveVpsSideSettings(side, {
+    values,
+    hint,
+    require: ['IP', 'PG_PORT', 'POSTGRES_PASSWORD'],
+    warn: (message: string) => console.warn(message),
+  });
   // All connection values come exclusively from process.env or the resolved
   // private env file. No credentials, hosts, or ports are hardcoded in this file.
-  const host = readVpsSetting('VPS_IP', { values });
-  if (!host) {
-    throw missingSettingError('VPS_IP', hint);
-  }
-  const portRaw = readVpsSetting('VPS_PG_PORT', { values });
-  if (!portRaw) {
-    throw missingSettingError('VPS_PG_PORT', hint);
-  }
-  const port = parseInt(portRaw, 10);
-  const prodPassword = readVpsSetting('VPS_POSTGRES_PASSWORD', { values });
-  if (!prodPassword) {
-    throw missingSettingError('VPS_POSTGRES_PASSWORD', hint);
+  // `requireVpsSideSetting` narrows the fields this script cannot run without:
+  // the resolver may legitimately leave optional fields undefined.
+  const host = requireVpsSideSetting(settings, 'ip', hint) as string;
+  const port = requireVpsSideSetting(settings, 'pgPort', hint) as number;
+  const prodPassword = requireVpsSideSetting(settings, 'postgresPassword', hint) as string;
+
+  console.log(`side=${side} host=${host}:${port} source_env=${hint}`);
+  if (settings.usedLegacyKeys.length > 0) {
+    console.warn(
+      `[deprecated] side="${side}" ainda lê as chaves genéricas ` +
+        `${settings.usedLegacyKeys.join(', ')} — renomeie para as chaves ` +
+        `VPS_${side.toUpperCase()}_* no .env`,
+    );
   }
 
   // Strict credential separation: staging is never backfilled from production.
-  const staging = readVpsSettingWithOrigin('VPS_STAGING_PASSWORD', { values });
-  let stagingPassword = staging.value;
-  let stagingGenerated = false;
-  if (!stagingPassword) {
+  let stagingPassword = settings.stagingPassword;
+  const stagingGenerated = !stagingPassword;
+  if (stagingGenerated) {
     stagingPassword = crypto.randomBytes(24).toString('hex');
-    stagingGenerated = true;
   }
 
   // Persist the EFFECTIVE staging password in every case that would drift from
@@ -85,19 +115,26 @@ async function main() {
   // role credential), and synchronised when process.env supplied a value the
   // file does not already hold. A value that came from the file needs no write.
   // Same rule for the production override.
+  //
+  // The destination key is the one the effective value came from, so a
+  // deprecated generic alias is not resurrected by this script: a generated or
+  // absent value lands on the prefixed key (VPS_<SIDE>_STAGING_PASSWORD), while
+  // an override of an existing generic alias keeps writing that alias.
+  const stagingKey = settings.keys.stagingPassword;
+  const postgresKey = settings.keys.postgresPassword;
   const { writes } = planEnvFileWrites({
     envPath,
     fileValues: values,
     overrides: {
-      VPS_STAGING_PASSWORD: { value: stagingPassword, required: stagingGenerated },
-      VPS_POSTGRES_PASSWORD: { value: prodPassword, required: false },
+      [stagingKey]: { value: stagingPassword, required: stagingGenerated },
+      [postgresKey]: { value: prodPassword, required: false },
     },
   });
   const target = assertEnvFileWritable({ envPath, writes });
   if (target) {
     applyEnvFileWrites(target, writes);
     const stagingNote =
-      stagingGenerated || staging.origin === SETTING_ORIGIN_PROCESS
+      stagingGenerated || settings.origins.stagingPassword === SETTING_ORIGIN_PROCESS
         ? ' (staging password generated or overridden)'
         : '';
     console.log(`Persisted credentials to ${target} before touching the database${stagingNote}.`);
