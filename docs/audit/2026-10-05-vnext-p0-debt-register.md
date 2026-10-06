@@ -12,10 +12,10 @@
 - `src/services/followup/followup.service.ts:422-433` — resposta "matching Supabase relational shape" congelada no contrato. (média) — P2
 - `src/repositories/appointments/index.ts:538` — comentário citando RPC Supabase aposentado. (baixa) — P3
 
-**Docs tratando Supabase como verdade atual** (corrigidos nesta tranche, marcados históricos):
+**Docs tratando Supabase como verdade atual** (corrigidos NESTE PR #24 — PENDENTE MERGE NA MAIN):
 
-- `docs/MANUAL-ADMINISTRACAO.md:153-158` — afirmava backup automático diário pelo Supabase (falso desde a remoção; mecanismo real: `scripts/db-backup.mjs` + recovery runbook). **(alta — direção errada de operador)** — corrigido P0
-- `docs/MVP-CHECKLIST.md:14-15,127`, `docs/CONFIGURACAO-LEMBRETES.md:21`, `docs/security/credential-inventory.md:44-45` — marcados históricos P0.
+- `docs/MANUAL-ADMINISTRACAO.md:153-158` — afirmava backup automático diário pelo Supabase (falso desde a remoção; mecanismo real: `scripts/db-backup.mjs` + recovery runbook). **(alta — direção errada de operador)** — CORRIGIDO NESTE PR, PENDENTE MERGE
+- `docs/MVP-CHECKLIST.md:14-15,127`, `docs/CONFIGURACAO-LEMBRETES.md:21`, `docs/security/credential-inventory.md:44-45` — marcados históricos NESTE PR, PENDENTE MERGE.
 
 ## 2. Acoplamento Evolution API
 
@@ -47,7 +47,7 @@ Bloqueador único e mais acionável do alvo `SYNKROO_VPS_ENV` — é **código**
 **Runtime CLEAN** — zero `@anthropic-ai/sdk`/`claude-agent-sdk` em `src/`. Factory multi-provider (`src/lib/llm/`) é o único ponto LLM app-side. Residue:
 
 - `src/lib/llm/providers/openrouter.ts:8` — `OPENROUTER_DEFAULT_MODEL = 'anthropic/claude-3.5-sonnet'` (modelo de 2024, defasado). (média) — P1
-- `docs/planning/technical-research.md:11,39,75`, `docs/planning/prd.md:2299-2300,2491`, `docs/planning/product-brief.md:628`, `docs/planning/stories/e-01-stories.md:168,173,665` — Claude SDK/`@anthropic-ai/sdk` como stack do MVP. **Marcados históricos P0.**
+- `docs/planning/technical-research.md:11,39,75`, `docs/planning/prd.md:2299-2300,2491`, `docs/planning/product-brief.md:628`, `docs/planning/stories/e-01-stories.md:168,173,665` — Claude SDK/`@anthropic-ai/sdk` como stack do MVP. **Marcados históricos NESTE PR, PENDENTE MERGE.**
 - `docs/planning/epics.md:149-151` — já tem nota corretiva. **Sem ação.**
 - Nota: o LLM vivo do agente é `core/ia-agent/provider-zen.ts` (fora da factory) — reconciliar em P4 (uma fonte canônica de provider LLM).
 
@@ -78,7 +78,7 @@ Também duplicados por nome: `services/analytics/*` (4, sem `modules/analytics`)
 **Estruturalmente limpo:** zero `route.ts` importa `@/lib/db/client`/schema (grep exaustivo). Ofensores são lógica-na-rota, não SQL-na-rota:
 
 - `api/patients/inactive/route.ts:135-140` — política de segmentação (`inactive_30/60/90/180`) hardcoded no handler, bypass do módulo dono. (alta) — P1
-- `api/patients/inactive/route.ts:87` — **`atRiskRevenue: 0` hardcoded** apesar do valor real existir em `getInactivityStats`. (alta) — **corrigido P0**
+- `api/patients/inactive/route.ts:87` — **`atRiskRevenue: 0` hardcoded** apesar do valor real existir em `getInactivityStats`. (alta) — **CORRIGIDO NO BRANCH/PR #25, PENDENTE MERGE/VALIDAÇÃO NA MAIN** (+ overcount cumulativo pendente, ver §8-adendo)
 - `api/patients/inactive/route.ts:119-129` — paginação ilimitada `while(hasMore)` em memória. (média) — P1
 - `api/financeiro/webhooks/[provider]/route.ts:37` — `if (provider !== 'asaas') 404` contradiz intent multi-gateway. (média) — P1
 
@@ -90,8 +90,8 @@ Também duplicados por nome: `services/analytics/*` (4, sem `modules/analytics`)
 
 O bug histórico `todayAppointments` está **meio-corrigido**: `dashboard/stats.ts:57` usa `'scheduled'` ✓; o mesmo literal inválido sobreviveu um arquivo ao lado:
 
-- `src/services/api-handlers/dashboard/alerts.ts:137` — `eq(appointments.status, 'pending' as any)`; enum real (`enums.ts:8`): scheduled|confirmed|in_progress|completed|cancelled|no_show. Alerta de não-confirmados retorna **zero há meses**. (alta) — **corrigido P0**
-- `src/services/analytics/noshow-prediction.service.ts:171-185` — **risk score fabricado** (40/medium + fatores inventados) para paciente inexistente. (alta) — **corrigido P0**
+- `src/services/api-handlers/dashboard/alerts.ts:137` — `eq(appointments.status, 'pending' as any)`; enum real (`enums.ts:8`): scheduled|confirmed|in_progress|completed|cancelled|no_show. Alerta de não-confirmados retorna **zero há meses**. (alta) — **CORRIGIDO NO BRANCH/PR #25 (`scheduled`), PENDENTE MERGE/VALIDAÇÃO** (+ soft-delete pendente, ver §8-adendo)
+- `src/services/analytics/noshow-prediction.service.ts:171-185` — **risk score fabricado** (40/medium + fatores inventados) para paciente inexistente. (alta) — **CORRIGIDO NO BRANCH/PR #25, PENDENTE MERGE/VALIDAÇÃO NA MAIN**
 - `src/services/analytics/roi.service.ts:121,135,152` — catch→0 para mensagens IA, agendamentos IA, no-shows recuperados. Erro de DB vira relatório de ROI **0**. Money-path. (alta) — P1
 - `src/services/api-handlers/dashboard/stats.ts:69-72,90-93,96-99` — `.catch(→ zeros)` por query: é o padrão de mascaramento que escondeu o bug original. (alta) — P1
 - `src/services/analytics/analytics.service.ts` (6× catch→`[]`/0) (média); `budget-followup.service.ts:20` (catch→`[]`, alimenta alerts) (média); `contacts.service.ts:85` (catch→null: not-found ≡ DB down) (média); `patient-tags.service.ts:92-115` (baixa) — P1/P2
@@ -99,11 +99,16 @@ O bug histórico `todayAppointments` está **meio-corrigido**: `dashboard/stats.
 
 Padrão correto a **não mexer**: `financeiro/webhooks/[provider]/route.ts:72-74` `catch {}` deliberado fail-closed em path de auth.
 
+### 8-adendo. Pendências P0 do review do PR #25 (2026-10-06, NÃO concluídas)
+
+- **(a) Soft-delete em alerts — PENDENTE:** `alerts.ts:127-183` reativou a query com `'scheduled'` mas sem `deletedAt IS NULL`. Soft-delete só marca `deletedAt` (`repositories/appointments/index.ts`); status permanece `'scheduled'`. Fix exigido: mesmo predicado de `dashboard/stats.ts:41` nas 3 queries de appointments (unconfirmed + today + confirmed). Prova exigida: scheduled normal entra; scheduled+deletedAt NÃO entra; clinicId isolado.
+- **(b) Overcount de `atRiskRevenue` — PENDENTE:** `getInactivityStats` (service:227-241) usa buckets cumulativos e soma os 4 → paciente 180d contado 4x (R$2.000 em vez de R$500 = 2 visitas × R$250). Fix exigido: buckets mutuamente exclusivos (30-59/60-89/90-179/180+, NULL só no 180+) OU receita do distinto `inactive_30`. Prova exigida: 35/65/100/200d contados 1x cada; `totalInactive` coerente; tenant preservado.
+
 ## 9. Tenant scope ausente
 
 **Um vazamento ativo + padrão sistêmico de repositório duplo:**
 
-- `api/analytics/noshow-prediction/route.ts:58-80` — **IDOR cross-tenant ATIVO (PHI)**: POST nunca lê `clinicId`, encaminha `patientId` do body para query unscoped; qualquer usuário autenticado lê nome + risco de paciente de outro tenant. O **GET do mesmo arquivo está correto** (:31,:38) — defeito, não política. (alta/IDOR+PHI) — **corrigido P0**
+- `api/analytics/noshow-prediction/route.ts:58-80` — **IDOR cross-tenant ATIVO (PHI)**: POST nunca lê `clinicId`, encaminha `patientId` do body para query unscoped; qualquer usuário autenticado lê nome + risco de paciente de outro tenant. O **GET do mesmo arquivo está correto** (:31,:38) — defeito, não política. (alta/IDOR+PHI) — **CORRIGIDO NO BRANCH/PR #25, PENDENTE MERGE/VALIDAÇÃO NA MAIN**
 - `repositories/patients/index.ts:48-74` (`findById` com cpf/phone/email/birthDate sem clinicId), `:329-355` (`update` unscoped), `:360-366` (`softDelete` unscoped) — a variante segura `findByIdScoped` (:186-210) já existe; a dívida é a API dupla com o nome default perigoso. (alta) — P1
 - `services/patients/patient-tags.service.ts:84-126` — read-modify-write cross-tenant completo via `findById`+`update` unscoped; **latente** (zero callers de produção). (média) — P2
 - `services/patients/patient-history.service.ts:48-53` — obrigação de segurança empurrada ao caller, documentada em comentário; test-only. (média) — P2
@@ -122,11 +127,13 @@ Padrão correto a **não mexer**: `financeiro/webhooks/[provider]/route.ts:72-74
 
 | # | Item | Evidência | Sev | Tranche |
 |---|---|---|---|---|
-| 1 | IDOR cross-tenant + PHI no POST noshow-prediction | route:61,76,78 → service:169 | alta | **P0-fix** ✅ |
-| 2 | Risk score fabricado p/ paciente inexistente | service:171-185 | alta | **P0-fix** ✅ |
-| 3 | Enum `'pending' as any` — alerta sempre vazio (2º incidente do padrão) | alerts.ts:137 vs enums.ts:8 | alta | **P0-fix** ✅ |
-| 4 | `atRiskRevenue: 0` hardcoded | inactive/route.ts:87 | alta | **P0-fix** ✅ |
-| 5 | Runbook admin afirmava backup Supabase inexistente | MANUAL-ADMINISTRACAO.md:155 | alta | **P0** ✅ (docs) |
+| 1 | IDOR cross-tenant + PHI no POST noshow-prediction | route:61,76,78 → service:169 | alta | **P0-fix (CORRIGIDO NO BRANCH/PR #25, PENDENTE MERGE)** |
+| 2 | Risk score fabricado p/ paciente inexistente | service:171-185 | alta | **P0-fix (CORRIGIDO NO BRANCH/PR #25, PENDENTE MERGE)** |
+| 3 | Enum `'pending' as any` — alerta sempre vazio (2º incidente do padrão) | alerts.ts:137 vs enums.ts:8 | alta | **P0-fix (CORRIGIDO NO BRANCH/PR #25, PENDENTE MERGE; + soft-delete PENDENTE)** |
+| 4 | `atRiskRevenue: 0` hardcoded | inactive/route.ts:87 | alta | **P0-fix (CORRIGIDO NO BRANCH/PR #25, PENDENTE MERGE; + overcount PENDENTE)** |
+| 4b | `atRiskRevenue` overcount cumulativo (soma 4 buckets) | inactive-patient.service.ts:241 | alta | **P0 — PENDENTE (review PR #25)** |
+| 3b | Alerts incluem soft-deleted (`deletedAt IS NULL` ausente) | alerts.ts:127-183 | alta | **P0 — PENDENTE (review PR #25)** |
+| 5 | Runbook admin afirmava backup Supabase inexistente | MANUAL-ADMINISTRACAO.md:155 | alta | **P0 (CORRIGIDO NESTE PR #24, PENDENTE MERGE)** |
 | 6 | 3 scripts hardcoded `../vps-hostinger/.env` (1 escrita) | migrate-vps:41, update-hyperdrive:14, setup-staging-db:14,30 | alta | **P1** |
 | 7 | Primitivas de repositório de pacientes unscoped (findById/update/softDelete) | patients/index.ts:68,352,365 | alta | P1 |
 | 8 | `validateTemplate` divergente em 3 vias | reminder-config service:168 vs module:102 vs types:25 | alta | P1 |

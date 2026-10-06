@@ -1,7 +1,9 @@
 # P0 — Inventário de Capacidades (Synkroo vNext)
 
 **Data:** 2026-10-05 · **Issue:** #23 · **Método:** auditoria read-only verificada por leitura direta (3 exploradores independentes; evidência = arquivo:linha).
-**Escopo verificado:** 142 `src/app/api/**/route.ts`, 8 módulos (`src/modules/{core,operacional,comercial,atendimento,crm,financeiro,followup,ia}`), 21 repos legados (`src/repositories/*`), 19 serviços legados (`src/services/*`), 68 tabelas Drizzle, 39 páginas de dashboard, 48 specs E2E.
+**Escopo verificado:** 144 `src/app/api/**/route.ts`, 8 módulos (`src/modules/{core,operacional,comercial,atendimento,crm,financeiro,followup,ia}`), 21 repos legados (`src/repositories/*`), 19 serviços legados (`src/services/*`), 68 tabelas Drizzle, 39 páginas de dashboard, 47 specs E2E.
+
+> Derivação (não hardcodar sem re-medir — SYN-DOC-001): `powershell -c "(Get-ChildItem src/app/api -Recurse -Filter route.ts).Count"` → 144; `(Get-ChildItem e2e -Recurse -Filter *.spec.ts).Count` → 47 (36 fora de `e2e/api/` + 11 em `e2e/api/`); `(Get-ChildItem src/app/api -Recurse -Filter *_handler.ts).Count` → 26. Medido no HEAD `39b7feb7`; re-medir após qualquer adição de rota/spec.
 
 **Correção ao AGENTS.md:** os módulos de API `users`, `roles`, `notifications`, `installments`, `payments`, `gateway`, `agent` **não existem** como diretórios de rota — RBAC é action-layer server-side; `agent/*` foi substituído por `/api/ia/chat`. Tabela do AGENTS.md corrigida nesta tranche.
 

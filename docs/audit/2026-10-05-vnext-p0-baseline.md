@@ -42,9 +42,28 @@ O código atual é a verdade operacional. Nada do vNext deve ser tratado como im
 | 17 | Workers | IMPLEMENTADO | DO + bridge RPC + service bindings | Agents SDK não usado (DO cru, limitação cross-worker documentada) | nenhum (ADR-BASE-07) |
 | 18 | Dashboard | PARCIAL | stats + alerts API | painel passivo; alerts sem consumidor | P8 (Control Center) |
 
-## 3. Defeitos de confiança descobertos (P0-fix, PR irmão)
+## 3. Defeitos de confiança descobertos (P0-fix, PR irmão #25 — STATUS DEPENDENCY-AWARE)
 
-Estes quatro defeitos impedem a "visão confiável" que o P0 exige e foram corrigidos em tranche própria (`fix/p0-trust-defects-2026-10-05`):
+> Legenda: `CORRIGIDO NO BRANCH/PR` = fix existe no branch `fix/p0-trust-defects-2026-10-05` (PR #25) mas **NÃO está na `main`**; `MERGEADO NA MAIN` = presente no HEAD da `main`; `PENDENTE` = sem fix; `VALIDADO` = na `main` + gates verdes + revalidação. **O P0 NÃO está concluído enquanto o PR #25 estiver aberto, houver thread crítica aberta ou CI obrigatório vermelho.**
+
+Estes quatro defeitos impedem a "visão confiável" que o P0 exige. Status em 2026-10-06: **CORRIGIDOS NO BRANCH/PR #25, PENDENTES DE MERGE NA MAIN, NÃO VALIDADOS**:
+
+| # | Defeito | Status | Evidência do fix (branch/PR #25) |
+|---|---|---|---|
+| 1 | IDOR cross-tenant com PHI no POST noshow-prediction | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN | `noshow-prediction/route.ts:79` (clinicId do auth) + `service.ts:174` (`and(eq(id),eq(clinicId))`) + 404 opaco |
+| 2 | Risk score fabricado (paciente inexistente/erro DB) | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN | service retorna `null` → 404; catch fail-closed com rethrow |
+| 3 | Enum inválido `'pending' as any` em alerts | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN (+ pendência adicional §3.1) | `alerts.ts:139` → `'scheduled'`; `as any` removido |
+| 4 | `atRiskRevenue: 0` hardcoded | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN (+ pendência adicional §3.2) | `patients/inactive/route.ts:89` via `getInactivityStats(ctx.clinicId)`; DB failure → 500 |
+
+### 3.1 Pendência adicional P0 (review PR #25): soft-delete em alerts
+
+A query reativada em `alerts.ts` não exclui `deletedAt != null` (soft-delete só marca `deletedAt`, mantém `status='scheduled'`). **PENDENTE** — fix exigido: mesmo predicado `deletedAt IS NULL` das queries de `dashboard/stats.ts`.
+
+### 3.2 Pendência adicional P0 (review PR #25): overcount cumulativo de receita
+
+`getInactivityStats` define buckets cumulativos e soma os 4 → paciente 180d contado 4x. **PENDENTE** — fix exigido: buckets mutuamente exclusivos OU receita do conjunto distinto `inactive_30`.
+
+Detalhe original dos quatro defeitos (para auditoria):
 
 1. **IDOR cross-tenant com PHI** — `POST /api/analytics/noshow-prediction` nunca lia `clinicId` do contexto de auth; qualquer usuário autenticado de qualquer clínica lia nome + risco de paciente de outro tenant. O `GET` da mesma rota estava correto, provando defeito e não política. (`noshow-prediction/route.ts:61-78`, `noshow-prediction.service.ts:169`)
 2. **Risk score fabricado** — paciente inexistente recebia `risk_score: 40` + fatores inventados como se computados. Agora retorna 404. (`noshow-prediction.service.ts:171-185`)
