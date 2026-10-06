@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, gte, lt, desc, sql } from 'drizzle-orm'
+import { eq, and, gte, lt, desc, sql, isNull } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { getDb } from '@/lib/db/client'
@@ -139,6 +139,7 @@ export async function GET(request: NextRequest) {
           eq(appointments.status, 'scheduled'),
           gte(appointments.scheduledAt, todayStart),
           lt(appointments.scheduledAt, todayEnd),
+          isNull(appointments.deletedAt),
         ),
       )
       .limit(5)
@@ -176,10 +177,10 @@ export async function GET(request: NextRequest) {
         .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, twoWeeksAgo), lt(conversations.createdAt, weekAgo))),
       db.select({ count: sql<number>`count(*)::int` })
         .from(appointments)
-        .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, todayStart), lt(appointments.scheduledAt, todayEnd))),
+        .where(and(eq(appointments.clinicId, clinicId), gte(appointments.scheduledAt, todayStart), lt(appointments.scheduledAt, todayEnd), isNull(appointments.deletedAt))),
       db.select({ count: sql<number>`count(*)::int` })
         .from(appointments)
-        .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status, 'confirmed' as any), gte(appointments.scheduledAt, todayStart), lt(appointments.scheduledAt, todayEnd))),
+        .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status, 'confirmed'), gte(appointments.scheduledAt, todayStart), lt(appointments.scheduledAt, todayEnd), isNull(appointments.deletedAt))),
     ])
 
     const thisWeekMsgs = thisWeek?.count ?? 0
