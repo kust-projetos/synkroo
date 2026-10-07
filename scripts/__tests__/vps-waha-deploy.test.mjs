@@ -31,8 +31,10 @@ describe('WAHA target deploy script (gated, digest-verified, dry-run default)', 
   test('pulls the immutable digest and aborts on RepoDigest mismatch before up', () => {
     assert.match(script, /docker pull "\$PINNED_IMAGE"/);
     assert.match(script, /PINNED_IMAGE="\$IMAGE_REPO@sha256:\$WAHA_IMAGE_DIGEST"/);
+    assert.match(script, /docker image inspect "\$PINNED_IMAGE" --format '\{\{index \.RepoDigests 0\}\}'/);
     assert.match(script, /RepoDigest mismatch/);
     assert.match(script, /refusing to start/);
+    assert.match(script, /WAHA_INSTALL_DIR:-\/opt\/synkroo\/waha/);
   });
 
   test('contains no hardcoded digest and no public binding', () => {
