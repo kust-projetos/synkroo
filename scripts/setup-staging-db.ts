@@ -120,6 +120,9 @@ async function main() {
   );
   if (roleCheck.rows.length === 0) {
     console.log('Creating role synkroo_staging...');
+    // P1: senha via quote_literal server-side (sem interpolação client-side);
+    // o statement contém o segredo — pg_stat_activity/logs do servidor podem
+    // registrá-lo. P2: enviar verificador SCRAM em vez de plaintext.
     const quoted = await quoteLiteral(adminClient, stagingPassword);
     await adminClient.query(
       `CREATE ROLE synkroo_staging WITH LOGIN PASSWORD ${quoted} CREATEDB;`

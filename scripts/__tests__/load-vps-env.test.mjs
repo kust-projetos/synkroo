@@ -203,6 +203,19 @@ test('(10) escrita preserva 0600 no destino e no .bak (CWE-732)', () => {
   assert.equal(statSync(`${file}.bak`).mode & 0o777, 0o600);
 });
 
+test('(10b) retorno unchanged tambem endurece 0600 preexistente (CWE-732)', () => {
+  if (process.platform === 'win32') {
+    console.log('skip: chmod 0600 nao se aplica no Windows (ACL apenas; chmod e no-op)');
+    return;
+  }
+  const { proj } = makeProject();
+  const file = join(proj, 'vps.env');
+  writeFileSync(file, 'VPS_IP=10.0.0.11\n', { encoding: 'utf8', mode: 0o644 });
+  chmodSync(file, 0o644);
+  assert.equal(writeVpsEnvKey(file, 'VPS_IP', '10.0.0.11'), 'unchanged');
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+});
+
 test('(9) CRLF parseia identico ao LF', () => {  const lf = parseVpsEnvContent(FAKE_ENV_LF);
   const crlf = parseVpsEnvContent(FAKE_ENV_LF.replaceAll('\n', '\r\n'));
   assert.deepEqual(crlf, lf);

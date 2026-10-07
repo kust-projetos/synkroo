@@ -263,7 +263,16 @@ export function writeVpsEnvKey(
     );
   }
   const current = parseVpsEnvContent(fs.readFileSync(configPath, 'utf8'));
-  if (current[key] === value) return 'unchanged';
+  if (current[key] === value) {
+    // P1 (CWE-732): endurece mesmo sem mudança — um destino 0644
+    // preexistente continuaria expondo segredos a outros usuários locais.
+    try {
+      fs.chmodSync(configPath, 0o600);
+    } catch {
+      // Windows: chmod é parcial/no-op — proteção real via ACL do diretório.
+    }
+    return 'unchanged';
+  }
 
   // P1 (CWE-732): o arquivo guarda segredos — destino e backup devem ficar
   // 0600. copyFileSync herda o mode de origem e o tmp nasceria 0644 sob
