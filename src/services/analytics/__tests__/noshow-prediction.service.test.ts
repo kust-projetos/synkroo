@@ -2,6 +2,8 @@
  * Tests for No-Show Prediction Service — migrated to Drizzle mocks.
  */
 import { predictNoShowRisk, getUpcomingAppointmentRisks } from '@/services/analytics/noshow-prediction.service'
+import { and, eq } from 'drizzle-orm'
+import { patients } from '@/lib/db/schema'
 
 jest.mock('@/lib/logger', () => ({ dbLogger: { error: jest.fn(), info: jest.fn() } }))
 
@@ -33,40 +35,106 @@ beforeEach(() => {
 const patientId = 'patient-123'
 const clinicId = 'clinic-123'
 
+/** Coleta nomes de colunas drizzle (objetos com `name` + `table`) dentro do
+ * predicado capturado em `.where()`.
+ * Coluna é nó TERMINAL: NÃO descer em `.table` — senão qualquer eq(col,…)
+ * traria todas as colunas da tabela e o teste viraria falso-positivo. */
+function collectColumnNames(node: unknown, acc: Set<string> = new Set(), seen: Set<object> = new Set()): Set<string> {
+  if (!node || typeof node !== 'object') return acc
+  const obj = node as Record<string, unknown>
+  if (seen.has(obj)) return acc
+  seen.add(obj)
+  if (typeof obj.name === 'string' && obj.table && typeof obj.table === 'object') {
+    acc.add(obj.name)
+    return acc
+  }
+  for (const value of Object.values(obj)) {
+    if (value && typeof value === 'object') collectColumnNames(value, acc, seen)
+  }
+  return acc
+}
+
 describe('No-Show Prediction Service', () => {
   describe('predictNoShowRisk', () => {
     it('should return prediction with risk factors', async () => {
       mockChainReturn([{ id: patientId, name: 'João Silva', riskScore: '30' }])
       const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
-      const prediction = await predictNoShowRisk(patientId, futureDate.toISOString())
-      expect(prediction.patient_id).toBe(patientId)
-      expect(prediction.patient_name).toBe('João Silva')
-      expect(prediction.risk_score).toBeGreaterThanOrEqual(0)
-      expect(prediction.risk_score).toBeLessThanOrEqual(100)
-      expect(['low', 'medium', 'high']).toContain(prediction.riskLevel)
-      expect(prediction.factors.length).toBeGreaterThan(0)
+      const prediction = await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+      expect(prediction).not.toBeNull()
+      expect(prediction!.patient_id).toBe(patientId)
+      expect(prediction!.patient_name).toBe('João Silva')
+      expect(prediction!.risk_score).toBeGreaterThanOrEqual(0)
+      expect(prediction!.risk_score).toBeLessThanOrEqual(100)
+      expect(['low', 'medium', 'high']).toContain(prediction!.riskLevel)
+      expect(prediction!.factors.length).toBeGreaterThan(0)
     })
 
-    it('should return medium risk on error (patient not found)', async () => {
+    it('returns null para paciente inexistente ou de outra clínica (sem score fabricado)', async () => {
+      // Query scoped (id + clinicId) não encontra o paciente → null, nunca
+      // uma predição fabricada com risk_score 40.
       mockChainReturn([])
       const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
-      const prediction = await predictNoShowRisk(patientId, futureDate.toISOString())
-      expect(prediction.riskLevel).toBe('medium')
-      expect(prediction.patient_name).toBe('Unknown')
+      const prediction = await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+      expect(prediction).toBeNull()
+    })
+
+    it('escopa a query por patientId AND clinicId (regressão anti-IDOR no nível da query)', async () => {
+      // Se o predicado clinicId for removido do service, este teste quebra —
+      // o mock devolve dados independente do where, então inspecionamos o
+      // próprio predicado capturado.
+      mockChainReturn([])
+      const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
+      await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+
+      expect(mockDb.where).toHaveBeenCalled()
+      const predicate = mockDb.where.mock.calls[0][0]
+      const columns = collectColumnNames(predicate)
+      expect(columns.has('id')).toBe(true)
+      // Drizzle colunas expõem o nome físico ('clinic_id'); TS prop é 'clinicId'.
+      expect(columns.has('clinic_id') || columns.has('clinicId')).toBe(true)
+    })
+
+    it('walker: controle negativo — eq só de id NÃO revela clinic_id (mutação seria detectada)', () => {
+      const hasClinic = (s: Set<string>) => s.has('clinic_id') || s.has('clinicId')
+
+      const idOnly = collectColumnNames(eq(patients.id, 'x'))
+      expect(idOnly.has('id')).toBe(true)
+      expect(hasClinic(idOnly)).toBe(false)
+
+      const both = collectColumnNames(and(eq(patients.id, 'x'), eq(patients.clinicId, 'c')))
+      expect(both.has('id')).toBe(true)
+      expect(hasClinic(both)).toBe(true)
+    })
+
+    it('rethrowa falha na query de histórico (sem virar "paciente novo" com score fabricado)', async () => {
+      // 1º await (paciente) OK; 2º await (histórico) falha — o catch interno
+      // de getPatientHistory foi removido: o erro deve propagar.
+      mockDb.then = jest.fn()
+        .mockImplementationOnce((resolve: (data: unknown[]) => void) => resolve([{ id: patientId, name: 'Ana Lima', riskScore: '0' }]))
+        .mockImplementationOnce((_resolve: unknown, reject: (e: Error) => void) => reject(new Error('history down')))
+      const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
+      await expect(predictNoShowRisk(clinicId, patientId, futureDate.toISOString())).rejects.toThrow('history down')
+    })
+
+    it('rethrowa erro de DB (fail-closed, sem score default)', async () => {
+      // Thenable .then(onFulfilled, onRejected) — reject imediato via callback.
+      mockDb.then = jest.fn((_resolve: any, reject: any) => reject(new Error('db down')))
+      const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
+      await expect(predictNoShowRisk(clinicId, patientId, futureDate.toISOString())).rejects.toThrow('db down')
     })
 
     it('should produce factors for new patients', async () => {
       mockChainReturn([{ id: patientId, name: 'Maria Santos', riskScore: '0' }])
       const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
-      const prediction = await predictNoShowRisk(patientId, futureDate.toISOString())
-      expect(prediction.factors.length).toBeGreaterThan(0)
+      const prediction = await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+      expect(prediction!.factors.length).toBeGreaterThan(0)
     })
 
     it('should score higher with risk history', async () => {
       mockChainReturn([{ id: patientId, name: 'Pedro Costa', riskScore: '60' }])
       const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
-      const prediction = await predictNoShowRisk(patientId, futureDate.toISOString())
-      expect(prediction.risk_score).toBeGreaterThanOrEqual(0)
+      const prediction = await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+      expect(prediction!.risk_score).toBeGreaterThanOrEqual(0)
     })
   })
 
@@ -83,11 +151,11 @@ describe('No-Show Prediction Service', () => {
       expect(Array.isArray(predictions)).toBe(true)
     })
 
-    it('should return empty on DB error', async () => {
+    it('should throw (fail-closed) on DB error', async () => {
       // Thenable .then(onFulfilled, onRejected) — reject immediately.
+      // Fake-success P0: erro de DB nunca vira [] (zeraria totais no GET).
       mockDb.then = jest.fn((_resolve: any, reject: any) => reject(new Error('DB error')))
-      const predictions = await getUpcomingAppointmentRisks(clinicId, 7)
-      expect(predictions).toEqual([])
+      await expect(getUpcomingAppointmentRisks(clinicId, 7)).rejects.toThrow('DB error')
     })
 
     it('should return empty for appointments without patient data', async () => {
@@ -101,8 +169,8 @@ describe('No-Show Prediction Service', () => {
     it('should detect early morning appointment risk', async () => {
       mockChainReturn([{ id: patientId, name: 'Ana Lima', riskScore: '0' }])
       const earlyMorning = new Date(); earlyMorning.setDate(earlyMorning.getDate() + 7); earlyMorning.setHours(7, 0, 0, 0)
-      const prediction = await predictNoShowRisk(patientId, earlyMorning.toISOString())
-      const timingFactor = prediction.factors.find(f => f.name === 'timing')
+      const prediction = await predictNoShowRisk(clinicId, patientId, earlyMorning.toISOString())
+      const timingFactor = prediction!.factors.find(f => f.name === 'timing')
       expect(timingFactor).toBeDefined()
       expect(timingFactor!.impact).toBeGreaterThan(0)
     })
@@ -110,8 +178,8 @@ describe('No-Show Prediction Service', () => {
     it('should detect Monday/Friday risk', async () => {
       mockChainReturn([{ id: patientId, name: 'Carlos Oliveira', riskScore: '0' }])
       const monday = new Date(); while (monday.getDay() !== 1) monday.setDate(monday.getDate() + 1); monday.setHours(10, 0, 0, 0)
-      const prediction = await predictNoShowRisk(patientId, monday.toISOString())
-      const timingFactor = prediction.factors.find(f => f.name === 'timing')
+      const prediction = await predictNoShowRisk(clinicId, patientId, monday.toISOString())
+      const timingFactor = prediction!.factors.find(f => f.name === 'timing')
       expect(timingFactor).toBeDefined()
     })
   })
@@ -120,8 +188,8 @@ describe('No-Show Prediction Service', () => {
     it('should detect long inactivity period', async () => {
       mockChainReturn([{ id: patientId, name: 'Lucia Ferreira', riskScore: '0' }])
       const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
-      const prediction = await predictNoShowRisk(patientId, futureDate.toISOString())
-      const inactivityFactor = prediction.factors.find(f => f.name === 'inactivity')
+      const prediction = await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+      const inactivityFactor = prediction!.factors.find(f => f.name === 'inactivity')
       expect(inactivityFactor).toBeDefined()
     })
   })
@@ -130,8 +198,8 @@ describe('No-Show Prediction Service', () => {
     it('should generate confirmation recommendations for high risk', async () => {
       mockChainReturn([{ id: patientId, name: 'Ricardo Alves', riskScore: '80' }])
       const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 7)
-      const prediction = await predictNoShowRisk(patientId, futureDate.toISOString())
-      expect(Array.isArray(prediction.recommendations)).toBe(true)
+      const prediction = await predictNoShowRisk(clinicId, patientId, futureDate.toISOString())
+      expect(Array.isArray(prediction!.recommendations)).toBe(true)
     })
   })
 })
