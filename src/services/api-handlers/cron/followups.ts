@@ -58,7 +58,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     await assertModuleForJob('followup', createManifest());
   } catch (_e) {
     return apiSuccess(
-      { success: true, skipped: 'followup module disabled', timestamp: new Date().toISOString() },
+      { success: true, status: 'skipped', skipped: 'followup module disabled', timestamp: new Date().toISOString() },
     );
   }
 
@@ -67,6 +67,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const tasks = searchParams.get('tasks')?.split(',') || ['all'];
 
   const results: Record<string, CronResult[]> = {};
+  let skipped = 0;
 
   // Select only active (non-deleted) clinics
   const db = getDb();
@@ -95,6 +96,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       const ctx = await buildCronContext(clinic.id);
       if (!ctx.can(taskSpec.requires)) {
         logger.info(`[cron/followups] Clinic ${clinic.id} lacks ${taskSpec.requires}, skipping ${taskSpec.key}`);
+        skipped++;
         continue;
       }
 
@@ -129,9 +131,21 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Agregado explícito: nunca success:true puro quando há falhas registradas.
+  const allEntries = Object.values(results).flat();
+  const requested = allEntries.length;
+  const failedEntries = allEntries.filter((r) => !r.ok);
+  const succeeded = requested - failedEntries.length;
+  const errors = failedEntries.map((r) => `${r.task}/${r.clinicId}: ${r.error ?? 'unknown error'}`);
+  const failed = failedEntries.length;
+  const success = failed === 0;
+  const status = failed === 0 ? 'completed' : succeeded > 0 ? 'partial' : 'failed';
+
   return apiSuccess({
-    success: true,
+    success,
+    status,
     timestamp: new Date().toISOString(),
+    summary: { requested, succeeded, failed, skipped, errors },
     results,
   });
 }
