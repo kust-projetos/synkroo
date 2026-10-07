@@ -85,8 +85,20 @@ function readPrivateEnvFile(envPath) {
   const stat = statSync(envPath);
   if (!stat.isFile()) throw new Error();
   accessSync(envPath, constants.R_OK);
-  if (process.platform !== 'win32' && (stat.mode & 0o077) !== 0) throw new Error();
+  if (!isPrivateFileMode(stat.mode, process.platform)) throw new Error();
   return parseWahaEnvContent(readFileSync(envPath, 'utf8'));
+}
+
+/**
+ * Owner-only mode check: exactly `0600` on POSIX. `0400`/`0700`/group/other
+ * bits are all rejected — "readable only by me" is not the same as "the mode
+ * the deploy contract requires". On Windows the mode bits are emulated and
+ * carry no ACL meaning, so the check is a documented no-op there: the file
+ * must live in a user-private directory instead.
+ */
+export function isPrivateFileMode(mode, platform = process.platform) {
+  if (platform === 'win32') return true;
+  return (mode & 0o777) === 0o600;
 }
 
 function main() {

@@ -84,6 +84,9 @@ still unverified.
   manifest (`noweb`/`gows`/`chrome`/`latest` 2026.9.1, `noweb`/`gows` 2026.9.2,
   current `latest`); the source pulls floating `:latest` (empty RepoDigests).
   It stays a non-approved candidate: do not reuse it.
-- Approved target pin: upstream tag `noweb-2026.9.2` (amd64 manifest
-  `sha256:0999fb38…`, pushed 2026-10-02), engine `NOWEB`. At deploy time the
-  pulled RepoDigest must equal the pinned value or the deploy aborts.
+- Approved target pin (evidence: upstream tag/edition/platform/push-date
+  verified 2026-10-07): upstream tag `noweb-2026.9.2` (amd64 manifest
+  `sha256:0999fb38…`, pushed 2026-10-02), engine `NOWEB`. Verification is
+  MANUAL at deploy time until the deploy-script tranche adds an automated
+  gate: the operator MUST compare the pulled image RepoDigests with the pinned
+  value and abort on mismatch.
