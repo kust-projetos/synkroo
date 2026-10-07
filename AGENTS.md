@@ -183,4 +183,5 @@ src/
 
 ## VPS
 - Operação: `docs/ops/vps-access.md`.
-- Configuração privada: `../vps-hostinger/.env`; nunca copiar segredos para este repositório.
+- Scripts usam loader canônico `scripts/lib/load-vps-env.ts`: `SYNKROO_VPS_ENV` (caminho do `.env` privado, absoluto ou relativo) > fallback legado `../vps-hostinger/.env` (deprecated, com aviso) > somente-env em leitura; escrita exige arquivo resolvido. Nunca copiar segredos para este repositório.
+- Scripts mutadores (`migrate-vps.ts`, `update-hyperdrive.ts`, `setup-staging-db.ts`) aceitam `--dry-run` (plano sem mutação, sem secrets); escrita no `.env` é atômica com `.bak`; staging password nunca rotaciona em re-execução. P2: handoff de senha via stdin/env no wrangler, migração Contabo (NÃO declarar como concluída).

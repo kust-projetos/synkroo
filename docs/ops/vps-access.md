@@ -4,9 +4,43 @@
 
 > **Migração 2026-10-05:** Hostinger é o **source** atual e Contabo é o **target** planejado. Ver `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md`.
 
-Execute comandos a partir da raiz deste projeto. Enquanto P1 provider-neutral não for implementado, a configuração privada do source continua em `../vps-hostinger/.env`. O alvo vNext deve usar caminho explícito/provider-neutral (por exemplo `SYNKROO_VPS_ENV`) e não introduzir `../vps-contabo` hardcoded no código.
+Execute comandos a partir da raiz deste projeto. Fonte canônica dos scripts
+(`migrate-vps.ts`, `update-hyperdrive.ts`, `setup-staging-db.ts` via
+`scripts/lib/load-vps-env.ts`):
+
+1. **`SYNKROO_VPS_ENV`** (canônico): caminho do `.env` privado, absoluto ou
+   relativo à raiz do projeto. Ex.: `SYNKROO_VPS_ENV=../vps-hostinger/.env`
+   ou `SYNKROO_VPS_ENV=C:\segredos\vps\prod.env` (espaços suportados).
+2. **Fallback legado** `../vps-hostinger/.env` (deprecated): usado só quando
+   `SYNKROO_VPS_ENV` não está setado e o arquivo existe; emite aviso de
+   depreciação (sem imprimir valores).
+3. **Somente-env** (modo leitura): sem arquivo, os scripts de leitura prosseguem
+   com `process.env`; scripts que ESCREVEM (`setup-staging-db.ts`) falham
+   explicitamente em vez de gravar em local desconhecido.
+
+Precedência por chave: `process.env` vence o arquivo. Origem ativa é registrada
+como `explicit | legacy | env-only` — nunca com valores.
 
 Nunca copie senha, token, chave privada ou valor de `.env` para este repositório.
+
+### Dry-run e rollback (scripts mutadores)
+
+Os 3 scripts aceitam `--dry-run` (opt-in): mostram o plano (origem, destino,
+recursos — sem secrets) sem executar nenhuma mutação. Invocação sem a flag
+mantém o comportamento existente e registra o plano antes de agir.
+
+- `setup-staging-db.ts` nunca rotaciona `VPS_STAGING_PASSWORD` em re-execução
+  (gera só quando ausente); se o role existir mas a senha configurada não
+  autenticar, aborta com erro de inconsistência em vez de rotação silenciosa.
+- Toda escrita no `.env` é atômica (tmp+rename) com backup `.bak` prévio;
+  re-execução com valores iguais não reescreve o arquivo.
+- Após gerar/alterar senha de staging, rode `update-hyperdrive.ts` para o
+  Hyperdrive servir a credencial nova (o setup avisa; divergência silenciosa
+  não é tolerada).
+- Limitação documentada (P2): `update-hyperdrive.ts` passa a senha como
+  elemento argv discreto (sem shell), mas ela segue visível na tabela de
+  processos local durante a execução do wrangler — avaliar handoff via
+  stdin/env se o wrangler vier a suportar.
 
 ### Bash/Git Bash
 
