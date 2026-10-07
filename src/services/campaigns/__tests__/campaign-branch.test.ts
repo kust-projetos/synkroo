@@ -67,7 +67,7 @@ describe('F7.06 campaign 100% falha → failed', () => {
   test('100% failure (0 sent) ends failed with updated status', async () => {
     repo.findPendingRecipients.mockResolvedValue([]);
     const result = await startCampaign(baseCampaign.id);
-    expect(result).toEqual({ success: false, error: 'No recipients delivered' });
+    expect(result).toMatchObject({ success: false, status: 'failed', error: 'No recipients delivered' });
     expect(repo.updateCampaignStatus).toHaveBeenCalledWith(baseCampaign.id, 'failed');
     expect(repo.updateCampaignStatus).toHaveBeenCalledWith(baseCampaign.id, 'running');
   });
@@ -104,7 +104,7 @@ describe('F7.06 campaign 100% falha → failed', () => {
     ] as any);
     repo.enqueueRecipientDelivery.mockResolvedValueOnce(undefined);
     const result = await startCampaign(baseCampaign.id);
-    expect(result).toEqual({ success: true });
+    expect(result).toMatchObject({ success: true, status: 'completed', succeeded: 1, failed: 0 });
     expect(repo.updateCampaignStatus).not.toHaveBeenCalledWith(baseCampaign.id, 'failed');
   });
 });

@@ -28,12 +28,38 @@ export async function GET(request: NextRequest) {
     let data: any[] = [], headers: string[] = [], filename = '', title = ''
     const addDate = (c: any[], date: string | null, op: 'gte' | 'lte') => { if (date) c.push(op === 'gte' ? gte(appointments.scheduledAt, new Date(date)) : lte(appointments.scheduledAt, new Date(date + 'T23:59:59'))) }
 
+    // P1: filtros de borda validados contra os enums reais — valor fora do
+    // conjunto é rejeitado (400), nunca interpolado no SQL nem ignorado em
+    // silêncio. Conjuntos espelham appointment_status (DB) e os Zod de lead
+    // (leadSourceEnum/updateLeadSchema + 'proposal_sent' legado em dados).
+    const APPOINTMENT_STATUSES = ['scheduled', 'confirmed', 'in_progress', 'completed', 'cancelled', 'no_show'] as const
+    type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number]
+    const isAppointmentStatus = (v: unknown): v is AppointmentStatus =>
+      typeof v === 'string' && (APPOINTMENT_STATUSES as readonly string[]).includes(v)
+    const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'proposal', 'proposal_sent', 'negotiation', 'won', 'lost'] as const
+    type LeadStatus = (typeof LEAD_STATUSES)[number]
+    const isLeadStatus = (v: unknown): v is LeadStatus =>
+      typeof v === 'string' && (LEAD_STATUSES as readonly string[]).includes(v)
+    const LEAD_SOURCES = ['whatsapp', 'instagram', 'web', 'website', 'referral', 'campaign', 'manual', 'other'] as const
+    type LeadSource = (typeof LEAD_SOURCES)[number]
+    const isLeadSource = (v: unknown): v is LeadSource =>
+      typeof v === 'string' && (LEAD_SOURCES as readonly string[]).includes(v)
+    const rejectInvalid = (kind: string, values: string[], ok: (v: string) => boolean): string | null => {
+      const invalid = values.filter(v => !ok(v))
+      return invalid.length ? `Invalid ${kind}: ${invalid.join(', ')}` : null
+    }
+
     switch (type) {
       case 'appointments': {
         const conds: any[] = [eq(appointments.clinicId, clinicId)]
         if (startDate) conds.push(gte(appointments.scheduledAt, new Date(startDate)))
         if (endDate) conds.push(lte(appointments.scheduledAt, new Date(endDate + 'T23:59:59')))
-        if (statusFilter) conds.push(inArray(appointments.status as any, statusFilter.split(',')))
+        if (statusFilter) {
+          const wanted = statusFilter.split(',')
+          const bad = rejectInvalid('status', wanted, isAppointmentStatus)
+          if (bad) return apiFailure('INVALID_INPUT', bad, requestId, 400)
+          conds.push(inArray(appointments.status, wanted.filter(isAppointmentStatus)))
+        }
         if (dentistId) conds.push(eq(appointments.dentistId, dentistId))
         if (procedureId) conds.push(eq(appointments.procedureId, procedureId))
         const rows = await db.select({
@@ -58,8 +84,18 @@ export async function GET(request: NextRequest) {
         const conds: any[] = [eq(leads.clinicId, clinicId)]
         if (startDate) conds.push(gte(leads.createdAt, new Date(startDate)))
         if (endDate) conds.push(lte(leads.createdAt, new Date(endDate + 'T23:59:59')))
-        if (statusFilter) conds.push(inArray(leads.status as any, statusFilter.split(',')))
-        if (sourceFilter) conds.push(inArray(leads.source as any, sourceFilter.split(',')))
+        if (statusFilter) {
+          const wantedStatus = statusFilter.split(',')
+          const badStatus = rejectInvalid('status', wantedStatus, isLeadStatus)
+          if (badStatus) return apiFailure('INVALID_INPUT', badStatus, requestId, 400)
+          conds.push(inArray(leads.status, wantedStatus.filter(isLeadStatus)))
+        }
+        if (sourceFilter) {
+          const wantedSource = sourceFilter.split(',')
+          const badSource = rejectInvalid('source', wantedSource, isLeadSource)
+          if (badSource) return apiFailure('INVALID_INPUT', badSource, requestId, 400)
+          conds.push(inArray(leads.source, wantedSource.filter(isLeadSource)))
+        }
         const rows = await db.select({ id: leads.id, name: leads.name, phone: leads.phone, email: leads.email, source: leads.source, status: leads.status, temperature: leads.temperature, score: leads.score, dealValue: leads.dealValue, interest: leads.interest, createdAt: leads.createdAt })
           .from(leads).where(and(...conds)).orderBy(desc(leads.createdAt))
         data = rows.map(r => ({ ...r, budget_value: r.dealValue }))
@@ -67,7 +103,7 @@ export async function GET(request: NextRequest) {
         break
       }
       case 'financial': {
-        const conds: any[] = [eq(appointments.clinicId, clinicId), inArray(appointments.status as any, ['completed', 'confirmed'])]
+        const conds: any[] = [eq(appointments.clinicId, clinicId), inArray(appointments.status, ['completed', 'confirmed'])]
         if (startDate) conds.push(gte(appointments.scheduledAt, new Date(startDate)))
         if (endDate) conds.push(lte(appointments.scheduledAt, new Date(endDate + 'T23:59:59')))
         if (dentistId) conds.push(eq(appointments.dentistId, dentistId))

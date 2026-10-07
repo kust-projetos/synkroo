@@ -8,12 +8,32 @@ import {
 	scheduleBlocks,
 } from "@/lib/db/schema";
 
+/**
+ * UNSCOPED read — cross-tenant risk.
+ * @deprecated Use `findByIdScoped(id, clinicId)` (or `findByIdWithJoins`) instead.
+ * P1: clinicId must come from trusted auth context.
+ */
 export async function findById(id: string) {
 	const db = getDb();
 	const rows = await db
 		.select()
 		.from(appointments)
 		.where(eq(appointments.id, id))
+		.limit(1);
+	return rows[0] || null;
+}
+
+/**
+ * Tenant-scoped read by id. Returns null when the id does not belong to
+ * the given clinic (no cross-tenant leak).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function findByIdScoped(id: string, clinicId: string) {
+	const db = getDb();
+	const rows = await db
+		.select()
+		.from(appointments)
+		.where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
 		.limit(1);
 	return rows[0] || null;
 }
@@ -367,6 +387,11 @@ export async function create(data: {
 	return row;
 }
 
+/**
+ * UNSCOPED write — cross-tenant risk.
+ * @deprecated Use `updateStatusScoped(id, clinicId, status, extra)` instead.
+ * P1: clinicId must come from trusted auth context.
+ */
 export async function updateStatus(
 	id: string,
 	status: string,
@@ -378,15 +403,65 @@ export async function updateStatus(
 		.set({ status: status as any, ...extra, updatedAt: new Date() })
 		.where(eq(appointments.id, id))
 		.returning();
+	console.warn(
+		"[P1] appointments.updateStatus without clinicId is deprecated; use updateStatusScoped with clinic from auth context",
+	);
 	return row;
 }
 
+/**
+ * Update status scoped to a clinic. Returns undefined when the id does not
+ * belong to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function updateStatusScoped(
+	id: string,
+	clinicId: string,
+	status: string,
+	extra?: Record<string, unknown>,
+) {
+	const db = getDb();
+	const [row] = await db
+		.update(appointments)
+		.set({ status: status as any, ...extra, updatedAt: new Date() })
+		.where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
+		.returning();
+	return row;
+}
+
+/**
+ * UNSCOPED write — cross-tenant risk.
+ * @deprecated Use `updateScoped(id, clinicId, data)` instead.
+ * P1: clinicId must come from trusted auth context.
+ */
 export async function update(id: string, data: Record<string, unknown>) {
 	const db = getDb();
 	const [row] = await db
 		.update(appointments)
 		.set({ ...data, updatedAt: new Date() } as any)
 		.where(eq(appointments.id, id))
+		.returning();
+	console.warn(
+		"[P1] appointments.update without clinicId is deprecated; use updateScoped with clinic from auth context",
+	);
+	return row;
+}
+
+/**
+ * Update scoped to a clinic. Returns undefined when the id does not belong
+ * to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function updateScoped(
+	id: string,
+	clinicId: string,
+	data: Record<string, unknown>,
+) {
+	const db = getDb();
+	const [row] = await db
+		.update(appointments)
+		.set({ ...data, updatedAt: new Date() } as any)
+		.where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
 		.returning();
 	return row;
 }
@@ -396,12 +471,33 @@ export async function updatePatientLastVisit(patientId: string, visitedAt: Date)
 	await db.update(patients).set({ lastVisitAt: visitedAt }).where(eq(patients.id, patientId));
 }
 
+/**
+ * UNSCOPED soft-delete — cross-tenant risk.
+ * @deprecated Use `removeScoped(id, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
+ */
 export async function remove(id: string) {
 	const db = getDb();
 	await db
 		.update(appointments)
 		.set({ deletedAt: new Date(), updatedAt: new Date() } as any)
 		.where(eq(appointments.id, id));
+	console.warn(
+		"[P1] appointments.remove without clinicId is deprecated; use removeScoped with clinic from auth context",
+	);
+}
+
+/**
+ * Soft-delete scoped to a clinic. No-op when the id does not belong to the
+ * given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function removeScoped(id: string, clinicId: string) {
+	const db = getDb();
+	await db
+		.update(appointments)
+		.set({ deletedAt: new Date(), updatedAt: new Date() } as any)
+		.where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
 }
 
 /**
@@ -582,7 +678,7 @@ export async function rescheduleAppointmentSlot(params: {
 		};
 	}
 
-	// Update the appointment
+	// Update the appointment — P1: scoped by clinicId to prevent cross-tenant write
 	const [updated] = await db
 		.update(appointments)
 		.set({
@@ -590,7 +686,9 @@ export async function rescheduleAppointmentSlot(params: {
 			status: "scheduled",
 			updatedAt: new Date(),
 		} as any)
-		.where(eq(appointments.id, appointmentId))
+		.where(
+			and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)),
+		)
 		.returning({ id: appointments.id });
 
 	if (!updated) {

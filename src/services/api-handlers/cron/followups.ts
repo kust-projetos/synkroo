@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { runAction } from '@/core/actions/run';
+import type { ActionDefinition } from '@/core/actions/types';
 import { buildCronContext } from '@/core/actions/context';
 import { getDb } from '@/lib/db/client';
 import { eq, isNull } from 'drizzle-orm';
@@ -31,6 +32,40 @@ import { detectarInativos } from '@/modules/followup';
 import { executarCampanhas } from '@/modules/followup';
 
 type CronResult = { task: string; clinicId: string; ok: boolean; data?: unknown; error?: string };
+
+function num(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * P1-FIX-CANON(2): runAction.ok só diz que o handler não lançou.
+ * Deriva falha de negócio do payload retornado (contrato de lote):
+ * {requested,succeeded,failed,skipped,errors[],status} — com tolerância aos
+ * vocabulários legados (sent/notified/processed). Retorna a mensagem de erro
+ * ou null quando o lote foi bem-sucedido (ou vazio sem falhas).
+ */
+function businessFailure(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  if (d.success === false) {
+    if (Array.isArray(d.errors) && d.errors.length > 0) {
+      return (d.errors as unknown[]).slice(0, 5).map(String).join('; ');
+    }
+    if (typeof d.error === 'string' && d.error) return d.error;
+    return `business batch failed (status=${String(d.status ?? 'failed')})`;
+  }
+  const failed = num(d.failed);
+  if (failed > 0 && d.success !== true) {
+    const succeeded = num(d.succeeded) + num(d.sent) + num(d.notified);
+    if (succeeded === 0) {
+      if (Array.isArray(d.errors) && d.errors.length > 0) {
+        return (d.errors as unknown[]).slice(0, 5).map(String).join('; ');
+      }
+      return `${failed} operation(s) failed without success`;
+    }
+  }
+  return null;
+}
 
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const requestId = generateRequestId();
@@ -58,7 +93,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     await assertModuleForJob('followup', createManifest());
   } catch (_e) {
     return apiSuccess(
-      { success: true, skipped: 'followup module disabled', timestamp: new Date().toISOString() },
+      { success: true, status: 'skipped', skipped: 'followup module disabled', timestamp: new Date().toISOString() },
     );
   }
 
@@ -67,6 +102,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const tasks = searchParams.get('tasks')?.split(',') || ['all'];
 
   const results: Record<string, CronResult[]> = {};
+  let skipped = 0;
 
   // Select only active (non-deleted) clinics
   const db = getDb();
@@ -76,9 +112,11 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     .where(isNull(clinics.deletedAt));
 
   // Build the task → action mapping with required permission
+  // P1-FIX-CANON(2): outputs heterogêneos (cada Action tem seu batch) —
+  // ActionDefinition<any, unknown> evita colapso de inferência do union.
   const TASK_MAP: Array<{
     key: string;
-    action: typeof executarFollowup | typeof detectarInativos | typeof executarCampanhas;
+    action: ActionDefinition<any, unknown>;
     requires: string;
   }> = [
     { key: 'followups', action: executarFollowup, requires: 'followup:manage_followups' },
@@ -95,13 +133,20 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       const ctx = await buildCronContext(clinic.id);
       if (!ctx.can(taskSpec.requires)) {
         logger.info(`[cron/followups] Clinic ${clinic.id} lacks ${taskSpec.requires}, skipping ${taskSpec.key}`);
+        skipped++;
         continue;
       }
 
       try {
         const result = await runAction(taskSpec.action, {}, ctx);
         if (result.ok) {
-          taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: true, data: result.data });
+          // P1-FIX-CANON(2): agrega o resultado de negócio, não só runAction.ok.
+          const failure = businessFailure(result.data);
+          if (failure) {
+            taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: false, error: failure, data: result.data });
+          } else {
+            taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: true, data: result.data });
+          }
         } else {
           taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: false, error: result.error.message });
         }
@@ -115,23 +160,61 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Check and notify hot leads across all clinics (existing preserved branch)
+  // P1-FIX-CANON(3): o contexto cron padrão NÃO contém
+  // 'comercial:manage_hot_leads' (allowlist fixa de follow-up) — executar a
+  // Action com ele era sempre forbidden mas reportava ok:true. Usa contexto
+  // explicitamente autorizado SÓ para essa permissão (sem ampliar a
+  // allowlist global) e registra o resultado por clínica.
   if (tasks.includes('all') || tasks.includes('hot-leads')) {
     logger.info('[cron/followups] Checking hot leads across clinics...');
-    try {
-      for (const c of activeClinics) {
-        const ctx = await buildCronContext(c.id);
-        await runAction(processarNotificacoesLeadsQuentes, {}, ctx);
+    const hotLeadsResults: CronResult[] = [];
+    for (const c of activeClinics) {
+      const base = await buildCronContext(c.id);
+      if (!base.hasModule('comercial')) {
+        logger.info(`[cron/followups] Clinic ${c.id} lacks comercial module, skipping hot-leads`);
+        skipped++;
+        continue;
       }
-      results.hotLeads = [{ task: 'hot-leads', clinicId: 'all', ok: true }];
-    } catch (err) {
-      logger.error('[cron/followups] Hot leads processing error:', err);
-      results.hotLeads = [{ task: 'hot-leads', clinicId: 'all', ok: false, error: String(err) }];
+      const hotCtx = {
+        ...base,
+        can: (key: string) => key === 'comercial:manage_hot_leads',
+        audit: { actor: 'cron:hot-leads' },
+      };
+      try {
+        const actionResult = await runAction(processarNotificacoesLeadsQuentes, {}, hotCtx);
+        if (!actionResult.ok) {
+          hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: false, error: actionResult.error.message });
+        } else {
+          const failure = businessFailure(actionResult.data);
+          if (failure) {
+            hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: false, error: failure, data: actionResult.data });
+          } else {
+            hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: true, data: actionResult.data });
+          }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: false, error: message });
+      }
     }
+    results.hotLeads = hotLeadsResults;
   }
 
+  // Agregado explícito: nunca success:true puro quando há falhas registradas.
+  const allEntries = Object.values(results).flat();
+  const requested = allEntries.length;
+  const failedEntries = allEntries.filter((r) => !r.ok);
+  const succeeded = requested - failedEntries.length;
+  const errors = failedEntries.map((r) => `${r.task}/${r.clinicId}: ${r.error ?? 'unknown error'}`);
+  const failed = failedEntries.length;
+  const success = failed === 0;
+  const status = failed === 0 ? 'completed' : succeeded > 0 ? 'partial' : 'failed';
+
   return apiSuccess({
-    success: true,
+    success,
+    status,
     timestamp: new Date().toISOString(),
+    summary: { requested, succeeded, failed, skipped, errors },
     results,
   });
 }

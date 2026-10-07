@@ -4,7 +4,9 @@ import { resolve } from 'node:path';
 import { test } from 'node:test';
 
 const root = resolve(import.meta.dirname, '..', '..');
-const scriptSrc = readFileSync(resolve(root, 'scripts', 'migrate-vps.ts'), 'utf8');
+// Parser canonico (P1B-INFRA): fonte unica em scripts/lib/load-vps-env.ts.
+// migrate-vps.ts e os demais scripts consomem o loader em vez de duplicar o parser.
+const scriptSrc = readFileSync(resolve(root, 'scripts', 'lib', 'load-vps-env.ts'), 'utf8');
 
 // Extrai a função REAL do script (falha alto se ausente) e avalia sem efeitos
 // colaterais: parseVpsEnvContent é pura e main() nunca é executada aqui.
@@ -12,7 +14,7 @@ const scriptSrc = readFileSync(resolve(root, 'scripts', 'migrate-vps.ts'), 'utf8
 function loadParserFromSource() {
   const marker = 'export function parseVpsEnvContent';
   const start = scriptSrc.indexOf(marker);
-  assert.ok(start >= 0, 'migrate-vps.ts deve exportar parseVpsEnvContent');
+  assert.ok(start >= 0, 'load-vps-env.ts deve exportar parseVpsEnvContent');
   const bodyStart = scriptSrc.indexOf('{', start);
   let depth = 0;
   let end = -1;
@@ -79,6 +81,6 @@ test('nenhuma chave/valor carrega \\r', () => {
 test('fonte tolera CRLF no split (sem depender de trim incidental)', () => {
   assert.ok(
     scriptSrc.includes('split(/\\r?\\n/)'),
-    'migrate-vps.ts deve dividir as linhas com split(/\\r?\\n/)',
+    'load-vps-env.ts deve dividir as linhas com split(/\\r?\\n/)',
   );
 });

@@ -8,8 +8,17 @@ import { waitlist, appointments } from '../schema/appointments';
 import { eq, and, isNull, gte, lte, desc, asc } from 'drizzle-orm';
 import { ActionError } from '@/core/actions/types';
 
+/**
+ * UNSCOPED-capable read: clinicId is optional (cross-tenant risk when omitted).
+ * @deprecated Pass an explicit `clinicId` (from trusted auth context) or use
+ * `findWaitlistByIdScoped(id, clinicId)`.
+ * P1: clinicId must come from trusted auth context.
+ */
 export async function findWaitlistById(id: string, clinicId?: string) {
   const db = getDb();
+  if (clinicId === undefined) {
+    console.warn('[P1] waitlist.findWaitlistById without clinicId is deprecated; use findWaitlistByIdScoped with clinic from auth context');
+  }
   const conditions = [eq(waitlist.id, id)];
   if (clinicId) {
     conditions.push(eq(waitlist.clinicId, clinicId));
@@ -20,6 +29,21 @@ export async function findWaitlistById(id: string, clinicId?: string) {
     .where(and(...conditions))
     .limit(1);
   return row ?? null;
+}
+
+/**
+ * Tenant-scoped read by id. Returns null when the id does not belong to
+ * the given clinic (no cross-tenant leak).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function findWaitlistByIdScoped(id: string, clinicId: string) {
+  const db = getDb();
+  const [scopedRow] = await db
+    .select()
+    .from(waitlist)
+    .where(and(eq(waitlist.id, id), eq(waitlist.clinicId, clinicId)))
+    .limit(1);
+  return scopedRow ?? null;
 }
 
 export async function listWaitlist(
@@ -104,9 +128,45 @@ export async function updateWaitlist(
     .set({ ...data, updatedAt: new Date() } as any)
     .where(eq(waitlist.id, id))
     .returning();
+  console.warn('[P1] waitlist.updateWaitlist without clinicId is deprecated; use updateWaitlistScoped with clinic from auth context');
   return row ?? null;
 }
 
+/**
+ * Update scoped to a clinic. Returns null when the id does not belong to
+ * the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function updateWaitlistScoped(
+  id: string,
+  clinicId: string,
+  data: Partial<{
+    status: string;
+    priority: number;
+    notes: string | null;
+    preferredDate: Date | null;
+    preferredTimeStart: string | null;
+    preferredTimeEnd: string | null;
+    dentistId: string | null;
+    procedureId: string | null;
+    notifiedAt: Date | null;
+    scheduledAppointmentId: string | null;
+  }>,
+) {
+  const db = getDb();
+  const [row] = await db
+    .update(waitlist)
+    .set({ ...data, updatedAt: new Date() } as any)
+    .where(and(eq(waitlist.id, id), eq(waitlist.clinicId, clinicId)))
+    .returning();
+  return row ?? null;
+}
+
+/**
+ * UNSCOPED cancel — cross-tenant risk.
+ * @deprecated Use `cancelWaitlistEntryScoped(id, clinicId, reason)` instead.
+ * P1: clinicId must come from trusted auth context.
+ */
 export async function cancelWaitlistEntry(id: string, reason?: string) {
   const db = getDb();
   const [row] = await db
@@ -117,6 +177,26 @@ export async function cancelWaitlistEntry(id: string, reason?: string) {
       updatedAt: new Date(),
     } as any)
     .where(eq(waitlist.id, id))
+    .returning();
+  console.warn('[P1] waitlist.cancelWaitlistEntry without clinicId is deprecated; use cancelWaitlistEntryScoped with clinic from auth context');
+  return row ?? null;
+}
+
+/**
+ * Cancel scoped to a clinic. Returns null when the id does not belong to
+ * the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function cancelWaitlistEntryScoped(id: string, clinicId: string, reason?: string) {
+  const db = getDb();
+  const [row] = await db
+    .update(waitlist)
+    .set({
+      status: 'cancelled',
+      notes: reason !== undefined ? reason : undefined,
+      updatedAt: new Date(),
+    } as any)
+    .where(and(eq(waitlist.id, id), eq(waitlist.clinicId, clinicId)))
     .returning();
   return row ?? null;
 }

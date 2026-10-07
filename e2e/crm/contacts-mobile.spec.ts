@@ -20,7 +20,10 @@ test.describe('Contacts mobile layout', () => {
 
     await expect(page.getByTestId('contact-detail')).toBeVisible({ timeout: 30_000 })
     await expect(page.getByRole('button', { name: 'Voltar para contatos' })).toBeVisible({ timeout: 30_000 })
-    await page.getByRole('button', { name: 'Voltar para contatos' }).click()
+    await expect(async () => {
+      await page.getByRole('button', { name: 'Voltar para contatos' }).click()
+      await expect(page).not.toHaveURL(/contact=/)
+    }).toPass({ timeout: 15_000 })
     await expect(page.getByTestId('contact-list')).toBeVisible()
   })
 })

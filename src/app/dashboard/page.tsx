@@ -25,20 +25,27 @@ export default function DashboardPage() {
   const { profile } = useAuth()
   const { data: stats, isLoading: statsLoading, error: queryError, refetch } = useDashboardStats()
 
+  // P1: zeros com stale = "desconhecido por falha", nunca vazio legítimo.
+  // Agregado stale renderiza '—' + aviso, em vez de 0 como verdade.
+  const todayStale = stats?.today?.stale === true
+  const metricsStale = stats?.metrics?.stale === true
+  const inactiveStale = stats?.inactivePatients?.stale === true
+  const degraded = stats?.degraded === true
+
   const primaryStats = [
     {
       label: 'Agendamentos Hoje',
-      value: statsLoading ? '...' : stats?.today.appointments ?? 0,
+      value: statsLoading ? '...' : todayStale ? '—' : stats?.today.appointments ?? 0,
       icon: <CalendarDaysIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
           },
     {
       label: 'Taxa de Confirmação',
-      value: statsLoading ? '...' : `${stats?.metrics.confirmationRate ?? 0}%`,
+      value: statsLoading ? '...' : metricsStale ? '—' : `${stats?.metrics.confirmationRate ?? 0}%`,
       icon: <ClockIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
           },
     {
       label: 'Pacientes Inativos',
-      value: statsLoading ? '...' : stats?.inactivePatients.totalInactive ?? 0,
+      value: statsLoading ? '...' : inactiveStale ? '—' : stats?.inactivePatients.totalInactive ?? 0,
       icon: <UsersIcon className="w-6 h-6 text-orange-600 dark:text-orange-400" />,
           },
   ]
@@ -46,17 +53,17 @@ export default function DashboardPage() {
   const secondaryStats = [
     {
       label: 'Total de Pacientes',
-      value: statsLoading ? '...' : stats?.metrics.totalPatients ?? 0,
+      value: statsLoading ? '...' : metricsStale ? '—' : stats?.metrics.totalPatients ?? 0,
       icon: <UsersIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
     },
     {
       label: 'Campanhas Ativas',
-      value: statsLoading ? '...' : stats?.metrics.activeCampaigns ?? 0,
+      value: statsLoading ? '...' : metricsStale ? '—' : stats?.metrics.activeCampaigns ?? 0,
       icon: <MegaphoneIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
     },
     {
       label: 'Conversas Abertas',
-      value: statsLoading ? '...' : stats?.metrics.openConversations ?? 0,
+      value: statsLoading ? '...' : metricsStale ? '—' : stats?.metrics.openConversations ?? 0,
       icon: <ChatBubbleLeftRightIcon className="w-6 h-6 text-teal-600 dark:text-teal-400" />,
     },
   ]
@@ -110,6 +117,14 @@ export default function DashboardPage() {
       {queryError && (
         <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-4">
           <ErrorState message="Falha ao carregar estatísticas do servidor" onRetry={() => refetch()} />
+        </div>
+      )}
+
+      {/* P1: aviso degradado — agregado stale exibe '—', nunca 0 como verdade */}
+      {degraded && !statsLoading && !queryError && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+          Dados parcialmente indisponíveis — valores marcados com “—” estão degradados
+          {stats?.failedParts?.length ? `: ${stats.failedParts.join(', ')}` : ''}. Tente recarregar.
         </div>
       )}
 

@@ -66,7 +66,8 @@ describe('inactive-service', () => {
         .mockReturnValueOnce(query([], 'orderBy'))
         .mockReturnValueOnce(query([{ tags: ['VIP', 'Inativo 30 dias', 'inativo antigo'] }], 'where'));
       const result = await runInactivityDetection('clinic-a');
-      expect(result).toEqual({ processed: 1 });
+      expect(result).toMatchObject({ processed: 1, failed: 0, success: true, status: 'completed' });
+      expect(result.errors).toEqual([]);
       expect(mockDb.update).toHaveBeenCalled();
     });
 
@@ -82,11 +83,29 @@ describe('inactive-service', () => {
         throw new Error('update failed');
       });
 
-      await expect(runInactivityDetection('clinic-a')).resolves.toEqual({ processed: 0 });
+      const result = await runInactivityDetection('clinic-a');
+      // Erro de batch não aborta nem é descartado: failed/errors explícitos, success:false.
+      expect(result).toMatchObject({ processed: 0, failed: 1, success: false, status: 'failed' });
+      expect(result.errors).toHaveLength(1);
     });
   });
 
   describe('findInactivePatients', () => {
+    it('exclui soft-deleted da detecção (active-only, P1-FIX-CANON 4)', async () => {
+      const chain = query([], 'where');
+      mockDb.select.mockReturnValueOnce(chain);
+
+      await findInactivePatients('c1', 30);
+
+      const predicate = chain.where.mock.calls[0][0];
+      const { sql: rendered } = new PgDialect().sqlToQuery(predicate);
+
+      // isNull(patients.deletedAt) presente no WHERE de pacientes.
+      expect(rendered).toContain('deleted_at');
+      expect(rendered).toContain('is null');
+      expect(rendered).toContain('clinic_id');
+    });
+
     it('finds inactive patients scoped to clinicId and minDays', async () => {
       mockDb.select
         .mockReturnValueOnce(query([
@@ -125,12 +144,12 @@ describe('inactive-service', () => {
       expect(result[1].totalVisits).toBe(1);
     });
 
-    it('returns an empty list when the database query fails', async () => {
+    it('propaga falha da primeira consulta em vez de mascarar como lista vazia (P1-FIX-CANON 4)', async () => {
       mockDb.select.mockImplementationOnce(() => {
         throw new Error('database unavailable');
       });
 
-      await expect(findInactivePatients('c1')).resolves.toEqual([]);
+      await expect(findInactivePatients('c1')).rejects.toThrow('database unavailable');
     });
 
     it('usa borda inclusiva (<=) e tenant, coerente com INACTIVITY_SEGMENTS', async () => {
@@ -153,7 +172,7 @@ describe('inactive-service', () => {
 
   describe('reactivatePatient', () => {
     it('removes inactivity tags and resets the patient risk', async () => {
-      mockDb.select.mockReturnValueOnce(query([{ id: 'p1', tags: ['VIP', 'Inativo 90 dias'] }], 'where'));
+      mockDb.select.mockReturnValueOnce(query([{ id: 'p1', status: 'inactive', tags: ['VIP', 'Inativo 90 dias'] }], 'where'));
       mockDb.update.mockReturnValueOnce({
         set: jest.fn(() => ({
           where: jest.fn(() => ({ returning: jest.fn().mockResolvedValue([{ id: 'p1' }]) })),
@@ -163,17 +182,26 @@ describe('inactive-service', () => {
       await expect(reactivatePatient('c1', 'p1')).resolves.toEqual({ success: true });
     });
 
-    it('returns not_found when the patient is absent or disappears before update', async () => {
+    it('is idempotent when already active without inactivity tags', async () => {
+      mockDb.select.mockReturnValueOnce(query([{ id: 'p1', status: 'active', tags: ['VIP'] }], 'where'));
+
+      await expect(reactivatePatient('c1', 'p1')).resolves.toEqual({ success: true, alreadyProcessed: true });
+      expect(mockDb.update).not.toHaveBeenCalled();
+    });
+
+    it('returns not_found when the patient is absent; concurrent reactivation is already_processed', async () => {
       mockDb.select.mockReturnValueOnce(query([], 'where'));
       await expect(reactivatePatient('c1', 'missing')).rejects.toMatchObject({ code: 'not_found' });
 
-      mockDb.select.mockReturnValueOnce(query([{ id: 'p1', tags: [] }], 'where'));
+      mockDb.select.mockReturnValueOnce(query([{ id: 'p1', status: 'active', tags: ['Inativo 30 dias'] }], 'where'));
       mockDb.update.mockReturnValueOnce({
         set: jest.fn(() => ({
           where: jest.fn(() => ({ returning: jest.fn().mockResolvedValue([]) })),
         })),
       });
-      await expect(reactivatePatient('c1', 'p1')).rejects.toMatchObject({ code: 'not_found' });
+      // Linha existia no select e o update afetou 0 linhas = reativado por
+      // outro worker entre as duas operações → idempotente explícito.
+      await expect(reactivatePatient('c1', 'p1')).resolves.toEqual({ success: true, alreadyProcessed: true });
     });
   });
 });

@@ -104,7 +104,7 @@ export async function processConfirmationResponse(
 
   const db = getDb();
   if (intent.isConfirmation) {
-    await db.update(appointments).set({ status: 'confirmed' as any })
+    await db.update(appointments).set({ status: 'confirmed' })
       .where(and(eq(appointments.id, appointment.appointmentId), eq(appointments.clinicId, clinicId)));
     const dateStr = appointment.scheduledAt.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
     const timeStr = appointment.scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -118,9 +118,9 @@ export async function processConfirmationResponse(
   }
 
   await db.update(appointments).set({
-    status: 'cancelled' as any,
+    status: 'cancelled',
     notes: 'Cancelado pelo paciente via WhatsApp',
-  } as any).where(and(eq(appointments.id, appointment.appointmentId), eq(appointments.clinicId, clinicId)));
+  }).where(and(eq(appointments.id, appointment.appointmentId), eq(appointments.clinicId, clinicId)));
   dbLogger.info(`Appointment ${appointment.appointmentId} cancelled via WhatsApp`, { patientName: appointment.patientName });
   return {
     processed: true,
@@ -174,9 +174,9 @@ export async function processWaitlistConfirmation(
     procedureId: entry.procedureId ?? null,
     scheduledAt,
     durationMinutes: 30,
-    status: 'confirmed' as any,
+    status: 'confirmed',
     notes: 'Agendado via lista de espera',
-  } as any).returning();
+  }).returning();
   if (!appointment) {
     dbLogger.error('Error creating appointment from waitlist', { entry });
     return { processed: false };
@@ -184,7 +184,7 @@ export async function processWaitlistConfirmation(
   await db.update(waitlist).set({
     status: 'scheduled',
     scheduledAppointmentId: appointment.id,
-  } as any).where(and(eq(waitlist.id, entry.id), eq(waitlist.clinicId, clinicId)));
+  }).where(and(eq(waitlist.id, entry.id), eq(waitlist.clinicId, clinicId)));
 
   const dateStr = scheduledAt.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' });
   const timeStr = scheduledAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });

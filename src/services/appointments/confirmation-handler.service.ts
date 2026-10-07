@@ -173,7 +173,7 @@ export async function processConfirmationResponse(
     // Confirm the appointment
     await db
       .update(appointments)
-      .set({ status: 'confirmed' as any })
+      .set({ status: 'confirmed' })
       .where(eq(appointments.id, appointment.appointmentId))
 
     const dateStr = appointment.scheduledAt.toLocaleDateString('pt-BR', {
@@ -210,9 +210,9 @@ Você receberá um lembrete no dia anterior. Até logo!`,
     await db
       .update(appointments)
       .set({
-        status: 'cancelled' as any,
+        status: 'cancelled',
         notes: 'Cancelado pelo paciente via WhatsApp',
-      } as any)
+      })
       .where(eq(appointments.id, appointment.appointmentId))
 
     dbLogger.info(`Appointment ${appointment.appointmentId} cancelled via WhatsApp`, {
@@ -316,9 +316,9 @@ export async function processWaitlistConfirmation(
       procedureId: entry.procedureId ?? null,
       scheduledAt,
       durationMinutes: 30,
-      status: 'confirmed' as any,
+      status: 'confirmed',
       notes: 'Agendado via lista de espera',
-    } as any)
+    })
     .returning()
 
   const appointment = appointmentResult[0]
@@ -334,7 +334,7 @@ export async function processWaitlistConfirmation(
     .set({
       status: 'scheduled',
       scheduledAppointmentId: appointment.id,
-    } as any)
+    })
     .where(eq(waitlist.id, entry.id))
 
   const dateStr = scheduledAt.toLocaleDateString('pt-BR', {

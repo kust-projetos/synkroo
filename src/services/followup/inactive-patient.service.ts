@@ -80,6 +80,8 @@ export async function identifyInactivePatients(
     .where(
       and(
         eq(patients.clinicId, clinicId),
+        // P1: active-only — soft-deleted não entram em detecção/campanha.
+        isNull(patients.deletedAt),
         or(
           isNull(patients.lastVisitAt),
           lte(patients.lastVisitAt, cutoffDate),
@@ -113,7 +115,9 @@ export async function identifyInactivePatients(
     .where(
       and(
         inArray(appointments.patientId, patientIds),
-        inArray(appointments.status as any, ['completed', 'confirmed']),
+        // P1: active-only — consultas soft-deleted não contam como visita.
+        isNull(appointments.deletedAt),
+        inArray(appointments.status, ['completed', 'confirmed']),
       ),
     )
     .orderBy(desc(appointments.scheduledAt))
@@ -251,7 +255,8 @@ export async function getInactivityStats(clinicId: string): Promise<{
       inactive180: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} <= ${cutoff180})::int`,
     })
     .from(patients)
-    .where(eq(patients.clinicId, clinicId))
+    // P1: active-only — soft-deleted fora das contagens de inatividade.
+    .where(and(eq(patients.clinicId, clinicId), isNull(patients.deletedAt)))
 
   const bySegment: Record<string, number> = {
     inactive_30: Number(row?.inactive30 ?? 0),

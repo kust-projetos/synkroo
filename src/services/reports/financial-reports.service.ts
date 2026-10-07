@@ -5,6 +5,11 @@
  * Supports REPORT-05: Financial reports by period
  * Supports REPORT-03: Identify inactive patients
  * Supports REPORT-04: Upsell/upgrade opportunities
+ *
+ * P1 money-path fail-closed: DB/retryable failures PROPAGATE (throw) instead
+ * of resolving to fabricated zero/empty reports. A zero in a report always
+ * means a genuine empty period (EXPECTED_EMPTY), never a swallowed failure.
+ * Callers (route handlers) map the throw to 500 via apiFailure.
  */
 
 import { eq, and, gte, lte, lt, or, isNull, inArray, sql } from 'drizzle-orm'
@@ -217,7 +222,9 @@ export async function getFinancialReport(clinicId: string, period: PeriodType, d
     }
   } catch (error) {
     dbLogger.error('Error in getFinancialReport', error)
-    return { period: formatPeriodString(period, date), revenue: 0, payments: 0, outstanding: 0, byProcedure: [] }
+    // P1: FATAL — propagate instead of returning a fabricated zero-revenue
+    // report with implicit success; revenue-zero-real ≠ revenue-unknown.
+    throw error
   }
 }
 
@@ -241,7 +248,7 @@ export async function getInactivePatients(clinicId: string, daysThreshold: numbe
       const lastVisit = p.lastVisitAt || p.createdAt || new Date()
       return { patientId: p.id, patientName: p.name, patientPhone: p.phone, lastVisit, daysSinceVisit: Math.floor((now.getTime() - new Date(lastVisit).getTime()) / 86400000) }
     }).sort((a, b) => b.daysSinceVisit - a.daysSinceVisit)
-  } catch (e) { dbLogger.error('Error in getInactivePatients', e); return [] }
+  } catch (e) { dbLogger.error('Error in getInactivePatients', e); throw e } // P1: DEGRADED/FATAL — empty means no inactive patients, never a swallowed DB failure
 }
 
 // ─── Upsell Opportunities ─────────────────────────────────────────────────────
@@ -275,5 +282,5 @@ export async function getUpsellOpportunities(clinicId: string, daysThreshold: nu
       opps.push({ patientId: p.patientId, patientName: p.patientName || 'Unknown', lastTreatment: p.title, daysSinceCompletion: Math.floor((Date.now() - new Date(completionDate).getTime()) / 86400000), lastBudgetId: p.id })
     }
     return opps.sort((a, b) => b.daysSinceCompletion - a.daysSinceCompletion)
-  } catch (e) { dbLogger.error('Error in getUpsellOpportunities', e); return [] }
+  } catch (e) { dbLogger.error('Error in getUpsellOpportunities', e); throw e } // P1: DEGRADED/FATAL — empty means no opportunities, never a swallowed DB failure
 }
