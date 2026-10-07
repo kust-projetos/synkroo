@@ -177,7 +177,7 @@ describe('WAHA loopback-only target candidate scaffold', () => {
 
   test('preflight requires exactly 0600 on POSIX (0400/0700/group/other rejected)', () => {
     assert.equal(isPrivateFileMode(0o100600, 'linux'), true);
-    for (const mode of [0o100400, 0o100700, 0o100640, 0o100644, 0o100600 | 0o111]) {
+    for (const mode of [0o100400, 0o100700, 0o100640, 0o100644, 0o100600 | 0o111, 0o104600, 0o102600, 0o101600]) {
       assert.equal(isPrivateFileMode(mode, 'linux'), false, `mode ${mode.toString(8)} must fail`);
     }
     // Windows mode bits are emulated: documented no-op, private directory required instead.

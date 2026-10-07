@@ -98,7 +98,8 @@ function readPrivateEnvFile(envPath) {
  */
 export function isPrivateFileMode(mode, platform = process.platform) {
   if (platform === 'win32') return true;
-  return (mode & 0o777) === 0o600;
+  // Full 0o7777: setuid/setgid/sticky bits (0o4600/0o2600/0o1600) must fail too.
+  return (mode & 0o7777) === 0o600;
 }
 
 function main() {
