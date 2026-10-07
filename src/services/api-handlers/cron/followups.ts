@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { runAction } from '@/core/actions/run';
+import type { ActionDefinition } from '@/core/actions/types';
 import { buildCronContext } from '@/core/actions/context';
 import { getDb } from '@/lib/db/client';
 import { eq, isNull } from 'drizzle-orm';
@@ -111,9 +112,11 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     .where(isNull(clinics.deletedAt));
 
   // Build the task → action mapping with required permission
+  // P1-FIX-CANON(2): outputs heterogêneos (cada Action tem seu batch) —
+  // ActionDefinition<any, unknown> evita colapso de inferência do union.
   const TASK_MAP: Array<{
     key: string;
-    action: typeof executarFollowup | typeof detectarInativos | typeof executarCampanhas;
+    action: ActionDefinition<any, unknown>;
     requires: string;
   }> = [
     { key: 'followups', action: executarFollowup, requires: 'followup:manage_followups' },
