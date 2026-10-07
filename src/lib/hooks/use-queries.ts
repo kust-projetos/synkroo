@@ -325,13 +325,28 @@ export function usePipelineStages(clinicId?: string) {
 }
 
 /**
- * Dashboard stats — cached for 1 min
+ * Dashboard stats — cached for 1 min.
+ * P1: o envelope carrega `degraded`/`failedParts` + flags `stale` por
+ * agregado; zeros com stale significam "desconhecido", nunca vazio.
  */
+export interface DashboardStats {
+  today: { appointments: number; confirmed: number; pending: number; stale: boolean }
+  metrics: {
+    confirmationRate: number
+    activeCampaigns: number
+    openConversations: number
+    totalPatients: number
+    stale: boolean
+  }
+  inactivePatients: { totalInactive: number; bySegment: Record<string, unknown>; stale: boolean }
+  degraded: boolean
+  failedParts: string[]
+}
 export function useDashboardStats(clinicId?: string) {
   const resolved = useResolvedClinicId(clinicId)
   return useQuery({
     queryKey: queryKeys.dashboardStats(resolved),
-    queryFn: () => fetcher<any>('/api/dashboard/stats'),
+    queryFn: () => fetcher<DashboardStats>('/api/dashboard/stats'),
   })
 }
 
