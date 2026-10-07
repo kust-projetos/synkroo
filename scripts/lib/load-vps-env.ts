@@ -265,7 +265,13 @@ export function writeVpsEnvKey(
   const current = parseVpsEnvContent(fs.readFileSync(configPath, 'utf8'));
   if (current[key] === value) return 'unchanged';
 
+  // P1 (CWE-732): o arquivo guarda segredos — destino e backup devem ficar
+  // 0600. copyFileSync herda o mode de origem e o tmp nasceria 0644 sob
+  // umask 022, então fixa-se 0600 em todos os artefatos. No Windows chmod é
+  // no-op (ACL/readonly apenas) — documentado como limitação aceita; a
+  // proteção real lá é a ACL do diretório privado do usuário.
   fs.copyFileSync(configPath, `${configPath}.bak`);
+  fs.chmodSync(`${configPath}.bak`, 0o600);
 
   const raw = fs.readFileSync(configPath, 'utf8');
   const regex = new RegExp(`^\\s*${key}\\s*=.*$`, 'm');
@@ -273,7 +279,9 @@ export function writeVpsEnvKey(
     ? raw.replace(regex, `${key}=${value}`)
     : `${raw.trimEnd()}\n${key}=${value}\n`;
   const tmpPath = `${configPath}.tmp.${process.pid}`;
-  fs.writeFileSync(tmpPath, next, 'utf8');
+  fs.writeFileSync(tmpPath, next, { encoding: 'utf8', mode: 0o600 });
+  fs.chmodSync(tmpPath, 0o600);
   fs.renameSync(tmpPath, configPath);
+  fs.chmodSync(configPath, 0o600);
   return 'updated';
 }

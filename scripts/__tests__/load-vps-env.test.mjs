@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, statSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import { test } from 'node:test';
@@ -188,8 +188,22 @@ test('(8) escrita atomica: inalterado nao reescreve; alteracao gera .bak', () =>
   assert.throws(() => writeVpsEnvKey(file, 'KEY INVALID', 'x'), /invalid key/);
 });
 
-test('(9) CRLF parseia identico ao LF', () => {
-  const lf = parseVpsEnvContent(FAKE_ENV_LF);
+test('(10) escrita preserva 0600 no destino e no .bak (CWE-732)', () => {
+  if (process.platform === 'win32') {
+    console.log('skip: chmod 0600 nao se aplica no Windows (ACL apenas; chmod e no-op)');
+    return;
+  }
+  const { proj } = makeProject();
+  const file = join(proj, 'vps.env');
+  writeFileSync(file, 'VPS_IP=10.0.0.10\n', { encoding: 'utf8', mode: 0o600 });
+  chmodSync(file, 0o600);
+  assert.equal(writeVpsEnvKey(file, 'VPS_PG_PORT', '5432'), 'updated');
+  assert.equal(statSync(file).mode & 0o777, 0o600);
+  assert.ok(existsSync(`${file}.bak`), 'mudanca deve gerar .bak');
+  assert.equal(statSync(`${file}.bak`).mode & 0o777, 0o600);
+});
+
+test('(9) CRLF parseia identico ao LF', () => {  const lf = parseVpsEnvContent(FAKE_ENV_LF);
   const crlf = parseVpsEnvContent(FAKE_ENV_LF.replaceAll('\n', '\r\n'));
   assert.deepEqual(crlf, lf);
   for (const [k, v] of Object.entries(crlf)) {
