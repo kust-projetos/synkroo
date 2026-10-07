@@ -157,18 +157,44 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Check and notify hot leads across all clinics (existing preserved branch)
+  // P1-FIX-CANON(3): o contexto cron padrão NÃO contém
+  // 'comercial:manage_hot_leads' (allowlist fixa de follow-up) — executar a
+  // Action com ele era sempre forbidden mas reportava ok:true. Usa contexto
+  // explicitamente autorizado SÓ para essa permissão (sem ampliar a
+  // allowlist global) e registra o resultado por clínica.
   if (tasks.includes('all') || tasks.includes('hot-leads')) {
     logger.info('[cron/followups] Checking hot leads across clinics...');
-    try {
-      for (const c of activeClinics) {
-        const ctx = await buildCronContext(c.id);
-        await runAction(processarNotificacoesLeadsQuentes, {}, ctx);
+    const hotLeadsResults: CronResult[] = [];
+    for (const c of activeClinics) {
+      const base = await buildCronContext(c.id);
+      if (!base.hasModule('comercial')) {
+        logger.info(`[cron/followups] Clinic ${c.id} lacks comercial module, skipping hot-leads`);
+        skipped++;
+        continue;
       }
-      results.hotLeads = [{ task: 'hot-leads', clinicId: 'all', ok: true }];
-    } catch (err) {
-      logger.error('[cron/followups] Hot leads processing error:', err);
-      results.hotLeads = [{ task: 'hot-leads', clinicId: 'all', ok: false, error: String(err) }];
+      const hotCtx = {
+        ...base,
+        can: (key: string) => key === 'comercial:manage_hot_leads',
+        audit: { actor: 'cron:hot-leads' },
+      };
+      try {
+        const actionResult = await runAction(processarNotificacoesLeadsQuentes, {}, hotCtx);
+        if (!actionResult.ok) {
+          hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: false, error: actionResult.error.message });
+        } else {
+          const failure = businessFailure(actionResult.data);
+          if (failure) {
+            hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: false, error: failure, data: actionResult.data });
+          } else {
+            hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: true, data: actionResult.data });
+          }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        hotLeadsResults.push({ task: 'hot-leads', clinicId: c.id, ok: false, error: message });
+      }
     }
+    results.hotLeads = hotLeadsResults;
   }
 
   // Agregado explícito: nunca success:true puro quando há falhas registradas.

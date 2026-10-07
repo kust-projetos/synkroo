@@ -164,6 +164,49 @@ describe('POST /api/cron/followups', () => {
     expect(body.data.summary.errors).toHaveLength(1);
   });
 
+  it('hot-leads usa contexto explicitamente autorizado e registra por clinica (P1-FIX-CANON 3)', async () => {
+    mockWhere.mockResolvedValueOnce([{ id: 'clinic-a' }]);
+    mockBuildCronContext.mockResolvedValueOnce({
+      clinicId: 'clinic-a', can: () => false, hasModule: () => true, audit: { actor: 'cron' },
+    });
+    mockRunAction.mockResolvedValueOnce({ ok: true, data: { notified: 1, skipped: 0 } });
+
+    const req = makeCronRequest('hot-leads');
+    req.headers.set('Authorization', `Bearer ${SECRET}`);
+    const response = await POST(req);
+    const body = await response.json();
+
+    expect(body.data.success).toBe(true);
+    expect(body.data.results.hotLeads).toMatchObject([
+      { task: 'hot-leads', clinicId: 'clinic-a', ok: true },
+    ]);
+    // O contexto passado à Action autoriza SÓ a permissão de hot-leads —
+    // sem ampliar a allowlist global do cron.
+    const hotCtx = mockRunAction.mock.calls[0][2] as { can: (key: string) => boolean };
+    expect(hotCtx.can('comercial:manage_hot_leads')).toBe(true);
+    expect(hotCtx.can('followup:manage_followups')).toBe(false);
+    expect(hotCtx.can('anything:else')).toBe(false);
+  });
+
+  it('hot-leads forbidden por clinica vira ok:false e derruba success (P1-FIX-CANON 3)', async () => {
+    mockWhere.mockResolvedValueOnce([{ id: 'clinic-a' }]);
+    mockBuildCronContext.mockResolvedValueOnce({
+      clinicId: 'clinic-a', can: () => false, hasModule: () => true, audit: { actor: 'cron' },
+    });
+    mockRunAction.mockResolvedValueOnce({ ok: false, error: { message: 'Sem permissão.' } });
+
+    const req = makeCronRequest('hot-leads');
+    req.headers.set('Authorization', `Bearer ${SECRET}`);
+    const response = await POST(req);
+    const body = await response.json();
+
+    expect(body.data.success).toBe(false);
+    expect(body.data.status).toBe('failed');
+    expect(body.data.results.hotLeads).toMatchObject([
+      { task: 'hot-leads', clinicId: 'clinic-a', ok: false, error: 'Sem permissão.' },
+    ]);
+  });
+
   it('returns 401 when CRON_SECRET is missing', async () => {
     const req = makeCronRequest('followups');
     // No Authorization header
