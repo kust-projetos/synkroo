@@ -42,26 +42,26 @@ O código atual é a verdade operacional. Nada do vNext deve ser tratado como im
 | 17 | Workers | IMPLEMENTADO | DO + bridge RPC + service bindings | Agents SDK não usado (DO cru, limitação cross-worker documentada) | nenhum (ADR-BASE-07) |
 | 18 | Dashboard | PARCIAL | stats + alerts API | painel passivo; alerts sem consumidor | P8 (Control Center) |
 
-## 3. Defeitos de confiança descobertos (P0-fix, PR irmão #25 — STATUS DEPENDENCY-AWARE)
+## 3. Defeitos de confiança corrigidos (P0-fix, PR #25 — MERGED / VALIDATED)
 
-> Legenda: `CORRIGIDO NO BRANCH/PR` = fix existe no branch `fix/p0-trust-defects-2026-10-05` (PR #25) mas **NÃO está na `main`**; `MERGEADO NA MAIN` = presente no HEAD da `main`; `PENDENTE` = sem fix; `VALIDADO` = na `main` + gates verdes + revalidação. **O P0 NÃO está concluído enquanto o PR #25 estiver aberto, houver thread crítica aberta ou CI obrigatório vermelho.**
+> Legenda: `MERGED / VALIDATED` = fix mergeado na `main` via PR #25 (merge `fddbdc9e`, HEAD `104bf67e`) + CI verde no HEAD + threads Codex resolvidas + revalidação pós-merge. **O P0 fecha quando este PR #24 (documentação) também estiver mergeado e a issue #23 formalmente encerrada.**
 
-Estes quatro defeitos impedem a "visão confiável" que o P0 exige. Status em 2026-10-06: **CORRIGIDOS NO BRANCH/PR #25, PENDENTES DE MERGE NA MAIN, NÃO VALIDADOS**:
+Status em 2026-10-07: **MERGED / VALIDATED — os 4 defeitos + 2 pendências de review estão na `main`**:
 
-| # | Defeito | Status | Evidência do fix (branch/PR #25) |
+| # | Defeito | Status | Evidência do fix (main pós-#25) |
 |---|---|---|---|
-| 1 | IDOR cross-tenant com PHI no POST noshow-prediction | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN | `noshow-prediction/route.ts:79` (clinicId do auth) + `service.ts:174` (`and(eq(id),eq(clinicId))`) + 404 opaco |
-| 2 | Risk score fabricado (paciente inexistente/erro DB) | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN | service retorna `null` → 404; catch fail-closed com rethrow |
-| 3 | Enum inválido `'pending' as any` em alerts | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN (+ pendência adicional §3.1) | `alerts.ts:139` → `'scheduled'`; `as any` removido |
-| 4 | `atRiskRevenue: 0` hardcoded | CORRIGIDO NO BRANCH/PR #25 — PENDENTE MERGE/VALIDAÇÃO NA MAIN (+ pendência adicional §3.2) | `patients/inactive/route.ts:89` via `getInactivityStats(ctx.clinicId)`; DB failure → 500 |
+| 1 | IDOR cross-tenant com PHI no POST noshow-prediction | MERGED / VALIDATED no PR #25 | `noshow-prediction/route.ts:79` (clinicId do auth) + `service.ts:174` (`and(eq(id),eq(clinicId))`) + 404 opaco |
+| 2 | Risk score fabricado (paciente inexistente/erro DB) | MERGED / VALIDATED no PR #25 | service retorna `null` → 404; catch fail-closed com rethrow |
+| 3 | Enum inválido `'pending' as any` em alerts | MERGED / VALIDATED no PR #25 (+ §3.1) | `alerts.ts:139` → `'scheduled'`; `as any` removido |
+| 4 | `atRiskRevenue: 0` hardcoded | MERGED / VALIDATED no PR #25 (+ §3.2) | `patients/inactive/route.ts:89` via `getInactivityStats(ctx.clinicId)`; DB failure → 500 |
 
-### 3.1 Pendência adicional P0 (review PR #25): soft-delete em alerts
+### 3.1 Pendência adicional P0 (review PR #25): soft-delete em alerts — MERGED / VALIDATED
 
-A query reativada em `alerts.ts` não exclui `deletedAt != null` (soft-delete só marca `deletedAt`, mantém `status='scheduled'`). **PENDENTE** — fix exigido: mesmo predicado `deletedAt IS NULL` das queries de `dashboard/stats.ts`.
+A query reativada em `alerts.ts` excluía `deletedAt != null` incorretamente (soft-delete só marca `deletedAt`, mantém `status='scheduled'`). **CORRIGIDO E MERGEADO** — predicado `isNull(appointments.deletedAt)` (commit `2a054181`); cobertura em `alerts-soft-delete.test.ts` (PASS); thread Codex resolvida em 2026-10-07.
 
-### 3.2 Pendência adicional P0 (review PR #25): overcount cumulativo de receita
+### 3.2 Pendência adicional P0 (review PR #25): overcount cumulativo de receita — MERGED / VALIDATED
 
-`getInactivityStats` define buckets cumulativos e soma os 4 → paciente 180d contado 4x. **PENDENTE** — fix exigido: buckets mutuamente exclusivos OU receita do conjunto distinto `inactive_30`.
+`getInactivityStats` definia buckets cumulativos e somava os 4 → paciente 180d contado 4x. **CORRIGIDO E MERGEADO** — buckets mutuamente exclusivos 30–59/60–89/90–179/180+ (commits `00f38f52`, `88ee3449`); cobertura em `getInactivityStats.exclusive.test.ts` + integration (PASS); thread Codex resolvida em 2026-10-07.
 
 Detalhe original dos quatro defeitos (para auditoria):
 
