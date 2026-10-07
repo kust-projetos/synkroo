@@ -91,6 +91,21 @@ describe('inactive-service', () => {
   });
 
   describe('findInactivePatients', () => {
+    it('exclui soft-deleted da detecção (active-only, P1-FIX-CANON 4)', async () => {
+      const chain = query([], 'where');
+      mockDb.select.mockReturnValueOnce(chain);
+
+      await findInactivePatients('c1', 30);
+
+      const predicate = chain.where.mock.calls[0][0];
+      const { sql: rendered } = new PgDialect().sqlToQuery(predicate);
+
+      // isNull(patients.deletedAt) presente no WHERE de pacientes.
+      expect(rendered).toContain('deleted_at');
+      expect(rendered).toContain('is null');
+      expect(rendered).toContain('clinic_id');
+    });
+
     it('finds inactive patients scoped to clinicId and minDays', async () => {
       mockDb.select
         .mockReturnValueOnce(query([
@@ -129,12 +144,12 @@ describe('inactive-service', () => {
       expect(result[1].totalVisits).toBe(1);
     });
 
-    it('returns an empty list when the database query fails', async () => {
+    it('propaga falha da primeira consulta em vez de mascarar como lista vazia (P1-FIX-CANON 4)', async () => {
       mockDb.select.mockImplementationOnce(() => {
         throw new Error('database unavailable');
       });
 
-      await expect(findInactivePatients('c1')).resolves.toEqual([]);
+      await expect(findInactivePatients('c1')).rejects.toThrow('database unavailable');
     });
 
     it('usa borda inclusiva (<=) e tenant, coerente com INACTIVITY_SEGMENTS', async () => {

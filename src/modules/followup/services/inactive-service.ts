@@ -48,8 +48,11 @@ export function getInactivitySegment(daysSinceLastVisit: number): InactivitySegm
 export async function findInactivePatients(clinicId: string, minDays = 30): Promise<InactivePatient[]> {
   const db = getDb();
   const cutoff = new Date(Date.now() - minDays * 86_400_000);
+  // P1-FIX-CANON(4): falha de leitura PROPAGA (throw) — nunca vira [] com
+  // success:true no caller. Log mantido para diagnóstico.
+  let patientRows;
   try {
-    const patientRows = await db.select({
+    patientRows = await db.select({
       id: patients.id,
       name: patients.name,
       phone: patients.phone,
@@ -58,10 +61,16 @@ export async function findInactivePatients(clinicId: string, minDays = 30): Prom
       clinicId: patients.clinicId,
     }).from(patients).where(and(
       eq(patients.clinicId, clinicId),
+      // P1 active-only (alinhado à legada): soft-deleted fora da detecção.
+      isNull(patients.deletedAt),
       // Borda inclusiva ("inativo há >= minDays") — coerente com
       // getInactivitySegment/INACTIVITY_SEGMENTS; paciente no cutoff exato conta.
       or(isNull(patients.lastVisitAt), lte(patients.lastVisitAt, cutoff)),
     ));
+  } catch (error) {
+    dbLogger.error('Error identifying inactive patients', error);
+    throw error;
+  }
     if (!patientRows.length) return [];
 
     const [clinic] = await db.select({ name: clinics.name }).from(clinics).where(eq(clinics.id, clinicId));
@@ -76,6 +85,8 @@ export async function findInactivePatients(clinicId: string, minDays = 30): Prom
       .where(and(
         eq(appointments.clinicId, clinicId),
         inArray(appointments.patientId, patientIds),
+        // P1 active-only (alinhado à legada): consultas soft-deleted não contam.
+        isNull(appointments.deletedAt),
         inArray(appointments.status as any, ['completed', 'confirmed']),
       ))
       .orderBy(desc(appointments.scheduledAt));
@@ -111,10 +122,6 @@ export async function findInactivePatients(clinicId: string, minDays = 30): Prom
       const bPriority = INACTIVITY_SEGMENTS.find((segment) => segment.segment === b.inactivitySegment)?.priority ?? 0;
       return bPriority - aPriority || b.riskScore - a.riskScore;
     });
-  } catch (error) {
-    dbLogger.error('Error identifying inactive patients', error);
-    return [];
-  }
 }
 
 async function updateInactivePatientTags(clinicId: string, errorMessages: string[] = []): Promise<{ updated: number; errors: number }> {
