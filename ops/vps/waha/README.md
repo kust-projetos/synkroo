@@ -61,6 +61,22 @@ the `env -u` options also prevent shell variables from overriding Compose values
 These commands are read-only validation; they do not pull images, create
 volumes or start containers. No `docker compose up` was run for this scaffold.
 
+## Deploy script (not yet run)
+
+`deploy-waha.sh` is versioned here and runs ON the target (copied with the
+compose file to `/opt/synkroo/waha/` at deploy time; never from a workstation):
+
+```bash
+./deploy-waha.sh /opt/synkroo/waha/.env            # dry-run: validate + plan only
+./deploy-waha.sh /opt/synkroo/waha/.env --apply    # pull pinned image + up
+```
+
+Gates: env file mode exactly `0600` → single execution (flock) → required
+settings validated (names only in output) → pull by immutable RepoDigest →
+verify the pulled RepoDigest EQUALS the pinned value (mismatch aborts before
+`up`) → compose up loopback-only → wait healthy → loopback `/health` smoke.
+No deploy has been executed; the target still has no WAHA container or volume.
+
 ## Persistence and remaining GO gates
 
 `synkroo_waha_sessions_candidate` persists `/app/.sessions`, which contains
