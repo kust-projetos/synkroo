@@ -57,11 +57,13 @@ export default function AnalyticsPage() {
   const fetchNoShowRisks = async () => {
     try {
       setRisksLoading(true)
+      setRisksError(null)
       const response = await fetch('/api/analytics/noshow-prediction')
       if (response.ok) {
         const body = await response.json()
         // Contrato canônico (D2 lote 5): { data: { predictions, summary } }
         setNoShowRisks(body.data?.predictions || [])
+        setRisksError(null)
       } else {
         // Fail-closed agora é observável: GET responde 500 em falha de DB
         // (antes engolia o erro e devolvia lista vazia silenciosamente).

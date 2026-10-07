@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lte, or } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { clinics } from '@/lib/db/schema/core';
 import { appointments, patients, procedures } from '@/modules/operacional/schema';
@@ -58,7 +58,9 @@ export async function findInactivePatients(clinicId: string, minDays = 30): Prom
       clinicId: patients.clinicId,
     }).from(patients).where(and(
       eq(patients.clinicId, clinicId),
-      or(isNull(patients.lastVisitAt), lt(patients.lastVisitAt, cutoff)),
+      // Borda inclusiva ("inativo há >= minDays") — coerente com
+      // getInactivitySegment/INACTIVITY_SEGMENTS; paciente no cutoff exato conta.
+      or(isNull(patients.lastVisitAt), lte(patients.lastVisitAt, cutoff)),
     ));
     if (!patientRows.length) return [];
 
