@@ -16,9 +16,17 @@
  * local process table while wrangler runs — a documented limitation (P2:
  * move to a stdin/env-based secret handoff if wrangler supports one). Every
  * output/error surface passes through redactSecrets before logging.
+ *
+ * Windows: wrangler runs via `process.execPath` + `bin/wrangler.js`
+ * (no `npx` shim — `npx.cmd` fails under execFileSync without shell).
+ * Dry-run prints the resolved node command without executing (works even
+ * when wrangler is not installed).
  */
 
-import { execFileSync } from 'child_process';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import * as path from 'node:path';
 import {
   describeOrigin,
   isDryRun,
@@ -34,22 +42,56 @@ function toText(output: unknown): string {
   return '';
 }
 
+/**
+ * Resolve o entrypoint JS do Wrangler para execução via `process.execPath`.
+ *
+ * Por que não `npx wrangler`: no Windows o launcher é `npx.cmd` e
+ * `execFileSync('npx', ...)` falha com ENOENT fora de shell (P1 WINDOWS).
+ * Executar `bin/wrangler.js` com o node atual elimina a dependência de
+ * shell/shim em qualquer OS, mantendo argv separado (sem interpolação).
+ */
+export function resolveWranglerEntry(): string {
+  try {
+    const require = createRequire(path.join(process.cwd(), 'package.json'));
+    return require.resolve('wrangler/bin/wrangler.js');
+  } catch {
+    const fallback = path.resolve(process.cwd(), 'node_modules', 'wrangler', 'bin', 'wrangler.js');
+    if (existsSync(fallback)) return fallback;
+    throw new Error(
+      'Wrangler entrypoint not found: install the `wrangler` devDependency ' +
+        '(expected `wrangler/bin/wrangler.js` under node_modules).',
+    );
+  }
+}
+
 function runWranglerHyperdriveUpdate(
   label: string,
   args: string[],
   secrets: string[],
   dryRun: boolean,
 ): void {
-  const display = redactSecrets(`npx ${args.join(' ')}`, secrets);
+  // Chamadas chegam como ['wrangler', 'hyperdrive', ...] (legado npx);
+  // o 'wrangler' inicial é o bin, não argumento.
+  const wranglerArgs = args[0] === 'wrangler' ? args.slice(1) : args;
+  let entry: string;
+  try {
+    entry = resolveWranglerEntry();
+  } catch {
+    // Dry-run é plano apenas: nunca falha por wrangler ausente.
+    entry = '<wrangler-entrypoint>';
+  }
+  const display = redactSecrets(`node ${entry} ${wranglerArgs.join(' ')}`, secrets);
   if (dryRun) {
     console.log(`[dry-run] Would run: ${display}`);
     return;
   }
+  // Resolução real (lança se wrangler ausente) só no caminho de execução.
+  entry = resolveWranglerEntry();
   try {
-    // No shell: argv passed as an array so no quoting/interpolation layer
-    // can split or leak the password. Piped (never inherited): child output
-    // is captured so every printed byte passes through redactSecrets.
-    const stdout = execFileSync('npx', args, { stdio: 'pipe', encoding: 'utf8' });
+    // No shell: argv passado como array via node atual (Windows-safe:
+    // sem npx.cmd/shim). Piped (nunca herdado): saída capturada passa
+    // por redactSecrets antes de qualquer log.
+    const stdout = execFileSync(process.execPath, [entry, ...wranglerArgs], { stdio: 'pipe', encoding: 'utf8' });
     const text = redactSecrets(toText(stdout), secrets).trimEnd();
     if (text) console.log(text);
   } catch (err) {
