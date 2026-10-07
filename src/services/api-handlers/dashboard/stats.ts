@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server'
-import { eq, and, gte, lt, inArray, sql } from 'drizzle-orm'
+import { eq, and, gte, lt, inArray, sql, isNull } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
 import { dbLogger } from '@/lib/logger'
@@ -137,10 +137,11 @@ export async function GET(request: NextRequest) {
         }),
 
       // 6. Total patients count
+      // P1: active-only — soft-deleted fora da métrica.
       db
         .select({ count: sql<number>`count(*)::int` })
         .from(patientsTable)
-        .where(eq(patientsTable.clinicId, clinicId))
+        .where(and(eq(patientsTable.clinicId, clinicId), isNull(patientsTable.deletedAt)))
         .then(([r]) => r?.count ?? 0)
         .catch((err) => {
           dbLogger.error('Dashboard stats: patients count failed', { error: String(err) })
