@@ -61,7 +61,7 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 src/
 ├── app/
 │   ├── api/          # 36 módulos de API (192 arquivos de rotas/handlers)
-│   ├── dashboard/    # 17 páginas protegidas
+│   ├── dashboard/    # 36 páginas protegidas
 │   ├── login/        # Auth pages
 │   └── signup/
 ├── components/       # UI por 12 domínios (calendar, campaigns, charts, contacts, financeiro, lgpd, notifications, pi-finance, pipeline, reports, ui, whatsapp)
@@ -97,43 +97,46 @@ src/
 - **DB types:** `src/lib/db/types.ts` (inferidos do schema Drizzle; fonte: `src/lib/db/schema/*`)
 
 ## API Modules (36 módulos)
+
+> **Corrigido 2026-10-05 (P0 vNext):** a tabela anterior listava 8 módulos que não existem como diretórios (`agent`, `gateway`, `installments`, `notifications`, `payments`, `roles`, `routing`, `users`). RBAC é action-layer server-side; cobranças/parcelas vivem em `/api/financeiro/*`; o chat do agente é `/api/ia/chat`. Inventário completo: `docs/audit/2026-10-05-vnext-p0-capability-inventory.md`.
+
 | Módulo | Caminho | Descrição |
 |---|---|---|
-| Agent | `/api/agent/*` | Classificação, mensagens, pending actions, schedule flow |
+| Activities | `/api/activities` | Feed de atividades (timeline unificada) |
+| Admin | `/api/admin/*` | Provisionamento de cliente e run-migration (operador) |
 | Appointments | `/api/appointments/*` | CRUD, disponibilidade, confirmação, incomplete treatments |
-| Auth | `/api/auth/*` | Login, logout, signup, session, switch clinic |
-| Budgets | `/api/budgets/*` | Orçamentos, aceitação, follow-up, envio |
+| Auth | `/api/auth/*` | Login (NextAuth), logout, session, switch clinic, change-password |
+| Budgets | `/api/budgets/*` | Strangler legado de orçamentos (sem consumidor de UI — drenar) |
 | Campaigns | `/api/campaigns/*` | Campanhas, segmentação, preview |
 | Clinics | `/api/clinics/*` | Configurações da clínica e metadados |
-| Contacts | `/api/contacts/*` | CRM contatos e linha do tempo |
+| Consents | `/api/consents` | Consentimento LGPD |
+| Contacts | `/api/contacts/*` | CRM contatos (read-only por contrato), timeline, notas, tags, dedup/merge |
 | Conversations | `/api/conversations/*` | Chat conversas e mensagens |
-| Cron | `/api/cron/*` | Jobs: cleanup, followups, reminders, smart-triggers (CRON_SECRET + timingSafeEqual) |
+| Cron | `/api/cron/*` | Jobs: cleanup, followups, reminders, outbox, collections, hot-leads (CRON_SECRET + timingSafeEqual) |
 | CRM | `/api/crm/*` | Estatísticas de CRM e duplicidades |
+| Custom Fields | `/api/custom-fields/*` | Definições e valores de campos customizados |
 | Dashboard | `/api/dashboard/*` | Métricas, alertas e estatísticas |
 | Dentists | `/api/dentists/*` | Gestão de dentistas e agendas |
-| Financial | `/api/financial/*` | Resumo financeiro e fluxo de caixa |
-| Gateway | `/api/gateway/*` | Configuração de gateways de pagamento |
+| Financeiro | `/api/financeiro/*` | Orçamentos, parcelas, pagamentos, cobranças, gateways, webhooks |
 | Health | `/api/health/*` | Health checks de aplicação e banco |
-| Installments | `/api/installments/*` | Parcelamentos e conciliação |
+| IA | `/api/ia/*` | Chat do agente conversacional (ex-`/api/agent`) |
+| Instagram | `/api/instagram/*` | Webhook Meta (HMAC) para Instagram |
+| Internal | `/api/internal/*` | Readiness interno (workers/bridge) |
 | Knowledge | `/api/knowledge/*` | Base de conhecimento e RAG |
 | Leads | `/api/leads/*` | CRM leads, captura, qualificação, conversão |
 | LGPD | `/api/lgpd/*` | Exportação de dados e anonimização |
 | Messages | `/api/messages/*` | Inbound (WEBHOOK_SECRET), send (rate-limited), history |
-| Notifications | `/api/notifications/*` | Central de notificações e alertas |
 | Patients | `/api/patients/*` | Gestão pacientes, dedup, histórico, tags |
-| Payments | `/api/payments/*` | Processamento e webhook de pagamentos |
 | Pipeline | `/api/pipeline/*` | Funil de vendas e etapas |
 | Procedures | `/api/procedures/*` | Catálogo de procedimentos odontológicos |
-| Reminders | `/api/reminders/*` | Lembretes e confirmações automáticas |
+| Reminders | `/api/reminders/*` | Config de lembretes e confirmações automáticas |
 | Reports | `/api/reports/*` | Relatórios gerenciais e exportações |
-| Roles | `/api/roles/*` | Gestão de perfis e permissões RBAC |
-| Routing | `/api/routing/*` | Regras de roteamento de cobrança |
 | Seed | `/api/seed/*` | Endpoint de seed de ambiente local |
 | Tasks | `/api/tasks/*` | Tarefas e follow-ups |
 | Treatment Plans | `/api/treatment-plans/*` | Planos de tratamento e sessões |
-| Users | `/api/users/*` | Usuários da clínica e acessos |
 | Waitlist | `/api/waitlist/*` | Lista de espera inteligente |
 | WhatsApp | `/api/whatsapp/*` | Webhook, send, evolution, templates, QR |
+| Widget | `/api/widget/*` | Chat widget público (session token, origem allowlist) |
 | Analytics | `/api/analytics/*` | Métricas, no-show prediction, ROI |
 
 ## Env vars obrigatórias

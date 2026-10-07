@@ -24,15 +24,17 @@
 
 ## 2. P0 — Baseline
 
-- [ ] marcar documentos históricos quando contradisserem vNext;
-- [ ] atualizar arquitetura que ainda descreve Supabase como stack atual;
-- [ ] reconciliar referências antigas a Claude SDK com adapter multi-provider;
-- [ ] inventory de UI/API/Action/service/repository/tests/runtime;
-- [ ] listar todas as Actions por módulo;
-- [ ] classificar Actions em AUTO/CONFIRM/APPROVAL/DENY;
-- [ ] mapear duplicação legado `src/services` vs `src/modules`;
-- [ ] criar ADR do AI Control Plane;
-- [ ] atualizar ADR de WhatsApp para WAHA.
+> **Tranche baseline entregue em 2026-10-05** (inventários + reconciliação documental) — evidências em `docs/audit/2026-10-05-vnext-p0-baseline.md` (issue #23). **Fechamento formal do P0 somente após: merge do PR #25 (concluído, merge `fddbdc9e`), merge deste PR #24 e closure da issue #23. P1+ não iniciados.**
+
+- [x] marcar documentos históricos quando contradisserem vNext;
+- [x] atualizar arquitetura que ainda descreve Supabase como stack atual;
+- [x] reconciliar referências antigas a Claude SDK com adapter multi-provider;
+- [x] inventory de UI/API/Action/service/repository/tests/runtime;
+- [x] listar todas as Actions por módulo;
+- [x] classificar Actions em AUTO/CONFIRM/APPROVAL/DENY;
+- [x] mapear duplicação legado `src/services` vs `src/modules`;
+- [x] criar ADR do AI Control Plane;
+- [x] atualizar ADR de WhatsApp para WAHA.
 
 **Gate:** um conceito não pode ter duas fontes canônicas concorrentes.
 
