@@ -38,45 +38,42 @@ interface PatientHistory {
 // Pure functions (data-access-free)
 // ══════════════════════════════════════
 
-/** Get patient's appointment history — Drizzle. */
+/** Get patient's appointment history — Drizzle.
+ * Erro de DB PROPAGA: histórico vazio fabricaria "paciente novo" e poluiria
+ * o score de risco (fail-closed; quem loga é o caller `predictNoShowRisk`). */
 async function getPatientHistory(patientId: string): Promise<PatientHistory> {
   const db = getDb()
-  try {
-    const rows = await db
-      .select({
-        status: appointments.status,
-        scheduledAt: appointments.scheduledAt,
-        confirmationSentAt: appointments.confirmationSentAt,
-      })
-      .from(appointments)
-      .where(eq(appointments.patientId, patientId))
+  const rows = await db
+    .select({
+      status: appointments.status,
+      scheduledAt: appointments.scheduledAt,
+      confirmationSentAt: appointments.confirmationSentAt,
+    })
+    .from(appointments)
+    .where(eq(appointments.patientId, patientId))
 
-    const total = rows.length
-    const completed = rows.filter(a => a.status === 'completed').length
-    const cancelled = rows.filter(a => a.status === 'cancelled').length
-    const no_shows = rows.filter(a => a.status === 'no_show').length
+  const total = rows.length
+  const completed = rows.filter(a => a.status === 'completed').length
+  const cancelled = rows.filter(a => a.status === 'cancelled').length
+  const no_shows = rows.filter(a => a.status === 'no_show').length
 
-    const completedAppts = rows.filter(a => a.status === 'completed')
-    const lastVisit = completedAppts.length > 0
-      ? completedAppts.sort((a, b) => (b.scheduledAt?.getTime() ?? 0) - (a.scheduledAt?.getTime() ?? 0))[0].scheduledAt?.toISOString() ?? null
-      : null
+  const completedAppts = rows.filter(a => a.status === 'completed')
+  const lastVisit = completedAppts.length > 0
+    ? completedAppts.sort((a, b) => (b.scheduledAt?.getTime() ?? 0) - (a.scheduledAt?.getTime() ?? 0))[0].scheduledAt?.toISOString() ?? null
+    : null
 
-    const confirmedAppts = rows.filter(a => a.confirmationSentAt && a.scheduledAt && a.scheduledAt > a.confirmationSentAt)
-    let avgConfirmationTime: number | null = null
-    if (confirmedAppts.length > 0) {
-      const totalHours = confirmedAppts.reduce((sum, a) => {
-        const scheduled = a.scheduledAt!.getTime()
-        const confirmed = a.confirmationSentAt!.getTime()
-        return sum + (scheduled - confirmed) / (1000 * 60 * 60)
-      }, 0)
-      avgConfirmationTime = Math.round((totalHours / confirmedAppts.length) * 10) / 10
-    }
-
-    return { total_appointments: total, completed, cancelled, no_shows, last_visit: lastVisit, average_confirmation_time: avgConfirmationTime }
-  } catch (error) {
-    dbLogger.error('Error fetching patient history', error)
-    return { total_appointments: 0, completed: 0, cancelled: 0, no_shows: 0, last_visit: null, average_confirmation_time: null }
+  const confirmedAppts = rows.filter(a => a.confirmationSentAt && a.scheduledAt && a.scheduledAt > a.confirmationSentAt)
+  let avgConfirmationTime: number | null = null
+  if (confirmedAppts.length > 0) {
+    const totalHours = confirmedAppts.reduce((sum, a) => {
+      const scheduled = a.scheduledAt!.getTime()
+      const confirmed = a.confirmationSentAt!.getTime()
+      return sum + (scheduled - confirmed) / (1000 * 60 * 60)
+    }, 0)
+    avgConfirmationTime = Math.round((totalHours / confirmedAppts.length) * 10) / 10
   }
+
+  return { total_appointments: total, completed, cancelled, no_shows, last_visit: lastVisit, average_confirmation_time: avgConfirmationTime }
 }
 
 function calculateHistoryRisk(history: PatientHistory): RiskFactor {
@@ -161,27 +158,24 @@ function buildPatientHistoryMap(raw: ApptHistoryRow[]): Map<string, PatientHisto
 // Main exports
 // ══════════════════════════════════════
 
-export async function predictNoShowRisk(patientId: string, scheduledAt: string, _procedureId?: string): Promise<NoShowPrediction> {
+export async function predictNoShowRisk(
+  clinicId: string,
+  patientId: string,
+  scheduledAt: string,
+  _procedureId?: string
+): Promise<NoShowPrediction | null> {
   const db = getDb()
   try {
+    // Tenant scope obrigatório: paciente só é resolvido dentro da clínica do
+    // contexto autenticado. Sem isso, a rota vira IDOR cross-tenant (PHI).
     const [pt] = await db
       .select({ id: patients.id, name: patients.name, riskScore: patients.riskScore })
-      .from(patients).where(eq(patients.id, patientId))
+      .from(patients)
+      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
 
-    // Patient not found — return default medium risk without timing calculation
+    // Paciente inexistente ou de outra clínica: sem predição fabricada.
     if (!pt) {
-      return {
-        patient_id: patientId,
-        patient_name: 'Unknown',
-        scheduled_at: scheduledAt,
-        risk_score: 40,
-        riskLevel: 'medium',
-        factors: [
-          { name: 'patient_history', impact: 0.2, description: 'Paciente não encontrado' },
-          { name: 'inactivity', impact: 0.2, description: 'Sem histórico de visitas' },
-        ],
-        recommendations: ['Verificar dados do paciente'],
-      }
+      return null
     }
 
     const history = await getPatientHistory(patientId)
@@ -205,9 +199,9 @@ export async function predictNoShowRisk(patientId: string, scheduledAt: string, 
       recommendations: generateRecommendations(factors, riskScore),
     }
   } catch (err) {
+    // Fail-closed: erro de DB não pode virar score fabricado.
     dbLogger.error('Error predicting no-show risk', err)
-    return { patient_id: patientId, patient_name: 'Unknown', scheduled_at: scheduledAt, risk_score: 50, riskLevel: 'medium',
-      factors: [{ name: 'error', impact: 0.5, description: 'Erro ao calcular risco' }], recommendations: ['Verificar dados do paciente'] }
+    throw err
   }
 }
 
@@ -288,7 +282,8 @@ export async function getUpcomingAppointmentRisks(clinicId: string, days: number
     }
     return predictions.sort((a, b) => b.risk_score - a.risk_score)
   } catch (err) {
+    // Fail-closed: erro de DB não pode virar lista vazia (fake-success P0).
     dbLogger.error('Error getting upcoming appointment risks', err)
-    return []
+    throw err
   }
 }

@@ -1,4 +1,4 @@
-import { eq, and, lt, lte, or, isNull, inArray, desc, asc, sql } from 'drizzle-orm'
+import { eq, and, lte, or, isNull, inArray, desc, asc, sql } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { patients, appointments, procedures, clinics } from '@/lib/db/schema'
 import { dbLogger } from '@/lib/logger'
@@ -63,7 +63,10 @@ export async function identifyInactivePatients(
   const now = new Date()
   const cutoffDate = new Date(now.getTime() - minDaysInactive * 24 * 60 * 60 * 1000)
 
-  // 1. Find patients matching the inactivity condition
+  // 1. Find patients matching the inactivity condition.
+  // Borda coerente com getInactivityStats/INACTIVITY_SEGMENTS: "inativo há
+  // >= minDaysInactive" é inclusivo, então usa lte (paciente exatamente no
+  // cutoff conta), evitando divergência de 1 dia entre contagem e listagem.
   const patientRows = await db
     .select({
       id: patients.id,
@@ -79,7 +82,7 @@ export async function identifyInactivePatients(
         eq(patients.clinicId, clinicId),
         or(
           isNull(patients.lastVisitAt),
-          lt(patients.lastVisitAt, cutoffDate),
+          lte(patients.lastVisitAt, cutoffDate),
         ),
       ),
     )
@@ -205,7 +208,24 @@ export async function updateInactivePatientTags(
 
 /**
  * Get inactivity statistics for a clinic — Drizzle.
- * Cumulative counts per cutoff: inactive_30 = lastVisitAt < now-30d OR NULL, etc.
+ *
+ * DECISÃO (P0-REVENUE-FIX): buckets MUTUAMENTE EXCLUSIVOS alinhados a
+ * INACTIVITY_SEGMENTS (30–59, 60–89, 90–179, 180+), e NÃO cumulativos
+ * (>=30, >=60, >=90, >=180). Motivo: a versão cumulativa somava os 4
+ * buckets em atRiskRevenue e contava o mesmo paciente até 4x (ex.: 4
+ * pacientes dariam 4+3+2+1=10 em vez de 4, receita 5000 em vez de 2000).
+ * Com faixas exclusivas a soma é segura, totalInactive = soma dos 4
+ * (== count >=30d) e bySegment fica consistente com
+ * identifyInactivePatients/listarInativos e com o bySegment local da rota
+ * /api/patients/inactive (que já agrupa por segmento exclusivo).
+ * NULL (nunca visitou ≈ 999 dias) conta SOMENTE no bucket 180+.
+ *
+ * BORDAS (P0-BOUNDARY-FIX): faixas [30,60)/[60,90)/[90,180)/[180,∞) em
+ * dias reais — lower INCLUSIVO + upper EXCLUSIVO, alinhado a
+ * getInactivitySegment (ex.: getInactivitySegment(30) === 'inactive_30').
+ * Em SQL isso é `lastVisitAt <= cutoff30 AND lastVisitAt > cutoff60` etc.
+ * Consequência consciente: exatamente 30d passa a contar (antes o
+ * cumulativo `lastVisitAt < cutoff30` excluía 30d). NULL só no 180+.
  */
 export async function getInactivityStats(clinicId: string): Promise<{
   totalInactive: number
@@ -220,14 +240,15 @@ export async function getInactivityStats(clinicId: string): Promise<{
   const cutoff180 = new Date(now.getTime() - 180 * 24 * 3600 * 1000)
   const avgVisitValue = 250
 
-  // Query única com COUNT(*) FILTER por faixa (cumulativas, como antes:
-  // lastVisitAt < cutoff OU NULL) em vez de 1 round-trip por cutoff.
+  // Query única com COUNT(*) FILTER por faixas [30,60)/[60,90)/[90,180)/[180,∞)
+  // em dias reais (lower inclusivo + upper exclusivo, alinhado a
+  // getInactivitySegment) em vez de 1 round-trip por cutoff. NULL só no 180+.
   const [row] = await db
     .select({
-      inactive30: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff30})::int`,
-      inactive60: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff60})::int`,
-      inactive90: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff90})::int`,
-      inactive180: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} < ${cutoff180})::int`,
+      inactive30: sql<number>`count(*) filter (where ${patients.lastVisitAt} is not null and ${patients.lastVisitAt} <= ${cutoff30} and ${patients.lastVisitAt} > ${cutoff60})::int`,
+      inactive60: sql<number>`count(*) filter (where ${patients.lastVisitAt} is not null and ${patients.lastVisitAt} <= ${cutoff60} and ${patients.lastVisitAt} > ${cutoff90})::int`,
+      inactive90: sql<number>`count(*) filter (where ${patients.lastVisitAt} is not null and ${patients.lastVisitAt} <= ${cutoff90} and ${patients.lastVisitAt} > ${cutoff180})::int`,
+      inactive180: sql<number>`count(*) filter (where ${patients.lastVisitAt} is null or ${patients.lastVisitAt} <= ${cutoff180})::int`,
     })
     .from(patients)
     .where(eq(patients.clinicId, clinicId))
@@ -238,11 +259,13 @@ export async function getInactivityStats(clinicId: string): Promise<{
     inactive_90: Number(row?.inactive90 ?? 0),
     inactive_180: Number(row?.inactive180 ?? 0),
   }
-  const atRiskRevenue = (bySegment['inactive_30'] + bySegment['inactive_60'] + bySegment['inactive_90'] + bySegment['inactive_180']) * 2 * avgVisitValue
+  // Buckets exclusivos ⇒ soma segura; cada paciente conta exatamente 1x.
+  const totalInactive = bySegment['inactive_30'] + bySegment['inactive_60'] + bySegment['inactive_90'] + bySegment['inactive_180']
+  const atRiskRevenue = totalInactive * 2 * avgVisitValue
 
-  // totalInactive = inactive_30 (users inactive for >= 30 days)
+  // totalInactive = soma dos exclusivos (== count >= 30d)
   return {
-    totalInactive: bySegment['inactive_30'] ?? 0,
+    totalInactive,
     bySegment,
     atRiskRevenue: Math.round(atRiskRevenue),
   }
