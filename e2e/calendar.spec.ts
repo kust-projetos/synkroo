@@ -26,6 +26,7 @@ async function login(page: Page) {
 async function goToCalendar(page: Page) {
   const appointmentsResponse = page.waitForResponse(
     (response) =>
+      response.ok() &&
       response.url().includes("/api/appointments") &&
       response.url().includes("start_date="),
     { timeout: 30000 },
@@ -48,9 +49,18 @@ async function switchView(page: Page, viewName: string) {
   const viewValue = viewMap[viewName] || "week";
   const currentUrl = page.url();
   const baseUrl = currentUrl.split("?")[0];
+  const appointmentsResponse = page.waitForResponse(
+    (response) =>
+      response.ok() &&
+      response.url().includes("/api/appointments") &&
+      response.url().includes("start_date="),
+    { timeout: 30000 },
+  );
   await page.goto(`${baseUrl}?view=${viewValue}`);
-  await page.waitForSelector('button:has-text("Hoje")', { timeout: 10000 });
-  await page.waitForTimeout(500);
+  await expect(page.locator('button:has-text("Hoje")')).toBeVisible({
+    timeout: 15000,
+  });
+  await appointmentsResponse;
 }
 
 // Helper to click an empty slot using the rendered slot contract.
@@ -404,7 +414,7 @@ test.describe("Calendar - Event Interactions", () => {
     const firstEvent = page
       .locator('[role="button"][aria-label*="- "]')
       .first();
-    await expect(firstEvent).toBeVisible();
+    await expect(firstEvent).toBeVisible({ timeout: 15000 });
     await firstEvent.dblclick();
 
     await expect(page.locator('[role="dialog"]')).toBeVisible();
@@ -419,6 +429,7 @@ test.describe("Calendar - Event Interactions", () => {
     const firstEvent = page
       .locator('[role="button"][aria-label*="- "]')
       .first();
+    await expect(firstEvent).toBeVisible({ timeout: 15000 });
     const label = await firstEvent.getAttribute("aria-label");
     expect(label).toMatch(/.+-\s*\d{2}:\d{2}/);
   });

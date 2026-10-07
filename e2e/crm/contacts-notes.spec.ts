@@ -7,8 +7,14 @@ async function openContact(page: Page): Promise<void> {
   // Linhas de contato: button.w-full sem role (filtros Todos/Pacientes/Leads têm role="tab").
   const contactItem = page.locator('main button.w-full:not([role="tab"])').first()
   await expect(contactItem).toBeVisible({ timeout: 15000 })
-  await contactItem.click()
-  await page.waitForLoadState('networkidle')
+  await expect(async () => {
+    await contactItem.click()
+    await expect(page).toHaveURL(/contact=/)
+  }).toPass({ timeout: 15000 })
+  // Detalhe exclusivo: tabs Notas/Timeline so existem com painel aberto
+  // (data-testid no Panel desktop nao chega ao DOM; h1/h2 generico daria falso-positivo).
+  const detailTab = page.getByRole('tab', { name: /Notas|Timeline/i }).first()
+  await expect(detailTab).toBeVisible({ timeout: 15000 })
 }
 
 t.describe('CRM Contacts - Notes and Timeline', () => {
