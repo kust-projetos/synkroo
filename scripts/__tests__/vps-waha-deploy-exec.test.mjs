@@ -147,6 +147,15 @@ describe('WAHA deploy script behavior (fake docker, synthetic env)', { skip: !EX
     assert.doesNotMatch(r.stderr + r.stdout, /bad substitution/);
   });
 
+  test('apply fails on missing required key', () => {
+    const body = validEnvBody().split('\n').filter((l) => !l.startsWith('WAHA_ENGINE=')).join('\n') + '\n';
+    const envFile = writeEnv(body);
+    const r = run([envFile, '--apply']);
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr + r.stdout, /WAHA_ENGINE is unset/);
+    assert.doesNotMatch(callsLog(), /compose/);
+  });
+
   test('apply fails when the container never becomes healthy', () => {
     const envFile = writeEnv(validEnvBody());
     const r = run([envFile, '--apply'], { FAKE_HEALTH: 'starting' });
