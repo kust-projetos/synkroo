@@ -8,8 +8,8 @@
  * null/false (not-found), never as another clinic's row.
  */
 
-var mockChain: any;
-var mockDb: any;
+let mockChain: any;
+let mockDb: any;
 
 function makeChain(value: unknown) {
 	const chain: any = {};
