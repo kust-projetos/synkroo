@@ -117,7 +117,7 @@ export async function findInactivePatients(clinicId: string, minDays = 30): Prom
   }
 }
 
-async function updateInactivePatientTags(clinicId: string): Promise<{ updated: number; errors: number }> {
+async function updateInactivePatientTags(clinicId: string, errorMessages: string[] = []): Promise<{ updated: number; errors: number }> {
   const db = getDb();
   const inactivePatients = await findInactivePatients(clinicId, 30);
   let updated = 0;
@@ -137,21 +137,36 @@ async function updateInactivePatientTags(clinicId: string): Promise<{ updated: n
         .where(and(eq(patients.id, patient.patientId), eq(patients.clinicId, clinicId)));
       updated += 1;
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       dbLogger.error(`Error updating tags for ${patient.patientName}`, error);
       errors += 1;
+      errorMessages.push(`Patient ${patient.patientId}: ${message}`);
     }
   }
   return { updated, errors };
 }
 
-export async function runInactivityDetection(clinicId: string): Promise<{ processed: number }> {
-  const result = await updateInactivePatientTags(clinicId);
-  return { processed: result.updated };
+export interface InactivityBatchResult {
+  processed: number;
+  failed: number;
+  errors: string[];
+  success: boolean;
+  status: 'completed' | 'partial' | 'failed';
 }
 
-export async function reactivatePatient(clinicId: string, patientId: string): Promise<{ success: boolean }> {
+export async function runInactivityDetection(clinicId: string): Promise<InactivityBatchResult> {
+  const errorMessages: string[] = [];
+  const result = await updateInactivePatientTags(clinicId, errorMessages);
+  const failed = result.errors;
+  // Não descarta errors: expõe failed/errors e nunca success:true puro com falhas.
+  const success = failed === 0;
+  const status = failed === 0 ? 'completed' : result.updated > 0 ? 'partial' : 'failed';
+  return { processed: result.updated, failed, errors: errorMessages, success, status };
+}
+
+export async function reactivatePatient(clinicId: string, patientId: string): Promise<{ success: boolean; alreadyProcessed?: boolean }> {
   const db = getDb();
-  const [row] = await db.select({ id: patients.id, tags: patients.tags }).from(patients).where(and(
+  const [row] = await db.select({ id: patients.id, status: patients.status, tags: patients.tags }).from(patients).where(and(
     eq(patients.id, patientId),
     eq(patients.clinicId, clinicId),
   ));
@@ -159,12 +174,21 @@ export async function reactivatePatient(clinicId: string, patientId: string): Pr
   const tags = ((row.tags as string[] | null) ?? []).filter((tag) =>
     !tag.startsWith('Inativo') && !tag.startsWith('inativo'),
   );
+  const hasInactiveTag = ((row.tags as string[] | null) ?? []).some((tag) =>
+    tag.startsWith('Inativo') || tag.startsWith('inativo'),
+  );
+  // Idempotente: já ativo e sem tags de inatividade → reexecução segura, sem update.
+  if (!hasInactiveTag && row.status === 'active') {
+    return { success: true, alreadyProcessed: true };
+  }
   const [updated] = await db.update(patients).set({
     status: 'active',
     tags: tags as any,
     riskScore: '0.00',
     updatedAt: new Date(),
   }).where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId))).returning({ id: patients.id });
-  if (!updated) throw new ActionError('not_found', 'Paciente não encontrado.');
+  // 0 linhas afetadas após a linha existir = concorrência (reativado por outro
+  // worker entre select e update) → idempotente explícito, não success genérico.
+  if (!updated) return { success: true, alreadyProcessed: true };
   return { success: true };
 }
