@@ -24,7 +24,9 @@
 
 ## 2. P0 — Baseline
 
-> **Tranche baseline entregue em 2026-10-05** (inventários + reconciliação documental) — evidências em `docs/audit/2026-10-05-vnext-p0-baseline.md` (issue #23). **Fechamento formal do P0 somente após: merge do PR #25 (concluído, merge `fddbdc9e`), merge deste PR #24 e closure da issue #23. P1+ não iniciados.**
+> **Tranche baseline entregue em 2026-10-05** (inventários + reconciliação documental) — evidências em `docs/audit/2026-10-05-vnext-p0-baseline.md` (issue #23). **P0 — CLOSED** (PRs #24 e #25 mergeados, issue #23 encerrada).
+
+> **Status vNext (2026-10-07):** `P0 — CLOSED` · `P1 — CLOSED` (PR #26, merge `efa31b0a`) · `P2 — NOT STARTED` · `P3 — NOT STARTED` · `P4+ — NOT STARTED`.
 
 - [x] marcar documentos históricos quando contradisserem vNext;
 - [x] atualizar arquitetura que ainda descreve Supabase como stack atual;
@@ -39,6 +41,8 @@
 **Gate:** um conceito não pode ter duas fontes canônicas concorrentes.
 
 ## 3. P1 — Infra provider-neutral
+
+> **P1 — CLOSED em 2026-10-07** via PR #26 (`f75642fa`, merge `efa31b0a`; CI `37632586813` no HEAD do PR e `37645795817` na `main`, ambos verdes: Gitleaks, Migrations From Zero, Build & Test — lint, typecheck 3×, unit, integration DB-real, security, release, audit HIGH=0, production build, production E2E — e CF Build & Dry Run). Escopo entregue: endurecimento trust/correctness (variantes `*Scoped`, tenant-negative, money-path fail-closed, batch parcial sem fake-success, soft-delete active-only, status guards, template validation canônica) + infra provider-neutral (loader canônico `scripts/lib/load-vps-env.ts` com `SYNKROO_VPS_ENV`, fallback legado deprecated, dry-run, sem log de secrets). Itens granularizados abaixo parcialmente movidos como dívida para P2 (migração restante para `*Scoped`, nomenclatura `VPS_SOURCE_*`/`VPS_TARGET_*` nos runbooks, handoff de secrets via stdin, SCRAM/TLS/ACL). P2 não iniciado: nenhum dump/restore real, cutover ou mutação de produção nesta rodada.
 
 ### Código/scripts
 
