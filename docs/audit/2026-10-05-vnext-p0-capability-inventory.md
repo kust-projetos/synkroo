@@ -1,9 +1,9 @@
 # P0 — Inventário de Capacidades (Synkroo vNext)
 
 **Data:** 2026-10-05 · **Issue:** #23 · **Método:** auditoria read-only verificada por leitura direta (3 exploradores independentes; evidência = arquivo:linha).
-**Escopo verificado:** 144 `src/app/api/**/route.ts`, 8 módulos (`src/modules/{core,operacional,comercial,atendimento,crm,financeiro,followup,ia}`), 21 repos legados (`src/repositories/*`), 19 serviços legados (`src/services/*`), 68 tabelas Drizzle, 36 páginas de dashboard, 47 specs E2E.
+**Escopo verificado:** 144 `src/app/api/**/route.ts`, 8 módulos (`src/modules/{core,operacional,comercial,atendimento,crm,financeiro,followup,ia}`), 15 repos legados (`src/repositories/*`), 16 serviços legados (`src/services/*`), 65 tabelas Drizzle, 36 páginas de dashboard, 47 specs E2E.
 
-> Derivação (não hardcodar sem re-medir — SYN-DOC-001): `powershell -c "(Get-ChildItem src/app/api -Recurse -Filter route.ts).Count"` → 144; `(Get-ChildItem e2e -Recurse -Filter *.spec.ts).Count` → 47 (36 fora de `e2e/api/` + 11 em `e2e/api/`); `(Get-ChildItem src/app/api -Recurse -Filter *_handler.ts).Count` → 26. Medido no HEAD `39b7feb7`; re-medir após qualquer adição de rota/spec.
+> Derivação (não hardcodar sem re-medir — SYN-DOC-001): `powershell -c "(Get-ChildItem src/app/api -Recurse -Filter route.ts).Count"` → 144; `(Get-ChildItem e2e -Recurse -Filter *.spec.ts).Count` → 47 (36 fora de `e2e/api/` + 11 em `e2e/api/`); `(Get-ChildItem src/app/api -Recurse -Filter *_handler.ts).Count` → 26. Medido nos HEADs `39b7feb7`/`fddbdc9e` (main pós-#25); re-medir após qualquer adição de rota/spec/schema. Repos/serviços: `(Get-ChildItem src/repositories -Directory).Count` → 15, `(Get-ChildItem src/services -Directory).Count` → 16. Tabelas: pgTable 65 (5 em src/lib/db/schema + 60 em src/modules). Dashboard: `(Get-ChildItem src/app/dashboard -Recurse -Filter page.tsx).Count` → 36.
 
 **Correção ao AGENTS.md:** os módulos de API `users`, `roles`, `notifications`, `installments`, `payments`, `gateway`, `agent` **não existem** como diretórios de rota — RBAC é action-layer server-side; `agent/*` foi substituído por `/api/ia/chat`. Tabela do AGENTS.md corrigida nesta tranche.
 
@@ -59,7 +59,7 @@
 
 `UI: — (nenhuma página chama /api/ia/chat) | API: src/app/api/ia/chat + triggers (messages/inbound, whatsapp/webhook, whatsapp/evolution, instagram/webhook) | Action: src/modules/ia/index.ts → iaActions = [] (tools vêm do tool-catalog via bridge) | Service: src/core/ia-agent/{orchestrator-logic,provider-zen,clinical-safety,personas,telemetry}.ts, src/core/ia-channel/**, src/core/agent-bridge/** | Repo: DO storage ('history'+'pendingAction', src/workers/ia-agent/index.ts:70) | Schema: pending_actions, decision_logs, smart_trigger_log, agent_queue, agent_dlq, agent_logs (src/modules/ia/schema/agent.ts) | Integration: Cloudflare DO AgentOrchestrator, service binding APP↔ia-bridge, provider zen deepseek (wrangler.jsonc:25) | Tests: 12 + 11 + 5 arquivos + workers`
 
-**PARCIAL.** Gaps: (a) sem UI; (b) **telemetria persistida morta** — `pending_actions`, `decision_logs`, `smart_trigger_log`, `agent_queue`, `agent_dlq`, `agent_logs` lidos apenas por LGPD; nenhum insert em runtime; (c) `src/lib/llm/*` (factory 4 providers) é código morto — LLM vivo é `provider-zen.ts`.
+**PARCIAL.** Gaps: (a) sem UI; (b) **telemetria persistida sem writer em runtime** — `pending_actions`, `decision_logs`, `smart_trigger_log`, `agent_queue`, `agent_dlq` sem consumidor ativo conhecido; `agent_logs` lido por LGPD (export/delete em `lgpd-ia.ts`/`lgpd-service.ts`) **e** por analytics (`attendance-metrics.service.ts` via `/api/analytics/metrics`); nenhum insert em runtime; (c) `src/lib/llm/*` (factory 4 providers) é código morto — LLM vivo é `provider-zen.ts`.
 
 ## 10. Knowledge/RAG
 

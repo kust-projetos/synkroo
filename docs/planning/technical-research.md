@@ -1,6 +1,6 @@
 # Technical Research - Synkroo
 
-> **Nota 2026-10-05 (P0 vNext):** documento **histórico** de pesquisa inicial (BMAD). A arquitetura descrita aqui ("Supabase-only", "Claude Agent SDK", `@anthropic-ai/sdk`) **não foi implementada e foi removida da direção** — a stack real é PostgreSQL 17 + Drizzle + NextAuth + LLM multi-provider (`src/lib/llm/`, agente em `src/core/ia-agent/`). Fontes de verdade: spec canônica 2026-07-28 e spec vNext 2026-10-05.
+> **Nota 2026-10-05 (P0 vNext):** documento **histórico** de pesquisa inicial (BMAD). A arquitetura descrita aqui ("Supabase-only", "Claude Agent SDK", `@anthropic-ai/sdk`) **não foi implementada e foi removida da direção** — a stack real é PostgreSQL 17 + Drizzle + NextAuth + LLM via `src/core/ia-agent/provider-zen.ts` (`src/lib/llm/` é código morto, sem import em produção). Fontes de verdade: spec canônica 2026-07-28 e spec vNext 2026-10-05.
 
 **Data:** 2026-03-24
 **Metodologia:** BMAD Technical Research
