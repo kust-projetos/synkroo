@@ -185,10 +185,11 @@ export async function recordPatientFeedback(params: {
   await createFeedback(params);
 }
 
-export async function processPostConsultationFollowUps(clinicId: string): Promise<{ processed: number; sent: number; failed: number }> {
+export async function processPostConsultationFollowUps(clinicId: string): Promise<{ processed: number; sent: number; failed: number; errors: string[] }> {
   const appointmentsToProcess = (await getAppointmentsNeedingFollowUp(2)).filter((appointment) => appointment.clinicId === clinicId);
   let sent = 0;
   let failed = 0;
+  const errors: string[] = [];
   for (const appointment of appointmentsToProcess) {
     const config = await getFollowUpConfig(clinicId, 'post_consultation', appointment.procedureName);
     if (!config) continue;
@@ -202,9 +203,12 @@ export async function processPostConsultationFollowUps(clinicId: string): Promis
       channel: 'whatsapp',
     });
     if (result.success) sent += 1;
-    else failed += 1;
+    else {
+      failed += 1;
+      errors.push(`Appointment ${appointment.appointmentId ?? appointment.patientId}: ${result.error ?? 'send failed'}`);
+    }
   }
-  return { processed: appointmentsToProcess.length, sent, failed };
+  return { processed: appointmentsToProcess.length, sent, failed, errors };
 }
 
 export async function getPatientsNeedingReturnReminder(monthsSinceLastVisit: number): Promise<any[]> {
@@ -249,10 +253,11 @@ export async function getPatientsNeedingReturnReminder(monthsSinceLastVisit: num
   }));
 }
 
-export async function processReturnReminders(clinicId: string): Promise<{ processed: number; sent: number; failed: number }> {
+export async function processReturnReminders(clinicId: string): Promise<{ processed: number; sent: number; failed: number; errors: string[] }> {
   let processed = 0;
   let sent = 0;
   let failed = 0;
+  const errors: string[] = [];
   for (const months of [6, 12]) {
     const patientsToProcess = (await getPatientsNeedingReturnReminder(months)).filter((patient) => patient.clinics?.id === clinicId);
     for (const patient of patientsToProcess) {
@@ -264,20 +269,41 @@ export async function processReturnReminders(clinicId: string): Promise<{ proces
       const result = await sendFollowUpMessage(patient.phone, config.messageTemplate.replace(/{{patient_name}}/g, patient.name));
       processed += 1;
       if (result.success) sent += 1;
-      else failed += 1;
+      else {
+        failed += 1;
+        errors.push(`Patient ${patient.id}: ${result.error ?? 'send failed'}`);
+      }
     }
   }
-  return { processed, sent, failed };
+  return { processed, sent, failed, errors };
 }
 
-export async function processAllFollowUps(clinicId: string): Promise<void> {
-  await processPostConsultationFollowUps(clinicId);
-  await processReturnReminders(clinicId);
+export interface FollowUpBatchResult {
+  requested: number;
+  processed: number;
+  succeeded: number;
+  sent: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+  success: boolean;
+  status: 'completed' | 'partial' | 'failed';
 }
 
-export async function executarAll(clinicId: string): Promise<{ processed: number }> {
-  await processAllFollowUps(clinicId);
-  return { processed: 1 };
+export async function processAllFollowUps(clinicId: string): Promise<FollowUpBatchResult> {
+  const post = await processPostConsultationFollowUps(clinicId);
+  const reminders = await processReturnReminders(clinicId);
+  const requested = post.processed + reminders.processed;
+  const succeeded = post.sent + reminders.sent;
+  const failed = post.failed + reminders.failed;
+  const errors = [...post.errors, ...reminders.errors];
+  const success = failed === 0;
+  const status = failed === 0 ? 'completed' : succeeded > 0 ? 'partial' : 'failed';
+  return { requested, processed: requested, succeeded, sent: succeeded, failed, skipped: 0, errors, success, status };
+}
+
+export async function executarAll(clinicId: string): Promise<FollowUpBatchResult> {
+  return processAllFollowUps(clinicId);
 }
 
 export async function executarPostConsulta(clinicId: string) {

@@ -32,6 +32,40 @@ import { executarCampanhas } from '@/modules/followup';
 
 type CronResult = { task: string; clinicId: string; ok: boolean; data?: unknown; error?: string };
 
+function num(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+/**
+ * P1-FIX-CANON(2): runAction.ok só diz que o handler não lançou.
+ * Deriva falha de negócio do payload retornado (contrato de lote):
+ * {requested,succeeded,failed,skipped,errors[],status} — com tolerância aos
+ * vocabulários legados (sent/notified/processed). Retorna a mensagem de erro
+ * ou null quando o lote foi bem-sucedido (ou vazio sem falhas).
+ */
+function businessFailure(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return null;
+  const d = data as Record<string, unknown>;
+  if (d.success === false) {
+    if (Array.isArray(d.errors) && d.errors.length > 0) {
+      return (d.errors as unknown[]).slice(0, 5).map(String).join('; ');
+    }
+    if (typeof d.error === 'string' && d.error) return d.error;
+    return `business batch failed (status=${String(d.status ?? 'failed')})`;
+  }
+  const failed = num(d.failed);
+  if (failed > 0 && d.success !== true) {
+    const succeeded = num(d.succeeded) + num(d.sent) + num(d.notified);
+    if (succeeded === 0) {
+      if (Array.isArray(d.errors) && d.errors.length > 0) {
+        return (d.errors as unknown[]).slice(0, 5).map(String).join('; ');
+      }
+      return `${failed} operation(s) failed without success`;
+    }
+  }
+  return null;
+}
+
 async function handlePOST(request: NextRequest): Promise<NextResponse> {
   const requestId = generateRequestId();
   // Verify CRON_SECRET before rate limit — invalid credentials must not consume scheduler quota (T1 DoS fix).
@@ -103,7 +137,13 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       try {
         const result = await runAction(taskSpec.action, {}, ctx);
         if (result.ok) {
-          taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: true, data: result.data });
+          // P1-FIX-CANON(2): agrega o resultado de negócio, não só runAction.ok.
+          const failure = businessFailure(result.data);
+          if (failure) {
+            taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: false, error: failure, data: result.data });
+          } else {
+            taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: true, data: result.data });
+          }
         } else {
           taskResults.push({ task: taskSpec.key, clinicId: clinic.id, ok: false, error: result.error.message });
         }

@@ -135,6 +135,35 @@ describe('POST /api/cron/followups', () => {
     expect(body.data.results.followups[0].clinicId).toBe('clinic-active');
   });
 
+  it('reports business batch failure when every send fails (P1-FIX-CANON 2)', async () => {
+    mockWhere.mockResolvedValueOnce([{ id: 'clinic-a' }]);
+    mockBuildCronContext.mockResolvedValueOnce({
+      clinicId: 'clinic-a', can: () => true, hasModule: () => true, audit: { actor: 'cron' },
+    });
+    // runAction.ok (handler não lançou), mas o lote de negócio falhou 100%.
+    mockRunAction.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        requested: 2, processed: 2, succeeded: 0, sent: 0, failed: 2,
+        errors: ['Patient p1: WHATSAPP_DOWN', 'Patient p2: WHATSAPP_DOWN'],
+        success: false, status: 'failed',
+      },
+    });
+
+    const req = makeCronRequest('followups');
+    req.headers.set('Authorization', `Bearer ${SECRET}`);
+    const response = await POST(req);
+    const body = await response.json();
+
+    expect(body.data.success).toBe(false);
+    expect(body.data.status).toBe('failed');
+    expect(body.data.results.followups).toMatchObject([
+      { task: 'followups', clinicId: 'clinic-a', ok: false },
+    ]);
+    expect(body.data.summary.failed).toBe(1);
+    expect(body.data.summary.errors).toHaveLength(1);
+  });
+
   it('returns 401 when CRON_SECRET is missing', async () => {
     const req = makeCronRequest('followups');
     // No Authorization header
