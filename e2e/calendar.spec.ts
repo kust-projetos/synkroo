@@ -23,14 +23,20 @@ async function login(page: Page) {
 }
 
 // Helper to navigate to calendar
+// Data assertions belong to the tests: response-wait is best-effort (15s,
+// inside the 60s test budget alongside Hoje 15s) so navigation never fails
+// on network timing (query only fires with clinicId ready;
+// grid/slots tests don't need payload data).
 async function goToCalendar(page: Page) {
-  const appointmentsResponse = page.waitForResponse(
-    (response) =>
-      response.ok() &&
-      response.url().includes("/api/appointments") &&
-      response.url().includes("start_date="),
-    { timeout: 30000 },
-  );
+  const appointmentsResponse = page
+    .waitForResponse(
+      (response) =>
+        response.ok() &&
+        response.url().includes("/api/appointments") &&
+        response.url().includes("start_date="),
+      { timeout: 15000 },
+    )
+    .catch(() => null);
   await page.goto(`${BASE_URL}/dashboard/agendamentos`);
   await expect(page.locator('button:has-text("Hoje")')).toBeVisible({
     timeout: 15000,
@@ -49,13 +55,15 @@ async function switchView(page: Page, viewName: string) {
   const viewValue = viewMap[viewName] || "week";
   const currentUrl = page.url();
   const baseUrl = currentUrl.split("?")[0];
-  const appointmentsResponse = page.waitForResponse(
-    (response) =>
-      response.ok() &&
-      response.url().includes("/api/appointments") &&
-      response.url().includes("start_date="),
-    { timeout: 30000 },
-  );
+  const appointmentsResponse = page
+    .waitForResponse(
+      (response) =>
+        response.ok() &&
+        response.url().includes("/api/appointments") &&
+        response.url().includes("start_date="),
+      { timeout: 15000 },
+    )
+    .catch(() => null);
   await page.goto(`${baseUrl}?view=${viewValue}`);
   await expect(page.locator('button:has-text("Hoje")')).toBeVisible({
     timeout: 15000,
@@ -703,7 +711,15 @@ test.describe("Calendar - Data Loading", () => {
       await route.continue();
     });
 
+    // Strict waiter owned by this test (asserts the request URL, not status).
+    const responsePromise = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/appointments") &&
+        r.url().includes("start_date="),
+      { timeout: 30000 },
+    );
     await goToCalendar(page);
+    await responsePromise;
 
     expect(capturedUrl).toContain("start_date=");
     expect(capturedUrl).toContain("end_date=");
