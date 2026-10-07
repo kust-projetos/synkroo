@@ -1,6 +1,11 @@
 /**
  * ROI Calculation Service
  * Calculates return on investment metrics for the clinic platform
+ *
+ * P1 money-path fail-closed: DB/retryable failures PROPAGATE (throw) instead
+ * of fabricating zero/success. A zero in the result always means a genuine
+ * empty count (EXPECTED_EMPTY), never an swallowed technical failure.
+ * Callers (route handlers) map the throw to 500 via apiFailure.
  */
 
 import { eq, and, gte, lte, lt, gt, inArray, isNotNull, sql } from 'drizzle-orm'
@@ -117,8 +122,8 @@ async function countAIHandledMessages(clinicId: string, start: string, end: stri
     const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
       .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end)), eq(messages.direction, 'outbound'), isNotNull(messages.intent), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
-    return row?.count ?? 0
-  } catch (e) { dbLogger.error('Error counting AI-handled messages', e); return 0 }
+    return row?.count ?? 0 // P1: EXPECTED_EMPTY — no matching rows is a legitimate zero
+  } catch (e) { dbLogger.error('Error counting AI-handled messages', e); throw e } // P1: DEGRADED/FATAL — propagate, never fabricate zero
 }
 
 /**
@@ -131,8 +136,8 @@ async function countAIBookedAppointments(clinicId: string, start: string, end: s
     const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
       .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end)), inArray(messages.intent as any, ['schedule_appointment', 'book', 'reschedule', 'confirm_appointment']), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
-    return row?.count ?? 0
-  } catch (e) { dbLogger.error('Error counting AI-booked appointments', e); return 0 }
+    return row?.count ?? 0 // P1: EXPECTED_EMPTY — no matching rows is a legitimate zero
+  } catch (e) { dbLogger.error('Error counting AI-booked appointments', e); throw e } // P1: DEGRADED/FATAL — propagate, never fabricate zero
 }
 
 /**
@@ -145,11 +150,11 @@ async function countRecoveredNoShows(clinicId: string, start: string, end: strin
     const nsRows = await db.select({ patientId: appointments.patientId }).from(appointments)
       .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status as any, 'no_show'), lt(appointments.scheduledAt, new Date(start))))
     const patientIds = [...new Set(nsRows.map(r => r.patientId).filter(Boolean))] as string[]
-    if (!patientIds.length) return 0
+    if (!patientIds.length) return 0 // P1: EXPECTED_EMPTY — no prior no-shows, nothing to recover
     const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(appointments)
       .where(and(eq(appointments.clinicId, clinicId), inArray(appointments.patientId, patientIds), eq(appointments.status as any, 'completed'), gte(appointments.scheduledAt, new Date(start)), lte(appointments.scheduledAt, new Date(end))))
-    return row?.count ?? 0
-  } catch (e) { dbLogger.error('Error counting recovered no-shows', e); return 0 }
+    return row?.count ?? 0 // P1: EXPECTED_EMPTY — no completions in period is a legitimate zero
+  } catch (e) { dbLogger.error('Error counting recovered no-shows', e); throw e } // P1: DEGRADED/FATAL — propagate, never fabricate zero
 }
 
 /**
@@ -238,29 +243,8 @@ export async function getROIMetrics(
     }
   } catch (error) {
     dbLogger.error('Error calculating ROI metrics', error)
-    // Return empty metrics on error
-    return {
-      period: { start: date, end: date },
-      savings: {
-        messagesHandled: 0,
-        avgHandlingTimeMin: DEFAULT_AVG_HANDLING_TIME_MIN,
-        hourlyRate: DEFAULT_HOURLY_RATE,
-        totalSaved: 0,
-      },
-      revenue: {
-        appointmentsBooked: 0,
-        avgTicket: DEFAULT_AVG_TICKET,
-        totalRevenue: 0,
-        recoveredNoShows: 0,
-        recoveredRevenue: 0,
-      },
-      costs: {
-        platform: DEFAULT_PLATFORM_COST,
-        tokens: DEFAULT_TOKEN_COST,
-        total: DEFAULT_PLATFORM_COST,
-      },
-      roi: 0,
-      netBenefit: 0,
-    }
+    // P1: FATAL — propagate instead of returning zeroed metrics with implicit
+    // success; a zero-revenue response must never mask a technical failure.
+    throw error
   }
 }
