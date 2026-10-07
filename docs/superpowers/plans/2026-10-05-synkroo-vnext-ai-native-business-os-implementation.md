@@ -24,7 +24,7 @@
 
 ## 2. P0 — Baseline
 
-> **Concluído 2026-10-05** — evidências em `docs/audit/2026-10-05-vnext-p0-baseline.md` (issue #23).
+> **Tranche baseline entregue em 2026-10-05** (inventários + reconciliação documental) — evidências em `docs/audit/2026-10-05-vnext-p0-baseline.md` (issue #23). **Fechamento formal do P0 somente após: merge do PR #25 (concluído, merge `fddbdc9e`), merge deste PR #24 e closure da issue #23. P1+ não iniciados.**
 
 - [x] marcar documentos históricos quando contradisserem vNext;
 - [x] atualizar arquitetura que ainda descreve Supabase como stack atual;

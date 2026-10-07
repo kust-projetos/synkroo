@@ -61,7 +61,7 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 src/
 ├── app/
 │   ├── api/          # 36 módulos de API (192 arquivos de rotas/handlers)
-│   ├── dashboard/    # 17 páginas protegidas
+│   ├── dashboard/    # 36 páginas protegidas
 │   ├── login/        # Auth pages
 │   └── signup/
 ├── components/       # UI por 12 domínios (calendar, campaigns, charts, contacts, financeiro, lgpd, notifications, pi-finance, pipeline, reports, ui, whatsapp)
