@@ -661,6 +661,42 @@ describe('WahaAdapter (P3.2 — outbound text, dormant)', () => {
       expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
+    // Review correction (P3 tranche 1): an oversize streamed body must abort
+    // the transport even when the reader cancel never settles — the teardown
+    // cannot depend on `cancel()`, which may hang on a stalled provider.
+    it('aborts the transport when an oversized streamed body cancel hangs', async () => {
+      setValidConfig();
+      const payload = encoder.encode(JSON.stringify({ id: 'true_1@c.us_A', pad: 'x'.repeat(4096) }));
+      let index = 0;
+      fetchImpl.mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        body: {
+          getReader: () => ({
+            read: async () => (index++ === 0
+              ? { done: false, value: payload }
+              : { done: true, value: undefined }),
+            cancel: () => new Promise<never>(() => undefined),
+          }),
+        },
+        text: () => new Promise<never>(() => undefined),
+      } as unknown as Response);
+
+      const startedAt = Date.now();
+      const error = await captureError(
+        adapter({ maxResponseBytes: 64, timeoutMs: 2_000 }).sendTextMessage(PHONE, TEXT),
+      );
+      const elapsed = Date.now() - startedAt;
+
+      expect(error.code).toBe('response_too_large');
+      expect((error as { delivery?: string }).delivery).toBe('unknown');
+      expect(elapsed).toBeLessThan(2_000);
+      const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+      expect((init.signal as AbortSignal).aborted).toBe(true);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
     it('lets the deadline win and still abort when a declared oversized cancel stalls', async () => {
       setValidConfig();
       fetchImpl.mockResolvedValue({
