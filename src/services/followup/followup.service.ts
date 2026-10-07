@@ -314,9 +314,18 @@ export async function recordPatientFeedback(params: {
 
 // -- Processing -------------------------------------------------------------
 
-export async function processPostConsultationFollowUps(clinicId: string): Promise<{
-  processed: number; sent: number; failed: number
-}> {
+export interface FollowUpBatchResult {
+  processed: number; sent: number; failed: number; errors: string[];
+  success: boolean; status: 'completed' | 'partial' | 'failed';
+}
+
+function toBatchResult(processed: number, sent: number, failed: number, errors: string[]): FollowUpBatchResult {
+  const success = failed === 0;
+  const status = failed === 0 ? 'completed' : sent > 0 ? 'partial' : 'failed';
+  return { processed, sent, failed, errors, success, status };
+}
+
+export async function processPostConsultationFollowUps(clinicId: string): Promise<FollowUpBatchResult> {
   dbLogger.info('Processing post-consultation follow-ups...', { clinicId })
 
   const appointmentList = await getAppointmentsNeedingFollowUp(2)
@@ -324,6 +333,7 @@ export async function processPostConsultationFollowUps(clinicId: string): Promis
 
   let sent = 0
   let failed = 0
+  const errors: string[] = []
 
   for (const appointment of filtered) {
     const config = await getFollowUpConfig(
@@ -358,11 +368,12 @@ export async function processPostConsultationFollowUps(clinicId: string): Promis
       console.warn(`✓ Follow-up sent to ${appointment.patientName}`)
     } else {
       failed++
+      errors.push(`Appointment ${appointment.appointmentId}: ${result.error ?? 'send failed'}`)
       console.error(`✗ Failed to send follow-up to ${appointment.patientName}: ${result.error}`)
     }
   }
 
-  return { processed: filtered.length, sent, failed }
+  return toBatchResult(filtered.length, sent, failed, errors)
 }
 
 /**
@@ -440,15 +451,14 @@ export async function getPatientsNeedingReturnReminder(
   }))
 }
 
-export async function processReturnReminders(clinicId: string): Promise<{
-  processed: number; sent: number; failed: number
-}> {
+export async function processReturnReminders(clinicId: string): Promise<FollowUpBatchResult> {
   dbLogger.info('Processing return reminders...', { clinicId })
 
   const timeframes = [6, 12]
   let totalProcessed = 0
   let totalSent = 0
   let totalFailed = 0
+  const errors: string[] = []
 
   for (const months of timeframes) {
     const patientList = await getPatientsNeedingReturnReminder(months)
@@ -490,15 +500,16 @@ export async function processReturnReminders(clinicId: string): Promise<{
         dbLogger.info(`Return reminder sent to ${patient.name} (${months} months)`)
       } else {
         totalFailed++
+        errors.push(`Patient ${patient.id}: ${result.error ?? 'send failed'}`)
         dbLogger.error(`Failed to send reminder to ${patient.name}`, null, { error: result.error })
       }
     }
   }
 
-  return { processed: totalProcessed, sent: totalSent, failed: totalFailed }
+  return toBatchResult(totalProcessed, totalSent, totalFailed, errors)
 }
 
-export async function processAllFollowUps(clinicId: string): Promise<void> {
+export async function processAllFollowUps(clinicId: string): Promise<FollowUpBatchResult> {
   dbLogger.info('Starting follow-up processing...', { clinicId })
 
   const postResult = await processPostConsultationFollowUps(clinicId)
@@ -507,5 +518,13 @@ export async function processAllFollowUps(clinicId: string): Promise<void> {
   const reminderResult = await processReturnReminders(clinicId)
   dbLogger.info('Return reminders complete', { sent: reminderResult.sent, failed: reminderResult.failed })
 
-  dbLogger.info('Follow-up processing complete')
+  const aggregated = toBatchResult(
+    postResult.processed + reminderResult.processed,
+    postResult.sent + reminderResult.sent,
+    postResult.failed + reminderResult.failed,
+    [...postResult.errors, ...reminderResult.errors],
+  );
+  dbLogger.info('Follow-up processing complete', { ...aggregated });
+  // Propaga o agregado ao caller (HTTP decide o status) em vez de void + só log.
+  return aggregated;
 }
