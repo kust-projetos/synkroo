@@ -49,6 +49,8 @@ describeOrSkip('getInactivityStats — boundary intervals (DB real)', () => {
       // bucket180 [180,∞): 180.5d + NULL
       { clinicId: CLINIC_A, name: 'B180 180.5d', phone: '11900000006', lastVisitAt: daysAgo(180.5) },
       { clinicId: CLINIC_A, name: 'B180 NULL', phone: '11900000007', lastVisitAt: null },
+      // P1 active-only: soft-deleted 100d (seria bucket90) NÃO pode contar.
+      { clinicId: CLINIC_A, name: 'Soft-deleted 100d', phone: '11900000009', lastVisitAt: daysAgo(100), deletedAt: new Date() },
       // Outra clínica: 100d (seria bucket90, mas NÃO pode entrar no tenant A)
       { clinicId: CLINIC_B, name: 'Outra clinica 100d', phone: '11900000008', lastVisitAt: daysAgo(100) },
     ]).onConflictDoNothing();
@@ -87,5 +89,12 @@ describeOrSkip('getInactivityStats — boundary intervals (DB real)', () => {
       inactive_180: 0,
     });
     expect(statsB.totalInactive).toBe(1);
+  });
+
+  it('exclui soft-deleted das contagens (active-only, DB real)', async () => {
+    const stats = await getInactivityStats(CLINIC_A);
+    // Sem o filtro deleted_at, o soft-deleted 100d cairia no bucket90.
+    expect(stats.bySegment.inactive_90).toBe(1);
+    expect(stats.totalInactive).toBe(6);
   });
 });
