@@ -282,7 +282,8 @@ export async function getUpcomingAppointmentRisks(clinicId: string, days: number
     }
     return predictions.sort((a, b) => b.risk_score - a.risk_score)
   } catch (err) {
+    // Fail-closed: erro de DB não pode virar lista vazia (fake-success P0).
     dbLogger.error('Error getting upcoming appointment risks', err)
-    return []
+    throw err
   }
 }

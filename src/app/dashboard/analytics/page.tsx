@@ -62,6 +62,10 @@ export default function AnalyticsPage() {
         const body = await response.json()
         // Contrato canônico (D2 lote 5): { data: { predictions, summary } }
         setNoShowRisks(body.data?.predictions || [])
+      } else {
+        // Fail-closed agora é observável: GET responde 500 em falha de DB
+        // (antes engolia o erro e devolvia lista vazia silenciosamente).
+        setRisksError('Falha ao carregar previsões de no-show')
       }
     } catch {
       setRisksError('Falha ao carregar previsões de no-show')
