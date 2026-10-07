@@ -89,7 +89,7 @@ async function autoCompleteSessions(
     .where(
       and(
         eq(treatmentPlanItems.treatmentPlanId, treatmentPlanId),
-        eq(treatmentPlanItems.status as any, 'pending'),
+        eq(treatmentPlanItems.status, 'pending'),
       ),
     )
     .orderBy(asc(treatmentPlanItems.sessionNumber))
@@ -124,7 +124,7 @@ async function checkAndUpdateBudgetStatus(budgetId: string): Promise<void> {
   if (totalPaidCents >= toCents(String(budget.finalValue ?? '0'))) {
     await db
       .update(budgets)
-      .set({ status: 'converted', updatedAt: new Date() } as any)
+      .set({ status: 'converted', updatedAt: new Date() })
       .where(eq(budgets.id, budgetId))
   }
 }

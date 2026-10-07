@@ -225,7 +225,7 @@ export async function getUpcomingAppointmentRisks(clinicId: string, days: number
       .where(
         and(
           eq(appointments.clinicId, clinicId),
-          inArray(appointments.status as any, ['scheduled', 'confirmed']),
+          inArray(appointments.status, ['scheduled', 'confirmed']),
           gte(appointments.scheduledAt, startDate),
           lte(appointments.scheduledAt, endDate),
         ),
