@@ -1,4 +1,7 @@
 import { createHash, randomBytes } from 'crypto';
+import { and, eq, gt, isNull, lte } from 'drizzle-orm';
+import { getDb } from '@/lib/db/client';
+import { approvalTokens } from '@/lib/db/schema/audit';
 
 /**
  * S5 — Approval token opaco server-side (single-use, TTL, amarrado).
@@ -9,13 +12,17 @@ import { createHash, randomBytes } from 'crypto';
  *   clinicId + actor + source + identidade server-derived (userId/onBehalfOf).
  *   Token não vale para input distinto, outro principal/clínica/ação, nem
  *   para outro usuário autenticado/delegante — mesmo com actor/clínica iguais.
- * - Uso único: validar+consumir é atômico (consumo marca; replay falha).
+ * - Uso único: validar+consumir é atômico — o consumo é um
+ *   `UPDATE ... WHERE token_hash = $1 AND consumed_at IS NULL AND expires_at > now`
+ *   e só a primeira instância a comitar recebe linha (rowCount 1). Replay em
+ *   qualquer instância falha (fail-closed).
  * - TTL default conservador: 15 min.
  *
- * Store default é em memória (server-side, single-instance). É o menor passo
- * defensável: não afrouxa nenhum gate e não exige infra nova. Limitação
- * conhecida: em multi-instância seria preciso persistir em tabela/DO — ver
- * RISKS no relatório da tarefa.
+ * Store é a tabela `approval_tokens` (S5-PERSIST) — sobrevive a restart e é
+ * visível a todas as instâncias. Se o DB estiver indisponível, issue lança
+ * (sem persistência não há token) e consume nega — fail-closed, nunca allow.
+ * Expirados são removidos por lazy purge no consumo (escolha documentada:
+ * tabela efêmera de TTL curto; sem job dedicado).
  */
 
 export const APPROVAL_POLICY_VERSION = 's5-approval-v1';
@@ -27,23 +34,6 @@ export interface PolicyDecision {
   decision: PolicyVerdict;
   reason: string;
 }
-
-interface ApprovalRecord {
-  tokenHash: string;
-  actionName: string;
-  inputHash: string;
-  clinicId: string;
-  actor: string;
-  source: string;
-  /** Identidade autenticada/delegante derivada pelo servidor (ctx.user.id). */
-  userId: string | null;
-  /** Delegante server-derived (ctx.audit.onBehalfOf). Null quando não há. */
-  onBehalfOf: string | null;
-  expiresAt: number;
-  consumedAt: number | null;
-}
-
-const store = new Map<string, ApprovalRecord>();
 
 export function stableStringify(value: unknown): string {
   if (value === null || value === undefined) return 'null';
@@ -81,7 +71,7 @@ export interface IssuedApproval {
   expiresAt: number;
 }
 
-export function issueApprovalToken(params: {
+export async function issueApprovalToken(params: {
   actionName: string;
   /** Input canônico (ideal: parsed.data pós-Zod). É hasheado; o cru nunca é guardado. */
   input: unknown;
@@ -92,24 +82,27 @@ export function issueApprovalToken(params: {
   userId?: string | null;
   /** Somente delegante derivado pelo servidor (ctx.audit.onBehalfOf). */
   onBehalfOf?: string | null;
-}, opts: IssueApprovalOptions = {}): IssuedApproval {
+}, opts: IssueApprovalOptions = {}): Promise<IssuedApproval> {
   const now = opts.now ?? Date.now();
   const ttlMs = opts.ttlMs ?? APPROVAL_TTL_MS_DEFAULT;
   const token = randomBytes(32).toString('hex');
   const expiresAt = now + ttlMs;
-  const rec: ApprovalRecord = {
-    tokenHash: hashToken(token),
-    actionName: params.actionName,
-    inputHash: hashActionInput(params.input),
-    clinicId: params.clinicId,
-    actor: params.actor,
-    source: params.source,
-    userId: params.userId ?? null,
-    onBehalfOf: params.onBehalfOf ?? null,
-    expiresAt,
-    consumedAt: null,
-  };
-  store.set(rec.tokenHash, rec);
+  try {
+    await getDb().insert(approvalTokens).values({
+      tokenHash: hashToken(token),
+      action: params.actionName,
+      inputHash: hashActionInput(params.input),
+      clinicId: params.clinicId,
+      actor: params.actor,
+      source: params.source,
+      userId: params.userId ?? null,
+      onBehalfOf: params.onBehalfOf ?? null,
+      expiresAt: new Date(expiresAt),
+    });
+  } catch {
+    // Fail-closed: sem persistência não há token (e sem token o runAction nega).
+    throw new Error('approval store unavailable');
+  }
   return { token, expiresAt };
 }
 
@@ -133,33 +126,68 @@ export interface ConsumeApprovalResult {
   approvalId?: string;
 }
 
-export function consumeApprovalToken(
+export async function consumeApprovalToken(
   token: string,
   expected: ConsumeApprovalExpectation,
   opts: { now?: number } = {},
-): ConsumeApprovalResult {
+): Promise<ConsumeApprovalResult> {
   if (!token || typeof token !== 'string') return { ok: false, reason: 'not_found' };
   const now = opts.now ?? Date.now();
   const key = hashToken(token);
-  const rec = store.get(key);
+  let rows: (typeof approvalTokens.$inferSelect)[];
+  try {
+    const db = getDb();
+    // Select ANTES do purge: token já expirado retorna 'expired' (determinístico)
+    // em vez de 'not_found'. O purge lazy abaixo impede acúmulo de expirados.
+    rows = await db.select().from(approvalTokens).where(eq(approvalTokens.tokenHash, key));
+    // Lazy purge de expirados (tabela efêmera — não acumula).
+    await db.delete(approvalTokens).where(lte(approvalTokens.expiresAt, new Date(now)));
+  } catch {
+    // Fail-closed: DB indisponível → nunca allow.
+    return { ok: false, reason: 'not_found' };
+  }
+  const rec = rows[0];
   if (!rec) return { ok: false, reason: 'not_found' };
   if (rec.consumedAt !== null) return { ok: false, reason: 'consumed' };
-  if (now >= rec.expiresAt) {
-    store.delete(key);
+  if (now >= rec.expiresAt.getTime()) {
+    try {
+      await getDb().delete(approvalTokens).where(eq(approvalTokens.tokenHash, key));
+    } catch {
+      // Purge best-effort; o veredito já é expired.
+    }
     return { ok: false, reason: 'expired' };
   }
   if (
-    rec.actionName !== expected.actionName ||
+    rec.action !== expected.actionName ||
     rec.inputHash !== expected.inputHash ||
     rec.clinicId !== expected.clinicId ||
     rec.actor !== expected.actor ||
     rec.source !== expected.source ||
-    rec.userId !== (expected.userId ?? null) ||
-    rec.onBehalfOf !== (expected.onBehalfOf ?? null)
+    (rec.userId ?? null) !== (expected.userId ?? null) ||
+    (rec.onBehalfOf ?? null) !== (expected.onBehalfOf ?? null)
   ) {
     return { ok: false, reason: 'mismatch' };
   }
-  rec.consumedAt = now;
+  try {
+    // Consumo atômico single-use: só a primeira instância recebe linha.
+    const updated = await getDb().update(approvalTokens)
+      .set({ consumedAt: new Date(now) })
+      .where(and(
+        eq(approvalTokens.tokenHash, key),
+        isNull(approvalTokens.consumedAt),
+        gt(approvalTokens.expiresAt, new Date(now)),
+      ))
+      .returning({ tokenHash: approvalTokens.tokenHash });
+    if (updated.length === 0) {
+      // Corrida entre instâncias (ou expiração entre select e update).
+      return now >= rec.expiresAt.getTime()
+        ? { ok: false, reason: 'expired' }
+        : { ok: false, reason: 'consumed' };
+    }
+  } catch {
+    // Fail-closed: sem confirmação de consumo, nega.
+    return { ok: false, reason: 'not_found' };
+  }
   return { ok: true, approvalId: fingerprintApprovalToken(token) };
 }
 
@@ -176,7 +204,11 @@ export function evaluatePolicy(action: { riskClass?: string }, ctx: { source: st
   return { decision: 'allow', reason: 'no approval gate applies' };
 }
 
-/** Apenas para testes — limpa o store em memória. */
-export function clearApprovalTokensForTests(): void {
-  store.clear();
+/** Apenas para testes — purga a tabela (best-effort; no-op com DB mockado). */
+export async function clearApprovalTokensForTests(): Promise<void> {
+  try {
+    await getDb().delete(approvalTokens);
+  } catch {
+    // Testes com DB mockado: nada a purgar.
+  }
 }

@@ -76,7 +76,7 @@ export async function runAction<O>(
     }
     const parsed = action.input.safeParse(rawInput);
     if (!parsed.success) { await logDeny('invalid_input', 'approval_required'); return fail('invalid_input', 'Dados inválidos.'); }
-    const consumed = consumeApprovalToken(ctx.approvalToken ?? '', {
+    const consumed = await consumeApprovalToken(ctx.approvalToken ?? '', {
       actionName: action.name,
       inputHash: hashActionInput(parsed.data),
       clinicId: ctx.clinicId,

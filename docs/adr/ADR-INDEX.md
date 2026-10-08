@@ -23,6 +23,7 @@
 | [ADR-BASE-16](ADR-BASE-16-retry-idempotency-policy.md) | Política de timeout/retry/idempotência das integrações | ✅ Implementado | Nenhum |
 | [ADR-BASE-17](ADR-BASE-17-llm-untrusted-data.md) | Dados não confiáveis no LLM (delimitação, allowlist, validação) | ✅ Implementado | Eval adversarial periódico (complementar) |
 | [ADR-BASE-18](ADR-BASE-18-ai-control-plane.md) | AI Control Plane — Event/Run/Outcome como fundação da autonomia | 🏗️ Decidido (fundação P4) | Implementação tranche a tranche (writer/reader de runtime) |
+| [ADR-BASE-19](ADR-BASE-19-budget-send-legacy-exception.md) | Exceção permanente: send legado de orçamentos fora de Action | ✅ Documentado (exceção) | Extinção bloqueada até decisão de produto |
 | [ADR-LLM-01](adr-llm-embedding.md) | Escolha de LLM Provider, Modelo de Embedding e Dimensão pgvector | ✅ Implementado | Nenhum |
 
 ## Gates

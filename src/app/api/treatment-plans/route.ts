@@ -36,19 +36,22 @@ async function handleGET(request: NextRequest) {
       return apiFailure('INVALID_INPUT', 'patient_id is required', requestId, 400)
     }
 
-    const plans = await getTreatmentPlansByPatient(patientId, clinicId);
-
     const wantFinancials = searchParams.get('include_financials') === 'true'
-    if (!wantFinancials) {
-      return apiSuccess({ treatment_plans: plans })
+    if (wantFinancials) {
+      // Gate financeiro fail-fast (antes de qualquer leitura de planos):
+      // o resumo expõe valores cobrados/pagos → exige financeiro:view além
+      // do operacional:view já validado acima. Sem a permissão, nenhuma
+      // leitura é executada ou descartada.
+      const financeAuth = await validateApiAuth('financeiro:view')
+      if (!financeAuth.success) {
+        return apiAuthFailure(financeAuth.error, requestId)
+      }
     }
 
-    // Gate financeiro (após planos, antes de qualquer leitura financeira):
-    // o resumo expõe valores cobrados/pagos → exige financeiro:view além
-    // do operacional:view já validado acima.
-    const financeAuth = await validateApiAuth('financeiro:view')
-    if (!financeAuth.success) {
-      return apiAuthFailure(financeAuth.error, requestId)
+    const plans = await getTreatmentPlansByPatient(patientId, clinicId);
+
+    if (!wantFinancials) {
+      return apiSuccess({ treatment_plans: plans })
     }
 
     const financial_summary = await buildFinancialSummary(plans, clinicId)

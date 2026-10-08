@@ -239,6 +239,13 @@
       "when": 1789357900000,
       "tag": "0034_action_attempt_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1789358000000,
+      "tag": "0035_approval_tokens",
+      "breakpoints": true
     }
   ]
 }

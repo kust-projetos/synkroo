@@ -91,6 +91,12 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   ensured in .open-next\worker.js` (inject-pg-global OK). Sem deploy, sem
   staging/prod tocados — cookies, CPU, pool, observabilidade e stripping
   seguem PENDENTE-RUNTIME.
+- ✅ Evidência DRY-RUN 2026-10-08 (só validação — nenhum deploy): `wrangler
+  deploy --dry-run` VERDE para `wrangler.ia-bridge.jsonc` (bindings KV IA_SEEN
+  + Hyperdrive resolvidos) e `src/workers/ia-agent/wrangler.jsonc`
+  (Durable Object AgentOrchestrator + service binding + envs resolvidos);
+  wrangler 4.131.2 autenticado via OAuth. `--dry-run: exiting now` nos dois,
+  sem workers tocados.
 
 ## 2. Secrets por ambiente
 

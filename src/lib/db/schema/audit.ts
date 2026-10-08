@@ -19,3 +19,22 @@ export const actionLogs = pgTable('action_logs', {
   approvalId: text('approval_id'),           // fingerprint do approval token (16 hex), nunca o token
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+// S5-PERSIST — approval tokens persistidos (multi-instância, single-use fail-closed).
+// Guarda SÓ o sha256 do token (token_hash, PK) — NUNCA o token em log ou coluna.
+// Tabela efêmera (TTL default 15min); expirados removidos por lazy purge no consumo.
+// clinic_id/user_id/on_behalf_of são text (sem FK): escopo por igualdade de valor,
+// sem atrito de tipo com identidades server-derived; sem índice dedicado (tabela
+// pequena e efêmera — purge por varredura é aceitável; ver RISKS do relatório S5).
+export const approvalTokens = pgTable('approval_tokens', {
+  tokenHash: text('token_hash').primaryKey(),
+  action: text('action').notNull(),
+  inputHash: text('input_hash').notNull(),
+  clinicId: text('clinic_id').notNull(),
+  actor: text('actor').notNull(),
+  userId: text('user_id'),
+  onBehalfOf: text('on_behalf_of'),
+  source: text('source').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  consumedAt: timestamp('consumed_at', { withTimezone: true }),
+});

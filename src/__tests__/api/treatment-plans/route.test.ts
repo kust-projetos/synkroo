@@ -251,8 +251,9 @@ describe('GET /api/treatment-plans?include_financials=true — hardening FIN-FIX
     );
     const r = await get('?patient_id=p1&include_financials=true');
     expect(r.status).toBe(403);
-    // Nenhum serviço financeiro tocado (planos já exigem operacional:view,
-    // então a leitura de planos acima não vaza dado financeiro).
+    // Fail-fast total: sem financeiro:view, nenhuma leitura é executada
+    // ou descartada — nem planos, nem serviços financeiros.
+    expect(mockPlans).not.toHaveBeenCalled();
     expect(mockBudgets).not.toHaveBeenCalled();
     expect(mockInstallments).not.toHaveBeenCalled();
     expect(mockPayments).not.toHaveBeenCalled();
