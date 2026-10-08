@@ -10,6 +10,7 @@ import {
   reactivatePatient,
   runInactivityDetection,
 } from '../inactive-service';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 const mockDb: { select: jest.Mock; update: jest.Mock } = {
   select: jest.fn(),
@@ -130,6 +131,23 @@ describe('inactive-service', () => {
       });
 
       await expect(findInactivePatients('c1')).resolves.toEqual([]);
+    });
+
+    it('usa borda inclusiva (<=) e tenant, coerente com INACTIVITY_SEGMENTS', async () => {
+      const chain = query([], 'where');
+      mockDb.select.mockReturnValueOnce(chain);
+
+      await findInactivePatients('c1', 30);
+
+      const predicate = chain.where.mock.calls[0][0];
+      const { sql: rendered } = new PgDialect().sqlToQuery(predicate);
+
+      // Exatamente no cutoff conta ("inativo há >= minDays") => lte, não lt.
+      expect(rendered).toContain('<=');
+      // Nenhum `<` puro (lt) sobre last_visit_at — só `<=`.
+      expect(rendered).not.toMatch(/last_visit_at"\s*<(?!\=)/);
+      expect(rendered).toContain('is null');
+      expect(rendered).toContain('clinic_id');
     });
   });
 

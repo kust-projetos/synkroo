@@ -285,7 +285,7 @@ export async function getUpcomingAppointmentRisks(clinicId: string, days: number
     // Fail-closed: erro de DB não pode virar lista vazia com aparência de
     // "nenhum agendamento futuro" — o paciente some do painel de risco sem
     // nenhum sinal. O `return []` acima (sem upcoming) continua válido: é
-    // ausência real de dados, não falha.
+    // ausência real de dados, não falha (fake-success P0).
     dbLogger.error('Error getting upcoming appointment risks', err)
     throw err
   }

@@ -183,6 +183,13 @@ describe('No-Show Prediction Service', () => {
       expect(predictions).toEqual([])
     })
 
+    it('should throw (fail-closed) on DB error', async () => {
+      // Thenable .then(onFulfilled, onRejected) — reject immediately.
+      // Fake-success P0: erro de DB nunca vira [] (zeraria totais no GET).
+      mockDb.then = jest.fn((_resolve: any, reject: any) => reject(new Error('DB error')))
+      await expect(getUpcomingAppointmentRisks(clinicId, 7)).rejects.toThrow('DB error')
+    })
+
     it('não usa `as any` no filtro de status (typecheck como guarda estrutural)', async () => {
       const { readFileSync } = await import('node:fs')
       const src = readFileSync(
