@@ -232,6 +232,13 @@
       "when": 1789357800000,
       "tag": "0033_idempotency_result_ref",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1789357900000,
+      "tag": "0034_action_attempt_fields",
+      "breakpoints": true
     }
   ]
 }

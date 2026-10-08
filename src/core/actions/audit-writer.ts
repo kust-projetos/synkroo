@@ -13,6 +13,12 @@ export interface ActionLogRecord {
   inputRedacted: unknown;
   result: 'ok' | 'error';
   errorCode?: string | null;
+  // S5 (ActionAttempt, expansão aditiva — todos nullable no DB):
+  durationMs?: number | null;
+  policyVersion?: string | null;
+  decision?: string | null;
+  /** Fingerprint do approval token (16 hex) — NUNCA o token cru. */
+  approvalId?: string | null;
 }
 
 export async function writeActionLog(rec: ActionLogRecord): Promise<void> {
@@ -21,6 +27,8 @@ export async function writeActionLog(rec: ActionLogRecord): Promise<void> {
       clinicId: rec.clinicId, principalType: rec.principalType, actor: rec.actor,
       onBehalfOf: rec.onBehalfOf ?? null, actionName: rec.actionName, module: rec.module,
       inputRedacted: rec.inputRedacted as any, result: rec.result, errorCode: rec.errorCode ?? null,
+      durationMs: rec.durationMs ?? null, policyVersion: rec.policyVersion ?? null,
+      decision: rec.decision ?? null, approvalId: rec.approvalId ?? null,
     });
   } catch (err) {
     dbLogger.error('failed to write action_log', err, { actionName: rec.actionName });

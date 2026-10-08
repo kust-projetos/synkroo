@@ -10,6 +10,12 @@ export interface ActionContext {
   can: (permissionKey: string) => boolean;
   hasModule: (moduleId: string) => boolean;
   audit: { actor: string; onBehalfOf?: string };
+  /**
+   * S5: token opaco de aprovação (single-use, TTL) para ações
+   * deny_non_human com source !== 'user'. Opcional — ausência = forbidden
+   * (deny-by-default preservado). Nunca logar o valor cru.
+   */
+  approvalToken?: string;
 }
 
 export type ActionErrorCode =
