@@ -10,6 +10,8 @@ export const atualizarParcela = defineAction({
   module: 'financeiro',
   requires: 'financeiro:manage_budget',
   label: 'Atualizar parcela',
+  // Etapa 5.3: CONFIRM money mutation — ids/valores não-sensíveis (ADR-BASE-12).
+  auditFields: ['budgetId', 'installmentId', 'amount', 'dueDate', 'status'],
   input: z.object({
     budgetId: z.string().uuid(),
     installmentId: z.string().uuid(),

@@ -8,6 +8,9 @@ export const salvarParcelas = defineAction({
   module: 'financeiro',
   requires: 'financeiro:manage_budget',
   label: 'Salvar parcelas',
+  // Etapa 5.3: CONFIRM money mutation — budgetId only; installments (array
+  // com valores livres) fora do log para manter allowlist mínima sem PII.
+  auditFields: ['budgetId'],
   input: z.object({
     budgetId: z.string().uuid(),
     installments: z.array(z.object({

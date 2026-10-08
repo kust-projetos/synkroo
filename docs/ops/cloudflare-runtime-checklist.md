@@ -82,6 +82,15 @@ Legenda: ✅ declarado no repo · ⚠️ trade-off documentado · ❌ ausente ·
   Nota: deploy emitiu warning de que `DOQueueHandler` não é exportado do
   worker (só afeta chamadas diretas a esse DO; deploy e smoke íntegros) —
   registrado como risco, sem alteração de código nesta etapa.
+- ✅ Evidência BUILD LOCAL 2026-10-08 (só build — nenhum item
+  PENDENTE-RUNTIME alterado): `npm run build:cf` VERDE nesta máquina
+  (Next.js 15.5.25 + `@opennextjs/cloudflare 1.20.2`): `next build` →
+  `Compiled successfully in 31.4s`, `Generating static pages (121/121)`;
+  OpenNext → `Worker saved in .open-next\worker.js`;
+  `node scripts/inject-pg-global.mjs` → `pg and Hyperdrive runtime globals
+  ensured in .open-next\worker.js` (inject-pg-global OK). Sem deploy, sem
+  staging/prod tocados — cookies, CPU, pool, observabilidade e stripping
+  seguem PENDENTE-RUNTIME.
 
 ## 2. Secrets por ambiente
 
