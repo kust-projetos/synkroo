@@ -32,7 +32,9 @@ export interface PlanPayment {
   amount: number
   payment_method: string
   paid_at: string
-  notes: string | null
+  // Omitido pelo payload de include_financials (minimização de PII); mantido
+  // opcional para compatibilidade com outros leitores do tipo.
+  notes?: string | null
 }
 
 export interface PlanFinancialSummary {
