@@ -128,6 +128,14 @@ describe('S5 approval token (server-side, single-use, TTL, DB-backed)', () => {
     expect(APPROVAL_POLICY_VERSION).toBe('s5-approval-v1');
   });
 
+  it('issueApprovalToken: token opaco 32 bytes → 64 chars hex lowercase, únicos (regressão E1)', async () => {
+    const { token: t1 } = await issueFor({ value: 'hi' });
+    const { token: t2 } = await issueFor({ value: 'hi' });
+    expect(t1).toMatch(/^[0-9a-f]{64}$/);
+    expect(t2).toMatch(/^[0-9a-f]{64}$/);
+    expect(t1).not.toBe(t2);
+  });
+
   it('evaluatePolicy: deny_non_human + non-user → approval_required; user/standard → allow', () => {
     expect(evaluatePolicy({ riskClass: 'deny_non_human' }, { source: 'agent_delegated' }).decision)
       .toBe('approval_required');

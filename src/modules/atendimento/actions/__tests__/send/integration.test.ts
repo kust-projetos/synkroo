@@ -2,12 +2,22 @@
  * Integration test: Atendimento send + escalate flow (P4).
  *
  * Tests:
- *   enviarMensagem resolves channel from conversation, delegates to channel-service
+ *   enviarMensagem resolves channel from conversation, delegates to channel-service (WAHA)
  *   enviarMensagem with non-existent conversation → not_found
+ *   enviarMensagem failure from WAHA provider → internal
+ *   enviarMensagem explicit channel parameter is used instead of conversation channel
+ *   enviarMensagem system without approval token → forbidden (transport NOT called)
  *   escalarConversa without permission → forbidden
  *   escalarConversa with permission → success
  *
- * Evolution service is mocked at the boundary (send-message-service).
+ * Transport is stubbed at the provider-registry seam (WAHA-first, owner
+ * decision 3863c4f): a mock WAHA adapter is registered via
+ * `registerWhatsAppProviderAdapter` with `sendTextMessage`; the sidecar
+ * fallback is disabled for determinism (env restored afterwards). Facade,
+ * idempotency and DB stay real.
+ *
+ * enviarMensagem is `deny_non_human`, so send scenarios use a human context
+ * (`source: 'user'` + valid user). Escalation tests keep the system context.
  *
  * Run: RUN_INTEGRATION_TESTS=1 npm run test:integration -- src/modules/atendimento/actions/__tests__/send/integration.test.ts
  */
@@ -18,16 +28,14 @@ import { Pool } from 'pg';
 import { randomUUID } from 'crypto';
 import { bootstrapActions } from '@/core/actions/bootstrap';
 import { clearRegistry } from '@/core/actions/registry';
+import {
+  registerWhatsAppProviderAdapter,
+  resetWhatsAppProviderRegistry,
+} from '../../../integrations/whatsapp-provider-registry';
 
-// Mock evolution service at the boundary
-const mockSendTextMessage = jest.fn();
-
-jest.mock('../../../services/evolution-service', () => ({
-  getEvolutionService: () => ({
-    sendTextMessage: mockSendTextMessage,
-  }),
-  getInstanceInfo: jest.fn().mockResolvedValue([]),
-}));
+// Transport stub behind the registry seam (WAHA-first). Behavior is set
+// per-test; unset default resolves to undefined (falsy → internal).
+const mockWahaSendTextMessage = jest.fn();
 
 const SKIP = process.env.RUN_INTEGRATION_TESTS !== '1';
 const describeOrSkip = SKIP ? describe.skip : describe;
@@ -37,10 +45,27 @@ const CONV_PHONE = '+5511998880001';
 
 let pool: Pool;
 
+// Fallback env saved/restored so the suite never touches the sidecar.
+let savedFallbackUrl: string | undefined;
+let savedFallbackSecret: string | undefined;
+
 beforeAll(async () => {
   if (SKIP) return;
+  // Snapshot defensivo ANTES de qualquer await: se o bootstrap falhar, o
+  // afterAll restaura (ou apaga) exatamente o estado original.
+  savedFallbackUrl = process.env.WHATSAPP_FALLBACK_URL;
+  savedFallbackSecret = process.env.WHATSAPP_FALLBACK_SECRET;
   clearRegistry();
   await bootstrapActions();
+
+  delete process.env.WHATSAPP_FALLBACK_URL;
+  delete process.env.WHATSAPP_FALLBACK_SECRET;
+
+  registerWhatsAppProviderAdapter({
+    id: 'waha',
+    isAvailable: () => true,
+    sendTextMessage: mockWahaSendTextMessage,
+  } as never);
 
   pool = new Pool({ connectionString: process.env.DATABASE_URL! });
 
@@ -58,7 +83,15 @@ beforeAll(async () => {
 }, 60_000);
 
 afterAll(async () => {
-  if (SKIP || !pool) return;
+  if (SKIP) {
+    return;
+  }
+  resetWhatsAppProviderRegistry();
+  if (savedFallbackUrl !== undefined) process.env.WHATSAPP_FALLBACK_URL = savedFallbackUrl;
+  else delete process.env.WHATSAPP_FALLBACK_URL;
+  if (savedFallbackSecret !== undefined) process.env.WHATSAPP_FALLBACK_SECRET = savedFallbackSecret;
+  else delete process.env.WHATSAPP_FALLBACK_SECRET;
+  if (!pool) return;
   try {
     await pool.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [CLINIC_ID]);
     await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [CLINIC_ID]);
@@ -74,7 +107,7 @@ afterEach(async () => {
     await pool.query(`DELETE FROM conversations WHERE clinic_id = $1`, [CLINIC_ID]);
     await pool.query(`DELETE FROM idempotency_keys WHERE key LIKE 'whatsapp:send:${CLINIC_ID}:%'`, []);
   } catch { /* ignore */ }
-  mockSendTextMessage.mockReset();
+  mockWahaSendTextMessage.mockReset();
 });
 
 // Helper: create a conversation for testing
@@ -95,6 +128,17 @@ const systemCtx = {
   audit: { actor: 'test-runner' },
 };
 
+// Human context: enviarMensagem is deny_non_human, so send scenarios run
+// as a human principal (no approval token needed for source 'user').
+const userCtx = {
+  source: 'user' as const,
+  clinicId: CLINIC_ID,
+  user: { id: '00000000-0000-0000-0000-400000000001', email: 'sender@test.local', name: 'Sender' },
+  can: () => true,
+  hasModule: () => true,
+  audit: { actor: 'test-runner' },
+};
+
 // Context WITHOUT escalation permission
 const ctxNoEscalate = {
   ...systemCtx,
@@ -105,8 +149,8 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
 
   // ── enviarMensagem ───────────────────────────────────────────
 
-  it('enviarMensagem: resolves channel from conversation and delegates to evolution', async () => {
-    mockSendTextMessage.mockResolvedValue({ success: true, messageId: 'evo-msg-1' });
+  it('enviarMensagem: resolves channel from conversation and delegates to WAHA', async () => {
+    mockWahaSendTextMessage.mockResolvedValue({ success: true, messageId: 'waha-msg-1' });
 
     const convId = await seedConversation();
     const { enviarMensagem } = await import('../../enviar-mensagem');
@@ -115,14 +159,14 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     const result = await runAction(enviarMensagem, {
       conversationId: convId,
       message: 'Olá, sua consulta está confirmada!',
-    }, systemCtx);
+    }, userCtx);
 
     expect(result.ok).toBe(true);
     const data = (result as any).data;
     expect(data.messageId).toBeDefined();
 
-    // Evolution was called with correct phone (claim único vive na facade)
-    expect(mockSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Olá, sua consulta está confirmada!');
+    // WAHA was called with correct phone (claim único vive na facade)
+    expect(mockWahaSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Olá, sua consulta está confirmada!');
 
     // Outbound message persisted
     const { rows: msgRows } = await pool!.query(
@@ -158,14 +202,14 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     const result = await runAction(enviarMensagem, {
       conversationId: fakeId,
       message: 'Teste',
-    }, systemCtx);
+    }, userCtx);
 
     expect(result.ok).toBe(false);
     expect((result as any).error.code).toBe('not_found');
   });
 
-  it('enviarMensagem: evolution failure returns internal error', async () => {
-    mockSendTextMessage.mockResolvedValue({ success: false, error: 'API rate limited' });
+  it('enviarMensagem: WAHA failure returns internal error', async () => {
+    mockWahaSendTextMessage.mockResolvedValue({ success: false, error: 'API rate limited' });
 
     const convId = await seedConversation();
     const { enviarMensagem } = await import('../../enviar-mensagem');
@@ -174,7 +218,7 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     const result = await runAction(enviarMensagem, {
       conversationId: convId,
       message: 'Teste',
-    }, systemCtx);
+    }, userCtx);
 
     expect(result.ok).toBe(false);
     expect((result as any).error.code).toBe('internal');
@@ -182,7 +226,7 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
   });
 
   it('enviarMensagem: explicit channel parameter is used instead of conversation channel', async () => {
-    mockSendTextMessage.mockResolvedValue({ success: true, messageId: 'evo-msg-2' });
+    mockWahaSendTextMessage.mockResolvedValue({ success: true, messageId: 'waha-msg-2' });
 
     const convId = await seedConversation(); // conversation has channel 'whatsapp'
     const { enviarMensagem } = await import('../../enviar-mensagem');
@@ -192,10 +236,31 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
       conversationId: convId,
       message: 'Mensagem via whatsapp explícito',
       channel: 'whatsapp',
-    }, systemCtx);
+    }, userCtx);
 
     expect(result.ok).toBe(true);
-    expect(mockSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Mensagem via whatsapp explícito');
+    expect(mockWahaSendTextMessage).toHaveBeenCalledWith(CONV_PHONE, 'Mensagem via whatsapp explícito');
+  });
+
+  it('enviarMensagem: system without approval token returns forbidden and transport is not called', async () => {
+    const convId = await seedConversation();
+    const { enviarMensagem } = await import('../../enviar-mensagem');
+    const { runAction } = await import('@/core/actions/run');
+
+    const result = await runAction(enviarMensagem, {
+      conversationId: convId,
+      message: 'Não deve enviar',
+    }, systemCtx);
+
+    expect(result.ok).toBe(false);
+    expect((result as any).error.code).toBe('forbidden');
+    expect(mockWahaSendTextMessage).not.toHaveBeenCalled();
+
+    const { rows: msgRows } = await pool!.query(
+      `SELECT id FROM messages WHERE conversation_id = $1`,
+      [convId],
+    );
+    expect(msgRows.length).toBe(0);
   });
 
   // ── escalarConversa ──────────────────────────────────────────

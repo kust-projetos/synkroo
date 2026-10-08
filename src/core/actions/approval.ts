@@ -85,7 +85,12 @@ export async function issueApprovalToken(params: {
 }, opts: IssueApprovalOptions = {}): Promise<IssuedApproval> {
   const now = opts.now ?? Date.now();
   const ttlMs = opts.ttlMs ?? APPROVAL_TTL_MS_DEFAULT;
-  const token = randomBytes(32).toString('hex');
+  // E1: hex manual — evita `Buffer.toString(encoding)`, cujo tipo colide com
+  // `@cloudflare/workers-types` (Buffer: any) no programa ia-bridge (TS2554).
+  // Semântica byte-idêntica: 32 bytes aleatórios → 64 chars hex lowercase.
+  const token = Array.from(randomBytes(32) as Uint8Array)
+    .map((b: number) => b.toString(16).padStart(2, '0'))
+    .join('');
   const expiresAt = now + ttlMs;
   try {
     await getDb().insert(approvalTokens).values({
