@@ -18,7 +18,7 @@ describe('Budget route parity (T5 W8.2 strangler)', () => {
 
   const legacyMethods = [
     { file: 'src/app/api/budgets/route.ts', methods: ['GET', 'POST'] },
-    { file: 'src/services/api-handlers/budgets/[id].ts', methods: ['GET', 'PUT', 'DELETE'] },
+    { file: 'src/app/api/budgets/[id]/route.ts', methods: ['GET', 'PUT', 'DELETE'] },
     { file: 'src/app/api/budgets/[id]/payments/route.ts', methods: ['GET', 'POST'] },
     { file: 'src/app/api/budgets/[id]/installments/route.ts', methods: ['GET', 'POST', 'PATCH', 'DELETE'] },
   ];
@@ -65,7 +65,7 @@ describe('Budget route parity (T5 W8.2 strangler)', () => {
   it('legacy adapters do not import repository/service directly for auth/mutation', () => {
     const legacyFiles = [
       'src/app/api/budgets/route.ts',
-      'src/services/api-handlers/budgets/[id].ts',
+      'src/app/api/budgets/[id]/route.ts',
       'src/app/api/budgets/[id]/installments/route.ts',
       'src/app/api/budgets/[id]/payments/route.ts',
     ];
@@ -81,7 +81,7 @@ describe('Budget route parity (T5 W8.2 strangler)', () => {
   it('legacy adds Deprecation, Link, X-Synkroo-Legacy-Route and telemetry without PII', () => {
     const legacyFiles = [
       'src/app/api/budgets/route.ts',
-      'src/services/api-handlers/budgets/[id].ts',
+      'src/app/api/budgets/[id]/route.ts',
       'src/app/api/budgets/[id]/installments/route.ts',
       'src/app/api/budgets/[id]/payments/route.ts',
     ];
