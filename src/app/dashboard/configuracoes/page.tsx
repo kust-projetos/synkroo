@@ -596,7 +596,7 @@ export default function ConfiguracoesPage() {
               <div className="flex flex-col items-center gap-3 text-center" data-testid="qr-connected">
                 <CheckCircleIcon className="h-12 w-12 text-green-600" />
                 <p className="text-sm font-medium text-foreground">WhatsApp já conectado</p>
-                <p className="text-xs text-muted-foreground">A instância Evolution / sidecar está ativa para esta clínica.</p>
+                <p className="text-xs text-muted-foreground">A sessão WAHA está ativa para esta clínica.</p>
               </div>
             ) : qrState.qrcode ? (
               <div className="flex flex-col items-center gap-3" data-testid="qr-display">
@@ -609,7 +609,7 @@ export default function ConfiguracoesPage() {
               <div className="flex flex-col items-center gap-3 text-center max-w-xs" data-testid="qr-error">
                 <XCircleIcon className="h-10 w-10 text-amber-500" />
                 <p className="text-sm text-muted-foreground">{qrState.error || 'QR code indisponível.'}</p>
-                <p className="text-xs text-muted-foreground">Verifique as variáveis EVOLUTION_API_URL / WHATSAPP_FALLBACK_URL no servidor.</p>
+                <p className="text-xs text-muted-foreground">Verifique a configuração do WAHA (WAHA_API_URL) no servidor.</p>
               </div>
             )}
           </div>

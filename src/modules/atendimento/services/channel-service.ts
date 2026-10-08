@@ -8,17 +8,33 @@
  *  - WhatsAppService (HTTP client for VPS Playwright fallback sidecar)
  *  - sendWhatsAppMessage (provider-dispatching facade)
  *  - sendByChannel (channel abstraction for actions)
+ *
+ * vNext P3.1: concrete providers are reached through the provider registry
+ * (`../integrations/whatsapp-provider-registry`) — this facade never imports a
+ * provider leaf directly, and it keeps owning detection, fallback order and the
+ * single idempotency claim that spans provider + sidecar fallback.
+ *
+ * WAHA-only (owner decision, commit 3863c4f): WAHA is the default outbound
+ * channel — detection prefers it and `sendWhatsApp` tries it first. Evolution
+ * remains as a DEPRECATED legacy path (same error contracts, no new behavior)
+ * until the owner retires the provider and its inbound route
+ * (`/api/whatsapp/evolution`).
  */
 
 import { EventEmitter } from 'events';
 import { dbLogger } from '@/lib/logger';
-import { getEvolutionService } from './evolution-service';
+import { getWhatsAppProviderAdapter } from '../integrations/whatsapp-provider-registry';
+import type {
+  WhatsAppProviderAdapter,
+  WhatsAppProviderId,
+} from '../integrations/whatsapp-provider-registry';
 import { fetchWithRetry, DEFAULT_EXTERNAL_TIMEOUT_MS } from '@/lib/http/fetch-with-retry';
 import { withOutboundIdempotency, OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
 
 // ─── Types ─────────────────────────────────────────────────────
 
-export type WhatsAppProvider = 'evolution' | 'playwright' | 'business-api';
+/** Alias kept for existing importers; canonical id union lives in the adapter contract. */
+export type WhatsAppProvider = WhatsAppProviderId;
 
 export interface WhatsAppMessage {
   id: string;
@@ -47,6 +63,10 @@ export interface SendResult {
 // ─── Provider detection ────────────────────────────────────────
 
 function detectProvider(): WhatsAppProvider {
+  // WAHA-only (owner decision, commit 3863c4f): WAHA is the channel and wins
+  // whenever it is configured; Evolution detection is legacy and stays only
+  // for the deprecation transition.
+  if (process.env.WAHA_API_URL && process.env.WAHA_API_KEY) return 'waha';
   if (process.env.EVOLUTION_API_URL && process.env.EVOLUTION_API_KEY) return 'evolution';
   if (process.env.WHATSAPP_API_URL && process.env.WHATSAPP_TOKEN) return 'business-api';
   return 'playwright';
@@ -54,6 +74,35 @@ function detectProvider(): WhatsAppProvider {
 
 function isFallbackConfigured(): boolean {
   return Boolean(process.env.WHATSAPP_FALLBACK_URL && process.env.WHATSAPP_FALLBACK_SECRET);
+}
+
+// ─── Provider registry seam (P3.1) ────────────────────────────────────────────
+
+/**
+ * Resolves the WAHA adapter through the provider registry. Returns `null`
+ * when no adapter is registered or the underlying provider cannot be resolved
+ * (missing/invalid `WAHA_*` config) — the caller then falls through to the
+ * legacy Evolution path or the sidecar, exactly like the Evolution resolver.
+ */
+function resolveWahaAdapter(): WhatsAppProviderAdapter | null {
+  const adapter = getWhatsAppProviderAdapter('waha');
+  if (!adapter || !adapter.isAvailable()) return null;
+  return adapter;
+}
+
+/**
+ * Resolves the Evolution adapter through the provider registry. Returns `null`
+ * when no adapter is registered or the underlying provider cannot be resolved —
+ * the exact condition the facade previously expressed as "no Evolution leaf",
+ * so detection/fallback order is unchanged.
+ *
+ * @deprecated Legacy path — WAHA is the channel (owner decision, commit
+ * 3863c4f). Kept for the deprecation transition with identical contracts.
+ */
+function resolveEvolutionAdapter(): WhatsAppProviderAdapter | null {
+  const adapter = getWhatsAppProviderAdapter('evolution');
+  if (!adapter || !adapter.isAvailable()) return null;
+  return adapter;
 }
 
 // ─── Unified send facade ───────────────────────────────────────
@@ -92,14 +141,50 @@ export async function sendWhatsAppMessage(
 ): Promise<SendResult> {
   const provider = detectProvider();
 
+  if (provider === 'waha') {
+    let wahaAdapter: WhatsAppProviderAdapter | null = null;
+    try {
+      wahaAdapter = resolveWahaAdapter();
+    } catch (err) {
+      dbLogger.error('channel-service: waha resolve failed', err);
+    }
+    if (wahaAdapter) {
+      // Claim único englobando WAHA + fallback (sem repasse da chave ao
+      // leaf — o leaf mantém o param para chamadores diretos).
+      const attempt = async (): Promise<SendResult> => {
+        try {
+          const result = await wahaAdapter.sendTextMessage(phone, message);
+          if (result.success || !isFallbackConfigured()) return result;
+          dbLogger.warn('channel-service: waha send failed; using WhatsApp sidecar fallback');
+          return getWhatsAppService().sendMessage(phone, message);
+        } catch (err) {
+          if (!isFallbackConfigured()) throw err;
+          dbLogger.error('channel-service: waha send failed', err);
+          dbLogger.warn('channel-service: waha send threw; using WhatsApp sidecar fallback');
+          return getWhatsAppService().sendMessage(phone, message);
+        }
+      };
+      return runIdempotentSend(idempotencyKey, attempt);
+    }
+
+    if (isFallbackConfigured()) {
+      return runIdempotentSend(idempotencyKey, () => getWhatsAppService().sendMessage(phone, message));
+    }
+  }
+
   if (provider === 'evolution') {
-    const evolutionService = getEvolutionService();
-    if (evolutionService) {
+    let evolutionAdapter: WhatsAppProviderAdapter | null = null;
+    try {
+      evolutionAdapter = resolveEvolutionAdapter();
+    } catch (err) {
+      dbLogger.error('channel-service: evolution resolve failed', err);
+    }
+    if (evolutionAdapter) {
       // Claim único englobando Evolution + fallback (sem repasse da chave ao
       // leaf — o leaf mantém o param para chamadores diretos).
       const attempt = async (): Promise<SendResult> => {
         try {
-          const result = await evolutionService.sendTextMessage(phone, message);
+          const result = await evolutionAdapter.sendTextMessage(phone, message);
           if (result.success || !isFallbackConfigured()) return result;
           dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
           return getWhatsAppService().sendMessage(phone, message);
@@ -113,7 +198,9 @@ export async function sendWhatsAppMessage(
       return runIdempotentSend(idempotencyKey, attempt);
     }
 
-    if (isFallbackConfigured()) return getWhatsAppService().sendMessage(phone, message);
+    if (isFallbackConfigured()) {
+      return runIdempotentSend(idempotencyKey, () => getWhatsAppService().sendMessage(phone, message));
+    }
   }
 
   if (provider === 'playwright') {
@@ -148,16 +235,42 @@ export async function sendWhatsApp(
   idempotencyKey?: string,
   opts?: { completedTtlMs?: number },
 ): Promise<SendResult> {
-  // Claim único englobando Evolution + fallback (sem repasse da chave ao leaf).
+  // Claim único englobando WAHA (preferido) + Evolution legado + fallback
+  // (sem repasse da chave aos leaves). WAHA-only (owner decision, 3863c4f):
+  // com WAHA disponível o envio usa WAHA e NÃO recorre à Evolution; sem WAHA
+  // o caminho legado da Evolution é preservado com contratos idênticos.
   const attempt = async (): Promise<SendResult> => {
+    let wahaAdapter: WhatsAppProviderAdapter | null = null;
     try {
-      const evolution = getEvolutionService();
-      if (!evolution) {
+      wahaAdapter = resolveWahaAdapter();
+    } catch (err: unknown) {
+      dbLogger.error('channel-service: waha resolve failed', err);
+      wahaAdapter = null;
+    }
+    if (wahaAdapter) {
+      try {
+        const result = await wahaAdapter.sendTextMessage(to, text);
+        if (result.success || !isFallbackConfigured()) return result;
+        dbLogger.warn('channel-service: waha send failed; using WhatsApp sidecar fallback');
+        return getWhatsAppService().sendMessage(to, text);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        dbLogger.error('channel-service: waha send failed', err);
+        if (isFallbackConfigured()) {
+          dbLogger.warn('channel-service: waha send threw; using WhatsApp sidecar fallback');
+          return getWhatsAppService().sendMessage(to, text);
+        }
+        return { success: false, error: msg };
+      }
+    }
+    try {
+      const evolutionAdapter = resolveEvolutionAdapter();
+      if (!evolutionAdapter) {
         return isFallbackConfigured()
           ? getWhatsAppService().sendMessage(to, text)
           : { success: false, error: 'Evolution service not available' };
       }
-      const result = await evolution.sendTextMessage(to, text);
+      const result = await evolutionAdapter.sendTextMessage(to, text);
       if (result.success || !isFallbackConfigured()) return result;
       dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
       return getWhatsAppService().sendMessage(to, text);

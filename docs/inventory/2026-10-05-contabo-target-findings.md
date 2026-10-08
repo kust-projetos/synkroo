@@ -118,4 +118,22 @@ Hostinger segue **intacta e acessível** (rollback window aberta; decommission s
 3. **Remoção do fallback legado** `../vps-hostinger/.env` (vps-access.md §Fonte) — agora com `.env` próprio do target (`D:\projetos\vps-contabo\.env`).
 4. Monitoramento do backup do target: opcional `BACKUP_HC_PING_URL` em `/opt/synkroo/backup/.env`.
 5. §12 Cleanup da Hostinger — SOMENTE após a janela de observação e backup final.
-6. P3 (WAHA): decidir provider real (WAHA já ativo na source sem volume de sessão vs. config Evolution do app).
+6. P3 (WAHA): direção escolhida pelo owner no plano vNext em 2026-10-05; target ainda sem container/volume/secrets WAHA, e o candidato NOWEB da source não substitui a matriz de compatibilidade P3.5.
+
+## 9. Recheck WAHA target — 2026-10-06T08:12:13Z (read-only)
+
+Inventário SSH de leitura (hostname, `docker ps`, volumes/redes, disco/memória e
+unidades systemd com falha) confirmou o estado atual do target:
+
+- Nenhum container WAHA e nenhum volume de sessão WAHA aparecem no target.
+- A rede externa Docker `proxy` existe; o container de proxy continua usando a
+  tag flutuante `traefik:latest`.
+- O arquivo privado `D:\projetos\vps-contabo\.env` contém apenas nomes de chaves
+  de PostgreSQL target; nenhum nome `WAHA_*` foi encontrado. Valores não foram
+  lidos nem copiados.
+- `systemctl --failed` não retornou unidades com falha no momento da coleta.
+
+Conclusão: a instalação do WAHA no Contabo ainda é greenfield. O scaffold
+versionado em `ops/vps/waha/` é loopback-only e não foi implantado; não há URL,
+key/HMAC ou engine provisionados no target. A rota de entrada Cloudflare e a
+política de backup da sessão seguem como gates operacionais distintos.

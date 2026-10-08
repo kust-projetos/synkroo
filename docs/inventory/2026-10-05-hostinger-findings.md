@@ -113,10 +113,31 @@ Dump custom format produzido pela rota canônica (stream SSH → arquivo local, 
 
 Alinhado ao runbook:
 
-1. **Fechar os gaps do §3** antes do cutover: `docker inspect` dos containers do Synkroo (bind mounts, labelling do Traefik, healthchecks, resource limits); leitura do store acme do Traefik; inventário do `pg_hba.conf`/`postgresql.conf` vivos; destino e retenção do `backup.sh`; confirmação do owner sobre Evolution (onde está o `EVOLUTION_GO_URL`) e sobre o WAHA já ativo.
+1. **Fechar os gaps do §3** antes do cutover: leitura do store ACME do Traefik; inventário do `pg_hba.conf`/`postgresql.conf` vivos; destino/retenção do `backup.sh`; confirmar onde `EVOLUTION_GO_URL` aponta e se o WAHA da source é apenas candidato ou recebeu sessão/tráfego real. O recheck de 2026-10-06 confirmou o bind `/app/.sessions`, mas não leu estado da sessão.
 2. **§5.2 — Backup source.** `npx tsx scripts/backup-vps-db.ts --side=source`, produzindo dump custom `-Fc` + SHA-256 + `*.meta.json` redatado, **streamado por SSH** (nunca gravado on-host, item (b)), com o `pg_dump` executado por `docker exec` (item (c)). Guardar uma cópia off-host, não só na source.
 3. **§5.3 — Rehearsal no target.** Depois do bootstrap Contabo (§4): `npx tsx scripts/restore-vps-db.ts --side=target --from <dump> --create-db synkroo_rehearsal`, validando pgvector, btree_gist, ledger Drizzle (33), constraints, counts e queries de health. Definir no target a rota Hyperdrive/túnel conforme item (d)/(e), sem publicar a porta do Postgres.
 4. **Cutover DB (§5.4)** só com restore test verde, backup off-host e rollback ensaiado (§13 Infra GO); Hostinger não é destruída no dia do cutover.
-5. **P3 (canal)** permanece bloqueado até a decisão do owner sobre o WAHA já presente na source (item (f)) e sobre a rota Hyperdrive (item (d)).
+5. **P3 (canal):** a direção WAHA foi escolhida pelo owner no plano canônico vNext em 2026-10-05. Continua bloqueada operacionalmente: o target não tem WAHA, o digest da source ainda veio da tag flutuante `latest`, a compatibilidade do engine não foi testada e não há HMAC key no target; a janela de observação P2 e o plano de rollback também precisam fechar.
 
 Evidências a registrar por etapa conforme §14: timestamp, versão/digest das imagens, backup hash, smoke e decisão GO/NO-GO.
+
+## 5. Recheck WAHA source — 2026-10-06T08:26:36Z (read-only)
+
+Uma consulta SSH de baixa carga a `docker inspect waha` + `docker image inspect`
+resolveu a divergência entre este snapshot de 2026-10-05 (§1.1, linha 49) e o
+inventário do projeto VPS:
+
+| Campo | Observado na source |
+|---|---|
+| Image config | `devlikeapro/waha:latest` (a tag continua flutuante) |
+| Registry RepoDigest | `devlikeapro/waha@sha256:41283bd89922ec3f722e5a772b844c451634d4aa72e9c34043c3480184f970fe` (candidato observado, não aprovação de release/proveniência) |
+| Sessão | bind `/home/deploy/infra/waha/sessions` → `/app/.sessions`; **há persistência local**, ao contrário da observação anterior “sem volume” |
+| Healthcheck | ausente no container |
+| Traefik | `Host(waha.synkroo.com.br)`, `websecure`, resolver `cf` |
+
+O recheck não leu arquivos `.env`, conteúdo de sessão, logs ou valores de labels
+com secrets. O engine `NOWEB` consta em `D:\projetos\vps-hostinger\docs\waha.md`,
+mas não foi lido do ambiente efetivo do container: permanece candidato, não
+decisão de P3.5. O `RepoDigest` também precisa ser verificado contra a origem
+upstream/arquitetura antes de ser aprovado para o target. Não copiar a sessão da
+source para o target; a política de backup/restore do volume continua pendente.

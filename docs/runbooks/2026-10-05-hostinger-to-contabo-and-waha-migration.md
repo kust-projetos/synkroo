@@ -269,6 +269,28 @@ Executar compatibility matrix para:
 
 GOWS/NOWEB podem reduzir recursos; WEBJS pode servir como baseline de compatibilidade. Fixar um engine após testes.
 
+### 6.4 Scaffold local e estado observado (2026-10-06)
+
+- O recheck read-only da source encontrou `devlikeapro/waha:latest`, RepoDigest
+  `sha256:41283bd89922ec3f722e5a772b844c451634d4aa72e9c34043c3480184f970fe`,
+  bind de sessão em `/home/deploy/infra/waha/sessions:/app/.sessions`, sem
+  healthcheck e labels Traefik `websecure`/`cf`. O digest é um **candidato** da
+  imagem atualmente executada na source; sua proveniência/plataforma e o engine
+  ainda precisam do gate P3.5. A documentação VPS declara NOWEB, mas o env
+  efetivo do container não foi lido.
+- O recheck read-only do Contabo em `2026-10-06T08:12:13Z` não encontrou
+  container/volume WAHA. `ops/vps/waha/docker-compose.yml` é apenas scaffold
+  loopback (`127.0.0.1:3000`), com `WAHA_IMAGE_DIGEST`/`WAHA_ENGINE` requeridos; não
+  publica rota Traefik, não configura DNS/secrets e **não foi implantado**.
+- O Worker Cloudflare não alcança esse bind loopback. Antes de fornecer
+  `WAHA_API_URL` à aplicação, o owner deve aprovar um padrão de acesso privado/
+  edge-authenticated para o serviço WAHA. Não transformar o endpoint
+  administrativo completo `/api/*` em origem pública apenas por haver API key.
+- O scaffold cria volume de sessão, mas o backup target atual não o inclui. O
+  volume contém estado reutilizável de WhatsApp; P3.4 precisa aprovar e ensaiar
+  confidencialidade, backup cifrado/off-host, restore e re-pareamento antes de
+  qualquer sessão real.
+
 ## 7. Refatoração da aplicação para WAHA
 
 ### 7.1 Adapter
@@ -298,12 +320,17 @@ Criar `POST /api/whatsapp/waha`.
 Pipeline:
 ```text
 WAHA webhook
-→ HMAC
-→ installation/session resolve
-→ normalize
-→ freshness/replay
-→ provider event dedup
-→ receberMensagem Action
+→ in-memory rate limit (identity = CF-Connecting-IP only in prod; supplemental,
+  Cloudflare edge rate limit on the exact path is the mandatory ops gate)
+→ bounded raw-body read (size + deadline)
+→ HMAC-SHA512 over exact raw bytes
+→ parse + event/session allowlist
+→ atendimento module gate
+→ enabled WAHA session → channel installation → clinic mapping
+→ identify direct inbound message (echo/group/LID fail-closed)
+→ freshness using signed root timestamp
+→ session-scoped provider-message dedup
+→ receberMensagem Action (durable message + outbox)
 → conversation/agent pipeline
 ```
 
@@ -447,6 +474,41 @@ Somente após janela de observação:
 - session persistence/reconnect verde;
 - observabilidade;
 - rollback compreendido.
+
+### Inbound WAHA GO (ops gate)
+- **Regra de rate limit na borda Cloudflare** para o path EXATO
+  `POST /api/whatsapp/waha` (path exato, sem wildcard), configurada e verificada
+  (429 + `Retry-After` no edge). Esta é a exigência do gate: um limiter no
+  Traefik do *backend WAHA* (API do container WAHA) **não** conta — ele protege
+  a superfície de chamada da API do provider, não este webhook inbound, e não
+  deve ser usado como evidência de que o inbound está limitado.
+- Confirmar que o sinal de client IP da Cloudflare chega ao Worker: o
+  `CF-Connecting-IP` presente no request exatamente como a borda o injeta (ver
+  §13.1) e que a origem **não** é contornável (DNS/hostname de origem único
+  atrás da borda; sem rota alternativa que alcance o Worker/Contabo sem passar
+  pela Cloudflare). Sem isso, a identidade do limiter in-process cai no sentinel
+  compartilhado — o que super-limita, mas sinaliza que a borda não está no
+  caminho do tráfego.
+- O limiter in-process da aplicação (`rateLimitPresets.webhook`, prefixo
+  `waha-webhook`) é **suplementar**: o store é in-memory e por instância, então
+  não limita tráfego agregado/distribuído e é perdido a cada deploy. Ele
+  existe para impedir que tráfego não autenticado, com headers bem formados,
+  consuma repetidamente o orçamento de 256 KiB / 10 s de leitura do corpo antes
+  da verificação HMAC — não substitui o gate da borda.
+  Em produção a identidade dele vem **apenas** de `CF-Connecting-IP`
+  (presente, limitado e sem whitespace/comma); `X-Forwarded-For`/`X-Real-IP` são
+  settáveis pelo cliente e nunca são usados, nem como fallback — header ausente
+  ou inválido cai num único sentinel compartilhado.
+
+#### 13.1 Como confirmar o sinal da borda (sem criar a regra aqui)
+A regra em si é um passo de ops no dashboard — não versionada neste repositório.
+Para produzir evidência, o operador confirma em runtime:
+- request de teste chegando pela borda mostra `CF-Connecting-IP` preenchido no
+  handler (log/observabilidade do Worker), sem `CF-Ray`/`cf-connecting-ip`
+  ausentes;
+- o comportamento observado é consistente com §13: com header ausente, todas as
+  requisições compartilham uma única cota (`waha-webhook:unknown-cf-client`),
+  e não uma cota por `X-Forwarded-For`.
 
 Qualquer falha Sev-0/Sev-1 = NO-GO.
 

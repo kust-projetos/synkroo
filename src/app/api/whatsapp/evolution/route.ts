@@ -1,131 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { resolveChannelInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
-import { assertWebhookFreshness, extractEvolutionTimestampMs } from '@/modules/atendimento/integrations/webhook-freshness';
-import { whatsappLogger } from '@/lib/logger';
-import { runAtendimentoSystemAction } from '@/modules/atendimento/ui/route-adapter';
-import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
+/**
+ * GET|POST /api/whatsapp/evolution — retired (410 Gone).
+ *
+ * WAHA-only (owner decision, commit 3863c4f, ratified 2026-10-08): the legacy
+ * Evolution inbound webhook is retired. Senders must migrate to the WAHA
+ * inbound webhook at `/api/whatsapp/waha`.
+ *
+ * The file stays as a Gone stub (not deleted) so existing senders get a
+ * machine-readable retirement signal under the canonical error envelope
+ * instead of an opaque 404. Physical removal is a follow-up after confirmed
+ * zero traffic. The outbound Evolution adapter + registry id stay untouched
+ * in this wave (deprecated legacy fallback).
+ */
+import { NextResponse, type NextRequest } from 'next/server';
 import { withModuleRoute } from '@/core/modules/gates';
-import { createManifest } from '@/core/modules/manifest';
+import { apiFailure, generateRequestId } from '@/lib/api/response';
+
 export const dynamic = 'force-dynamic';
 
+const RETIRED_MESSAGE =
+  'Evolution inbound webhook retired (410 Gone). Migrate to the WAHA inbound webhook at /api/whatsapp/waha.';
 
-
-function normalizeEvolutionGoMessage(body: Record<string, unknown>): Record<string, unknown> {
-  const raw = (body.data || {}) as Record<string, unknown>;
-  const info = (raw.Info || raw.info || {}) as Record<string, unknown>;
-  const message = (raw.Message || raw.message || {}) as Record<string, unknown>;
-
-  return {
-    key: {
-      id: info.ID ?? info.id,
-      remoteJid: info.Chat ?? info.chat,
-      remoteJidAlt: info.SenderAlt ?? info.senderAlt,
-      fromMe: info.IsFromMe ?? info.isFromMe ?? false,
-    },
-    message: {
-      conversation: message.Conversation ?? message.conversation,
-      extendedTextMessage: message.ExtendedTextMessage ?? message.extendedTextMessage,
-      imageMessage: message.ImageMessage ?? message.imageMessage,
-      audioMessage: message.AudioMessage ?? message.audioMessage,
-      documentMessage: message.DocumentMessage ?? message.documentMessage,
-      buttonsResponseMessage: message.ButtonsResponseMessage ?? message.buttonsResponseMessage,
-    },
-  };
+async function handleRetired(_request: NextRequest): Promise<NextResponse> {
+  return apiFailure('EVOLUTION_RETIRED', RETIRED_MESSAGE, generateRequestId(), 410);
 }
 
-function extractPhone(key: Record<string, unknown>): string | null {
-  const remoteJid = typeof key.remoteJid === 'string' ? key.remoteJid : '';
-  const remoteJidAlt = typeof key.remoteJidAlt === 'string' ? key.remoteJidAlt : '';
-  const value = remoteJid.endsWith('@lid') && remoteJidAlt ? remoteJidAlt : remoteJid;
-  const phone = value.split('@')[0];
-  return phone || null;
-}
+const gatedRetired = withModuleRoute('atendimento')(handleRetired);
 
-function extractContent(data: Record<string, unknown>): { content: string; messageType: 'text' | 'image' | 'audio' | 'document' } {
-  const message = data.message as Record<string, unknown> | undefined;
-  if (!message) return { content: '', messageType: 'text' };
-  const extended = message.extendedTextMessage as Record<string, unknown> | undefined;
-  const image = message.imageMessage as Record<string, unknown> | undefined;
-  const document = message.documentMessage as Record<string, unknown> | undefined;
-  const button = message.buttonsResponseMessage as Record<string, unknown> | undefined;
-  if (typeof message.conversation === 'string') return { content: message.conversation, messageType: 'text' };
-  if (typeof extended?.text === 'string') return { content: extended.text, messageType: 'text' };
-  if (image) return { content: typeof image.caption === 'string' ? image.caption : '[Image]', messageType: 'image' };
-  if (message.audioMessage) return { content: '[Audio]', messageType: 'audio' };
-  if (document) return { content: typeof document.fileName === 'string' ? document.fileName : '[Document]', messageType: 'document' };
-  if (typeof button?.selectedDisplayText === 'string') return { content: button.selectedDisplayText, messageType: 'text' };
-  return { content: '', messageType: 'text' };
-}
-
-async function handlePOST(request: NextRequest) {
-  const body = await request.json().catch(() => null) as Record<string, unknown> | null;
-  const rawInstance = body?.instanceName ?? body?.instance;
-  const installationId = typeof rawInstance === 'string' ? rawInstance : '';
-  const providedSecret = request.headers.get('X-Webhook-Secret') || request.nextUrl.searchParams.get('token') || '';
-  const installation = await resolveChannelInstallation({
-    installationId,
-    providedSecret,
-    provider: 'evolution',
-  });
-  if (!installation) {
-    return NextResponse.json({ error: 'Invalid Evolution installation' }, { status: 403 });
-  }
-  if (!body) {
-    return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
-  }
-  const event = body.event;
-  const isEvolutionGoMessage = event === 'Message' || event === 'SendMessage';
-  const data = isEvolutionGoMessage
-    ? normalizeEvolutionGoMessage(body)
-    : body.data as Record<string, unknown> | undefined;
-
-  const normalizedKey = data?.key as Record<string, unknown> | undefined;
-  if (event !== 'messages.upsert' && !isEvolutionGoMessage) {
-    return NextResponse.json({ status: 'ignored', event });
-  }
-  if (!data || !normalizedKey?.remoteJid) {
-    return NextResponse.json({ error: 'Invalid Evolution message payload' }, { status: 400 });
-  }
-  if (typeof normalizedKey.id !== 'string' || normalizedKey.id.trim() === '') {
-    return NextResponse.json({ error: 'Missing provider event ID' }, { status: 400 });
-  }
-
-  if (normalizedKey.fromMe === true) {
-    return NextResponse.json({ success: true, processed: false, reason: 'outbound_callback' });
-  }
-
-  // Malformed payloads stay 400 (pre-existing contract): validate shape
-  // before the freshness gate so an invalid payload never surfaces as 409.
-  const phone = extractPhone(normalizedKey);
-  const { content, messageType } = extractContent(data);
-  if (!phone || phone.length < 10 || !content) {
-    return NextResponse.json({ error: 'Invalid Evolution message payload' }, { status: 400 });
-  }
-
-  // A4 replay guard: reject well-formed but out-of-window events after auth
-  // and validation, before any side effect. Missing/unparseable timestamp is
-  // fail-open with a warn (dedup downstream remains the protection); a
-  // parseable but stale/future timestamp is rejected with generic 409.
-  const eventTimestampMs = extractEvolutionTimestampMs(body);
-  if (eventTimestampMs === null) {
-    whatsappLogger.warn('evolution webhook without timestamp, skipping freshness check', { event });
-  } else if (!assertWebhookFreshness({ timestampMs: eventTimestampMs })) {
-    whatsappLogger.warn('evolution webhook stale event rejected', { event });
-    return NextResponse.json({ error: 'Stale webhook event' }, { status: 409 });
-  }
-
-  return runAtendimentoSystemAction(receberMensagem, {
-    externalConversationId: phone,
-    externalProvider: 'evolution',
-    externalMessageId: normalizedKey.id,
-    message: content,
-    channel: 'whatsapp',
-    messageType,
-     metadata: {
-       instance: installation.installationId,
-       whatsapp_message_id: normalizedKey.id,
-     },
-  }, installation.clinicId, { okStatus: 200 });
-}
-
-export const POST = withModuleRoute('atendimento')(handlePOST);
+export const POST = gatedRetired;
+export const GET = gatedRetired;

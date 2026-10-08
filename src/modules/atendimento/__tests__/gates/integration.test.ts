@@ -205,8 +205,8 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
     expect(res.status).toBe(403);
   });
 
-  // ── whatsapp/evolution invalid secret → 403 ──
-  it('whatsapp/evolution POST invalid secret returns 403', async () => {
+  // ── whatsapp/evolution retired → 410 (WAHA-only, owner 3863c4f) ──
+  it('whatsapp/evolution POST invalid secret returns 410 (retired before auth)', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -217,11 +217,13 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
       body: JSON.stringify({ event: 'messages.upsert', instance: 'test', data: { key: { remoteJid: 'test', id: 'msg1' } } }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(410);
+    const body = await res.json();
+    expect(body.error.code).toBe('EVOLUTION_RETIRED');
   });
 
-  // ── whatsapp/evolution missing secret → 403 ──
-  it('whatsapp/evolution POST no secret header returns 403', async () => {
+  // ── whatsapp/evolution missing secret → 410 (retired before auth) ──
+  it('whatsapp/evolution POST no secret header returns 410 (retired before auth)', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -229,11 +231,11 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
       body: JSON.stringify({ event: 'messages.upsert', instance: 'test', data: { key: { remoteJid: 'test', id: 'msg2' } } }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(410);
   });
 
-  // ── whatsapp/evolution valid secret passes gate + auth ──
-  it('whatsapp/evolution POST valid secret passes gate and auth', async () => {
+  // ── whatsapp/evolution valid secret → still 410 (retired, no processing) ──
+  it('whatsapp/evolution POST valid secret returns 410 (retired, WAHA migration)', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -244,8 +246,10 @@ describeOrSkip('Atendimento routes — module enabled (P0)', () => {
       body: JSON.stringify({ event: 'messages.upsert', instance: EVOLUTION_INSTANCE, data: { key: { remoteJid: 'test', id: 'msg3' } } }),
     });
     const res = await POST(req);
-    expect(res.status).not.toBe(404);
-    expect(res.status).not.toBe(403);
+    expect(res.status).toBe(410);
+    const body = await res.json();
+    expect(body.error.code).toBe('EVOLUTION_RETIRED');
+    expect(body.error.message).toContain('/api/whatsapp/waha');
   });
 
   // ── widget/messages GET passes through gate ──
@@ -332,7 +336,7 @@ describeOrSkip('Atendimento routes — module disabled returns 404 (P0)', () => 
     expect(res.status).toBe(404);
   });
 
-  it('whatsapp/evolution POST returns 404 when atendimento is disabled', async () => {
+  it('whatsapp/evolution POST returns 404 when atendimento is disabled (gate runs before retirement)', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -463,7 +467,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     expect(res.status).toBe(403);
   });
 
-  it('whatsapp/evolution POST invalid secret returns 403', async () => {
+  it('whatsapp/evolution POST invalid secret returns 410 (retired before auth)', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -471,7 +475,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
       body: JSON.stringify({ event: 'messages.upsert', data: { key: { remoteJid: 'x', id: 'm1' } } }),
     });
     const res = await POST(req);
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(410);
   });
 
   // ── Malformed payload → 200 no-op (processor-level) ──────────
@@ -512,7 +516,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     expect(data.processed).toBe(0);
   });
 
-  it('whatsapp/evolution POST no remoteJid returns 200 (no-op)', async () => {
+  it('whatsapp/evolution POST no remoteJid returns 410 (retired, no processing)', async () => {
     const { POST } = await import('@/app/api/whatsapp/evolution/route');
     const req = new NextRequest('http://localhost/api/whatsapp/evolution', {
       method: 'POST',
@@ -520,8 +524,8 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
       body: JSON.stringify({ event: 'messages.upsert', instance: EVOLUTION_INSTANCE, data: {} }),
     });
     const res = await POST(req);
-    // Authenticated installation with no provider key is rejected before processing.
-    expect(res.status).toBe(400);
+    // Retired route answers before any payload validation.
+    expect(res.status).toBe(410);
   });
 
   // ── Handshake GET revalidate ─────────────────────────────────
@@ -581,7 +585,7 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
     expect(msgRows.length).toBe(1);
     expect(msgRows[0].content).toBe('Hello world');
   });
-  it('duplicate Evolution delivery persists one inbound message in PostgreSQL', async () => {
+  it('retired Evolution delivery persists nothing in PostgreSQL (410, no side effects)', async () => {
     await pool!.query(`DELETE FROM outbox_jobs WHERE clinic_id = $1`, [P3_CLINIC_ID]);
     await pool!.query(`DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE clinic_id = $1)`, [P3_CLINIC_ID]);
     await pool!.query(`DELETE FROM conversations WHERE clinic_id = $1`, [P3_CLINIC_ID]);
@@ -602,8 +606,8 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
 
     const first = await POST(makeRequest());
     const second = await POST(makeRequest());
-    expect(first.status).toBe(200);
-    expect(second.status).toBe(200);
+    expect(first.status).toBe(410);
+    expect(second.status).toBe(410);
 
     const { rows } = await pool!.query(
       `SELECT count(*)::int AS count FROM messages m
@@ -611,6 +615,6 @@ describeOrSkip('Atendimento routes — P3 webhook policy', () => {
         WHERE c.clinic_id = $2 AND m.metadata->>'whatsapp_message_id' = $1`,
       [P3_EVO_MSG_ID, P3_CLINIC_ID],
     );
-    expect(rows[0].count).toBe(1);
+    expect(rows[0].count).toBe(0);
   });
 });

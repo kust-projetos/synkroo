@@ -1,0 +1,45 @@
+services:
+  waha:
+    # Required immutable RepoDigest; no floating tag or default.
+    image: "devlikeapro/waha@sha256:${WAHA_IMAGE_DIGEST:?WAHA_IMAGE_DIGEST must be an approved 64-hex digest}"
+    container_name: synkroo-waha-candidate
+    restart: unless-stopped
+    environment:
+      # WAHA stores only a SHA-512 hash; the app Worker keeps the separate raw key.
+      WAHA_API_KEY: "${WAHA_API_KEY_HASH:?Set sha512:<128-hex> API-key hash}"
+      WAHA_API_KEY_EXCLUDE_PATH: health
+      WAHA_DASHBOARD_ENABLED: "false"
+      WHATSAPP_API_HOSTNAME: "0.0.0.0"
+      WHATSAPP_API_PORT: "3000"
+      WHATSAPP_DEFAULT_ENGINE: "${WAHA_ENGINE:?Choose only after P3.5 compatibility tests}"
+      WHATSAPP_SWAGGER_USERNAME: "${WAHA_SWAGGER_USERNAME:?Set a private Swagger username}"
+      WHATSAPP_SWAGGER_PASSWORD: "${WAHA_SWAGGER_PASSWORD:?Set a private Swagger password}"
+      # No webhook URL by default. Set it only after the signed session is mapped
+      # to an enabled waha installation in the app.
+      WHATSAPP_HOOK_URL: "${WAHA_WEBHOOK_URL:-}"
+      WHATSAPP_HOOK_EVENTS: message
+      WHATSAPP_HOOK_HMAC_KEY: "${WAHA_WEBHOOK_HMAC_KEY:?Set a private HMAC key}"
+    # Operator/staging access only; no public host binding, Traefik router, or DNS.
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - waha_sessions:/app/.sessions
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+volumes:
+  waha_sessions:
+    name: synkroo_waha_sessions_candidate
