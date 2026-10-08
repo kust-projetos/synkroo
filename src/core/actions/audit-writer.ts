@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { getDb } from '@/lib/db/client';
 import { actionLogs } from '@/lib/db/schema/audit';
 import { dbLogger } from '@/lib/logger';
@@ -12,6 +13,12 @@ export interface ActionLogRecord {
   inputRedacted: unknown;
   result: 'ok' | 'error';
   errorCode?: string | null;
+  // S5 (ActionAttempt, expansão aditiva — todos nullable no DB):
+  durationMs?: number | null;
+  policyVersion?: string | null;
+  decision?: string | null;
+  /** Fingerprint do approval token (16 hex) — NUNCA o token cru. */
+  approvalId?: string | null;
 }
 
 export async function writeActionLog(rec: ActionLogRecord): Promise<void> {
@@ -20,6 +27,8 @@ export async function writeActionLog(rec: ActionLogRecord): Promise<void> {
       clinicId: rec.clinicId, principalType: rec.principalType, actor: rec.actor,
       onBehalfOf: rec.onBehalfOf ?? null, actionName: rec.actionName, module: rec.module,
       inputRedacted: rec.inputRedacted as any, result: rec.result, errorCode: rec.errorCode ?? null,
+      durationMs: rec.durationMs ?? null, policyVersion: rec.policyVersion ?? null,
+      decision: rec.decision ?? null, approvalId: rec.approvalId ?? null,
     });
   } catch (err) {
     dbLogger.error('failed to write action_log', err, { actionName: rec.actionName });
@@ -52,6 +61,19 @@ export function allowlistInput(input: unknown, allowed: readonly string[]): Reco
   return Object.fromEntries(
     allowed
       .filter((key) => key in source)
-      .map((key) => [key, redactAuditValue(source[key])]),
+      .map((key) => [key, key.toLowerCase() === 'idempotencykey'
+        ? hashIdempotencyKey(source[key])
+        : redactAuditValue(source[key])]),
   );
+}
+
+/**
+ * Chave de idempotência é atacante-controlável (até 128 chars livres) e pode
+ * embutir PII/segredo (`cpf=...`). Nunca persistir o valor cru em auditoria:
+ * grava só o fingerprint sha256 curto (16 hex, mesmo formato do fingerprint
+ * de payload outbound) para correlação sem vazar conteúdo.
+ */
+function hashIdempotencyKey(value: unknown): unknown {
+  if (typeof value !== 'string') return redactAuditValue(value);
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }

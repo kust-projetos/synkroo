@@ -1,0 +1,129 @@
+=== INVENTARIO VPS SYNKROO (metadados redatados) ===
+side: target
+timestamp-utc: 20261005T202804Z
+hostname: vmi3630510
+gerado-por: ops/vps/inventory/collect-inventory.sh
+runbook: docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md secao 3
+
+REVISAR ANTES DE COMPARTILHAR - crontab/configs podem conter segredos.
+Nenhum dump, volume, log ou arquivo de configuracao e copiado por este script.
+
+
+=== hostname ===
+$ hostname
+vmi3630510
+
+=== uname -a ===
+$ uname -a
+Linux vmi3630510 7.0.0-38-generic #38-Ubuntu SMP PREEMPT_DYNAMIC Fri Sep  4 09:10:14 UTC 2026 x86_64 GNU/Linux
+
+=== df -h ===
+$ df -h
+Filesystem      Size  Used Avail Use% Mounted on
+tmpfs           1.6G  1.4M  1.6G   1% /run
+/dev/sda1        96G   13G   84G  14% /
+tmpfs           3.9G     0  3.9G   0% /dev/shm
+none            1.0M     0  1.0M   0% /run/credentials/systemd-journald.service
+none            1.0M     0  1.0M   0% /run/credentials/systemd-resolved.service
+tmpfs           3.9G  268K  3.9G   1% /tmp
+/dev/sda13      989M  178M  745M  20% /boot
+/dev/sda15      105M  6.3M   99M   7% /boot/efi
+none            1.0M     0  1.0M   0% /run/credentials/systemd-networkd.service
+none            1.0M     0  1.0M   0% /run/credentials/getty@tty1.service
+none            1.0M     0  1.0M   0% /run/credentials/serial-getty@ttyS0.service
+tmpfs           794M  8.0K  794M   1% /run/user/1001
+
+=== free -h ===
+$ free -h
+               total        used        free      shared  buff/cache   available
+Mem:           7.8Gi       900Mi       4.5Gi        35Mi       2.7Gi       6.9Gi
+Swap:          2.0Gi          0B       2.0Gi
+
+=== docker ps ===
+$ docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"
+NAMES                 IMAGE                 STATUS                    PORTS
+ai-memory-preflight   379d4892737f          Up 47 minutes (healthy)   49374/tcp
+pi-finance-api        pi-finance-api:main   Up 22 hours (healthy)     3001/tcp
+pi-finance-postgres   postgres:15-alpine    Up 2 days (healthy)       5432/tcp
+traefik               traefik:latest        Up 2 days                 0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+
+=== docker compose ls ===
+$ docker compose ls
+NAME                  STATUS              CONFIG FILES
+pi-finance-api        running(1)          /home/deploy/infra/pi-finance-api/docker-compose.yml
+pi-finance-postgres   running(1)          /home/deploy/infra/pi-finance-postgres/docker-compose.yml
+traefik               running(1)          /home/deploy/infra/traefik/docker-compose.yml
+
+=== docker network ls ===
+$ docker network ls
+NETWORK ID     NAME                          DRIVER    SCOPE
+5bf62c603386   bridge                        bridge    local
+aa8493d8da73   host                          host      local
+e0269bb70f8d   none                          null      local
+09c3d3bbffc8   pi-finance-postgres_default   bridge    local
+746ae34b210a   proxy                         bridge    local
+
+=== docker volume ls ===
+$ docker volume ls
+DRIVER    VOLUME NAME
+local     ai-memory-preflight-data
+local     pi-finance-postgres_pi_finance_pgdata
+
+=== systemctl --failed ===
+$ systemctl --failed
+  UNIT                    LOAD   ACTIVE SUB    DESCRIPTION
+● cloud-init-main.service loaded failed failed Cloud-init: Single Process
+
+Legend: LOAD   → Reflects whether the unit definition was properly loaded.
+        ACTIVE → The high-level unit activation state, i.e. generalization of SUB.
+        SUB    → The low-level unit activation state, values depend on unit type.
+
+1 loaded units listed.
+
+=== systemctl list-timers --all ===
+$ systemctl list-timers --all
+NEXT                             LEFT LAST                                PASSED UNIT                           ACTIVATES
+Mon 2026-10-05 22:30:00 CEST 1min 54s Mon 2026-10-05 22:20:09 CEST      7min ago sysstat-collect.timer          sysstat-collect.service
+Mon 2026-10-05 22:48:26 CEST    20min Mon 2026-10-05 21:00:09 CEST  1h 27min ago fwupd-refresh.timer            fwupd-refresh.service
+Mon 2026-10-05 23:34:57 CEST  1h 6min Sun 2026-10-04 23:34:57 CEST       22h ago update-notifier-download.timer update-notifier-download.service
+Mon 2026-10-05 23:44:57 CEST 1h 16min Sun 2026-10-04 23:44:57 CEST       22h ago systemd-tmpfiles-clean.timer   systemd-tmpfiles-clean.service
+Tue 2026-10-06 00:00:00 CEST 1h 31min Mon 2026-10-05 00:00:09 CEST       22h ago dpkg-db-backup.timer           dpkg-db-backup.service
+Tue 2026-10-06 00:00:00 CEST 1h 31min Mon 2026-10-05 00:00:09 CEST       22h ago sysstat-rotate.timer           sysstat-rotate.service
+Tue 2026-10-06 00:07:00 CEST 1h 38min Mon 2026-10-05 00:07:02 CEST       22h ago sysstat-summary.timer          sysstat-summary.service
+Tue 2026-10-06 00:22:10 CEST 1h 54min Mon 2026-10-05 00:14:27 CEST       22h ago logrotate.timer                logrotate.service
+Tue 2026-10-06 01:34:23 CEST  3h 6min Mon 2026-10-05 17:18:09 CEST   5h 9min ago motd-news.timer                motd-news.service
+Tue 2026-10-06 03:16:35 CEST 4h 48min Mon 2026-10-05 07:39:03 CEST       14h ago man-db.timer                   man-db.service
+Tue 2026-10-06 04:50:08 CEST       6h Mon 2026-10-05 10:08:22 CEST       12h ago apt-daily.timer                apt-daily.service
+Tue 2026-10-06 06:08:47 CEST       7h Mon 2026-10-05 06:12:09 CEST       16h ago apt-daily-upgrade.timer        apt-daily-upgrade.service
+Tue 2026-10-06 17:52:48 CEST      19h Fri 2026-10-02 23:14:25 CEST             - update-notifier-motd.timer     update-notifier-motd.service
+Sun 2026-10-11 03:10:01 CEST   5 days Sun 2026-10-04 03:10:09 CEST 1 day 19h ago xfs_scrub_all.timer            xfs_scrub_all.service
+Sun 2026-10-11 03:10:29 CEST   5 days Sun 2026-10-04 03:10:09 CEST 1 day 19h ago e2scrub_all.timer              e2scrub_all.service
+Mon 2026-10-12 00:56:28 CEST   6 days Mon 2026-10-05 01:21:23 CEST       21h ago fstrim.timer                   fstrim.service
+-                                   - -                                        - apport-autoreport.timer        apport-autoreport.service
+-                                   - -                                        - snapd.snap-repair.timer        snapd.snap-repair.service
+-                                   - -                                        - ua-timer.timer                 ua-timer.service
+
+19 timers listed.
+
+=== crontab -l ===
+$ crontab -l
+30 3 * * * /home/deploy/infra/backup/backup-pi.sh >> /home/deploy/infra/backup/cron.log 2>&1
+
+=== ss -lntup ===
+$ sudo -n ss -lntup || ss -lntup
+Netid State  Recv-Q Send-Q Local Address:Port  Peer Address:PortProcess                                                 
+udp   UNCONN 0      0          127.0.0.1:323        0.0.0.0:*    users:(("chronyd",pid=1113,fd=4))                      
+udp   UNCONN 0      0         127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=520,fd=18))              
+udp   UNCONN 0      0      127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=520,fd=16))              
+udp   UNCONN 0      0              [::1]:323           [::]:*    users:(("chronyd",pid=1113,fd=5))                      
+tcp   LISTEN 0      4096      127.0.0.54:53         0.0.0.0:*    users:(("systemd-resolve",pid=520,fd=19))              
+tcp   LISTEN 0      4096         0.0.0.0:443        0.0.0.0:*    users:(("docker-proxy",pid=4632,fd=7))                 
+tcp   LISTEN 0      4096         0.0.0.0:80         0.0.0.0:*    users:(("docker-proxy",pid=4610,fd=7))                 
+tcp   LISTEN 0      4096         0.0.0.0:22         0.0.0.0:*    users:(("sshd",pid=1051,fd=3),("systemd",pid=1,fd=175))
+tcp   LISTEN 0      4096   127.0.0.53%lo:53         0.0.0.0:*    users:(("systemd-resolve",pid=520,fd=17))              
+tcp   LISTEN 0      4096       127.0.0.1:42789      0.0.0.0:*    users:(("containerd",pid=2941,fd=13))                  
+tcp   LISTEN 0      4096            [::]:443           [::]:*    users:(("docker-proxy",pid=4639,fd=7))                 
+tcp   LISTEN 0      4096            [::]:80            [::]:*    users:(("docker-proxy",pid=4617,fd=7))                 
+tcp   LISTEN 0      4096            [::]:22            [::]:*    users:(("sshd",pid=1051,fd=4),("systemd",pid=1,fd=176))
+
+Lembrete final: revise manualmente a secao "crontab -l" (e qualquer linha com marker de indisponibilidade) antes de compartilhar, abrir issue ou versionar este arquivo.

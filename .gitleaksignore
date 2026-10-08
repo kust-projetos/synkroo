@@ -38,6 +38,7 @@ src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-acces
 4f1541299fe40461dd22c4e7414ae1b8922fdd4d:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:170
 f1f3699a4fad7418788ab3175e0bfce1d0ecf9b6:src/modules/financeiro/actions/__tests__/financeiro-actions.test.ts:stripe-access-token:170
 src/modules/followup/__tests__/cron/integration.test.ts:generic-api-key:17
+src/app/api/whatsapp/waha/__tests__/route.test.ts:generic-api-key:864
 src/repositories/auth/__tests__/integration.test.ts:generic-api-key:44
 src/repositories/auth/__tests__/integration.test.ts:generic-api-key:45
 src/repositories/auth/__tests__/integration.test.ts:generic-api-key:46

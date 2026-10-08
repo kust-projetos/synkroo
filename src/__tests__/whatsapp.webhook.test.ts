@@ -101,17 +101,6 @@ jest.mock('@/lib/db/client', () => {
   }
 })
 
-jest.mock('@/services/appointments/confirmation-handler.service', () => ({
-  processConfirmationResponse: jest.fn().mockResolvedValue({
-    processed: false,
-    responseMessage: null,
-  }),
-  processWaitlistConfirmation: jest.fn().mockResolvedValue({
-    processed: false,
-    responseMessage: null,
-  }),
-}))
-
 jest.mock('@/lib/rate-limit', () => ({
   checkRateLimit: jest.fn(() => ({
     allowed: true,

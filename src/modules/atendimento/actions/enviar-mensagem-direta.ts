@@ -10,6 +10,10 @@ export const enviarMensagemDireta = defineAction({
   module: 'atendimento',
   requires: 'atendimento:manage_messages',
   label: 'Enviar mensagem direta',
+  // Envio externo: DENY hard para principal não-humano (runAction).
+  riskClass: 'deny_non_human',
+  // Auditoria só com allowlist sem PII (externalId/message fora).
+  auditFields: ['channel'] as const,
   input: z.object({
     channel: z.enum(CHANNELS),
     externalId: z.string().min(1),

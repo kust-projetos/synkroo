@@ -282,7 +282,10 @@ export async function getUpcomingAppointmentRisks(clinicId: string, days: number
     }
     return predictions.sort((a, b) => b.risk_score - a.risk_score)
   } catch (err) {
-    // Fail-closed: erro de DB não pode virar lista vazia (fake-success P0).
+    // Fail-closed: erro de DB não pode virar lista vazia com aparência de
+    // "nenhum agendamento futuro" — o paciente some do painel de risco sem
+    // nenhum sinal. O `return []` acima (sem upcoming) continua válido: é
+    // ausência real de dados, não falha (fake-success P0).
     dbLogger.error('Error getting upcoming appointment risks', err)
     throw err
   }

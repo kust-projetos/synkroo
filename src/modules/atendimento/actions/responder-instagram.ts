@@ -41,6 +41,10 @@ export const responderInstagram = defineAction({
   module: 'atendimento',
   requires: 'atendimento:manage_messages',
   label: 'Responder DM Instagram',
+  // Envio externo: DENY hard para principal não-humano (runAction).
+  riskClass: 'deny_non_human',
+  // Auditoria só com allowlist sem PII/conteúdo (message fora).
+  auditFields: ['conversationId'] as const,
   input: z.object({
     conversationId: z.string().uuid(),
     message: z.string().min(1),

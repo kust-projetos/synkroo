@@ -9,11 +9,13 @@ Toda entrada de negócio (UI e IA) passa por uma Action Layer unificada. Actions
 
 ## Evidência
 
-- `src/core/actions/`: registry, context, bootstrap, run, types, agent, audit-writer
+- `src/core/actions/`: registry, context, bootstrap, run, types, audit-writer, tenant-scope
 - `src/core/actions/run.ts`: executável central com validação e policy
 - Módulos usam `runActionRoute` via `ui/route-adapter.ts`
-- `src/core/agent-bridge/`: tool catalog e policy para IA
-- Testes em `src/core/actions/__tests__/` (registry, context, bootstrap, run, agent)
+- `src/core/agent-bridge/`: tool catalog e policy para IA (único dono da allowlist `AGENT_SAFE_ACTIONS`)
+- Testes em `src/core/actions/__tests__/` (registry, context, bootstrap, run, tenant-scope/scope/input-guard, guard `agent-adapters-retired`)
+
+> **Nota (2026-10-05, allowlist hardening):** `src/core/actions/agent.ts` (`toAgentTool`/`agentToolsFor`) foi removido — adaptava a Action com `run()` chamando `runAction` direto, sem os gates de handle/confirmação/identidade/anti-replay do agent-bridge. A exposição de tools para a IA é hoje o catálogo metadata-only `buildToolCatalog` em `src/core/agent-bridge/tool-catalog.ts`; a execução é de `bridge-service.ts`. Detalhes em [ADR-BASE-17](ADR-BASE-17-llm-untrusted-data.md).
 
 ## Alternativas rejeitadas
 

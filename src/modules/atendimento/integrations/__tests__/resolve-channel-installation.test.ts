@@ -12,6 +12,8 @@ import {
   hashChannelSecret,
   resolveChannelInstallation,
   resolveEnabledChannelInstallation,
+  resolveWahaInstallationStrict,
+  WahaInstallationLookupError,
   resolveWidgetInstallation,
   resolveMetaInstallation,
   isAllowedWidgetOrigin,
@@ -188,6 +190,78 @@ describe('resolveChannelInstallation suite', () => {
       await expect(resolveEnabledChannelInstallation({ installationId: 'inst-1', provider: 'meta' })).resolves.toBeNull();
       const logged = errorSpy.mock.calls.map((args) => args.map(String).join(' ')).join('\n');
       expect(logged).not.toContain('hunter2');
+      errorSpy.mockRestore();
+    });
+  });
+
+  describe('resolveWahaInstallationStrict', () => {
+    it('returns null immediately when installationId is missing, without touching the DB', async () => {
+      await expect(resolveWahaInstallationStrict({ installationId: '' })).resolves.toBeNull();
+      expect(select).not.toHaveBeenCalled();
+    });
+
+    it('resolves an enabled waha installation', async () => {
+      limit.mockResolvedValue([{ installationId: 'default', clinicId: 'clinic-1' }]);
+
+      await expect(resolveWahaInstallationStrict({ installationId: 'default' })).resolves.toEqual({
+        installationId: 'default',
+        clinicId: 'clinic-1',
+      });
+    });
+
+    it('returns null for an unknown/disabled/wrong-provider session (no matching row)', async () => {
+      limit.mockResolvedValue([]);
+
+      await expect(resolveWahaInstallationStrict({ installationId: 'ghost-session' })).resolves.toBeNull();
+    });
+
+    it('THROWS a typed error on DB query failure so a caller can tell outage from unknown', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      limit.mockRejectedValue(new Error('Connection terminated unexpectedly'));
+
+      await expect(resolveWahaInstallationStrict({ installationId: 'default' }))
+        .rejects.toBeInstanceOf(WahaInstallationLookupError);
+
+      errorSpy.mockRestore();
+    });
+
+    it('never leaks DB/connection detail into the thrown error', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const sensitive = new Error('connect postgres://synkroo:hunter2@198.51.100.10:15432/synkroo at channel_installations');
+      (sensitive as Error & { stack?: string }).stack = 'Error: password=hunter2';
+      limit.mockRejectedValue(sensitive);
+
+      const thrown = await resolveWahaInstallationStrict({ installationId: 'default' }).catch((e) => e);
+
+      expect(thrown).toBeInstanceOf(WahaInstallationLookupError);
+      const serialized = `${thrown?.message} ${String(thrown?.stack)} ${JSON.stringify(Object.keys(thrown ?? {}))}`;
+      expect(serialized).not.toContain('hunter2');
+      expect(serialized).not.toContain('postgres://');
+      expect(serialized).not.toContain('channel_installations');
+      // No cause chaining: the original error must not be reachable from the throw.
+      expect(thrown?.cause).toBeUndefined();
+      expect(errorSpy).toHaveBeenCalledWith('[resolveWahaInstallationStrict] DB lookup failed');
+      errorSpy.mockRestore();
+    });
+
+    it('throws the same typed error when the DB rejects with a non-Error value', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      limit.mockRejectedValue('string-rejection-with-internal-detail');
+
+      await expect(resolveWahaInstallationStrict({ installationId: 'default' }))
+        .rejects.toBeInstanceOf(WahaInstallationLookupError);
+
+      errorSpy.mockRestore();
+    });
+
+    it('preserves the legacy contract: resolveEnabledChannelInstallation still swallows DB errors as null', async () => {
+      const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      limit.mockRejectedValue(new Error('DB unreachable'));
+
+      await expect(resolveEnabledChannelInstallation({ installationId: 'inst-1', provider: 'meta' })).resolves.toBeNull();
+      expect(errorSpy).toHaveBeenCalledWith(
+        '[resolveEnabledChannelInstallation] DB lookup failed',
+      );
       errorSpy.mockRestore();
     });
   });

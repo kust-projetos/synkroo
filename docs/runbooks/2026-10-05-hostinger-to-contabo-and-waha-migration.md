@@ -45,11 +45,53 @@ cleanup/decommission
 - URL pública esperada.
 
 ### Configuração operacional
-Documentação/scripts ainda assumem `../vps-hostinger/.env`.
+Os três scripts operacionais aceitam `SYNKROO_VPS_ENV` apontando para um `.env`
+privado fora do repositório. Se a variável estiver definida mas o caminho for
+inválido, o script falha sem usar fallback. Ainda existe um fallback temporário
+e deprecated para `../vps-hostinger/.env`; a remoção dele é pendência de P2.
+
+A separação source/target está implementada (P1 do plano vNext, ver
+`docs/ops/vps-access.md` §Contrato source/target):
+
+- `--side=source|target` é **obrigatório** nos três scripts
+  (`migrate-vps.ts`, `setup-staging-db.ts`, `update-hyperdrive.ts`). Ausente ou
+  inválido: imprime o uso e sai com código 1, sem tocar em conexão nenhuma.
+- Cada lado tem chaves próprias no `.env`: `VPS_SOURCE_{IP,PG_PORT,POSTGRES_PASSWORD,STAGING_PASSWORD}`
+  e `VPS_TARGET_{IP,PG_PORT,POSTGRES_PASSWORD,STAGING_PASSWORD}`. As chaves
+  genéricas (`VPS_IP`, `VPS_PG_PORT`, `VPS_POSTGRES_PASSWORD`,
+  `VPS_STAGING_PASSWORD`) são aliases deprecated: fallback **por chave**, com
+  aviso `[deprecated]` e sem vazar valor.
+- Em `migrate-vps.ts`, `--side` (qual VPS) e `--target` (qual banco dentro
+  daquela VPS: `production`/`staging`/`all`) são eixos ortogonais.
+
+**Antes do rehearsal**, criar o `.env` do target com as chaves `VPS_TARGET_*`
+(IP, porta, e as duas senhas) fora deste repositório e apontar `SYNKROO_VPS_ENV`
+para ele nas sessões do target. Um `.env` por lado é o recomendado: evita o
+fallback genérico e impede que a execução leia a VPS errada.
+
+```bash
+# source
+export SYNKROO_VPS_ENV=../vps-hostinger/.env
+npx tsx scripts/migrate-vps.ts --side=source --target=all
+npx tsx scripts/setup-staging-db.ts --side=source
+
+# target
+export SYNKROO_VPS_ENV=../vps-contabo/.env   # caminho ilustrativo
+npx tsx scripts/migrate-vps.ts --side=target --target=all
+npx tsx scripts/setup-staging-db.ts --side=target
+npx tsx scripts/update-hyperdrive.ts --side=target
+```
+
+A porta é validada estritamente (inteiro 1–65535); a senha de staging nunca é
+preenchida com a de produção, em nenhum dos lados.
 
 ## 3. Inventário obrigatório na Hostinger
 
-Antes de copiar qualquer coisa, coletar somente metadados/redacted output:
+Antes de copiar qualquer coisa, coletar somente metadados/redacted output.
+
+Ferramenta: `ops/vps/inventory/collect-inventory.sh` — roda na própria VPS (`--side=source|target` obrigatório, redação best-effort + revisão manual antes de compartilhar; ver `ops/vps/inventory/README.md`).
+
+**Executado (2026-10-05):** inventário coletado e revisado — ver docs/inventory/2026-10-05-hostinger-source.txt e ...-findings.md.
 
 ```bash
 hostname
@@ -88,6 +130,8 @@ Nunca copiar output contendo secret para issue/commit.
 
 ## 4. Contabo foundation
 
+Ferramenta: `ops/vps/contabo/bootstrap.sh` — idempotente, dry-run por default, firewall em gate separado (`--apply-firewall`) e teste de login por chave em segundo terminal obrigatório antes dele. Sequência completa em `ops/vps/contabo/README.md`.
+
 ### Host
 
 - atualizar sistema;
@@ -113,6 +157,8 @@ PostgreSQL não deve ficar globalmente exposto só para facilitar Hyperdrive. Pr
 
 ### 5.1 Pré-check
 
+**Executado (2026-10-05):** ver docs/inventory/2026-10-05-hostinger-findings.md (PG 17.11, 11 MB, ledger 33, extensões ok).
+
 - confirmar versão source;
 - listar extensions;
 - migration ledger;
@@ -123,6 +169,8 @@ PostgreSQL não deve ficar globalmente exposto só para facilitar Hyperdrive. Pr
 - restore drill atual.
 
 ### 5.2 Backup source
+
+Ferramenta: `npx tsx scripts/backup-vps-db.ts --side=source` (dump custom `-Fc` + SHA-256 + `*.meta.json` redatado, delegando ao `scripts/db-backup.mjs`).
 
 Usar scripts canônicos de backup quando aplicáveis. Produzir:
 - dump custom format;
@@ -135,6 +183,8 @@ Nunca depender do único backup no mesmo host.
 ### 5.3 Restore rehearsal Contabo
 
 Restaurar primeiro em DB isolado.
+
+Ferramenta: `npx tsx scripts/restore-vps-db.ts --side=target --from <dump.gz> --create-db synkroo_rehearsal` (gate SHA-256 antes do restore, `--create-db` isolado, extensões `vector`/`btree_gist`, ledger Drizzle e smoke de tabelas-chave).
 
 Validar:
 - pgvector;
@@ -219,6 +269,28 @@ Executar compatibility matrix para:
 
 GOWS/NOWEB podem reduzir recursos; WEBJS pode servir como baseline de compatibilidade. Fixar um engine após testes.
 
+### 6.4 Scaffold local e estado observado (2026-10-06)
+
+- O recheck read-only da source encontrou `devlikeapro/waha:latest`, RepoDigest
+  `sha256:41283bd89922ec3f722e5a772b844c451634d4aa72e9c34043c3480184f970fe`,
+  bind de sessão em `/home/deploy/infra/waha/sessions:/app/.sessions`, sem
+  healthcheck e labels Traefik `websecure`/`cf`. O digest é um **candidato** da
+  imagem atualmente executada na source; sua proveniência/plataforma e o engine
+  ainda precisam do gate P3.5. A documentação VPS declara NOWEB, mas o env
+  efetivo do container não foi lido.
+- O recheck read-only do Contabo em `2026-10-06T08:12:13Z` não encontrou
+  container/volume WAHA. `ops/vps/waha/docker-compose.yml` é apenas scaffold
+  loopback (`127.0.0.1:3000`), com `WAHA_IMAGE_DIGEST`/`WAHA_ENGINE` requeridos; não
+  publica rota Traefik, não configura DNS/secrets e **não foi implantado**.
+- O Worker Cloudflare não alcança esse bind loopback. Antes de fornecer
+  `WAHA_API_URL` à aplicação, o owner deve aprovar um padrão de acesso privado/
+  edge-authenticated para o serviço WAHA. Não transformar o endpoint
+  administrativo completo `/api/*` em origem pública apenas por haver API key.
+- O scaffold cria volume de sessão, mas o backup target atual não o inclui. O
+  volume contém estado reutilizável de WhatsApp; P3.4 precisa aprovar e ensaiar
+  confidencialidade, backup cifrado/off-host, restore e re-pareamento antes de
+  qualquer sessão real.
+
 ## 7. Refatoração da aplicação para WAHA
 
 ### 7.1 Adapter
@@ -248,12 +320,17 @@ Criar `POST /api/whatsapp/waha`.
 Pipeline:
 ```text
 WAHA webhook
-→ HMAC
-→ installation/session resolve
-→ normalize
-→ freshness/replay
-→ provider event dedup
-→ receberMensagem Action
+→ in-memory rate limit (identity = CF-Connecting-IP only in prod; supplemental,
+  Cloudflare edge rate limit on the exact path is the mandatory ops gate)
+→ bounded raw-body read (size + deadline)
+→ HMAC-SHA512 over exact raw bytes
+→ parse + event/session allowlist
+→ atendimento module gate
+→ enabled WAHA session → channel installation → clinic mapping
+→ identify direct inbound message (echo/group/LID fail-closed)
+→ freshness using signed root timestamp
+→ session-scoped provider-message dedup
+→ receberMensagem Action (durable message + outbox)
 → conversation/agent pipeline
 ```
 
@@ -397,6 +474,41 @@ Somente após janela de observação:
 - session persistence/reconnect verde;
 - observabilidade;
 - rollback compreendido.
+
+### Inbound WAHA GO (ops gate)
+- **Regra de rate limit na borda Cloudflare** para o path EXATO
+  `POST /api/whatsapp/waha` (path exato, sem wildcard), configurada e verificada
+  (429 + `Retry-After` no edge). Esta é a exigência do gate: um limiter no
+  Traefik do *backend WAHA* (API do container WAHA) **não** conta — ele protege
+  a superfície de chamada da API do provider, não este webhook inbound, e não
+  deve ser usado como evidência de que o inbound está limitado.
+- Confirmar que o sinal de client IP da Cloudflare chega ao Worker: o
+  `CF-Connecting-IP` presente no request exatamente como a borda o injeta (ver
+  §13.1) e que a origem **não** é contornável (DNS/hostname de origem único
+  atrás da borda; sem rota alternativa que alcance o Worker/Contabo sem passar
+  pela Cloudflare). Sem isso, a identidade do limiter in-process cai no sentinel
+  compartilhado — o que super-limita, mas sinaliza que a borda não está no
+  caminho do tráfego.
+- O limiter in-process da aplicação (`rateLimitPresets.webhook`, prefixo
+  `waha-webhook`) é **suplementar**: o store é in-memory e por instância, então
+  não limita tráfego agregado/distribuído e é perdido a cada deploy. Ele
+  existe para impedir que tráfego não autenticado, com headers bem formados,
+  consuma repetidamente o orçamento de 256 KiB / 10 s de leitura do corpo antes
+  da verificação HMAC — não substitui o gate da borda.
+  Em produção a identidade dele vem **apenas** de `CF-Connecting-IP`
+  (presente, limitado e sem whitespace/comma); `X-Forwarded-For`/`X-Real-IP` são
+  settáveis pelo cliente e nunca são usados, nem como fallback — header ausente
+  ou inválido cai num único sentinel compartilhado.
+
+#### 13.1 Como confirmar o sinal da borda (sem criar a regra aqui)
+A regra em si é um passo de ops no dashboard — não versionada neste repositório.
+Para produzir evidência, o operador confirma em runtime:
+- request de teste chegando pela borda mostra `CF-Connecting-IP` preenchido no
+  handler (log/observabilidade do Worker), sem `CF-Ray`/`cf-connecting-ip`
+  ausentes;
+- o comportamento observado é consistente com §13: com header ausente, todas as
+  requisições compartilham uma única cota (`waha-webhook:unknown-cf-client`),
+  e não uma cota por `X-Forwarded-For`.
 
 Qualquer falha Sev-0/Sev-1 = NO-GO.
 

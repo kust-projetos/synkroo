@@ -9,6 +9,8 @@ export const obterQRCode = defineAction({
   module: 'atendimento',
   requires: 'atendimento:view',
   label: 'Obter QR code do WhatsApp',
+  // Superfície sensível (pareamento de sessão): DENY hard para não-humano.
+  riskClass: 'deny_non_human',
   input: z.object({}).optional(),
   handler: async (_input: unknown, _ctx: ActionContext) => {
     // T7 3.2: retorna QR real quando provedor disponível, sem enfraquecer auth (requires: atendimento:view mantido)

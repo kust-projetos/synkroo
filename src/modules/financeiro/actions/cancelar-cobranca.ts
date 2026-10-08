@@ -8,6 +8,8 @@ export const cancelarCobranca = defineAction({
   module: 'financeiro',
   requires: 'financeiro:manage_budget',
   label: 'Cancelar cobrança',
+  // Etapa 5.3: CONFIRM money state — audit id only (ADR-BASE-12, sem PII).
+  auditFields: ['id'],
   input: z.object({
     id: z.string().uuid(),
   }),

@@ -10,6 +10,8 @@ export const deletarParcela = defineAction({
   module: 'financeiro',
   requires: 'financeiro:manage_budget',
   label: 'Deletar parcela',
+  // Etapa 5.3: CONFIRM money mutation — ids only (ADR-BASE-12, sem PII).
+  auditFields: ['budgetId', 'installmentId'],
   input: z.object({
     budgetId: z.string().uuid(),
     installmentId: z.string().uuid(),

@@ -151,11 +151,52 @@ describe('No-Show Prediction Service', () => {
       expect(Array.isArray(predictions)).toBe(true)
     })
 
+    it('propaga erro de DB em vez de devolver [] (fail-closed)', async () => {
+      // Thenable .then(onFulfilled, onRejected) — reject immediately.
+      // Antes devolvia []; a lista vazia é indistinguível de "sem agendamento
+      // futuro" e some com pacientes do painel de risco sem nenhum sinal.
+      mockDb.then = jest.fn((_resolve: any, reject: any) => reject(new Error('DB error')))
+      await expect(getUpcomingAppointmentRisks(clinicId, 7)).rejects.toThrow('DB error')
+    })
+
+    it('propaga erro na 2ª query (histórico) sem devolver []', async () => {
+      const futureDate = new Date(); futureDate.setDate(futureDate.getDate() + 3)
+      mockDb.then = jest.fn()
+        .mockImplementationOnce((resolve: (data: unknown[]) => void) => resolve([
+          { id: 'apt-1', scheduledAt: futureDate, patientId: 'p1', patientName: 'João', patientRiskScore: '20' },
+        ]))
+        .mockImplementationOnce((_resolve: unknown, reject: (e: Error) => void) => reject(new Error('history down')))
+      await expect(getUpcomingAppointmentRisks(clinicId, 7)).rejects.toThrow('history down')
+    })
+
+    it('loga o erro antes de propagar (não engole silenciosamente)', async () => {
+      const { dbLogger } = await import('@/lib/logger')
+      mockDb.then = jest.fn((_resolve: any, reject: any) => reject(new Error('DB error')))
+      await expect(getUpcomingAppointmentRisks(clinicId, 7)).rejects.toThrow('DB error')
+      expect(dbLogger.error).toHaveBeenCalled()
+    })
+
+    it('mantém [] quando não há agendamento futuro (ausência real, não falha)', async () => {
+      // O `return []` legítimo: query de upcoming vem vazia, sem erro.
+      mockChainReturn([])
+      const predictions = await getUpcomingAppointmentRisks(clinicId, 7)
+      expect(predictions).toEqual([])
+    })
+
     it('should throw (fail-closed) on DB error', async () => {
       // Thenable .then(onFulfilled, onRejected) — reject immediately.
       // Fake-success P0: erro de DB nunca vira [] (zeraria totais no GET).
       mockDb.then = jest.fn((_resolve: any, reject: any) => reject(new Error('DB error')))
       await expect(getUpcomingAppointmentRisks(clinicId, 7)).rejects.toThrow('DB error')
+    })
+
+    it('não usa `as any` no filtro de status (typecheck como guarda estrutural)', async () => {
+      const { readFileSync } = await import('node:fs')
+      const src = readFileSync(
+        require.resolve('@/services/analytics/noshow-prediction.service').replace(/\.ts$/, '.ts'),
+        'utf8',
+      )
+      expect(src).not.toMatch(/appointments\.status as any/)
     })
 
     it('should return empty for appointments without patient data', async () => {

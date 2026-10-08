@@ -12,7 +12,8 @@
    npx wrangler deploy --dry-run --config wrangler.ia-agent.jsonc
    npx wrangler deploy --dry-run --config wrangler.ia-bridge.jsonc
    ```
-   - Nunca copie `../vps-hostinger/.env` para repo; use `VPS_ENV=../vps-hostinger/.env; set -a; . "$VPS_ENV"; set +a`.
+   - Nunca copie `../vps-hostinger/.env` para repo; use `SYNKROO_VPS_ENV=../vps-hostinger/.env; set -a; . "$SYNKROO_VPS_ENV"; set +a`.
+   - Os scripts operacionais exigem `--side=source|target` e leem `VPS_SOURCE_*`/`VPS_TARGET_*` (ver `docs/ops/vps-access.md` §Contrato source/target).
 
 2. **Expand migration (compatível)**
    ```bash

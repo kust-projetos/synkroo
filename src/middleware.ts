@@ -23,6 +23,10 @@ const PUBLIC_EXACT = new Set([
   // External transports with handler-level validation (HMAC/token/origin).
   // List exact paths only — never wildcard /api/whatsapp/* or /api/widget/*.
   '/api/whatsapp/webhook',
+  // Inbound WAHA (vNext P3.3): HMAC sha512 sobre o corpo bruto, verificado no handler.
+  '/api/whatsapp/waha',
+  // Evolution retirado (410 Gone): público APENAS para servir o stub estático
+  // de aposentadoria sem sessão/tenant/DB — nunca como canal ativo.
   '/api/whatsapp/evolution',
   '/api/instagram/webhook',
   '/api/widget/session',

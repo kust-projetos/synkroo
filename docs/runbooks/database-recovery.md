@@ -29,6 +29,16 @@ decisão operacional pendente**.
 | Retenção (proposta) | 7 diários + 4 semanais + 3 mensais; cópia off-host (fora da VPS) | Proposta — decisão operacional pendente; cópia off-host e cron NÃO configurados (sem backup automático em 2026-09-25) |
 | Restore test (prova de validade) | 1×/mês em ambiente isolado, com checklist registrado (§6) | Proposta — decisão operacional pendente |
 
+> **Ratificação owner 2026-10-08 (sem produção):** RPO ≤ 24 h e RTO ≤ 4 h
+> RATIFICADOS como alvo com medição parcial — drill local 2026-09-26 COMPLETO
+> (alvo vivo + smoke 3/3 PASS, RTO fim a fim local ~114 s;
+> `restore-tests/2026-09-26-local-drill.md`); prod com datapoint parcial
+> (restore < 60 s / 77 MiB, sem smoke/switch —
+> `restore-tests/2026-09-25-prod-drill.md`). Switch real em prod, drill mensal
+> agendado e ratificação final seguem pendentes. Cron diário off-host (§2.3) e
+> drill mensal APROVADOS como proposta — implementação/agendamento pendentes,
+> sem backup automático em vigor.
+
 ## 2. Princípio: backup sem restore comprovado não é backup
 
 Todo backup só é considerado válido após um restore test com evidência

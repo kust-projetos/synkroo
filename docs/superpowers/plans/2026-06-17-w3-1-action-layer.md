@@ -1,5 +1,7 @@
 # W3.1 — Action Layer (core) — Implementation Plan
 
+> **⚠️ Anotação 2026-10-05 (allowlist hardening):** a parte `toAgentTool`/`agentToolsFor` deste plano (`src/core/actions/agent.ts`) foi **REMOVIDA** — adaptava a Action com `run()` → `runAction` direto, sem handle verificado, sem matriz de confirmação/identidade e sem anti-replay, contornando a allowlist do agent-bridge. Substituído por `buildToolCatalog(ctx, actions?)` (metadata-only, `src/core/agent-bridge/tool-catalog.ts`) + `executeActionLogic` (`src/core/agent-bridge/bridge-service.ts`). Guarde de regressão: `src/core/actions/__tests__/agent-adapters-retired.test.ts`. Demais tasks deste plano (types, registry, `runAction`, `action_logs`) seguem válidas; o texto abaixo é registro histórico.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Construir o núcleo da Action Layer — `defineAction`, registry determinístico, `runAction` (pipeline com gates, validação e auditoria) e o adaptador de tools do agente — testável isoladamente com `ActionContext` mockado.
@@ -21,11 +23,11 @@
 - Create: `src/core/actions/types.ts` — contratos (ActionContext, ActionDefinition, ActionResult, erros).
 - Create: `src/core/actions/registry.ts` — `defineAction`, `registerActions`, `getActions`, `getAction`.
 - Create: `src/core/actions/run.ts` — `runAction` (pipeline + auditoria).
-- Create: `src/core/actions/agent.ts` — `toAgentTool`, `agentToolsFor`.
+- Create: `src/core/actions/agent.ts` — `toAgentTool`, `agentToolsFor`. **[REMOVIDO em 2026-10-05 — ver anotação no topo]**
 - Create: `src/core/actions/index.ts` — reexports públicos.
 - Create: `src/lib/db/schema/audit.ts` — tabela `action_logs`.
 - Modify: `src/lib/db/schema/index.ts` — `export * from './audit'`.
-- Test: `src/core/actions/__tests__/{registry,run,agent}.test.ts`.
+- Test: `src/core/actions/__tests__/{registry,run,agent}.test.ts`. **[o `agent.test.ts` foi removido em 2026-10-05 junto com o adaptador; ver `agent-adapters-retired.test.ts`]**
 
 Responsabilidade isolada: `types` (contratos), `registry` (catálogo), `run` (execução+auditoria), `agent` (adaptação). Arquivos pequenos e focados.
 

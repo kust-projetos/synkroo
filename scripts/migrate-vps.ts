@@ -7,24 +7,54 @@
  * see scripts/lib/load-vps-env.ts) > process.env only.
  *
  * Usage:
- *   npx tsx scripts/migrate-vps.ts --target=production
- *   npx tsx scripts/migrate-vps.ts --target=staging
- *   npx tsx scripts/migrate-vps.ts --target=all
- *   npx tsx scripts/migrate-vps.ts --target=all --dry-run   # plan only, no DB writes
+ *   npx tsx scripts/migrate-vps.ts --side=source --target=production
+ *   npx tsx scripts/migrate-vps.ts --side=source --target=staging
+ *   npx tsx scripts/migrate-vps.ts --side=target --target=all
+ *   npx tsx scripts/migrate-vps.ts --side=source --target=all --dry-run   # plan only, no DB writes
+ *
+ *   --side   (REQUIRED) which VPS this run touches: `source` = the host the
+ *            data lives on today, `target` = the host it is being moved to.
+ *            There is no default: a missing or invalid side aborts.
+ *   --target which database INSIDE that VPS: production | staging | all
+ *            (default production). Orthogonal to --side.
+ *
+ * Env file resolution (provider-neutral, see scripts/lib/vps-env.mjs):
+ *   1. SYNKROO_VPS_ENV (explicit path; invalid values abort — no fallback)
+ *   2. legacy ../vps-hostinger/.env (temporary, warns)
+ *
+ * Connection values come from VPS_<SIDE>_{IP,PG_PORT,POSTGRES_PASSWORD,STAGING_PASSWORD},
+ * each falling back to its deprecated generic VPS_* alias with a warning.
  */
 
 import { Client } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import * as path from 'path';
+
 import {
-  describeOrigin,
-  getVpsValue,
-  isDryRun,
+  VPS_SIDE_INVALID_CODE,
+  VPS_SIDES,
   loadVpsEnv,
-  requireVpsValue,
-  type LoadedVpsEnv,
-} from './lib/load-vps-env';
+  readCliFlag,
+  repoRootFromModuleUrl,
+  requireVpsSideSetting,
+  resolveVpsSideSettings,
+  vpsEnvSourceHint,
+} from './lib/vps-env.mjs';
+
+// Re-exported to preserve this module's public surface: the parser now lives
+// in the shared provider-neutral module (CRLF-safe), still covered by
+// scripts/__tests__/migrate-vps-env.test.mjs.
+export { parseVpsEnvContent } from './lib/vps-env.mjs';
+
+const USAGE = [
+  'Usage:',
+  '  npx tsx scripts/migrate-vps.ts --side=source|target [--target=production|staging|all] [--dry-run]',
+  '',
+  '  --side   REQUIRED. source = current VPS, target = destination VPS.',
+  '  --target database inside that VPS (default: production).',
+  '  --dry-run plan only: print what would run without touching databases.',
+].join('\n');
 
 interface TargetConfig {
   name: string;
@@ -82,50 +112,61 @@ async function runMigrationForTarget(
 }
 
 async function main() {
-  const vpsEnv: LoadedVpsEnv = loadVpsEnv({
-    requiredKeys: ['VPS_IP', 'VPS_PG_PORT'],
-  });
-  const dryRun = isDryRun();
-  // All connection values come exclusively from process.env or the
-  // loader-resolved VPS config file. No credentials, hosts, or ports are
-  // hardcoded in this file.
-  const host = requireVpsValue(vpsEnv, 'VPS_IP');
-  const portRaw = requireVpsValue(vpsEnv, 'VPS_PG_PORT');
-  const port = parseInt(portRaw, 10);
-  if (!Number.isFinite(port)) {
-    throw new Error(
-      'VPS_PG_PORT is invalid: expected a numeric port ' +
-        '(via SYNKROO_VPS_ENV file or VPS_PG_PORT in process.env).',
-    );
-  }
-  const prodPassword = getVpsValue(vpsEnv, 'VPS_POSTGRES_PASSWORD');
-  // Strict credential separation: the staging password comes ONLY from
-  // VPS_STAGING_PASSWORD (env or file). Never fall back to the production
-  // password — cross-environment credential reuse is a P1 finding.
-  const stagingPassword = getVpsValue(vpsEnv, 'VPS_STAGING_PASSWORD');
-
   const args = process.argv.slice(2);
-  const targetArg = args.find((a) => a.startsWith('--target='))?.split('=')[1] || 'production';
+  // Plan-only mode: print what would run without touching databases.
+  // vps-env.mjs has no isDryRun helper, so the bare flag is read here.
+  const dryRun = args.includes('--dry-run');
+
+  const side = readCliFlag(args, 'side');
+  if (side === undefined || !VPS_SIDES.includes(side)) {
+    console.error(
+      side === undefined
+        ? `--side is required (${VPS_SIDE_INVALID_CODE}): expected ${VPS_SIDES.join(' or ')}.`
+        : `--side="${side}" is not a valid side (${VPS_SIDE_INVALID_CODE}): expected ${VPS_SIDES.join(' or ')}.`,
+    );
+    console.error(USAGE);
+    process.exit(1);
+  }
+
+  const targetArg = readCliFlag(args, 'target') ?? 'production';
   if (targetArg !== 'production' && targetArg !== 'staging' && targetArg !== 'all') {
     throw new Error(
       `Invalid --target="${targetArg}": expected one of "production", "staging" or "all".`,
     );
   }
 
-  if ((targetArg === 'production' || targetArg === 'all') && !prodPassword) {
-    throw new Error(
-      'VPS_POSTGRES_PASSWORD is missing: set SYNKROO_VPS_ENV to a .env file ' +
-        'containing it, or export VPS_POSTGRES_PASSWORD in process.env.',
-    );
-  }
-  if ((targetArg === 'staging' || targetArg === 'all') && !stagingPassword) {
-    throw new Error(
-      'VPS_STAGING_PASSWORD is missing: set SYNKROO_VPS_ENV to a .env file ' +
-        'containing it, or export VPS_STAGING_PASSWORD in process.env.',
+  const { values, path: envPath, source } = loadVpsEnv();
+  const hint = vpsEnvSourceHint({ path: envPath, source });
+  // Only the credentials this run actually connects with are mandatory: a
+  // --target=staging run must not demand the production password, and vice
+  // versa. Connection separation is preserved — staging is never backfilled.
+  const requiredFields = ['IP', 'PG_PORT'];
+  if (targetArg !== 'staging') requiredFields.push('POSTGRES_PASSWORD');
+  if (targetArg !== 'production') requiredFields.push('STAGING_PASSWORD');
+
+  // All connection values come exclusively from process.env or the resolved
+  // private env file. No credentials, hosts, or ports are hardcoded in this file.
+  const settings = resolveVpsSideSettings(side, {
+    values,
+    hint,
+    require: requiredFields,
+    warn: (message: string) => console.warn(message),
+  });
+  const host = requireVpsSideSetting(settings, 'ip', hint) as string;
+  const port = requireVpsSideSetting(settings, 'pgPort', hint) as number;
+
+  console.log(`side=${side} host=${host}:${port} source_env=${hint}`);
+  if (settings.usedLegacyKeys.length > 0) {
+    console.warn(
+      `[deprecated] side="${side}" ainda lê as chaves genéricas ` +
+        `${settings.usedLegacyKeys.join(', ')} — renomeie para as chaves ` +
+        `VPS_${side.toUpperCase()}_* no .env`,
     );
   }
 
-  const migrationsFolder = path.resolve(process.cwd(), 'src', 'lib', 'db', 'migrations');
+  // Repo-root derived from this script's location (not process.cwd()), so the
+  // migration folder resolves the same regardless of the caller's directory.
+  const migrationsFolder = path.resolve(repoRootFromModuleUrl(), 'src', 'lib', 'db', 'migrations');
 
   const targets: TargetConfig[] = [];
   if (targetArg === 'production' || targetArg === 'all') {
@@ -133,7 +174,7 @@ async function main() {
       name: 'production',
       database: 'synkroo',
       user: 'synkroo',
-      password: prodPassword,
+      password: requireVpsSideSetting(settings, 'postgresPassword', hint) as string,
     });
   }
   if (targetArg === 'staging' || targetArg === 'all') {
@@ -141,7 +182,7 @@ async function main() {
       name: 'staging',
       database: 'synkroo_staging',
       user: 'synkroo_staging',
-      password: stagingPassword,
+      password: requireVpsSideSetting(settings, 'stagingPassword', hint) as string,
     });
   }
 
@@ -150,7 +191,7 @@ async function main() {
       console.log(
         `[dry-run] Would migrate target [${t.name}]: ` +
           `host ${host}:${port}, db ${t.database}, user ${t.user}, ` +
-          `migrations ${migrationsFolder} (config: ${describeOrigin(vpsEnv)}).`,
+          `migrations ${migrationsFolder} (source_env: ${hint}).`,
       );
       continue;
     }

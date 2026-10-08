@@ -23,13 +23,20 @@ const cannedRows: any[][] = [
 ]
 let selectCall = 0
 
+/** Modo de falha: a Nª query rejeita (simula erro de DB); 'all' rejeita todas. */
+let failingSelect: number | 'all' = -1
+
 const mockDb = {
   select: jest.fn(() => {
-    const rows = cannedRows[selectCall++] ?? [{ count: 0 }]
+    const call = selectCall++
+    const rows = cannedRows[call] ?? [{ count: 0 }]
     return {
       from: jest.fn(() => ({
         where: jest.fn(() => ({
-          then: (fn: any) => Promise.resolve().then(() => fn(rows)),
+          then: (fn: any) =>
+            failingSelect === 'all' || failingSelect === call
+              ? Promise.reject(new Error('db down'))
+              : Promise.resolve().then(() => fn(rows)),
         })),
       })),
     }
@@ -61,12 +68,9 @@ jest.mock('@/lib/db/schema', () => {
   return actual;
 });
 
+const mockGetInactivityStats = jest.fn()
 jest.mock('@/services/followup/inactive-patient.service', () => ({
-  getInactivityStats: jest.fn().mockResolvedValue({
-    totalInactive: 42,
-    bySegment: { '30d': 10, '60d': 15, '90d': 17 },
-    atRiskRevenue: 5000,
-  }),
+  getInactivityStats: (...args: unknown[]) => mockGetInactivityStats(...args),
 }))
 
 import { GET } from '@/app/api/dashboard/stats/route'
@@ -87,6 +91,12 @@ function makeReq(): Request {
 beforeEach(() => {
   jest.clearAllMocks()
   selectCall = 0
+  failingSelect = -1
+  mockGetInactivityStats.mockResolvedValue({
+    totalInactive: 42,
+    bySegment: { '30d': 10, '60d': 15, '90d': 17 },
+    atRiskRevenue: 5000,
+  })
 })
 
 describe('GET /api/dashboard/stats', () => {
@@ -128,5 +138,116 @@ describe('GET /api/dashboard/stats', () => {
     // inactive shape
     expect(body.data.inactivePatients.totalInactive).toBe(42)
     expect(body.data.inactivePatients.bySegment).toEqual({ '30d': 10, '60d': 15, '90d': 17 })
+  })
+
+  // Contrato degradado VIGENTE (MAIN, com UI shipped): cada agregado que
+  // falha resolve para `null` (desconhecido) em vez de zero fabricado — a rota
+  // devolve 200 com `degraded: true`, `failedParts: [parte]` e flag `stale`
+  // no agregado afetado (zeros com stale = "desconhecido", nunca vazio).
+  // Só a falha TOTAL (6/6 agregados) é erro global 500. A UI consome
+  // `failedParts` (dashboard/page.tsx) e tipa `degraded/failedParts/stale`
+  // (use-queries.ts: DashboardStats) para exibir '—' nos valores degradados.
+  describe('degradado em falha parcial; 500 só em falha total', () => {
+    afterEach(() => { failingSelect = -1 })
+
+    it('retorna 200 degradado quando a query de hoje falha', async () => {
+      mockAuth()
+      failingSelect = 0
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.data.degraded).toBe(true)
+      expect(body.data.failedParts).toEqual(['todayAppointments'])
+      expect(body.data.today.stale).toBe(true)
+      // demais agregados seguem saudáveis
+      expect(body.data.metrics.stale).toBe(false)
+      expect(body.data.inactivePatients.stale).toBe(false)
+      expect(body.error).toBeUndefined()
+    })
+
+    it('retorna 200 degradado quando a query de 30 dias falha', async () => {
+      mockAuth()
+      failingSelect = 1
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.data.degraded).toBe(true)
+      expect(body.data.failedParts).toEqual(['recentAppointments'])
+      expect(body.data.metrics.stale).toBe(true)
+      expect(body.data.today.stale).toBe(false)
+    })
+
+    it('retorna 200 degradado quando a contagem de campanhas falha', async () => {
+      mockAuth()
+      failingSelect = 2
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.data.degraded).toBe(true)
+      expect(body.data.failedParts).toEqual(['activeCampaigns'])
+      expect(body.data.metrics.activeCampaigns).toBe(0)
+      expect(body.data.metrics.stale).toBe(true)
+    })
+
+    it('retorna 200 degradado quando a contagem de conversas falha', async () => {
+      mockAuth()
+      failingSelect = 3
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.data.degraded).toBe(true)
+      expect(body.data.failedParts).toEqual(['openConversations'])
+      expect(body.data.metrics.stale).toBe(true)
+    })
+
+    it('retorna 200 degradado quando a contagem de pacientes falha', async () => {
+      mockAuth()
+      failingSelect = 4
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.data.degraded).toBe(true)
+      expect(body.data.failedParts).toEqual(['totalPatients'])
+      expect(body.data.metrics.totalPatients).toBe(0)
+      expect(body.data.metrics.stale).toBe(true)
+    })
+
+    it('retorna 200 degradado quando getInactivityStats falha (isola em stale, não 500)', async () => {
+      mockAuth()
+      mockGetInactivityStats.mockRejectedValueOnce(new Error('db down'))
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.data.degraded).toBe(true)
+      expect(body.data.failedParts).toEqual(['inactivityStats'])
+      expect(body.data.inactivePatients.stale).toBe(true)
+      expect(body.data.inactivePatients.totalInactive).toBe(0)
+    })
+
+    it('retorna 500 só quando TODOS os agregados falham (6/6)', async () => {
+      mockAuth()
+      failingSelect = 'all'
+      mockGetInactivityStats.mockRejectedValueOnce(new Error('db down'))
+
+      const res = await GET(makeReq() as any)
+      const body = await res.json()
+
+      expect(res.status).toBe(500)
+      expect(body.error.code).toBe('INTERNAL_ERROR')
+      expect(body.error.requestId).toEqual(expect.any(String))
+      expect(body.data).toBeUndefined()
+    })
   })
 })

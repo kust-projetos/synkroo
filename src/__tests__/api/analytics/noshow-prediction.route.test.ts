@@ -1,10 +1,14 @@
 /**
- * Route test — POST /api/analytics/noshow-prediction
+ * Route test — POST + GET /api/analytics/noshow-prediction
  *
  * P0 trust fixes:
  * 1. tenant scope: clinicId sempre do contexto autenticado (nunca do body);
  * 2. 404 opaco para paciente inexistente/de outra clínica (sem PHI leak);
  * 3. 500 fail-closed quando o service falha (sem score fabricado).
+ *
+ * P1 fail-request: o GET tem a mesma política — query de risco que falha não
+ * pode responder 200 com zero predictions (indistinguível de "sem agendamento
+ * futuro"). A rota já mapeava falha para 500; o service é que devolvia [].
  */
 import { NextRequest } from 'next/server'
 
@@ -21,7 +25,7 @@ jest.mock('@/services/analytics/noshow-prediction.service', () => ({
   getUpcomingAppointmentRisks: (...args: unknown[]) => mockGetUpcomingAppointmentRisks(...args),
 }))
 
-import { POST } from '@/app/api/analytics/noshow-prediction/route'
+import { POST, GET } from '@/app/api/analytics/noshow-prediction/route'
 
 function makeReq(body: unknown): NextRequest {
   return new Request('http://localhost/api/analytics/noshow-prediction', {
@@ -29,6 +33,10 @@ function makeReq(body: unknown): NextRequest {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }) as unknown as NextRequest
+}
+
+function makeGetReq(query = ''): NextRequest {
+  return new Request(`http://localhost/api/analytics/noshow-prediction${query}`) as unknown as NextRequest
 }
 
 const authOk = {
@@ -102,5 +110,62 @@ describe('POST /api/analytics/noshow-prediction', () => {
     const body = await res.json()
     expect(body.error.code).toBe('INTERNAL_ERROR')
     expect(JSON.stringify(body)).not.toContain('risk_score')
+  })
+})
+
+describe('GET /api/analytics/noshow-prediction', () => {
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockValidateApiAuth.mockResolvedValue(authOk)
+  })
+
+  it('retorna 401 quando não autenticado', async () => {
+    mockValidateApiAuth.mockResolvedValueOnce({ success: false, error: 'Unauthorized' })
+
+    const res = await GET(makeGetReq())
+
+    expect(res.status).toBe(401)
+    expect(mockGetUpcomingAppointmentRisks).not.toHaveBeenCalled()
+  })
+
+  it('retorna 200 com predições reais e summary derivado', async () => {
+    mockGetUpcomingAppointmentRisks.mockResolvedValueOnce([
+      { patient_id: 'p1', patient_name: 'João', risk_score: 60, riskLevel: 'high', factors: [], recommendations: [] },
+      { patient_id: 'p2', patient_name: 'Maria', risk_score: 10, riskLevel: 'low', factors: [], recommendations: [] },
+    ])
+
+    const res = await GET(makeGetReq('?days=7'))
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.data.predictions).toHaveLength(2)
+    expect(body.data.summary).toMatchObject({ total: 2, highRisk: 1, lowRisk: 1 })
+    expect(mockGetUpcomingAppointmentRisks).toHaveBeenCalledWith('clinic-A', 7)
+  })
+
+  it('retorna 500 INTERNAL_ERROR quando a query falha — nunca 200 com zero predictions', async () => {
+    mockGetUpcomingAppointmentRisks.mockRejectedValueOnce(new Error('db down'))
+
+    const res = await GET(makeGetReq('?days=7'))
+    const body = await res.json()
+
+    expect(res.status).toBe(500)
+    expect(body.error.code).toBe('INTERNAL_ERROR')
+    expect(body.error.requestId).toEqual(expect.any(String))
+    expect(body.data).toBeUndefined()
+    expect(JSON.stringify(body)).not.toContain('predictions')
+  })
+
+  it('mantém 200 com predictions vazio quando não há agendamento futuro (ausência real)', async () => {
+    // Distinção que a política fail-request precisa preservar: sem dado não é
+    // falha. Só o erro de DB vira 500.
+    mockGetUpcomingAppointmentRisks.mockResolvedValueOnce([])
+
+    const res = await GET(makeGetReq())
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.data.predictions).toEqual([])
+    expect(body.data.summary.total).toBe(0)
   })
 })

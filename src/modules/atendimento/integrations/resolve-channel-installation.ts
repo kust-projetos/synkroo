@@ -86,6 +86,57 @@ export async function resolveEnabledChannelInstallation(input: {
   }
 }
 
+/**
+ * A tenant lookup that FAILED, as opposed to a tenant that simply does not exist.
+ *
+ * Carries no message detail from the driver and no `cause`, so the original
+ * connection string/query fragment can never reach a log or a response.
+ */
+export class WahaInstallationLookupError extends Error {
+  constructor() {
+    super('waha installation lookup unavailable');
+    this.name = 'WahaInstallationLookupError';
+  }
+}
+
+/**
+ * Strict WAHA session → clinic resolution for the inbound webhook.
+ *
+ * Narrowly scoped on purpose: the provider is pinned to `waha` and only the
+ * session name is accepted, so this cannot become a generic cross-provider
+ * tenant lookup. It differs from `resolveEnabledChannelInstallation` in exactly
+ * one way, and that difference is the whole point:
+ *
+ *   - no matching enabled session → `null` (a genuine "unknown", which the
+ *     caller may acknowledge without side effect);
+ *   - DB query failure → THROWS `WahaInstallationLookupError`, so an outage is
+ *     never mistaken for an unknown session.
+ *
+ * Collapsing both into `null` would make an infrastructure outage look like a
+ * permanently unconfigured installation and silently drop inbound messages.
+ * The legacy helper keeps its swallow-as-null contract for its other callers.
+ */
+export async function resolveWahaInstallationStrict(input: {
+  installationId: string;
+}): Promise<ChannelInstallation | null> {
+  if (!input.installationId) return null;
+  try {
+    const [row] = await getDb()
+      .select({ installationId: channelInstallations.installationId, clinicId: channelInstallations.clinicId })
+      .from(channelInstallations)
+      .where(and(
+        eq(channelInstallations.installationId, input.installationId),
+        eq(channelInstallations.provider, 'waha'),
+        eq(channelInstallations.enabled, true),
+      ))
+      .limit(1);
+    return row ? { installationId: row.installationId, clinicId: row.clinicId } : null;
+  } catch {
+    logSanitizedError('resolveWahaInstallationStrict');
+    throw new WahaInstallationLookupError();
+  }
+}
+
 export function isAllowedWidgetOrigin(origin: string): boolean {
   if (!origin) return false;
   try {

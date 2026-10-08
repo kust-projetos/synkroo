@@ -4,6 +4,8 @@
 > **Data:** 2026-06-17
 > **Mestre:** `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`
 > **Status:** Aprovado para escrita do plano de implementação.
+>
+> **⚠️ Anotação 2026-10-05 (allowlist hardening):** §2.5 (`toAgentTool`/`agentToolsFor`, `src/core/actions/agent.ts`) está **SUPERADO**. Os adaptadores foram removidos porque expunham `runAction` direto, contornando handle, confirmação/identidade e anti-replay do agent-bridge. Hoje: descoberta/catálogo = `buildToolCatalog(ctx, actions?)` em `src/core/agent-bridge/tool-catalog.ts` (metadata-only; interseção `isAgentSafeAction` ∧ `hasModule` ∧ `can`), execução = `executeActionLogic` em `src/core/agent-bridge/bridge-service.ts`. O restante deste spec segue válido como registro histórico. Ver [ADR-BASE-17](../../adr/ADR-BASE-17-llm-untrusted-data.md).
 
 ---
 
@@ -112,8 +114,10 @@ Route handlers REST permanecem onde já existem (webhooks, integrações externa
 
 ### 2.5 Consumo pelo agente
 
+> **⚠️ SUPERADO em 2026-10-05 — ver anotação no topo.** O código abaixo (`toAgentTool`/`agentToolsFor`, `src/core/actions/agent.ts`) foi removido: adaptava a Action com `run()` → `runAction` direto, sem handle verificado, sem matriz de confirmação/identidade e sem anti-replay (allowlist do agent-bridge contornada). Substituído por: catálogo metadata-only `buildToolCatalog(ctx, actions?)` = `isAgentSafeAction(name) ∧ ctx.hasModule(module) ∧ ctx.can(requires)` em `src/core/agent-bridge/tool-catalog.ts`, com execução exclusivamente via `executeActionLogic` (`src/core/agent-bridge/bridge-service.ts`), que revalida a allowlist antes de marcar idempotência e antes do `runAction`.
+
 ```ts
-// src/core/actions/agent.ts
+// src/core/actions/agent.ts — REMOVIDO (histórico, W3.1)
 export function toAgentTool(action: ActionDefinition): AgentTool;       // adapta p/ Cloudflare Agents SDK
 export function agentToolsFor(ctx: ActionContext): AgentTool[];          // filtra registry por hasModule + can
 ```
@@ -265,7 +269,7 @@ Editável **só pelo `master`**.
 
 1. **Rotas/API:** wrapper/middleware verifica `isEnabled(module)`; desativado → 404 (rota) / 403 (API). Server Actions já passam pelo gate via `runAction` (passo 2).
 2. **Menu/navegação:** a navegação é montada a partir dos `manifest.menu` filtrados por `isEnabled` **e** por permissão do usuário.
-3. **Tools do agente:** `agentToolsFor(ctx)` filtra por `hasModule` (§2.5).
+3. **Tools do agente:** `buildToolCatalog(ctx)` (`src/core/agent-bridge/tool-catalog.ts`) filtra por `hasModule` (§2.5) **e** pela allowlist literal da bridge IA — o antigo `agentToolsFor` foi removido em 2026-10-05 (ver anotação no topo).
 4. **Jobs em background:** cron/workflows/Durable Objects checam `isEnabled` antes de agendar/executar. Registro de jobs declarado em `manifest.jobs`; o scheduler central pula módulos desativados.
 
 > Garantia: módulo desativado é inerte — sem rota, sem menu, sem tool, sem job. Custo de execução/token ≈ zero. Único custo residual: bundle (desprezível em Workers).
@@ -345,7 +349,7 @@ O enum `userRole` (`owner/admin/dentist/receptionist`) é migrado:
 - **Bootstrap do registry:** todas as Actions exportadas pelos módulos estão no registry após o boot determinístico (nenhuma perdida por tree-shaking).
 - **RBAC:** `can()` com perfil + overrides (override tem precedência); presets seedados conferem permissões esperadas; **`owner`/`master` bypass**.
 - **Migração `userRole`→`roles`/overrides:** cada role legado mapeia ao perfil correto; **`admin` NÃO vira `owner`** (regressão de escalada de privilégio).
-- **Manifesto:** os 4 gates — rota desativada → 403/404; menu filtrado; `agentToolsFor` exclui módulo off; scheduler pula job de módulo off.
+- **Manifesto:** os 4 gates — rota desativada → 403/404; menu filtrado; `buildToolCatalog` exclui módulo off (e tudo que não está na allowlist IA); scheduler pula job de módulo off.
 - **Auditoria:** `action_logs` grava `principalType`/`actor`/`onBehalfOf`/`result`/`errorCode` por execução; input sensível redigido.
 - **Regressão anti-bypass:** mutação que escreva no DB fora de `runAction` falha o lint/CI.
 - **Fronteira:** lint de dependência falha em import cross-module ilegal.

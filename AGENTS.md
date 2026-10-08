@@ -9,7 +9,7 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 | Framework | Next.js 15 (App Router) + React 19 + TypeScript 5.6 |
 | DB | PostgreSQL via Drizzle ORM + `pg` (Supabase removido — ver roadmap-mestre) |
 | Auth | NextAuth/Auth.js (JWT, edge middleware) |
-| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive + Vectorize — em migração |
+| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive — em migração (vector store único: pgvector, ADR-BASE-04) |
 | Workers auxiliares | `src/workers/ia-agent` (Cloudflare Agents SDK / Agent DO) + `src/workers/ia-bridge` |
 | State | Zustand 5 (local) + TanStack Query 5 (server) |
 | UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
@@ -60,8 +60,8 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 ```
 src/
 ├── app/
-│   ├── api/          # 36 módulos de API (192 arquivos de rotas/handlers)
-│   ├── dashboard/    # 36 páginas protegidas
+│   ├── api/          # 36 módulos de API (144 route.ts + 26 shims strangler _handler.ts)
+│   ├── dashboard/    # 36 páginas protegidas (36 rotas)
 │   ├── login/        # Auth pages
 │   └── signup/
 ├── components/       # UI por 12 domínios (calendar, campaigns, charts, contacts, financeiro, lgpd, notifications, pi-finance, pipeline, reports, ui, whatsapp)
@@ -72,13 +72,14 @@ src/
 │   ├── validations/  # 11 Zod schemas por domínio
 │   ├── auth/         # Auth context (NextAuth)
 │   └── env.ts        # Validação de env vars (fail-fast em prod)
-├── modules/          # Arquitetura modular por bounded contexts
+├── modules/          # Arquitetura modular por bounded contexts (8)
 │   ├── atendimento/  # Mensageria, WhatsApp, Instagram, canais
 │   ├── comercial/    # Pipeline, leads, conversão, tasks
 │   ├── core/         # RBAC, tenant context, access, roles
 │   ├── crm/          # Contatos, notas, merge, dedup
 │   ├── financeiro/   # Orçamentos, cobranças, gateways, regras
 │   ├── followup/     # Inativos, campanhas de retenção
+│   ├── ia/           # Manifest/schema do agente (iaActions = []; agente em src/core/ia-agent)
 │   └── operacional/  # Consultas, dentistas, procedimentos, waitlist
 ├── repositories/     # Data access layer (Drizzle ORM)
 ├── services/         # 16 domínios de lógica de negócio (analytics, api-handlers, appointments, budgets, contacts, custom-fields, followup, installments, leads, patients, payments, pipeline, reminders, reports, treatment-plans, waitlist)
@@ -168,6 +169,7 @@ src/
 ## Direção da Stack & Roadmap
 - Stack real: Drizzle ORM + `pg` + NextAuth + Cloudflare Workers (OpenNext) + Workers Auxiliares (`ia-agent`, `ia-bridge`).
 - Fonte de verdade: `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`.
+- vNext (AI-native Business OS): spec `docs/superpowers/specs/2026-10-05-synkroo-vnext-ai-native-business-os-design.md` + plano `docs/superpowers/plans/2026-10-05-synkroo-vnext-ai-native-business-os-implementation.md`; inventário canônico P0 em `docs/inventory/` (Actions/catálogo, runtime, duplicação services×modules) e ADR-BASE-18 (AI Control Plane).
 - Roadmap 143: Ledger rigoroso de 143 itens (`records=143 unique=143 VERIFIED=126 DEFERRED=3 EXTERNAL=14`, pós-2026-08-26) — estado canônico em `docs/goals/roadmap-143-resume.md`, autoridade via `npm run roadmap:check`.
 - Supabase removido; migrations convertidas para Drizzle em `src/lib/db/schema/`.
 - Hardening V2 (2026-09-17): 20 commits (`73754a9..cc49648d`) — cache invalidation central, suíte negativa cross-tenant (gate de CI), idempotência com fingerprint/result_ref (migrations 0032-0033), precisão monetária em centavos, SHA-pinning de Actions + Dependabot + job migrations-from-zero, redaction LGPD exportada do logger, rate limiting nos gaps, evals IA offline, inventário LGPD, runbooks DR. Baseline: `docs/audit/hardening-v2-baseline.md`; relatório: `docs/audit/hardening2-progress-report.md`; pendências runtime: `docs/ops/cloudflare-runtime-checklist.md`.
@@ -183,5 +185,5 @@ src/
 
 ## VPS
 - Operação: `docs/ops/vps-access.md`.
-- Scripts usam loader canônico `scripts/lib/load-vps-env.ts`: `SYNKROO_VPS_ENV` (caminho do `.env` privado, absoluto ou relativo) > fallback legado `../vps-hostinger/.env` (deprecated, com aviso) > somente-env em leitura; escrita exige arquivo resolvido. Nunca copiar segredos para este repositório.
-- Scripts mutadores (`migrate-vps.ts`, `update-hyperdrive.ts`, `setup-staging-db.ts`) aceitam `--dry-run` (plano sem mutação, sem secrets); escrita no `.env` é atômica com `.bak`; staging password nunca rotaciona em re-execução. P2: handoff de senha via stdin/env no wrangler, migração Contabo (NÃO declarar como concluída).
+- Scripts operacionais: definir `SYNKROO_VPS_ENV` para o caminho do `.env` privado fora deste repositório. Há apenas um fallback temporário e deprecated para `../vps-hostinger/.env`; nunca copiar segredos para este repositório.
+- Scripts mutadores (`migrate-vps.ts`, `update-hyperdrive.ts`, `setup-staging-db.ts`) aceitam `--side=source|target` (obrigatório) e `--dry-run` (plano sem mutação, sem secrets); escrita no `.env` é atômica com modo 0600; staging password nunca rotaciona em re-execução (probe + abort em inconsistência). P2: handoff de senha via stdin/env no wrangler, migração Contabo (NÃO declarar como concluída).

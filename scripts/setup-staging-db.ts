@@ -1,94 +1,159 @@
 /**
  * scripts/setup-staging-db.ts
  *
- * Configures the synkroo_staging role and database on the VPS PostgreSQL instance.
- *
- * Config: SYNKROO_VPS_ENV (canonical) > legacy fallback (deprecated,
- * see scripts/lib/load-vps-env.ts) > process.env only. This script WRITES the
- * config file (staging password bootstrap), so it requires a resolved file —
- * env-only mode fails fast instead of writing somewhere unknown.
- *
- * Idempotence: the staging password is generated ONLY when absent and never
- * rotated on re-runs; an existing role is verified (connect with the
- * configured password) instead of ALTERed. Re-running with equal values does
- * not rewrite the .env file (atomic tmp+rename with .bak backup on change).
+ * Configures the synkroo_staging role and database on ONE VPS PostgreSQL
+ * instance.
  *
  * Usage:
- *   npx tsx scripts/setup-staging-db.ts
- *   npx tsx scripts/setup-staging-db.ts --dry-run   # plan only, no DB/file writes
+ *   npx tsx scripts/setup-staging-db.ts --side=source
+ *   npx tsx scripts/setup-staging-db.ts --side=target
+ *   npx tsx scripts/setup-staging-db.ts --side=source --dry-run   # plan only, no DB/file writes
+ *
+ *   --side (REQUIRED) source = the current VPS, target = the destination VPS.
+ *          There is no default: a missing or invalid side aborts.
+ *
+ * Env file resolution (provider-neutral, see scripts/lib/vps-env.mjs):
+ *   1. SYNKROO_VPS_ENV (explicit path; invalid values abort — no fallback)
+ *   2. legacy ../vps-hostinger/.env (temporary, warns)
+ *
+ * Connection values come from VPS_<SIDE>_{IP,PG_PORT,POSTGRES_PASSWORD,STAGING_PASSWORD},
+ * each falling back to its deprecated generic VPS_* alias with a warning.
+ *
+ * Fail-closed preflight: the effective credentials are persisted BEFORE any
+ * database mutation — a generated staging password, or a process.env override
+ * that diverges from the file, would otherwise leave the DB holding a
+ * credential that exists nowhere on disk. A missing/unwritable env file aborts
+ * the run. Writes are atomic (temp file + rename) with mode 0600.
+ *
+ * Never-rotate: an existing synkroo_staging role is verified (probe connect
+ * with the configured password), never ALTERed. A probe failure aborts with
+ * an INCONSISTENCY error instead of silently rotating the credential.
+ *
+ * Error output is secrets-safe: driver errors embed the statement text, and the
+ * CREATE/ALTER ROLE statements carry the staging password, so only an
+ * allowlisted code is ever printed.
  */
 
 import { Client } from 'pg';
 import * as crypto from 'crypto';
-import {
-  describeOrigin,
-  getVpsValue,
-  isDryRun,
-  loadVpsEnv,
-  redactSecrets,
-  requireVpsValue,
-  writeVpsEnvKey,
-  type LoadedVpsEnv,
-} from './lib/load-vps-env';
 
-/**
- * Server-side literal quoting via `quote_literal($1)`: the password travels
- * as a bound parameter and only the already-quoted literal is interpolated
- * into DDL. Role/database identifiers below are fixed constants.
- */
-async function quoteLiteral(adminClient: Client, value: string): Promise<string> {
-  const { rows } = await adminClient.query('SELECT quote_literal($1) AS q', [value]);
-  const quoted = (rows[0] as { q: unknown }).q;
-  if (typeof quoted !== 'string') {
-    throw new Error('Failed to quote staging password (unexpected quote_literal result).');
-  }
-  return quoted;
-}
+import {
+  VPS_SIDE_INVALID_CODE,
+  VPS_SIDES,
+  applyEnvFileWrites,
+  assertEnvFileWritable,
+  loadVpsEnv,
+  planEnvFileWrites,
+  readCliFlag,
+  requireVpsSideSetting,
+  resolveVpsSideSettings,
+  SETTING_ORIGIN_PROCESS,
+  vpsEnvSourceHint,
+} from './lib/vps-env.mjs';
+import {
+  createDatabaseOwnedByDdl,
+  createRoleWithPasswordDdl,
+  grantAllOnSchemaPublicDdl,
+  quotePgLiteral,
+  safeDbErrorSummary,
+} from './lib/pg-ddl.mjs';
+
+const STAGING_ROLE = 'synkroo_staging';
+const STAGING_DATABASE = 'synkroo_staging';
+
+const USAGE = [
+  'Usage:',
+  '  npx tsx scripts/setup-staging-db.ts --side=source|target [--dry-run]',
+  '',
+  '  --side REQUIRED. source = current VPS, target = destination VPS.',
+  '  --dry-run plan only: print what would run without DB or file writes.',
+].join('\n');
 
 async function main() {
-  // Write mode: require a resolved file so generated secrets always land in
-  // the loader-resolved path (explicit SYNKROO_VPS_ENV or acknowledged
-  // legacy fallback), never in an ad-hoc location.
-  const vpsEnv: LoadedVpsEnv = loadVpsEnv({
-    requiredKeys: ['VPS_IP', 'VPS_PG_PORT', 'VPS_POSTGRES_PASSWORD'],
-    requireFile: true,
-  });
-  const dryRun = isDryRun();
-  // All connection values come exclusively from process.env or the
-  // loader-resolved VPS config file. No credentials, hosts, or ports are
-  // hardcoded in this file.
-  const host = requireVpsValue(vpsEnv, 'VPS_IP');
-  const portRaw = requireVpsValue(vpsEnv, 'VPS_PG_PORT');
-  const port = parseInt(portRaw, 10);
-  const prodPassword = requireVpsValue(vpsEnv, 'VPS_POSTGRES_PASSWORD');
-
-  let stagingPassword = getVpsValue(vpsEnv, 'VPS_STAGING_PASSWORD');
-  let stagingPasswordGenerated = false;
-  if (!stagingPassword) {
-    stagingPassword = crypto.randomBytes(24).toString('hex');
-    stagingPasswordGenerated = true;
-    if (dryRun) {
-      console.log(
-        `[dry-run] Would generate VPS_STAGING_PASSWORD and save it to ${vpsEnv.configPath} ` +
-          `(config: ${describeOrigin(vpsEnv)}).`,
-      );
-    } else {
-      const outcome = writeVpsEnvKey(vpsEnv.configPath, 'VPS_STAGING_PASSWORD', stagingPassword);
-      console.log(
-        `Generated and saved new VPS_STAGING_PASSWORD to ${vpsEnv.configPath} (${outcome}). ` +
-          'Run scripts/update-hyperdrive.ts afterwards so Hyperdrive serves the new credential.',
-      );
-    }
+  const args = process.argv.slice(2);
+  // Plan-only mode: print what would run without DB or file writes.
+  // vps-env.mjs has no isDryRun helper, so the bare flag is read here.
+  const dryRun = args.includes('--dry-run');
+  const side = readCliFlag(args, 'side');
+  if (side === undefined || !VPS_SIDES.includes(side)) {
+    console.error(
+      side === undefined
+        ? `--side is required (${VPS_SIDE_INVALID_CODE}): expected ${VPS_SIDES.join(' or ')}.`
+        : `--side="${side}" is not a valid side (${VPS_SIDE_INVALID_CODE}): expected ${VPS_SIDES.join(' or ')}.`,
+    );
+    console.error(USAGE);
+    process.exit(1);
   }
 
-  // Also ensure VPS_POSTGRES_PASSWORD is saved in the resolved config file.
-  // Idempotent: skipped when the stored value is already equal.
+  const { values, path: envPath, source } = loadVpsEnv();
+  const hint = vpsEnvSourceHint({ path: envPath, source });
+  // The staging password is NOT required here: when absent it is generated
+  // below and persisted before any mutation. Every other value must resolve.
+  const settings = resolveVpsSideSettings(side, {
+    values,
+    hint,
+    require: ['IP', 'PG_PORT', 'POSTGRES_PASSWORD'],
+    warn: (message: string) => console.warn(message),
+  });
+  // All connection values come exclusively from process.env or the resolved
+  // private env file. No credentials, hosts, or ports are hardcoded in this file.
+  // `requireVpsSideSetting` narrows the fields this script cannot run without:
+  // the resolver may legitimately leave optional fields undefined.
+  const host = requireVpsSideSetting(settings, 'ip', hint) as string;
+  const port = requireVpsSideSetting(settings, 'pgPort', hint) as number;
+  const prodPassword = requireVpsSideSetting(settings, 'postgresPassword', hint) as string;
+
+  console.log(`side=${side} host=${host}:${port} source_env=${hint}`);
+  if (settings.usedLegacyKeys.length > 0) {
+    console.warn(
+      `[deprecated] side="${side}" ainda lê as chaves genéricas ` +
+        `${settings.usedLegacyKeys.join(', ')} — renomeie para as chaves ` +
+        `VPS_${side.toUpperCase()}_* no .env`,
+    );
+  }
+
+  // Strict credential separation: staging is never backfilled from production.
+  let stagingPassword = settings.stagingPassword;
+  const stagingGenerated = !stagingPassword;
+  if (stagingGenerated) {
+    stagingPassword = crypto.randomBytes(24).toString('hex');
+  }
+
+  // Persist the EFFECTIVE staging password in every case that would drift from
+  // disk: `required` when it was generated here (losing it would orphan the
+  // role credential), and synchronised when process.env supplied a value the
+  // file does not already hold. A value that came from the file needs no write.
+  // Same rule for the production override.
+  //
+  // The destination key is the one the effective value came from, so a
+  // deprecated generic alias is not resurrected by this script: a generated or
+  // absent value lands on the prefixed key (VPS_<SIDE>_STAGING_PASSWORD), while
+  // an override of an existing generic alias keeps writing that alias.
+  const stagingKey = settings.keys.stagingPassword;
+  const postgresKey = settings.keys.postgresPassword;
+  const { writes } = planEnvFileWrites({
+    envPath,
+    fileValues: values,
+    overrides: {
+      [stagingKey]: { value: stagingPassword, required: stagingGenerated },
+      [postgresKey]: { value: prodPassword, required: false },
+    },
+  });
+  // Fail-closed preflight still runs in dry-run (validates without mutating);
+  // only the file write itself is skipped. Key names — never values — are printed.
+  const target = assertEnvFileWritable({ envPath, writes });
   if (dryRun) {
     console.log(
-      `[dry-run] Would ensure VPS_POSTGRES_PASSWORD is stored in ${vpsEnv.configPath} (config: ${describeOrigin(vpsEnv)}).`,
+      `[dry-run] Would persist ${Object.keys(writes).join(', ') || 'nothing (already in sync)'} ` +
+        `to ${target ?? envPath ?? '(no env file)'} before touching the database. No changes made.`,
     );
-  } else {
-    writeVpsEnvKey(vpsEnv.configPath, 'VPS_POSTGRES_PASSWORD', prodPassword);
+  } else if (target) {
+    applyEnvFileWrites(target, writes);
+    const stagingNote =
+      stagingGenerated || settings.origins.stagingPassword === SETTING_ORIGIN_PROCESS
+        ? ' (staging password generated or overridden)'
+        : '';
+    console.log(`Persisted credentials to ${target} before touching the database${stagingNote}.`);
   }
 
   const adminClient = new Client({
@@ -116,29 +181,17 @@ async function main() {
   // an existing role: re-runs verify credentials instead, so Hyperdrive and
   // the config file cannot silently drift apart.
   const roleCheck = await adminClient.query(
-    "SELECT 1 FROM pg_roles WHERE rolname = 'synkroo_staging'"
+    `SELECT 1 FROM pg_roles WHERE rolname = ${quotePgLiteral(STAGING_ROLE)}`
   );
   if (roleCheck.rows.length === 0) {
-    console.log('Creating role synkroo_staging...');
-    // P1: senha via quote_literal server-side (sem interpolação client-side);
-    // o statement contém o segredo — pg_stat_activity/logs do servidor podem
-    // registrá-lo. P2: enviar verificador SCRAM em vez de plaintext.
-    const quoted = await quoteLiteral(adminClient, stagingPassword);
-    await adminClient.query(
-      `CREATE ROLE synkroo_staging WITH LOGIN PASSWORD ${quoted} CREATEDB;`
-    );
-    if (!stagingPasswordGenerated) {
-      console.log(
-        'Role synkroo_staging created with the configured password. ' +
-          'If Hyperdrive still serves an older credential, run scripts/update-hyperdrive.ts.',
-      );
-    }
+    console.log(`Creating role ${STAGING_ROLE}...`);
+    await adminClient.query(createRoleWithPasswordDdl({ role: STAGING_ROLE, password: stagingPassword }));
   } else {
-    console.log('Role synkroo_staging exists; verifying configured credentials (no rotation)...');
+    console.log(`Role ${STAGING_ROLE} exists; verifying configured credentials (no rotation)...`);
     const stagingProbe = new Client({
       host,
       port,
-      user: 'synkroo_staging',
+      user: STAGING_ROLE,
       password: stagingPassword,
       database: 'synkroo',
       ssl: { rejectUnauthorized: false },
@@ -147,10 +200,10 @@ async function main() {
     try {
       await stagingProbe.connect();
       await stagingProbe.end();
-      console.log('Configured VPS_STAGING_PASSWORD authenticates as synkroo_staging.');
+      console.log(`Configured ${stagingKey} authenticates as ${STAGING_ROLE}.`);
     } catch {
       throw new Error(
-        'INCONSISTENCY: role synkroo_staging exists but the configured VPS_STAGING_PASSWORD ' +
+        `INCONSISTENCY: role ${STAGING_ROLE} exists but the configured ${stagingKey} ` +
           'does not authenticate. Refusing silent rotation: rotate deliberately ' +
           '(ALTER ROLE + update config + scripts/update-hyperdrive.ts) instead.',
       );
@@ -159,15 +212,15 @@ async function main() {
 
   // Create database synkroo_staging if not exists
   const dbCheck = await adminClient.query(
-    "SELECT 1 FROM pg_database WHERE datname = 'synkroo_staging'"
+    `SELECT 1 FROM pg_database WHERE datname = ${quotePgLiteral(STAGING_DATABASE)}`
   );
   if (dbCheck.rows.length === 0) {
-    console.log('Creating database synkroo_staging...');
+    console.log(`Creating database ${STAGING_DATABASE}...`);
     await adminClient.query(
-      `CREATE DATABASE synkroo_staging OWNER synkroo_staging;`
+      createDatabaseOwnedByDdl({ database: STAGING_DATABASE, owner: STAGING_ROLE })
     );
   } else {
-    console.log('Database synkroo_staging already exists.');
+    console.log(`Database ${STAGING_DATABASE} already exists.`);
   }
 
   await adminClient.end();
@@ -178,23 +231,27 @@ async function main() {
     port,
     user: 'synkroo',
     password: prodPassword,
-    database: 'synkroo_staging',
+    database: STAGING_DATABASE,
     ssl: { rejectUnauthorized: false },
   });
   await stagingAdminClient.connect();
-  console.log('Connected to synkroo_staging to configure extensions.');
+  console.log(`Connected to ${STAGING_DATABASE} to configure extensions.`);
   await stagingAdminClient.query('CREATE EXTENSION IF NOT EXISTS vector;');
   await stagingAdminClient.query('CREATE EXTENSION IF NOT EXISTS btree_gist;');
-  await stagingAdminClient.query('GRANT ALL ON SCHEMA public TO synkroo_staging;');
+  await stagingAdminClient.query(grantAllOnSchemaPublicDdl({ role: STAGING_ROLE }));
   await stagingAdminClient.end();
 
   console.log('Staging database and role initialized successfully!');
 }
 
-main().catch(err => {
-  // Log the message string only (redacted): never the raw error object,
-  // which may carry connection strings, SQL text, or other internals.
-  const message = err instanceof Error ? redactSecrets(err.message) : 'unknown error';
-  console.error('Setup failed:', message);
+
+
+main().catch((err) => {
+  // Never print raw driver text: pg errors embed the failing statement, and the
+  // CREATE/ALTER ROLE statements carry the staging password in clear text — a
+  // password loaded from the env file or generated here would leak into logs.
+  // Only an operator-authored preflight message (SYNKROO_* code) or an
+  // allowlisted code is surfaced.
+  console.error('Setup failed:', safeDbErrorSummary(err));
   process.exit(1);
 });
