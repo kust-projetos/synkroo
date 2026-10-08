@@ -93,4 +93,112 @@ describe('runAction pipeline', () => {
     expect(logs[0]).toMatchObject({ result: 'ok', actionName: 'core.echo', clinicId: 'clinic-1' });
     expect(logs[1]).toMatchObject({ result: 'error', errorCode: 'invalid_input' });
   });
+
+  describe('riskClass deny_non_human (S1)', () => {
+    const denyAction = defineAction({
+      name: 'atendimento.obterQRCode', module: 'atendimento', requires: 'atendimento:view',
+      label: 'Obter QR code', riskClass: 'deny_non_human',
+      input: z.object({}).optional(), handler: async () => ({ qrcode: null }),
+    });
+    const sendAction = defineAction({
+      name: 'atendimento.enviarMensagem', module: 'atendimento', requires: 'atendimento:manage_messages',
+      label: 'Enviar mensagem', riskClass: 'deny_non_human',
+      auditFields: ['conversationId', 'channel', 'idempotencyKey'],
+      input: z.object({
+        conversationId: z.string().uuid(), message: z.string().min(1),
+        channel: z.enum(['whatsapp', 'instagram', 'web']).optional(),
+        idempotencyKey: z.string().min(1).max(128).optional(),
+      }),
+      handler: async () => ({ messageId: 'm1' }),
+    });
+
+    it('denies agent_delegated source (forbidden)', async () => {
+      const r = await runAction(denyAction, {}, ctx({ source: 'agent_delegated' }));
+      expect(r).toEqual({ ok: false, error: { code: 'forbidden', message: expect.any(String) } });
+    });
+
+    it('denies system source (forbidden)', async () => {
+      const r = await runAction(denyAction, {}, ctx({ source: 'system', user: undefined, audit: { actor: 'agente (sistema)' } }));
+      expect(r).toEqual({ ok: false, error: { code: 'forbidden', message: expect.any(String) } });
+    });
+
+    it('allows human (user) source', async () => {
+      const r = await runAction(denyAction, {}, ctx());
+      expect(r.ok).toBe(true);
+    });
+
+    it('blocks external send for non-human without confirmation path', async () => {
+      const r = await runAction(
+        sendAction,
+        { conversationId: '123e4567-e89b-12d3-a456-426614174000', message: 'oi', channel: 'whatsapp' },
+        ctx({ source: 'agent_delegated' }),
+      );
+      expect(r).toEqual({ ok: false, error: { code: 'forbidden', message: expect.any(String) } });
+    });
+
+    it('default riskClass preserves current behavior for system source', async () => {
+      const r = await runAction(action, { value: 'x' },
+        ctx({ source: 'system', user: undefined, audit: { actor: 'agente (sistema)' } }));
+      expect(r.ok).toBe(true);
+    });
+
+    it('denied call never persists sensitive idempotencyKey (deny logs no input)', async () => {
+      const sensitive = 'cpf=123.456.789-00';
+      const r = await runAction(
+        sendAction,
+        {
+          conversationId: '123e4567-e89b-12d3-a456-426614174000',
+          message: 'oi',
+          channel: 'whatsapp',
+          idempotencyKey: sensitive,
+        },
+        ctx({ source: 'agent_delegated' }),
+      );
+      expect(r).toEqual({ ok: false, error: { code: 'forbidden', message: expect.any(String) } });
+      const last = logs[logs.length - 1];
+      expect(last.inputRedacted).toEqual({});
+      expect(JSON.stringify(last)).not.toContain(sensitive);
+    });
+
+    it('allowed call hashes idempotencyKey instead of persisting raw value', async () => {
+      const sensitive = 'cpf=123.456.789-00';
+      const r = await runAction(
+        sendAction,
+        {
+          conversationId: '123e4567-e89b-12d3-a456-426614174000',
+          message: 'oi',
+          channel: 'whatsapp',
+          idempotencyKey: sensitive,
+        },
+        ctx(),
+      );
+      expect(r.ok).toBe(true);
+      const last = logs[logs.length - 1];
+      expect(JSON.stringify(last.inputRedacted)).not.toContain(sensitive);
+      expect(last.inputRedacted.conversationId).toBe('123e4567-e89b-12d3-a456-426614174000');
+      expect(last.inputRedacted.channel).toBe('whatsapp');
+      expect(typeof last.inputRedacted.idempotencyKey).toBe('string');
+      expect(last.inputRedacted.idempotencyKey).toMatch(/^[0-9a-f]{16}$/);
+    });
+
+    it('audit log carries only allowlisted fields, no PII/content', async () => {
+      await runAction(
+        sendAction,
+        {
+          conversationId: '123e4567-e89b-12d3-a456-426614174000',
+          message: 'texto com PII 11999998888',
+          channel: 'whatsapp',
+          externalId: '5511999998888',
+        },
+        ctx(),
+      );
+      const last = logs[logs.length - 1];
+      expect(last.inputRedacted).toEqual({
+        conversationId: '123e4567-e89b-12d3-a456-426614174000',
+        channel: 'whatsapp',
+      });
+      expect(JSON.stringify(last.inputRedacted)).not.toContain('11999998888');
+      expect(JSON.stringify(last.inputRedacted)).not.toContain('texto com PII');
+    });
+  });
 });

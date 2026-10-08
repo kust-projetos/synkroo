@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { getDb } from '@/lib/db/client';
 import { actionLogs } from '@/lib/db/schema/audit';
 import { dbLogger } from '@/lib/logger';
@@ -52,6 +53,19 @@ export function allowlistInput(input: unknown, allowed: readonly string[]): Reco
   return Object.fromEntries(
     allowed
       .filter((key) => key in source)
-      .map((key) => [key, redactAuditValue(source[key])]),
+      .map((key) => [key, key.toLowerCase() === 'idempotencykey'
+        ? hashIdempotencyKey(source[key])
+        : redactAuditValue(source[key])]),
   );
+}
+
+/**
+ * Chave de idempotência é atacante-controlável (até 128 chars livres) e pode
+ * embutir PII/segredo (`cpf=...`). Nunca persistir o valor cru em auditoria:
+ * grava só o fingerprint sha256 curto (16 hex, mesmo formato do fingerprint
+ * de payload outbound) para correlação sem vazar conteúdo.
+ */
+function hashIdempotencyKey(value: unknown): unknown {
+  if (typeof value !== 'string') return redactAuditValue(value);
+  return createHash('sha256').update(value).digest('hex').slice(0, 16);
 }
