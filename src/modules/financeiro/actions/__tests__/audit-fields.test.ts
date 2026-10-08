@@ -65,12 +65,16 @@ describe('Etapa 5.3 — financeiro auditFields', () => {
     expect(r.ok).toBe(true);
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatchObject({ actionName: 'financeiro.registrarPagamento', result: 'ok' });
-    expect(logs[0].inputRedacted).toEqual({
+    expect(logs[0].inputRedacted).toMatchObject({
       budgetId,
       amount: 100,
       paymentMethod: 'pix',
-      idempotencyKey: 'key-1',
     });
+    expect(logs[0].inputRedacted.idempotencyKey).toMatch(/^[0-9a-f]{16}$/);
+    expect(logs[0].inputRedacted.idempotencyKey).not.toBe('key-1');
+    expect(logs[0].inputRedacted).not.toHaveProperty('notes');
+    expect(JSON.stringify(logs[0])).not.toContain('key-1');
+    expect(JSON.stringify(logs[0])).not.toContain('free-text-must-not-log');
   });
 
   it('atualizarOrcamento logs id/status/discountPercent/validUntil only', async () => {
