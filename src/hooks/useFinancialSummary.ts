@@ -5,18 +5,41 @@
 
 import { useQuery } from '@tanstack/react-query'
 import type { TreatmentPlan } from '@/services/treatment-plans/treatment-plan.service'
-import type { Budget } from '@/services/budgets/budget.service'
-import type { BudgetInstallment } from '@/services/installments/installment.service'
-import type { Payment } from '@/services/payments/payment.service'
 import { clinicScope, useResolvedClinicId } from '@/lib/hooks/use-queries'
 
 const API_BASE = '/api/treatment-plans'
 
+// Interfaces locais mínimas (S6): espelham apenas os campos do payload de
+// GET /api/treatment-plans?include_financials consumidos via PlanFinancialSummary
+// (contact-financial-tab.tsx usa plan.{id,title,status}, budget?.id e os
+// escalares billed/paid/owed/sessions*). Sem importar os services legados.
+export interface BudgetSummary {
+  id?: string
+}
+
+export interface PlanBudgetInstallment {
+  id?: string
+  budget_id: string
+  amount: number
+  due_date: string
+  status: string
+  paid_at?: string | null
+}
+
+export interface PlanPayment {
+  id?: string
+  budget_id: string | null
+  amount: number
+  payment_method: string
+  paid_at: string
+  notes: string | null
+}
+
 export interface PlanFinancialSummary {
   plan: TreatmentPlan
-  budget: Budget | null
-  installments: BudgetInstallment[]
-  payments: Payment[]
+  budget: BudgetSummary | null
+  installments: PlanBudgetInstallment[]
+  payments: PlanPayment[]
   billed: number
   paid: number
   owed: number
