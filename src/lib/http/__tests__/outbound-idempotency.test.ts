@@ -4,6 +4,10 @@
  * Claim estruturado (`claimIdempotencyKey`) mockado; prova:
  * claimed→executa, completed→dedup, in_progress/retry_after→ConflictError,
  * infra→fail-open. Conflito legítimo NUNCA vira fail-open silencioso.
+ *
+ * E4 (HIGH-1): entrega não confirmada (`isDeliveryUnknown`) marca o claim
+ * `unknown` — TERMINAL, sem retry por TTL — e o replay devolve
+ * `deliveryUnknown` sem executar o handler e sem reportar sucesso.
  */
 
 import {
@@ -14,15 +18,19 @@ import {
 import {
   claimIdempotencyKey,
   markIdempotencyKeyCompleted,
+  markIdempotencyKeyDispatching,
   markIdempotencyKeyFailed,
+  markIdempotencyKeyUnknown,
   IdempotencyInfraError,
 } from '@/lib/idempotency';
 
 jest.mock('@/lib/idempotency', () => ({
   claimIdempotencyKey: jest.fn(),
   tryClaimIdempotencyKey: jest.fn(),
-  markIdempotencyKeyCompleted: jest.fn(),
-  markIdempotencyKeyFailed: jest.fn(),
+  markIdempotencyKeyCompleted: jest.fn(async () => undefined),
+  markIdempotencyKeyDispatching: jest.fn(async () => true),
+  markIdempotencyKeyFailed: jest.fn(async () => undefined),
+  markIdempotencyKeyUnknown: jest.fn(async () => undefined),
   isIdempotencyKeyProcessed: jest.fn(),
   withIdempotency: jest.fn(),
   IdempotencyInfraError: class IdempotencyInfraError extends Error {
@@ -40,10 +48,21 @@ jest.mock('@/lib/logger', () => ({
 const mockClaim = claimIdempotencyKey as jest.Mock;
 const mockCompleted = markIdempotencyKeyCompleted as jest.Mock;
 const mockFailed = markIdempotencyKeyFailed as jest.Mock;
+const mockUnknown = markIdempotencyKeyUnknown as jest.Mock;
+const mockDispatching = markIdempotencyKeyDispatching as jest.Mock;
+
+/** Resultado usado pelos casos de entrega (mesma forma de `SendResult`). */
+interface SendLike {
+  success: boolean;
+  delivery?: 'sent' | 'failed' | 'unknown';
+  messageId?: string;
+}
 
 describe('outbound-idempotency (A3 review)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Default do marco durável: a chave foi claimada e o marco foi armado.
+    mockDispatching.mockResolvedValue(true);
   });
 
   it('monta chave determinística whatsapp:send:<clinic>:<stableId>', () => {
@@ -65,7 +84,7 @@ describe('outbound-idempotency (A3 review)', () => {
 
     expect(out).toEqual({ deduped: false, result: { success: true } });
     expect(handler).toHaveBeenCalledTimes(1);
-    expect(mockCompleted).toHaveBeenCalledWith('whatsapp:send:c1:m1');
+    expect(mockCompleted).toHaveBeenCalledWith('whatsapp:send:c1:m1', undefined);
     expect(mockFailed).not.toHaveBeenCalled();
   });
 
@@ -109,8 +128,52 @@ describe('outbound-idempotency (A3 review)', () => {
     });
 
     expect(out.deduped).toBe(false);
-    expect(mockFailed).toHaveBeenCalledWith('whatsapp:send:c1:m2', expect.any(String));
+    // O TTL é repassado: o marco `dispatching` zera `expires_at`, então sem ele
+    // a falha ficaria sem expiração e o retry legítimo nunca seria liberado.
+    expect(mockFailed).toHaveBeenCalledWith('whatsapp:send:c1:m2', expect.any(String), 600);
     expect(mockCompleted).not.toHaveBeenCalled();
+    expect(mockUnknown).not.toHaveBeenCalled();
+  });
+
+  it('entrega não confirmada marca unknown (TERMINAL) e não failed', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
+    const handler = jest.fn().mockResolvedValueOnce({ success: false, delivery: 'unknown' });
+
+    const out = await withOutboundIdempotency<SendLike>('whatsapp:send:c1:m5', handler, {
+      isSuccess: (r) => r.success,
+      isDeliveryUnknown: (r) => r.delivery === 'unknown',
+    });
+
+    expect(out.deduped).toBe(false);
+    expect(mockUnknown).toHaveBeenCalledWith('whatsapp:send:c1:m5');
+    // `failed` liberaria retry pelo TTL — nunca para efeito possivelmente ocorrido.
+    expect(mockFailed).not.toHaveBeenCalled();
+    expect(mockCompleted).not.toHaveBeenCalled();
+  });
+  it('replay de claim unknown → deliveryUnknown, handler NÃO executa e NÃO é sucesso', async () => {
+    mockClaim.mockResolvedValueOnce('unknown');
+    const handler = jest.fn();
+
+    const out = await withOutboundIdempotency<SendLike>('whatsapp:send:c1:m6', handler, {
+      isSuccess: (r) => r.success,
+      isDeliveryUnknown: (r) => r.delivery === 'unknown',
+    });
+
+    expect(out).toEqual({ deduped: true, deliveryUnknown: true });
+    expect(handler).not.toHaveBeenCalled();
+    expect(mockCompleted).not.toHaveBeenCalled();
+  });
+
+  it('sem isDeliveryUnknown, falha ambígua segue failed (contrato legado preservado)', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
+    const handler = jest.fn().mockResolvedValueOnce({ success: false, delivery: 'unknown' });
+
+    await withOutboundIdempotency<SendLike>('whatsapp:send:c1:m7', handler, {
+      isSuccess: (r) => r.success,
+    });
+
+    expect(mockUnknown).not.toHaveBeenCalled();
+    expect(mockFailed).toHaveBeenCalledTimes(1);
   });
 
   it('throw do handler marca failed e rethrow', async () => {
@@ -120,7 +183,7 @@ describe('outbound-idempotency (A3 review)', () => {
     await expect(withOutboundIdempotency('whatsapp:send:c1:m3', handler)).rejects.toThrow(
       'provider down',
     );
-    expect(mockFailed).toHaveBeenCalledWith('whatsapp:send:c1:m3', 'provider down');
+    expect(mockFailed).toHaveBeenCalledWith('whatsapp:send:c1:m3', 'provider down', 600);
   });
 
   it('infra indisponível → fail-open: envia sem dedup (só IdempotencyInfraError)', async () => {
@@ -144,5 +207,95 @@ describe('outbound-idempotency (A3 review)', () => {
       'whatsapp:outbound',
       expect.objectContaining({ completedTtlMs: 600_000 }),
     );
+    // O marco `completed` recebe o MESMO TTL: o marco `dispatching` zerou
+    // `expires_at`, e um `completed` sem expiração própria nunca seria
+    // reclaimado — a âncora de conteúdo perderia o reenvio tardio legítimo.
+    expect(mockCompleted).toHaveBeenCalledWith('k', 600_000);
+  });
+});
+
+// ─── E4 / HIGH-1 + HIGH-2: marco durável de dispatch e liquidação limitada ────
+
+describe('outbound-idempotency — dispatching durável (E4 review)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockDispatching.mockResolvedValue(true);
+  });
+
+  it('claimed → arma `dispatching` ANTES de chamar o handler', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
+    const handler = jest.fn().mockResolvedValueOnce({ success: true });
+
+    await withOutboundIdempotency('whatsapp:send:c1:d1', handler, {
+      isSuccess: (r: { success: boolean }) => r.success,
+    });
+
+    expect(mockDispatching).toHaveBeenCalledWith('whatsapp:send:c1:d1');
+    // Ordem é o contrato: sem o marco durável persistido, nenhum dispatch.
+    expect(mockDispatching.mock.invocationCallOrder[0]).toBeLessThan(
+      handler.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('marco `dispatching` perdido (false) → conflito, handler NÃO executa', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
+    mockDispatching.mockResolvedValueOnce(false);
+    const handler = jest.fn().mockResolvedValueOnce({ success: true });
+
+    await expect(
+      withOutboundIdempotency('whatsapp:send:c1:d2', handler, {
+        isSuccess: (r: { success: boolean }) => r.success,
+      }),
+    ).rejects.toBeInstanceOf(OutboundSendConflictError);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('falha de infra ao armar `dispatching` → falha fechada, handler NÃO executa', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
+    mockDispatching.mockRejectedValueOnce(new Error('db offline'));
+    const handler = jest.fn().mockResolvedValueOnce({ success: true });
+
+    await expect(
+      withOutboundIdempotency('whatsapp:send:c1:d3', handler, {
+        isSuccess: (r: { success: boolean }) => r.success,
+      }),
+    ).rejects.toBeInstanceOf(IdempotencyInfraError);
+    // Sem garantia terminal durável NÃO se despacha (nunca fail-open aqui).
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('escrita do marco `unknown` que nunca resolve → resposta em tempo limitado, sem unhandled', async () => {
+    mockClaim.mockResolvedValueOnce('claimed');
+    let rejectSettle: ((reason: unknown) => void) | undefined;
+    const hanging = new Promise<void>((_resolve, reject) => {
+      rejectSettle = reject;
+    });
+    mockUnknown.mockReturnValueOnce(hanging);
+    const handler = jest.fn().mockResolvedValueOnce({ success: false, delivery: 'unknown' });
+
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
+    const startedAt = Date.now();
+    try {
+      const out = await withOutboundIdempotency<SendLike>('whatsapp:send:c1:d4', handler, {
+        isSuccess: (r) => r.success,
+        isDeliveryUnknown: (r) => r.delivery === 'unknown',
+      });
+      expect(out.deduped).toBe(false);
+      expect(out.result).toEqual({ success: false, delivery: 'unknown' });
+      // A resposta NÃO pode esperar a liquidação para sempre.
+      expect(Date.now() - startedAt).toBeLessThan(5_000);
+
+      // A escrita destravada depois REJEITA: o catch em segundo plano absorve
+      // e nada vira unhandled rejection.
+      rejectSettle?.(new Error('db offline after the response'));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 });
