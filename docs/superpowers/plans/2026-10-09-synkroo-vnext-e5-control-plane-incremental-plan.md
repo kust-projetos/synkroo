@@ -1,8 +1,8 @@
 # Synkroo vNext — E5/P4-P6 plano incremental do Control Plane
 
-**Data:** 2026-10-09  
-**Status:** PROPOSED — planejamento/documentação apenas; nenhuma implementação ou autonomia autorizada.  
-**Base de código:** E3 mergeado (`d9f4d51a`); candidato E4 `87210fd1` ainda depende da CI/merge do PR #39.  
+**Data:** 2026-10-09
+**Status:** PROPOSED — planejamento/documentação apenas; nenhuma implementação ou autonomia autorizada.
+**Base de código:** E3 mergeado (`d9f4d51a`); candidato E4 `87210fd1` ainda depende da CI/merge do PR #39.
 **Referências canônicas:** SPEC vNext 2026-10-05; master PLAN 2026-10-05; ADR-BASE-18, ADR-VNEXT-01, ADR-BASE-20; auditorias E0/E2 de 2026-10-08.
 
 ## 1. Objetivo e limites
