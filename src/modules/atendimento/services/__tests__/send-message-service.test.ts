@@ -3,8 +3,10 @@
  *
  * Verifies that send-message-service delegates WhatsApp to channel-service
  * while preserving its Instagram and Web contracts, including:
- *   - WhatsApp failover from Evolution to VPS Sidecar with Authorization Bearer
- *   - Fail-closed behavior when sidecar is not configured
+ *   - WhatsApp delivery via Evolution (success path)
+ *   - E4 anti-duplicate-send: ambiguous Evolution failure (success:false /
+ *     throw) does NOT fail over to the sidecar — returns delivery 'unknown'
+ *   - Fail-closed behavior when Evolution is unavailable / sidecar not configured
  *   - Instagram and Web channel contracts
  */
 
@@ -58,7 +60,7 @@ describe('send-message-service delegation & failover', () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('falls back to sidecar with Bearer token when Evolution reports failure', async () => {
+    it('does NOT fall back when Evolution reports an ambiguous failure (delivery unknown)', async () => {
       const mockSendTextMessage = jest.fn().mockResolvedValue({
         success: false,
         error: 'Evolution instance disconnected',
@@ -72,30 +74,19 @@ describe('send-message-service delegation & failover', () => {
       process.env.WHATSAPP_FALLBACK_URL = 'https://sidecar.example.com';
       process.env.WHATSAPP_FALLBACK_SECRET = 'sidecar-bearer-secret';
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ success: true, messageId: 'sidecar-fallback-456' }),
-      });
-
+      // E4: `success:false` da Evolution pode ser pós-dispatch — ambíguo.
+      // Sem confirmação de não-dispatch, o sidecar NÃO é chamado.
       const result = await sendByChannel('whatsapp', '5511999990002', 'Failover test');
 
-      expect(result).toEqual({ success: true, messageId: 'sidecar-fallback-456' });
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      const [url, options] = mockFetch.mock.calls[0];
-      expect(url).toBe('https://sidecar.example.com/api/v1/messages/send');
-      expect(options.method).toBe('POST');
-      expect(options.headers).toEqual({
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer sidecar-bearer-secret',
+      expect(result).toEqual({
+        success: false,
+        delivery: 'unknown',
+        error: 'Evolution instance disconnected',
       });
-      expect(JSON.parse(options.body)).toEqual({
-        phone: '5511999990002',
-        message: 'Failover test',
-      });
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('falls back to sidecar with Bearer token when Evolution throws an exception', async () => {
+    it('does NOT fall back when Evolution throws (ambiguous delivery)', async () => {
       const mockSendTextMessage = jest.fn().mockRejectedValue(new Error('Connection timeout to Evolution'));
       jest.spyOn(evolutionModule, 'getEvolutionService').mockReturnValue({
         sendTextMessage: mockSendTextMessage,
@@ -106,22 +97,17 @@ describe('send-message-service delegation & failover', () => {
       process.env.WHATSAPP_FALLBACK_URL = 'https://sidecar.example.com';
       process.env.WHATSAPP_FALLBACK_SECRET = 'sidecar-secret-token';
 
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({ success: true, messageId: 'sidecar-after-throw-789' }),
-      });
-
       const result = await sendWhatsApp('5511999990003', 'Throw failover test');
 
-      expect(result).toEqual({ success: true, messageId: 'sidecar-after-throw-789' });
-      expect(mockFetch).toHaveBeenCalledTimes(1);
-      const [url, options] = mockFetch.mock.calls[0];
-      expect(url).toBe('https://sidecar.example.com/api/v1/messages/send');
-      expect(options.headers.Authorization).toBe('Bearer sidecar-secret-token');
+      expect(result).toEqual({
+        success: false,
+        delivery: 'unknown',
+        error: 'Connection timeout to Evolution',
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it('fails closed when Evolution fails and fallback sidecar is not configured', async () => {
+    it('fails closed with delivery unknown when Evolution fails and fallback sidecar is not configured', async () => {
       const mockSendTextMessage = jest.fn().mockResolvedValue({
         success: false,
         error: 'Evolution down and no fallback',
@@ -135,7 +121,11 @@ describe('send-message-service delegation & failover', () => {
 
       const result = await sendByChannel('whatsapp', '5511999990004', 'No fallback configured');
 
-      expect(result).toEqual({ success: false, error: 'Evolution down and no fallback' });
+      expect(result).toEqual({
+        success: false,
+        delivery: 'unknown',
+        error: 'Evolution down and no fallback',
+      });
       expect(mockFetch).not.toHaveBeenCalled();
     });
 

@@ -5,14 +5,22 @@
  * retry duplicado da mesma operação lógica → provider (fetch) 1 chamada.
  */
 
-const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> = [];
+const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after' | 'unknown'> = [];
 
 jest.mock('@/lib/idempotency', () => ({
   claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
   markIdempotencyKeyCompleted: jest.fn(async () => undefined),
+  markIdempotencyKeyDispatching: jest.fn(async () => true),
   markIdempotencyKeyFailed: jest.fn(async () => undefined),
+  markIdempotencyKeyUnknown: jest.fn(async () => undefined),
   isIdempotencyKeyProcessed: jest.fn(async () => false),
   withIdempotency: jest.fn(),
+  IdempotencyInfraError: class IdempotencyInfraError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'IdempotencyInfraError';
+    }
+  },
 }));
 
 jest.mock('@/lib/logger', () => ({

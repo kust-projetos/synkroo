@@ -10,6 +10,7 @@ jest.mock('@/lib/idempotency', () => ({
   claimIdempotencyKey: jest.fn(),
   tryClaimIdempotencyKey: jest.fn(),
   markIdempotencyKeyCompleted: jest.fn(),
+  markIdempotencyKeyDispatching: jest.fn(),
   markIdempotencyKeyFailed: jest.fn(),
   isIdempotencyKeyProcessed: jest.fn(),
   withIdempotency: jest.fn(),

@@ -208,7 +208,7 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     expect((result as any).error.code).toBe('not_found');
   });
 
-  it('enviarMensagem: WAHA failure returns internal error', async () => {
+  it('enviarMensagem: WAHA ambiguous failure returns unknown_effect (not internal)', async () => {
     mockWahaSendTextMessage.mockResolvedValue({ success: false, error: 'API rate limited' });
 
     const convId = await seedConversation();
@@ -221,8 +221,55 @@ describeOrSkip('Atendimento — send flow (P4)', () => {
     }, userCtx);
 
     expect(result.ok).toBe(false);
-    expect((result as any).error.code).toBe('internal');
-    expect((result as any).error.message).toContain('API rate limited');
+    expect((result as any).error.code).toBe('unknown_effect');
+    // Mensagem fixa e sanitizada (ADR-BASE-20 §5): detalhe do provider NUNCA
+    // volta ao caller — fica apenas no log do servidor.
+    expect((result as any).error.message).toBe('Resultado do envio não confirmado.');
+    expect((result as any).error.message).not.toContain('API rate limited');
+  });
+
+  it('enviarMensagem: entrega não confirmada grava claim TERMINAL `unknown` e o replay não reenvia (E4/HIGH-1)', async () => {
+    mockWahaSendTextMessage.mockResolvedValue({ success: false, error: 'dispatch timeout at provider' });
+
+    const convId = await seedConversation();
+    const { enviarMensagem } = await import('../../enviar-mensagem');
+    const { runAction } = await import('@/core/actions/run');
+
+    const first = await runAction(enviarMensagem, {
+      conversationId: convId,
+      message: 'Mensagem ambígua',
+    }, userCtx);
+
+    expect(first.ok).toBe(false);
+    expect((first as any).error.code).toBe('unknown_effect');
+
+    // Claim gravado como TERMINAL, não `failed` — `failed` liberaria retry
+    // quando o TTL de 600s expirasse e a mesma chave redespacharia.
+    const { rows: keyRows } = await pool!.query(
+      `SELECT status, error FROM idempotency_keys WHERE key LIKE $1`,
+      [`whatsapp:send:${CLINIC_ID}:%`],
+    );
+    expect(keyRows.length).toBe(1);
+    expect(keyRows[0].status).toBe('unknown');
+    expect(String(keyRows[0].error)).not.toContain('dispatch timeout at provider');
+
+    // Replay da MESMA âncora (mesma conversa + mesmo texto normalizado):
+    // provider NÃO é chamado outra vez e o efeito segue desconhecido.
+    const second = await runAction(enviarMensagem, {
+      conversationId: convId,
+      message: 'Mensagem ambígua',
+    }, userCtx);
+
+    expect(second.ok).toBe(false);
+    expect((second as any).error.code).toBe('unknown_effect');
+    expect(mockWahaSendTextMessage).toHaveBeenCalledTimes(1);
+
+    // Envio não confirmado não vira mensagem na timeline.
+    const { rows: msgRows } = await pool!.query(
+      `SELECT id FROM messages WHERE conversation_id = $1`,
+      [convId],
+    );
+    expect(msgRows.length).toBe(0);
   });
 
   it('enviarMensagem: explicit channel parameter is used instead of conversation channel', async () => {

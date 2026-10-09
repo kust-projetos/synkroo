@@ -31,10 +31,16 @@ export const enviarMensagemDireta = defineAction({
     }
     const result = await sendByChannel(input.channel, input.externalId, input.message);
     if (!result.success) {
-      // E3 — falha CONHECIDA do envio nunca vira sucesso. O channel-service
-      // converte exceção/timeout do provider em `success:false`; aqui isso é
-      // erro conhecido (sem retry automático neste contrato). A mensagem é
-      // fixa e segura — detalhe do provider fica só no log do servidor.
+      // E3/E4 — o transporte (channel-service) classifica o efeito. Quando o
+      // dispatch ocorreu mas a entrega NÃO foi confirmada (timeout/exceção após
+      // possível envio) ele devolve `delivery: 'unknown'`: NÃO é falha conhecida
+      // e NUNCA é sucesso — mapeia para `unknown_effect` (reconciliação manual,
+      // sem retry automático; reenviar poderia duplicar). Demais falhas
+      // determinísticas seguem `internal`. A mensagem é fixa e segura — detalhe
+      // do provider fica só no log do servidor.
+      if (result.delivery === 'unknown') {
+        throw new ActionError('unknown_effect', 'Resultado do envio não confirmado.');
+      }
       throw new ActionError('internal', 'Falha ao enviar mensagem.');
     }
     return { success: true, messageId: result.messageId };

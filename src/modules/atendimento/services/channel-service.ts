@@ -58,6 +58,18 @@ export interface SendResult {
   error?: string;
   /** true quando a duplicata foi suprimida pelo claim de idempotência (A3). */
   deduplicated?: boolean;
+  /**
+   * E4 — estado de entrega do efeito (contrato anti-duplicate-send do facade).
+   * Definido SOMENTE quando relevante para o chamador decidir entre retry,
+   * fallback ou reconciliação manual:
+   * - omitido em `success: true` (entrega confirmada) e em falha determinística
+   *   conhecida (nada despachado) — avaliação `internal` na action;
+   * - `'unknown'` = o dispatch ocorreu mas a entrega NÃO foi confirmada
+   *   (timeout/exceção após possível envio). NUNCA reenviar nem trocar de
+   *   provider por inferência — mapeia para `ActionError('unknown_effect')`
+   *   (E3) nas actions de envio, sem retry automático.
+   */
+  delivery?: 'sent' | 'failed' | 'unknown';
 }
 
 // ─── Provider detection ────────────────────────────────────────
@@ -74,6 +86,74 @@ function detectProvider(): WhatsAppProvider {
 
 function isFallbackConfigured(): boolean {
   return Boolean(process.env.WHATSAPP_FALLBACK_URL && process.env.WHATSAPP_FALLBACK_SECRET);
+}
+
+/**
+ * E4 — a falha do provider é determinística PRÉ-dispatch (seguro recorrer ao
+ * sidecar) ou ambígua (o dispatch pode ter ocorrido)?
+ *
+ * Checagem ESTRUTURAL, sem importar o leaf: somente um erro que carregue
+ * `delivery === 'not_attempted'` (a WAHA o emite em rejeições antes de qualquer
+ * requisição — config inválida, destino/texto inválido) confirma que nada
+ * partiu para a rede. Qualquer outro caso (timeout, exceção após dispatch,
+ * `unknown`, ou um erro sem esse marcador) é ambíguo. Idempotência local não
+ * prova que o outro provider não entregou — por isso o fallback só sobrevive
+ * para `not_attempted`.
+ */
+function isDeterministicPreDispatch(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { delivery?: unknown }).delivery === 'not_attempted'
+  );
+}
+
+/** Razão sanitizada de um erro de provider (mensagem do Error ou String). */
+function providerErrorReason(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * E4 — anti-duplicate-send: um provider DISPONÍVEL só recorre ao fallback
+ * sidecar (um SEGUNDO provider) quando a falha é determinística PRÉ-dispatch.
+ *
+ * - `success: true` → devolve o resultado (entrega confirmada; sem `delivery`).
+ * - throw `not_attempted` + sidecar configurado → falha conhecida antes de
+ *   qualquer envio → fallback sidecar é seguro.
+ * - throw `not_attempted` SEM sidecar → falha conhecida (nada foi enviado).
+ * - throw ambíguo OU `success: false` retornado sem confirmação de não-dispatch
+ *   (inclui a Evolution, que converte falha de transporte em `success: false`)
+ *   → `delivery: 'unknown'` SEM fallback, com log sanitizado. Sem retry.
+ */
+async function dispatchWithSidecarFallback(
+  label: 'waha' | 'evolution',
+  to: string,
+  text: string,
+  send: () => Promise<SendResult>,
+): Promise<SendResult> {
+  try {
+    const result = await send();
+    if (result.success) return result;
+    dbLogger.warn(
+      `channel-service: ${label} reported failure without non-dispatch confirmation; sidecar fallback suppressed`,
+    );
+    return { ...result, delivery: 'unknown' };
+  } catch (err) {
+    if (isDeterministicPreDispatch(err)) {
+      if (isFallbackConfigured()) {
+        dbLogger.warn(
+          `channel-service: ${label} deterministic pre-dispatch failure; using WhatsApp sidecar fallback`,
+        );
+        return getWhatsAppService().sendMessage(to, text);
+      }
+      return { success: false, error: providerErrorReason(err) };
+    }
+    dbLogger.error(`channel-service: ${label} send failed`, err);
+    dbLogger.warn(
+      `channel-service: ${label} delivery unknown after dispatch; sidecar fallback suppressed`,
+    );
+    return { success: false, error: providerErrorReason(err), delivery: 'unknown' };
+  }
 }
 
 // ─── Provider registry seam (P3.1) ────────────────────────────────────────────
@@ -108,9 +188,23 @@ function resolveEvolutionAdapter(): WhatsAppProviderAdapter | null {
 // ─── Unified send facade ───────────────────────────────────────
 
 /**
- * Executa `op` sob UM único claim de idempotência (REVIEW-A2A3): Evolution +
- * fallback sidecar contam como UMA operação lógica — em falha ambígua da
- * Evolution o fallback continua, mas sob o mesmo claim (sem duplo-envio).
+ * E4 — mensagem sanitizada e FIXA para o estado de entrega desconhecida.
+ * Nenhum detalhe de provider (corpo, URL, exceção) entra no resultado: isso
+ * volta ao caller da Action, que usa mensagem própria.
+ */
+const UNKNOWN_DELIVERY_ERROR = 'Resultado do envio não confirmado.';
+
+/**
+ * Executa `op` sob UM único claim de idempotência (REVIEW-A2A3): WAHA +
+ * fallback sidecar contam como UMA operação lógica, e a chave é reivindicada
+ * antes de qualquer dispatch.
+ *
+ * E4 — classificação do efeito:
+ * - sucesso (`success: true`) → claim `completed`;
+ * - `delivery: 'unknown'` (efeito possivelmente ocorrido) → claim `unknown`,
+ *   TERMINAL: a mesma chave NUNCA reexecuta, mesmo depois do TTL de 600s;
+ * - demais falhas determinísticas → claim `failed` (retry liberado no TTL).
+ *
  * Conflito (`in_progress`/`retry_after`) propaga como
  * `OutboundSendConflictError` — o caller decide (retry do job / `conflict`).
  */
@@ -124,8 +218,22 @@ async function runIdempotentSend(
     ...(opts?.jobType ? { jobType: opts.jobType } : {}),
     ...(opts?.completedTtlMs !== undefined ? { completedTtlMs: opts.completedTtlMs } : {}),
     isSuccess: (r) => r.success,
+    isDeliveryUnknown: (r) => r.delivery === 'unknown',
   });
-  if (guarded.deduped) return { success: true, deduplicated: true };
+  if (guarded.deduped) {
+    // Replay de claim: provider NÃO é chamado. `unknown` NUNCA vira sucesso —
+    // devolve o próprio estado de entrega desconhecida (sem messageId), para
+    // a Action mapear `unknown_effect` e a reconciliação ser manual.
+    if (guarded.deliveryUnknown) {
+      return {
+        success: false,
+        delivery: 'unknown',
+        error: UNKNOWN_DELIVERY_ERROR,
+        deduplicated: true,
+      };
+    }
+    return { success: true, deduplicated: true };
+  }
   return guarded.result ?? { success: false, error: 'Idempotency claim failed' };
 }
 
@@ -149,22 +257,13 @@ export async function sendWhatsAppMessage(
       dbLogger.error('channel-service: waha resolve failed', err);
     }
     if (wahaAdapter) {
-      // Claim único englobando WAHA + fallback (sem repasse da chave ao
-      // leaf — o leaf mantém o param para chamadores diretos).
-      const attempt = async (): Promise<SendResult> => {
-        try {
-          const result = await wahaAdapter.sendTextMessage(phone, message);
-          if (result.success || !isFallbackConfigured()) return result;
-          dbLogger.warn('channel-service: waha send failed; using WhatsApp sidecar fallback');
-          return getWhatsAppService().sendMessage(phone, message);
-        } catch (err) {
-          if (!isFallbackConfigured()) throw err;
-          dbLogger.error('channel-service: waha send failed', err);
-          dbLogger.warn('channel-service: waha send threw; using WhatsApp sidecar fallback');
-          return getWhatsAppService().sendMessage(phone, message);
-        }
-      };
-      return runIdempotentSend(idempotencyKey, attempt);
+      // E4: claim único englobando WAHA + fallback sidecar (sem repasse da
+      // chave ao leaf). O fallback só ocorre em falha determinística
+      // pré-dispatch — ver `dispatchWithSidecarFallback`.
+      const adapter = wahaAdapter;
+      return runIdempotentSend(idempotencyKey, () =>
+        dispatchWithSidecarFallback('waha', phone, message, () => adapter.sendTextMessage(phone, message)),
+      );
     }
 
     if (isFallbackConfigured()) {
@@ -180,22 +279,11 @@ export async function sendWhatsAppMessage(
       dbLogger.error('channel-service: evolution resolve failed', err);
     }
     if (evolutionAdapter) {
-      // Claim único englobando Evolution + fallback (sem repasse da chave ao
-      // leaf — o leaf mantém o param para chamadores diretos).
-      const attempt = async (): Promise<SendResult> => {
-        try {
-          const result = await evolutionAdapter.sendTextMessage(phone, message);
-          if (result.success || !isFallbackConfigured()) return result;
-          dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
-          return getWhatsAppService().sendMessage(phone, message);
-        } catch (err) {
-          if (!isFallbackConfigured()) throw err;
-          dbLogger.error('channel-service: evolution send failed', err);
-          dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
-          return getWhatsAppService().sendMessage(phone, message);
-        }
-      };
-      return runIdempotentSend(idempotencyKey, attempt);
+      // E4: idem WAHA — fallback só em falha determinística pré-dispatch.
+      const adapter = evolutionAdapter;
+      return runIdempotentSend(idempotencyKey, () =>
+        dispatchWithSidecarFallback('evolution', phone, message, () => adapter.sendTextMessage(phone, message)),
+      );
     }
 
     if (isFallbackConfigured()) {
@@ -248,41 +336,28 @@ export async function sendWhatsApp(
       wahaAdapter = null;
     }
     if (wahaAdapter) {
-      try {
-        const result = await wahaAdapter.sendTextMessage(to, text);
-        if (result.success || !isFallbackConfigured()) return result;
-        dbLogger.warn('channel-service: waha send failed; using WhatsApp sidecar fallback');
-        return getWhatsAppService().sendMessage(to, text);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        dbLogger.error('channel-service: waha send failed', err);
-        if (isFallbackConfigured()) {
-          dbLogger.warn('channel-service: waha send threw; using WhatsApp sidecar fallback');
-          return getWhatsAppService().sendMessage(to, text);
-        }
-        return { success: false, error: msg };
-      }
+      // E4: WAHA é o canal; fallback sidecar só em falha determinística
+      // pré-dispatch (ver `dispatchWithSidecarFallback`).
+      const adapter = wahaAdapter;
+      return dispatchWithSidecarFallback('waha', to, text, () => adapter.sendTextMessage(to, text));
     }
+    // Sem WAHA disponível: caminho legado da Evolution (contratos idênticos).
+    let evolutionAdapter: WhatsAppProviderAdapter | null = null;
     try {
-      const evolutionAdapter = resolveEvolutionAdapter();
-      if (!evolutionAdapter) {
-        return isFallbackConfigured()
-          ? getWhatsAppService().sendMessage(to, text)
-          : { success: false, error: 'Evolution service not available' };
-      }
-      const result = await evolutionAdapter.sendTextMessage(to, text);
-      if (result.success || !isFallbackConfigured()) return result;
-      dbLogger.warn('channel-service: evolution send failed; using WhatsApp sidecar fallback');
-      return getWhatsAppService().sendMessage(to, text);
+      evolutionAdapter = resolveEvolutionAdapter();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      dbLogger.error('channel-service: evolution send failed', err);
-      if (isFallbackConfigured()) {
-        dbLogger.warn('channel-service: evolution send threw; using WhatsApp sidecar fallback');
-        return getWhatsAppService().sendMessage(to, text);
-      }
-      return { success: false, error: msg };
+      dbLogger.error('channel-service: evolution resolve failed', err);
+      evolutionAdapter = null;
     }
+    if (evolutionAdapter) {
+      const adapter = evolutionAdapter;
+      return dispatchWithSidecarFallback('evolution', to, text, () => adapter.sendTextMessage(to, text));
+    }
+    // Nenhum provider adapter disponível: fallback sidecar terminal
+    // (determinístico) ou erro fail-closed conhecido.
+    return isFallbackConfigured()
+      ? getWhatsAppService().sendMessage(to, text)
+      : { success: false, error: 'Evolution service not available' };
   };
   return runIdempotentSend(idempotencyKey, attempt, opts);
 }
@@ -378,6 +453,8 @@ export class WhatsAppService extends EventEmitter {
     const fallbackSecret = process.env.WHATSAPP_FALLBACK_SECRET;
 
     if (!fallbackUrl || !fallbackSecret) {
+      // Único resultado determinístico deste método: nada saiu para a rede
+      // (config ausente). Falha conhecida — campo `delivery` omitido.
       return { success: false, error: 'WhatsApp fallback not configured: missing WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET' };
     }
 
@@ -393,18 +470,39 @@ export class WhatsAppService extends EventEmitter {
         body: JSON.stringify({ phone: to, message }),
       }, { timeoutMs: DEFAULT_EXTERNAL_TIMEOUT_MS });
 
+      // E4 (HIGH-2): a partir daqui o POST PODE ter sido despachado. O
+      // sidecar não possui contrato que prove não-dispatch (nenhuma resposta
+      // documentada garante "nada foi enviado"), portanto TODO desfecho
+      // não-sucesso é ambíguo: status não-ok, JSON inválido ou
+      // `success:false` reportado. Nenhum fallback, nenhum retry — o caller
+      // recebe `delivery: 'unknown'` e reconcilia manualmente.
       if (!res.ok) {
-        const errPayload = await res.json().catch(() => ({})) as { error?: string };
-        return { success: false, error: errPayload.error || `HTTP ${res.status}` };
+        dbLogger.warn(
+          `channel-service: sidecar sendMessage returned HTTP ${res.status}; delivery unknown`,
+        );
+        return { success: false, error: UNKNOWN_DELIVERY_ERROR, delivery: 'unknown' };
       }
 
-      const result = await res.json() as SendResult;
+      let result: SendResult;
+      try {
+        result = await res.json() as SendResult;
+      } catch {
+        dbLogger.warn('channel-service: sidecar sendMessage returned an unparsable body; delivery unknown');
+        return { success: false, error: UNKNOWN_DELIVERY_ERROR, delivery: 'unknown' };
+      }
+
+      if (!result || result.success !== true) {
+        dbLogger.warn('channel-service: sidecar sendMessage reported failure; delivery unknown');
+        return { success: false, error: UNKNOWN_DELIVERY_ERROR, delivery: 'unknown' };
+      }
+
       this.lastActivity = new Date();
       return result;
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      // Timeout, falha de transporte ou exceção inesperada: o request pode ter
+      // chegado ao sidecar. Ambíguo — mensagem fixa, detalhe só no log.
       dbLogger.error('channel-service: sidecar sendMessage failed', err);
-      return { success: false, error: msg };
+      return { success: false, error: UNKNOWN_DELIVERY_ERROR, delivery: 'unknown' };
     }
   }
 
