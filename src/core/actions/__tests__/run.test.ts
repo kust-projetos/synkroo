@@ -27,13 +27,35 @@ function ctx(over: Partial<ActionContext> = {}): ActionContext {
 
 // captura as gravações de auditoria
 const logs: any[] = [];
+const attempts: any[] = [];
+let failBeginAttempt = false;
+let failFinalizeAttempt = false;
+let attemptSeq = 0;
 jest.mock('../audit-writer', () => ({
   writeActionLog: (r: any) => { logs.push(r); },
   allowlistInput: jest.requireActual('../audit-writer').allowlistInput,
+  beginActionAttempt: async (r: any) => {
+    if (failBeginAttempt) throw new Error('db down (begin attempt)');
+    const attemptId = `attempt-${++attemptSeq}`;
+    attempts.push({ attemptId, ...r, result: 'started' });
+    return { attemptId };
+  },
+  finalizeActionAttempt: async (attemptId: string, patch: any) => {
+    if (failFinalizeAttempt) throw new Error('db down (finalize attempt)');
+    const row = attempts.find((a) => a.attemptId === attemptId);
+    if (!row) throw new Error('attempt row not found');
+    Object.assign(row, patch);
+  },
 }));
 
 describe('runAction pipeline', () => {
-  beforeEach(() => { logs.length = 0; });
+  beforeEach(() => {
+    logs.length = 0;
+    attempts.length = 0;
+    attemptSeq = 0;
+    failBeginAttempt = false;
+    failFinalizeAttempt = false;
+  });
 
   it('rejects when ctx is missing', async () => {
     const r = await runAction(action, { value: 'x' }, undefined as any);
@@ -95,10 +117,11 @@ describe('runAction pipeline', () => {
   });
 
   describe('riskClass deny_non_human (S1)', () => {
+    const denyHandler = jest.fn(async () => ({ qrcode: null }));
     const denyAction = defineAction({
       name: 'atendimento.obterQRCode', module: 'atendimento', requires: 'atendimento:view',
       label: 'Obter QR code', riskClass: 'deny_non_human',
-      input: z.object({}).optional(), handler: async () => ({ qrcode: null }),
+      input: z.object({}).optional(), handler: denyHandler,
     });
     const sendAction = defineAction({
       name: 'atendimento.enviarMensagem', module: 'atendimento', requires: 'atendimento:manage_messages',
@@ -122,6 +145,15 @@ describe('runAction pipeline', () => {
       expect(r).toEqual({ ok: false, error: { code: 'forbidden', message: expect.any(String) } });
     });
 
+    it('E3 — token válido NÃO eleva o DENY: proibido e sem handler (zero chamadas)', async () => {
+      const r = await runAction(
+        denyAction, {}, ctx({ source: 'agent_delegated', approvalToken: 'a'.repeat(64) }),
+      );
+      expect(r).toEqual({ ok: false, error: { code: 'forbidden', message: expect.any(String) } });
+      expect(denyHandler).not.toHaveBeenCalled();
+      const last = logs[logs.length - 1];
+      expect(last).toMatchObject({ decision: 'deny', errorCode: 'forbidden' });
+    });
     it('allows human (user) source', async () => {
       const r = await runAction(denyAction, {}, ctx());
       expect(r.ok).toBe(true);
