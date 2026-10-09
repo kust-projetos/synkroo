@@ -2,9 +2,13 @@
  * Unit tests: Atendimento enviarMensagemDireta action (Task 5).
  *
  * Tests direct message action without conversationId.
+ *
+ * E3: falha CONHECIDA do envio (`success:false`) não é sucesso — o handler
+ * lança `ActionError` com mensagem segura (sem detalhe do provider).
  */
 
 import { enviarMensagemDireta } from '../enviar-mensagem-direta';
+import { ActionError } from '@/core/actions/types';
 
 // Mock sendByChannel
 jest.mock('../../services/send-message-service', () => ({
@@ -25,6 +29,12 @@ describe('enviarMensagemDireta', () => {
     hasModule: () => true,
     audit: { actor: 'test' },
   };
+
+  it('declara contrato consequencial (tentativa auditada antes do efeito)', () => {
+    expect(enviarMensagemDireta.riskClass).toBe('deny_non_human');
+    expect(enviarMensagemDireta.consequential).toBe(true);
+    expect(enviarMensagemDireta.auditFields).toEqual(['channel']);
+  });
 
   it('sends message to externalId without conversationId', async () => {
     mockSendByChannel.mockResolvedValue({ success: true, messageId: 'msg-1' });
@@ -47,14 +57,29 @@ describe('enviarMensagemDireta', () => {
     ).rejects.toThrow(/unsupported channel/i);
   });
 
-  it('returns error when channel service fails', async () => {
-    mockSendByChannel.mockResolvedValue({ success: false, error: 'Service unavailable' });
+  it('known channel failure throws ActionError with a safe message (no provider detail)', async () => {
+    mockSendByChannel.mockResolvedValue({
+      success: false,
+      error: 'WAHA provider HTTP 502: upstream session not started for device-42',
+    });
 
-    const result = await enviarMensagemDireta.handler(
+    await expect(
+      enviarMensagemDireta.handler(
+        { channel: 'whatsapp', externalId: '5511999990000', message: 'Olá!' },
+        ctx,
+      ),
+    ).rejects.toThrow(ActionError);
+
+    const err = await enviarMensagemDireta.handler(
       { channel: 'whatsapp', externalId: '5511999990000', message: 'Olá!' },
       ctx,
-    );
+    ).catch((e: unknown) => e);
 
-    expect(result).toEqual({ success: false, error: 'Service unavailable' });
+    expect(err).toBeInstanceOf(ActionError);
+    expect((err as ActionError).code).toBe('internal');
+    expect((err as ActionError).message).toBe('Falha ao enviar mensagem.');
+    expect((err as ActionError).message).not.toContain('WAHA');
+    expect((err as ActionError).message).not.toContain('502');
+    expect((err as ActionError).message).not.toContain('device-42');
   });
 });
