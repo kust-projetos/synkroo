@@ -14,13 +14,21 @@ jest.mock('../../integrations/whatsapp-provider-registry', () => ({
 }));
 
 // Claim in-memory: prova que os fallbacks sem adapter passam pelo claim único.
-const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> = [];
+const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after' | 'unknown'> = [];
 jest.mock('@/lib/idempotency', () => ({
   claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
   markIdempotencyKeyCompleted: jest.fn(async () => undefined),
+  markIdempotencyKeyDispatching: jest.fn(async () => true),
   markIdempotencyKeyFailed: jest.fn(async () => undefined),
+  markIdempotencyKeyUnknown: jest.fn(async () => undefined),
   isIdempotencyKeyProcessed: jest.fn(async () => false),
   withIdempotency: jest.fn(),
+  IdempotencyInfraError: class IdempotencyInfraError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = 'IdempotencyInfraError';
+    }
+  },
 }));
 
 jest.mock('@/lib/logger', () => ({
@@ -89,12 +97,34 @@ describe('channel-service provider seam (P3.1, WAHA-only)', () => {
     expect(res).toEqual({ success: true, messageId: 'waha-1' });
   });
 
-  it('sendWhatsAppMessage falls back to the sidecar when the WAHA send fails', async () => {
+  it('sendWhatsAppMessage does NOT fall back when the WAHA send is ambiguous (delivery unknown)', async () => {
     process.env.WAHA_API_URL = 'https://waha.example.com';
     process.env.WAHA_API_KEY = 'waha-key';
+    // Falha ambígua pós-dispatch (a WAHA emite WahaProviderError com delivery
+    // 'unknown' em timeout/http_error) marcada aqui como um throw sem
+    // `not_attempted`: o sidecar NÃO é chamado.
     wahaAdapter = availableAdapter(
       'waha',
-      jest.fn().mockResolvedValue({ success: false, error: 'HTTP 500' }),
+      jest.fn().mockRejectedValue(Object.assign(new Error('waha: sendText failed'), { delivery: 'unknown', code: 'http_error', status: 502 })),
+    );
+    process.env.WHATSAPP_FALLBACK_URL = 'https://sidecar.example.com';
+    process.env.WHATSAPP_FALLBACK_SECRET = 'sidecar-secret';
+    global.fetch = jest.fn() as never;
+
+    const res = await sendWhatsAppMessage('5511999999999', 'Olá');
+
+    expect(res).toEqual({ success: false, delivery: 'unknown', error: 'waha: sendText failed' });
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('sendWhatsAppMessage falls back to the sidecar on a WAHA deterministic pre-dispatch failure (not_attempted)', async () => {
+    process.env.WAHA_API_URL = 'https://waha.example.com';
+    process.env.WAHA_API_KEY = 'waha-key';
+    // `not_attempted` = rejeitado antes de qualquer requisição (destino/texto
+    // inválido): nada foi enviado, então o sidecar é seguro.
+    wahaAdapter = availableAdapter(
+      'waha',
+      jest.fn().mockRejectedValue(Object.assign(new Error('waha: sendText requires a non-empty text'), { code: 'invalid_text', delivery: 'not_attempted' })),
     );
     process.env.WHATSAPP_FALLBACK_URL = 'https://sidecar.example.com';
     process.env.WHATSAPP_FALLBACK_SECRET = 'sidecar-secret';
@@ -120,22 +150,22 @@ describe('channel-service provider seam (P3.1, WAHA-only)', () => {
     expect(res).toEqual({ success: true, messageId: 'evo-1' });
   });
 
-  it('sendWhatsAppMessage falls back to the sidecar when the legacy adapter send fails', async () => {
+  it('sendWhatsAppMessage does NOT fall back when the legacy adapter send is ambiguous (delivery unknown)', async () => {
     evolutionAdapter = availableAdapter(
       'evolution',
       jest.fn().mockResolvedValue({ success: false, error: 'HTTP 500' }),
     );
     process.env.WHATSAPP_FALLBACK_URL = 'https://sidecar.example.com';
     process.env.WHATSAPP_FALLBACK_SECRET = 'sidecar-secret';
-    global.fetch = jest.fn().mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, messageId: 'sc-1' }),
-    } as Response) as never;
+    global.fetch = jest.fn() as never;
 
+    // E4: success:false da Evolution pode ser pós-dispatch — ambíguo, sem fallback.
     await expect(sendWhatsAppMessage('5511999999999', 'Olá')).resolves.toEqual({
-      success: true,
-      messageId: 'sc-1',
+      success: false,
+      delivery: 'unknown',
+      error: 'HTTP 500',
     });
+    expect(global.fetch).not.toHaveBeenCalled();
   });
 
   it('sendWhatsAppMessage keeps the fail-closed error when no adapter is registered', async () => {
@@ -226,7 +256,7 @@ describe('channel-service provider seam (P3.1, WAHA-only)', () => {
     expect(res).toEqual({ success: false, error: 'Evolution service not available' });
   });
 
-  it('sendWhatsApp converts an adapter throw into the legacy error contract', async () => {
+  it('sendWhatsApp converts an ambiguous adapter throw into the unknown delivery contract', async () => {
     evolutionAdapter = availableAdapter(
       'evolution',
       jest.fn().mockRejectedValue(new Error('Connection timed out')),
@@ -234,7 +264,26 @@ describe('channel-service provider seam (P3.1, WAHA-only)', () => {
 
     const res = await sendWhatsApp('11999999999', 'Texto');
 
-    expect(res).toEqual({ success: false, error: 'Connection timed out' });
+    expect(res).toEqual({ success: false, delivery: 'unknown', error: 'Connection timed out' });
+  });
+
+  it('sendWhatsApp falls back to the sidecar on a WAHA deterministic pre-dispatch failure', async () => {
+    wahaAdapter = availableAdapter(
+      'waha',
+      jest.fn().mockRejectedValue(Object.assign(new Error('waha: invalid destination'), { code: 'invalid_destination', delivery: 'not_attempted' })),
+    );
+    process.env.WHATSAPP_FALLBACK_URL = 'https://sidecar.example.com';
+    process.env.WHATSAPP_FALLBACK_SECRET = 'sidecar-secret';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, messageId: 'sc-waha-1' }),
+    } as Response) as never;
+
+    await expect(sendWhatsApp('11999999999', 'Texto')).resolves.toEqual({
+      success: true,
+      messageId: 'sc-waha-1',
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('sendWhatsApp falls through to Evolution when WAHA resolve throws', async () => {

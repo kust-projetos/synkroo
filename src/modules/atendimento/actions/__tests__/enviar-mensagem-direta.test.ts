@@ -82,4 +82,23 @@ describe('enviarMensagemDireta', () => {
     expect((err as ActionError).message).not.toContain('502');
     expect((err as ActionError).message).not.toContain('device-42');
   });
+
+  it('ambiguous transport outcome (delivery unknown) throws unknown_effect, not internal (E3/E4)', async () => {
+    mockSendByChannel.mockResolvedValue({
+      success: false,
+      delivery: 'unknown',
+      error: 'dispatch may have reached the provider; outcome unconfirmed',
+    });
+
+    const err = await enviarMensagemDireta.handler(
+      { channel: 'whatsapp', externalId: '5511999990000', message: 'Olá!' },
+      ctx,
+    ).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(ActionError);
+    expect((err as ActionError).code).toBe('unknown_effect');
+    // Mensagem segura e fixa — detalhe do provider fica só no log do servidor.
+    expect((err as ActionError).message).toBe('Resultado do envio não confirmado.');
+    expect((err as ActionError).message).not.toContain('dispatch');
+  });
 });

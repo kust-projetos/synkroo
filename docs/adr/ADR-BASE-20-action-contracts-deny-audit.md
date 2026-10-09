@@ -1,9 +1,11 @@
 # ADR-BASE-20: Contratos de Action — DENY absoluto, ok/unknown e auditoria fail-closed
 
-**Status:** ✅ Decidido e implementado (tranche E3)
+**Status:** ✅ Decidido e implementado (tranche E3) — adendo E4 abaixo
 **Data:** 2026-10-08
 **Escopo:** `src/core/actions/{types,approval,audit-writer,run}.ts`,
 `src/modules/atendimento/actions/enviar-mensagem-direta.ts`,
+`src/modules/atendimento/actions/enviar-mensagem.ts`,
+`src/modules/atendimento/services/channel-service.ts` (adendo E4),
 `src/lib/api/response.ts` (mapeamento de erros),
 `src/core/agent-bridge/__tests__/tool-policy.test.ts` (barreira: allowlist segue 8)
 **Relaciona:** [ADR-BASE-06](ADR-BASE-06-action-layer.md) (Action Layer),
@@ -104,6 +106,74 @@ enviar mensagem.')` quando `sendByChannel` devolve `success:false`. O
 `channel-service` converte exceção/timeout em `success:false`; esses casos são
 **erro conhecido** neste contrato (sem retry automático). O detalhe do provider
 fica no log do servidor, nunca na mensagem devolvida.
+
+> **Refinado pelo adendo E4 (§5):** uma falha de provider **não é sempre
+> conhecida**. Entrega ambígua agora é classificada `unknown_effect`, não
+> `internal`. O texto acima vale apenas para a falha **determinística**
+> (não-dispatch confirmada).
+
+### 5. Entrega ambígua sem fallback (adendo E4)
+
+O `channel-service` passava para o sidecar de fallback após **qualquer** falha
+do provider — inclusive timeout/exceção **depois** de o dispatch ter ocorrido.
+Como a idempotência local não prova que o outro provider não entregou, isso era
+risco de duplicate-send (efeito duplicado sem retry). Correção:
+
+- `SendResult` ganha `delivery?: 'sent' | 'failed' | 'unknown'`, definido pelo
+  facade quando relevante. Só `delivery: 'unknown'` é atribuído explicitamente —
+  em sucesso e em falha determinística o campo fica omitido (legado).
+- Fallback para o sidecar **somente** em falha determinística PRÉ-dispatch:
+  provider indisponível (adapter `null`) ou rejeição antes de qualquer envio à
+  rede (`WahaProviderError.delivery === 'not_attempted'`, detectado
+  estruturalmente — o facade não importa o leaf).
+- Resultado **ambíguo** — timeout após dispatch, exceção após possível envio,
+  `WahaProviderError` com `delivery: 'unknown'`, ou `success:false` retornado
+  sem confirmação de não-dispatch (inclui a Evolution, que converte falha de
+  transporte em `success:false`) — devolve `delivery: 'unknown'` **sem fallback**,
+  com log sanitizado. Sem retry automático em nenhum nível.
+- `enviarMensagemDireta` **e** `enviarMensagem` mapeiam `delivery: 'unknown'` →
+  `ActionError('unknown_effect')`; falha determinística segue `internal`. Ambos
+  ficam alinhados ao mesmo contrato de efeito desconhecido (§2).
+
+Porta o endurecimento WAHA da PR #29 (reordenação processabilidade-antes-de-
+freshness no webhook inbound; abort de transporte em corpo oversized; gate de
+deploy loopback-only com RepoDigest pinado + preflight 0600 exato) sem regredir
+a ativação WAHA-only (`3863c4f`), que a #29 ainda não tinha.
+
+### 6. Garantia terminal do dispatch (adendo E4, revisão)
+
+O marco de estado do claim (`completed`/`failed`/`unknown`) é **best-effort**:
+se a escrita falhar depois do dispatch, a linha continuaria `in_progress` com
+TTL de 600s e — expirado o TTL — seria reclaimada e **reexecutada**
+(duplicate-send). O `unknown` sozinho não fecha o buraco: ele depende da
+própria escrita que falhou.
+
+- `withOutboundIdempotency` persiste um marco **durável `dispatching`**
+  (`status='dispatching'`, `expires_at = NULL`) **antes** de invocar o handler,
+  condicional a `status='in_progress'` (corrida ⇒ não despacha). Sem o marco,
+  falha de infra aborta o envio (**fail-closed**); nunca fail-open.
+- `settleClaim`/`rereadClaim` tratam `dispatching` como terminal: o replay
+  devolve `unknown` (ou `unknown_effect` na Action) — **nunca sucesso e nunca
+  reexecução**, mesmo após o TTL. `reclaimExpired` só reclaima linha com
+  `expires_at` não-nulo.
+- Liquidação normal sobrescreve o marco: sucesso ⇒ `completed` (com TTL próprio
+  quando há âncora de conteúdo), falha determinística ⇒ `failed` com TTL
+  reescrito (o `dispatching` zerou a expiração), ambígua ⇒ `unknown`.
+- A liquidação agora tem **espera limitada** (`OUTBOUND_SETTLE_TIMEOUT_MS`,
+  1s): escrita de marco não prende a resposta do envio. Passado o limite, a
+  resposta segue e a escrita continua em background com rejeição absorvida — a
+  segurança não depende dela, porque `dispatching` já está persistido.
+
+Custo assumido: um crash entre o marco `dispatching` e o dispatch real deixa a
+chave terminal para reconciliação manual (a mensagem não é reenviada sozinha).
+É a direção segura — preferível a um efeito duplicado.
+
+Paridade de validação no deploy: `deploy-waha.sh` reimplementa a regra de URL
+do `preflight.mjs` de forma **estrutural e equivalente** (scheme HTTPS
+case-insensitive, sem credenciais, host válido, port ≤ 65535, path EXATO
+`/api/whatsapp/waha`) e o charset/length do HMAC (`^[A-Za-z0-9_-]{32,}$`), sem
+exigir `node` no alvo. A matriz de paridade é testada contra o validador
+canônico em `scripts/__tests__/vps-waha-deploy-exec.test.mjs`.
 
 ## Consequências
 

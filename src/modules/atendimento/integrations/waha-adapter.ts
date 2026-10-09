@@ -245,12 +245,21 @@ function releaseBody(target: unknown): Promise<void> {
  * the byte count here is the actual one. The body is only parsed here — the
  * caller's deadline still has to cover this await.
  */
-async function readBoundedBody(response: Response, maxBytes: number): Promise<string> {
+async function readBoundedBody(
+  response: Response,
+  maxBytes: number,
+  onOversize?: () => void,
+): Promise<string> {
   const stream = (response as { body?: { getReader?: () => ReadableStreamDefaultReader<Uint8Array> } | null })
     .body;
   if (!stream?.getReader) {
     const text = await response.text();
-    if (textEncoder.encode(text).length > maxBytes) throw tooLarge(maxBytes);
+    if (textEncoder.encode(text).length > maxBytes) {
+      // No unread transport is left open here (`text()` already consumed it),
+      // but signal oversize so the caller can still tear down defensively.
+      onOversize?.();
+      throw tooLarge(maxBytes);
+    }
     return text;
   }
 
@@ -264,7 +273,10 @@ async function readBoundedBody(response: Response, maxBytes: number): Promise<st
     if (!value) continue;
     total += value.byteLength;
     if (total > maxBytes) {
+      // Abort FIRST: the transport teardown must not depend on the release
+      // below settling — `cancel()` may hang forever (stalled provider).
       // Fire-and-forget: this whole read is already raced against the deadline.
+      onOversize?.();
       void releaseBody(reader);
       throw tooLarge(maxBytes);
     }
@@ -409,7 +421,7 @@ export class WahaAdapter implements WhatsAppProviderAdapter {
       }
 
       const rawBody = await Promise.race([
-        readBoundedBody(response, this.maxResponseBytes),
+        readBoundedBody(response, this.maxResponseBytes, () => controller.abort()),
         deadline,
       ]);
 

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { after, describe, test } from 'node:test';
 import {
   findInheritedWahaOverrides,
+  isPrivateFileMode,
   parseWahaEnvContent,
   validateWahaConfig,
 } from '../../ops/vps/waha/preflight.mjs';
@@ -150,6 +151,27 @@ describe('WAHA loopback-only target candidate scaffold', () => {
     assert.ok(wrongRoute.some((error) => error.startsWith('WAHA_WEBHOOK_URL')));
   });
 
+  test('preflight rejects WHATWG hex-number final labels, including the zero-digit forms', () => {
+    // E4 reviewer edge: a `+` quantifier accepted the final labels `0x`, `0X`,
+    // `1.2.3.0x` and `example.0x`, which WHATWG reads as the number 0 or fails
+    // outright — none of them is byte-identical in the canonical host.
+    for (const host of ['example.0x', '0x', '1.2.3.0x', '0X', 'example.0x.']) {
+      const errors = validateWahaConfig({
+        ...validConfig,
+        WAHA_WEBHOOK_URL: `https://${host}/api/whatsapp/waha`,
+      });
+      assert.ok(
+        errors.some((error) => error.startsWith('WAHA_WEBHOOK_URL')),
+        `host ${host} must be rejected`,
+      );
+    }
+    // No overblocking: `0xapp` is a legal DNS label (p is not a hex digit).
+    assert.deepEqual(validateWahaConfig({
+      ...validConfig,
+      WAHA_WEBHOOK_URL: 'https://0xapp.example.com/api/whatsapp/waha',
+    }), []);
+  });
+
   test('CLI reads a private synthetic env file without echoing secret values', () => {
     const file = writeEnv(validConfig);
     const result = spawnSync(process.execPath, [preflightPath, file], {
@@ -167,6 +189,15 @@ describe('WAHA loopback-only target candidate scaffold', () => {
     assert.match(readme, /backup-synkroo\.sh/);
     assert.match(readme, /does not add the\s+session volume/i);
     assert.match(readme, /P3\.4/i);
+  });
+
+  test('preflight requires exactly 0600 on POSIX (0400/0700/group/other/special bits rejected)', () => {
+    assert.equal(isPrivateFileMode(0o100600, 'linux'), true);
+    for (const mode of [0o100400, 0o100700, 0o100640, 0o100644, 0o100600 | 0o111, 0o104600, 0o102600, 0o101600]) {
+      assert.equal(isPrivateFileMode(mode, 'linux'), false, `mode ${mode.toString(8)} must fail`);
+    }
+    // Windows mode bits are emulated: documented no-op, user-private directory required instead.
+    assert.equal(isPrivateFileMode(0o100644, 'win32'), true);
   });
 
   test('release test script includes this scaffold contract suite', () => {

@@ -469,6 +469,13 @@ async function handleAuthenticatedMessage(
     return NextResponse.json(ACK_IGNORED);
   }
 
+  // Content processability BEFORE freshness: an event we would never store
+  // (unsupported media, empty text) is acknowledged once even when stale —
+  // returning 409 would make the provider retry an event that can never
+  // succeed. Only a storable message reaches the replay guard below.
+  const normalized = normalizeMessageContent(message);
+  if (!normalized) return NextResponse.json(ACK_IGNORED);
+
   // Replay guard on the SIGNED root timestamp (ms), now that we know this is
   // a storable inbound message. Missing/invalid/stale all fail closed — an
   // event with no usable clock is never worth a side effect.
@@ -483,9 +490,6 @@ async function handleAuthenticatedMessage(
   if (externalMessageId.length > MAX_EXTERNAL_MESSAGE_ID_LENGTH) {
     return NextResponse.json(ACK_IGNORED);
   }
-
-  const normalized = normalizeMessageContent(message);
-  if (!normalized) return NextResponse.json(ACK_IGNORED);
 
   // Inbound Action with the RESOLVED clinic and an allowlisted metadata set
   // (session + WAHA message id) — no payload, no URL, no headers, no `_data`.

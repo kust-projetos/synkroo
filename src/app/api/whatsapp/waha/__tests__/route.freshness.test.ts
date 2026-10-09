@@ -256,4 +256,25 @@ describe('waha webhook freshness — signed root timestamp only', () => {
     expect(res.status).toBe(409);
     expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
   });
+
+  // Review correction: content processability is decided BEFORE the replay
+  // guard, so a stale event we would never store is acknowledged once instead
+  // of being retried forever with 409.
+  it.each([
+    ['unsupported media', { id: 'm-1', from: `${PHONE}@c.us`, fromMe: false, body: '', hasMedia: true, media: { mimetype: 'video/mp4', filename: 'clip.mp4' } }],
+    ['empty text', { id: 'm-2', from: `${PHONE}@c.us`, fromMe: false, body: '   ', hasMedia: false }],
+  ])('acknowledges a stale unprocessable message as ignored, not 409 (%s)', async (_label, payload) => {
+    const body = JSON.stringify({
+      event: 'message',
+      session: SESSION,
+      timestamp: NOW - 3_600_000,
+      payload: { timestamp: Math.floor(NOW / 1000), ...payload },
+    });
+
+    const res = await POST(signed(body));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ status: 'ignored' });
+    expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
+  });
 });
