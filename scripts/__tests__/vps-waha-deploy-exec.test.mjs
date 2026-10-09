@@ -209,7 +209,10 @@ describe('WAHA deploy script behavior (fake docker, synthetic env)', { skip: !EX
     const bodies = [
       validEnvBody() + 'rm -rf /\n',
       validEnvBody() + 'echo PWNED\n',
-      validEnvBody() + 'WAHA_SWAGGER_PASSWORD=$(id)\n',
+      validEnvBody().replace(
+        `WAHA_SWAGGER_PASSWORD=${'c'.repeat(32)}`,
+        'WAHA_SWAGGER_PASSWORD=$(id)',
+      ),
       validEnvBody().replace(`WAHA_SWAGGER_PASSWORD=${'c'.repeat(32)}`, 'WAHA_SWAGGER_PASSWORD=${HOME}'),
       validEnvBody().replace(`WAHA_SWAGGER_PASSWORD=${'c'.repeat(32)}`, `WAHA_SWAGGER_PASSWORD="${'c'.repeat(32)}"`),
       validEnvBody().replace(`WAHA_SWAGGER_PASSWORD=${'c'.repeat(32)}`, `WAHA_SWAGGER_PASSWORD=${'c'.repeat(32)} #trailing`),
