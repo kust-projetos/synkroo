@@ -50,4 +50,5 @@ Consequência: o agente não consegue explicar *por que* agiu, *o que* pretendia
 - RBAC, módulo ativo e tenant por contexto confiável permanecem obrigatórios em toda decisão.
 - ADR-BASE-06 (Action Layer como entrada de negócio) e ADR-BASE-12 (audit allowlist) permanecem válidos; este ADR estende, não revoga.
 - Deny-by-default é invariante em qualquer rollout.
+- **Contratos de Action (E3):** [ADR-BASE-20](ADR-BASE-20-action-contracts-deny-audit.md) fixa a matriz AUTO/CONFIRM(approval)/DENY implementada em `runAction`, a semântica `ok`/`unknown` (`unknown_effect`, `audit_incomplete`) e a auditoria fail-closed com tentativa `started` antes do efeito — inclusive a regra de que token de aprovação nunca eleva `deny_non_human` e de que falha de finalização nunca autoriza reenvio.
 - **Divergência ADR↔código registrada:** `JWT_SECRET` segue obrigatório em `src/lib/env.ts:24,121` embora ADR-BASE-05 o rejeite como aspiração — a resolução (remover JWT_SECRET do código ou reabrir o ADR) é tranche própria de auth, fora do escopo desta fundação.

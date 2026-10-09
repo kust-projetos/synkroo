@@ -85,7 +85,12 @@ export async function issueApprovalToken(params: {
 }, opts: IssueApprovalOptions = {}): Promise<IssuedApproval> {
   const now = opts.now ?? Date.now();
   const ttlMs = opts.ttlMs ?? APPROVAL_TTL_MS_DEFAULT;
-  const token = randomBytes(32).toString('hex');
+  // E1: hex manual — evita `Buffer.toString(encoding)`, cujo tipo colide com
+  // `@cloudflare/workers-types` (Buffer: any) no programa ia-bridge (TS2554).
+  // Semântica byte-idêntica: 32 bytes aleatórios → 64 chars hex lowercase.
+  const token = Array.from(randomBytes(32) as Uint8Array)
+    .map((b: number) => b.toString(16).padStart(2, '0'))
+    .join('');
   const expiresAt = now + ttlMs;
   try {
     await getDb().insert(approvalTokens).values({
@@ -192,14 +197,26 @@ export async function consumeApprovalToken(
 }
 
 /**
- * Decisão de política (pura, sem I/O): ações standard/user → allow;
- * deny_non_human com source !== 'user' → approval_required (o runAction
- * então exige token válido; sem token continua forbidden — deny-by-default).
- * 'deny' reservado para endurecimentos futuros.
+ * Decisão de política (pura, sem I/O).
+ *
+ * E3 — decisão humana vinculante: `deny_non_human` com principal não-humano
+ * (`source !== 'user'`) é DENY ABSOLUTO. Approval token NUNCA eleva esse
+ * veredito; o `runAction` recusa antes do handler e antes de consumir token
+ * (zero chamadas ao handler e ao consume). `approval_required` existe apenas
+ * para a classe APPROVAL explícita (`riskClass: 'approval'`) — nenhuma Action
+ * de produção a usa hoje, e nada foi reclassificado automaticamente.
  */
 export function evaluatePolicy(action: { riskClass?: string }, ctx: { source: string }): PolicyDecision {
-  if (action.riskClass === 'deny_non_human' && ctx.source !== 'user') {
-    return { decision: 'approval_required', reason: 'deny_non_human requires human approval token' };
+  if (ctx.source !== 'user') {
+    if (action.riskClass === 'deny_non_human') {
+      return {
+        decision: 'deny',
+        reason: 'deny_non_human: absolute deny for non-human principals (approval never elevates)',
+      };
+    }
+    if (action.riskClass === 'approval') {
+      return { decision: 'approval_required', reason: 'approval class requires a valid human approval token' };
+    }
   }
   return { decision: 'allow', reason: 'no approval gate applies' };
 }
