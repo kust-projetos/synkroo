@@ -56,6 +56,14 @@ async function forceReclaimable(businessKey: string): Promise<void> {
   );
 }
 
+/** Due no relógio do Postgres (o claim compara o relógio da app). */
+async function forceDue(jobId: string): Promise<void> {
+  await pool.query(
+    `UPDATE outbox_jobs SET next_attempt_at = NOW() - interval '10 minutes' WHERE id = $1`,
+    [jobId],
+  );
+}
+
 async function row(businessKey: string): Promise<{ status: string; attempts: number; claim_generation: number; last_error_code: string | null }> {
   const { rows } = await pool.query(
     'SELECT status, attempts, claim_generation, last_error_code FROM outbox_jobs WHERE business_key = $1',
@@ -95,6 +103,7 @@ describeIntegration('outbox lease fencing (claim_generation) against PostgreSQL'
     const businessKey = `${prefix}:generation`;
     const enqueued = await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
     expect(enqueued).toBeDefined();
+    await forceDue(enqueued!.id);
 
     const first = await claimLease(enqueued!.id);
     expect(first.claimGeneration).toBe(1);
@@ -114,6 +123,7 @@ describeIntegration('outbox lease fencing (claim_generation) against PostgreSQL'
     const businessKey = `${prefix}:stale-holder`;
     const enqueued = await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
     expect(enqueued).toBeDefined();
+    await forceDue(enqueued!.id);
 
     // A reclama (geração 1) e demora mais que o lease de 5min.
     const stale = await claimLease(enqueued!.id);
@@ -143,6 +153,7 @@ describeIntegration('outbox lease fencing (claim_generation) against PostgreSQL'
     const businessKey = `${prefix}:aba`;
     const enqueued = await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
     expect(enqueued).toBeDefined();
+    await forceDue(enqueued!.id);
 
     // A reclama (geração 1) e perde o lease; B reclama (geração 2).
     await claimLease(enqueued!.id);
