@@ -48,7 +48,10 @@ const clinicId = '00000000-0000-0000-0000-000000000001';
 /** Segunda clínica: job de outbox de um tenant apontando lembrete de outro. */
 const otherClinicId = '00000000-0000-0000-0000-000000000002';
 const prefix = `outbound-safety-integration:${process.pid}:${Date.now()}`;
-const OPERATION = 'atendimento.outbound.message';
+// Isolamento entre arquivos de integração: o harness executa suites em
+// paralelo contra o mesmo `synkroo_test`; nome exclusivo impede que outro
+// dispatcher de teste reclame jobs deste arquivo (ou vice-versa).
+const OPERATION = `atendimento.outbound.safety.${process.pid}.${Date.now()}`;
 
 let pool: Pool;
 const usedKeys: string[] = [];
@@ -198,7 +201,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     const jobId = await enqueueOutbound(businessKey);
     usedKeys.push(buildOutboundIdempotencyKey('whatsapp', clinicId, `outbox:${jobId}`));
 
-    const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
     });
 
@@ -221,7 +224,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     usedKeys.push(key);
 
     const onDeadLetter = jest.fn().mockResolvedValue(undefined);
-    const first = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const first = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
       onDeadLetter,
     });
@@ -242,7 +245,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     expect(claimRows[0]?.status).toBe('unknown');
 
     // Replay: o job em DLQ não é claimable e o provider NÃO é chamado de novo.
-    const replay = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const replay = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
       onDeadLetter,
     });
@@ -261,7 +264,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
 
     // 1) Falha determinística conhecida do provider: retryável comum. O claim
     //    fica `failed` com TTL de 600s — o replay antes do TTL conflita.
-    const first = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const first = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
     });
     expect(first.status).toBe('retryable');
@@ -275,7 +278,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     //    a tentativa do claim é devolvida e o próximo agendamento fica depois
     //    do TTL da chave. Sem entregar e sem DLQ.
     await pool.query('UPDATE outbox_jobs SET next_attempt_at = NOW() - interval \'1 second\' WHERE business_key = $1', [businessKey]);
-    const second = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const second = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
       onDeadLetter: jest.fn().mockResolvedValue(undefined),
     });
@@ -299,7 +302,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     provider.mode = 'ok';
     await pool.query('UPDATE idempotency_keys SET expires_at = NOW() - interval \'1 second\' WHERE key = $1', [key]);
     await pool.query('UPDATE outbox_jobs SET next_attempt_at = NOW() - interval \'1 second\' WHERE business_key = $1', [businessKey]);
-    const third = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const third = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
     });
     expect(third).toEqual({ status: 'delivered', jobId });
@@ -329,7 +332,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
 
     let result: { status: string; jobId?: string };
     try {
-      result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), { operations: [OPERATION] });
+      result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), { operations: [OPERATION] });
     } finally {
       (db as { select: (...args: unknown[]) => unknown }).select = originalSelect;
     }
@@ -361,7 +364,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     const jobId = await enqueueOutboundWithReminder(businessKey, reminderId);
     usedKeys.push(buildOutboundIdempotencyKey('whatsapp', clinicId, `outbox:${jobId}`));
 
-    const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
     });
 
@@ -384,7 +387,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     // transação da liquidação: a escrita do lembrete usa o executor recebido.
     let receivedTx: unknown;
     const result = await dispatchNextOutbox(async (job) => {
-      const hook = await dispatchOutboundMessageJob(job);
+      const hook = await dispatchOutboundMessageJob(job, OPERATION);
       return hook ? async (tx: unknown) => {
         receivedTx = tx;
         return hook(tx);
@@ -415,7 +418,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     let firstError: unknown;
     try {
       await dispatchNextOutbox(async (job) => {
-        const hook = await dispatchOutboundMessageJob(job);
+        const hook = await dispatchOutboundMessageJob(job, OPERATION);
         return hook ? async (tx: unknown) => {
           await hook(tx);
           if (failHook) throw new Error('reminder write unavailable');
@@ -450,7 +453,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
       [businessKey],
     );
     const replay = await dispatchNextOutbox(async (job) => {
-      const hook = await dispatchOutboundMessageJob(job);
+      const hook = await dispatchOutboundMessageJob(job, OPERATION);
       return hook ? async (tx: unknown) => {
         await hook(tx);
         if (failHook) throw new Error('reminder write unavailable');
@@ -475,7 +478,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     usedKeys.push(buildOutboundIdempotencyKey('whatsapp', otherClinicId, `outbox:${jobId}`));
 
     const onDeadLetter = jest.fn().mockResolvedValue(undefined);
-    const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
       onDeadLetter,
     });
@@ -501,7 +504,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     expect(provider.dispatches).toBe(1);
 
     // A linha em DLQ não é claimable: nenhum segundo dispatch, nenhum loop.
-    const replay = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
+    const replay = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job, OPERATION), {
       operations: [OPERATION],
       onDeadLetter,
     });

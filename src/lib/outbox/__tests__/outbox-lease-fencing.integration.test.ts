@@ -36,7 +36,9 @@ import {
 const describeIntegration = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
 const clinicId = '00000000-0000-0000-0000-000000000002';
 const prefix = `outbox-lease-fencing:${process.pid}:${Date.now()}`;
-const OPERATION = 'integration.test';
+// Isolamento entre arquivos de integração: o harness usa o mesmo banco de
+// teste em paralelo; o nome exclusivo evita claims cruzados de outras suites.
+const OPERATION = `integration.outbox-lease-fencing.${process.pid}.${Date.now()}`;
 
 let pool: Pool;
 
