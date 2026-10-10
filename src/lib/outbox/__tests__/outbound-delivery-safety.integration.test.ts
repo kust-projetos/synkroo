@@ -25,6 +25,16 @@
  * versionados — nunca `.env` privado):
  *   TEST_DATABASE_URL=postgres://synkroo:change-me-local-dev-password@localhost:55432/synkroo_test \
  *     npm run test:integration:run -- src/lib/outbox/__tests__/outbound-delivery-safety.integration.test.ts
+ *
+ * Isolamento no banco COMPARTILHADO: todas as suites de integração dividem o
+ * mesmo `synkroo_test`, então um claim genérico por operação pode escolher a
+ * linha deixada por outra suite — e o `empty` devolvido era do job ALHEIO. Por
+ * isso todo dispatch daqui passa o `jobId` da fixture (filtro opcional e interno
+ * de `dispatchNextOutbox`/`claimOutboxJob`; o worker de produção nunca o usa), e
+ * o `empty` do replay é afirmado só para aquele job. A trava de fixture confere
+ * no SQL, logo após o enqueue, que a linha existe com a clínica/operação
+ * pedidas, `pending` e vencida. Uma prova mantém o dispatcher SEM `jobId`
+ * claimando normalmente — o filtro é opcional, não um novo contrato.
  */
 
 import { randomUUID } from 'node:crypto';
@@ -86,6 +96,24 @@ function fakeProvider(mode: 'ok' | 'ambiguous' | 'deterministic'): WhatsAppProvi
   return adapter;
 }
 
+/**
+ * Trava de fixture: imediatamente após o enqueue, o SQL mostra a linha com o id
+ * devolvido, a clínica e a operação pedidas, `pending` e já vencida
+ * (`next_attempt_at <= NOW()`). Sem essa checagem, um enqueue silenciosamente
+ * descartado (conflito de `business_key`) ou com agendamento no futuro faria o
+ * dispatcher devolver `empty` — e o teste acusaria o dispatcher, não a fixture.
+ */
+async function assertEnqueuedRow(jobId: string, jobClinicId: string, operation: string): Promise<void> {
+  const { rows } = await pool.query(
+    `SELECT id, clinic_id, operation, status, next_attempt_at <= NOW() AS due
+       FROM outbox_jobs WHERE id = $1`,
+    [jobId],
+  );
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ id: jobId, clinic_id: jobClinicId, operation, status: 'pending' });
+  expect(rows[0].due).toBe(true);
+}
+
 async function enqueueOutbound(businessKey: string): Promise<string> {
   const db = getDb();
   const job = await enqueueOutboxForTests(db, {
@@ -94,7 +122,16 @@ async function enqueueOutbound(businessKey: string): Promise<string> {
     businessKey,
     payload: { channel: 'whatsapp', externalId: '5511999990000', message: 'Lembrete de consulta' },
   });
-  return job!.id;
+  if (!job) throw new Error(`fixture: enqueue descartado por conflito de business_key — ${businessKey}`);
+  // O claim compara next_attempt_at com o relógio da aplicação; NOW() do
+  // Postgres pode estar alguns ms adiante (runner CI vs container DB). Deixar
+  // a fixture vencida com margem evita que skew benigno produza `empty`.
+  await pool.query(
+    `UPDATE outbox_jobs SET next_attempt_at = NOW() - interval '10 minutes' WHERE id = $1`,
+    [job.id],
+  );
+  await assertEnqueuedRow(job.id, clinicId, OPERATION);
+  return job.id;
 }
 
 async function outboxRow(businessKey: string): Promise<{ status: string; attempts: number; last_error_code: string | null }> {
@@ -142,13 +179,19 @@ async function enqueueOutboundWithReminder(businessKey: string, reminderId: stri
     businessKey,
     payload: { channel: 'whatsapp', externalId: '5511999990000', message: 'Lembrete de consulta', reminderId },
   });
-  return job!.id;
+  if (!job) throw new Error(`fixture: enqueue descartado por conflito de business_key — ${businessKey}`);
+  await pool.query(
+    `UPDATE outbox_jobs SET next_attempt_at = NOW() - interval '10 minutes' WHERE id = $1`,
+    [job.id],
+  );
+  await assertEnqueuedRow(job.id, jobClinicId, OPERATION);
+  return job.id;
 }
 
 /** Claim que falha ruidosamente se não vier com a geração do lease. */
-async function claimLeaseForOperation(): Promise<{ id: string; claimGeneration: number }> {
+async function claimLeaseForOperation(jobId: string): Promise<{ id: string; claimGeneration: number }> {
   const { claimOutboxJob } = await import('@/lib/outbox/outbox-repository');
-  const claimed = await claimOutboxJob({ operations: [OPERATION] });
+  const claimed = await claimOutboxJob({ operations: [OPERATION], jobId });
   expect(claimed).toBeDefined();
   expect(typeof claimed!.claimGeneration).toBe('number');
   return claimed as { id: string; claimGeneration: number };
@@ -207,9 +250,11 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
 
     const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
     });
 
     expect(result.status).toBe('delivered');
+    expect(result.jobId).toBe(jobId);
     expect(provider.dispatches).toBe(1);
     expect(await outboxRow(businessKey)).toMatchObject({ status: 'delivered' });
 
@@ -230,6 +275,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     const onDeadLetter = jest.fn().mockResolvedValue(undefined);
     const first = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
       onDeadLetter,
     });
 
@@ -249,11 +295,15 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     expect(claimRows[0]?.status).toBe('unknown');
 
     // Replay: o job em DLQ não é claimable e o provider NÃO é chamado de novo.
+    // O claim filtrado por `jobId` torna o vazio AFIRMÁVEL: ele é deste job —
+    // qualquer outra linha elegível para a operação no banco compartilhado não
+    // pode mais preencher o resultado e mascarar a falta de claim.
     const replay = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
       onDeadLetter,
     });
-    expect(replay.status).toBe('empty');
+    expect(replay).toEqual({ status: 'empty' });
     expect(provider.dispatches).toBe(1);
     expect(onDeadLetter).toHaveBeenCalledTimes(1);
   });
@@ -270,8 +320,9 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     //    fica `failed` com TTL de 600s — o replay antes do TTL conflita.
     const first = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
     });
-    expect(first.status).toBe('retryable');
+    expect(first).toEqual({ status: 'retryable', jobId });
     expect(provider.dispatches).toBe(1);
     const afterFailure = await outboxRow(businessKey);
     expect(afterFailure.status).toBe('pending');
@@ -284,6 +335,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     await pool.query('UPDATE outbox_jobs SET next_attempt_at = NOW() - interval \'1 second\' WHERE business_key = $1', [businessKey]);
     const second = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
       onDeadLetter: jest.fn().mockResolvedValue(undefined),
     });
     expect(second).toEqual({ status: 'retryable', jobId });
@@ -308,6 +360,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     await pool.query('UPDATE outbox_jobs SET next_attempt_at = NOW() - interval \'1 second\' WHERE business_key = $1', [businessKey]);
     const third = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
     });
     expect(third).toEqual({ status: 'delivered', jobId });
     expect(provider.dispatches).toBe(2);
@@ -336,7 +389,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
 
     let result: { status: string; jobId?: string };
     try {
-      result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), { operations: [OPERATION] });
+      result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), { operations: [OPERATION], jobId });
     } finally {
       (db as { select: (...args: unknown[]) => unknown }).select = originalSelect;
     }
@@ -370,9 +423,11 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
 
     const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
     });
 
     expect(result.status).toBe('delivered');
+    expect(result.jobId).toBe(jobId);
     expect(provider.dispatches).toBe(1);
     expect(await outboxRow(businessKey)).toMatchObject({ status: 'delivered' });
     // O hook rodou dentro da transação da liquidação: lembrete `sent` com o id.
@@ -396,7 +451,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
         receivedTx = tx;
         return hook(tx);
       } : undefined;
-    }, { operations: [OPERATION] });
+    }, { operations: [OPERATION], jobId });
 
     expect(result.status).toBe('delivered');
     expect(receivedTx).toBeDefined();
@@ -427,7 +482,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
           await hook(tx);
           if (failHook) throw new Error('reminder write unavailable');
         } : undefined;
-      }, { operations: [OPERATION] });
+      }, { operations: [OPERATION], jobId });
     } catch (err) {
       firstError = err;
     }
@@ -462,7 +517,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
         await hook(tx);
         if (failHook) throw new Error('reminder write unavailable');
       } : undefined;
-    }, { operations: [OPERATION] });
+    }, { operations: [OPERATION], jobId });
 
     expect(replay).toEqual({ status: 'delivered', jobId });
     expect(provider.dispatches).toBe(1);
@@ -484,6 +539,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     const onDeadLetter = jest.fn().mockResolvedValue(undefined);
     const result = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
       onDeadLetter,
     });
 
@@ -508,11 +564,14 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     expect(provider.dispatches).toBe(1);
 
     // A linha em DLQ não é claimable: nenhum segundo dispatch, nenhum loop.
+    // Como o replay é filtrado por `jobId`, o vazio é afirmado SÓ para este job
+    // — outra linha elegível no banco compartilhado não preencheria o resultado.
     const replay = await dispatchNextOutbox((job) => dispatchOutboundMessageJob(job), {
       operations: [OPERATION],
+      jobId,
       onDeadLetter,
     });
-    expect(replay.status).toBe('empty');
+    expect(replay).toEqual({ status: 'empty' });
     expect(provider.dispatches).toBe(1);
     expect(onDeadLetter).toHaveBeenCalledTimes(1);
   });
@@ -525,16 +584,18 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     usedKeys.push(buildOutboundIdempotencyKey('whatsapp', clinicId, `outbox:${jobId}`));
 
     // A reclama (geração 1) e demora mais que o lease de 5min.
-    const stale = await claimLeaseForOperation();
+    const stale = await claimLeaseForOperation(jobId);
     expect(stale.claimGeneration).toBe(1);
+    expect(stale.id).toBe(jobId);
     await pool.query(
       `UPDATE outbox_jobs SET updated_at = NOW() - interval '10 minutes', next_attempt_at = NOW() - interval '1 second'
        WHERE business_key = $1`,
       [businessKey],
     );
     // B reclama a mesma linha (geração 2): A não é dono de nada.
-    const current = await claimLeaseForOperation();
+    const current = await claimLeaseForOperation(jobId);
     expect(current.claimGeneration).toBe(2);
+    expect(current.id).toBe(jobId);
 
     let hookInvocations = 0;
     // A tenta liquidar com UM hook: o fence recusa antes de invocá-lo.
@@ -549,5 +610,72 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
       hookInvocations += 1;
     })).toBe(true);
     expect(hookInvocations).toBe(1);
+  });
+
+  // ─── O filtro `jobId` é OPCIONAL ─────────────────────────────────────────
+  // Todo o isolamento acima depende do filtro interno; estas duas provas fixam
+  // as duas pontas do contrato: com `jobId` o claim casa AQUELA linha (não a que
+  // está na frente da fila) e, sem `jobId`, o claim continua genérico por
+  // operação — exatamente o caminho do worker de produção.
+
+  it('claim com jobId casa a linha pedida, não a que está na frente da fila', async () => {
+    // Operação exclusiva deste processo: isola a prova de qualquer outra linha
+    // com a operação de Produção no `synkroo_test` compartilhado. O sender é
+    // mock — o que se prova é o CLAIM, não o handler.
+    const soloOperation = `atendimento.outbound.message:jobid:${process.pid}:${Date.now()}`;
+    const frontKey = `${prefix}:jobid-front`;
+    const targetKey = `${prefix}:jobid-target`;
+    const db = getDb();
+    const front = await enqueueOutboxForTests(db, { clinicId, operation: soloOperation, businessKey: frontKey, payload: { safe: true } });
+    const target = await enqueueOutboxForTests(db, { clinicId, operation: soloOperation, businessKey: targetKey, payload: { safe: true } });
+    if (!front || !target) throw new Error('fixture: enqueue descartado por conflito de business_key');
+    await assertEnqueuedRow(front.id, clinicId, soloOperation);
+    await assertEnqueuedRow(target.id, clinicId, soloOperation);
+
+    // A linha da FRENTE fica agendada antes: um claim genérico por operação a
+    // escolheria. O filtro por id estreita o claim para a linha pedida.
+    await pool.query(`UPDATE outbox_jobs SET next_attempt_at = NOW() - interval '1 second' WHERE business_key = $1`, [frontKey]);
+
+    const sender = jest.fn().mockResolvedValue(undefined);
+    const result = await dispatchNextOutbox(sender, { operations: [soloOperation], jobId: target.id });
+
+    expect(result).toEqual({ status: 'delivered', jobId: target.id });
+    expect(sender.mock.calls[0][0]).toMatchObject({ id: target.id, operation: soloOperation });
+    // A linha da frente NÃO foi reclamada: o filtro estreita sem afrouxar a fila.
+    expect(await outboxRow(frontKey)).toMatchObject({ status: 'pending', attempts: 0 });
+
+    // Id inexistente sob a MESMA operação elegível: nada é claimado. Sem o
+    // filtro no SQL, a linha da frente teria sido entregue aqui.
+    await expect(dispatchNextOutbox(sender, { operations: [soloOperation], jobId: randomUUID() }))
+      .resolves.toEqual({ status: 'empty' });
+    expect(await outboxRow(frontKey)).toMatchObject({ status: 'pending', attempts: 0 });
+    expect(sender).toHaveBeenCalledTimes(1);
+  });
+
+  it('dispatcher SEM jobId continua claimando normalmente (filtro é opcional)', async () => {
+    // Operação exclusiva deste processo: sem `jobId` o claim é por operação, então
+    // a prova usa uma operação que só este arquivo enfileira — o resultado não
+    // depende de nenhuma outra linha do `synkroo_test` compartilhado. A operação
+    // de Produção (`OPERATION`) não é usada aqui, e o sender é mock: o que se
+    // prova é o CLAIM, não o handler.
+    const soloOperation = `atendimento.outbound.message:no-jobid:${process.pid}:${Date.now()}`;
+    const businessKey = `${prefix}:no-jobid`;
+    const db = getDb();
+    const enqueued = await enqueueOutboxForTests(db, {
+      clinicId,
+      operation: soloOperation,
+      businessKey,
+      payload: { channel: 'whatsapp', externalId: '5511999990000', message: 'claim sem jobId' },
+    });
+    if (!enqueued) throw new Error(`fixture: enqueue descartado por conflito de business_key — ${businessKey}`);
+    await assertEnqueuedRow(enqueued.id, clinicId, soloOperation);
+
+    const sender = jest.fn().mockResolvedValue(undefined);
+    const result = await dispatchNextOutbox(sender, { operations: [soloOperation] });
+
+    expect(result).toEqual({ status: 'delivered', jobId: enqueued.id });
+    expect(sender).toHaveBeenCalledTimes(1);
+    expect(sender.mock.calls[0][0]).toMatchObject({ id: enqueued.id, operation: soloOperation });
+    expect(await outboxRow(businessKey)).toMatchObject({ status: 'delivered' });
   });
 });
