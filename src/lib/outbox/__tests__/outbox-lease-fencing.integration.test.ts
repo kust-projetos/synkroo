@@ -41,7 +41,7 @@ const clinicId = randomUUID();
 const prefix = `outbox-lease-fencing:${process.pid}:${Date.now()}`;
 // Isolamento entre arquivos de integração: o harness usa o mesmo banco de
 // teste em paralelo; o nome exclusivo evita claims cruzados de outras suites.
-const OPERATION = `integration.outbox-lease-fencing.${process.pid}.${Date.now()}`;
+const OPERATION = 'integration.test';
 
 let pool: Pool;
 

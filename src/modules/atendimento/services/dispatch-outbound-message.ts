@@ -49,9 +49,8 @@ function outboundJobIdempotencyKey(job: OutboxJob, channel: OutboundMessagePaylo
 
 export async function dispatchOutboundMessageJob(
   job: OutboxJob,
-  expectedOperation: string = OUTBOX_OPERATIONS.ATENDIMENTO_OUTBOUND_MESSAGE,
 ): Promise<void | OutboxSuccessHook> {
-  if (job.operation !== expectedOperation) {
+  if (job.operation !== OUTBOX_OPERATIONS.ATENDIMENTO_OUTBOUND_MESSAGE) {
     throw new Error(`UNKNOWN_OUTBOX_OPERATION:${job.operation}`);
   }
 
