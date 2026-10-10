@@ -65,8 +65,8 @@ async function row(businessKey: string): Promise<{ status: string; attempts: num
 }
 
 /** Claim que falha ruidosamente se não vier com a geração do lease. */
-async function claimLease(): Promise<OutboxJob> {
-  const claimed = await claimOutboxJob({ operations: [OPERATION] });
+async function claimLease(jobId: string): Promise<OutboxJob> {
+  const claimed = await claimOutboxJob({ operations: [OPERATION], jobId });
   expect(claimed).toBeDefined();
   return claimed as OutboxJob;
 }
@@ -93,33 +93,35 @@ describeIntegration('outbox lease fencing (claim_generation) against PostgreSQL'
 
   it('incrementa a geração a cada claim e preserva a semântica de attempts', async () => {
     const businessKey = `${prefix}:generation`;
-    await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
+    const enqueued = await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
+    expect(enqueued).toBeDefined();
 
-    const first = await claimLease();
+    const first = await claimLease(enqueued!.id);
     expect(first.claimGeneration).toBe(1);
     expect(first.attempts).toBe(1);
     expect(first.status).toBe('processing');
 
     // Sem acordo de agendamento/updated_at o claim não é elegível.
-    await expect(claimOutboxJob({ operations: [OPERATION] })).resolves.toBeUndefined();
+    await expect(claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id })).resolves.toBeUndefined();
 
     await forceReclaimable(businessKey);
-    const second = await claimLease();
+    const second = await claimLease(enqueued!.id);
     expect(second.claimGeneration).toBe(2);
     expect(second.attempts).toBe(2);
   });
 
   it('liquidação do lease PERDIDO (A) é recusada para todos os marcos; a linha segue como B deixou', async () => {
     const businessKey = `${prefix}:stale-holder`;
-    await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
+    const enqueued = await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
+    expect(enqueued).toBeDefined();
 
     // A reclama (geração 1) e demora mais que o lease de 5min.
-    const stale = await claimLease();
+    const stale = await claimLease(enqueued!.id);
     expect(stale.claimGeneration).toBe(1);
     await forceReclaimable(businessKey);
 
     // B reclama a mesma linha (geração 2) — A já não é dono de nada.
-    const current = await claimLease();
+    const current = await claimLease(enqueued!.id);
     expect(current.claimGeneration).toBe(2);
     const asB = await row(businessKey);
 
@@ -139,12 +141,13 @@ describeIntegration('outbox lease fencing (claim_generation) against PostgreSQL'
 
   it('ABA: B defere (attempts -1, geração intacta) → C reclama → token antigo de B continua recusado', async () => {
     const businessKey = `${prefix}:aba`;
-    await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
+    const enqueued = await enqueueOutboxForTests(getDb(), { clinicId, operation: OPERATION, businessKey, payload: { safe: true } });
+    expect(enqueued).toBeDefined();
 
     // A reclama (geração 1) e perde o lease; B reclama (geração 2).
-    await claimLease();
+    await claimLease(enqueued!.id);
     await forceReclaimable(businessKey);
-    const b = await claimLease();
+    const b = await claimLease(enqueued!.id);
     expect(b.claimGeneration).toBe(2);
     const attemptsBefore = b.attempts;
 
@@ -158,7 +161,7 @@ describeIntegration('outbox lease fencing (claim_generation) against PostgreSQL'
     // C reclama a linha adiada (geração 3): `attempts` volta a subir e passa a
     // repetir o valor que B tinha — somente a geração distingue os holders.
     await forceReclaimable(businessKey);
-    const c = await claimLease();
+    const c = await claimLease(enqueued!.id);
     expect(c.claimGeneration).toBe(3);
     expect(c.attempts).toBe(afterDefer.attempts + 1);
 
