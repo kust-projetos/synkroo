@@ -86,6 +86,27 @@ describe('outbox dispatcher', () => {
 
     await expect(dispatchNextOutbox(async () => undefined)).resolves.toEqual({ status: 'empty' });
   });
+
+  // ─── `jobId`: filtro interno opcional ─────────────────────────────────────
+  // Isolamento de teste em banco compartilhado. Ausente (sempre, em produção),
+  // o claim continua genérico por operação — o contrato histórico não muda.
+
+  it('sem jobId o claim segue genérico por operação', async () => {
+    claimOutboxJob.mockResolvedValue(job);
+
+    await expect(dispatchNextOutbox(async () => undefined, { operations: ['campaign'] }))
+      .resolves.toEqual({ status: 'delivered', jobId: 'job-1' });
+    expect(claimOutboxJob).toHaveBeenCalledWith({ operations: ['campaign'] });
+    expect(claimOutboxJob.mock.calls[0][0]).not.toHaveProperty('jobId');
+  });
+
+  it('jobId explícito é repassado ao claim', async () => {
+    claimOutboxJob.mockResolvedValue(job);
+
+    await expect(dispatchNextOutbox(async () => undefined, { operations: ['campaign'], jobId: 'job-1' }))
+      .resolves.toEqual({ status: 'delivered', jobId: 'job-1' });
+    expect(claimOutboxJob).toHaveBeenCalledWith({ operations: ['campaign'], jobId: 'job-1' });
+  });
   it('routes operation filters and dead-letter callbacks', async () => {
     const deadLetterJob = { ...job, attempts: 5, operation: 'campaign' };
     claimOutboxJob.mockResolvedValue(deadLetterJob);

@@ -43,7 +43,20 @@ export async function enqueueOutboxForTests(db: any, job: TestOutboxInsert): Pro
 
 const OUTBOX_LEASE_MS = 5 * 60 * 1000;
 
-export type ClaimOutboxOptions = { now?: Date; operations?: readonly string[] };
+export type ClaimOutboxOptions = {
+  now?: Date;
+  operations?: readonly string[];
+  /**
+   * Filtro INTERNO opcional por id do job — isolamento de teste contra banco de
+   * integração compartilhado, onde outra suite pode deixar uma linha elegível
+   * para a mesma operação. Quando presente, o claim só enxerga aquele job, ALÉM
+   * dos filtros de elegibilidade/operação (nunca em lugar deles).
+   *
+   * Aditivo por desenho: o worker de produção NUNCA passa `jobId`, então o
+   * claim em produção continua genérico por operação, inalterado.
+   */
+  jobId?: string;
+};
 
 /**
  * Claim atômico do próximo job elegível.
@@ -66,6 +79,9 @@ export async function claimOutboxJob(options: ClaimOutboxOptions = {}): Promise<
     );
     const filters = [claimable, lte(outboxJobs.nextAttemptAt, now)];
     if (options.operations) filters.push(inArray(outboxJobs.operation, options.operations));
+    // Isolamento de teste: reduz o claim a um job conhecido sem afrouxar nenhum
+    // dos filtros acima (o perfil de produção nunca passa `jobId`).
+    if (options.jobId) filters.push(eq(outboxJobs.id, options.jobId));
     const [job] = await tx.select().from(outboxJobs).where(and(...filters))
       .orderBy(outboxJobs.nextAttemptAt).limit(1).for('update', { skipLocked: true });
     if (!job) return undefined;

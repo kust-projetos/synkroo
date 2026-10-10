@@ -12,7 +12,17 @@ export type { OutboxSuccessHook };
 
 export type OutboxSender = (job: OutboxJob) => Promise<void | OutboxSuccessHook>;
 
-export type OutboxDispatchOptions = { operations?: readonly string[]; onDeadLetter?: (job: OutboxJob, error: unknown) => Promise<void> };
+export type OutboxDispatchOptions = {
+  operations?: readonly string[];
+  onDeadLetter?: (job: OutboxJob, error: unknown) => Promise<void>;
+  /**
+   * Filtro INTERNO opcional por id do job — isolamento de teste (banco de
+   * integração compartilhado). Repassado ao claim, que passa a só enxergar
+   * aquele job. O worker de produção NUNCA o passa: sem `jobId` o claim segue
+   * genérico por operação, exatamente como antes.
+   */
+  jobId?: string;
+};
 
 export type OutboxDispatchStatus = 'delivered' | 'retryable' | 'dead_letter' | 'lease_lost' | 'empty';
 
@@ -71,7 +81,13 @@ async function deadLetterPermanently(
  * acontece para uma execução que não é dona da linha.
  */
 export async function dispatchNextOutbox(sender: OutboxSender, options: OutboxDispatchOptions = {}): Promise<OutboxDispatchResult> {
-  const job = await claimOutboxJob({ operations: options.operations });
+  // `jobId` estreita o claim a um job conhecido (isolamento de teste); ausente —
+  // como em todo o perfil de produção — o claim segue genérico por operação.
+  const job = await claimOutboxJob(
+    options.jobId
+      ? { operations: options.operations, jobId: options.jobId }
+      : { operations: options.operations },
+  );
   if (!job) return { status: 'empty' };
   // Lease completo devolvido pelo claim: sem geração não há fence possível
   // (ver migration 0036) — falha fechada em vez de liquidar às cegas.
