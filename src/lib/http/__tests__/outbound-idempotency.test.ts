@@ -3,11 +3,15 @@
  *
  * Claim estruturado (`claimIdempotencyKey`) mockado; prova:
  * claimed→executa, completed→dedup, in_progress/retry_after→ConflictError,
- * infra→fail-open. Conflito legítimo NUNCA vira fail-open silencioso.
+ * infra→FAIL-CLOSED. Conflito legítimo NUNCA vira fail-open silencioso.
  *
  * E4 (HIGH-1): entrega não confirmada (`isDeliveryUnknown`) marca o claim
  * `unknown` — TERMINAL, sem retry por TTL — e o replay devolve
  * `deliveryUnknown` sem executar o handler e sem reportar sucesso.
+ *
+ * E4 (fail-closed no claim): falha de infra (`IdempotencyInfraError`) no claim
+ * RELANÇA antes de qualquer handler — enviar sem dedup seria exatamente o
+ * duplicate-send que o claim existe para impedir.
  */
 
 import {
@@ -186,14 +190,40 @@ describe('outbound-idempotency (A3 review)', () => {
     expect(mockFailed).toHaveBeenCalledWith('whatsapp:send:c1:m3', 'provider down', 600);
   });
 
-  it('infra indisponível → fail-open: envia sem dedup (só IdempotencyInfraError)', async () => {
+  it('falha de infra no claim → FAIL-CLOSED: IdempotencyInfraError, handler NÃO executa', async () => {
     mockClaim.mockRejectedValueOnce(new IdempotencyInfraError('db offline'));
     const handler = jest.fn().mockResolvedValueOnce({ success: true });
 
-    const out = await withOutboundIdempotency('whatsapp:send:c1:m4', handler);
+    await expect(withOutboundIdempotency('whatsapp:send:c1:m4', handler)).rejects.toBeInstanceOf(
+      IdempotencyInfraError,
+    );
+    // Sem claim NÃO há dispatch: enviar sem dedup (fail-open) seria o
+    // duplicate-send que o claim existe para impedir.
+    expect(handler).not.toHaveBeenCalled();
+    expect(mockDispatching).not.toHaveBeenCalled();
+  });
 
-    expect(out).toEqual({ deduped: false, result: { success: true } });
-    expect(handler).toHaveBeenCalledTimes(1);
+  it('falha de infra no claim NUNCA alcança o provider (erro antes do handler)', async () => {
+    mockClaim.mockRejectedValueOnce(new IdempotencyInfraError('db offline'));
+    const order: string[] = [];
+    const handler = jest.fn(async () => {
+      order.push('handler');
+      return { success: true };
+    });
+
+    const err = await withOutboundIdempotency('whatsapp:send:c1:m8', handler).catch((e) => e);
+    order.push('rejected');
+
+    expect(err).toBeInstanceOf(IdempotencyInfraError);
+    expect(order).toEqual(['rejected']);
+  });
+
+  it('erro não-idempotência no claim propaga sem tratar como infra', async () => {
+    mockClaim.mockRejectedValueOnce(new TypeError('bad claim input'));
+    const handler = jest.fn().mockResolvedValueOnce({ success: true });
+
+    await expect(withOutboundIdempotency('whatsapp:send:c1:m9', handler)).rejects.toBeInstanceOf(TypeError);
+    expect(handler).not.toHaveBeenCalled();
   });
 
   it('repassa completedTtlMs ao claim', async () => {

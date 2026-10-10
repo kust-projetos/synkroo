@@ -11,8 +11,8 @@ import { sendWhatsApp as channelSendWhatsApp, type SendResult } from './channel-
 
 export type { SendResult };
 
-export async function sendWhatsApp(to: string, text: string): Promise<SendResult> {
-  return channelSendWhatsApp(to, text);
+export async function sendWhatsApp(to: string, text: string, idempotencyKey?: string): Promise<SendResult> {
+  return channelSendWhatsApp(to, text, idempotencyKey);
 }
 
 export async function sendInstagram(_to: string, _text: string): Promise<SendResult> {
@@ -20,14 +20,24 @@ export async function sendInstagram(_to: string, _text: string): Promise<SendRes
   return { success: false, error: 'Instagram outbound not yet implemented' };
 }
 
+/**
+ * Envia por canal.
+ *
+ * `idempotencyKey` (opcional) é repassado SOMENTE ao WhatsApp: ancora a
+ * operação lógica (WAHA + fallback sidecar sob um único claim) para que um
+ * retry do mesmo job não reenvie ao provider. Instagram (stub legado) e web
+ * preservam os contratos existentes — nenhuma idempotência é inventada para
+ * o stub não implementado.
+ */
 export async function sendByChannel(
   channel: 'whatsapp' | 'instagram' | 'web',
   to: string,
   text: string,
+  idempotencyKey?: string,
 ): Promise<SendResult> {
   switch (channel) {
     case 'whatsapp':
-      return sendWhatsApp(to, text);
+      return sendWhatsApp(to, text, idempotencyKey);
     case 'instagram':
       return sendInstagram(to, text);
     case 'web':

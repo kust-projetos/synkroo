@@ -24,9 +24,16 @@
  *   ocorrido; handler NÃO executa e NÃO se reporta sucesso — reconciliação manual;
  * - `in_progress`/`retry_after` → lança `OutboundSendConflictError` (NÃO envia
  *   e NÃO reporta sucesso: o caller decide — job retry ou `conflict` da action);
- * - falha de infra no claim → fail-open: warn + executa sem dedup (mensageria
- *   prioriza disponibilidade; o dedup é best-effort). Conflito legítimo NUNCA
- *   é tratado como infra (ver `IdempotencyInfraError`).
+ * - falha de infra no claim → FAIL-CLOSED: `IdempotencyInfraError` é
+ *   relançada ANTES de qualquer handler/sidecar/provider. Sem claim não há
+ *   dispatch — enviar sem dedup seria justamente o duplicate-send que o claim
+ *   existe para impedir. Conflito legítimo NUNCA é tratado como infra
+ *   (ver `IdempotencyInfraError`).
+ *
+ * Exceção legada explícita: `runIdempotentSend` SEM chave continua enviando
+ * direto (compatibilidade); a política fail-closed vale para toda operação
+ * COM chave. A política fail-open do `withIdempotency` genérico
+ * (`src/lib/idempotency`) permanece onde está documentada — ver ADR-BASE-16.
  *
  * E4 (HIGH-1) — garantia terminal do dispatch. Os marcos finais são
  * best-effort: se a escrita de `unknown`/`failed` falhar DEPOIS do dispatch, a
@@ -174,9 +181,17 @@ export async function withOutboundIdempotency<T>(
       completedTtlMs: opts?.completedTtlMs,
     });
   } catch (err) {
+    // FAIL-CLOSED: sem claim NÃO há dispatch. Falha de infra (DB indisponível,
+    // store inalcançável) implica dedup indisponível — e enviar sem dedup é
+    // exatamente o duplicate-send que o claim existe para impedir (retry de
+    // job, redelivery, dupla execução concorrente). O erro tipado propaga
+    // ANTES de qualquer handler/sidecar/provider para o caller decidir
+    // (retry do job / `conflict` / `internal` na action).
     if (err instanceof IdempotencyInfraError) {
-      dbLogger.warn('outbound-idempotency: claim unavailable (infra); sending without dedup', { jobType });
-      return { deduped: false, result: await handler() };
+      dbLogger.warn(
+        'outbound-idempotency: claim unavailable (infra); dispatch blocked (fail-closed)',
+        { jobType },
+      );
     }
     throw err;
   }

@@ -86,6 +86,34 @@ export interface SendMediaMessageInput {
   fileName?: string;
 }
 
+/**
+ * Códigos ESTÁVEIS de erro do provider (allowlist fechada).
+ *
+ * REVIEW-A2A3/PII: `data.message` e `data.error` da Evolution/WAHA são texto
+ * LIVRE do provider — podem ecoar corpo de requisição, número de telefone,
+ * texto da mensagem ou token. O logger só redige por CHAVE
+ * (`SENSITIVE_LOG_KEYS`), então uma string não protege nada: qualquer valor
+ * colocado em `error:` seria serializado cru no log.
+ *
+ * Por isso o log carrega APENAS o status HTTP e um destes códigos fixos.
+ * Nenhum caminho deriva código de conteúdo provider-controlled.
+ */
+const PROVIDER_ERROR_CODES: Record<number, string> = {
+  400: 'PROVIDER_BAD_REQUEST',
+  401: 'PROVIDER_UNAUTHORIZED',
+  403: 'PROVIDER_FORBIDDEN',
+  404: 'PROVIDER_NOT_FOUND',
+  409: 'PROVIDER_CONFLICT',
+  413: 'PROVIDER_PAYLOAD_TOO_LARGE',
+  422: 'PROVIDER_UNPROCESSABLE',
+  429: 'PROVIDER_RATE_LIMITED',
+};
+
+/** Código sanitizado do status HTTP para o log (allowlist acima). */
+function providerErrorCode(status: number): string {
+  return PROVIDER_ERROR_CODES[status] ?? (status >= 500 ? 'PROVIDER_SERVER_ERROR' : 'PROVIDER_ERROR');
+}
+
 export class EvolutionApiService extends EventEmitter {
   private baseUrl: string;
   private apiKey: string;
@@ -133,11 +161,16 @@ export class EvolutionApiService extends EventEmitter {
         data = {};
       }
       if (!response.ok) {
-        // REVIEW-A2A3: nunca logar o body do provider (pode conter apikey e
-        // outros segredos) — apenas status + mensagem sanitizada. O logger
-        // serializa message/stack (redige chaves sensíveis) e ignora `cause`.
+        // REVIEW-A2A3/PII: nunca logar o body do provider — `data.message` /
+        // `data.error` são texto livre (corpo, telefone, texto da mensagem,
+        // token) e o logger só redige por chave, não por valor. O log carrega
+        // somente status HTTP + código da allowlist. O retorno ao caller
+        // preserva o contrato (`error` com a mensagem do provider).
         const providerMessage = (data.message as string) || (data.error as string) || `HTTP ${response.status}`;
-        whatsappLogger.error('Evolution API error', null, { status: response.status, error: providerMessage });
+        whatsappLogger.error('Evolution API error', null, {
+          status: response.status,
+          errorCode: providerErrorCode(response.status),
+        });
         return { success: false, error: providerMessage };
       }
       return { success: true, data: data as T };

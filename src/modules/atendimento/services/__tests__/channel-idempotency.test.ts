@@ -30,7 +30,7 @@ jest.mock('@/lib/logger', () => ({
 
 import { sendWhatsApp, sendInstagram } from '../channel-service';
 import { buildOutboundIdempotencyKey, OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
-import { markIdempotencyKeyCompleted, markIdempotencyKeyDispatching, markIdempotencyKeyUnknown } from '@/lib/idempotency';
+import { claimIdempotencyKey, markIdempotencyKeyCompleted, markIdempotencyKeyDispatching, markIdempotencyKeyUnknown } from '@/lib/idempotency';
 
 describe('channel-service outbound idempotency (A3)', () => {
   const originalEnv = process.env;
@@ -69,7 +69,7 @@ describe('channel-service outbound idempotency (A3)', () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it('sendWhatsApp sem chave mantém envio direto (2 chamadas)', async () => {
+  it('sendWhatsApp sem chave mantém envio direto (2 chamadas, claim NUNCA acontece)', async () => {
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -80,6 +80,9 @@ describe('channel-service outbound idempotency (A3)', () => {
     await sendWhatsApp('11999999999', 'A');
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
+    // Compatibilidade legada: `runIdempotentSend` sem chave continua direto —
+    // a política fail-closed vale para operações COM chave.
+    expect(claimIdempotencyKey).not.toHaveBeenCalled();
   });
 
   it('sendInstagram duplicado (mesma chave) → Graph chamado 1 vez', async () => {

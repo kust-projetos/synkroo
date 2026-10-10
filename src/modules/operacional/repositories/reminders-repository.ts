@@ -10,7 +10,7 @@ import { appointmentReminderConfigs, appointmentReminders, procedureTypes, appoi
 import { patients } from '../schema/patients';
 import { dentists, procedures } from '../schema/clinical';
 import { clinics } from '@/lib/db/schema/core';
-import { eq, and, isNull } from 'drizzle-orm';
+import { and, eq, exists, isNull } from 'drizzle-orm';
 
 export async function findReminderConfigById(id: string) {
   const db = getDb();
@@ -72,14 +72,42 @@ export async function createQueuedReminder(params: {
   });
 }
 
-export async function markReminderDelivered(reminderId: string, messageId?: string) {
-  const [row] = await getDb().update(appointmentReminders).set({
+export async function markReminderDelivered(
+  reminderId: string,
+  /**
+   * Tenant do job de outbox que liquidou o envio. O lembrete é casado TAMBÉM
+   * pelo tenant via `EXISTS` em `appointments` (mesma transação/executor):
+   * um `reminderId` de outra clínica não atualiza linha nenhuma — devolve
+   * `null` para o hook falhar fechado em vez de marcar entregue.
+   */
+  clinicId: string,
+  messageId?: string,
+  /**
+   * Executor transacional opcional. Quando presente (hook de liquidação do
+   * outbox, E4), a escrita entra na MESMA transação do UPDATE cercado que
+   * confirmou a entrega: comita ou desfaz junto com o `delivered`. Ausente,
+   * usa o client padrão.
+   */
+  tx: any = getDb(),
+) {
+  const [row] = await tx.update(appointmentReminders).set({
     status: 'sent',
     messageId: messageId ?? null,
     sentAt: new Date(),
   }).where(and(
     eq(appointmentReminders.id, reminderId),
     eq(appointmentReminders.status, 'queued'),
+    // Subquery correlata na MESMA transação: o compromisso do lembrete precisa
+    // pertencer à clínica do job. Sem esse cerco, um payload com `reminderId`
+    // de outro tenant marcaria entregue um lembrete alheio.
+    exists(
+      tx.select({ id: appointments.id })
+        .from(appointments)
+        .where(and(
+          eq(appointments.id, appointmentReminders.appointmentId),
+          eq(appointments.clinicId, clinicId),
+        )),
+    ),
   )).returning({ id: appointmentReminders.id });
   return row ?? null;
 }
