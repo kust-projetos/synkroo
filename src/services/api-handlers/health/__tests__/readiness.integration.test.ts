@@ -49,7 +49,7 @@ describeIntegration('checkReadiness contra PostgreSQL migrado (regressão E2a)',
     expect(typeof result.durationMs).toBe('number');
   });
 
-  it('o ledger aplicado casa com EXPECTED_MIGRATIONS (36/36)', async () => {
+  it('o ledger aplicado casa com EXPECTED_MIGRATIONS', async () => {
     const status = await checkMigrations();
 
     expect(status).toEqual({
