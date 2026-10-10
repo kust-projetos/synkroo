@@ -301,15 +301,24 @@ export async function sendWhatsAppMessage(
 
 // ─── Channel abstraction ───────────────────────────────────────
 
-/** Dispatch outbound message by channel. */
+/**
+ * Dispatch outbound message by channel.
+ *
+ * `idempotencyKey` (opcional) é ancorado pelo caller em uma operação lógica
+ * estável (ex.: job do outbox) e vale SOMENTE para WhatsApp: a chave é
+ * reivindicada antes de qualquer dispatch e cobre WAHA + fallback sidecar sob
+ * o MESMO claim. Instagram e web preservam os contratos existentes (sem
+ * chave).
+ */
 export async function sendByChannel(
   channel: 'whatsapp' | 'instagram' | 'web',
   to: string,
   text: string,
+  idempotencyKey?: string,
 ): Promise<SendResult> {
   switch (channel) {
     case 'whatsapp':
-      return sendWhatsApp(to, text);
+      return sendWhatsApp(to, text, idempotencyKey);
     case 'instagram':
       return sendInstagram(to, text);
     case 'web':

@@ -115,9 +115,18 @@ export async function processAllReminders(): Promise<{ processed: number; errors
           message,
         });
         processed++;
-      } catch (err) {
+      } catch {
         errors++;
-        whatsappLogger.error(`Failed to send reminder for appointment ${appt.id}`, { error: err });
+        // REVIEW (segurança): o erro bruto do insert no enfileiramento NÃO
+        // pode ir para o log. O Drizzle serializa a query e os parâmetros do
+        // statement, e o enqueue carrega justamente telefone e mensagem do
+        // paciente — o logger só redige por CHAVE, não por valor, então
+        // qualquer texto do erro vazaria PII. Fica apenas o evento/código
+        // FIXO e o id do compromisso (identificador interno, sem PII).
+        whatsappLogger.error('Reminder enqueue failed', null, {
+          event: 'REMINDER_ENQUEUE_FAILED',
+          appointmentId: appt.id,
+        });
       }
     }
   }

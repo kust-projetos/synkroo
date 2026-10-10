@@ -21,6 +21,20 @@ export const outboxJobs = pgTable('outbox_jobs', {
   payload: jsonb('payload').notNull(),
   status: text('status').notNull().default('pending'),
   attempts: integer('attempts').notNull().default(0),
+  /**
+   * Geração do lease do claim — fence monotônica da liquidação
+   * (migration 0036). `claimOutboxJob` incrementa a geração no UPDATE atômico
+   * que rouba a linha; cada liquidação (`markOutboxDelivered/Retry/Deferred/
+   * DeadLetter`) casa TAMBÉM `claim_generation = <geração devolvida pelo
+   * claim>` e só altera a linha quando o par casa.
+   *
+   * `attempts` NÃO pode servir de fence: o defer devolve uma tentativa
+   * (`GREATEST(attempts - 1, 0)`), então o valor volta a repetir depois de um
+   * reclaim — a condição voltaria a casar com um lease já perdido (ABA) e a
+   * liquidação antiga liquidaria a execução nova. `claim_generation` é
+   * monótona (nunca decrementada por nenhum marco de liquidação).
+   */
+  claimGeneration: integer('claim_generation').notNull().default(0),
   nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).defaultNow(),
   lastErrorCode: text('last_error_code'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),

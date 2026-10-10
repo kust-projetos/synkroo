@@ -50,7 +50,7 @@ Backfill de volume relevante **nunca** vai dentro de migration comum do
   ou re-expand + re-backfill. É por isso que contract tem as cinco
   condições acima.
 
-## Inventário atual (31 migrations, `0000`–`0031`)
+## Inventário atual (36 migrations, `0000`–`0036`)
 
 Verificação estática por `DROP`/`DELETE`/`TRUNCATE` ativos (não comentados):
 
@@ -60,12 +60,28 @@ Verificação estática por `DROP`/`DELETE`/`TRUNCATE` ativos (não comentados):
 | `0016_consent_tenant_unique.sql` | `DROP INDEX` antigo + `CREATE UNIQUE INDEX` tenant-scoped, com guarda de duplicatas pré-voo | Troca de índice, sem perda de dados. Histórico. |
 | `0022_far_stature.sql` | `DROP INDEX` + recriação normalizada + `UPDATE` de normalização de e-mail, com guarda pré-voo | Troca de índice + normalização guardada. Histórico. |
 | `0008_remarkable_gamma_corps.sql` | `DROP CONSTRAINT` de check redundante | Remoção de constraint, sem perda de dados. Histórico. |
-| demais (`0001`, `0002`, `0004`–`0007` etc.) | `DROP` apenas em comentários `--` (DOWN notes) | Não executam nada. Sem efeito. |
+| `0036_outbox_claim_generation.sql` | `ADD COLUMN IF NOT EXISTS claim_generation integer DEFAULT 0 NOT NULL` | **Expand-only, aditiva e re-rodável** — fence monotônica do lease do outbox (E4). Sem dado backfillado: linhas existentes nascem em 0 pelo próprio `DEFAULT`. DOWN é só comentário; rollback real = forward-fix/restore. |
+| demais (`0001`, `0002`, `0004`–`0007`, `0034`, `0035` etc.) | `DROP` apenas em comentários `--` (DOWN notes) | Não executam nada. Sem efeito. |
 
-Nenhum `DELETE FROM` / `TRUNCATE` ativo em nenhuma das 31 migrations.
+Nenhum `DELETE FROM` / `TRUNCATE` ativo em nenhuma das 36 migrations.
+
+**Ledger esperado: 36** registros em `drizzle.__drizzle_migrations`
+(`EXPECTED_MIGRATIONS` em `src/services/api-handlers/health/db.ts`, validado
+por `src/__tests__/api/health/route.test.ts` contra
+`src/lib/db/migrations/meta/_journal.json` — 36 entradas de journal, idx 0–36,
+com o gap herdado `0017`).
 
 **Conclusão: nenhuma migration destrutiva PENDENTE.** Os contracts
 existentes já foram aplicados e não têm consumidores ativos. Próximo
 contract futuro deve seguir as cinco condições acima, e o job
-`migrations-from-zero` do CI garante que a cadeia `0000`→`0031` aplica
+`migrations-from-zero` do CI garante que a cadeia `0000`→`0036` aplica
 limpa a partir de banco vazio e é idempotente.
+
+## Nota histórica (E0 — snapshot `d532ff6e`)
+
+O relatório `docs/audit/2026-10-08-vnext-integration-reconciliation.md` fixa
+o ledger esperado em **35** com journal idx 0–35. Aquele número é o estado
+CONGELADO daquele snapshot e permanece correto como registro histórico; ele
+não foi reescrito. O valor vigente passa a 36 a partir da migration
+`0036_outbox_claim_generation.sql` (E4 — fence de lease do outbox), refletida
+em `EXPECTED_MIGRATIONS`, no journal e neste inventário.
