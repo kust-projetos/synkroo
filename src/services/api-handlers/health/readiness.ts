@@ -14,7 +14,12 @@ export interface ReadinessResult {
 /**
  * Readiness real (DB acessível via query barata + migrations compatíveis
  * contra o ledger do Drizzle). Todas as queries rodam numa transação com
- * `SET LOCAL statement_timeout` (3s). Nunca lança: falha de inicialização
+ * `set_config('statement_timeout', <timeout>, true)` (3s) — equivalente a
+ * `SET LOCAL statement_timeout`, mas aceitando o valor como parâmetro de
+ * protocolo. `SET LOCAL statement_timeout = $1` é rejeitado pelo PostgreSQL
+ * (o valor de SET não admite bind parameter), o que faria a transação
+ * falhar mesmo com o banco são e virar falso negativo de `db-unreachable`.
+ * Nunca lança: falha de inicialização
  * do client, timeout ou ledger incompleto viram resultado fechado com
  * motivo estático (sem `error.message` do driver).
  */
@@ -25,7 +30,9 @@ export async function checkReadiness(): Promise<ReadinessResult> {
     const db = getDb();
     let migrationsComplete = false;
     await db.transaction(async (tx) => {
-      await tx.execute(sql`SET LOCAL statement_timeout = ${READINESS_STATEMENT_TIMEOUT}`);
+      // is_local=true: escopo da transação (equivale a SET LOCAL), reverte
+      // no COMMIT/ROLLBACK — sem vazar o timeout para a sessão do pool.
+      await tx.execute(sql`SELECT set_config('statement_timeout', ${READINESS_STATEMENT_TIMEOUT}, true)`);
       await tx.execute(sql`SELECT 1`);
       migrationsComplete = (await checkMigrations(tx)).complete;
     });
