@@ -27,6 +27,7 @@
  *     npm run test:integration:run -- src/lib/outbox/__tests__/outbound-delivery-safety.integration.test.ts
  */
 
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { closeDb, getDb } from '@/lib/db/client';
 import { dispatchNextOutbox } from '@/lib/outbox/dispatch-outbox';
@@ -44,9 +45,11 @@ import type { WhatsAppProviderAdapter } from '@/modules/atendimento/integrations
 jest.setTimeout(90_000);
 
 const describeIntegration = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
-const clinicId = '00000000-0000-0000-0000-000000000001';
+// IDs randômicos por processo: outras suites de integração compartilham o
+// mesmo synkroo_test e algumas limpam outbox por clinic_id.
+const clinicId = randomUUID();
 /** Segunda clínica: job de outbox de um tenant apontando lembrete de outro. */
-const otherClinicId = '00000000-0000-0000-0000-000000000002';
+const otherClinicId = randomUUID();
 const prefix = `outbound-safety-integration:${process.pid}:${Date.now()}`;
 // Isolamento entre arquivos de integração: o harness executa suites em
 // paralelo contra o mesmo `synkroo_test`; nome exclusivo impede que outro
@@ -190,6 +193,7 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
   });
 
   afterAll(async () => {
+    await pool.query('DELETE FROM clinics WHERE id = ANY($1::uuid[])', [[clinicId, otherClinicId]]);
     await pool.end();
     await closeDb();
   });

@@ -21,6 +21,7 @@
  *     npm run test:integration:run -- src/lib/outbox/__tests__/outbox-lease-fencing.integration.test.ts
  */
 
+import { randomUUID } from 'node:crypto';
 import { Pool } from 'pg';
 import { closeDb, getDb } from '@/lib/db/client';
 import {
@@ -34,7 +35,9 @@ import {
 } from '@/lib/outbox/outbox-repository';
 
 const describeIntegration = process.env.RUN_INTEGRATION_TESTS === '1' ? describe : describe.skip;
-const clinicId = '00000000-0000-0000-0000-000000000002';
+// Isolamento por processo: outras suites usam o mesmo synkroo_test e podem
+// limpar jobs por clinic_id durante o harness completo.
+const clinicId = randomUUID();
 const prefix = `outbox-lease-fencing:${process.pid}:${Date.now()}`;
 // Isolamento entre arquivos de integração: o harness usa o mesmo banco de
 // teste em paralelo; o nome exclusivo evita claims cruzados de outras suites.
@@ -83,6 +86,7 @@ describeIntegration('outbox lease fencing (claim_generation) against PostgreSQL'
   });
 
   afterAll(async () => {
+    await pool.query('DELETE FROM clinics WHERE id = $1', [clinicId]);
     await pool.end();
     await closeDb();
   });
