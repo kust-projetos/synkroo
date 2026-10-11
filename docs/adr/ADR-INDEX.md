@@ -1,7 +1,7 @@
 # ADR Index — Synkroo Foundations
 
-**Última atualização:** 2026-09-14
-**Verificação:** remediation gates ✅ | outbox scheduled consumer ✅ | production audit high/critical ✅
+**Última atualização:** 2026-10-11
+**Verificação:** estado herdado de 2026-09-14 (remediation gates ✅ | outbox scheduled consumer ✅ | production audit high/critical ✅) — **não reexecutado** em 2026-10-10/11; a atualização destas datas cobre apenas o índice de ADRs
 
 | ID | Decisão | Status | Gap |
 |---|---|---|---|
@@ -25,9 +25,13 @@
 | [ADR-BASE-18](ADR-BASE-18-ai-control-plane.md) | AI Control Plane — Event/Run/Outcome como fundação da autonomia | 🏗️ Decidido (fundação P4) | Implementação tranche a tranche (writer/reader de runtime) |
 | [ADR-BASE-19](ADR-BASE-19-budget-send-legacy-exception.md) | Exceção permanente: send legado de orçamentos fora de Action | ✅ Documentado (exceção) | Extinção bloqueada até decisão de produto |
 | [ADR-BASE-20](ADR-BASE-20-action-contracts-deny-audit.md) | Contratos de Action: DENY absoluto, ok/unknown e auditoria fail-closed | ✅ Implementado (tranche E3) | Nenhum |
+| [ADR-BASE-21](ADR-BASE-21-contabo-postgres-private-connectivity.md) | Conectividade privada do PostgreSQL (Contabo): no-go da exposição `0.0.0.0:15433`; destino Tunnel + Access | 🟡 Proposta condicional — **não implementada** | Gates pendentes de autorização no caminho único D3 → D4 (D3 verificado ativo é pré-requisito do corte; G1–G5 na ordem; Fase 2 do corte em produção em janela de produção autorizada separadamente; exposição atual NO-GO até o corte); Workers VPC só após gates conta/plano/TLS |
 | [ADR-LLM-01](adr-llm-embedding.md) | Escolha de LLM Provider, Modelo de Embedding e Dimensão pgvector | ✅ Implementado | Nenhum |
 
 ## Gates
+
+> Estado herdado do inventário de 2026-09-14; os números abaixo **não foram
+> reexecutados** desde então (a atualização de 2026-10-10 cobriu apenas o índice de ADRs).
 
 | Gate | Meta | Atual |
 |---|---|---|
@@ -36,7 +40,7 @@
 | Test suites | 100% verde | ✅ 201/201 |
 | Coverage | ≥80% | 🟡 53% (floor previne regressão) |
 | Contract tests | HTTP passando | ✅ 17/17 + boundary 8/8 |
-| ADRs documentados | 14/14 | ✅ todos atualizados |
+| ADRs documentados | 22/22 | ✅ todos no índice (BASE-21 é proposta condicional, não implementada) |
 
 ## Coverage Roadmap
 
