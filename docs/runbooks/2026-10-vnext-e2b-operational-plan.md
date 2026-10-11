@@ -40,6 +40,85 @@ _Entrada:_ plano revisado. _Saída:_ PRs necessários em `main`, CI pós-merge v
 **Fase 2 — Rede (janela separada, owner-approved; A-REDE).** Contenção D3 → D4 Tunnel+Access, staging primeiro. Produção: conectividade privada provada (probe pelo par canônico do §5, pelo caminho privado) **antes** do unpublish da porta. **Probe pré-migration:** com o ledger em 33, a prova exigida é `SELECT 1` autenticado TLS/SCRAM + leitura do ledger; readiness `migrations-incomplete` em 33/36 é **aceita** (prova o caminho, não o ledger) e a leitura antiga 33/33 (contrato `EXPECTED_MIGRATIONS=33`, anterior a 0034–0036) é apenas histórico. Só `db-unreachable`/falha de auth/TLS reprova. Este gate **não** exige 36/36 — exigir seria circular: o ledger só chega a 36 na fase 5, que depende desta conectividade. Sem rollback público irrestrito.
 _Entrada:_ fase 1 verde. _Saída:_ 15433 inacessível fora do caminho autorizado, em ambos os ambientes.
 
+**Fase 2 — Janelas A-REDE-1/2/3 (autorização A-REDE desdobrada; approved pelo owner por janela).**
+A-REDE autoriza apenas rede/contenção (fase 2); nada de papéis, restore, migrations ou rollout.
+Cada janela tem entrada, prova e rollback próprios; pular janela reprova a fase.
+
+- **A-REDE-1 — Contenção D3 urgente (target Contabo).** _Entrada:_ egresso real do
+  Hyperdrive **identificado no próprio target** (observar via `log_connections`/
+  `pg_stat_activity` em janela de teste — **não copiar** os ranges da source; amostra
+  não é universo). _Execução:_ filtro `DOCKER-USER` com match pós-DNAT canônico
+  (`-d <ip-container> --dport 5432`), `ACCEPT` só do egresso observado + `DROP`
+  final, em **IPv4 e IPv6**; script idempotente de reaplicação + persistência
+  pós-recreate/reboot. _Anti-lockout:_ aplicar em janela com SSH reserva ativo;
+  provar o **positivo** (staging `/api/internal/readiness` verde pelo filtro)
+  **antes** de fechar o `DROP` final; rollback imediato pronto (`iptables -F
+  DOCKER-USER` + regras ufw originais intactas). _Prova:_ G2 (positivo+negativo
+  nas duas famílias) e G3 (persiste após recreate/reboot) verdes. _Rollback:_
+  contido — remover o filtro devolve ao estado NO-GO anterior, nunca a um estado
+  novo; sem D3 verde não há A-REDE-2.
+- **A-REDE-2 — Tunnel+Access em staging (não toca produção).** _Entrada:_ A-REDE-1
+  verde (D3 ativo). _Execução:_ subir `cloudflared` no target, política Access
+  *Service Auth* com **tokens dedicados de staging** (nunca reutilizar o futuro
+  token de produção), Hyperdrive **de staging** reapontado pelo túnel via
+  mecanismo **isolado por ambiente** — gap conhecido: `update-hyperdrive.ts`
+  altera staging+produção na mesma execução (fase 3, §4); A-REDE-2 exige driver
+  PATCH/novo que atualize **só staging** (dry-run → aplicação) antes do corte.
+  _Prova:_ G4 Fase 1 — smoke verde pelo túnel (readiness autenticado, critério
+  G1-pre nesta janela) + negativo Access em **dois casos separados** (token
+  ausente negado; token inválido negado). _Rollback:_ reverter Hyperdrive de
+  staging ao endpoint atual **sob D3 ativo** (G5) — nunca sem filtro.
+- **A-REDE-3 — Corte de produção (janela de produção autorizada à parte).**
+  _Entrada:_ A-REDE-2 verde + janela de produção explícita. _Execução:_ readiness
+  real de produção pelo túnel verde (critério G1 da janela) → **só então** remover
+  a porta publicada `0.0.0.0:15433` e apontar o Hyperdrive de produção só pelo
+  túnel. _Prova:_ G4 Fases 2–3 (readiness com query real nos dois ambientes,
+  probes inbound negativos v4+v6, sem porta publicada, persistência do
+  tunnel-only após recreate **e** reboot). _Rollback:_ **sem retorno à exposição
+  irrestrita** — após a porta removida, corrige-se pelo túnel (G5); recriar a
+  publicação pública é proibido em qualquer caminho. D3 só é removido depois de
+  G4 Fase 3 completo em produção.
+
+**Risco porta 5433 (registrado, fora das janelas).** `5433/tcp`
+(painel-postgres) segue `ALLOW IN Anywhere` — pendência consciente já registrada
+(`docs/ops/vps-access.md`), **separada** das janelas A-REDE-1/2/3: não amplia
+nenhuma janela nem condiciona G2–G4 (que tratam só do caminho do PostgreSQL
+15433→5432). Decisão sobre 5433 (fechar, filtrar ou manter com rota alternativa
+`painel-cloudflared`) é janela própria do owner.
+
+**Deriva E6 — regra de recreate (ADR-BASE-21 E6).** O compose versionado é
+tunnel-only (sem `ports:` + `cloudflared`); o container vivo publica
+`0.0.0.0:15433` sem `cloudflared`. Impacto: `compose up`/recreate a partir do
+repo **remove** a porta (quebra o Hyperdrive até D4 existir); recreate a partir
+do compose local do host **reexpõe** `0.0.0.0` sem filtro (E4). Regra: **nenhum
+recreate sem reconciliar antes** — até A-REDE-3, o host e o repo precisam
+descrever o mesmo estado ou a diferença estar registrada como exceção
+consciente; após A-REDE-3, o compose versionado volta a ser a fonte (G4 Fase 3
+passo 8 ancora a persistência do não-exposição nele).
+
+**Probes read-only do HBA efetivo no Contabo (qualquer janela A-REDE, sem
+mutação, via `docker exec` + `psql` administrativo):**
+
+```sql
+SHOW hba_file;            -- deve apontar o pg_hba.conf versionado/montado
+SELECT * FROM pg_hba_file_rules ORDER BY rule_number;  -- hostssl apenas fora de local; primeira regra que casa vence
+SHOW ssl;                 -- on
+SELECT * FROM pg_stat_ssl; -- sessões app com ssl=t (prova de criptografia no caminho real)
+```
+
+Evidência HBA/TLS em Postgres descartável local (2026-10-11, imagem
+`postgres:17`, credenciais sintéticas, container+volume removidos após): HBA
+espelhado da produção (`local trust` + `hostssl scram-sha-256` 127.0.0.1/::1,
+`hba_file` explícito) — `pg_hba_file_rules` com 3 regras hostssl-only;
+`ssl=on`; sessão `psql sslmode=require` com `ssl=t` em `pg_stat_ssl`;
+`sslmode=disable` rejeitado (`no pg_hba.conf entry ... no encryption`);
+senha errada rejeitada; socket local sem senha OK (trust pinado); linha
+`reject` inserida em primeiro lugar bloqueou TLS+SCRAM válido (precedência
+first-match provada) e foi removida; `pg_isready` + `psql SELECT 1` compatíveis;
+`docker restart` com recovery verde e regras persistidas (arquivo no volume).
+Prova de forma, não do host: o Contabo só se prova pelos probes read-only
+acima, em janela autorizada.
+
 **Fase 3 — Papéis de runtime (janela separada; A-PAPEIS).** Credenciais admin/app distintas; criar e conceder em staging, smoke de worker, Hyperdrive do staging, confirmar `pg_stat_activity`; só então produção. Não alterar credenciais existentes; pools drenam naturalmente. Dependência: capacidade de atualizar Hyperdrive **por ambiente**. **Probe pré-migration:** o smoke de worker contra staging roda com ledger 33 e aceita `migrations-incomplete` (33/36) — prova auth/TLS/papel, não completude de migrations; só `db-unreachable` reprova. O gate 36/36 é pós-fase 5.
 _Entrada:_ fase 2 verde — caminho privado provado (papéis trafegam sobre a rede privada, nunca sobre porta pública). _Saída:_ aplicação conectando por papéis novos, sem flags, em ambos os ambientes.
 
