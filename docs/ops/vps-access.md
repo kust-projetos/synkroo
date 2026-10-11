@@ -290,6 +290,10 @@ cat > /root/.secrets/synkroo-prod-tunnel-token
 chmod 600 /root/.secrets/synkroo-prod-tunnel-token
 # 3. Apontar o compose e validar o render SEM segredo (só paths):
 export TUNNEL_TOKEN_FILE_PATH=/root/.secrets/synkroo-prod-tunnel-token
+# 3a. Remover o TUNNEL_TOKEN legado do .env do host: com env_file, qualquer
+#     var restante no .env é injetada no environment do container e visível
+#     em `docker inspect` — o token antigo não pode permanecer lá.
+sed -i '/^TUNNEL_TOKEN=/d' .env
 docker compose config --format json | grep -c 'tunnel_token'
 docker compose up -d
 docker inspect synkroo-prod-db-tunnel --format '{{json .Config.Cmd}}'
