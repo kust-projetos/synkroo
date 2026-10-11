@@ -106,6 +106,14 @@ describe('sanitizeControlText', () => {
     expect(clean).toContain('[redacted]');
   });
 
+  it('redige par Bearer/token colado de header (sem `=`)', () => {
+    const clean = sanitizeControlText('auth Authorization: Bearer example_token_abcdef1234567890 done')!;
+    expect(clean).not.toContain('example_token_abcdef1234567890');
+    expect(clean).not.toContain('Bearer example_token');
+    expect(clean).toContain('[redacted]');
+    expect(sanitizeControlText('Bearer example_token_abcdef1234567890')!).toBe('Bearer [redacted]');
+  });
+
   it('aplica teto de tamanho', () => {
     expect(sanitizeControlText('ab '.repeat(200))!.length).toBe(200);
     // Run longo (sha/token) é redigido antes do teto.

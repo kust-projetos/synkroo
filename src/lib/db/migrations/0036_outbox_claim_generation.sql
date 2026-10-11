@@ -127,7 +127,10 @@ BEGIN
 	-- Identidade transacional do caller: gravada por
 	-- `set_config('outbox.claim_marker', ..., true)` na MESMA transação do
 	-- UPDATE. NULL = binário antigo / UPDATE solto sem posse do lease.
-	v_marker := current_setting('outbox.claim_marker', true);
+	-- `NULLIF(..., '')`: um GUC customizado pode sobreviver ao COMMIT como
+	-- string vazia numa conexão reutilizada pelo pool — vazio equivale a
+	-- ausente, nunca a identidade presente.
+	v_marker := NULLIF(current_setting('outbox.claim_marker', true), '');
 
 	-- Claim: pending→processing OU reclamo de stale. O status pode ficar em
 	-- 'processing' (reclamo), então a detecção também olha attempts e geração:

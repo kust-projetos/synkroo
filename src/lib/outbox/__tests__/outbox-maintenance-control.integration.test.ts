@@ -1098,4 +1098,30 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     await expect(markOutboxDelivered(claimed!.id, claimed!.claimGeneration)).resolves.toBe(true);
     expect((await row(enqueued!.id)).status).toBe('delivered');
   });
+
+  // ─── 13b. Marcador vazio equivale a ausente (GUC residual do pool) ─────────
+  it('GUC outbox.claim_marker vazio é tratado como ausente (legado passa fresh)', async () => {
+    const enqueued = await enqueueOutboxForTests(getDb(), {
+      clinicId, operation: OPERATION, businessKey: `${prefix}:empty-marker`, payload: { safe: true },
+    });
+    await forceDue(enqueued!.id);
+    // Simula conexão reutilizada cujo GUC sobreviveu vazio: legado sem release
+    // continua legado (passa com gate desarmado), nunca identidade inválida.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('SELECT set_config($1, $2, true)', ['outbox.claim_marker', '']);
+      await client.query(
+        `UPDATE outbox_jobs SET status='processing', attempts=attempts+1,
+           claim_generation=claim_generation+1, updated_at=NOW()
+         WHERE id=$1 AND status='pending'`,
+        [enqueued!.id],
+      );
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    expect((await row(enqueued!.id)).status).toBe('processing');
+    expect((await row(enqueued!.id)).claim_release).toBeNull();
+  });
 });

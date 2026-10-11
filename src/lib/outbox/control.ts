@@ -98,6 +98,10 @@ const CONTROL_REDACTIONS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\b\d{11}\b/g, '[redacted]'],
   [/\b\d{10}\b/g, '[redacted]'],
   [/\beyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[redacted]'],
+  // Par esquema/credencial sem `=` (ex.: `Bearer <token>` colado de um header).
+  // Vem ANTES da regra `chave=valor`: sem isso, `Authorization: Bearer <segredo>`
+  // teria só o esquema redigido (`Authorization=[redacted]`) e o segredo sobreviveria.
+  [/\bBearer\s+[A-Za-z0-9_\-.~+/=]+/gi, 'Bearer [redacted]'],
   [/\b(bearer|token|secret|password|passwd|pwd|api[_-]?key|authorization)\b\s*[:=]\s*\S+/gi, '$1=[redacted]'],
   [/\b[A-Za-z0-9]{40,}\b/g, '[redacted]'],
 ];
