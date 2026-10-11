@@ -182,10 +182,25 @@ describe('auth fail-closed fora do .env da VPS', () => {
     );
   });
 
-  test('flags explícitas resolvem sem depender do env', () => {
+  test('account-id explícito resolve com token do env; token nunca via opção/argv', () => {
     assert.deepEqual(
-      resolveCloudflareAuth({ env: {}, accountId: ACCOUNT, apiToken: TOKEN }),
+      resolveCloudflareAuth({ env: { CLOUDFLARE_API_TOKEN: TOKEN }, accountId: ACCOUNT }),
       { accountId: ACCOUNT, apiToken: TOKEN },
+    );
+    // Uma opção apiToken (ex-caminho do argv) não autoriza nada sozinha: o
+    // token é exigido do env mesmo quando a opção é passada.
+    assert.throws(
+      () =>
+        resolveCloudflareAuth({
+          env: { CLOUDFLARE_ACCOUNT_ID: ACCOUNT },
+          apiToken: 'tok-via-opcao',
+        }),
+      (err) => {
+        assert.equal(err.code, 'SYNKROO_CF_TOKEN_MISSING');
+        assert.match(err.message, /CLOUDFLARE_API_TOKEN is missing/);
+        assert.match(err.message, /never accepted via argv/);
+        return true;
+      },
     );
   });
 });
@@ -292,6 +307,19 @@ describe('erros redatados fail-closed (4xx/5xx/timeout/rede/misconfig)', () => {
 
   test('timeout estoura o budget mesmo com fetch não-cooperativo', async () => {
     const { impl } = mockFetch(() => new Promise(() => {}));
+    const err = await getHyperdriveConfig({
+      fetchImpl: impl,
+      accountId: ACCOUNT,
+      apiToken: TOKEN,
+      hyperdriveId: STAGING_ID,
+      timeoutMs: 1000,
+    }).catch((e) => e);
+    assert.equal(err.code, CF_TIMEOUT_CODE);
+    assert.match(err.message, /after 1000ms/);
+  });
+
+  test('body pendente (json() nunca resolve) estoura o timeout', async () => {
+    const { impl } = mockFetch(() => ({ ok: true, status: 200, json: () => new Promise(() => {}) }));
     const err = await getHyperdriveConfig({
       fetchImpl: impl,
       accountId: ACCOUNT,
@@ -430,6 +458,48 @@ describe('partial update explícito + rollback = re-PATCH', () => {
     assert.equal(prod.code, CF_HTTP_ERROR_CODE);
     assert.ok(!prod.error.includes('prod-pass'), 'erro do prod não vaza senha');
     assert.ok(!prod.error.includes(HOSTILE_PASSWORD));
+  });
+
+  test('divergência de reconcile reprova o agregador: status failed + allOk false', async () => {
+    const { impl } = statefulCloudflare({
+      [STAGING_ID]: { host: '10.0.0.9', port: 5432, database: 'synkroo_staging', user: 'synkroo_staging', scheme: 'postgres' },
+    });
+    // Mesmo drift do teste unitário de reconcile, mas observado pelo
+    // agregador: o GET final diverge do PATCH aplicado.
+    let phase = 0;
+    const drifting = async (url, init) => {
+      phase += 1;
+      if (phase === 3) {
+        return jsonResponse({
+          body: {
+            success: true,
+            result: {
+              id: STAGING_ID,
+              origin: { host: '10.9.9.9', port: 5432, database: 'synkroo_staging', user: 'synkroo_staging', scheme: 'postgres' },
+            },
+          },
+        });
+      }
+      return impl(url, init);
+    };
+    const outcome = await applyHyperdriveTargets({
+      fetchImpl: drifting,
+      accountId: ACCOUNT,
+      apiToken: TOKEN,
+      targets: [{ ...STAGING_TARGET, password: 'nova-senha' }],
+      host: '10.0.0.1',
+      port: 5432,
+    });
+    assert.equal(outcome.allOk, false, 'divergência nunca é sucesso');
+    assert.equal(outcome.partial, false);
+    assert.equal(outcome.results.length, 1);
+    const [only] = outcome.results;
+    assert.equal(only.status, 'failed', 'divergência tem status não-ok');
+    assert.equal(only.code, CF_RESPONSE_ERROR_CODE);
+    assert.match(only.error, /Reconciliation failed/);
+    assert.match(only.error, /roll back/);
+    assert.deepEqual(only.diffs, ['host']);
+    assert.ok(!only.error.includes('nova-senha'), 'erro de reconcile não vaza senha');
   });
 
   test('rollback re-PATCHa o snapshot com a senha anterior válida', async () => {

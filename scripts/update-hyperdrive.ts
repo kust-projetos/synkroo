@@ -25,8 +25,9 @@
  *          so a staging run can never touch production as a side effect.
  *   --timeout-ms API budget per request (default 15000, range 1000-120000).
  *   --account-id Cloudflare account id (or CLOUDFLARE_ACCOUNT_ID in process.env).
- *   --api-token Cloudflare API token with Hyperdrive Write (or CLOUDFLARE_API_TOKEN
- *          in process.env, preferred — a flag value is visible in process listings).
+ *   CLOUDFLARE_API_TOKEN (Hyperdrive Write scope) must be set in process.env:
+ *          it is never accepted via argv, so it can never leak into process
+ *          listings or shell history.
  *
  * Env file resolution (provider-neutral, see scripts/lib/vps-env.mjs):
  *   1. SYNKROO_VPS_ENV (explicit path; invalid values abort — no fallback)
@@ -46,6 +47,7 @@
  */
 
 import {
+  CF_RESPONSE_ERROR_CODE,
   applyHyperdriveTargets,
   planHyperdriveUpdates,
   redactApiSecrets,
@@ -76,6 +78,8 @@ const USAGE = [
   '           is never touched unless explicitly requested.',
   '  --dry-run plan only: print the PATCH plan without calling the API.',
   '  --timeout-ms API budget per request in ms (default 15000).',
+  '  --account-id Cloudflare account id (or CLOUDFLARE_ACCOUNT_ID in process.env).',
+  '  CLOUDFLARE_API_TOKEN must be set in process.env (Hyperdrive Write); never via argv.',
 ].join('\n');
 
 // Module-scope redaction values for the terminal catch: main() assigns the
@@ -145,7 +149,6 @@ async function main() {
   try {
     ({ accountId, apiToken } = resolveCloudflareAuth({
       accountId: readCliFlag(args, 'account-id'),
-      apiToken: readCliFlag(args, 'api-token'),
     }));
   } catch (err) {
     console.error(err instanceof Error ? err.message : 'unknown error');
@@ -246,6 +249,14 @@ async function main() {
       console.error(
         `Failed ${result.label} (${result.hyperdriveId}): ${redactApiSecrets(result.error, hidden)}`,
       );
+      const maybeReconcile = result as { code?: string; diffs?: string[] };
+      if (maybeReconcile.code === CF_RESPONSE_ERROR_CODE && Array.isArray(maybeReconcile.diffs)) {
+        console.error(
+          `  reconciliation failed (fields differ: ${maybeReconcile.diffs.join(', ')}): ` +
+            'the PATCH was applied but the API state does not match. ' +
+            `Re-run this command (idempotent) or roll back with --side=${priorSide} --target=${result.key}.`,
+        );
+      }
     }
   }
 

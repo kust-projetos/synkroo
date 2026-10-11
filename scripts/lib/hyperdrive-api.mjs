@@ -15,8 +15,11 @@
  * A total PUT is NEVER used by this module.
  *
  * Auth (fail closed, outside the VPS .env file):
- *   CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN from process.env (preferred)
- *   or explicit --account-id / --api-token flags. Values from the private VPS
+ *   CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN from process.env.
+ *   --account-id may also be passed explicitly (it is only an identifier,
+ *   not a secret). The API token is accepted ONLY via CLOUDFLARE_API_TOKEN
+ *   in process.env — never via argv — so it can never appear in process
+ *   listings or shell history. Values from the private VPS
  *   env file are NEVER consulted here, so a VPS credential file can never
  *   carry Cloudflare API authority by accident.
  *
@@ -80,6 +83,10 @@ export const CF_RESPONSE_ERROR_CODE = 'SYNKROO_CF_RESPONSE_ERROR';
  * @property {'failed'} status
  * @property {string} error redacted message, safe to surface
  * @property {string} code
+ * @property {string[]} [diffs] present when the failure is a post-PATCH
+ *   reconciliation mismatch (fields that differ — safe field names only)
+ * @property {HyperdriveSnapshot} [snapshot] pre-update snapshot, present on
+ *   reconciliation mismatches so the caller can roll back
  */
 /** @typedef {HyperdriveTargetOk | HyperdriveTargetFailure} HyperdriveTargetResult */
 
@@ -95,10 +102,11 @@ function cfError(code, message) {
 }
 
 /**
- * Resolves Cloudflare API authority. process.env wins over nothing else:
- * the VPS env file values are deliberately NOT consulted.
+ * Resolves Cloudflare API authority. The account id comes from process.env
+ * or an explicit option (it is only an identifier); the API token comes
+ * SOLELY from process.env — never from argv, never from the VPS env file.
  *
- * @param {{env?: Record<string,string|undefined>, accountId?: string, apiToken?: string}} [options]
+ * @param {{env?: Record<string,string|undefined>, accountId?: string}} [options]
  * @returns {{accountId: string, apiToken: string}}
  */
 export function resolveCloudflareAuth(options = {}) {
@@ -111,12 +119,12 @@ export function resolveCloudflareAuth(options = {}) {
         'It is never read from the private VPS .env file.',
     );
   }
-  const apiToken = String(options.apiToken ?? source?.CLOUDFLARE_API_TOKEN ?? '').trim();
+  const apiToken = String(source?.CLOUDFLARE_API_TOKEN ?? '').trim();
   if (!apiToken) {
     throw cfError(
       CF_TOKEN_MISSING_CODE,
-      'CLOUDFLARE_API_TOKEN is missing: set it in process.env (Hyperdrive Write) or pass --api-token. ' +
-        'It is never read from the private VPS .env file.',
+      'CLOUDFLARE_API_TOKEN is missing: set it in process.env (Hyperdrive Write scope). ' +
+        'It is never read from the private VPS .env file and never accepted via argv.',
     );
   }
   return { accountId, apiToken };
@@ -244,6 +252,9 @@ export function compareOrigins(want, got) {
 /**
  * fetch with a timeout budget. The budget wins even against a fetchImpl that
  * ignores AbortSignal (Promise.race), so a hung API can never hang a run.
+ * NOTE: this covers the fetch dispatch only — response bodies are consumed
+ * through responseJsonWithTimeout below, so a stalled body cannot outlive
+ * its own budget either.
  */
 async function fetchWithTimeout(fetchImpl, url, init, timeoutMs, label) {
   const ms = normalizeTimeoutMs(timeoutMs);
@@ -287,11 +298,24 @@ function firstCfErrorCode(body) {
   return 'unknown';
 }
 
-async function readJsonBody(response) {
+/**
+ * Consumes response.json() under its own timeout budget: a body that never
+ * arrives (slowloris-style stall) fails with CF_TIMEOUT_CODE instead of
+ * hanging the run past the fetch budget.
+ */
+async function responseJsonWithTimeout(response, timeoutMs, label) {
+  const ms = normalizeTimeoutMs(timeoutMs);
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      reject(cfError(CF_TIMEOUT_CODE, `Hyperdrive request timed out (${label} after ${ms}ms)`));
+    }, ms);
+    if (typeof timer.unref === 'function') timer.unref();
+  });
   try {
-    return await response.json();
-  } catch {
-    throw cfError(CF_RESPONSE_ERROR_CODE, 'Hyperdrive API returned an unreadable response body.');
+    return await Promise.race([response.json(), timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -329,14 +353,23 @@ async function requestHyperdrive({
     const status = response?.status ?? 'unknown';
     let suffix = '';
     try {
-      const failure = response && typeof response.json === 'function' ? await response.json() : null;
+      const failure = response && typeof response.json === 'function'
+        ? await responseJsonWithTimeout(response, timeoutMs, `failure body config ${hyperdriveId}`)
+        : null;
       suffix = `, cf_code ${firstCfErrorCode(failure)}`;
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.code === CF_TIMEOUT_CODE) throw err;
       // unreadable failure body: status alone is the report (never raw text)
     }
     throw cfError(CF_HTTP_ERROR_CODE, `Hyperdrive ${method} failed (${label}: HTTP ${status}${suffix})`);
   }
-  const envelope = await readJsonBody(response);
+  let envelope;
+  try {
+    envelope = await responseJsonWithTimeout(response, timeoutMs, `${label} body`);
+  } catch (err) {
+    if (err instanceof Error && err.code === CF_TIMEOUT_CODE) throw err;
+    throw cfError(CF_RESPONSE_ERROR_CODE, 'Hyperdrive API returned an unreadable response body.');
+  }
   if (envelope && envelope.success === false) {
     throw cfError(
       CF_RESPONSE_ERROR_CODE,
@@ -495,6 +528,12 @@ export async function applyHyperdriveTarget({
  * gets an explicit allOk/partial verdict instead of an ambiguous throw.
  * Re-running the same command is safe (idempotent PATCH of the same origin).
  *
+ * A post-PATCH reconciliation mismatch (match=false) is a FAILURE, not a
+ * success: the PATCH was applied but the API state does not equal the
+ * desired origin, so the result is recorded with status 'failed' (code
+ * SYNKROO_CF_RESPONSE_ERROR) carrying the safe diffs and the pre-update
+ * snapshot for rollback — and allOk is false so the CLI exits non-zero.
+ *
  * @param {{fetchImpl: Function, accountId: string, apiToken: string, targets: HyperdriveTargetSpec[], host: string, port: number|string, timeoutMs?: number}} options
  * @returns {Promise<{results: HyperdriveTargetResult[], allOk: boolean, partial: boolean}>}
  */
@@ -519,6 +558,22 @@ export async function applyHyperdriveTargets({
         port,
         timeoutMs,
       });
+      if (!applied.match) {
+        results.push({
+          key: applied.key,
+          label: applied.label,
+          hyperdriveId: applied.hyperdriveId,
+          status: 'failed',
+          error:
+            `Reconciliation failed for ${applied.label} (${applied.hyperdriveId}): ` +
+            `API state differs in [${applied.diffs.join(', ')}] after PATCH. ` +
+            'Re-run this command (idempotent) or roll back with the previous --side for this target.',
+          code: CF_RESPONSE_ERROR_CODE,
+          diffs: applied.diffs,
+          snapshot: applied.snapshot,
+        });
+        continue;
+      }
       results.push({ ...applied, status: 'ok' });
     } catch (err) {
       results.push({
