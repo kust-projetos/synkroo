@@ -38,6 +38,10 @@ describe('prod-postgres static config contract', () => {
     assert.ok(rows.length > 0, 'pg_hba.conf must keep at least one active row');
     for (const row of rows) {
       assert.doesNotMatch(row, /^host\s/, `plaintext host row forbidden: ${row}`);
+      assert.doesNotMatch(row, /^hostnossl\s/, `plaintext hostnossl row forbidden: ${row}`);
+    }
+    for (const row of rows.filter((r) => !r.startsWith('local'))) {
+      assert.match(row, /^hostssl\s/, `non-local row must be hostssl: ${row}`);
     }
     assert.ok(
       rows.some((row) => /^hostssl\s/.test(row)),
