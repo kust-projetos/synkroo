@@ -209,7 +209,8 @@ ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP"
 Desde o cutover de 2026-10-05 o acesso operacional do banco é no **target**
 (`VPS_TARGET_IP`); os exemplos com `$VPS_SOURCE_IP` ilustram o alias do lado
 source — a Hostinger, retida como standby de rollback. Conexão manual ao
-target ativo: `ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_TARGET_IP"`.
+target ativo, com as credenciais do bloco `CONTABO_VPS_*` (usuário `deploy` e
+chave dedicada): `ssh -i "$CONTABO_VPS_SSH_KEY_PATH" "$CONTABO_VPS_SSH_USER@$CONTABO_VPS_IP"`.
 
 Valide identidade antes de alterar qualquer coisa:
 
