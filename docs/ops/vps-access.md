@@ -1,13 +1,42 @@
 # Acesso VPS — Synkroo
 
+> **NOTA SUPERSESSORA — estado medido E2a (read-only, 2026-10-10):**
+> O compose versionado do repo (`ops/vps/synkroo-prod-postgres/docker-compose.yml`)
+> é **tunnel-only** (sem `ports:` + serviço `cloudflared`), mas o deploy vivo no
+> target Contabo **deriva** desse desenho:
+> - container `synkroo-prod-postgres` publica o PostgreSQL em `0.0.0.0:15433`;
+> - chain `DOCKER-USER` **vazia** em IPv4 e IPv6 — sem filtro de forward efetivo
+>   para containers;
+> - unidade oneshot de reaplicação de firewall (equivalente à
+>   `synkroo-docker-user-firewall.service` da source) **ausente** no target;
+> - **nenhum** container `cloudflared` no target — não há túnel ativo.
+>
+> Consequência: a porta publicada pelo Docker fica fora do alcance das regras ufw
+> (ranges Cloudflare IPv4 + default deny não cobrem o caminho `FORWARD`/`DOCKER`).
+> Medições foram read-only e pontuais; **nenhum teste externo foi repetido**.
+> Decisão, contenção e gates do caminho tunnel-only:
+> [ADR-BASE-21](../adr/ADR-BASE-21-contabo-postgres-private-connectivity.md).
+>
+> As seções "Firewall do Postgres (2026-09-25)" e "… atualização 2026-09-26"
+> descrevem a **VPS source (Hostinger)** — **histórico datado**, não o estado
+> ativo do target; a allowlist de 2026-09-26 nunca foi transferida ao Contabo.
+
 ## Fonte de configuração
 
-> **Migração 2026-10-05:** Hostinger é o **source** atual e Contabo é o **target** planejado. Ver `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md`.
+> **Migração 2026-10-05 (cutover EXECUTADO — estado atual):** o cutover de banco
+> Hostinger → Contabo foi **executado em 2026-10-05**; a **Contabo é o target
+> ativo do banco** e a **Hostinger fica retida como standby de rollback** —
+> nada foi descomissionado (a migração P2 foi encerrada em 2026-10-07; ver
+> `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md` e o
+> [inventário P2 2026-10-07](../inventory/2026-10-07-p2-contabo-validation.md)).
+> Os aliases de operação `source`/`target` **continuam existindo** nos scripts
+> (`--side=source|target` obrigatório): hoje `source` = Hostinger (standby de
+> rollback) e `target` = Contabo (alvo ativo).
 
 Execute comandos a partir da raiz deste projeto. A configuração privada da VPS é resolvida por `scripts/lib/vps-env.mjs`, compartilhado por `scripts/migrate-vps.ts`, `scripts/update-hyperdrive.ts`, `scripts/setup-staging-db.ts`, `scripts/backup-vps-db.ts` e `scripts/restore-vps-db.ts`, com esta precedência:
 
 1. `SYNKROO_VPS_ENV` — caminho explícito e provider-neutral (absoluto, ou relativo ao diretório de trabalho atual). **Falha fechada:** se a variável estiver definida e apontar para algo que não é um arquivo legível, o script aborta — nunca cai silenciosamente no fallback legado.
-2. `../vps-hostinger/.env` — fallback legado **temporário**, resolvido a partir da raiz do repositório (não do diretório de trabalho atual), acompanhado de aviso `[deprecation]` em stderr. Deve ser removido ao fim da migração P2.
+2. `../vps-hostinger/.env` — fallback legado **temporário**, resolvido a partir da raiz do repositório (não do diretório de trabalho atual), acompanhado de aviso `[deprecation]` em stderr. A migração P2 foi executada em 2026-10-05 e encerrada em 2026-10-07, mas o fallback legado **ainda existe no código** — a remoção é operação futura, não executada.
 
 Definido mas vazio/branco (`SYNKROO_VPS_ENV=`) é tratado como não definido, preservando a semântica de shell usual. Nenhum literal `../vps-contabo` é usado em código: o caminho do alvo é sempre fornecido pelo operador.
 
@@ -24,8 +53,10 @@ npx tsx scripts/setup-staging-db.ts --side=source
 
 Os três scripts operacionais recebem `--side=source|target` **obrigatório**: qual VPS a execução toca. Não há default e não há inferência a partir do arquivo de `.env` ou do hostname — ausente ou inválido, o script imprime o uso e sai com código 1.
 
-- `source` — a VPS de onde os dados são copiados (atualmente Hostinger).
-- `target` — a VPS para onde os dados serão copiados (Contabo).
+- `source` — a VPS de onde os dados são copiados (Hostinger; desde o cutover de
+  2026-10-05 é **standby de rollback**, não o alvo ativo).
+- `target` — a VPS para onde os dados são copiados (Contabo) — **alvo ativo do
+  banco desde o cutover executado em 2026-10-05**.
 
 Em `migrate-vps.ts`, `--side` e `--target` são eixos ortogonais: `--side` escolhe **qual VPS**, `--target` escolhe **qual banco dentro daquela VPS** (`production`, `staging` ou `all`; padrão `production`).
 
@@ -175,6 +206,11 @@ Erros de preflight deste repo (`SYNKROO_*`) mantêm a mensagem original, que só
 ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP"
 ```
 
+Desde o cutover de 2026-10-05 o acesso operacional do banco é no **target**
+(`VPS_TARGET_IP`); os exemplos com `$VPS_SOURCE_IP` ilustram o alias do lado
+source — a Hostinger, retida como standby de rollback. Conexão manual ao
+target ativo: `ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_TARGET_IP"`.
+
 Valide identidade antes de alterar qualquer coisa:
 
 ```bash
@@ -182,17 +218,22 @@ ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP" \
   'hostname; uptime; docker ps; docker compose ls; systemctl --failed'
 ```
 
-## VPS Contabo (nova — destino de migração, 2026-10)
+## VPS Contabo (target ativo do banco desde o cutover de 2026-10-05)
 
 Segunda VPS do parque, já com bootstrap+hardening concluídos. Credenciais no
 mesmo `../vps-hostinger/.env`, no bloco `CONTABO_VPS_*`:
 
-- `CONTABO_VPS_IP` (213.199.37.252), `CONTABO_VPS_SSH_USER` (deploy),
+- `CONTABO_VPS_IP` (valor apenas no `.env` privado — nenhum literal de IP
+  público neste documento), `CONTABO_VPS_SSH_USER` (deploy),
   `CONTABO_VPS_SSH_KEY_PATH` (`~/.ssh/id_ed25519_contabo_vps`, chave dedicada).
 - Login exclusivamente por chave (root/senha desativados via SSH). Ubuntu 26.04,
   8 GB RAM, 96 GB disco, UFW (22/tcp), fail2ban, unattended-upgrades, swap 2 GB.
 - Doc completo de acesso/operação/recuperação: `../vps-hostinger/docs/contabo-vps.md`.
 - Estado inicial: sem Docker/Traefik — instalação faz parte da migração.
+- **Deriva medida (E2a, read-only, 2026-10-10):** o deploy vivo do PostgreSQL no
+  target saiu do desenho tunnel-only do repo — porta `0.0.0.0:15433` publicada,
+  `DOCKER-USER` vazia, sem unidade de firewall e sem container `cloudflared`.
+  Ver nota supersessora no topo e [ADR-BASE-21](../adr/ADR-BASE-21-contabo-postgres-private-connectivity.md).
 
 ## Administração
 
@@ -210,7 +251,7 @@ ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP" 'pwd; docker ps --form
 
 ## Topologia conhecida
 
-O runtime de aplicação continua Cloudflare Workers/OpenNext. A VPS hospeda componentes stateful/auxiliares. O repo confirma PostgreSQL 17 + pgvector, cloudflared/tunnel e sidecar Playwright; Evolution e outros serviços devem ser confirmados por descoberta remota antes da migração.
+O runtime de aplicação continua Cloudflare Workers/OpenNext. A VPS hospeda componentes stateful/auxiliares. O repo confirma PostgreSQL 17 + pgvector e sidecar Playwright, e desenha o PostgreSQL como tunnel-only (compose sem `ports:` + serviço `cloudflared`); **medido em 2026-10-10 (E2a, read-only): no target Contabo o container `cloudflared` não existe e o PostgreSQL publica `0.0.0.0:15433`** — deriva entre desenho versionado e deploy vivo, registrada na nota supersessora no topo e em [ADR-BASE-21](../adr/ADR-BASE-21-contabo-postgres-private-connectivity.md). Evolution e outros serviços devem ser confirmados por descoberta remota antes da migração.
 
 O target é Contabo. WAHA deve ser provisionado diretamente no target e substituir Evolution em uma janela separada do cutover de banco.
 
@@ -221,6 +262,10 @@ Exigem confirmação explícita e backup verificado: `rm -rf`, drop/reset de ban
 SSH por chave é obrigatório; senha não é necessária.
 
 ## Firewall do Postgres (2026-09-25)
+
+> **Escopo: VPS SOURCE (Hostinger) — registro histórico datado.** Esta seção e a
+> atualização de 2026-09-26 descrevem a source; **não** são o estado ativo do
+> target Contabo (ver nota supersessora no topo e ADR-BASE-21).
 
 Autorização explícita do owner nesta sessão (task FW-15432-HARDEN-01).
 Sem IP/hostname da VPS e sem segredos neste arquivo.
@@ -274,7 +319,13 @@ Sem IP/hostname da VPS e sem segredos neste arquivo.
   `/root` + avaliação de persistência; (3) `5433/tcp` (painel-postgres) segue
   `ALLOW IN Anywhere` — fora deste escopo, registrar decisão.
 
-## Firewall do Postgres — atualização 2026-09-26 (allowlist ATIVA)
+## Firewall do Postgres — atualização 2026-09-26 (allowlist ATIVA **na SOURCE Hostinger** — histórico)
+
+> **Escopo: VPS SOURCE (Hostinger), 2026-09-26 — registro histórico.** A allowlist
+> abaixo ficou ativa apenas na source; ela **não** foi transferida ao target
+> Contabo, onde a contenção equivalente é pendência de gate em
+> [ADR-BASE-21](../adr/ADR-BASE-21-contabo-postgres-private-connectivity.md)
+> (D3). Não interpretar esta seção como estado ativo do target.
 
 Autorização do owner nesta sessão ("trabalhe em todas as pendências").
 
