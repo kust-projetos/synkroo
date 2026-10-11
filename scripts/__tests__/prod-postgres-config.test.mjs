@@ -3,11 +3,18 @@
  *
  * Local-only: reads the compose assets from disk, no Docker, no VPS, no
  * secrets. Asserts (i) postgresql.conf pins an explicit hba_file, (ii)
- * pg_hba.conf exposes only hostssl rows (no plaintext `host` rows),
- * (iii) the postgres service publishes no host port, and (iv) the
+ * pg_hba.conf exposes only hostssl rows (no plaintext `host`/`hostnossl`
+ * rows), (iii) hostssl rows pin scram-sha-256, (iv) local rows pin trust,
+ * (v) the postgres service publishes no host port, and (vi) the
  * cloudflared Tunnel token travels via `--token-file` (bind mount
  * read-only, host path outside the repo) — never as argv `--token <valor>`
  * nor as visible env.
+ *
+ * Rule-precedence (first match wins) is documented, not statically
+ * assertable here: pg_hba.conf keeps the file minimal (local trust first,
+ * then hostssl-only) so no earlier row can shadow the hostssl+SCRAM
+ * requirement. Live precedence plus non-TLS rejection are proved in the
+ * disposable-PostgreSQL suite (vps-prod-postgres-healthcheck.test.mjs).
  *
  * Ownership: this file owns the STATIC token-file contract (source text).
  * The RENDERED contract (`docker compose config` sem segredo, fail-closed
@@ -53,6 +60,32 @@ describe('prod-postgres static config contract', () => {
       rows.some((row) => /^hostssl\s/.test(row)),
       'pg_hba.conf must keep at least one hostssl row',
     );
+  });
+
+  test('hostssl rows pin scram-sha-256 (no weaker method)', () => {
+    const rows = pgHbaConf
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+    for (const row of rows.filter((r) => r.startsWith('hostssl'))) {
+      assert.match(row, /scram-sha-256\s*$/, `hostssl row must pin scram-sha-256: ${row}`);
+    }
+  });
+
+  test('local rows are pinned to trust (socket-only maintenance path)', () => {
+    // Pinned shape: Unix-socket maintenance (healthcheck pg_isready, docker
+    // exec) authenticates via peer socket, not password. Any change to
+    // local-row auth (e.g. trust → scram) must update the compose healthcheck
+    // and the documented Contabo probes together — hence the pin.
+    const rows = pgHbaConf
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#'));
+    const localRows = rows.filter((r) => r.startsWith('local'));
+    assert.ok(localRows.length > 0, 'pg_hba.conf must keep at least one local row');
+    for (const row of localRows) {
+      assert.match(row, /^local\s+\S+\s+\S+\s+trust\s*$/, `local row auth is pinned to trust: ${row}`);
+    }
   });
 
   test('postgres service publishes no host port', () => {
