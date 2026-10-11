@@ -53,6 +53,11 @@ const USAGE = [
   '  --dry-run plan only: print the wrangler commands without executing.',
 ].join('\n');
 
+// Module-scope redaction values for the terminal catch: main() assigns the
+// resolved passwords here so the catch can redact without touching argv or
+// logging raw values. Name avoids credential-like tokens on console.* lines.
+let cachedRedactionValues: string[] = [];
+
 async function main() {
   const args = process.argv.slice(2);
   // Plan-only mode: print the wrangler commands without executing.
@@ -106,6 +111,7 @@ async function main() {
     entry = '<wrangler-entrypoint>';
   }
   const secrets = [stagingPassword, prodPassword];
+  cachedRedactionValues = secrets;
 
   const stagingArgv = buildHyperdriveUpdateArgv({
     entry,
@@ -159,7 +165,7 @@ main().catch((err) => {
   // Log the message string only (already redacted at throw sites, redacted
   // again defensively): never log the raw error object, which may carry the
   // argv, stdout/stderr buffers, or other internals.
-  const message = err instanceof Error ? redactSecrets(err.message) : 'unknown error';
+  const message = err instanceof Error ? redactSecrets(err.message, cachedRedactionValues) : 'unknown error';
   console.error('Failed to update Hyperdrive:', message);
   process.exit(1);
 });

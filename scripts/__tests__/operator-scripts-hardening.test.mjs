@@ -434,6 +434,14 @@ describe('Wrangler argv — sem shell', () => {
     assert.equal(redactSecrets(undefined), '');
   });
 
+  test('redactSecrets remove senha com espaço sem deixar resto após --password=', () => {
+    const hostile = 'p w"; $(id)';
+    const out = redactSecrets(`run --password=${hostile} ok`, [hostile]);
+    assert.ok(!out.includes('p w'), 'nenhum token da senha pode sobreviver');
+    assert.ok(!out.includes('$(id)'), 'nenhum token da senha pode sobreviver');
+    assert.match(out, /--password=\[REDACTED\]/);
+  });
+
   test('update-hyperdrive não usa shell nem execSync', () => {
     const src = read('update-hyperdrive.ts');
     assert.ok(!/execSync/.test(src), 'não deve importar execSync');
