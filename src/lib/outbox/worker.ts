@@ -35,6 +35,17 @@ function isKnownOperation(operation: string): operation is OutboxOperation {
 }
 
 export async function processOutboxBatch(limit = 25, concurrency = 5) {
+  // Otimização de scheduler: o pause do consumo é AUTORIDADE do banco
+  // (`claimOutboxJob` + trigger `outbox_enforce_control_gate`). Falha ao
+  // consultar o status NÃO bloqueia o batch — apenas perde a otimização.
+  try {
+    const { getOutboxControlStatus } = await import('./control');
+    const control = await getOutboxControlStatus();
+    if (control.paused) return [];
+  } catch {
+    // Otimização apenas: sem status, o gate do claim/trigger decide.
+  }
+
   const { createManifest } = await import('@/core/modules/manifest');
   const manifest = createManifest();
   const enabled = await manifest.enabledModules();

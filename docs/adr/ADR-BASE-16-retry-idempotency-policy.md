@@ -86,6 +86,14 @@ a condição casaria com um lease já perdido (ABA).
   `markOutboxDeferred`/`markOutboxDeadLetter` casam `id` + `processing` +
   `claim_generation` num único UPDATE conditional e devolvem **boolean** via
   `RETURNING`. O defer devolve a tentativa mas **nunca** decrementa a geração.
+- **Gate de manutenção (0036 expandida, contagem inalterada):** a mesma migration
+  inclui `claim_release`, singleton `outbox_control` e trigger DB-side. Pausar
+  impede claims legados/diretos; o consumo fica preso a release explícito e o
+  marcador transacional tem de casar `(claim_release, claim_generation)` em cada
+  liquidação. O enqueue permanece disponível/transacional durante a pausa. O
+  readiness valida também o shape do gate, pois o ledger 36 sozinho não distingue
+  uma 0036 original já aplicada da variante expandida; nesses bancos, repair é
+  explícito e `maintenance-control-missing` falha fechado.
 - **Dispatcher:** só o erro do SENDER é classificado no caminho de falha; toda
   liquidação roda fora do `catch` do sender. A exceção tipada é a rejeição
   SEMÂNTICA da liquidação (ver “Hook de liquidação de sucesso”), que vai à DLQ

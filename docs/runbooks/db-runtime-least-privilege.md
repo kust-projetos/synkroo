@@ -221,6 +221,7 @@ password do novo role trafegando apenas por elas e pelo caminho de env já exist
 | `SCHEMA public` | `USAGE` (sem `CREATE`) | `USAGE` (sem `CREATE`) | `CREATE` + owner |
 | `SCHEMA drizzle` | `USAGE` | `USAGE` | owner |
 | Tabelas de `public` (todas, atuais e futuras) | `SELECT, INSERT, UPDATE, DELETE` | idem | DDL completo |
+| `public.outbox_control` (0036 expandida) | **`SELECT` somente** | **`SELECT` somente** | operador/migrator muta via conexão administrativa |
 | `drizzle.__drizzle_migrations` | `SELECT` apenas (V3) | `SELECT` apenas | `INSERT/UPDATE` (é o migrador) |
 | Sequences de `public` | `USAGE, SELECT, UPDATE` — **preventivo**, hoje nenhuma existe (V6) | idem | owner |
 | Functions | **inventário antes, sem revoke em bloco**: extensões `vector`/`btree_gist` dependem de `EXECUTE` de `PUBLIC` (V5); functions de aplicação = zero hoje (V7), mas nascem com `EXECUTE` de `PUBLIC` por default | idem | owner; `SECURITY DEFINER` exige dono confiável |
@@ -246,6 +247,7 @@ migrator/owner**, no schema `public`, de modo que objetos criados por migrations
 nasçam acessíveis ao role de aplicação sem nova intervenção manual:
 
 - tabelas novas → `SELECT, INSERT, UPDATE, DELETE` para o role de app do ambiente;
+- **exceção operacional:** `outbox_control` → `SELECT` para runtime, sem `INSERT/UPDATE/DELETE`; após 0036, fazer `REVOKE` nomeado dos privilégios mutadores herdados de default privileges e verificar com `has_table_privilege`. Pause/resume ficam na conexão administrativa do operador, nunca em endpoint nem no role runtime. O gate claim/trigger usa advisory lock transacional (`pg_advisory_xact_lock_shared` nos leitores, exclusivo no pause) justamente para funcionar com SELECT-only — `SELECT ... FOR SHARE` exigiria UPDATE e é proibido aqui;
 - sequences novas → `USAGE, SELECT, UPDATE` (preventivo, espelha V6);
 - functions → **fora do default privileges**: já nascem com `EXECUTE` para `PUBLIC` por
   default; o default-privileges não controla isso — controlar exige `ALTER DEFAULT
@@ -254,12 +256,14 @@ nasçam acessíveis ao role de aplicação sem nova intervenção manual:
 - `ALTER DEFAULT PRIVILEGES` só vale para objetos criados **depois** e **por aquele
   role** — não retroage. Daí a etapa de *regrant* (§4).
 
-**Regrant após 0034–0036 (obrigatório, independente da ordem).** O alvo pode estar em
-33/35/36 (`docs/runbooks/2026-10-08-vnext-e2-contabo-migration-deploy-runbook.md` §1).
-`approval_tokens` (0035) e as colunas de `action_logs` (0034) e `outbox_jobs` (0036)
-passam a ser lidas/escritas pelo app. Conceder default privileges **não** cobre objetos
-já existentes: o *regrant* explícito sobre o inventário atual é a rede de segurança, e
-deve rodar **depois** de confirmar que as migrations pendentes foram aplicadas.
+**Regrant após 0034–0036 (obrigatório, independente da ordem).** O alvo é 33/36
+(`docs/runbooks/2026-10-vnext-e2b-operational-plan.md` §1). `approval_tokens`
+(0035), colunas em `action_logs` (0034), `claim_generation`/`claim_release` em
+`outbox_jobs` e `outbox_control` (0036 expandida) precisam dos grants compatíveis
+antes do rollout. Default privileges não cobrem objetos já existentes: regrant
+explícito é obrigatório. Para `outbox_control`, garantir `SELECT` e revogar
+`INSERT/UPDATE/DELETE` do runtime; verificar cada privilégio separadamente depois
+da migration e antes do rollout.
 
 ---
 

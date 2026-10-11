@@ -1,40 +1,41 @@
 # Plano operacional E2b — estabilização vNext (decision-ready; sem execução)
 
-**Data:** 2026-10-11 · **Base:** `origin/main @ a7478979` · **Branch:** `docs/e2b-operational-plan`
-**Status:** DECISION-READY — plano para decisão do owner; nenhuma ação mutadora foi executada ou autorizada por este documento.
+**Data:** 2026-10-11 · **Base documental:** `origin/main @ bda1d488` (pós-merge #52, CI `38164553952` PASS) · **Branch de trabalho:** `feat/e2b-outbox-maintenance-control`
+**Status:** CANDIDATE DECISION-READY — controle e ensaios isolados estão nesta branch; código/docs ainda não integrados. Nenhuma ação mutadora de produção foi executada ou autorizada por este documento.
 **Natureza:** isto é um **plano**, não execução e não aprovação. O gate E2b (aprovação humana explícita antes de alterar BD/Cloudflare de produção) continua externo e pendente; sem ele este plano permanece **READY FOR OPERATOR — nunca DONE**.
 **Fontes:** `docs/runbooks/2026-10-08-vnext-e2-contabo-migration-deploy-runbook.md` · `docs/inventory/2026-10-07-p2-contabo-validation.md` · `docs/ops/vps-access.md` · `docs/ops/cloudflare-runtime-checklist.md` · `scripts/migrate-vps.ts` · `scripts/update-hyperdrive.ts` · `scripts/db-backup.mjs` · `scripts/db-restore.mjs` · `scripts/smoke-deploy.mjs` · `scripts/smoke-staging.mjs` · `worker-entry.mjs` · `scripts/lib/cron-schedule.mjs` · `src/services/api-handlers/health/{db,readiness}.ts` · `src/lib/outbox/outbox-repository.ts` · `src/core/schema/infra.ts`.
 
 ## 1. Evidência atual (read-only)
 
-- **Código:** `origin/main @ a7478979`; PR #44 merged. CI pós-merge run `38093233530` 4/4 PASS — evidência verificada antes do drafting; o CI do commit que introduz este plano deve ser confirmado após o push (pendência do orquestrador, não desta escrita).
-- **Ledgers:** produção e staging em **33/36**. Pendentes, **nesta ordem**: 0034 (`0034_action_attempt_fields` — colunas anuláveis em `action_logs`: `duration_ms`, `policy_version`, `decision`, `approval_id`) → 0035 (`0035_approval_tokens` — cria `approval_tokens`) → 0036 (`0036_outbox_claim_generation` — `outbox_jobs.claim_generation`).
+- **Código/documentação:** PRs #44–#52 estão integrados; CI pós-merge #51 passou (run `38134604347`, 4/4) e #52 passou (run `38164553952`, 4/4). Nenhuma dessas integrações comprova operação de produção.
+- **Ledgers:** produção e staging em **33/36**. Pendentes, **nesta ordem**: 0034 (`0034_action_attempt_fields` — colunas anuláveis em `action_logs`: `duration_ms`, `policy_version`, `decision`, `approval_id`) → 0035 (`0035_approval_tokens` — cria `approval_tokens`) → 0036 (`0036_outbox_claim_generation` — fence + controle operacional do outbox; ledger continua 36).
 - **Conectividade:** PostgreSQL do target alcançável; conexão autenticada TLS/SCRAM bem-sucedida.
 - **Rede (sem novo teste externo):** UFW restrito a ranges Cloudflare IPv4, ineficaz contra a publicação Docker `0.0.0.0:15433`; chain `DOCKER-USER` vazia; unidade de firewall esperada ausente. A exposição é real apesar do UFW — daí a fase 2 ser tratada como janela urgente separada.
 - **Papéis runtime atuais:** produção `synkroo` (SUPERUSER); staging `synkroo_staging` (CREATEDB).
 - **Backup:** 10/10 artefatos off-host verificados em streaming contra o manifest; o manifest era separado e não foi bundleado; **nenhum restore nesta rodada**. O drill histórico de 10/07 foi restore de **artefato real off-host do dia** no DB **isolado** `synkroo_drill` (ledger 33 / clinics 1 / users 1 / vector 1, com DROP + cleanup) — restore real de backup real em ambiente isolado; **não** era synthetic-only e **não** é restore do backup vigente de produção.
-- **Migrations 0034–0036:** expand-only — 0034 `ADD COLUMN IF NOT EXISTS` anuláveis em `action_logs`; 0035 `CREATE TABLE IF NOT EXISTS "approval_tokens"`; 0036 `ADD COLUMN ... claim_generation integer DEFAULT 0 NOT NULL` em `outbox_jobs` (linhas existentes nascem em 0) — todas re-rodáveis; DOWN é comentário — rollback real é forward-fix (`docs/audit/migrations-policy.md`).
-- **Contrato do health:** `EXPECTED_MIGRATIONS` conta registros de `drizzle.__drizzle_migrations` (36); journal idx 0–36 (`0000`–`0036`, gap herdado `0017`).
+- **Migrations 0034–0036:** expand-only — 0034 `ADD COLUMN IF NOT EXISTS` anuláveis em `action_logs`; 0035 `CREATE TABLE IF NOT EXISTS "approval_tokens"`; 0036 mantém `claim_generation` e inclui o singleton `outbox_control`, `claim_release` e trigger de proteção do claim/liquidação. A contagem permanece **36**, sem migration 0037. O alvo conhecido em produção/staging é 33; banco já em 36 com a versão antiga de 0036 precisa do repair explícito, nunca de um falso readiness verde. Rollback de schema é forward-fix (`docs/audit/migrations-policy.md`).
+- **Contrato do health:** readiness pré-migration diferencia consulta/ledger acessíveis com 33/36 (`migrations-incomplete`) de `db-unreachable`; pós-migration exige **exatamente 36/36** e shape funcional do controle. `>=36` não aprova o gate.
 - **Smokes:** `smoke-deploy` = só GETs públicos; o check `workers` é **skipped** (ia-bridge via service bindings, sem HTTP público — skip **não** é prova de worker/fence). `smoke-staging` **não é read-only** e é **stateful synthetic-only**: faz POST `/api/auth/switch-clinic` (muta a sessão ativa) e POST `/api/messages/inbound` com corpo `{}` — rejeitado em 403 (instalação não resolvida) ou 400 (campos inválidos), ambos **antes** de qualquer dispatch, portanto **sem envio real a provider** (`scripts/smoke-staging.mjs:128-135,156-162`; `src/app/api/messages/inbound/route.ts:37,47`). Exige clínica/usuário sintéticos e estado controlado em staging; nunca produção.
 - **Scheduler/cron:** trigger `*/5 * * * *` (`wrangler.toml:5`); 8 rotas em `src/app/api/cron/*` (`smart-triggers` aposentado, 410). Seis jobs são **gated por `CRON_JOBS_ENABLED`** (CSV em `[vars]`), mas **`/api/cron/outbox?limit=25` dispara em todo tick fora do gate** (`scripts/lib/cron-schedule.mjs:61-64`; `docs/ops/cloudflare-runtime-checklist.md` §11). Atenção ao valor vigente: `CRON_JOBS_ENABLED` **lista os seis jobs hoje** em produção (`wrangler.toml:47`) e em staging (`wrangler.toml:55`); "vazio" é apenas o default do código quando a variável está ausente ou vazia (`selectDueJobs` devolve `[]`). Pausar job nomeado exige **editar o valor e redepublicar** — não existe pausa por omissão de configuração.
-- **Produtores de outbox (inventário real do repo):** além do consumidor `/api/cron/outbox`, produtores enfileiram **inline no request path** via `enqueueOutbox` — 9 chamadas em 9 arquivos (10 sítios; `financeiro-repository` tem duas): `src/modules/comercial/repositories/leads-repository.ts:20`; `src/modules/operacional/repositories/patients-repository.ts:49`; `src/modules/operacional/repositories/reminders-repository.ts:60`; `src/modules/followup/repositories/campaigns-repository.ts:71`; `src/modules/financeiro/repositories/financeiro-repository.ts:233,256`; `src/modules/financeiro/services/collection-service.ts:101`; `src/modules/comercial/services/hot-lead-notification-service.ts:109`; `src/modules/atendimento/repositories/conversations-repository.ts:797`; `src/repositories/campaigns/index.ts:133`. O claim do outbox tem **lease de 5 min recuperável** (`OUTBOX_LEASE_MS`, `src/lib/outbox/outbox-repository.ts:44`). Busca por `OUTBOX_PAUSE`/`MAINTENANCE_MODE`/flag equivalente no repo: **nenhum resultado** — **não existe mecanismo comprovado de pausa/drain do outbox** (ver bloqueador da fase 6).
+- **Produtores/consumidores de outbox:** o consumidor agendado `/api/cron/outbox` é chamado em todo tick; dispatchers diretos passam pelo mesmo `claimOutboxJob`. Os produtores inline continuam usando `enqueueOutbox` em 9 arquivos/10 sítios (inventário anterior nesta seção). O controle DB pausa **consumo**, não enqueue: eventos continuam duráveis na mesma transação de negócio; jobs `pending` acumulam e serão avaliados antes do resume. A migration 0036 expandida instala o gate no banco para releases legados/direct-SQL; código novo exige release conhecido e cerca settlements por `(claim_release, claim_generation)`.
+- **Inventário dos produtores inline (read-only):** `src/modules/comercial/repositories/leads-repository.ts`; `src/modules/operacional/repositories/patients-repository.ts`; `src/modules/operacional/repositories/reminders-repository.ts`; `src/modules/followup/repositories/campaigns-repository.ts`; `src/repositories/campaigns/index.ts`; `src/modules/financeiro/repositories/financeiro-repository.ts` (2 sítios); `src/modules/financeiro/services/collection-service.ts`; `src/modules/comercial/services/hot-lead-notification-service.ts`; `src/modules/atendimento/repositories/conversations-repository.ts`. Eles permanecem liberados para enqueue durante a pausa; nenhum evento de negócio é descartado.
 - **Drift de compose:** repo tunnel-only (sem porta pública, com sidecar cloudflared); container vivo com porta pública e sem cloudflared. **Não aplicar compose agora** — a contenção de rede é decisão de owner em janela separada (fase 2).
-- **PRs pendentes:** healthcheck/correções de backup (ainda não criado); ADR-BASE-21 (outro PR, pendente); runbook de papéis de runtime (pendente). Este documento não altera índice de ADRs nem outros docs.
+- **CI/docs:** #52 corrigiu o comando SSH do target usando `CONTABO_VPS_*`; nenhuma dessas integrações comprova rede, roles, restore ou migration em produção. As autorizações continuam separadas e pendentes.
 - Fora de escopo desta rodada: itens P3/P4.
 
 ## 2. Ordem de mudança e dependências
 
 **Fase 0 — Aprovações (fronteiras separadas; nada executa antes da sua).** São aprovações distintas, em sequência:
 
-1. **A-REDE** — contenção de rede/rota privada (janela própria; escolha D3→D4 ou só D3). Autoriza **apenas** a fase 2.
+1. **A-REDE** — contenção de rede/rota privada pelo caminho único D3→D4 do ADR-BASE-21 (janela própria). Autoriza **apenas** a fase 2.
 2. **A-PAPEIS** — criação de papéis/credenciais de runtime + atualização de Hyperdrive por ambiente. Autoriza **apenas** a fase 3.
 3. **A-RESTORE** — autorização **escrita** de restore (ambiente isolado, executante, janela). Autoriza **apenas** o gate da fase 4.
 4. **E2b** — aprovação final explícita do owner, solicitada somente após o gate da fase 4; é a **única** que autoriza as fases 5–6 (migrations de produção e rollout app/workers).
 
 Nenhuma autorização parcial substitui outra; nenhuma operação ocorre antes da sua autorização específica. Sem A-REDE a fase 2 não inicia; sem A-PAPEIS a fase 3 não inicia; sem A-RESTORE a fase 4 não conclui; sem E2b as fases 5–6 não iniciam.
 
-**Fase 1 — PRs pequenos + CI.** Merge de: readiness/healthcheck; correções de backup; ADR-BASE-21 (outro PR); runbook de papéis de runtime. Cada um com CI verde (`npm run verify`, `npm run test:release`). Nenhum toca produção.
-_Entrada:_ plano revisado. _Saída:_ `main` com os PRs merged e CI 4/4.
+**Fase 1 — PRs pequenos + CI.** PRs #44–#50 integrados. PR #51 (recovery/VPS access) foi integrado externamente; CI pós-merge `38134604347` ficou 4/4 verde. O review posterior encontrou uma variável SSH de target incorreta; correção mínima #52 foi integrada, com CI pós-merge ainda a confirmar neste snapshot. Nenhum desses PRs executou operação de produção.
+_Entrada:_ plano revisado. _Saída:_ PRs necessários em `main`, CI pós-merge verde e findings documentais fechados; isso não equivale a GO operacional.
 
 **Fase 2 — Rede (janela separada, owner-approved; A-REDE).** Contenção D3 → D4 Tunnel+Access, staging primeiro. Produção: conectividade privada provada (probe pelo par canônico do §5, pelo caminho privado) **antes** do unpublish da porta. **Probe pré-migration:** com o ledger em 33, a prova exigida é `SELECT 1` autenticado TLS/SCRAM + leitura do ledger; readiness `migrations-incomplete` em 33/36 é **aceita** (prova o caminho, não o ledger) e a leitura antiga 33/33 (contrato `EXPECTED_MIGRATIONS=33`, anterior a 0034–0036) é apenas histórico. Só `db-unreachable`/falha de auth/TLS reprova. Este gate **não** exige 36/36 — exigir seria circular: o ledger só chega a 36 na fase 5, que depende desta conectividade. Sem rollback público irrestrito.
 _Entrada:_ fase 1 verde. _Saída:_ 15433 inacessível fora do caminho autorizado, em ambos os ambientes.
@@ -49,38 +50,42 @@ _Entrada:_ fases 1–3 verdes. _Saída:_ evidência de restore + trilha de privi
 
 **Antes das migrations (pré-requisito, não opcional):** provisionar os papéis runtime **e** `ALTER DEFAULT PRIVILEGES` emitida pelo **dono exato da migration** — o mesmo principal com que `scripts/migrate-vps.ts` conecta — para que `approval_tokens` **já nasça concedida** na criação pela 0035 (§3).
 
-**Ordem explícita: 0034 (`0034_action_attempt_fields`, `action_logs`) → 0035 (`0035_approval_tokens`) → 0036 (`0036_outbox_claim_generation`)** — o runner canônico (`scripts/migrate-vps.ts` → drizzle `migrate`) aplica **todo** o journal pendente **em ordem, numa única invocação por ambiente**; **não** existe ponto de intercalação entre 0035 e 0036 para aplicar grant (isso exigiria migrador segmentado — fora de escopo, e nenhuma mudança no runner canônico está prevista ou é necessária). `--target=staging` e `--target=production` são execuções separadas; `--target=all` aplicaria os dois e **não** deve ser usado aqui.
+**Ordem explícita: 0034 (`0034_action_attempt_fields`, `action_logs`) → 0035 (`0035_approval_tokens`) → 0036 (`0036_outbox_claim_generation` + controle de manutenção do outbox)** — o runner canônico aplica o journal pendente em ordem, numa invocação por ambiente; não existe grant intermediário entre 0035 e 0036. A contagem continua **36**, sem migration 0037. Bancos já em 36 com a 0036 antiga são detectados como `maintenance-control-missing`; com autorização E2b, convergir pelo `node scripts/outbox-control-repair.mjs` (dry-run) e depois `--apply`, não por readiness presumido. `--target=staging` e `--target=production` são separados; não usar `--target=all`.
 
-**Imediatamente após a migração e antes do rollout (fase 6):** verificação explícita de `GRANT` vigente e de `has_table_privilege` em `approval_tokens` **e** em todos os objetos criados/alterados por 0034–0036 (`action_logs`, `approval_tokens`, `outbox_jobs.claim_generation`). Só então o rollout.
+**Imediatamente após a migração e antes do rollout (fase 6):** verificar ledger exato 36/36, tabela/linha singleton, trigger BEFORE UPDATE ROW habilitado e versão do control shape. Verificar `has_table_privilege` separadamente em cada privilégio de `approval_tokens`, `action_logs`, `outbox_jobs` e `outbox_control`: runtime recebe SELECT no controle, não mutação; conexão administrativa executa pause/resume. Nenhum rollout com `maintenance-control-missing` ou grants divergentes.
 
 _Entrada:_ E2b explícita (fase 0) sobre gate da fase 4; papéis + default privileges já provisionados. _Saída:_ ledger 36/36 no ambiente migrado e privilégios verificados.
 
-**Fase 6 — Rollout app/workers.** Sem sobreposição old/new worker — a versão antiga não cerca `claim_generation`. Deploy do app somente após ledger 36 (0034–0036 aplicadas, privilégios de `approval_tokens` provisionados **antes** da migration e **verificados** depois dela — §3/§5). Quiescência old/new de consumidores, operacionalizada:
+**Fase 6 — Pause, drain e rollout app/workers.** Executar somente após a Fase 5 no mesmo ambiente. O banco é a autoridade: singleton `outbox_control` + trigger bloqueiam claims diretos/legados; `claim_generation` e o marcador transacional cercam as liquidações da versão ativa.
 
-1. **Pausar produtores nomeados:** `CRON_JOBS_ENABLED=""` em `[vars]` do `wrangler.toml` do ambiente + redeploy — hoje o valor lista os **seis** jobs (`wrangler.toml:47`/`:55`), então isto é uma **mudança de release**, não um default; cobre os 6 jobs nomeados **e somente eles**.
-2. **BLOQUEADOR HARD (sem invenção de certeza):** **não existe mecanismo seguro de pausa/drain** para o consumidor outbox — `dispatchScheduledJobs` prefixa `/api/cron/outbox?limit=25` em todo tick `*/5` **fora** do gate (`scripts/lib/cron-schedule.mjs:61-64`) — nem para os produtores inline (`enqueueOutbox` no request path; inventário em §1). `CRON_JOBS_ENABLED=""` **não** prova o consumidor pausado nem os produtores inline parados. Exigir **mecanismo dedicado de pause + procedimento do owner** (responsável a nomear) antes desta fase; sem ele a fase 6 permanece NO-GO.
-3. **Inventariar todas as fontes** (não apenas as nomeadas): trigger `*/5`; 8 rotas cron (`smart-triggers` aposentado/410); cadências (reminders 5min; cleanup e hot-leads 60min; followups 09:00, crm-duplicates 04:00, financeiro-collections 03:00 UTC); **consumidor** `/api/cron/outbox?limit=25` em todo tick fora do gate; **produtores inline** (`enqueueOutbox`, 9 arquivos — §1); in-flight = `outbox_jobs.status='processing'` (lease 5 min) + jobs em execução.
-4. **Esperar** ≥ 5 min (lease do claim, `OUTBOX_LEASE_MS`) **e** observar zero in-flight/claims da versão antiga: `outbox_jobs.status='processing'` = 0, sem avanço de `updated_at`/`claim_generation` atribuível à versão antiga, e sem conexões da versão antiga reivindicando em `pg_stat_activity`. Job em execução no início da janela precisa terminar (entregue, falha ou dead-letter) dentro do fence — drenagem não é cancelamento forçado.
-5. **Deploy dos consumidores com produtores ainda pausados**; validar versão em campo e fence (`claim_generation` incrementada e cercada só pela versão nova). Critério de **não-sobreposição**: uma única versão atendendo por vez — evidência de versão em campo + ausência de claims concomitantes; duas versões reivindicando ao mesmo tempo reprova o gate (não é detalhe).
-6. **Retomar apenas uma versão** de worker — a nova, cercada — e só então religar produtores (inclusive os inline, cuja pausa é procedimento do owner). Em rollback: **repetir a quiescência inteira pelo mesmo protocolo** (pausar → inventariar → aguardar ≥5min → zero claims antigos → deploy) e **nunca** retomar o worker antigo sem fence.
+1. No ambiente-alvo, disponibilizar `DATABASE_URL` no ambiente protegido do operador usando credencial administrativa, nunca como argumento/log. Runtime app recebe **somente SELECT** em `outbox_control`; operadores do controle usam conexão administrativa. Ver §3 para GRANT/REVOKE.
+2. Registrar backlog e release atual sem payload/PII: `npm run outbox:control -- status`. O comando informa epoch, contagens, leases em `processing` com id aleatório/generation/release/timestamp e se a lista é completa. Conferir também a distribuição por operação com a consulta somente-leitura de §10; `pending` será preservado e poderá incluir mensagens/cobranças a processar depois do resume.
+3. Pausar o **consumo**, sem desligar produtores nem descartar enqueues: `npm run outbox:control -- pause`. O comando incrementa epoch e persiste `paused=true`. Scheduler `*/5` continua chamando a rota; a aplicação retorna sem dispatch e o gate DB bloqueia claims antigos/direct-SQL. Os 6 jobs cron e produtores inline podem seguir enfileirando atomicamente na transação de negócio.
+4. Drenar e verificar: `npm run outbox:control -- status` seguido de `npm run outbox:control -- verify-drained`. Só `paused=true`, `processing=0` e saída `OUTBOX_DRAIN=VERIFIED` aprovam. Lease expirado/stale é apenas observação — **cinco minutos não provam drain**. Execução ambígua ou job que permaneça `processing` mantém NO-GO; reconciliar pelo domínio com o owner, sem reset/retry cego e sem `force`.
+5. Deploy all-at-once de **um único release**; não usar gradual/split traffic. Com producers continuando, novas linhas ficam `pending`; nenhuma é enviada enquanto pausado. Antes de resume, probe GET autenticado `/api/cron/outbox` (`CRON_SECRET` via ambiente) precisa retornar `status=paused`, `processing=0`, `controlEpoch` esperado e `releaseId` exatamente igual ao Worker Version ID ativo do Cloudflare. A distribuição do Worker deve estar 100% nesse release, sem versão antiga atendendo tráfego.
+6. Retomar explicitamente com CAS de epoch e versão: `npm run outbox:control -- resume --expected-epoch=<EPOCH> --release-id=<CF_VERSION_ID>`. Não há `force`; `processing>0`, release desconhecido/divergente ou control shape ausente aborta fechado. O código obtém a versão de `CF_VERSION_METADATA` no contexto OpenNext. Após retomar, GET deve mostrar `status=running` e `controlReleaseId=releaseId`; claims novos escrevem a mesma release e incrementam `claim_generation`.
+7. Confirmar backlog/ritmo antes do resume como decisão operacional: cada tick agenda até 25 jobs com concorrência 5; eventos pendentes podem produzir efeitos externos (WhatsApp/cobranças). Não executar smoke que envia dados reais sem autorização específica.
 
-Nota: smoke público não prova workers (`smoke-deploy` skips service bindings) nem fence — ver §9. Seguir o runbook E2 existente.
-_Entrada:_ fase 5 completa no ambiente-alvo. _Saída:_ só nova versão atendendo, com fence ativa.
+**Rollback:** primeiro repetir pause → drain → verify e obter nova epoch. Um bundle anterior sem protocolo/release metadata **não pode voltar a consumir**: o DB o rejeita e a fila permanece preservada, não recuperada pela simples troca de release. Se for necessário voltar o app, manter o outbox pausado até publicar uma versão protocol-capable e revalidar a versão/fence antes de resume. Não remover a migration expandida nem reabrir porta pública; rollback de D3→D4 continua contido conforme G5.
+
+Nota: smoke público não prova workers (`smoke-deploy` skips service bindings) nem fence. O GET autenticado identifica release/estado; o status DB identifica leases; nenhum dos dois sozinho substitui a verificação de rollout único e drain.
+_Entrada:_ Fase 5 completa, autorização E2b registrada, grants verificados. _Saída:_ somente release identificada consumindo, fence ativa e backlog aceito pelo owner.
 
 **Fase 7 — Smoke e gates.** Smoke pós-deploy + smoke-staging controlado (sintético; POSTs documentados em §1), monitoramento (§8) e veredito GO/NO-GO (§9).
 _Entrada:_ fase 6 concluída. _Saída:_ veredito registrado; plano só vira DONE com E2b exercida.
 
 **Cadeia de dependência:** `0 → 1 → 2 → 3 → 4 → 5 → 6 → 7`. Fase 2 **precede** 3: o corte de papéis (credenciais novas + Hyperdrive) trafega **sobre** o caminho privado provado na fase 2 — papéis sobre rede privada, nunca o inverso. Ambas bloqueiam a 4; 5 e 6 jamais coincidem na mesma janela.
 
-**Decisões exigidas ao owner (decisão-ready):** (1) **A-REDE** — janela urgente de rede e escolha D3→D4 ou D3; autoriza **apenas** contenção de rede (fase 2); (2) **A-PAPEIS** — corte de papéis de runtime, credenciais novas e update Hyperdrive por ambiente; autoriza **apenas** fase 3; (3) **A-RESTORE** — autorização escrita de restore de backup real (ambiente isolado allowlisted, executante, janela); autoriza **apenas** o gate da fase 4; (4) **E2b** — aprovação final explícita antes das fases 5–6 (migrations + rollout de app/workers em produção); (5) mecanismo dedicado de pause/drain cron/outbox + responsável (bloqueador da fase 6). Nenhuma dessas aprovações cobre as outras: A-RESTORE não autoriza migrations nem rollout; E2b não autoriza rede, papéis ou restore.
+**Decisões exigidas ao owner (decisão-ready):** (1) **A-REDE** — janela urgente de rede pelo caminho único D3→D4 do ADR-BASE-21 (contenção verificada antes de qualquer corte; sem alternativa D3-only); autoriza **apenas** contenção de rede (fase 2); (2) **A-PAPEIS** — corte de papéis de runtime, credenciais novas e update Hyperdrive por ambiente; autoriza **apenas** fase 3; (3) **A-RESTORE** — autorização escrita de restore de backup real (ambiente isolado allowlisted, executante, janela); autoriza **apenas** o gate da fase 4; (4) **E2b** — aprovação final explícita antes das fases 5–6 (migrations + rollout de app/workers em produção); (5) mecanismo dedicado de pause/drain cron/outbox + responsável (bloqueador da fase 6). Nenhuma dessas aprovações cobre as outras: A-RESTORE não autoriza migrations nem rollout; E2b não autoriza rede, papéis ou restore.
 
 ## 3. Papéis de runtime no PostgreSQL (design de privilégio mínimo)
 
 - **`synkroo` permanece admin/DDL** (pgvector, migrations, DDL). Não é papel de runtime da aplicação.
 - **Novos papéis runtime:** sem flags (`SUPERUSER`, `CREATEDB`, `CREATEROLE`, `BYPASSRLS`, `REPLICATION`) e sem membership em papéis privilegiados.
 - **Grants:** `SELECT/INSERT/UPDATE/DELETE` nas tabelas do schema `public`; `USAGE` nos schemas `public` e `drizzle`; `SELECT` no ledger (`drizzle.__drizzle_migrations`).
+- **Exceção do controle operacional (0036 expandida):** runtime exige `SELECT` em `public.outbox_control` para observar pause/release e executar o trigger, mas **não** recebe `INSERT/UPDATE/DELETE` nessa tabela. `pause`/`resume` via `scripts/outbox-control.ts` usa `DATABASE_URL` administrativa protegida, nunca a credencial runtime. Depois de `ALTER DEFAULT PRIVILEGES`, revogar os privilégios mutadores do runtime nessa tabela e verificar cada um com `has_table_privilege` antes do rollout.
 - **Sequences:** conceder somente após inventário real dos nomes — não presumir.
-- **Objetos criados por migration:** o runner canônico aplica **todo** o journal pendente (0034→0035→0036) em ordem, **numa única invocação por ambiente**; portanto **não** é possível aplicar grant entre 0035 e 0036 sem um migrador segmentado (fora de escopo — nenhuma mudança em `scripts/migrate-vps.ts` está prevista). A solução é provisionar **antes** das migrations: (a) `GRANT ... ON ALL TABLES IN SCHEMA public` cobre as tabelas já existentes; (b) `ALTER DEFAULT PRIVILEGES ... ON TABLES` emitida **pelo mesmo principal que executa a migration** (dono exato da migration) faz `approval_tokens` **nascer concedida** na criação pela 0035. **Depois** das migrations e **antes** do rollout (fase 6): verificação explícita — `GRANT` vigente + `has_table_privilege('synkroo_app','approval_tokens', ...)` e a mesma checagem em todos os objetos criados/alterados por 0034–0036. A concessão é `SELECT/INSERT/UPDATE/DELETE` porque o consumo faz insert, select, update de `consumed_at` e delete (lazy purge de expirados) — `src/core/actions/approval.ts:96,147,149,159,178`. Sem o grant, o fluxo de aprovação falha em runtime **depois** do rollout. 0035 **não** cria sequence nem índice extra, por isso esse passo não interage com o inventário de sequences.
+- **Objetos criados por migration:** o runner canônico aplica **todo** o journal pendente (0034→0035→0036) em ordem, **numa única invocação por ambiente**; não existe grant intermediário entre 0035 e 0036. `ALTER DEFAULT PRIVILEGES` do dono exato da migration faz `approval_tokens` nascer acessível em 0035. Depois da migration e antes do rollout: verificar privilégios independentes em `approval_tokens`, `action_logs`, `outbox_jobs` e `outbox_control`. Runtime recebe CRUD nas tabelas de negócio/outbox e somente SELECT no singleton `outbox_control`; `INSERT/UPDATE/DELETE` do controle ficam na conexão administrativa do operador. `approval_tokens` exige CRUD porque `src/core/actions/approval.ts` insere, lê, atualiza `consumed_at` e remove expirados. 0035 não cria sequence.
 - **Sem revogação blanket de `EXECUTE`** em funções.
 - **Defaults do `PUBLIC`:** antes de alegar isolamento, contabilizar/remedir `CONNECT` no banco e `EXECUTE` em funções — defaults do PostgreSQL que nenhum papel novo revoga por si.
 
@@ -144,6 +149,20 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE O
 - **App:** rollback do bundle somente após prova de compatibilidade — 0034–0036 são expand-only, mas a prova precisa existir antes de ser invocada.
 - **Rede:** nenhum rollback para porta pública irrestrita; se D4 falhar, corrigir para dentro do modelo privado.
 
+### 7.1 Matriz de compatibilidade específica do controle 0036
+
+| Cenário | Resultado exigido/observável | Gate operacional |
+|---|---|---|
+| App legado em schema 36 com 0036 expandida e controle inicialmente desarmado | APIs/produtores seguem escrevendo; enqueue continua durável. O consumidor legado só pode operar antes do pause; após pause, trigger bloqueia novos claims e permite drenar somente leases pré-protocolo (`claim_release IS NULL`). | pause antes da troca de release; `processing=0` antes de deploy/resume. |
+| Banco ledger 36 com a 0036 original (sem objetos de controle) | readiness `maintenance-control-missing`; código novo e claims falham fechado. | `outbox-control-repair.mjs` dry-run → `--apply` explícito e shape verificado; não contar apenas ledger. |
+| App/consumer novo em schema 36 expandido | release obtida por `CF_VERSION_METADATA`/override válido; claim incrementa `claim_generation`, persiste `claim_release`; settlement precisa do marcador `<release>#<generation>`. Release ausente/mismatch é recusado. | readiness ready + GET autenticado confirma o release antes de resume. |
+| Consumer antigo ainda ativo; novo release aguardando | pause DB impede novos claims inclusive do scheduler/direct SQL; jobs antigos em execução aparecem em `processingJobs` com geração/release; suas liquidações pré-protocolo só terminam durante o pause e enquanto o release não foi rearmado. | não fazer resume até zero processing e uma única versão nova ativa. |
+| Rollback para release anterior sem protocolo | app pode servir rotas, mas o consumer não passa o gate; fila permanece pendente e preservada. Não há recuperação automática por swap. | repetir pause→drain→verify; manter pausado até versão protocol-capable. Nunca retomar legacy sem fence. |
+
+Compatibilidade em PG descartável foi exercitada por migrations-from-zero e
+ensaios de trigger/readiness/repair. Isso não substitui rehearsal autorizado em
+staging; nenhum schema produtivo foi alterado.
+
 ## 8. Monitoramento (após cada fase)
 
 - Readiness por motivo (`migrations-incomplete` vs `db-unreachable`); taxa de 5xx; falhas de autenticação.
@@ -156,15 +175,16 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE O
 
 | Gate | Evidência exigida | Status atual |
 |---|---|---|
-| CI dos PRs pequenos | `verify` + `test:release` verdes nos 4 PRs | Pendente (PRs não criados) |
+| CI/integração de código | CI da main pós-#51/#52 verde; CI + review do PR do controle devem estar verdes antes de avançar | #51 e #52 pós-merge PASS; PR do controle ainda não aberto |
 | Restore de backup | restore real autorizado (A-RESTORE) e verificado no DB isolado allowlisted: exit 0 do `pg_restore`, catálogo, extensões e ledger = **33** + smoke estrutural via admin/`psql` (nunca readiness 36/36 — circular antes da fase 5) | **NÃO VERIFICADO / BLOQUEADO** — sem A-RESTORE escrita e sem restore nesta rodada; drill 10/07 = artefato real off-host do dia → DB isolado; drill 25/09 = backup real de produção → `synkroo_drill`; nenhum é o dump vigente |
 | Backup + manifest off-host | artefatos e manifest co-verificados como bundle | Parcial — streaming 10/10; manifest separado |
-| Readiness | PR de healthcheck merged; readiness sem falso negativo; probes pré-migration aceitam `migrations-incomplete` (33/36); gates pós-fase 5 exigem 36/36 | Pendente (PR não criado); ledger 33/36 |
+| Readiness/conectividade | pré-migration comprova auth/TLS/SELECT/ledger e aceita somente `migrations-incomplete` em 33/36; pós exige ledger **exato 36/36**, readiness integral e control shape funcional | lógica candidate; ensaio isolado PASS; produção/staging continuam reportados 33/36 até nova evidência autorizada |
 | Conectividade privada | produção alcançável só por caminho autorizado | Pendente (fase 2) |
 | Least-privilege | papéis novos sem flags; principals confirmados em `pg_stat_activity` | Pendente (fase 3) |
-| Grants de `approval_tokens` e default privileges | papéis + `ALTER DEFAULT PRIVILEGES` do dono exato da migration provisionados **antes** das migrations; `GRANT` + `has_table_privilege` verificados em `approval_tokens` e em todos os objetos de 0034–0036 **depois** da migração e **antes** do rollout | Pendente (fase 5) |
-| Quiescência cron/outbox (fase 6) | mecanismo de pause/drain de **todas** as fontes (6 jobs nomeados + consumidor `/api/cron/outbox` fora do gate + produtores inline) comprovado + inventário de fontes + zero in-flight observado | **BLOQUEADOR HARD** — não existe mecanismo seguro de pausa: `CRON_JOBS_ENABLED` não cobre o outbox nem produtores inline |
-| Não-sobreposição old/new (fase 6) | uma única versão atendendo por vez; zero claims concomitantes; rollback repete a quiescência inteira | Pendente (fase 6) |
+| Grants de `approval_tokens` e outbox control | runtime roles + `ALTER DEFAULT PRIVILEGES` do dono exato antes; pós-migration verificar `approval_tokens`/objetos 0034–0036; runtime com SELECT-only em `outbox_control`; credencial administrativa opera pause/resume | Pendente (A-PAPEIS/E2b; nenhuma role/grant alterada) |
+| Pause/drain do outbox | PostgreSQL singleton + trigger no claim, pause/resume CAS, status leases/releases; enqueue segue durável; `verify-drained` exige pause + `processing=0` | implementado no candidate; ensaio local PG17 PASS; não mergeado/aplicado em produção |
+| Jobs ambíguos / lease stale | nunca considerar 5 min prova; `processing` stale mantém drain incompleto; reconciliation por domínio antes de qualquer resume | limitação conhecida: nenhum force/retry cego; se existir job ambíguo, NO-GO até resolução manual autorizada |
+| Não-sobreposição old/new (fase 6) | rollout all-at-once para release único; GET autenticado confirma versão/epoch; marker + generation cercam settlement; rollback repete pause/drain e nunca retoma consumer pre-protocol | ensaio isolado PASS; implantação e verificação de versão em produção pendentes |
 | Ledger | 33 confirmado antes; 36 após fase 5 | 33/36 em ambos os ambientes |
 | Smoke-staging controlado | stateful synthetic-only: clínica/usuário sintéticos; POSTs switch-clinic/inbound documentados; nenhum envio real a provider | Pendente (definir alvo sintético) |
 | Janela E2b | aprovação humana explícita registrada | Pendente (fase 0) |
@@ -192,7 +212,57 @@ GET /api/internal/readiness  # migrations-incomplete vs db-unreachable
 npx tsx scripts/migrate-vps.ts --side=target --target=staging       # [MUTADOR → E2b] janela própria; aplica 0034→0035→0036
 npx tsx scripts/migrate-vps.ts --side=target --target=production    # [MUTADOR → E2b] janela separada
 # 1) PÓS-MIGRATION, PRÉ-ROLLOUT: GRANT vigente + has_table_privilege em approval_tokens e em todos
-#    os objetos de 0034–0036 (§3) — verificação, não concessão; runner canônico não é alterado.
+#    os objetos de 0034–0036 (§3), incluindo outbox_control SELECT-only para runtime.
+#    O control singleton é mutado somente pela conexão administrativa do operador.
+# Se o ledger 36 tiver a 0036 original sem os objetos do controle, readiness deve
+# retornar maintenance-control-missing. Inspecionar primeiro (dry-run); --apply
+# é DDL mutador e exige E2b + backup/preflight, nunca rodar implicitamente:
+node scripts/outbox-control-repair.mjs
+# node scripts/outbox-control-repair.mjs --apply  # [MUTADOR → E2b, somente se shape ausente]
+
+# --- pause/drain do outbox (após schema 36; DATABASE_URL admin vem do ambiente protegido) ---
+npm run outbox:control -- status
+npm run outbox:control -- pause
+npm run outbox:control -- status
+npm run outbox:control -- verify-drained
+# Revisar imediatamente antes de resume os eventos preservados/efeitos que podem
+# ser emitidos; CASE allowlisted evita expor operação desconhecida ou payload.
+psql "sslmode=require host=$PGHOST port=$PGPORT user=$PGUSER dbname=$PGDATABASE" \
+  -c "SELECT CASE operation
+        WHEN 'financeiro.charge.create' THEN operation
+        WHEN 'financeiro.charge.cancel' THEN operation
+        WHEN 'followup.campaign.recipient' THEN operation
+        WHEN 'atendimento.inbound.message' THEN operation
+        WHEN 'atendimento.outbound.message' THEN operation
+        WHEN 'crm.contact.changed' THEN operation
+        ELSE 'unknown' END AS operation_class,
+      status, count(*)
+      FROM public.outbox_jobs WHERE status IN ('pending','processing')
+      GROUP BY 1,2 ORDER BY 1,2;"
+# Em outro terminal autorizado, após deploy all-at-once, confirmar o release que
+# atende /api/cron/outbox via GET autenticado (CRON_SECRET somente no env; não argv/log):
+# PowerShell: Invoke-RestMethod -Method Get -Uri "$env:OUTBOX_BASE_URL/api/cron/outbox" `
+#   -Headers @{ Authorization = "Bearer $env:CRON_SECRET" }
+# Exigir status=paused, processing=0, controlEpoch esperado e releaseId igual ao
+# único Worker Version ID ativo no Cloudflare (100%, sem gradual/split traffic).
+# Revisar de novo o backlog por operação (a pausa não interrompe produtores); nunca
+# usar SELECT de payload para esse gate. Se houver eventos sem autorização de efeito,
+# manter pausado e obter decisão do owner.
+psql "sslmode=require host=$PGHOST port=$PGPORT user=$PGUSER dbname=$PGDATABASE" \
+  -c "SELECT CASE operation
+        WHEN 'financeiro.charge.create' THEN operation
+        WHEN 'financeiro.charge.cancel' THEN operation
+        WHEN 'followup.campaign.recipient' THEN operation
+        WHEN 'atendimento.inbound.message' THEN operation
+        WHEN 'atendimento.outbound.message' THEN operation
+        WHEN 'crm.contact.changed' THEN operation
+        ELSE 'unknown' END AS operation_class,
+      status, count(*)
+      FROM public.outbox_jobs WHERE status IN ('pending','processing')
+      GROUP BY 1,2 ORDER BY 1,2;"
+npm run outbox:control -- resume --expected-epoch=<epoch-do-pause> --release-id=<cf-version-id>
+# Confirmar GET status=running + releaseId=controlReleaseId; se processing>0,
+# release divergir/desconhecido ou o control shape falhar, NÃO retomar.
 
 # --- smoke (sem credencial literal; auth sintética via ambiente) ---
 SMOKE_BASE_URL=https://<worker-url> node scripts/smoke-deploy.mjs
@@ -234,7 +304,7 @@ Validação dos PRs da fase 1: `npm run verify` e `npm run test:release` (cobrem
 - Não criar rota/tunnel na Cloudflare nem fazer unpublish sem janela owner-approved.
 - Não restaurar backup de produção sem autorização de restore (A-RESTORE escrita, alvo isolado allowlisted).
 - Não exigir readiness 36/36 antes das migrations — em probe, gate de restore ou smoke; exigir 36/36 no alvo 33 é exigência circular (o ledger só chega a 36 na fase 5).
-- Não intercalar GRANTs entre 0035 e 0036: o runner canônico aplica todo o journal pendente numa invocação; a solução é provisionar papéis + default privileges antes e verificar depois — sem criar migrador segmentado.
+- Não intercalar GRANTs entre 0035 e 0036: o runner canônico aplica todo o journal pendente numa invocação; provisionar papéis/default privileges antes e verificar depois. Em `outbox_control`, runtime só SELECT; mutação é administrativa — sem criar migrador segmentado.
 - Não tratar todas as operações mutadoras como cobertas pela aprovação E2b: `update-hyperdrive` é A-PAPEIS, `db-restore` é A-RESTORE, contenção de rede/unpublish é A-REDE, migrations e rollout de app/workers são E2b.
 - Não executar nenhuma operação antes da sua autorização específica (A-REDE / A-PAPEIS / A-RESTORE / E2b).
 - Não retomar o worker antigo sem fence em nenhum rollback da fase 6; a quiescência é repetida, não dispensada.
@@ -247,7 +317,7 @@ Validação dos PRs da fase 1: `npm run verify` e `npm run test:release` (cobrem
 |---|---|
 | Owner (aprovações A-REDE / A-PAPEIS / A-RESTORE / E2b) | ________ — a definir; não inventado |
 | Operador (execução das janelas) | ________ — a definir; não inventado |
-| Responsável pelo mecanismo de pause/drain cron/outbox (bloqueador da fase 6) | ________ — a definir; não inventado |
+| Responsável operacional por pause/drain e reconciliação de leases ambíguas | ________ — a definir; o código candidate não nomeia nem substitui o operador |
 
 Sem nomeação registrada, qualquer gate que dependa de owner/operador permanece NO-GO.
 
@@ -256,10 +326,10 @@ Sem nomeação registrada, qualquer gate que dependa de owner/operador permanece
 O plano só pode ser validado contra estes critérios — cada um verificável no próprio texto e na evidência citada:
 
 1. **Separação probe/gate:** probes das fases 2–3 aceitam ledger 33 com `migrations-incomplete`; gates das fases 5–7 exigem 36/36; nenhum probe exige o que só a fase 5 produz (sem exigência circular).
-2. **Ordem das migrations:** 0034 → 0035 → 0036 explícita, com os nomes reais do journal (`0034_action_attempt_fields`, `0035_approval_tokens`, `0036_outbox_claim_generation`) e um ambiente por execução (sem `--target=all`); o runner canônico aplica **todo** o journal pendente numa única invocação — papéis de runtime + `ALTER DEFAULT PRIVILEGES` do dono exato da migration são provisionados **antes** (para `approval_tokens` nascer concedida na 0035) e a verificação de `GRANT`/`has_table_privilege` em `approval_tokens` e em todos os objetos de 0034–0036 ocorre **depois** da migração e **antes** do rollout; nenhum grant é implicado entre 0035 e 0036 e nenhum migrador segmentado é proposto.
-3. **Quiescência sem invenção:** pause de produtores via `CRON_JOBS_ENABLED` declarado com seu limite real — hoje o valor lista os seis jobs, então pausar é mudança de release; `/api/cron/outbox` dispara fora do gate e os produtores inline (`enqueueOutbox`, 9 arquivos) não são cobertos; ausência de mecanismo comprovado de pause/drain registrada como **bloqueador**, não como certeza. Drenagem exige ≥5min **e** zero claims da versão antiga; uma única versão atende por vez; rollback repete a quiescência inteira.
+2. **Ordem das migrations/grants:** 0034 → 0035 → 0036 explícita, um ambiente por execução; o runner aplica o journal numa chamada. Default privileges do dono exato são provisionados antes; depois, verificar `approval_tokens`, objetos 0034–0036 e `outbox_control`. Runtime recebe SELECT-only no singleton; a conexão administrativa muta pause/resume. Ledger e control shape são verificações independentes.
+3. **Quiescência verificável:** pausa PostgreSQL bloqueia claims de `/api/cron/outbox`, dispatchers diretos e versões legadas pelo trigger comum; scheduler pode continuar o poll sem dispatch. Produtores inline permanecem ativos e seus enqueues são duráveis/atômicos; não se afirma que foram pausados. `verify-drained` exige estado paused + `processing=0` + listagem completa; lease >5min não prova drain. Jobs de resultado ambíguo mantêm NO-GO até reconciliação de domínio, sem force/retry cego. Deploy é all-at-once para uma release; rollback repete pause/drain/verify.
 4. **Restore:** `--yes` nunca apresentado com `DATABASE_URL` herdada (a sobrescrita a partir da variável do alvo é fail-closed: alvo vazio aborta); alvo nomeado/allowlisted — produção e staging fora da allowlist —, identidade pré/pós e URL sintética em env separada exigidos; verificação do alvo restaurado no ledger **33** = exit 0 do `pg_restore`, catálogo, extensões e smoke estrutural via admin/`psql`, **sem** exigir readiness 36/36 antes das migrations (artefato 33-compatível identificado se a smoke usar o app antigo); drills classificados corretamente (10/07 = artefato real off-host do dia → DB isolado; 25/09 = backup real de produção → DB isolado `synkroo_drill`; 26/09 local = dev local → alvo vivo) e nenhum como prova do dump vigente; uso de backup atual permanece BLOQUEADO sem autorização escrita.
 5. **Fronteiras de aprovação:** A-REDE (rede) / A-PAPEIS (papéis + credenciais + Hyperdrive) / A-RESTORE (restore) / E2b (migrations + rollout de produção) distintas e em sequência; nenhuma operação antes da sua autorização específica e nenhuma aprovando outra (A-RESTORE não cobre migrations/rollout; E2b não cobre rede, papéis ou restore).
 6. **Cadeia 2→3→4 consistente:** DAG `0 → 1 → 2 → 3 → 4 → 5 → 6 → 7` e as declarações de fase concordam — papéis/credenciais são cortados sobre o caminho privado provado na fase 2, portanto 2 precede 3, e ambas bloqueiam 4.
 7. **Smoke:** smoke-deploy (GET-only, `workers` skipped) e smoke-staging (stateful synthetic-only, POSTs documentados, alvo sintético, nenhum envio real a provider) descritos sem tratar skip como prova.
-8. **Sem sobreposição com a evidência:** janelas de fases nunca coincidem (5 e 6 jamais na mesma janela; probe pré-migration ≠ gate pós-migration; uma única versão de worker atende por vez na fase 6); cada afirmação do plano mapeia para evidência própria e disjunta — o drill 10/07 não conta como restore do dump vigente, o drill 25/09 (backup real de produção → isolado) e o drill local 26/09 (dev local → alvo vivo) também não, a leitura 33/33 histórica não conta como gate, e checks skipped/inexistentes não contam como prova. Nenhuma evidência é reutilizada para dois gates.
+8. **Sem sobreposição com a evidência:** fases 5 e 6 não coincidem; probe pré-migration ≠ gate pós-migration; uma release única atende no resume; enqueues e backlog são preservados e revisados antes da retomada. Cada evidência é disjunta: nenhum drill histórico prova o dump vigente; leitura 33/33 antiga, lease expirado, check skipped ou troca de release isolada não comprovam restore, drain ou fence.

@@ -35,8 +35,17 @@ function executedSqlTexts(): string[] {
 beforeEach(() => {
   jest.clearAllMocks();
   // Integração G4×F2: "tudo aplicado" acompanha EXPECTED_MIGRATIONS (31 após
-  // migration 0031) em vez de número fixo.
-  mdb.execute.mockResolvedValue({ rows: [{ count: EXPECTED_MIGRATIONS }] });
+  // migration 0031) em vez de número fixo. O shape do gate de manutenção
+  // (0036 expandida) também vem no mock — sem ele o readiness falharia
+  // fechado por engano (maintenance-control-missing).
+  mdb.execute.mockResolvedValue({ rows: [{
+    count: EXPECTED_MIGRATIONS,
+    control_table: true,
+    gate_function: true,
+    gate_trigger: true,
+    claim_release_column: true,
+    control_row: true,
+  }] });
   mdb.transaction.mockImplementation(async (cb: (tx: unknown) => unknown) => cb(mdb));
   mockGetDb.mockReturnValue(mdb);
   process.env.CRON_SECRET = 'test-cron-secret';
@@ -157,5 +166,51 @@ describe('GET /api/internal/readiness', () => {
     expect(body.reason).toBe('migrations-incomplete');
     expect(typeof body.durationMs).toBe('number');
     expect(JSON.stringify(body)).not.toContain(DRIVER_MARKER);
+  });
+
+  it('returns 503 maintenance-control-missing quando ledger 36/36 está sobre a 0036 original (sem gate)', async () => {
+    // Ledger cheio, mas o shape do gate de manutenção não existe no banco:
+    // ambiente já migrado com a 0036 antiga NÃO pode reportar ready.
+    mdb.execute
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+      .mockResolvedValueOnce({ rows: [{ count: EXPECTED_MIGRATIONS }] })
+      .mockResolvedValueOnce({ rows: [{ control_table: false, control_row: false, gate_function: false, gate_trigger: false, claim_release_column: false }] });
+
+    const response = await GET(readinessRequest('test-cron-secret'));
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.status).toBe('not-ready');
+    expect(body.reason).toBe('maintenance-control-missing');
+    expect(JSON.stringify(body)).not.toContain(DRIVER_MARKER);
+  });
+
+  it('returns 503 quando ledger está À FRENTE do journal (aceitação é exata)', async () => {
+    mdb.execute
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+      .mockResolvedValueOnce({ rows: [{ count: EXPECTED_MIGRATIONS + 1 }] });
+
+    const response = await GET(readinessRequest('test-cron-secret'));
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.reason).toBe('migrations-incomplete');
+    expect(JSON.stringify(body)).not.toContain(DRIVER_MARKER);
+  });
+
+  it('returns 503 quando o trigger do gate existe mas está DESABILITADO', async () => {
+    mdb.execute
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+      .mockResolvedValueOnce({ rows: [{ count: EXPECTED_MIGRATIONS }] })
+      .mockResolvedValueOnce({ rows: [{ control_table: true, gate_function: true, gate_trigger: false, claim_release_column: true }] });
+
+    const response = await GET(readinessRequest('test-cron-secret'));
+
+    expect(response.status).toBe(503);
+    const body = await response.json();
+    expect(body.reason).toBe('maintenance-control-missing');
   });
 });

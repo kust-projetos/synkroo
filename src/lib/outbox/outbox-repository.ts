@@ -3,6 +3,16 @@ import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { getDb } from '@/lib/db/client';
 import { outboxJobs } from '@/lib/db/schema';
 import type { OutboxOperation } from './operations';
+import {
+  CLAIM_MARKER_SETTING,
+  buildClaimMarker,
+  getConsumerRelease,
+} from './consumer-release';
+import {
+  OUTBOX_LEASE_MS,
+  OutboxControlError,
+  readControlForClaim,
+} from './control';
 
 export type OutboxStatus = 'pending' | 'processing' | 'delivered' | 'failed' | 'dead_letter';
 export type OutboxJob = typeof outboxJobs.$inferSelect;
@@ -41,8 +51,6 @@ export async function enqueueOutboxForTests(db: any, job: TestOutboxInsert): Pro
   return enqueueOutbox(db, job as OutboxInsert);
 }
 
-const OUTBOX_LEASE_MS = 5 * 60 * 1000;
-
 export type ClaimOutboxOptions = {
   now?: Date;
   operations?: readonly string[];
@@ -59,20 +67,75 @@ export type ClaimOutboxOptions = {
 };
 
 /**
- * Claim atômico do próximo job elegível.
+ * Identidade transacional do dono do lease.
+ *
+ * `set_config(..., true)` é `SET LOCAL` — o marcador vive só dentro da
+ * transação em que foi gravado e some no COMMIT/ROLLBACK, sem vazar pela
+ * conexão do pool. O trigger `outbox_enforce_control_gate` lê este GUC para
+ * autenticar o caller: o valor da coluna `claim_release` sozinho não prova
+ * nada (um UPDATE solto de binário antigo pode acertar uma linha que já carrega
+ * o release atual), mas o par `<release>#<claim_generation>` gravado na mesma
+ * transação do UPDATE prova a posse da geração EXATA do lease.
+ *
+ * Precisa ser chamado dentro de uma transação (mesma conexão/transação do
+ * UPDATE) — por isso todo claim e toda liquidação passam por aqui.
+ */
+async function bindClaimIdentity(
+  tx: { execute: (...args: unknown[]) => unknown },
+  releaseId: string,
+  claimGeneration: number,
+): Promise<void> {
+  const marker = buildClaimMarker(releaseId, claimGeneration);
+  await (tx as any).execute(
+    sql`SELECT set_config(${CLAIM_MARKER_SETTING}, ${marker}, true)`,
+  );
+}
+
+/**
+ * Claim atômico do próximo job elegível, gateado pelo estado de manutenção.
  *
  * `claim_generation` é incrementada no MESMO UPDATE que muda o status para
  * `processing` — o lease devolvido ao caller é o par
  * `(id, claimGeneration)`, e ele é a ÚNICA fence válida da liquidação
  * (ver `src/lib/db/migrations/0036_outbox_claim_generation.sql`).
  * `attempts` também incrementa aqui e NÃO serve de fence: o defer a decrementa.
+ *
+ * Gate de manutenção (migration 0036 expandida): a linha singleton de
+ * `outbox_control` é lida sob `FOR SHARE` dentro desta transação, então
+ * pause-vs-claim é race-safe nas duas direções (o exclusivo do pause/resume
+ * conflita com o lock compartilhado) enquanto claims concorrentes em jobs
+ * distintos NÃO serializam entre si. Pausado ⇒ nenhum claim.
+ * Com `release_id` armado (após resume explícito), o claim só passa carregando
+ * aquele release em `claim_release`; release desconhecido falha FECHADO. A
+ * linha/tabela de controle indisponível também falha fechado
+ * (`OUTBOX_CONTROL_UNAVAILABLE`) — nunca claim às cegas. O trigger
+ * `outbox_enforce_control_gate` reforça as mesmas regras no banco, alcançando
+ * binário antigo e dispatch direto por SQL: claim SEM incrementar a geração
+ * exatamente uma vez e sem o marcador transacional é recusado em qualquer
+ * estado.
  */
 export async function claimOutboxJob(options: ClaimOutboxOptions = {}): Promise<OutboxJob | undefined> {
   const db = getDb();
   const now = options.now ?? new Date();
   const staleBefore = new Date(now.getTime() - OUTBOX_LEASE_MS);
   if (options.operations?.length === 0) return undefined;
+  const release = await getConsumerRelease();
+  // A protocol-capable consumer must identify its immutable release even
+  // before the operator arms the control row. Otherwise it would look exactly
+  // like a legacy holder (`claim_release IS NULL`) and could be overwritten by
+  // a legacy settlement during the first drain.
+  if (release === null) throw new OutboxControlError('OUTBOX_RELEASE_UNKNOWN');
   return db.transaction(async (tx: any) => {
+    // Gate de manutenção antes de tocar qualquer linha: lock do controle
+    // primeiro, linha do job depois (ordem estável, sem deadlock).
+    const control = await readControlForClaim(tx);
+    if (control.paused) return undefined;
+    if (control.releaseId !== null && release !== control.releaseId) {
+      // Fail closed: gate armado e release desconhecido/divergente não claima.
+      throw new OutboxControlError(
+        release === null ? 'OUTBOX_RELEASE_UNKNOWN' : 'OUTBOX_RELEASE_MISMATCH',
+      );
+    }
     const claimable = or(
       eq(outboxJobs.status, 'pending'),
       and(eq(outboxJobs.status, 'processing'), lte(outboxJobs.updatedAt, staleBefore)),
@@ -85,10 +148,16 @@ export async function claimOutboxJob(options: ClaimOutboxOptions = {}): Promise<
     const [job] = await tx.select().from(outboxJobs).where(and(...filters))
       .orderBy(outboxJobs.nextAttemptAt).limit(1).for('update', { skipLocked: true });
     if (!job) return undefined;
+    // Geração que o UPDATE abaixo vai escrever. A linha está travada por esta
+    // transação (`FOR UPDATE`), então o valor lido é estável: o marcador
+    // transacional casa com a geração EXATA que o trigger verá.
+    const claimGeneration = job.claimGeneration + 1;
+    await bindClaimIdentity(tx, release, claimGeneration);
     const [claimed] = await tx.update(outboxJobs).set({
       status: 'processing',
       attempts: sql`${outboxJobs.attempts} + 1`,
-      claimGeneration: sql`${outboxJobs.claimGeneration} + 1`,
+      claimGeneration,
+      claimRelease: release,
       updatedAt: now,
     }).where(and(eq(outboxJobs.id, job.id), claimable)).returning();
     return claimed;
@@ -116,6 +185,13 @@ const LEASE_FENCE = (
  * linha já foi liquidada) — a execução atual NÃO é dona da linha e NÃO deve
  * reportar desfecho nem chamar callback. A decisão é atômica no banco, via
  * `RETURNING`: sem read-then-write e sem corrida entre o envio e a liquidação.
+ *
+ * O marcador transacional de posse (`bindClaimIdentity`) é gravado na MESMA
+ * transação do UPDATE, então o trigger confirma que o caller é o dono da
+ * geração EXATA do lease — um holder antigo (geração anterior, mesmo release) e
+ * um binário antigo sem marcador são recusados com o gate ARMADO (RUNNING) e
+ * também durante o pause; o único caminho sem marcador é a liquidação, durante
+ * o pause, de linha PRÉ-PROTOCOLO sem `claim_release`.
  */
 async function settle(
   db: any,
@@ -123,10 +199,15 @@ async function settle(
   claimGeneration: number,
   values: PgUpdateSetSource<typeof outboxJobs>,
 ): Promise<boolean> {
-  const rows = await db.update(outboxJobs).set(values)
-    .where(LEASE_FENCE(id, claimGeneration))
-    .returning({ id: outboxJobs.id });
-  return rows.length > 0;
+  return db.transaction(async (tx: any) => {
+    const release = await getConsumerRelease();
+    if (release === null) throw new OutboxControlError('OUTBOX_RELEASE_UNKNOWN');
+    await bindClaimIdentity(tx, release, claimGeneration);
+    const rows = await tx.update(outboxJobs).set(values)
+      .where(LEASE_FENCE(id, claimGeneration))
+      .returning({ id: outboxJobs.id });
+    return rows.length > 0;
+  });
 }
 
 /**
@@ -147,12 +228,17 @@ export async function markOutboxDelivered(
   afterDelivered?: OutboxSuccessHook,
 ): Promise<boolean> {
   const db = getDb();
-  // Sem hook: liquidação simples, sem transação (contrato histórico preservado).
+  // Sem hook: liquidação simples — única transação, só com o UPDATE cercado e o
+  // marcador transacional de posse (contrato histórico preservado).
   if (!afterDelivered) return settle(db, id, claimGeneration, { status: 'delivered', updatedAt: new Date() });
-  // Com hook: o UPDATE cercado e a escrita adicional cometem ou falham juntos.
-  // Uma falha do hook desfaz TAMBÉM o `delivered` — o job volta a `processing`
-  // para replay, e o claim de idempotência dedupa o reenvio ao provider.
+  // Com hook: o UPDATE cercado, o marcador de posse e a escrita adicional
+  // cometem ou falham juntos. Uma falha do hook desfaz TAMBÉM o `delivered` —
+  // o job volta a `processing` para replay, e o claim de idempotência dedupa
+  // o reenvio ao provider.
   return db.transaction(async (tx: any) => {
+    const release = await getConsumerRelease();
+    if (release === null) throw new OutboxControlError('OUTBOX_RELEASE_UNKNOWN');
+    await bindClaimIdentity(tx, release, claimGeneration);
     const rows = await tx.update(outboxJobs).set({ status: 'delivered', updatedAt: new Date() })
       .where(LEASE_FENCE(id, claimGeneration))
       .returning({ id: outboxJobs.id });

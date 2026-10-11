@@ -23,7 +23,7 @@ describe('outbox registry hardening (T7)', () => {
     expect(outboxOperations).toContain('crm.contact.changed');
   });
 
-  it('GET /api/cron/outbox requires CRON_SECRET (mutation)', async () => {
+  it('GET /api/cron/outbox requires CRON_SECRET and fails closed without runtime state', async () => {
     const route = await import('@/app/api/cron/outbox/route');
     const reqNoAuth = { headers: { get: () => null } } as any;
     const resNoAuth = await route.GET(reqNoAuth);
@@ -34,7 +34,12 @@ describe('outbox registry hardening (T7)', () => {
       headers: { get: (k: string) => (k === 'Authorization' ? 'Bearer test-secret' : null) },
     } as any;
     const resWithAuth = await route.GET(reqWithAuth);
-    expect(resWithAuth.status).toBe(200);
+    // Este unit test não configura PostgreSQL nem Cloudflare version metadata;
+    // autenticado não pode ser confundido com worker/version pronto.
+    expect(resWithAuth.status).toBe(503);
+    const body = await resWithAuth.json();
+    expect(body.status).toBe('unavailable');
+    expect(JSON.stringify(body)).not.toContain('test-secret');
     delete process.env.CRON_SECRET;
   });
 });

@@ -4,6 +4,9 @@ compatibility_date = "2026-06-23"
 compatibility_flags = ["nodejs_compat"]
 triggers = { crons = ["*/5 * * * *"] }
 
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+
 [observability]
 enabled = true
 
@@ -53,6 +56,9 @@ name = "synkroo-staging"
 NODE_ENV = "production"
 ENVIRONMENT = "staging"
 CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates,followups,financeiro-collections"
+
+[env.staging.version_metadata]
+binding = "CF_VERSION_METADATA"
 [[env.staging.services]]
 binding = "IA_HANDLE_ISSUER"
 service = "synkroo-ia-bridge-staging"
