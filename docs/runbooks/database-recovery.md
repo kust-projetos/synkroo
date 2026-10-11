@@ -12,6 +12,15 @@
 > cadeia de migrations `0000`–`0036` em `src/lib/db/migrations/` — ledger
 > esperado **36** (autoridade: [docs/audit/migrations-policy.md](../audit/migrations-policy.md);
 > constante `EXPECTED_MIGRATIONS` em `src/services/api-handlers/health/db.ts`).
+> Readiness também valida o shape funcional do controle outbox (singleton, trigger
+> BEFORE UPDATE ROW habilitado e `claim_release`). 36 entradas com a 0036 original
+> mas sem esses objetos retorna `maintenance-control-missing`; use repair explícito
+> em dry-run antes de `--apply` autorizado, nunca presuma pelo ledger isolado.
+> Readiness completo exige ledger **exatamente 36/36** e control shape do outbox
+> funcional (singleton + trigger BEFORE UPDATE ROW habilitado + `claim_release`).
+> Um banco com 36 entradas mas com a 0036 original pode reportar
+> `maintenance-control-missing`; reparar somente por `scripts/outbox-control-repair.mjs`
+> após dry-run e autorização, não presumir que 36/36 prova o control instalado.
 > Política de migrations (expand → migrate → switch → contract):
 > [docs/audit/migrations-policy.md](../audit/migrations-policy.md).
 >

@@ -56,6 +56,8 @@ describeIntegration('checkReadiness contra PostgreSQL migrado (regressão E2a)',
       complete: true,
       applied: EXPECTED_MIGRATIONS,
       expected: EXPECTED_MIGRATIONS,
+      ledgerComplete: true,
+      maintenanceControl: 'present',
     });
   });
 

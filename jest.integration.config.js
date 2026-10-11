@@ -11,6 +11,9 @@ require('dotenv').config({ path: '.env.local', quiet: true });
 
 // Set the flag before Jest initializes
 process.env.RUN_INTEGRATION_TESTS = '1';
+// Consumer release de teste determinístico; produção resolve o ID pelo
+// binding Cloudflare CF_VERSION_METADATA no contexto OpenNext.
+process.env.OUTBOX_RELEASE_ID ??= 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
 
 module.exports = {
   preset: 'ts-jest',

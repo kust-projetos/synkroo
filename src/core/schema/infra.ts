@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { boolean, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { clinics, users } from '@/lib/db/schema/core';
 
 export const idempotencyKeys = pgTable('idempotency_keys', {
@@ -35,6 +35,18 @@ export const outboxJobs = pgTable('outbox_jobs', {
    * monótona (nunca decrementada por nenhum marco de liquidação).
    */
   claimGeneration: integer('claim_generation').notNull().default(0),
+  /**
+   * Release do consumidor que executou o claim (metadado de execução).
+   *
+   * Preenchido por `claimOutboxJob` com o release resolvido do processo
+   * (`resolveConsumerRelease` — Cloudflare version metadata onde disponível).
+   * Faz parte do gate DB-side da migration 0036: depois que um resume explícito
+   * arma um `release_id` em `outbox_control`, o trigger só admite claim E
+   * liquidação cujo lease carregue aquele release — binário antigo (que escreve
+   * `NULL`) claimed antes não pode liquidar em `RUNNING`. `NULL` enquanto o
+   * gate não está armado (release ainda não liberado).
+   */
+  claimRelease: text('claim_release'),
   nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true }).defaultNow(),
   lastErrorCode: text('last_error_code'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
@@ -42,6 +54,30 @@ export const outboxJobs = pgTable('outbox_jobs', {
 }, (t) => ({
   outboxBusinessUniq: uniqueIndex('outbox_jobs_clinic_operation_business_uniq').on(t.clinicId, t.operation, t.businessKey),
 }));
+
+/**
+ * Estado de controle singleton do consumo do outbox (migration 0036 expandida).
+ *
+ * LINHA ÚNICA (`id = 1`): pause/resume/drain do consumo. O banco é a autoridade
+ * — o claim em código (`claimOutboxJob`) e o trigger `outbox_enforce_control_gate`
+ * (BEFORE UPDATE em `outbox_jobs`) leem esta linha, então binário antigo ou
+ * dispatch direto por SQL também respeitam o pause. `epoch` é monotônica e serve
+ * de CAS no resume explícito; `release_id` armado no resume passa a exigir o
+ * mesmo release em todo claim/liquidação nova. `reason`/`operator` entram
+ * sanitizados (sem PII/segredo — ver `sanitizeControlText`).
+ */
+export const outboxControl = pgTable('outbox_control', {
+  id: integer('id').primaryKey(),
+  paused: boolean('paused').notNull().default(false),
+  epoch: integer('epoch').notNull().default(0),
+  reason: text('reason'),
+  operator: text('operator'),
+  releaseId: text('release_id'),
+  pausedAt: timestamp('paused_at', { withTimezone: true }),
+  resumedAt: timestamp('resumed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
 
 export const auditLogs = pgTable('audit_logs', {
   id: uuid('id').primaryKey().defaultRandom(),
