@@ -120,6 +120,20 @@ async function forceStale(jobId: string): Promise<void> {
   );
 }
 
+/**
+ * Due no relógio do Postgres (o claim compara o relógio da app):
+ * sem isso, um skew mínimo DB-à-frente torna o job recém-enfileirado
+ * inelegível (`next_attempt_at <= now`) de forma intermitente.
+ * Mesma convenção de `outbox-lease-fencing.integration.test.ts`.
+ * UPDATE puro de bookkeeping (não muda status/attempts/geração) — o trigger passa.
+ */
+async function forceDue(jobId: string): Promise<void> {
+  await pool.query(
+    `UPDATE outbox_jobs SET next_attempt_at = NOW() - interval '10 minutes' WHERE id = $1`,
+    [jobId],
+  );
+}
+
 async function row(jobId: string): Promise<{ status: string; attempts: number; claim_generation: number; claim_release: string | null }> {
   const { rows } = await pool.query(
     'SELECT status, attempts, claim_generation, claim_release FROM outbox_jobs WHERE id = $1',
@@ -172,6 +186,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:enqueue-while-paused`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     expect(enqueued).toBeDefined();
     expect((await row(enqueued!.id)).status).toBe('pending');
   });
@@ -181,6 +196,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:claim-blocked`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const paused = await pauseOutboxConsumption({ reason: 'drain window' });
     expect(paused.paused).toBe(true);
     expect(paused.epoch).toBe(1);
@@ -195,6 +211,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:scheduler-paused`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const oldSecret = process.env.CRON_SECRET;
     process.env.CRON_SECRET = 'integration-cron-secret';
     try {
@@ -218,6 +235,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:legacy-claim-paused`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'legacy gate' });
 
     await expect(legacyClaim(enqueued!.id)).rejects.toThrow(/OUTBOX_PAUSED/);
@@ -229,6 +247,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:legacy-drain`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     // Claim do binário antigo ANTES do pause: linha sem release — é o legado já
     // em voo na migração/pause, o único que ainda liquida sem marcador.
     await legacyClaim(enqueued!.id);
@@ -249,6 +268,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:paused-markerless-denied`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const claimed = await claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id });
     expect(claimed).toBeDefined();
     expect((await row(enqueued!.id)).claim_release).toBe(RELEASE);
@@ -280,6 +300,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:concurrent`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const [a, b] = await Promise.all([
       claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id }),
       claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id }),
@@ -294,6 +315,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:race`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     // Claim e pause disparam juntos; o lock da linha singleton serializa.
     const [claimed] = await Promise.all([
       claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id }),
@@ -317,9 +339,11 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const jobA = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:distinct-a`, payload: { safe: true },
     });
+    await forceDue(jobA!.id);
     const jobB = await enqueueOutboxForTests(getDb(), {
       clinicId: clinicBId, operation: OPERATION, businessKey: `${prefix}:distinct-b`, payload: { safe: true },
     });
+    await forceDue(jobB!.id);
     // Disparam juntos: com o controle sob advisory compartilhado, os dois
     // reivindicam em paralelo (antes, o FOR UPDATE global serializava a fila
     // inteira, e o FOR SHARE exigia UPDATE — incompatível com SELECT-only).
@@ -383,6 +407,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
       const enqueued = await enqueueOutboxForTests(getDb(), {
         clinicId, operation: OPERATION, businessKey: `${prefix}:lock-contract`, payload: { safe: true },
       });
+      await forceDue(enqueued!.id);
       await expect(claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id })).resolves.toBeUndefined();
     } finally {
       for (const client of [readerA, readerB, pauser]) {
@@ -412,6 +437,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
         const enqueued = await enqueueOutboxForTests(getDb(), {
           clinicId, operation: OPERATION, businessKey: `${prefix}:select-only-claim`, payload: { safe: true },
         });
+        await forceDue(enqueued!.id);
         const client = await rolePool.connect();
         try {
           await client.query('BEGIN');
@@ -469,6 +495,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
         const cancelJob = await enqueueOutboxForTests(getDb(), {
           clinicId, operation: OPERATION, businessKey: `${prefix}:select-only-cancel`, payload: { safe: true },
         });
+        await forceDue(cancelJob!.id);
         await rolePool.query(
           `UPDATE public.outbox_jobs SET status='cancelled', payload='{"redacted":true}'::jsonb WHERE id=$1`,
           [cancelJob!.id],
@@ -496,6 +523,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:stale`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const claimed = await claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id });
     await forceStale(claimed!.id);
 
@@ -515,6 +543,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:resume-cas`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     // Lease em voo ANTES do pause (durante o pause nada novo é claimed).
     const claimed = await claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id });
     expect((await row(enqueued!.id)).status).toBe('processing');
@@ -566,6 +595,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:fence-after-resume`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'fence window' });
     const resumed = await resumeOutboxConsumption({
       expectedEpoch: 1, releaseId: RELEASE, operator: 'operator-b',
@@ -589,6 +619,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:legacy-after-release`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'release window' });
     await resumeOutboxConsumption({ expectedEpoch: 1, releaseId: RELEASE });
 
@@ -600,6 +631,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:unknown-release`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const savedRelease = process.env.OUTBOX_RELEASE_ID;
     delete process.env.OUTBOX_RELEASE_ID;
     try {
@@ -618,6 +650,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:same-job-handoff`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const savedRelease = process.env.OUTBOX_RELEASE_ID;
     try {
       process.env.OUTBOX_RELEASE_ID = releaseA;
@@ -659,6 +692,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:foreign-release-claim`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'foreign release window' });
     await resumeOutboxConsumption({ expectedEpoch: 1, releaseId: RELEASE });
 
@@ -691,9 +725,11 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const legacyJob = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:legacy-settle-running`, payload: { safe: true },
     });
+    await forceDue(legacyJob!.id);
     const cancelledJob = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:cancelled`, payload: { safe: true },
     });
+    await forceDue(cancelledJob!.id);
     // Lease sem release (binário antigo) criado antes do gate armar.
     await legacyClaim(legacyJob!.id);
     expect((await row(legacyJob!.id)).claim_release).toBeNull();
@@ -710,6 +746,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const armed = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:armed-claim`, payload: { safe: true },
     });
+    await forceDue(armed!.id);
     const claimed = await claimOutboxJob({ operations: [OPERATION], jobId: armed!.id });
     expect(claimed).toBeDefined();
     expect((await row(armed!.id)).claim_release).toBe(RELEASE);
@@ -743,10 +780,12 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const eraAJob = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:era-a`, payload: { safe: true },
     });
+    await forceDue(eraAJob!.id);
     const eraBJob = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:era-b`, payload: { safe: true },
     });
 
+    await forceDue(eraBJob!.id);
     // ── Era A: gate armado com releaseA, lease legítimo da era antiga ──
     const savedRelease = process.env.OUTBOX_RELEASE_ID;
     try {
@@ -793,6 +832,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:legacy-stale-reclaim`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const claimed = await claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id });
     await forceStale(enqueued!.id);
 
@@ -810,6 +850,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const second = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:legacy-stale-reclaim-2`, payload: { safe: true },
     });
+    await forceDue(second!.id);
     const claimedSecond = await claimOutboxJob({ operations: [OPERATION], jobId: second!.id });
     await forceStale(second!.id);
     await expect(legacyStaleReclaim(second!.id)).rejects.toThrow(/OUTBOX_CLAIM_GENERATION_INVALID/);
@@ -820,6 +861,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:legacy-stale-reclaim-paused`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const claimed = await claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id });
     await forceStale(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'paused reclaim window' });
@@ -834,6 +876,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:old-generation-settle`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'generation fence window' });
     await resumeOutboxConsumption({ expectedEpoch: 1, releaseId: RELEASE });
 
@@ -857,6 +900,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:marker-valid`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'marker window' });
     await resumeOutboxConsumption({ expectedEpoch: 1, releaseId: RELEASE });
 
@@ -872,6 +916,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:marker-divergent`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'divergent window' });
     await resumeOutboxConsumption({ expectedEpoch: 1, releaseId: RELEASE });
 
@@ -894,6 +939,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:sha-release`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'sha release window', operator: 'operator-sha' });
     await resumeOutboxConsumption({ expectedEpoch: 1, releaseId: sha });
 
@@ -918,6 +964,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:unknown-release`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'unknown release window' });
     await resumeOutboxConsumption({ expectedEpoch: 1, releaseId: RELEASE });
 
@@ -937,10 +984,12 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const jobA = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:tenant-a`, payload: { safe: true },
     });
+    await forceDue(jobA!.id);
     const jobB = await enqueueOutboxForTests(getDb(), {
       clinicId: clinicBId, operation: OPERATION, businessKey: `${prefix}:tenant-b`, payload: { safe: true },
     });
 
+    await forceDue(jobB!.id);
     const claimedA = await claimOutboxJob({ operations: [OPERATION], jobId: jobA!.id });
     const claimedB = await claimOutboxJob({ operations: [OPERATION], jobId: jobB!.id });
     expect(claimedA).toBeDefined();
@@ -972,6 +1021,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
       businessKey: `${prefix}:scheduler-paused`,
       payload: { ownerType: 'patient', ownerId: clinicId },
     });
+    await forceDue(enqueued!.id);
     await pauseOutboxConsumption({ reason: 'scheduler paused window' });
 
     const results = await processOutboxBatch(2, 1);
@@ -1022,6 +1072,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:no-control`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     await pool.query('DELETE FROM outbox_control WHERE id = 1');
     try {
       await expect(claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id }))
@@ -1040,6 +1091,7 @@ describeIntegration('outbox maintenance control (pause/resume/drain) against Pos
     const enqueued = await enqueueOutboxForTests(getDb(), {
       clinicId, operation: OPERATION, businessKey: `${prefix}:fresh`, payload: { safe: true },
     });
+    await forceDue(enqueued!.id);
     const claimed = await claimOutboxJob({ operations: [OPERATION], jobId: enqueued!.id });
     expect(claimed).toBeDefined();
     expect((await row(enqueued!.id)).claim_release).toBe(RELEASE);
