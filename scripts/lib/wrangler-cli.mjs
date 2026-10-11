@@ -4,12 +4,15 @@
  * Builds and runs the local Wrangler CLI with an explicit argv and no shell.
  *
  * Security contract:
- *   - The password is a single argv element, never interpolated into a shell
- *     command string. A password containing spaces, quotes, `;`, `$(…)`, or
- *     backticks cannot start a second command or split an argument.
+ *   - No password is ever an argv element here: Hyperdrive updates moved to
+ *     the official Cloudflare PATCH API (scripts/lib/hyperdrive-api.mjs), so
+ *     the database password travels only inside HTTPS JSON. The former
+ *     `buildHyperdriveUpdateArgv` (`--password=<value>`, visible in process
+ *     listings) was removed; this module keeps only the generic runner and
+ *     the legacy `--password=` redaction pattern for old log text.
  *   - `execFileSync` (not `execSync`) — no `/bin/sh` is involved at all.
  *   - Child output and error text pass through `redactSecrets` before any byte
- *     reaches the terminal, because the driver's failure message echoes argv.
+ *     reaches the terminal.
  *
  * The CLI is invoked as `node <node_modules/wrangler/bin/wrangler.js> …` so no
  * network download or `npx` resolution is involved.
@@ -42,40 +45,7 @@ export function resolveWranglerEntry(options = {}) {
 }
 
 /**
- * Builds the argv for `wrangler hyperdrive update`. Each flag is its own argv
- * element: hostile characters inside `password` stay inside that element.
- *
- * @param {{entry: string, id: string, host: string, port: string|number, database: string, user: string, password: string, sslmode?: string}} params
- * @returns {string[]}
- */
-export function buildHyperdriveUpdateArgv(params) {
-  const {
-    entry,
-    id,
-    host,
-    port,
-    database,
-    user,
-    password,
-    sslmode = 'require',
-  } = params;
-  return [
-    entry,
-    'hyperdrive',
-    'update',
-    id,
-    `--host=${host}`,
-    `--port=${port}`,
-    '--scheme=postgres',
-    `--database=${database}`,
-    `--user=${user}`,
-    `--password=${password}`,
-    `--sslmode=${sslmode}`,
-  ];
-}
-
-/**
- * Redacts an interpolated `--password=<value>` and any known secret value from
+ * Redacts an interpolated `--password=<value>` (legacy Wrangler log text) and
  * log/error text.
  *
  * Exact values are scrubbed FIRST and longest-first: a partial
