@@ -256,6 +256,66 @@ O runtime de aplicação continua Cloudflare Workers/OpenNext. A VPS hospeda com
 
 O target é Contabo. WAHA deve ser provisionado diretamente no target e substituir Evolution em uma janela separada do cutover de banco.
 
+## Token do Tunnel cloudflared (token-file)
+
+O serviço `cloudflared` do compose
+(`ops/vps/synkroo-prod-postgres/docker-compose.yml`, imagem pinada
+`cloudflare/cloudflared:2026.7.2`) autentica via
+`--token-file /run/secrets/tunnel_token` (suportado desde a 2025.4.0). O
+token **nunca** aparece em argv (`--token <valor>`) nem em env:
+`docker inspect`/`docker ps` mostram só o path do arquivo.
+
+- **Arquivo no host, fora do repo:** ex.
+  `/root/.secrets/synkroo-prod-tunnel-token`, modo `0600`
+  (`install -m 0600 ...` ou `chmod 600`), dono root. Não existe diretório
+  `secrets/` dentro do checkout — nenhum arquivo de token é versionado
+  (contrato pinado em `scripts/__tests__/prod-postgres-config.test.mjs`).
+- **Compose:** bind `TUNNEL_TOKEN_FILE_PATH` (caminho no host) →
+  `/run/secrets/tunnel_token` (`read_only: true`). Sem a variável,
+  `docker compose config`/`up` **falha fechado** citando
+  `TUNNEL_TOKEN_FILE_PATH` — mensagem acionável, sem default silencioso.
+- **Staging e produção com tokens DISTINTOS:** tunnels/arquivos separados
+  (ex. `synkroo-staging-tunnel-token` vs `synkroo-prod-tunnel-token`).
+  Nunca reutilizar o mesmo token/arquivo nos dois ambientes.
+
+### Instalação inicial (na VPS, via SSH)
+
+```bash
+# 1. No dashboard Cloudflare Zero Trust → Networks → Tunnels: criar o Tunnel
+#    de PRODUÇÃO e copiar o token (só o valor; não commitar em lugar nenhum).
+# 2. Gravar o arquivo com 0600:
+umask 077
+cat > /root/.secrets/synkroo-prod-tunnel-token
+# (colar o token, Enter, Ctrl+D)
+chmod 600 /root/.secrets/synkroo-prod-tunnel-token
+# 3. Apontar o compose e validar o render SEM segredo (só paths):
+export TUNNEL_TOKEN_FILE_PATH=/root/.secrets/synkroo-prod-tunnel-token
+# 3a. Remover o TUNNEL_TOKEN legado do .env do host: com env_file, qualquer
+#     var restante no .env é injetada no environment do container e visível
+#     em `docker inspect` — o token antigo não pode permanecer lá.
+sed -i '/^TUNNEL_TOKEN=/d' .env
+docker compose config --format json | grep -c 'tunnel_token'
+docker compose up -d
+docker inspect synkroo-prod-db-tunnel --format '{{json .Config.Cmd}}'
+# esperado: ["tunnel","--no-autoupdate","run","--token-file","/run/secrets/tunnel_token"]
+```
+
+### Rotação
+
+1. Gerar o novo token no dashboard (rotacionar/recriar o token do Tunnel).
+2. Sobrescrever o arquivo no host (`cat > ...` + `chmod 600`).
+3. `docker compose up -d --force-recreate cloudflared` — o bind mount é
+   relido a cada (re)criação; nada do valor antigo permanece bakado.
+4. Validar `docker logs synkroo-prod-db-tunnel` + conectividade do banco
+   pela rota privada. O token antigo morre no dashboard, não no host.
+
+### Revogação
+
+1. Revogar/excluir o Tunnel ou o token no dashboard Cloudflare.
+2. Na VPS: `docker compose stop cloudflared` e remover o arquivo
+   (`shred -u /root/.secrets/synkroo-prod-tunnel-token` ou `rm`).
+3. Só subir de novo com o token substituto instalado (instalação inicial).
+
 ## Operações destrutivas
 
 Exigem confirmação explícita e backup verificado: `rm -rf`, drop/reset de banco, remoção de volume, rotação de credencial, alteração de firewall e encerramento amplo de processos.
