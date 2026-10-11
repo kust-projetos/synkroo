@@ -11,7 +11,11 @@ services:
       - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       - ./certs:/etc/postgresql/tls:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Server acceptance (local socket, trust) is NOT proof of an authenticated
+      # query: keep pg_isready, then prove a real SCRAM login over TLS TCP on
+      # 127.0.0.1. `$$` escapes Compose interpolation so the container shell —
+      # not the host — expands $${POSTGRES_*} from the runtime environment.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} && PGSSLMODE=require PGPASSWORD=$${POSTGRES_PASSWORD} psql -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER} -d $${POSTGRES_DB} -w -tAc 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 12
