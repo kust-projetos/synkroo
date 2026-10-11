@@ -9,6 +9,15 @@
 #
 # Ping de monitoramento: se /opt/synkroo/backup/.env definir BACKUP_HC_PING_URL,
 # sucesso/falha são pingados (padrão healthchecks.io). Sem a variável, apenas loga.
+#
+# Retenção local: itens com mais de RETENTION (14) dias são podados LOGO APÓS a
+# criação do archive local e ANTES do gate off-host — inclusive nos caminhos de
+# falha. Antes a retenção só existia no caminho de sucesso: com rclone fora do
+# ar, cada execução criava um archive local e saía por fail() antes de podar,
+# acumulando archives sem limite. Risco residual aceito e registrado em log:
+# sem cópia off-host, os únicos pontos de recuperação são locais e expiram
+# após 14 dias; o status off-host continua fail-closed (exit 1, ping /fail,
+# nunca ping de sucesso nem "backup concluido").
 
 set -euo pipefail
 
@@ -40,6 +49,28 @@ fail() {
   exit 1
 }
 trap 'fail "erro inesperado na linha $LINENO"' ERR
+
+# Falha off-host: fail-closed (exit != 0, ping /fail, sem sucesso). A retenção
+# local JÁ rodou, então registra no log que a retenção foi aplicada com o
+# off-host indisponível e qual o risco residual da falta de cópia off-host.
+fail_offhost() {
+  log "off-host indisponível — retenção local aplicada; risco residual: sem cópia off-host, pontos de recuperação only-local expiram após ${RETENTION} dias"
+  fail "$1"
+}
+
+# Retenção local: poda apenas archives/manifests com mais de RETENTION dias.
+# É chamada depois de o archive atual existir (mtime agora nunca é podado) e
+# antes do gate off-host, para que falhas repetidas de off-host (rclone fora)
+# não acumulem archives locais indefinidamente.
+#
+# Erros do find são propagados EXPLICITAMENTE (`|| return 1`): o trap ERR do
+# topo não é herdado por funções sem `set -E` (errtrace), então um find que
+# falhasse aqui sairia por set -e sem log, sem ping /fail e sem cleanup. O
+# caller trata a falha com fail() (contrato fail-closed).
+prune_local_backups() {
+  find "$BACKUP_DIR" -name 'synkroo-backup-*.tar.gz' -mtime +"$RETENTION" -delete || return 1
+  find "$BACKUP_DIR" -name 'manifest-*.sha256' -mtime +"$RETENTION" -delete || return 1
+}
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
@@ -88,24 +119,33 @@ tar -czf "$BACKUP_DIR/synkroo-backup-$TS.tar.gz" -C "$WORK" .
 chmod 600 "$BACKUP_DIR/synkroo-backup-$TS.tar.gz" "$BACKUP_DIR/manifest-$TS.sha256"
 cleanup
 
+# Retenção local antes do gate off-host (doc no topo): o archive atual e o
+# manifest adjacente acabaram de nascer e nunca são podados aqui; apenas itens
+# com mais de RETENTION dias saem. Roda também quando o off-host falha abaixo.
+#
+# Falha na retenção é fail-closed: find (ex.: permissão/IO em BACKUP_DIR)
+# propagada pela função e tratada aqui com fail() — exit 1, FALHOU, ping /fail,
+# sem sucesso. Nada de depender do trap ERR, que não vale dentro de função.
+if ! prune_local_backups; then
+  fail "retenção local falhou — find não podou em $BACKUP_DIR (backup local preservado)"
+fi
+
 # Off-host faz parte do contrato do backup: sem rclone configurado ou com falha
 # no move, o backup NÃO está completo. A falha preserva o arquivo local, loga,
 # pinga /fail e encerra com código != 0 — nunca pinga sucesso nem registra
-# "concluido".
+# "concluido". A retenção local já rodou (prune_local_backups); fail_offhost
+# registra o risco residual de só existirem pontos de recuperação locais.
 if [ ! -f "$SCRIPT_DIR/rclone.conf" ]; then
-  fail "rclone não configurado — $SCRIPT_DIR/rclone.conf ausente (backup local preservado)"
+  fail_offhost "rclone não configurado — $SCRIPT_DIR/rclone.conf ausente (backup local preservado)"
 fi
 if ! command -v rclone >/dev/null 2>&1; then
-  fail "rclone não instalado — backup off-host indisponível (backup local preservado)"
+  fail_offhost "rclone não instalado — backup off-host indisponível (backup local preservado)"
 fi
 if ! rclone move "$BACKUP_DIR/synkroo-backup-$TS.tar.gz" "gdrive:synkroo-contabo-backups/" \
      --config "$SCRIPT_DIR/rclone.conf" >> "$BACKUP_DIR/backup.log" 2>&1; then
-  fail "rclone move falhou (backup local preservado)"
+  fail_offhost "rclone move falhou (backup local preservado)"
 fi
 
-# Retenção local.
-find "$BACKUP_DIR" -name 'synkroo-backup-*.tar.gz' -mtime +"$RETENTION" -delete
-find "$BACKUP_DIR" -name 'manifest-*.sha256' -mtime +"$RETENTION" -delete
-
+# Retenção local já aplicada acima (prune_local_backups), antes do gate.
 log "backup concluido: synkroo-backup-$TS.tar.gz"
 [ -n "${BACKUP_HC_PING_URL:-}" ] && curl -fsS -m 10 --retry 3 "${BACKUP_HC_PING_URL:-}" >/dev/null 2>&1 || true

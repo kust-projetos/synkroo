@@ -15,12 +15,20 @@
  *   2. missing rclone config, missing rclone binary or a failed `rclone move`
  *      must FAIL the backup (nonzero exit, FALHOU logged, /fail ping, local
  *      archive preserved) and must NEVER emit the success ping nor log
- *      "backup concluido".
+ *      "backup concluido";
+ *   3. bounded local retention (14d) must run even when off-host fails: an
+ *      expired local archive/manifest is pruned while the just-created
+ *      archive+manifest are preserved, and the run still fails closed
+ *      (exit 1, /fail ping, retention + residual-risk logged, no success);
+ *   4. a failing retention `find` (BACKUP_DIR scope) must fail the run
+ *      explicitly via fail() — exit 1, FALHOU logged, /fail ping, no success,
+ *      current archive preserved — instead of relying on the ERR trap, which
+ *      bash does not inherit into functions without `set -o errtrace`.
  */
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -141,12 +149,25 @@ else
   }
 fi
 
+if [ "\${FAKE_FIND_FAIL_BACKUP_DIR:-0}" = "1" ]; then
+  # Falha sintética CONTROLADA: apenas quando o alvo é o BACKUP_DIR (o escopo
+  # da retenção). Qualquer outro uso de find vai ao binário real — assim o
+  # teste prova a falha no find da retenção, não um find globalmente quebrado.
+  find() {
+    if [ "\${1:-}" = "$BACKUP_DIR" ]; then
+      echo "fake-find: falha sintética na retenção (\$*)" >> "$FAKE_FIND_LOG"
+      return 1
+    fi
+    command find "$@"
+  }
+fi
+
 . "$SYNKROO_BACKUP_SCRIPT"
 `;
 }
 
 /** Executa o script real num harness sintético e devolve os caminhos Windows. */
-function runScenario({ staging = true, rcloneConfig = true, rclonePresent = true, rcloneMode = 'ok' }) {
+function runScenario({ staging = true, rcloneConfig = true, rclonePresent = true, rcloneMode = 'ok', seedExpired = false, findFailsInBackupDir = false }) {
   const dir = mkdtempSync(join(tmpdir(), 'synkroo-contabo-backup-'));
   created.push(dir);
   writeFileSync(join(dir, '.env'), `BACKUP_HC_PING_URL=${PING_URL}\n`);
@@ -157,6 +178,21 @@ function runScenario({ staging = true, rcloneConfig = true, rclonePresent = true
   writeFileSync(join(dir, 'conf', 'synkroo-prod-postgres', '.env'), 'SYNTHETIC_CONFIG=1\n');
   writeFileSync(join(dir, 'wrapper.sh'), buildWrapper());
 
+  // Semente de arquivo/manifest locais JÁ expirados (mtime > RETENTION=14 dias):
+  // a retenção precisa podá-los mesmo quando o off-host falha, sem tocar no
+  // archive/manifest que a própria execução cria.
+  const expiredTar = 'synkroo-backup-20200101-000000.tar.gz';
+  const expiredManifest = 'manifest-20200101-000000.sha256';
+  if (seedExpired) {
+    const backupsDir = join(dir, 'backups');
+    mkdirSync(backupsDir, { recursive: true });
+    writeFileSync(join(backupsDir, expiredTar), 'EXPIRED-LOCAL-ARCHIVE\n');
+    writeFileSync(join(backupsDir, expiredManifest), 'EXPIRED-LOCAL-MANIFEST\n');
+    const oldEpoch = Math.floor((Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000);
+    utimesSync(join(backupsDir, expiredTar), oldEpoch, oldEpoch);
+    utimesSync(join(backupsDir, expiredManifest), oldEpoch, oldEpoch);
+  }
+
   const env = {
     ...process.env,
     SYNKROO_BACKUP_SCRIPT: toRuntimePath(scriptPath),
@@ -166,13 +202,15 @@ function runScenario({ staging = true, rcloneConfig = true, rclonePresent = true
     FAKE_CURL_LOG: toRuntimePath(join(dir, 'curl.log')),
     FAKE_DOCKER_LOG: toRuntimePath(join(dir, 'docker.log')),
     FAKE_RCLONE_LOG: toRuntimePath(join(dir, 'rclone.log')),
+    FAKE_FIND_LOG: toRuntimePath(join(dir, 'find.log')),
+    FAKE_FIND_FAIL_BACKUP_DIR: findFailsInBackupDir ? '1' : '0',
     FAKE_RCLONE_DEST: toRuntimePath(join(dir, 'rclone-dest')),
     FAKE_RCLONE_PRESENT: rclonePresent ? '1' : '0',
     FAKE_RCLONE_MODE: rcloneMode,
     FAKE_STAGING: staging ? '1' : '0',
   };
   const r = spawnSync(runner.bash, [join(dir, 'wrapper.sh')], { encoding: 'utf8', env, timeout: 120_000 });
-  return { dir, status: r.status, output: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+  return { dir, status: r.status, output: `${r.stdout ?? ''}${r.stderr ?? ''}`, expiredTar, expiredManifest };
 }
 
 // ─── Helpers de leitura/verificação ──────────────────────────────────────────
@@ -216,10 +254,12 @@ function parseManifest(text) {
  */
 function assertPortableManifest(dir, tarWinPath) {
   const backups = listDir(dir, 'backups');
-  const manifestName = backups.find((f) => /^manifest-.*\.sha256$/.test(f));
-  assert.ok(manifestName, 'cópia adjacente do manifest em backups/');
-
   const members = tarMembers(tarWinPath);
+  // Seleciona o manifest que viaja no tar (o da execução atual): com a retenção
+  // falha, manifests locais mais antigos seguem presentes e não podem ser
+  // confundidos com a cópia adjacente do archive verificado.
+  const manifestName = backups.find((f) => /^manifest-.*\.sha256$/.test(f) && members.includes(`./${f}`));
+  assert.ok(manifestName, 'cópia adjacente do manifest em backups/');
   assert.ok(
     members.includes(`./${manifestName}`),
     `manifest deve viajar dentro do tar: ${members.join(' ')}`,
@@ -302,14 +342,42 @@ describe('contrato estático do manifest/falha off-host', () => {
   });
 
   test('rclone ausente/falho chama fail; sucesso só depois do gate', () => {
-    assert.ok(source.includes('fail "rclone não configurado'));
-    assert.ok(source.includes('fail "rclone não instalado'));
-    assert.ok(source.includes('fail "rclone move falhou'));
+    assert.ok(source.includes('fail_offhost "rclone não configurado'));
+    assert.ok(source.includes('fail_offhost "rclone não instalado'));
+    assert.ok(source.includes('fail_offhost "rclone move falhou'));
+    assert.ok(source.includes('fail "$1"'), 'falha off-host delega ao fail (exit != 0, ping /fail, sem sucesso)');
     assert.ok(source.includes('command -v rclone >/dev/null 2>&1'));
     assert.ok(!source.includes('log "aviso: rclone'), 'aviso de rclone não pode degradar para sucesso');
     const gateIdx = source.indexOf('command -v rclone');
     const successPingIdx = source.indexOf('"${BACKUP_HC_PING_URL:-}" >/dev/null');
     assert.ok(gateIdx > 0 && successPingIdx > 0 && gateIdx < successPingIdx);
+  });
+
+  test('retenção local é fatorada em função e roda antes do gate off-host', () => {
+    assert.ok(source.includes('RETENTION=14'), 'max age permanece configurado em 14 dias');
+    assert.ok(source.includes('prune_local_backups() {'), 'retenção fatorada em função reutilizável');
+    assert.ok(source.includes('-mtime +"$RETENTION" -delete'), 'podagem usa $RETENTION, não literal');
+    assert.ok(!source.includes('-mtime +14'), 'nenhum max age literal fora do default');
+    // Erros do find propagados explicitamente: o trap ERR não vale em função
+    // (sem errtrace), então cada find da retenção faz `|| return 1`.
+    const pruneBody = source.slice(source.indexOf('prune_local_backups() {'), source.indexOf('prune_local_backups() {') + 400);
+    const propagationCount = (pruneBody.match(/-mtime \+"\$RETENTION" -delete \|\| return 1/g) ?? []).length;
+    assert.equal(propagationCount, 2, 'ambos os finds da retenção propagam falha com || return 1');
+    // O caller trata a falha de forma explícita (fail-closed), sem depender de trap.
+    assert.ok(source.includes('if ! prune_local_backups; then'), 'caller testa o retorno da função de retenção');
+    assert.ok(source.includes('fail "retenção local falhou'), 'falha na retenção chama fail() (log + ping /fail + exit 1)');
+
+    const tarIdx = source.indexOf('tar -czf "$BACKUP_DIR/synkroo-backup-$TS.tar.gz"');
+    const pruneCallIdx = source.indexOf('if ! prune_local_backups; then');
+    const gateIdx = source.indexOf('command -v rclone');
+    assert.ok(tarIdx > 0, 'archive local é criado');
+    assert.ok(pruneCallIdx > 0, 'prune_local_backups é chamado');
+    assert.ok(tarIdx < pruneCallIdx, 'retenção roda depois de o archive local existir');
+    assert.ok(pruneCallIdx < gateIdx, 'retenção roda antes do gate off-host — também nas falhas');
+    assert.ok(
+      source.includes('risco residual: sem cópia off-host'),
+      'log documenta o risco residual de pontos only-local expirarem sem off-host',
+    );
   });
 });
 
@@ -368,6 +436,65 @@ runtimeDescribe('backup-synkroo.sh — manifest portátil e falha off-host (harn
     // A tentativa de move aconteceu (não é ausência de config).
     assert.match(readOr(dir, 'rclone.log'), /rclone move /);
     assertPortableManifest(dir, tar);
+  });
+
+  test('rclone fora: retenção local poda expirados, preserva atuais, falha fail-closed', () => {
+    const { dir, status, output, expiredTar, expiredManifest } = runScenario({ rcloneMode: 'fail', seedExpired: true });
+    assert.equal(status, 1, `falha deve encerrar com código 1: status=${status}\n${output}`);
+
+    // Retenção rodou mesmo com off-host indisponível: itens expirados podados.
+    const backups = listDir(dir, 'backups');
+    assert.ok(
+      !backups.includes(expiredTar),
+      `archive expirado deve ser podado: ${backups.join(',')}`,
+    );
+    assert.ok(
+      !backups.includes(expiredManifest),
+      `manifest expirado deve ser podado: ${backups.join(',')}`,
+    );
+
+    const log = readBackupLog(dir);
+    const tar = assertFailureEmittedNoSuccess(dir, log, status);
+    assert.match(log, /FALHOU: rclone move falhou/);
+    // Doc/log: retenção aplicada com off-host indisponível + risco residual.
+    assert.match(log, /retenção local aplicada/, 'log indica retenção com off-host indisponível');
+    assert.match(log, /risco residual/, 'log registra o risco residual sem cópia off-host');
+    assert.match(log, /14 dias/, 'risco residual menciona a expiração em 14 dias');
+    // A tentativa de move aconteceu (não é ausência de config/binário).
+    assert.match(readOr(dir, 'rclone.log'), /rclone move /);
+    // O archive atual e o manifest adjacente continuam utilizáveis.
+    assertPortableManifest(dir, tar);
+  });
+
+  test('find da retenção falha em BACKUP_DIR: fail-closed sem depender do trap ERR', () => {
+    const { dir, status, output, expiredTar, expiredManifest } = runScenario({ findFailsInBackupDir: true, seedExpired: true });
+    const log = readBackupLog(dir);
+
+    // Contrato de falha: exit 1, FALHOU no log, ping /fail único, sem sucesso,
+    // archive atual + manifest adjacente preservados.
+    assertFailureEmittedNoSuccess(dir, log, status);
+    assert.match(log, /FALHOU: retenção local falhou/);
+    assert.match(log, /find não podou em/);
+
+    // A falha sintética ocorreu exatamente no find da retenção sobre BACKUP_DIR
+    // (não num find globalmente quebrado): o padrão dos archives é o alvo.
+    assert.match(
+      readOr(dir, 'find.log'),
+      /fake-find: falha sintética na retenção \(.*-name synkroo-backup-\*\.tar\.gz/,
+    );
+
+    // Sem poda possível, os itens expirados permanecem — falha não virou sucesso silencioso.
+    const backups = listDir(dir, 'backups');
+    assert.ok(backups.includes(expiredTar), 'find falho não poda: expirado permanece');
+    assert.ok(backups.includes(expiredManifest), 'find falho não poda: manifest expirado permanece');
+
+    // O run abortou na retenção, ANTES do gate off-host: nenhuma tentativa de move.
+    assert.ok(!existsSync(join(dir, 'rclone.log')), 'falha na retenção aborta antes do move off-host');
+
+    // O archive CORRENTE (não o expirado semeado) continua completo e verificável.
+    const currentTar = backups.find((f) => /^synkroo-backup-.*\.tar\.gz$/.test(f) && f !== expiredTar);
+    assert.ok(currentTar, 'archive da execução atual está em backups/');
+    assertPortableManifest(dir, join(dir, 'backups', currentTar));
   });
 
   test('rclone.conf ausente: falha antes de qualquer move, sem ping de sucesso', () => {
