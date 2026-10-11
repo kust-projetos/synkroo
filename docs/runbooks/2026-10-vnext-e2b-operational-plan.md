@@ -61,9 +61,9 @@ Cada janela tem entrada, prova e rollback próprios; pular janela reprova a fase
   verde (D3 ativo). _Execução:_ subir `cloudflared` no target, política Access
   *Service Auth* com **tokens dedicados de staging** (nunca reutilizar o futuro
   token de produção), Hyperdrive **de staging** reapontado pelo túnel via
-  mecanismo **isolado por ambiente** — gap conhecido: `update-hyperdrive.ts`
-  altera staging+produção na mesma execução (fase 3, §4); A-REDE-2 exige driver
-  PATCH/novo que atualize **só staging** (dry-run → aplicação) antes do corte.
+  mecanismo **isolado por ambiente** — driver PATCH oficial
+  (`scripts/lib/hyperdrive-api.mjs`, PR #55) com `--target staging`
+  (dry-run → aplicação); nunca usar modo que inclua produção nesta janela.
   _Prova:_ G4 Fase 1 — smoke verde pelo túnel (readiness autenticado, critério
   G1-pre nesta janela) + negativo Access em **dois casos separados** (token
   ausente negado; token inválido negado). _Rollback:_ reverter Hyperdrive de
