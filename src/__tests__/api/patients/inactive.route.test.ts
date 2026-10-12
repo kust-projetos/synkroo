@@ -110,7 +110,7 @@ jest.mock('@/core/actions/run', () => ({
 // ── Imports after all mocks ────────────────────────────────────────────────────
 
 import { NextRequest } from 'next/server';
-import { GET } from '@/app/api/patients/inactive/route';
+import { GET, POST } from '@/app/api/patients/inactive/route';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -279,5 +279,73 @@ describe('GET /api/patients/inactive', () => {
       expect(body.error).toBeDefined();
       expect(body.stats).toBeUndefined();
     });
+  });
+});
+
+describe('POST /api/patients/inactive (fail-closed)', () => {
+  const mockPatient = (overrides: Record<string, unknown> = {}) => ({
+    // patientId precisa ser UUID válido (schema real de reativarPaciente).
+    patientId: '123e4567-e89b-12d3-a456-426614174000',
+    patientName: 'João Silva',
+    patientPhone: '11999990001',
+    lastVisit: new Date(Date.now() - 100 * 86400000),
+    daysSinceLastVisit: 100,
+    inactivitySegment: 'inactive_90',
+    clinicId: 'test-clinic-id',
+    clinicName: '',
+    totalVisits: 3,
+    riskScore: 0.75,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockCan.mockReturnValue(true);
+    mockDetectarInativosHandler.mockResolvedValue({ processed: 1 });
+    mockReativarPacienteHandler.mockResolvedValue({ success: true });
+  });
+
+  it('returns success:true when all reactivations succeed (no partial flag)', async () => {
+    mockListarInativosHandler.mockResolvedValue({
+      patients: [mockPatient()],
+      pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+    });
+
+    const res = await POST(makeReq('/api/patients/inactive', 'POST'));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+    expect(body.updated).toBe(1);
+    expect(body.errors).toBe(0);
+    expect(body.partial).toBeUndefined();
+  });
+
+  it('returns success:false + partial:true when every reactivation fails', async () => {
+    mockListarInativosHandler.mockResolvedValue({
+      patients: [mockPatient()],
+      pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+    });
+    // runAction real repassa ok:false do handler; o mock local repassa a
+    // implementação original exceto para reativações (identificadas pelo input).
+    const { runAction } = require('@/core/actions/run');
+    const orig = runAction.getMockImplementation();
+    runAction.mockImplementation(async (action: any, input: any, ctx: any) => {
+      if (input && typeof input === 'object' && 'patientId' in input) {
+        return { ok: false, error: { code: 'internal', message: 'db down' } };
+      }
+      return orig(action, input, ctx);
+    });
+
+    const res = await POST(makeReq('/api/patients/inactive', 'POST'));
+    runAction.mockImplementation(orig);
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.updated).toBe(0);
+    expect(body.errors).toBe(1);
+    expect(body.skipped).toBe(1);
+    expect(body.partial).toBe(true);
   });
 });

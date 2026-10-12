@@ -167,7 +167,16 @@ async function handlePOST(_request: NextRequest): Promise<NextResponse> {
     updated++;
   }
 
-  return NextResponse.json({ success: true, updated, errors: skipped });
+  // Fail-closed: sucesso só quando nenhuma reativação falhou; falha
+  // parcial é sinalizada explicitamente (nunca success:true mascarado).
+  const errors = skipped;
+  return NextResponse.json({
+    success: errors === 0,
+    updated,
+    errors,
+    skipped,
+    ...(errors > 0 ? { partial: true } : {}),
+  });
 }
 
 // ─── Export ──────────────────────────────────────────────────────────────────

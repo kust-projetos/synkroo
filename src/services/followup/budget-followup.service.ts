@@ -17,7 +17,7 @@ export async function findUnconvertedBudgets(clinicId:string):Promise<Unconverte
       const notes=b.notes||'';const m=notes.match(/\[followup-stage-(\d+)-date/);if(m)fs=parseInt(m[1],10)
       if(days>=FOLLOWUP_STAGES[0].day){results.push({id:b.id,patient_id:b.patientId,patient_name:p?.name||'Desconhecido',patient_phone:p?.phone||null,clinic_id:b.clinicId,total_value:Number(b.totalValue??0),created_at:cd.toISOString(),days_since_created:days,followup_stage:fs,status:b.status||''})}}
     return results.sort((a,b)=>b.days_since_created-a.days_since_created)
-  }catch(e){dbLogger.error('Error finding unconverted budgets',e);return[]}
+  }catch(e){dbLogger.error('Error finding unconverted budgets',e);throw e}
 }
 
 export async function sendBudgetFollowup(budgetId:string,clinicId:string):Promise<{success:boolean;message?:string;stage?:number}>{

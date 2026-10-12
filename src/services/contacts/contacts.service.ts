@@ -82,7 +82,7 @@ export async function getContactById(clinicId: string, contactId: string, contac
       const row = result[0] as any
       return row?.leads ? leadToContact(row.leads) : null
     }
-  } catch (error) { dbLogger.error('Error getting contact by ID', error); return null }
+  } catch (error) { dbLogger.error('Error getting contact by ID', error); throw error }
 }
 
 export async function createContact(clinicId: string, input: ContactCreateInput): Promise<Contact> {
