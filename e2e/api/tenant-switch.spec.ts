@@ -161,12 +161,12 @@ t.describe('GW-02 tenant switch API', () => {
     // /login e nunca chega ao handler (o 401 UNAUTHORIZED dos testes
     // unitários não existe no stack real). maxRedirects: 0 impede o
     // Playwright de seguir o redirect; contexto sem storageState.
-    const anon = await playwrightRequest.newContext(baseURL ? { baseURL, maxRedirects: 0 } : { maxRedirects: 0 })
+    const anon = await playwrightRequest.newContext(baseURL ? { baseURL } : {})
     const authed = await authedContext(baseURL)
     try {
       const session = await getSessionBody(authed)
       const clinicA: string = session.profile.clinic_id
-      const res = await anon.post('/api/auth/switch-clinic', { data: { clinicId: clinicA } })
+      const res = await anon.post('/api/auth/switch-clinic', { data: { clinicId: clinicA }, maxRedirects: 0 })
       expect(res.status()).toBe(307)
       expect(res.headers()['location']).toContain('/login')
     } finally {
