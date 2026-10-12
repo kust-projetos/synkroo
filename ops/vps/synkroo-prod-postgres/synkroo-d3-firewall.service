@@ -1,0 +1,25 @@
+# synkroo-d3-firewall.service — reaplica a contenção D3 no boot (oneshot).
+#
+# Executa ops/vps/synkroo-prod-postgres/apply-d3-firewall.sh com CONTAINER_IP
+# lido de /root/.secrets/synkroo-d3.env (formato: `CONTAINER_IP=<ip>`, só
+# CONTAINER_IP e nada sensível; arquivo no host, fora do repo, modo 0600).
+# RemainAfterExit=yes mantém o estado `active` após a aplicação.
+# WantedBy duplo: multi-user.target (boot) + docker.service (stop/start
+# separado do Docker — BindsTo/PartOf tratam o stop, o WantedBy garante o
+# start junto).
+[Unit]
+Description=Synkroo D3 firewall containment (PostgreSQL)
+After=docker.service
+Requires=docker.service
+PartOf=docker.service
+BindsTo=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=/root/.secrets/synkroo-d3.env
+ExecStart=/opt/synkroo/ops/vps/synkroo-prod-postgres/apply-d3-firewall.sh
+
+[Install]
+WantedBy=multi-user.target
+WantedBy=docker.service

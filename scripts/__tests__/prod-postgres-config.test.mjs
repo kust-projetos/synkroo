@@ -99,6 +99,201 @@ describe('prod-postgres static config contract', () => {
   });
 });
 
+describe('prod-postgres D3 firewall static contract', () => {
+  const d3Script = readFileSync(resolve(dir, 'apply-d3-firewall.sh'), 'utf8');
+  const d3Unit = readFileSync(resolve(dir, 'synkroo-d3-firewall.service'), 'utf8');
+
+  const CF_RANGES = [
+    '173.245.48.0/20',
+    '103.21.244.0/22',
+    '103.22.200.0/22',
+    '103.31.4.0/22',
+    '141.101.64.0/18',
+    '108.162.192.0/18',
+    '190.93.240.0/20',
+    '188.114.96.0/20',
+    '197.234.240.0/22',
+    '198.41.128.0/17',
+    '162.158.0.0/15',
+    '104.16.0.0/13',
+    '104.24.0.0/14',
+    '172.64.0.0/13',
+    '131.0.72.0/22',
+  ];
+
+  test('script pins all 15 Cloudflare ranges', () => {
+    assert.equal(CF_RANGES.length, 15, 'contract pins exactly 15 ranges');
+    for (const range of CF_RANGES) {
+      assert.ok(d3Script.includes(range), `script must pin Cloudflare range ${range}`);
+    }
+  });
+
+  test('SYNKROO-D3 ends with a v4 DROP final', () => {
+    assert.match(d3Script, /SYNKROO-D3[\s\S]*-j DROP/, 'SYNKROO-D3 must end with a DROP final');
+  });
+
+  test('SYNKROO-D3-V6 is DROP final', () => {
+    assert.match(d3Script, /SYNKROO-D3-V6[\s\S]*-j DROP/, 'SYNKROO-D3-V6 must be DROP final');
+  });
+
+  test('all rules carry the comment marker', () => {
+    assert.ok(d3Script.includes('synkroo-d3-20261012'), 'script must carry the comment marker');
+  });
+
+  test('CONTAINER_IP is required (no default)', () => {
+    assert.match(d3Script, /CONTAINER_IP/, 'script must require CONTAINER_IP');
+  });
+
+  test('idempotency uses -C before -A', () => {
+    assert.match(d3Script, /-C/, 'script must check with -C before appending');
+    assert.match(d3Script, /-A/, 'script must append with -A');
+  });
+
+  test('unit is oneshot after docker with EnvironmentFile', () => {
+    assert.match(d3Unit, /Type=oneshot/, 'unit must be oneshot');
+    assert.match(d3Unit, /After=docker\.service/, 'unit must order after docker.service');
+    assert.match(d3Unit, /EnvironmentFile=\/root\/\.secrets\/synkroo-d3\.env/, 'unit must read CONTAINER_IP via EnvironmentFile');
+    assert.match(d3Unit, /RemainAfterExit=yes/, 'unit must keep RemainAfterExit=yes');
+  });
+
+  test('shell script uses LF only (no CR — CRLF breaks bash with $CR command not found)', () => {
+    assert.ok(!d3Script.includes('\r'), 'apply-d3-firewall.sh must not contain CR characters');
+  });
+
+  test('unit file uses LF only (no CR)', () => {
+    assert.ok(!d3Unit.includes('\r'), 'synkroo-d3-firewall.service must not contain CR characters');
+  });
+
+  test('v4 ACCEPTs pin -d "${CONTAINER_IP}" (match live rules for -C idempotency)', () => {
+    const acceptLines = d3Script
+      .split('\n')
+      .filter((line) => line.includes('SYNKROO-D3') && line.includes('-j ACCEPT') && !line.includes('SYNKROO-D3-V6'));
+    assert.ok(acceptLines.length > 0, 'script must keep at least one SYNKROO-D3 ACCEPT line');
+    for (const line of acceptLines) {
+      assert.ok(
+        line.includes('-d "${CONTAINER_IP}"'),
+        `v4 ACCEPT must pin -d "\${CONTAINER_IP}": ${line.trim()}`,
+      );
+    }
+  });
+
+  test('v4 DROP final carries no -p/--dport (byte-exact live match for -C idempotency)', () => {
+    const dropLines = d3Script
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#') && line.includes('SYNKROO-D3') && line.includes('-j DROP') && !line.includes('SYNKROO-D3-V6'));
+    assert.equal(dropLines.length, 1, 'script must keep exactly one SYNKROO-D3 DROP line');
+    assert.doesNotMatch(dropLines[0], /-p\s/, `v4 DROP must not carry -p (live: no -p/--dport): ${dropLines[0].trim()}`);
+    assert.doesNotMatch(dropLines[0], /--dport/, `v4 DROP must not carry --dport (live: no -p/--dport): ${dropLines[0].trim()}`);
+    assert.match(dropLines[0], /-m comment --comment/, 'v4 DROP must carry the comment marker match');
+  });
+
+  test('v6 DROP final pins -p tcp --dport 5432 (live match)', () => {
+    const dropLines = d3Script
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#') && line.includes('SYNKROO-D3-V6') && line.includes('-j DROP'));
+    assert.equal(dropLines.length, 1, 'script must keep exactly one SYNKROO-D3-V6 DROP line');
+    assert.match(dropLines[0], /-p tcp --dport 5432/, `v6 DROP must pin -p tcp --dport 5432: ${dropLines[0].trim()}`);
+  });
+  test('DOCKER-USER jumps insert at position 1 (-I), never append', () => {
+    const jumps = d3Script
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#') && line.includes('DOCKER-USER') && line.includes('-j SYNKROO-D3'));
+    assert.equal(jumps.length, 2, 'script must keep exactly two DOCKER-USER jumps (v4 + v6)');
+    for (const line of jumps) {
+      assert.match(line, /ensure_top/, `DOCKER-USER jump must go through ensure_top: ${line.trim()}`);
+      assert.doesNotMatch(line, /^ensure\s/, `DOCKER-USER jump must not use plain ensure (-A): ${line.trim()}`);
+    }
+    assert.match(d3Script, /-I "\$chain" 1/, 'ensure_top must insert with -I <chain> 1');
+    assert.match(d3Script, /RETURN/, 'script must document why top-insertion (Docker RETURN terminal)');
+  });
+
+  test('IP-swap guard fails closed with manual rotation procedure', () => {
+    assert.match(d3Script, /diferente de/, 'guard must compare existing -d against CONTAINER_IP');
+    assert.match(d3Script, /fail-closed/i, 'guard must state fail-closed behaviour');
+    assert.match(d3Script, /-D exato/, 'guard must orient removal of the old IP via exact -D');
+    assert.match(d3Script, /EnvironmentFile/, 'guard must orient updating the EnvironmentFile');
+    assert.match(d3Script, /exit 3/, 'guard must abort with a distinct non-zero exit');
+    const codeLines = d3Script
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#'))
+      .join('\n');
+    assert.doesNotMatch(codeLines, /\-F/, 'normal path must never flush (-F creates an exposure window)');
+    assert.doesNotMatch(codeLines, /\-X/, 'normal path must never destroy chains (-X creates an exposure window)');
+  });
+
+  test('unit binds to docker lifecycle (PartOf+BindsTo)', () => {
+    assert.match(d3Unit, /^PartOf=docker\.service$/m, 'unit must carry PartOf=docker.service');
+    assert.match(d3Unit, /^BindsTo=docker\.service$/m, 'unit must carry BindsTo=docker.service');
+    assert.match(d3Unit, /^After=docker\.service$/m, 'unit must keep After=docker.service');
+    assert.match(d3Unit, /^WantedBy=multi-user\.target$/m, 'unit must keep WantedBy=multi-user.target');
+    assert.match(d3Unit, /RemainAfterExit=yes/, 'unit must keep RemainAfterExit=yes');
+    assert.match(d3Unit, /EnvironmentFile=\/root\/\.secrets\/synkroo-d3\.env/, 'unit must keep EnvironmentFile');
+  });
+
+  test('script header documents the safe removal procedure', () => {
+    const header = d3Script.split('\n').slice(0, 60).join('\n');
+    assert.match(header, /REMOÇÃO SEGURA/, 'header must document the safe removal procedure');
+    assert.match(header, /disable --now/, 'removal must start with disable --now of the unit');
+    assert.match(header, /-D/, 'removal must use exact -D for the 2 jumps');
+    assert.match(header, /SYNKROO-D3-V6/, 'removal must name both own chains');
+    assert.match(header, /nunca flush global/, 'removal must forbid global DOCKER-USER flush');
+  });
+  test('v6 DOCKER-USER jump carries no -d (ip6tables rejects IPv4 -d)', () => {
+    const v6Jumps = d3Script
+      .split('\n')
+      .filter((line) => !line.trim().startsWith('#') && line.includes('DOCKER-USER') && line.includes('SYNKROO-D3-V6'));
+    assert.equal(v6Jumps.length, 1, 'script must keep exactly one v6 DOCKER-USER jump');
+    assert.doesNotMatch(v6Jumps[0], /-d\s/, `v6 jump must not carry -d: ${v6Jumps[0].trim()}`);
+  });
+
+  test('fill-before-jump: DOCKER-USER jumps install last, per family (v4 block then v6 block)', () => {
+    // Lifecycle/ordering: an early jump pointing at an empty chain would
+    // expose Postgres on partial failure (empty chain RETURNS implicitly,
+    // without the DROP final). Fills first, jumps last — v4 complete, then v6.
+    const lines = d3Script.split('\n');
+    const codeLines = lines.filter((line) => !line.trim().startsWith('#'));
+    const lastFillV4 = codeLines.reduce(
+      (acc, line, idx) => (line.includes('SYNKROO-D3') && /-j (ACCEPT|DROP)/.test(line) && !line.includes('SYNKROO-D3-V6') ? idx : acc),
+      -1,
+    );
+    const v4Jump = codeLines.findIndex((line) => line.includes('DOCKER-USER') && line.includes('-j SYNKROO-D3') && !line.includes('SYNKROO-D3-V6'));
+    const v6Fill = codeLines.reduce(
+      (acc, line, idx) => (line.includes('SYNKROO-D3-V6') && /-j DROP/.test(line) ? idx : acc),
+      -1,
+    );
+    const v6Jump = codeLines.findIndex((line) => line.includes('DOCKER-USER') && line.includes('SYNKROO-D3-V6'));
+    assert.ok(lastFillV4 >= 0, 'script must keep v4 fills (ACCEPTs + DROP)');
+    assert.ok(v4Jump >= 0, 'script must keep the v4 DOCKER-USER jump');
+    assert.ok(v6Fill >= 0, 'script must keep the v6 fill (DROP)');
+    assert.ok(v6Jump >= 0, 'script must keep the v6 DOCKER-USER jump');
+    assert.ok(v4Jump > lastFillV4, 'v4 jump must come after all v4 fills in the script text');
+    assert.ok(v6Jump > v6Fill, 'v6 jump must come after the v6 fill in the script text');
+    assert.ok(v6Fill > v4Jump || v6Fill > lastFillV4, 'v6 block must come after the v4 block (v4 complete, then v6)');
+    assert.match(d3Script, /RETURN implícito/, 'script must document that an empty chain RETURNS implicitly');
+    assert.match(d3Script, /falha parcial/, 'script must document the partial-failure exposure without fill-before-jump');
+  });
+
+  test('IP rotation is manual via explicit commands, never by the updated script itself', () => {
+    assert.match(d3Script, /MANUAL/, 'rotation must be labelled MANUAL');
+    assert.match(d3Script, /iptables -A/, 'rotation must add the new-IP ACCEPTs via explicit iptables -A');
+    assert.match(d3Script, /contadores/, 'rotation must verify counters before removing the old IP');
+    assert.match(d3Script, /-D exato/, 'rotation must remove the old-IP ACCEPTs via exact -D');
+    assert.match(d3Script, /Re-executar/, 'rotation must re-execute the script to converge the jumps after the EnvironmentFile update');
+    assert.match(d3Script, /aborta por desenho/, 'rotation must state the script aborts by design on divergent IP');
+    assert.match(d3Script, /Monitoramento recomendado/, 'script must recommend periodic IP-vs-EnvironmentFile and counter monitoring');
+    assert.doesNotMatch(d3Script, /com o EnvironmentFile já atualizado/, 'rotation must never suggest the updated script adds the new-IP rules by itself (it aborts)');
+  });
+
+  test('unit is wanted by docker.service and multi-user.target (separate stop/start)', () => {
+    assert.match(d3Unit, /^WantedBy=docker\.service$/m, 'unit must carry WantedBy=docker.service for separate docker stop/start');
+    assert.match(d3Unit, /^WantedBy=multi-user\.target$/m, 'unit must keep WantedBy=multi-user.target for boot');
+    assert.match(d3Unit, /^BindsTo=docker\.service$/m, 'unit must keep BindsTo=docker.service');
+    assert.match(d3Unit, /^PartOf=docker\.service$/m, 'unit must keep PartOf=docker.service');
+    assert.match(d3Unit, /^Requires=docker\.service$/m, 'unit must keep Requires=docker.service');
+    assert.match(d3Unit, /^After=docker\.service$/m, 'unit must keep After=docker.service');
+  });
+});
+
 describe('prod-postgres cloudflared token-file static contract', () => {
   test('cloudflared image stays pinned', () => {
     assert.match(composeSource, /image: cloudflare\/cloudflared:2026\.7\.2/);
