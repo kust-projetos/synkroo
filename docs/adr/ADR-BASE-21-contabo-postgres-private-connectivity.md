@@ -140,7 +140,7 @@ própria, separada da de staging.
 
 | Gate | Positivo (aprova) | Negativo (reprova) | Escopo |
 |---|---|---|---|
-| G1 — Conectividade do app (gates separados no adendo) | pré-migration: autenticação TLS, `SELECT 1` e leitura real do ledger; em 33/36, readiness pode retornar `migrations-incomplete`. Pós-migration: readiness integral com ledger exato 36/36 e control shape funcional | falha de auth/TLS/conexão/consulta; `db-unreachable`; pré-migration com motivo diferente de `migrations-incomplete`; pós-migration com ledger diferente de 36/36 ou control shape ausente | staging + produção, probes autenticados; reaplica-se no caminho Tunnel+Access de G4 conforme a fase |
+| G1 — Conectividade do app, rede (gates separados no adendo; ver também adendo Etapa 4 — sem circularidade, prova = readiness autenticado) | pré-migration: autenticação TLS, `SELECT 1` e leitura real do ledger; `migrations-incomplete` aceito somente com ledger igual ao baseline observado (nesta janela: 33/36). Pós-migration: readiness integral com ledger exato 36/36 e control shape funcional | falha de auth/TLS/conexão/consulta; `db-unreachable`; pré-migration com motivo diferente de `migrations-incomplete`; pós-migration com ledger diferente de 36/36 ou control shape ausente | staging + produção, probes autenticados; reaplica-se no caminho Tunnel+Access de G4 conforme a fase |
 | G2 — Filtro de contenção (fase D3) | positivo **e** negativo obrigatórios, em IPv4 **e** em IPv6: origem de egresso Hyperdrive **observada** conecta; origem **não** autorizada é bloqueada | inversão do resultado em qualquer família: origem permitida que **não** conecta, ou origem **não** autorizada que conecta; `DOCKER-USER` vazia ou porta sem filtro (E4) | **IPv4 e IPv6** (positivo + negativo em ambas); pré-requisito verificado de G4 |
 | G3 — Persistência do filtro D3 (fase D3) | filtro de contenção efetivo após `docker compose recreate`/restart do container **e** após reboot do host, com a porta ainda publicada | `DOCKER-USER` vazia ou porta sem filtro após recrear/reboot | famílias v4+v6; verificado **antes** de iniciar G4 (com D3 ativo) |
 | G4 — Corte Tunnel+Access em **duas fases** (preflight staging → corte produção; detalhe em **§G4** abaixo) | **Fase 1 — preflight staging (não toca em produção):** smoke Tunnel+Access verde; **negativo Access em dois casos separados** — token **ausente** negado e token **inválido** negado, cada um isoladamente (nenhum chega ao PostgreSQL). **Fase 2 — corte produção (janela de produção autorizada à parte):** readiness real autenticado 200 `status:ready`/`checks.database=ok`/`checks.migrations=complete` pelo túnel; porta publicada `0.0.0.0:15433` **removida** da publicação do host. **Fase 3 — pós-corte tunnel-only (staging + produção):** readiness com **query real** verde nos dois; probes inbound negativos em **IPv4 e IPv6**; container PostgreSQL **sem porta publicada no host/container**; **persistência do tunnel-only** — após `docker compose recreate`/restart **e** reboot, nenhuma exposição de porta persiste (não exige persistência do filtro D3) | passo fora de ordem — produção sem Fase 1 verde; corte fora da janela de produção autorizada; cada negativo Access reprova isoladamente (token ausente conecta; token inválido conecta; um único caso cobrindo os dois); readiness 401/403/503 pelo túnel; porta removida sem readiness pós-corte verde (quebra o app); exposição de porta que **persista** após recreate/reboot; D3 removido antes de G4 Fase 3 completo em produção | staging (F1) → produção (F2, janela à parte) → pós-corte staging+produção (F3) |
@@ -178,8 +178,11 @@ durante as Fases 1 e 2 (túnel staged e caminho de produção testados sob conte
 janela de produção ser aberta. Com D3 já verificado ativo (G2/G3 verdes):
 
 1. Smoke Tunnel+Access em staging: Hyperdrive de staging aponta para o túnel; o mesmo
-   critério de conectividade com query real de G1 fica verde (`/api/health/db` 200
-   `complete:true`).
+   critério de conectividade com query real de G1 fica verde (readiness interno
+   autenticado 200 `status:ready` em staging pós-migration, ou 503
+   `reason=migrations-incomplete` com ledger igual ao baseline observado em
+   G1-pre — nunca o 200 isolado de `/api/health/db`, que é sempre 200
+   sanitizado e não prova caminho).
 2. **Negativo de Access, dois casos separados e obrigatórios** (cada um reprova
    isoladamente): (2a) requisição com token de Access **ausente** é **negada** pela
    política *Service Auth* e não chega ao PostgreSQL; (2b) requisição com token de
@@ -201,9 +204,12 @@ completar; D3 permanece ativo.
 **Fase 3 — Pós-corte (tunnel-only), em staging e produção.** Com a porta removida,
 comprovar o estado final:
 
-5. Readiness com **query real** verde em staging **e** produção (200 `complete:true`
-   em staging; 200 `status:ready`/`checks.database=ok`/`checks.migrations=complete` em
-   produção) — o caminho tunnel-only serve query real de banco.
+5. Readiness com **query real** verde em staging **e** produção — prova pelo
+   readiness interno autenticado (200 `status:ready`/`checks.database=ok`/
+   `checks.migrations=complete` pós-migration; em G1-pre, 503
+   `reason=migrations-incomplete` com ledger igual ao baseline observado) —
+   o caminho tunnel-only serve query real de banco. O 200 isolado de
+   `/api/health/db` nunca é prova (sempre 200 sanitizado).
 6. **Probes negativos de rede inbound**, em **IPv4 e IPv6**: origem externa **não
    autorizada** não conecta ao PostgreSQL em nenhuma família; nenhuma interface escuta
    `15433` publicamente. É a prova de que a exposição acabou nas duas famílias (a
@@ -333,3 +339,61 @@ G1-pre e G1-post são gates distintos: aceitar `migrations-incomplete` no
 preflight não relaxa o readiness integral após a migration. O gate aplicável ao
 túnel continua sujeito à ordem D3 → D4 e às janelas de staging/produção já
 definidas neste ADR.
+
+## Adendo 2026-10-11 (Etapa 4) — fechamento do contrato G1/G4
+
+Este adendo fecha o contrato sem alterar a decisão D3 → D4, a contenção
+obrigatória antes do corte nem o rollback contido de G5. Onde a redação
+anterior citava o 200 de `/api/health/db` como prova (G4 Fase 1 passo 1, G4
+Fase 3 passo 5), ela foi corrigida para o readiness interno autenticado —
+o 200 isolado nunca foi prova e a correção é de redação, não de decisão.
+
+### (a) Sem requisito circular
+
+G1-pre **não** exige o que só existe depois das migrations. Antes das
+migrations (fase 2 do plano E2b, staging e produção), a prova exigida é:
+handshake TLS válido + autenticação SCRAM válida + `SELECT 1` bem-sucedido +
+leitura real de `drizzle.__drizzle_migrations` com a contagem registrada. O
+readiness 503 `reason=migrations-incomplete` é aceito **somente** quando a
+contagem observada **iguala o baseline observado** (nesta janela: **33/36**) —
+igualdade, não `<=`. Uma contagem diferente (32, 34, 35, 37…) reprova G1-pre
+até reconciliação: pode indicar migration parcial, banco errado ou journal
+divergente, nunca "quase pronto". G1-post exige ledger **exatamente 36/36** +
+`maintenanceControl=present` (tabela singleton com a linha `id = 1`, função do
+gate, trigger `BEFORE UPDATE ROW` **habilitado** em `outbox_jobs` e coluna
+`claim_release`) + trigger habilitado + readiness integral 200 `status:ready`.
+
+### (b) Prova = readiness interno autenticado, nunca liveness nem 200 sanitizado
+
+- `GET /api/health` (liveness) 200 prova só que o processo responde —
+  `src/services/api-handlers/health.ts` não consulta banco algum.
+- `GET /api/health/db` 200 **isolado** nunca é prova: o endpoint é
+  deliberadamente sempre-200 sanitizado (falha de DB vira corpo
+  `complete:false`/`maintenanceControl:unknown`, sem `error.message` do
+  driver). Ele serve como leitura agregada, não como gate.
+- A prova é o readiness interno autenticado
+  (`src/app/api/internal/readiness/route.ts`, via `checkReadiness` com
+  `statement_timeout` 3s): **200** `status:ready` +
+  `checks.database=ok`/`checks.migrations=complete` (G1-post), ou **503** com
+  motivo estático (`migrations-incomplete` aceito só em G1-pre com baseline
+  igual; `maintenance-control-missing`, `db-unreachable`, 401/403 de auth do
+  probe, falha de TLS ou falha na leitura do ledger sempre reprovam).
+
+### (c) Mesmos critérios em staging, produção e pós-corte
+
+G1-pre/G1-post e o critério de prova (b) aplicam-se **identicamente** em
+staging e produção, inclusive no pós-corte tunnel-only (G4 Fase 3) —
+respeitando apenas o momento das migrations: antes de 0034→0035→0036 vale
+G1-pre; depois, G1-post. O túnel não relaxa nem endurece o gate de
+conectividade; ele muda o caminho, não o critério.
+
+### (d) Desambiguação de nomes
+
+**G1/G4-rede** (este ADR) são gates de rede/conectividade do caminho D3 → D4
+no Contabo. Não confundir com: **"Gate 1 por design"** em
+`docs/ops/cloudflare-runtime-checklist.md` §6 (gate de módulo do Action
+Layer que devolve 404 canônico quando o módulo está desativado — mecanismo de
+aplicação, sem relação com rede); nem com códigos **F/G de hardening**
+(F3, G1 de frontend/invalidação, G5 de smoke — `docs/runbooks/` e débitos
+pós-hardening V1 no `AGENTS.md`). Quando este ADR diz "G1", lê-se
+"G1-rede"; quando diz "G4", lê-se "G4-rede".

@@ -29,7 +29,6 @@ import {
 } from '../lib/pg-ddl.mjs';
 import {
   WRANGLER_PACKAGE_ENTRY,
-  buildHyperdriveUpdateArgv,
   redactSecrets,
   resolveWranglerEntry,
   runWranglerCli,
@@ -313,15 +312,16 @@ describe('contrato source/target nos scripts operacionais', () => {
     assert.match(src, /crypto\.randomBytes\(24\)\.toString\('hex'\)/);
   });
 
-  test('update-hyperdrive continua sem shell e atualiza as duas configs por execução', () => {
+  test('update-hyperdrive usa PATCH oficial, sem shell e com targets independentes', () => {
     const src = read('update-hyperdrive.ts');
     assert.ok(!/execSync/.test(src), 'não deve importar execSync');
     assert.ok(!/\bshell\s*:/.test(src), 'não deve habilitar shell');
-    assert.equal(
-      (src.match(/runWranglerCli\(\{/g) ?? []).length,
-      2,
-      'staging e production devem ser atualizados na mesma execução',
-    );
+    assert.ok(!/--password=/.test(src), 'nenhuma senha em argv/URL em nenhum caminho');
+    assert.ok(!/wrangler-cli/.test(src), 'fluxo wrangler com senha em argv removido');
+    assert.ok(!/buildHyperdriveUpdateArgv/.test(src), 'builder de argv com senha removido');
+    assert.match(src, /hyperdrive-api\.mjs/, 'deve usar o client PATCH oficial');
+    assert.match(src, /applyHyperdriveTargets\(/, 'staging e prod via PATCH com estado parcial explícito');
+    assert.match(src, /resolveHyperdriveTargetKeys\(/, 'staging e prod atualizáveis independentemente');
     assert.match(src, /resolveVpsSideSettings\(/);
     assert.match(src, /readCliFlag\(/);
     assert.match(src, /side=\$\{side\} host=/);
@@ -332,25 +332,10 @@ describe('Wrangler argv — sem shell', () => {
   const HOSTILE = 'p w"; rm -rf /tmp/x #$(id)`id`\\';
   const entry = '/repo/node_modules/wrangler/bin/wrangler.js';
 
-  test('cada flag é um elemento argv próprio, com a senha intacta', () => {
-    const argv = buildHyperdriveUpdateArgv({
-      entry,
-      id: 'e0033a75',
-      host: '1.2.3.4',
-      port: '15432',
-      database: 'synkroo_staging',
-      user: 'synkroo_staging',
-      password: HOSTILE,
-    });
-    assert.equal(argv[0], entry);
-    assert.deepEqual(argv.slice(1, 4), ['hyperdrive', 'update', 'e0033a75']);
-    const passwordArgs = argv.filter((arg) => arg.startsWith('--password='));
-    assert.equal(passwordArgs.length, 1);
-    assert.equal(passwordArgs[0], `--password=${HOSTILE}`);
-    assert.ok(
-      argv.every((arg) => typeof arg === 'string'),
-      'nenhum elemento pode ser composed por shell',
-    );
+  test('builder de argv com senha foi removido: PATCH HTTPS é o único caminho', () => {
+    const cli = readFileSync(resolve(root, 'scripts', 'lib', 'wrangler-cli.mjs'), 'utf8');
+    assert.ok(!/function buildHyperdriveUpdateArgv/.test(cli), 'builder de argv com senha removido');
+    assert.ok(!/--password=\$\{/.test(cli), 'nenhuma interpolação de senha em argv no source');
   });
 
   test('execFile recebe process.execPath e o argv, sem shell:true', () => {
@@ -359,16 +344,8 @@ describe('Wrangler argv — sem shell', () => {
       calls.push({ execPath, argv, options });
       return Buffer.from('ok\n', 'utf8');
     };
-    const argv = buildHyperdriveUpdateArgv({
-      entry,
-      id: 'e0033a75',
-      host: '1.2.3.4',
-      port: '15432',
-      database: 'synkroo_staging',
-      user: 'synkroo_staging',
-      password: HOSTILE,
-    });
-    runWranglerCli({ label: 'Staging Hyperdrive e0033a75', argv, secrets: [HOSTILE], execFile });
+    const argv = [entry, '--version'];
+    runWranglerCli({ label: 'Probe', argv, secrets: [], execFile });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].execPath, process.execPath);
     assert.deepEqual(calls[0].argv, argv);
@@ -434,13 +411,24 @@ describe('Wrangler argv — sem shell', () => {
     assert.equal(redactSecrets(undefined), '');
   });
 
+  test('redactSecrets remove senha com espaço sem deixar resto após --password=', () => {
+    const hostile = 'p w"; $(id)';
+    const out = redactSecrets(`run --password=${hostile} ok`, [hostile]);
+    assert.ok(!out.includes('p w'), 'nenhum token da senha pode sobreviver');
+    assert.ok(!out.includes('$(id)'), 'nenhum token da senha pode sobreviver');
+    assert.match(out, /--password=\[REDACTED\]/);
+  });
+
   test('update-hyperdrive não usa shell nem execSync', () => {
     const src = read('update-hyperdrive.ts');
     assert.ok(!/execSync/.test(src), 'não deve importar execSync');
     assert.ok(!/\bshell\s*:/.test(src), 'não deve habilitar shell');
-    assert.match(src, /runWranglerCli\(\{/);
-    assert.match(src, /buildHyperdriveUpdateArgv\(\{/);
-    assert.match(src, /resolveWranglerEntry\(\)/);
+    assert.ok(!/--password=/.test(src), 'nenhuma senha em argv/URL em nenhum caminho');
+    assert.match(src, /applyHyperdriveTargets\(/);
+    assert.match(src, /planHyperdriveUpdates\(/);
+    assert.match(src, /resolveCloudflareAuth\(/);
+    assert.ok(!/runWranglerCli/.test(src), 'sem caminho wrangler com senha em argv');
+    assert.ok(!/resolveWranglerEntry/.test(src), 'sem entry wrangler: transporte é PATCH HTTPS');
   });
 
   test('resolveWranglerEntry falha fechado quando o entry local não existe', () => {

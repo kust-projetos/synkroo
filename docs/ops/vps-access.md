@@ -20,6 +20,22 @@
 > As seções "Firewall do Postgres (2026-09-25)" e "… atualização 2026-09-26"
 > descrevem a **VPS source (Hostinger)** — **histórico datado**, não o estado
 > ativo do target; a allowlist de 2026-09-26 nunca foi transferida ao Contabo.
+>
+> **Atualização 2026-10-12 (D3 instalado, G2 parcial / G3 mecanismo pronto):**
+> D3 instalado no target: chains `SYNKROO-D3` (15 ACCEPTs dos ranges Cloudflare
+> IPv4 + DROP final) e `SYNKROO-D3-V6` (DROP) verificadas no target; unidade
+> `synkroo-d3-firewall.service` instalada e `active`, com reaplicação
+> idempotente comprovada (no-op: 17 linhas v4 / 2 linhas v6 reaplicadas sem
+> divergência). Contadores com tráfego vivo só em `104.16.0.0/13`,
+> `162.158.0.0/15` e `172.64.0.0/13`; o DROP final acumula rejeições de origem
+> não-Cloudflare. Decisão: manter os 15 ranges (o egresso Cloudflare rotaciona
+> entre eles). Pendentes: G2 positivo via readiness (túnel ainda ausente no
+> target), negativo v6 em runtime, drill de reboot/recreate, e credencial DB do
+> target ausente no `.env` (A-PAPEIS bloqueado). Script versionado em
+> `ops/vps/synkroo-prod-postgres/apply-d3-firewall.sh` + contrato em
+> `scripts/__tests__/prod-postgres-config.test.mjs`.
+> Remoção segura: somente manual pelo cabeçalho de `apply-d3-firewall.sh`
+> (`disable --now` da unit, `-D` exato dos 2 saltos, `-F`/`-X` só das chains próprias).
 
 ## Fonte de configuração
 
@@ -255,6 +271,66 @@ ssh -i "$VPS_SSH_KEY_PATH" "$VPS_SSH_USER@$VPS_SOURCE_IP" 'pwd; docker ps --form
 O runtime de aplicação continua Cloudflare Workers/OpenNext. A VPS hospeda componentes stateful/auxiliares. O repo confirma PostgreSQL 17 + pgvector e sidecar Playwright, e desenha o PostgreSQL como tunnel-only (compose sem `ports:` + serviço `cloudflared`); **medido em 2026-10-10 (E2a, read-only): no target Contabo o container `cloudflared` não existe e o PostgreSQL publica `0.0.0.0:15433`** — deriva entre desenho versionado e deploy vivo, registrada na nota supersessora no topo e em [ADR-BASE-21](../adr/ADR-BASE-21-contabo-postgres-private-connectivity.md). Evolution e outros serviços devem ser confirmados por descoberta remota antes da migração.
 
 O target é Contabo. WAHA deve ser provisionado diretamente no target e substituir Evolution em uma janela separada do cutover de banco.
+
+## Token do Tunnel cloudflared (token-file)
+
+O serviço `cloudflared` do compose
+(`ops/vps/synkroo-prod-postgres/docker-compose.yml`, imagem pinada
+`cloudflare/cloudflared:2026.7.2`) autentica via
+`--token-file /run/secrets/tunnel_token` (suportado desde a 2025.4.0). O
+token **nunca** aparece em argv (`--token <valor>`) nem em env:
+`docker inspect`/`docker ps` mostram só o path do arquivo.
+
+- **Arquivo no host, fora do repo:** ex.
+  `/root/.secrets/synkroo-prod-tunnel-token`, modo `0600`
+  (`install -m 0600 ...` ou `chmod 600`), dono root. Não existe diretório
+  `secrets/` dentro do checkout — nenhum arquivo de token é versionado
+  (contrato pinado em `scripts/__tests__/prod-postgres-config.test.mjs`).
+- **Compose:** bind `TUNNEL_TOKEN_FILE_PATH` (caminho no host) →
+  `/run/secrets/tunnel_token` (`read_only: true`). Sem a variável,
+  `docker compose config`/`up` **falha fechado** citando
+  `TUNNEL_TOKEN_FILE_PATH` — mensagem acionável, sem default silencioso.
+- **Staging e produção com tokens DISTINTOS:** tunnels/arquivos separados
+  (ex. `synkroo-staging-tunnel-token` vs `synkroo-prod-tunnel-token`).
+  Nunca reutilizar o mesmo token/arquivo nos dois ambientes.
+
+### Instalação inicial (na VPS, via SSH)
+
+```bash
+# 1. No dashboard Cloudflare Zero Trust → Networks → Tunnels: criar o Tunnel
+#    de PRODUÇÃO e copiar o token (só o valor; não commitar em lugar nenhum).
+# 2. Gravar o arquivo com 0600:
+umask 077
+cat > /root/.secrets/synkroo-prod-tunnel-token
+# (colar o token, Enter, Ctrl+D)
+chmod 600 /root/.secrets/synkroo-prod-tunnel-token
+# 3. Apontar o compose e validar o render SEM segredo (só paths):
+export TUNNEL_TOKEN_FILE_PATH=/root/.secrets/synkroo-prod-tunnel-token
+# 3a. Remover o TUNNEL_TOKEN legado do .env do host: com env_file, qualquer
+#     var restante no .env é injetada no environment do container e visível
+#     em `docker inspect` — o token antigo não pode permanecer lá.
+sed -i '/^TUNNEL_TOKEN=/d' .env
+docker compose config --format json | grep -c 'tunnel_token'
+docker compose up -d
+docker inspect synkroo-prod-db-tunnel --format '{{json .Config.Cmd}}'
+# esperado: ["tunnel","--no-autoupdate","run","--token-file","/run/secrets/tunnel_token"]
+```
+
+### Rotação
+
+1. Gerar o novo token no dashboard (rotacionar/recriar o token do Tunnel).
+2. Sobrescrever o arquivo no host (`cat > ...` + `chmod 600`).
+3. `docker compose up -d --force-recreate cloudflared` — o bind mount é
+   relido a cada (re)criação; nada do valor antigo permanece bakado.
+4. Validar `docker logs synkroo-prod-db-tunnel` + conectividade do banco
+   pela rota privada. O token antigo morre no dashboard, não no host.
+
+### Revogação
+
+1. Revogar/excluir o Tunnel ou o token no dashboard Cloudflare.
+2. Na VPS: `docker compose stop cloudflared` e remover o arquivo
+   (`shred -u /root/.secrets/synkroo-prod-tunnel-token` ou `rm`).
+3. Só subir de novo com o token substituto instalado (instalação inicial).
 
 ## Operações destrutivas
 
