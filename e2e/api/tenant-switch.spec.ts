@@ -63,7 +63,8 @@ t.describe('GW-02 tenant switch API', () => {
     // seguinte ainda reflete a clínica do token; afirma-se que a sessão segue válida.
     const after = await getSessionBody(request)
     expect(after.authenticated).toBe(true)
-    expect(after.profile.clinic_id).toMatch(UUID_RE)
+    // Rota validation-only: não muda o tenant ativo — a sessão segue em clinicA.
+    expect(after.profile.clinic_id).toBe(clinicA)
   })
 
   t('POST /api/auth/switch-clinic de volta p/ A → 200 sem set-cookie', async ({ request }) => {
@@ -72,6 +73,14 @@ t.describe('GW-02 tenant switch API', () => {
     const clinicB = (session.profile.available_clinics as Array<{ id: string }>)
       .map((c) => c.id)
       .find((id) => id !== clinicA)
+    // Sempre exercitado: switch p/ a própria clínica (membership garantida do admin).
+    const self = await request.post('/api/auth/switch-clinic', { data: { clinicId: clinicA } })
+    expect(self.status()).toBe(200)
+    expect(self.headers()['set-cookie']).toBeUndefined()
+    const selfBody = await self.json()
+    expect(selfBody.data.clinicId).toBe(clinicA)
+    expect(typeof selfBody.data.role).toBe('string')
+    // Condicional: A→B→A só com segunda membership (skip explícito só aqui).
     t.skip(!clinicB, 'BLOCKER GW02-B1: sem segunda membership p/ exercitar switch A→B→A (ver teste setup B1)')
     const go = await request.post('/api/auth/switch-clinic', { data: { clinicId: clinicB } })
     expect(go.status()).toBe(200)
