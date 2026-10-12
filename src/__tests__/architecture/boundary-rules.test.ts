@@ -176,11 +176,14 @@ describe("Boundary Rules (Spec Section 5)", () => {
     expect(violations).toEqual([]);
   });
 
-  it("API transport routes do not access the database directly", () => {
+  it("retired evolution inbound returns 410 and points to WAHA", () => {
     const route = requiredFile("app/api/whatsapp/evolution/route.ts");
     assertTransportOnly(route, "app/api/whatsapp/evolution/route.ts");
-    expect(route).toContain("receberMensagem");
-    expect(route).toContain("runAtendimentoSystemAction");
+    expect(route).toContain("410");
+    expect(route).toContain("EVOLUTION_RETIRED");
+    expect(route).toContain("/api/whatsapp/waha");
+    expect(route).not.toContain("receberMensagem");
+    expect(route).not.toContain("runAtendimentoSystemAction");
   });
   it("outbound financial and campaign effects are queue consumers", () => {
     const chargeService = requiredFile(

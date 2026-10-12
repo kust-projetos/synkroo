@@ -9,6 +9,8 @@ export const aceitarOrcamento = defineAction({
   module: 'financeiro',
   requires: 'financeiro:manage_budget',
   label: 'Aceitar orçamento',
+  // Etapa 5.3: approval CONFIRM — audit id only (ADR-BASE-12 allowlist, sem PII).
+  auditFields: ['id'],
   input: z.object({
     id: z.string().uuid(),
   }),

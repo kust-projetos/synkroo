@@ -77,3 +77,9 @@ O fluxo de confirmação **funciona** e está coberto por testes
 4. **Processo do DPO** — PENDENTE: canal de exercício de direitos (acesso,
    correção, portabilidade, eliminação, oposição), SLA de resposta e
    registro das solicitações; este inventário é o anexo técnico desse processo.
+
+> **Decisão owner 2026-10-08 (apenas registro, sem implementação):** política de
+> retenção por categoria registrada como **DEFERRED — implementação pós-fase de
+> operação**; processo do DPO (item 4) segue PENDENTE. Nenhum prazo passa a ser
+> assumido por esta nota; cada linha da tabela acima permanece
+> A DEFINIR (jurídico).

@@ -39,7 +39,7 @@ gitleaks --version; npx wrangler --version; git log -1 --format="%H %s" # saniti
 | SecretClass | Onde rotacionar | Como provar sem valor |
 |---|---|---|
 | `github-fine-grained-pat` GH_TOKEN / GITHUB_TOKEN / GH_ORG_TOKEN (C01-C03) + worktree `.dev.vars:10-13` `.env.local:5-6` | GitHub → Settings → Developer settings → PATs → Revoke → Generate new | fingerprint `ghp_****` last4 + timestamp + owner |
-| `jwt` Supabase ANON/SERVICE_ROLE (C04-C08) + `.dev.vars:8-9` `.env.local:3-4` | Supabase Dashboard → Project → API → Service Role → Reset | fingerprint `eyJ****` last4 + owner |
+| `jwt` Supabase ANON/SERVICE_ROLE (C04-C08) + `.dev.vars:8-9` `.env.local:3-4` — **REMOVIDO DO RUNTIME (ADR-BASE-03)** | **Sem dashboard ativo na stack atual.** Revogação no provedor não comprovada: owner confirma exclusão do projeto/keys no Supabase (guardar recibo) ou registra risco aceito; remover valores de `.dev.vars`/`.env.local` e do histórico | Sanitation de histórico feita (`gitleaks` 0); **recibo de revogação externa pendente** |
 | `generic-api-key` LLM (C09-C11) `api-glm/minimax/nemotron.bat` + `OPENCODE_ZEN_API_KEY` `.dev.vars:26` `.env.local:19,25,27,31,34` | z.ai / MiniMax / OpenRouter dashboards → Revoke → New key | fingerprint `sk-****`/`msk-****` last4 |
 | `DATABASE_URL` Hyperdrive/Neon | Cloudflare Hyperdrive → Rotate connection string + Neon/DB → Reset password → `wrangler hyperdrive update` | fingerprint `post****` + `HYPERDRIVE id e0033a75...` |
 | `AUTH_SECRET` (≥32) + `JWT_SECRET` (≥16) + `CRON_SECRET` + `WEBHOOK_SECRET` | Gerar `openssl rand -base64 32` local, não colar no repo | fingerprint `****` last4 + `src/lib/env.ts:22` fail-closed |
@@ -87,7 +87,7 @@ gh auth status  # apenas fingerprint/owner, sem token
 | SecretClass | Fingerprint (last4) | Owner | Rotated (UTC) | Evidence |
 |---|---|---|---|---|
 | github-fine-grained-pat | `****` (cut -c1-4) | owner GH |  | `gitleaks CI run URL/SHA` + `gh auth status` sanitizado |
-| jwt (Supabase) | `****` | owner Supabase |  | dashboard receipt + `gitleaks` 0 |
+| jwt (Supabase) — REMOVIDO DO RUNTIME | `****` | owner (recibo pendente) | n/a | Remoção da stack: ADR-BASE-03; sanitation de histórico (`gitleaks` 0). **Revogação no provedor não comprovada** — recibo ou risco aceito pendente |
 | generic-api-key (LLM) | `****` | owner LLM |  | provider receipt + fingerprint |
 | DATABASE_URL/Hyperdrive | `****` | owner DB/CF |  | `wrangler deploy --dry-run staging EXIT 0` + `HYPERDRIVE e0033...` |
 | AUTH_SECRET/JWT_SECRET | `****` | owner auth |  | `src/lib/env.ts` fail-closed + deploy smoke |

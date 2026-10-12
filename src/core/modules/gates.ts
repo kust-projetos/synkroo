@@ -41,4 +41,6 @@ export async function assertModuleForJob(moduleId: string, manifest: ManifestLik
   if (!(await manifest.isEnabled(moduleId))) throw new ModuleDisabledError(moduleId);
 }
 
-// Gate 3 (tools do agente) já vive em `agentToolsFor` (W3.1), que filtra por ctx.hasModule.
+// Gate 3 (tools do agente) vive em `buildToolCatalog` (src/core/agent-bridge),
+// owned pela bridge IA: allowlist literal ∩ ctx.hasModule ∩ ctx.can.
+// O adaptador direto `agentToolsFor` foi removido em 2026-10-05 (allowlist hardening).

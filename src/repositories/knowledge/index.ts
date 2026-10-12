@@ -66,22 +66,6 @@ export async function searchKnowledgeBase(
 }
 
 /**
- * Get knowledge entry by ID (UNSCOPED — cross-tenant risk).
- * @deprecated Use `findKnowledgeByIdScoped(id, clinicId)` instead.
- * P1: clinicId must come from trusted auth context.
- */
-export async function findKnowledgeById(id: string): Promise<KnowledgeRow | null> {
-  const db = getDb()
-  const [row] = await db
-    .select()
-    .from(knowledgeBase)
-    .where(eq(knowledgeBase.id, id))
-    .limit(1)
-  console.warn('[P1] findKnowledgeById without clinicId is deprecated; use findKnowledgeByIdScoped with clinic from auth context')
-  return (row as KnowledgeRow) ?? null
-}
-
-/**
  * Tenant-scoped read by id. Returns null when the id does not belong to
  * the given clinic (no cross-tenant leak).
  * P1: clinicId must come from trusted auth context.
@@ -152,31 +136,6 @@ export async function createKnowledgeEntry(data: {
 }
 
 /**
- * Update a knowledge entry (UNSCOPED — cross-tenant risk).
- * @deprecated Use `updateKnowledgeEntryScoped(id, clinicId, data)` instead.
- * P1: clinicId must come from trusted auth context.
- */
-export async function updateKnowledgeEntry(
-  id: string,
-  data: Partial<{
-    category: string
-    question: string
-    answer: string
-    keywords: string[]
-    isActive: boolean
-  }>
-): Promise<KnowledgeRow | null> {
-  const db = getDb()
-  const [row] = await db
-    .update(knowledgeBase)
-    .set({ ...data, updatedAt: new Date() })
-    .where(eq(knowledgeBase.id, id))
-    .returning()
-  console.warn('[P1] updateKnowledgeEntry without clinicId is deprecated; use updateKnowledgeEntryScoped with clinic from auth context')
-  return (row as KnowledgeRow) ?? null
-}
-
-/**
  * Update scoped to a clinic. Returns null when the id does not belong to
  * the given clinic (no cross-tenant write).
  * P1: clinicId must come from trusted auth context.
@@ -199,21 +158,6 @@ export async function updateKnowledgeEntryScoped(
     .where(and(eq(knowledgeBase.id, id), eq(knowledgeBase.clinicId, clinicId)))
     .returning()
   return (row as KnowledgeRow) ?? null
-}
-
-/**
- * Delete a knowledge entry (UNSCOPED — cross-tenant risk).
- * @deprecated Use `deleteKnowledgeEntryScoped(id, clinicId)` instead.
- * P1: clinicId must come from trusted auth context.
- */
-export async function deleteKnowledgeEntry(id: string): Promise<boolean> {
-  const db = getDb()
-  const [row] = await db
-    .delete(knowledgeBase)
-    .where(eq(knowledgeBase.id, id))
-    .returning({ id: knowledgeBase.id })
-  console.warn('[P1] deleteKnowledgeEntry without clinicId is deprecated; use deleteKnowledgeEntryScoped with clinic from auth context')
-  return row != null
 }
 
 /**

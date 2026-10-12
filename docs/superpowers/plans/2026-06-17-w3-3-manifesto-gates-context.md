@@ -4,7 +4,7 @@
 
 **Goal:** Implementar a contratação de módulos por instância (`instance_modules` + `moduleManifest.isEnabled`), os 4 gates do manifesto, e os três construtores de `ActionContext` (`buildUserContext`/`buildDelegatedContext`/`buildSystemContext`) que combinam RBAC (W3.2) e manifesto — fechando o `ActionContext` completo consumido por `runAction`.
 
-**Architecture:** O manifesto usa um *provider injetável* (como o RBAC), tornando `isEnabled` testável sem Drizzle. Os construtores de contexto recebem `deps` injetáveis (carregador de perfil, `RbacRepo`, manifesto) com defaults reais. Os gates 1–2 e 4 (rota, menu, jobs) usam `isEnabled`; o gate 3 (tools) já existe em `agentToolsFor` (W3.1) e só passa a receber `hasModule` real.
+**Architecture:** O manifesto usa um *provider injetável* (como o RBAC), tornando `isEnabled` testável sem Drizzle. Os construtores de contexto recebem `deps` injetáveis (carregador de perfil, `RbacRepo`, manifesto) com defaults reais. Os gates 1–2 e 4 (rota, menu, jobs) usam `isEnabled`; o gate 3 (tools) já existia em `agentToolsFor` (W3.1) e só passava a receber `hasModule` real. **⚠️ 2026-10-05:** o gate 3 mudou de dono — `agentToolsFor` foi removido e a filtragem por módulo passou a ser `ctx.hasModule(a.module)` dentro de `buildToolCatalog` (`src/core/agent-bridge/tool-catalog.ts`), junto com a allowlist literal da bridge IA; comentário vigente em `src/core/modules/gates.ts`.
 
 **Tech Stack:** TypeScript 5.6, Drizzle ORM, Jest + ts-jest, NextAuth (`getUserProfile`).
 

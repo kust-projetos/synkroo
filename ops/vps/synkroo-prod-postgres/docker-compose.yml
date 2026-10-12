@@ -11,7 +11,11 @@ services:
       - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
       - ./certs:/etc/postgresql/tls:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # Server acceptance (local socket, trust) is NOT proof of an authenticated
+      # query: keep pg_isready, then prove a real SCRAM login over TLS TCP on
+      # 127.0.0.1. `$$` escapes Compose interpolation so the container shell —
+      # not the host — expands $${POSTGRES_*} from the runtime environment.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB} && PGSSLMODE=require PGPASSWORD=$${POSTGRES_PASSWORD} psql -h 127.0.0.1 -p 5432 -U $${POSTGRES_USER} -d $${POSTGRES_DB} -w -tAc 'SELECT 1'"]
       interval: 5s
       timeout: 5s
       retries: 12
@@ -22,7 +26,26 @@ services:
     container_name: synkroo-prod-db-tunnel
     restart: unless-stopped
     env_file: .env
-    command: ["tunnel", "--no-autoupdate", "run", "--token", "${TUNNEL_TOKEN}"]
+    # Contrato do segredo do Tunnel (token-file, nunca argv/env):
+    # - o token NUNCA aparece em argv (`--token <valor>`) nem em env visível:
+    #   `docker inspect`/`docker ps` mostram só o path do arquivo;
+    # - o arquivo com o token vive NO HOST, FORA do repo (ex.:
+    #   /root/.secrets/synkroo-prod-tunnel-token, modo 0600), montado
+    #   read-only em /run/secrets/tunnel_token;
+    # - staging e produção usam ARQUIVOS/TOKENS DISTINTOS (ex.:
+    #   synkroo-staging-tunnel-token vs synkroo-prod-tunnel-token);
+    # - TUNNEL_TOKEN_FILE_PATH é o caminho do arquivo no host; a forma
+    #   `${...:?...}` falha fechado no `config`/`up` quando ausente, com
+    #   mensagem acionável (sem essa var, nem `config` renderiza);
+    # - rotação = atualizar o arquivo + recreate/restart do serviço; o bind
+    #   mount é relido a cada (re)criação, nada é bakado na imagem/config;
+    # - `--token-file` exige cloudflared >= 2025.4.0 (pin 2026.7.2 ok).
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/tunnel_token"]
+    volumes:
+      - type: bind
+        source: ${TUNNEL_TOKEN_FILE_PATH:?TUNNEL_TOKEN_FILE_PATH ausente - aponte para o arquivo de token no host (fora do repo, modo 0600)}
+        target: /run/secrets/tunnel_token
+        read_only: true
     depends_on:
       postgres:
         condition: service_healthy

@@ -127,17 +127,34 @@ async function countAIHandledMessages(clinicId: string, start: string, end: stri
 }
 
 /**
+ * Taxonomy actually written to `messages.intent` by the atendimento module
+ * (see `modules/atendimento/actions/classificar-intencao.ts` RULES and
+ * `modules/atendimento/services/webhook-processor-service.ts`). The old English
+ * literals ('schedule_appointment', 'book', ...) never matched any stored row,
+ * so the proxy silently counted 0 and reported fake revenue.
+ *
+ * Proxy conservador: só os intents que criam ou movem um agendamento contam.
+ * `confirmacao` fica DE FORA de propósito — é gravada na resposta a
+ * `processConfirmationResponse`, ou seja, confirma um agendamento que já existe.
+ * Incluí-la inflaria `appointmentsBooked` e, ao multiplicar por
+ * `DEFAULT_AVG_TICKET`, fabricaria receita para consultas nunca agendadas pelo
+ * agente. Cancelamentos também não contam (reduziram agenda, não criaram).
+ */
+const AI_BOOKING_INTENTS = ['agendamento', 'reagendamento'] as const
+
+/**
  * Count appointments booked through AI (via conversations with scheduling intent)
  */
 async function countAIBookedAppointments(clinicId: string, start: string, end: string): Promise<number> {
   const db = getDb()
   try {
     // Query única com innerJoin em conversations (mesmo motivo acima).
+    // `direction = outbound`: o intent é gravado na resposta do agente.
     const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(messages)
       .innerJoin(conversations, eq(messages.conversationId, conversations.id))
-      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end)), inArray(messages.intent as any, ['schedule_appointment', 'book', 'reschedule', 'confirm_appointment']), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
-    return row?.count ?? 0 // P1: EXPECTED_EMPTY — no matching rows is a legitimate zero
-  } catch (e) { dbLogger.error('Error counting AI-booked appointments', e); throw e } // P1: DEGRADED/FATAL — propagate, never fabricate zero
+      .where(and(eq(conversations.clinicId, clinicId), gte(conversations.createdAt, new Date(start)), lte(conversations.createdAt, new Date(end)), eq(messages.direction, 'outbound'), inArray(messages.intent, [...AI_BOOKING_INTENTS]), gte(messages.createdAt, new Date(start)), lte(messages.createdAt, new Date(end))))
+    return row?.count ?? 0
+  } catch (e) { dbLogger.error('Error counting AI-booked appointments', e); throw e }
 }
 
 /**
@@ -148,11 +165,11 @@ async function countRecoveredNoShows(clinicId: string, start: string, end: strin
   const db = getDb()
   try {
     const nsRows = await db.select({ patientId: appointments.patientId }).from(appointments)
-      .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status as any, 'no_show'), lt(appointments.scheduledAt, new Date(start))))
+      .where(and(eq(appointments.clinicId, clinicId), eq(appointments.status, 'no_show'), lt(appointments.scheduledAt, new Date(start))))
     const patientIds = [...new Set(nsRows.map(r => r.patientId).filter(Boolean))] as string[]
     if (!patientIds.length) return 0 // P1: EXPECTED_EMPTY — no prior no-shows, nothing to recover
     const [row] = await db.select({ count: sql<number>`count(*)::int` }).from(appointments)
-      .where(and(eq(appointments.clinicId, clinicId), inArray(appointments.patientId, patientIds), eq(appointments.status as any, 'completed'), gte(appointments.scheduledAt, new Date(start)), lte(appointments.scheduledAt, new Date(end))))
+      .where(and(eq(appointments.clinicId, clinicId), inArray(appointments.patientId, patientIds), eq(appointments.status, 'completed'), gte(appointments.scheduledAt, new Date(start)), lte(appointments.scheduledAt, new Date(end))))
     return row?.count ?? 0 // P1: EXPECTED_EMPTY — no completions in period is a legitimate zero
   } catch (e) { dbLogger.error('Error counting recovered no-shows', e); throw e } // P1: DEGRADED/FATAL — propagate, never fabricate zero
 }
@@ -242,6 +259,8 @@ export async function getROIMetrics(
       },
     }
   } catch (error) {
+    // Fail-closed: ROI zerado é indistinguível de "clínica sem atividade" e
+    // leva a decisão comercial errada. Propaga para a rota devolver 500.
     dbLogger.error('Error calculating ROI metrics', error)
     // P1: FATAL — propagate instead of returning zeroed metrics with implicit
     // success; a zero-revenue response must never mask a technical failure.

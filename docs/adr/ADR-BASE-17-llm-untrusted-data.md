@@ -10,16 +10,18 @@ O agente IA consome conteúdo externo (mensagens WhatsApp, RAG/knowledge, dados 
 ## Decisão
 
 1. **Conteúdo externo é dado, nunca instrução:** ao montar o prompt (`src/core/ia-agent/personas.ts`, orquestração em `src/core/ia-agent/orchestrator-logic.ts`), contexto do interlocutor, histórico e trechos RAG/knowledge são delimitados como dado entre marcadores cotados (convenção `<dados_contexto>`), com instrução system separada. Sanitização remove/escapa delimitadores vindos do conteúdo externo para impedir quebra de moldura.
-2. **Tools deny-by-default:** só ações na allowlist `AGENT_SAFE_ACTIONS` (`src/core/agent-bridge/tool-policy.ts`, predicado `isAgentSafeAction`) são expostas à bridge; ação fora da lista é recusada sem chamar o modelo.
+2. **Tools deny-by-default:** só ações na allowlist `AGENT_SAFE_ACTIONS` (`src/core/agent-bridge/tool-policy.ts`, predicado `isAgentSafeAction`) são expostas à bridge; ação fora da lista é recusada sem chamar o modelo. A allowlist é owned pelo agent-bridge e **não é importada** por `src/core/actions/` (nem por `runAction`) — a dependência é `agent-bridge → actions`, nunca o inverso. A exposição de tools é **metadata-only**: `buildToolCatalog(ctx, actions?)` (`src/core/agent-bridge/tool-catalog.ts`) aplica a interseção `isAgentSafeAction(name) AND ctx.hasModule(module) AND ctx.can(requires)` e serializa alias/descrição/JSON Schema — nenhum callback executável. É o mesmo seletor usado por `listToolsLogic`, então descoberta (handle da bridge) e catálogo público não podem divergir.
 3. **Validação Zod de todo output estruturado antes do uso:** envelope do provider (`choices`/`message`/`tool_calls`/`usage`), `tool_calls[].function.arguments` e payloads (classificação, `pendingAction`) passam por schema — `JSON.parse` não é validação. `pendingAction.args` persistido no DO é revalidado contra o schema da action no `confirm`.
-4. **RBAC fora do modelo:** o único caminho de execução passa por allowlist + `runAction` com `ActionContext`/RBAC (`src/core/actions/`); nenhuma rota contorna esse caminho. Autorização nunca é decidida pelo conteúdo gerado.
+4. **RBAC fora do modelo:** o único caminho de execução passa por allowlist + `runAction` com `ActionContext`/RBAC (`src/core/actions/`); nenhuma rota contorna esse caminho. Autorização nunca é decidida pelo conteúdo gerado. Os adaptadores executáveis `toAgentTool`/`agentToolsFor` (`src/core/actions/agent.ts`, W3.1) foram **removidos** em 2026-10-05: adaptavam a Action com `run()` chamando `runAction` direto, sem handle verificado, sem matriz de confirmação/identidade e sem anti-replay — ou seja, contornavam esta decisão. A execução da IA tem um único dono: `executeActionLogic` (`src/core/agent-bridge/bridge-service.ts`), que revalida a allowlist **antes** de marcar a chave de idempotência e antes do `runAction`.
 5. **pendingAction com binding de principal e reserva atômica:** confirmação vincula token à conversa/sessão (`confirmedToken`/`identityVerifiedToken` verificados no boundary do app em `src/app/api/ia/chat/route.ts`, nunca confiados do body); `history`/`pendingAction` são persistidos por conversa no DO (`src/workers/ia-agent/index.ts`).
 6. **Deadline de turno:** budget total por turno (timeout do provider < timeout do invoker; teto de iterações × retries), com correlation/request id propagado app → handle → `runTurn` → provider para rastreabilidade.
 
 ## Evidência
 
 - `src/core/agent-bridge/tool-policy.ts` (+ `src/core/agent-bridge/__tests__/tool-policy.test.ts`) — allowlist deny-by-default
-- `src/core/agent-bridge/bridge-service.ts` — enforcement da allowlist
+- `src/core/agent-bridge/bridge-service.ts` — enforcement da allowlist (descoberta + execução, com ordem allowlist → marca idempotência → matriz → `runAction`)
+- `src/core/agent-bridge/tool-catalog.ts` (+ `__tests__/catalog-filter.test.ts`, `__tests__/tool-catalog.test.ts`) — catálogo metadata-only, interseção de três condições, paridade com `listToolsLogic` e controle por registry injetado
+- `src/core/actions/__tests__/agent-adapters-retired.test.ts` — guarda de regressão: adaptadores diretos removidos, barrel sem tool executável
 - `src/core/ia-agent/orchestrator-logic.ts` (+ testes de `pendingAction` vinculado) — confirmação/identidade, preservação de estado
 - `src/app/api/ia/chat/route.ts` — caps de payload e verificação de tokens no boundary
 - `src/workers/ia-agent/index.ts` — persistência por conversa (history + pendingAction)
@@ -34,3 +36,4 @@ O agente IA consome conteúdo externo (mensagens WhatsApp, RAG/knowledge, dados 
 
 - Nova action do agente nasce fora da allowlist; inclusão exige revisão explícita.
 - Nenhuma string do body chega ao provider sem cap; nenhum output estruturado é consumido sem schema.
+- Nenhuma camada fora do agent-bridge pode expor tool executável para a IA: o catálogo público e a descoberta do bridge usam o mesmo seletor e nenhum callback; reintroduzir um adaptador direto exige revisar esta ADR.

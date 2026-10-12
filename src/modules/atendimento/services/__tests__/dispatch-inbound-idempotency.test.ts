@@ -10,6 +10,7 @@ const outcomes: Array<'claimed' | 'completed' | 'in_progress' | 'retry_after'> =
 jest.mock('@/lib/idempotency', () => ({
   claimIdempotencyKey: jest.fn(async () => outcomes.shift() ?? 'claimed'),
   markIdempotencyKeyCompleted: jest.fn(async () => undefined),
+  markIdempotencyKeyDispatching: jest.fn(async () => true),
   markIdempotencyKeyFailed: jest.fn(async () => undefined),
   isIdempotencyKeyProcessed: jest.fn(async () => false),
   withIdempotency: jest.fn(),

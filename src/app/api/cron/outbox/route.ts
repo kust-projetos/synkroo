@@ -1,6 +1,8 @@
 import crypto from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { outboxOperations, processOutboxBatch } from '@/lib/outbox/worker';
+import { getConsumerRelease } from '@/lib/outbox/consumer-release';
+import { getOutboxControlStatus, OutboxControlError } from '@/lib/outbox/control';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
 import { apiRateLimited, generateRequestId } from '@/lib/api/response';
 
@@ -26,5 +28,25 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   if (!isAuthorized(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  return NextResponse.json({ status: 'ok', message: 'Outbox worker is active', operations: outboxOperations });
+  try {
+    const [releaseId, control] = await Promise.all([
+      getConsumerRelease(),
+      getOutboxControlStatus(),
+    ]);
+    if (releaseId === null) {
+      return NextResponse.json({ status: 'unavailable', reason: 'outbox-release-unknown' }, { status: 503 });
+    }
+    return NextResponse.json({
+      status: control.paused ? 'paused' : 'running',
+      releaseId,
+      controlEpoch: control.epoch,
+      controlReleaseId: control.releaseId,
+      processing: control.counts.processing,
+      drained: control.drained,
+      operations: outboxOperations,
+    });
+  } catch (error) {
+    const reason = error instanceof OutboxControlError ? error.code : 'OUTBOX_CONTROL_UNAVAILABLE';
+    return NextResponse.json({ status: 'unavailable', reason }, { status: 503 });
+  }
 }

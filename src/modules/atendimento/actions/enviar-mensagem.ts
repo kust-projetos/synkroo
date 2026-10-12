@@ -22,11 +22,21 @@ export function buildOutboundPayloadFingerprint(channel: string, to: string, tex
   return createHash('sha256').update(`${channel}|${to}|${text.trim()}`).digest('hex').slice(0, 16);
 }
 
+/**
+ * Mensagem fixa e segura para `unknown_effect` (ADR-BASE-20 §5): o efeito pode
+ * ter ocorrido e a entrega não foi confirmada. Nunca expõe texto de provider.
+ */
+const UNKNOWN_EFFECT_MESSAGE = 'Resultado do envio não confirmado.';
+
 export const enviarMensagem = defineAction({
   name: 'atendimento.enviarMensagem',
   module: 'atendimento',
   requires: 'atendimento:manage_messages',
   label: 'Enviar mensagem',
+  // Envio externo: DENY hard para principal não-humano (runAction).
+  riskClass: 'deny_non_human',
+  // Auditoria só com allowlist sem PII/conteúdo (message fora).
+  auditFields: ['conversationId', 'channel', 'idempotencyKey'] as const,
   input: z.object({
     conversationId: z.string().uuid(),
     message: z.string().min(1),
@@ -99,6 +109,16 @@ export const enviarMensagem = defineAction({
       throw err;
     }
     if (!sendResult.success) {
+      // E3/E4 — o transporte (channel-service) classifica o efeito. Entrega
+      // NÃO confirmada (`delivery: 'unknown'`, dispatch possivelmente ocorrido)
+      // NÃO é falha conhecida nem sucesso: mapeia para `unknown_effect`
+      // (reconciliação manual, sem retry automático — reenviar duplicaria).
+      // Falhas determinísticas seguem `internal`.
+      // A mensagem de `unknown_effect` é FIXA: `sendResult.error` pode carregar
+      // texto de provider (PII/uri); o detalhe fica só no log do servidor.
+      if (sendResult.delivery === 'unknown') {
+        throw new ActionError('unknown_effect', UNKNOWN_EFFECT_MESSAGE);
+      }
       throw new ActionError('internal', sendResult.error ?? 'Falha ao enviar mensagem.');
     }
 

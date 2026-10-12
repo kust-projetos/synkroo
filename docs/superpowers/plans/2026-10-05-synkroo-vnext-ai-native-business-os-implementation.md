@@ -46,22 +46,33 @@
 
 ### Código/scripts
 
-- [ ] substituir dependência fixa de `../vps-hostinger/.env`;
-- [ ] aceitar caminho explícito via `SYNKROO_VPS_ENV`;
-- [ ] manter fallback legado apenas durante a migração, com deprecation;
-- [ ] separar configuração source/target;
-- [ ] impedir fallback de credencial staging→prod;
-- [ ] preflight sem imprimir secrets.
+- [x] substituir dependência fixa de `../vps-hostinger/.env` nos três scripts operacionais;
+- [x] aceitar caminho explícito via `SYNKROO_VPS_ENV`;
+- [x] manter fallback legado apenas durante a migração, com deprecation;
+- [x] separar configuração source/target;
+- [x] impedir fallback de credencial staging→prod;
+- [x] preflight sem imprimir secrets.
 
 ### Documentação
 
-- [ ] atualizar `docs/ops/vps-access.md`;
-- [ ] padronizar `VPS_SOURCE_*` e `VPS_TARGET_*` nos runbooks de migração;
-- [ ] não renomear secrets de runtime Cloudflare sem necessidade.
+- [x] atualizar `docs/ops/vps-access.md`;
+- [x] padronizar `VPS_SOURCE_*` e `VPS_TARGET_*` nos runbooks de migração;
+- [x] não renomear secrets de runtime Cloudflare sem necessidade.
 
 ## 4. P2 — Hostinger → Contabo
 
 Executar conforme `docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md`.
+
+### Tooling repo-side (2026-10-05)
+
+- [x] coletor de inventário redated (`ops/vps/inventory/collect-inventory.sh` + README);
+- [x] foundation Contabo idempotente (`ops/vps/contabo/bootstrap.sh`, dry-run default, firewall em `--apply-firewall`);
+- [x] dump/restore com contrato source/target (`scripts/backup-vps-db.ts` / `scripts/restore-vps-db.ts`: gate SHA-256, metadata redatada, rehearsal isolado com extensões + ledger + smoke);
+- [x] suíte `db-backup-restore` (órfã desde a criação) e as novas suítes anexadas ao `test:release`;
+- [x] inventário da source coletado e pré-check §5.1 executados (docs/inventory/2026-10-05-hostinger-*);
+- [ ] remover fallback legado `../vps-hostinger/.env` — ao fim da migração P2 (`docs/ops/vps-access.md` §Fonte de configuração).
+
+Os itens operacionais abaixo exigem execução nas VPS pelo operador.
 
 ### Inventário Hostinger
 
@@ -84,32 +95,38 @@ Descobrir:
 
 ### Contabo foundation
 
-- [ ] SSH key-only;
-- [ ] usuário admin não-root;
-- [ ] firewall default-deny;
-- [ ] Docker/Compose;
-- [ ] NTP/timezone;
-- [ ] diretórios de app/backups;
-- [ ] monitoramento;
-- [ ] backup off-host.
+- [x] SSH key-only (verificado 2026-10-05: `docs/inventory/2026-10-05-contabo-target-findings.md`);
+- [x] usuário admin não-root (`deploy`, pré-existente);
+- [x] firewall default-deny (ufw ativo: OpenSSH/80/443, PostgreSQL sem regra);
+- [x] Docker/Compose (29.1.3 / 2.40.3);
+- [x] NTP/timezone (chronyd sincronizado; TZ host `Europe/Berlin` mantida de propósito, TZ do banco será fixa no compose);
+- [x] diretórios de app/backups (`/opt/synkroo`, `/var/backups/synkroo` criados 2026-10-05);
+- [ ] monitoramento (decisão owner — healthchecks UUID do target; script já suporta `BACKUP_HC_PING_URL`);
+- [x] backup off-host (2026-10-05: rclone gdrive replicado da source, primeira execução moveu para `gdrive:synkroo-contabo-backups/`, retenção 14d, cron 03:30 UTC).
+
+Pendência de higiene: `cloud-init-main.service` failed (`systemctl --failed`) — diagnosticar/mascarar antes do Go/No-Go.
 
 ### Banco
 
-- [ ] dump consistente;
-- [ ] SHA-256;
-- [ ] restore isolado na Contabo;
-- [ ] extensões;
-- [ ] migration ledger;
-- [ ] smoke;
-- [ ] staging apontado ao target;
-- [ ] teste Hyperdrive;
-- [ ] freeze/final sync;
-- [ ] cutover;
-- [ ] janela de rollback com Hostinger intacta.
+- [x] dump consistente (2026-10-05, custom `-Fc`, stream SSH docker exec, 186 KB);
+- [x] SHA-256 (`1b6394e0…8ac002`, sidecar + verificação no destino);
+- [x] restore isolado na Contabo (`synkroo_rehearsal`, exit 0 — ver `docs/inventory/2026-10-05-contabo-target-findings.md` §5);
+- [x] extensões (`vector` + `btree_gist` no rehearsal);
+- [x] migration ledger (33 migrações pós-restore);
+- [x] smoke (8/9 tabelas + 528 constraints; `contacts` não existe no schema);
+- [x] staging apontado ao target (`setup-staging-db --side=target` + `migrate-vps --target=staging`: 68 tabelas);
+- [x] teste Hyperdrive (`update-hyperdrive --side=target` + `smoke-deploy` verde em staging e produção);
+- [x] freeze/final sync (dump final `b9d94e1f…` verificado no destino + restore no DB prod do target);
+- [x] cutover (2026-10-05 21:04 UTC — Hyperdrives staging+produção → Contabo; smoke exit 0 nos dois ambientes);
+- [x] janela de rollback com Hostinger intacta (preservada; decommission só após §12/observação).
 
 **Gate:** não iniciar cutover do WhatsApp no mesmo momento do cutover de DB.
 
 ## 5. P3 — Evolution → WAHA
+
+> **Decisão do owner (2026-10-05):** o canal será **WAHA**; a Evolution API será **descontinuada** (sem rollback para Evolution como objetivo). Reforça o ADR-BASE de WhatsApp (superseded para WAHA).
+>
+> **Contexto de partida (inventário P2):** já existe um container `waha` (`devlikeapro/waha:latest`, **tag não pinada**, **sem volume de sessão**, sem porta pública) rodando na **source** (Hostinger) — deploy provisório/exploratório; chaves `WAHA_*` já presentes no `.env` privado. Não há container Evolution na source; o app ainda tem config `EVOLUTION_GO_*` e o sidecar Playwright é o fallback. O P3 deve começar pelo deployment WAHA **adequado** no **target** (§6.1: imagem pinada, volume de sessão, API key, webhook HMAC, HTTPS via traefik), seguido da abstração de provider (§7) e do cleanup Evolution (§12).
 
 ### P3.1 Provider abstraction
 

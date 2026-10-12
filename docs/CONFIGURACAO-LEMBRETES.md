@@ -18,7 +18,11 @@ O sistema de lembretes automáticos está **95% implementado**:
 
 ### 1. Configurar Variáveis de Ambiente
 
+No ambiente de deploy atual — secrets do Cloudflare Workers (`npx wrangler secret put <NOME>`) ou `.dev.vars` local (o banco é PostgreSQL via Drizzle ORM/Hyperdrive, não há dashboard de banco) — adicione:
+
 > **Nota 2026-10-05 (P0 vNext):** este guia é **histórico** e estava desatualizado. Supabase foi removido; `WHATSAPP_API_URL`/`WHATSAPP_TOKEN` **não existem** no schema de env (`src/lib/env.ts`) — a integração atual usa `EVOLUTION_API_URL`/`EVOLUTION_API_KEY` (com migração vNext planejada para WAHA, ver `docs/adr/ADR-BASE-08-evolution-provider.md`). Configure secrets no painel Cloudflare/`wrangler`, não em dashboard de BaaS.
+
+> **Nota (2026-10-05):** as seções abaixo que referenciam **Vercel Cron / `vercel --prod`** são históricas da v1. O deploy atual é Cloudflare Workers (OpenNext) e os crons rodam no scheduler da Cloudflare, gated por `CRON_JOBS_ENABLED` — ver `docs/ops/` e `src/app/api/cron/*`. Não siga os passos Vercel como procedimento vigente.
 
 ```bash
 # Obrigatório para lembretes
@@ -57,13 +61,13 @@ Os cron jobs serão registrados automaticamente.
 ### 5. Testar Manualmente
 
 ```bash
-# Testar endpoint de lembretes
-curl -X POST https://seu-dominio.vercel.app/api/cron/reminders \
+# Testar endpoint de lembretes (CRON_SECRET vem do ambiente; nunca colar o valor literal)
+curl -X POST "https://seu-dominio.exemplo/api/cron/reminders" \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json"
 
 # Testar endpoint de follow-ups
-curl -X POST https://seu-dominio.vercel.app/api/cron/followups \
+curl -X POST "https://seu-dominio.exemplo/api/cron/followups" \
   -H "Authorization: Bearer $CRON_SECRET" \
   -H "Content-Type: application/json"
 ```
