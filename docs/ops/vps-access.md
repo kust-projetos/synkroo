@@ -20,6 +20,22 @@
 > As seções "Firewall do Postgres (2026-09-25)" e "… atualização 2026-09-26"
 > descrevem a **VPS source (Hostinger)** — **histórico datado**, não o estado
 > ativo do target; a allowlist de 2026-09-26 nunca foi transferida ao Contabo.
+>
+> **Atualização 2026-10-12 (D3 instalado, G2 parcial / G3 mecanismo pronto):**
+> D3 instalado no target: chains `SYNKROO-D3` (15 ACCEPTs dos ranges Cloudflare
+> IPv4 + DROP final) e `SYNKROO-D3-V6` (DROP) verificadas no target; unidade
+> `synkroo-d3-firewall.service` instalada e `active`, com reaplicação
+> idempotente comprovada (no-op: 17 linhas v4 / 2 linhas v6 reaplicadas sem
+> divergência). Contadores com tráfego vivo só em `104.16.0.0/13`,
+> `162.158.0.0/15` e `172.64.0.0/13`; o DROP final acumula rejeições de origem
+> não-Cloudflare. Decisão: manter os 15 ranges (o egresso Cloudflare rotaciona
+> entre eles). Pendentes: G2 positivo via readiness (túnel ainda ausente no
+> target), negativo v6 em runtime, drill de reboot/recreate, e credencial DB do
+> target ausente no `.env` (A-PAPEIS bloqueado). Script versionado em
+> `ops/vps/synkroo-prod-postgres/apply-d3-firewall.sh` + contrato em
+> `scripts/__tests__/prod-postgres-config.test.mjs`.
+> Remoção segura: somente manual pelo cabeçalho de `apply-d3-firewall.sh`
+> (`disable --now` da unit, `-D` exato dos 2 saltos, `-F`/`-X` só das chains próprias).
 
 ## Fonte de configuração
 
