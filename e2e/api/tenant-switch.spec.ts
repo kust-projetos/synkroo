@@ -17,10 +17,17 @@ async function authedContext(baseURL: string | undefined): Promise<APIRequestCon
   if (!baseURL) {
     throw new Error('GW02-FIX-CSRF: baseURL is undefined — sem baseURL não há origin same-origin p/ CSRF')
   }
+  // shouldRejectCsrf compara Origin contra request.nextUrl.origin, que canoniza
+  // o hostname para localhost (Host 127.0.0.1 ignorado — evidência 2026-10-12:
+  // Origin http://127.0.0.1:3003 → 403, Origin http://localhost:3003 → 200;
+  // a porta continua relevante: localhost:3004 → 403). Deriva o origin da
+  // porta do baseURL com hostname localhost explícito em vez de ecoar baseURL.
+  const port = new URL(baseURL).port || '3003'
+  const origin = `http://localhost:${port}`
   return playwrightRequest.newContext({
     baseURL,
     storageState: path.join(__dirname, '../.auth/admin.json'),
-    extraHTTPHeaders: { origin: baseURL, referer: baseURL + '/' },
+    extraHTTPHeaders: { origin, referer: origin + '/' },
   })
 }
 
@@ -149,15 +156,19 @@ t.describe('GW-02 tenant switch API', () => {
     }
   })
 
-  t('POST sem sessão → 401 UNAUTHORIZED', async ({ baseURL }) => {
+  t('POST sem sessão → 307 redirect p/ /login', async ({ baseURL }) => {
+    // Contrato real do middleware: sem sessão ele responde 307 redirect p/
+    // /login e nunca chega ao handler (o 401 UNAUTHORIZED dos testes
+    // unitários não existe no stack real). maxRedirects: 0 impede o
+    // Playwright de seguir o redirect; contexto sem storageState.
+    const anon = await playwrightRequest.newContext(baseURL ? { baseURL, maxRedirects: 0 } : { maxRedirects: 0 })
     const authed = await authedContext(baseURL)
-    const anon = await playwrightRequest.newContext(baseURL ? { baseURL } : {})
     try {
       const session = await getSessionBody(authed)
       const clinicA: string = session.profile.clinic_id
       const res = await anon.post('/api/auth/switch-clinic', { data: { clinicId: clinicA } })
-      expect(res.status()).toBe(401)
-      expect((await res.json()).error.code).toBe('UNAUTHORIZED')
+      expect(res.status()).toBe(307)
+      expect(res.headers()['location']).toContain('/login')
     } finally {
       await anon.dispose()
       await authed.dispose()
