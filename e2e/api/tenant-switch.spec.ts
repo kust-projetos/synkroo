@@ -167,7 +167,8 @@ t.describe('GW-02 tenant switch API', () => {
       const session = await getSessionBody(authed)
       const clinicA: string = session.profile.clinic_id
       const res = await anon.post('/api/auth/switch-clinic', { data: { clinicId: clinicA }, maxRedirects: 0 })
-      expect(res.status()).toBe(307)
+      const bodyText = await res.text()
+      expect(res.status(), `GW02-DIAG anon raw: status=${res.status()} location=${res.headers()['location']} setcookie=${res.headers()['set-cookie']} body=${bodyText.slice(0,400)}`).toBe(307)
       expect(res.headers()['location']).toContain('/login')
     } finally {
       await anon.dispose()
