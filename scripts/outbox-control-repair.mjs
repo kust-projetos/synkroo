@@ -5,10 +5,12 @@
  *
  * Por que existe: a 0036 foi AMPLIADA (tabela singleton `outbox_control` +
  * trigger `outbox_enforce_control_gate` + coluna `claim_release`) sem criar
- * uma 0037 — o ledger canônico é 36/36. Ambiente que JÁ aplicou a 0036
- * original tem o ledger em 36 e NÃO recebe os objetos novos: o drizzle pula a
- * entrada aplicada. NÃO há reparo silencioso — readiness/health falham fechados
- * (`maintenanceControl: missing`) e o operador roda este script de propósito.
+ * uma 0037 — o ledger canônico era 36/36 na época. A 0037 (P4 Slice 1A,
+ * ingestão OBSERVE) elevou o canônico para 37/37. Ambiente que JÁ aplicou a
+ * 0036 original tem o ledger em 36 e NÃO recebe os objetos novos: o drizzle
+ * pula a entrada aplicada. NÃO há reparo silencioso — readiness/health falham
+ * fechados (`maintenanceControl: missing`) e o operador roda este script de
+ * propósito.
  *
  * Uso:
  *   DATABASE_URL=postgres://... node scripts/outbox-control-repair.mjs            # dry-run (relata, não muta)
@@ -16,9 +18,10 @@
  *
  * Regras:
  *   - dry-run é o default; mutação exige `--apply` explícito;
- *   - exige ledger EXATO (== 36): incompleto (< 36) ⇒ `npm run db:migrate`
- *     primeiro; à frente do journal (> 36) ⇒ `LEDGER_AHEAD`, código e ambiente
- *     divergentes — repair nunca instala objetos de outra versão;
+ *   - exige ledger EXATO (== journal): incompleto (abaixo do journal) ⇒
+ *     `npm run db:migrate` primeiro; à frente do journal ⇒ `LEDGER_AHEAD`,
+ *     código e ambiente divergentes — repair nunca instala objetos de outra
+ *     versão;
  *   - ATOMICO: uma única transação, serializada por lock consultivo
  *     (`pg_advisory_xact_lock`); qualquer falha reverte o lote inteiro, sem
  *     janela de DROP+CREATE (o DDL da 0036 é `CREATE OR REPLACE`);
