@@ -19,7 +19,25 @@ export function isSameOriginRequest(request: Pick<NextRequest, 'headers' | 'next
   const referer = request.headers.get('referer');
   const expectedOrigin = request.nextUrl.origin;
   const source = origin ?? (referer ? safeOrigin(referer) : null);
-  return source === expectedOrigin;
+  if (source === null) return false;
+  const normalizedSource = normalizeLoopbackOrigin(source);
+  const normalizedExpected = normalizeLoopbackOrigin(expectedOrigin);
+  if (normalizedSource === null || normalizedExpected === null) return false;
+  return normalizedSource === normalizedExpected;
+}
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+function normalizeLoopbackOrigin(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (LOOPBACK_HOSTS.has(url.hostname.toLowerCase())) {
+      return `${url.protocol}//localhost${url.port ? `:${url.port}` : ''}`;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
 
 function safeOrigin(value: string): string | null {
