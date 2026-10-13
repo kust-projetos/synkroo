@@ -1,4 +1,4 @@
-import { and, desc, eq, lte, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
 import { campaigns, campaignRecipients } from '@/modules/followup/schema/campaigns';
@@ -158,13 +158,15 @@ export async function updateCampaignCounts(id: string): Promise<void> {
   const [pending] = await db.select({ count: sql<number>`count(*)::int` }).from(campaignRecipients)
     .where(and(eq(campaignRecipients.campaignId, id), eq(campaignRecipients.status, 'pending')));
   const terminalStatus = failed.count === total.count && total.count > 0 ? 'failed' : failed.count > 0 ? 'partial' : 'completed';
+  // P1-FIX-CANON(1): mesma razão do repository legado — counts do outbox
+  // continuam após enqueue parcial ('partial'); terminal só com pending===0.
   await db.update(campaigns).set({
     sentCount: sent.count,
     responseCount: responses.count,
     conversionCount: conversions.count,
     ...(pending.count === 0 ? { status: terminalStatus, completedAt: new Date() } : {}),
     updatedAt: new Date(),
-  }).where(and(eq(campaigns.id, id), eq(campaigns.status, 'running')));
+  }).where(and(eq(campaigns.id, id), inArray(campaigns.status, ['running', 'partial'])));
 }
 
 export async function updateRecipientStatus(id: string, data: Record<string, unknown>) {

@@ -7,7 +7,10 @@
   },
   "overrides": {
     "postcss": "$postcss",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.5",
+    "devalue": "^5.9.3",
+    "source-map-js": "1.2.2",
+    "dompurify": "^3.4.16"
   },
   "scripts": {
     "dev": "next dev",
@@ -24,7 +27,7 @@
     "test:security:integration": "jest --config jest.security.integration.config.js --coverage",
     "test:security:repositories": "node scripts/repository-mutation-run.mjs",
     "test:security:services": "stryker run stryker.services.config.json",
-    "test:release": "node --test scripts/__tests__/cli-entrypoint.test.mjs scripts/__tests__/inject-pg-global.test.mjs scripts/__tests__/seed-test-clinic.test.mjs scripts/__tests__/smoke-staging.test.mjs scripts/__tests__/smoke-deploy.test.mjs scripts/__tests__/verify-remediation-schema.test.mjs scripts/__tests__/ignore-client-abort.test.mjs scripts/__tests__/import-client-data.test.mjs",
+    "test:release": "node --test scripts/__tests__/cli-entrypoint.test.mjs scripts/__tests__/inject-pg-global.test.mjs scripts/__tests__/seed-test-clinic.test.mjs scripts/__tests__/smoke-staging.test.mjs scripts/__tests__/smoke-deploy.test.mjs scripts/__tests__/verify-remediation-schema.test.mjs scripts/__tests__/ignore-client-abort.test.mjs scripts/__tests__/import-client-data.test.mjs scripts/__tests__/worker-entry.cron-schedule.test.mjs scripts/__tests__/migrate-vps-env.test.mjs scripts/__tests__/operator-scripts-hardening.test.mjs scripts/__tests__/db-backup-restore.test.mjs scripts/__tests__/vps-inventory-script.test.mjs scripts/__tests__/backup-vps-restore-vps.test.mjs scripts/__tests__/vps-contabo-bootstrap.test.mjs scripts/__tests__/vps-waha-compose.test.mjs scripts/__tests__/vps-waha-deploy.test.mjs scripts/__tests__/vps-waha-deploy-exec.test.mjs scripts/__tests__/vps-prod-postgres-healthcheck.test.mjs scripts/__tests__/contabo-backup-synkroo.test.mjs scripts/__tests__/outbox-control-repair.test.mjs",
     "smoke:deploy": "node scripts/smoke-deploy.mjs",
     "roadmap:check": "node scripts/roadmap-ledger.mjs --check",
     "roadmap:write": "node scripts/roadmap-ledger.mjs --write",
@@ -40,6 +43,7 @@
     "db:seed": "npx tsx scripts/seed-database.ts",
     "db:seed:scale": "npx tsx scripts/seed-local-scale-data.ts --preset large",
     "db:health": "node scripts/check-db.mjs",
+    "outbox:control": "npx tsx scripts/outbox-control.ts",
     "seed": "npx tsx scripts/seed-database.ts",
     "health": "curl -s http://localhost:3000/api/health | jq .",
     "test:e2e": "playwright test",
@@ -95,7 +99,6 @@
     "react-resizable-panels": "^4.10.0",
     "recharts": "^3.8.1",
     "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7",
     "uuid": "^14.0.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.25.2",
@@ -138,6 +141,7 @@
     "puppeteer-extra-plugin-stealth": "^2.11.2",
     "supertest": "^7.2.2",
     "tailwindcss": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
     "ts-jest": "^29.2.0",
     "tsx": "^4.23.12",
     "typescript": "^5.6.0",

@@ -75,7 +75,13 @@ export async function POST(request: NextRequest) {
     }
     const { patientId, scheduledAt, procedureId } = parsed.data
 
-    const prediction = await predictNoShowRisk(patientId, scheduledAt, procedureId)
+    // Tenant scope: clinicId SEMPRE do contexto autenticado, nunca do body.
+    const clinicId = authResult.profile!.clinic_id
+    const prediction = await predictNoShowRisk(clinicId, patientId, scheduledAt, procedureId)
+    if (!prediction) {
+      // 404 opaco: não revela existência de paciente em outra clínica.
+      return apiFailure('PATIENT_NOT_FOUND', 'Patient not found', requestId, 404)
+    }
 
     return apiSuccess(prediction)
   } catch {

@@ -8,6 +8,18 @@ function legacyFixture(password: string): string {
   return `${salt}:${hash}`;
 }
 
+/**
+ * Tamper the first nibble of a hex string, deterministically.
+ *
+ * Overwriting a fixed prefix (e.g. "00") is a no-op whenever the random salt or
+ * hash already starts with it (~1/256), which made the tamper tests flaky.
+ * Mapping "0"→"1" and anything else→"0" always yields a different, still valid,
+ * same-length hex string.
+ */
+function tamperFirstHexChar(hex: string): string {
+  return `${hex[0] === '0' ? '1' : '0'}${hex.slice(1)}`;
+}
+
 describe('password hash/verify', () => {
   it('hashPassword returns versioned scrypt$v1 format with embedded params', async () => {
     const stored = await hashPassword('s3cr3t!');
@@ -63,14 +75,19 @@ describe('password hash/verify', () => {
   it('verifyPassword returns false on tampered v1 hash of valid shape', async () => {
     const stored = await hashPassword('original');
     const parts = stored.split('$');
-    parts[6] = `00${parts[6].slice(2)}`;
+    const originalHash = parts[6];
+    const tamperedHash = tamperFirstHexChar(originalHash);
+    parts[6] = tamperedHash;
+    expect(tamperedHash).not.toBe(originalHash);
     await expect(verifyPassword('original', parts.join('$'))).resolves.toBe(false);
   });
 
   it('verifyPassword returns false on tampered legacy salt of valid shape', async () => {
     const stored = legacyFixture('original');
     const [salt, hash] = stored.split(':');
-    await expect(verifyPassword('original', `00${salt.slice(2)}:${hash}`)).resolves.toBe(false);
+    const tamperedSalt = tamperFirstHexChar(salt);
+    expect(tamperedSalt).not.toBe(salt);
+    await expect(verifyPassword('original', `${tamperedSalt}:${hash}`)).resolves.toBe(false);
   });
 
   it('needsRehash flags legacy but not v1', async () => {

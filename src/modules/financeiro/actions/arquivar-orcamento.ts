@@ -10,6 +10,8 @@ export const arquivarOrcamento = defineAction({
   module: 'financeiro',
   requires: 'financeiro:manage_budget',
   label: 'Arquivar orçamento',
+  // Etapa 5.3: state change — audit id only (ADR-BASE-12 allowlist, sem PII).
+  auditFields: ['id'],
   input: z.object({
     id: z.string().uuid(),
   }),

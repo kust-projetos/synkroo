@@ -38,7 +38,7 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     await assertModuleForJob('comercial', createManifest());
   } catch {
     return apiSuccess(
-      { success: true, skipped: 'comercial module disabled', timestamp: new Date().toISOString() },
+      { success: true, status: 'skipped', skipped: 'comercial module disabled', timestamp: new Date().toISOString() },
     );
   }
 
@@ -72,6 +72,10 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
       if (result.ok) {
         totalNotified += (result.data as { notified?: number }).notified ?? 0;
         totalSkipped += (result.data as { skipped?: number }).skipped ?? 0;
+      } else {
+        // Falha reportada pela action sem throw — antes era silenciosamente
+        // descartada (fake-success). Registra como erro da clínica.
+        errors.push(`Clinic ${clinic.id}: ${result.error.message}`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -79,13 +83,25 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
+  // Contrato de lote: tudo-falhou → success:false; parcial → status:'partial'
+  // explícito, nunca success:true puro com errors[] não vazio.
+  const requested = allClinics.length;
+  const failed = errors.length;
+  const succeeded = requested - failed;
+  const success = failed === 0;
+  const status = failed === 0 ? 'completed' : succeeded > 0 ? 'partial' : 'failed';
+
   return apiSuccess({
-    success: true,
+    success,
+    status,
     timestamp: new Date().toISOString(),
     results: {
       clinics_processed: allClinics.length,
       total_notified: totalNotified,
       total_skipped: totalSkipped,
+      requested,
+      succeeded,
+      failed,
       errors: errors.length > 0 ? errors : undefined,
     },
   });

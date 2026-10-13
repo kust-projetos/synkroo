@@ -9,7 +9,7 @@
 
 import { getDb } from '@/lib/db/client';
 import { idempotencyKeys } from '@/lib/db/schema/infra';
-import { eq, and, lte, or } from 'drizzle-orm';
+import { eq, and, lte, or, isNotNull } from 'drizzle-orm';
 import { dbLogger } from '@/lib/logger';
 
 /**
@@ -200,14 +200,28 @@ export async function tryClaimIdempotencyKey(
 }
 
 /**
- * Mark an idempotency key as completed.
+ * Marca o claim como `completed`.
+ *
+ * `completedTtlMs` (opcional, backward-compatible) torna a âncora de conteúdo
+ * reclaimable depois do TTL: quando informado, `expires_at` recebe
+ * `now + completedTtlMs`; quando omitido, o estado é permanente
+ * (`expires_at = NULL`). A escrita explícita da expiração é necessária porque
+ * o marco `dispatching` zera `expires_at` antes do dispatch — deixar o valor
+ * anterior (NULL) faria um `completed` com TTL parecer expirado para sempre.
+ * Best-effort, como os demais marcos.
  */
-export async function markIdempotencyKeyCompleted(key: string): Promise<void> {
+export async function markIdempotencyKeyCompleted(
+  key: string,
+  completedTtlMs?: number,
+): Promise<void> {
   try {
     const db = getDb();
     await db
       .update(idempotencyKeys)
-      .set({ status: 'completed' })
+      .set({
+        status: 'completed',
+        expiresAt: completedTtlMs === undefined ? null : new Date(Date.now() + completedTtlMs),
+      })
       .where(eq(idempotencyKeys.key, key));
   } catch (err) {
     dbLogger.error('Failed to mark idempotency key completed', err, { key });
@@ -216,13 +230,29 @@ export async function markIdempotencyKeyCompleted(key: string): Promise<void> {
 
 /**
  * Mark an idempotency key as failed (allows retry if not expired).
+ *
+ * `ttlSeconds` (opcional, backward-compatible): quando informado, grava
+ * `expires_at = now + ttlSeconds`. Quem usa o marco `dispatching` (que zera
+ * `expires_at` antes do dispatch) DEVE informar o TTL, senão a falha ficaria
+ * sem expiração e o retry legítimo nunca seria liberado. Omitir preserva o
+ * comportamento legado (não altera `expires_at`).
  */
-export async function markIdempotencyKeyFailed(key: string, error: string): Promise<void> {
+export async function markIdempotencyKeyFailed(
+  key: string,
+  error: string,
+  ttlSeconds?: number,
+): Promise<void> {
   try {
     const db = getDb();
     await db
       .update(idempotencyKeys)
-      .set({ status: 'failed', error })
+      .set({
+        status: 'failed',
+        error,
+        ...(ttlSeconds === undefined
+          ? {}
+          : { expiresAt: new Date(Date.now() + ttlSeconds * 1000) }),
+      })
       .where(eq(idempotencyKeys.key, key));
   } catch (err) {
     dbLogger.error('Failed to mark idempotency key failed', err, { key });
@@ -344,9 +374,29 @@ export class IdempotencyInfraError extends Error {
  * - `claimed`: esta execução conquistou a chave (pode executar);
  * - `completed`: já executada com sucesso (deduplicar);
  * - `in_progress`: outra execução ativa (NÃO executar, NÃO reportar sucesso);
- * - `retry_after`: falhou e o TTL ainda não expirou (NÃO executar ainda).
+ * - `retry_after`: falhou e o TTL ainda não expirou (NÃO executar ainda);
+ * - `unknown`: efeito DISPACHADO sem confirmação de entrega (estado TERMINAL).
+ *
+ * `unknown` NUNCA é reclaimable — ao contrário de `failed`, cujo TTL libera
+ * retry legítimo. Reexecutar uma operação cujo efeito pode já ter ocorrido é
+ * duplicate-send; a única saída é reconciliação manual pelo caller (o efeito
+ * continua `unknown`, nunca vira sucesso). Sem coluna nova: `status` é `text`
+ * livre, e `unknown` é apenas mais um valor — nenhuma migração de schema.
  */
-export type ClaimOutcome = 'claimed' | 'completed' | 'in_progress' | 'retry_after';
+export type ClaimOutcome = 'claimed' | 'completed' | 'in_progress' | 'retry_after' | 'unknown';
+
+/**
+ * Razão padronizada (sem detalhe de provider/PII) gravada no claim
+ * `unknown`. O dispatch ocorreu e a entrega não foi confirmada.
+ */
+export const IDEMPOTENCY_UNKNOWN_REASON = 'delivery unknown: effect dispatched but delivery not confirmed';
+
+/**
+ * Razão padronizada (sem detalhe de provider/PII) gravada no marco
+ * `dispatching`: registra que o dispatch FOI INICIADO e ainda não foi
+ * liquidado. Se a linha permanecer assim, o replay trata como `unknown`.
+ */
+export const IDEMPOTENCY_DISPATCHING_REASON = 'dispatching: effect dispatch started; settlement pending';
 
 export interface ClaimKeyOptions {
   /** TTL do claim in_progress/failed em segundos (default 3600). */
@@ -368,7 +418,13 @@ interface ClaimRow {
  * Claim estruturado de chave de idempotência.
  * Lança `IdempotencyInfraError` em falha de infra (nunca retorna `false`
  * silencioso — ver `tryClaimIdempotencyKey` legado). Conflito legítimo volta
- * como outcome (`completed`/`in_progress`/`retry_after`).
+ * como outcome (`completed`/`in_progress`/`retry_after`/`unknown`).
+ *
+ * `unknown` é terminal: o EFEITO pode ter ocorrido, então a chave não volta a
+ * executar — nem depois do TTL. O replay devolve o próprio `unknown` para o
+ * caller reconciliar manualmente. `dispatching` (marco pré-dispatch, ver
+ * `markIdempotencyKeyDispatching`) é classificado como `unknown` pelo mesmo
+ * motivo: a liquidação não foi registrada e o efeito pode ter ocorrido.
  */
 export async function claimIdempotencyKey(
   key: string,
@@ -432,6 +488,16 @@ async function settleClaim(
   const now = new Date();
   const expired = !row.expiresAt || row.expiresAt <= now;
 
+  // Estado TERMINAL do efeito: o dispatch ocorreu e a entrega não foi
+  // confirmada. Nunca executa e nunca reclama — a expiração é irrelevante
+  // aqui, porque reexecutar seria duplicate-send.
+  //
+  // `dispatching` (marco durável pré-dispatch) entra na mesma regra: o
+  // dispatch FOI INICIADO e a liquidação não foi registrada (crash, falha de
+  // DB no marco final). O efeito pode ter ocorrido, então o replay devolve
+  // `unknown` — reconciliação manual, jamais reexecução.
+  if (row.status === 'unknown' || row.status === 'dispatching') return 'unknown';
+
   if (row.status === 'completed') {
     if (completedTtlMs === undefined || !expired) return 'completed';
     // completed expirado com TTL configurado → reclaim condicional (um vencedor).
@@ -461,7 +527,69 @@ async function settleClaim(
   return (await reclaimExpired(db, key, now, ttlSeconds)) ? 'claimed' : 'in_progress';
 }
 
-/** Reclaim condicional de in_progress/failed expirado. Um vencedor por UPDATE. */
+/**
+ * Marca o claim como `unknown` — estado terminal. O dispatch ocorreu mas a
+ * entrega NÃO foi confirmada (timeout/exceção/HTTP ambíguo), que NÃO é falha
+ * conhecida: a chave fica fechada, sem retry por TTL. A razão é padronizada
+ * (sem texto de provider/PII). Best-effort, como os demais marcos.
+ *
+ * `expires_at` é zerado: estado terminal NUNCA expira (regra estrutural, não
+ * apenas a checagem de status em `settleClaim`).
+ */
+export async function markIdempotencyKeyUnknown(key: string, reason?: string): Promise<void> {
+  try {
+    const db = getDb();
+    await db
+      .update(idempotencyKeys)
+      .set({ status: 'unknown', error: reason ?? IDEMPOTENCY_UNKNOWN_REASON, expiresAt: null })
+      .where(eq(idempotencyKeys.key, key));
+  } catch (err) {
+    dbLogger.error('Failed to mark idempotency key unknown', err, { key });
+  }
+}
+
+/**
+ * Marco DURÁVEL de dispatch (E4 / HIGH-1): gravado ANTES de invocar o
+ * provider, com `expires_at = NULL`.
+ *
+ * Motivo: os marcos finais (`completed`/`failed`/`unknown`) são best-effort.
+ * Se a escrita final falhar depois do dispatch, a linha continuaria
+ * `in_progress` com TTL de 600s — passado o TTL ela seria reclaimada e o
+ * efeito reexecutado (duplicate-send). Com `dispatching` persistido antes, a
+ * liquidação falha de forma SEGURA: a linha permanece `dispatching`
+ * (não-expirável) e o replay devolve `unknown` (nunca sucesso, nunca retry).
+ *
+ * Condicional (WHERE status = 'in_progress'): só arma se a chave continua
+ * claimada por esta execução — uma corrida com outro worker devolve `false` e
+ * o caller NÃO despacha. Diferente dos marcos finais, este NÃO é best-effort:
+ * falha de infra PROPAGA (`IdempotencyInfraError`), porque sem o marco durável
+ * o dispatch não pode ocorrer (fail-closed).
+ *
+ * @returns `true` quando a linha passou a `dispatching`; `false` quando a
+ *          condição não casou (outro writer/reclaim — não despachar).
+ */
+export async function markIdempotencyKeyDispatching(key: string): Promise<boolean> {
+  const db = getDb();
+  const updated = await db
+    .update(idempotencyKeys)
+    .set({ status: 'dispatching', error: IDEMPOTENCY_DISPATCHING_REASON, expiresAt: null })
+    .where(and(
+      eq(idempotencyKeys.key, key),
+      eq(idempotencyKeys.status, 'in_progress'),
+    ))
+    .returning({ key: idempotencyKeys.key });
+  return updated.length === 1;
+}
+
+/**
+ * Reclaim condicional de in_progress/failed expirado. Um vencedor por UPDATE.
+ *
+ * Invariante: `expires_at = NULL` NUNCA é reclaimable. Os únicos escritores de
+ * NULL são os marcos terminais (`dispatching`/`unknown`) e o `completed`
+ * permanente — nenhum deles deve voltar a executar. A condição `isNotNull` é
+ * defesa extra: a expiração em SQL é NULL para essas linhas, e um `lte`
+ * sozinho nunca casaria, mas a regra fica EXPLÍCITA no predicado.
+ */
 async function reclaimExpired(
   db: ReturnType<typeof getDb>,
   key: string,
@@ -473,6 +601,7 @@ async function reclaimExpired(
     .set({ status: 'in_progress', error: null, expiresAt: new Date(now.getTime() + ttlSeconds * 1000) })
     .where(and(
       eq(idempotencyKeys.key, key),
+      isNotNull(idempotencyKeys.expiresAt),
       lte(idempotencyKeys.expiresAt, now),
       or(eq(idempotencyKeys.status, 'failed'), eq(idempotencyKeys.status, 'in_progress')),
     ))
@@ -498,6 +627,9 @@ async function rereadClaim(
     .limit(1);
   if (!current) return 'in_progress';
   const row = current as ClaimRow;
+  // Terminal: efeito possivelmente ocorrido. Preserva `unknown`/`dispatching`
+  // mesmo que o vencedor do reclaim tenha deixado a linha expirada.
+  if (row.status === 'unknown' || row.status === 'dispatching') return 'unknown';
   if (row.status === 'completed') {
     const expired = !row.expiresAt || row.expiresAt <= new Date();
     if (completedTtlMs === undefined || !expired) return 'completed';

@@ -15,7 +15,7 @@ cp .env.example .env.local
 # - PostgreSQL (DATABASE_URL)
 # - NextAuth (AUTH_SECRET, JWT_SECRET)
 # - MiniMax ou OpenAI API key
-# - WhatsApp integration (Evolution API)
+# - WhatsApp integration (Evolution atual; WAHA é o alvo vNext)
 
 # Executar servidor de desenvolvimento
 npm run dev
@@ -75,7 +75,7 @@ src/
 | State | Zustand 5 (local) + TanStack Query 5 (server) |
 | UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
 | LLM | Multi-provider factory (MiniMax, OpenAI, OpenRouter) |
-| WhatsApp | Evolution API v2.3.7 + Playwright fallback |
+| WhatsApp | Evolution API na baseline atual; migração vNext planejada para WAHA via provider adapter |
 | Validação | Zod (11 schemas dedicados) |
 | Testes | Jest + Playwright (E2E) + Stryker (mutation) — contagens derivadas pela CI (`npx jest --listTests`, glob `e2e/**/*.spec.ts`) |
 
@@ -110,6 +110,9 @@ npm run dev:ia-bridge        # Dev server do worker bridge de mensageria
 
 ## Documentação
 
+- [Synkroo vNext — AI-Native Business OS](./docs/superpowers/specs/2026-10-05-synkroo-vnext-ai-native-business-os-design.md) - direção canônica da próxima evolução
+- [Plano Mestre vNext](./docs/superpowers/plans/2026-10-05-synkroo-vnext-ai-native-business-os-implementation.md) - fases P0–P12
+- [Runbook Hostinger → Contabo + Evolution → WAHA](./docs/runbooks/2026-10-05-hostinger-to-contabo-and-waha-migration.md) - migrações de infra e canal
 - [Arquitetura Técnica Base](./docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md) - Especificação técnica modular
 - [Índice de Decisões de Arquitetura (ADRs)](./docs/adr/ADR-INDEX.md) - Registros de decisões de arquitetura
 - [Plano Mestre de Pendências](./docs/superpowers/plans/2026-08-15-synkroo-roadmap-pendencias-master-plan.md) - Roadmap de conformidade
@@ -130,9 +133,15 @@ JWT_SECRET=sua-chave-jwt-com-pelo-menos-16-caracteres
 MINIMAX_API_KEY=
 OPENAI_API_KEY=
 
-# Integração WhatsApp (opcional por feature)
+# Integração WhatsApp — baseline atual
 EVOLUTION_API_URL=
 EVOLUTION_API_KEY=
+
+# Alvo vNext (habilitar somente após implementação/cutover)
+# WHATSAPP_PROVIDER=waha
+# WAHA_API_URL=
+# WAHA_API_KEY=
+# WAHA_WEBHOOK_HMAC_KEY=
 
 # Segredos de Webhook e Cron
 WEBHOOK_SECRET=

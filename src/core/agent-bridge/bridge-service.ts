@@ -1,6 +1,6 @@
 import type { ActionContext, ActionDefinition, ActionResult } from '@/core/actions/types';
 import { verifyHandle, type SeenStore } from './handle';
-import { buildToolCatalogFromList, normalizeToolName } from './tool-catalog';
+import { buildToolCatalog, normalizeToolName } from './tool-catalog';
 import { assertSystemAllowed } from './security-matrix';
 import { isAgentSafeAction } from './tool-policy';
 import type { ToolCatalog } from './types';
@@ -46,15 +46,9 @@ export async function listToolsLogic(
   if (!v.ok) return { ok: false, error: v.error };
 
   const ctx = await rebuildCtx(deps, v.payload);
-  const allowed = deps
-    .getActions()
-    .filter(
-      (a) =>
-        isAgentSafeAction(a.name) &&
-        ctx.hasModule(a.module) &&
-        ctx.can(a.requires),
-    );
-  return { ok: true, catalog: buildToolCatalogFromList(allowed) };
+  // Mesmo seletor de metadata do catálogo público (buildToolCatalog): allowlist
+  // IA ∩ módulo do manifesto ∩ permissão do principal. Sem callback executável.
+  return { ok: true, catalog: buildToolCatalog(ctx, deps.getActions()) };
 }
 
 // ─── executeAction — DTOs owned by rpc-contract ───────────────────────────────

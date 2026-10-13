@@ -47,3 +47,16 @@
 - `ready gate packet`: `B-HYPERDRIVE-STAGING 892581b5` + `B-SECRET-ROTATION vL9u****` + `B-PILOT-RESOURCES F12.01-02 1f2566cf` + `B-OUTAGE-DRILLS 6x dry-run` + `B-CI-REMOTE 33017463341 success` — falta apenas `J-01..J-12 + drills injeção 2026-09-01T02:00Z`
 
 *Gerado 2026-08-26 22:07 — W12 dry-run 92/100 6 receipts + CI 33017463341 success 39/39 staging live.*
+
+## Adendo 2026-10-08 — ratificação owner (sem produção, sem piloto real)
+
+- **W12 mantém dry-run 92/100 como teto**: nenhuma execução real desde a janela
+  2026-09-01T02:00Z (vencida); `docs/runbooks/pilot-w12-technical-run-2026-09-26.md`
+  (execução local — J-04 não executável neste ambiente, proxies Jest PASS) não
+  altera a rubrica. Go/no-go do piloto segue PENDENTE — decisão do owner.
+- **F12 segue EXTERNAL (8/8)**: ledger inalterado —
+  `npm run roadmap:check` em 2026-10-08 imprime
+  `records=143 unique=143 VERIFIED=126 DEFERRED=3 EXTERNAL=14`.
+- Higiene local: `.opencode/opencode-loop/` gitignored (JSONs de sessão locais,
+  sem commit); `.ai-memory.toml` mantido intacto — decisão commit vs gitignore
+  devolvida ao owner.

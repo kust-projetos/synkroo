@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Textarea } from '@/components/ui/textarea'
-import { validateTemplate } from '@/services/reminders/procedure-reminder-config.service'
+import { validateTemplate } from './reminder-config-types'
 import { Check, X } from 'lucide-react'
 
 const SUPPORTED_PLACEHOLDERS = [

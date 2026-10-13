@@ -3,7 +3,7 @@
  * Data access layer for campaigns using Drizzle
  */
 
-import { eq, and, desc, sql, lte } from "drizzle-orm";
+import { eq, and, desc, sql, lte, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { enqueueOutbox } from "@/lib/outbox/outbox-repository";
 import { campaigns, campaignRecipients } from "@/lib/db/schema";
@@ -376,6 +376,11 @@ export async function updateCampaignCounts(id: string): Promise<void> {
         ? "partial"
         : "completed";
 
+  // P1-FIX-CANON(1): contadores continuam evoluindo após enqueue parcial.
+  // O serviço marca 'partial' no retorno do enqueue, mas o processamento do
+  // outbox (dispatch-campaign-recipient) ainda atualiza counts por campanha;
+  // restringir a 'running' congelava sentCount. Estado terminal de entrega
+  // continua decidido aqui (pending===0 → failed|partial|completed).
   await db
     .update(campaigns)
     .set({
@@ -387,7 +392,7 @@ export async function updateCampaignCounts(id: string): Promise<void> {
         : {}),
       updatedAt: new Date(),
     })
-    .where(and(eq(campaigns.id, id), eq(campaigns.status, "running")));
+    .where(and(eq(campaigns.id, id), inArray(campaigns.status, ["running", "partial"])));
 }
 
 export async function updateRecipientStatus(

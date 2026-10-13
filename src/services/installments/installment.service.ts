@@ -7,6 +7,20 @@ import { toCents, centsToDecimal } from '@/modules/financeiro'
 
 export type InstallmentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled'
 
+const INSTALLMENT_STATUSES: readonly InstallmentStatus[] = ['pending', 'paid', 'overdue', 'cancelled']
+
+export function isInstallmentStatus(value: unknown): value is InstallmentStatus {
+  return typeof value === 'string' && (INSTALLMENT_STATUSES as readonly string[]).includes(value)
+}
+
+/** Fail-closed: status fora do enum nunca é persistido nem propagado (money-path). */
+export function parseInstallmentStatus(value: unknown): InstallmentStatus {
+  if (!isInstallmentStatus(value)) {
+    throw new Error(`Invalid installment status: ${String(value)}`)
+  }
+  return value
+}
+
 export interface BudgetInstallment {
   id?: string; budget_id: string; amount: number; due_date: string
   status: InstallmentStatus; paid_at?: string | null; payment_id?: string | null
@@ -22,7 +36,8 @@ function toSnake(r: any): BudgetInstallment {
   return {
     id: r.id, budget_id: r.budgetId, amount: Number(toCents(String(r.amount ?? '0'))) / 100,
     due_date: r.dueDate?.toISOString?.() ?? r.dueDate ?? '',
-    status: r.status as InstallmentStatus,
+    // P1: valor vindo do banco validado — corrupção não vira status fabricado.
+    status: parseInstallmentStatus(r.status),
     paid_at: r.paidAt?.toISOString?.() ?? null, payment_id: r.paymentId ?? null,
     created_at: r.createdAt?.toISOString?.() ?? '', updated_at: r.updatedAt?.toISOString?.() ?? '',
   }
@@ -73,7 +88,7 @@ export async function deleteInstallment(id: string): Promise<boolean> {
 export async function markInstallmentPaid(id: string, paymentId: string): Promise<BudgetInstallment | null> {
   const db = getDb()
   const now = new Date()
-  const [data] = await db.update(BI).set({ status: 'paid', paidAt: now, paymentId, updatedAt: now } as any).where(eq(BI.id, id)).returning()
+  const [data] = await db.update(BI).set({ status: 'paid', paidAt: now, paymentId, updatedAt: now }).where(eq(BI.id, id)).returning()
   return data ? toSnake(data) : null
 }
 

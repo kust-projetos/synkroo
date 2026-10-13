@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/core/actions';
-import type { ActionContext } from '@/core/actions/types';
+import { ActionError, type ActionContext } from '@/core/actions/types';
 import { persistInboundMessage } from '../repositories/conversations-repository';
 
 export const receberMensagem = defineAction({
@@ -18,15 +18,25 @@ export const receberMensagem = defineAction({
     metadata: z.record(z.unknown()).optional(),
   }).strict(),
   handler: async (input, ctx: ActionContext) => {
-    return persistInboundMessage({
-      clinicId: ctx.clinicId,
-      externalConversationId: input.externalConversationId,
-      externalProvider: input.externalProvider,
-      externalMessageId: input.externalMessageId,
-      content: input.message,
-      channel: input.channel,
-      messageType: input.messageType,
-      metadata: input.metadata ?? {},
-    });
+    try {
+      return await persistInboundMessage({
+        clinicId: ctx.clinicId,
+        externalConversationId: input.externalConversationId,
+        externalProvider: input.externalProvider,
+        externalMessageId: input.externalMessageId,
+        content: input.message,
+        channel: input.channel,
+        messageType: input.messageType,
+        metadata: input.metadata ?? {},
+      });
+    } catch {
+      // A repository failure can embed the sender, the message body or a
+      // connection string. Rethrowing it would put all of that into the central
+      // action log (which logs unknown throws verbatim), so the failure is
+      // replaced by a fixed generic error — deliberately WITHOUT `cause`, so
+      // the original is unreachable from here. The caller still sees
+      // `internal` and can decide to retry.
+      throw new ActionError('internal', 'Falha ao persistir mensagem inbound.');
+    }
   },
 });

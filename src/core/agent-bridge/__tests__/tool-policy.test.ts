@@ -37,6 +37,10 @@ const UNSAFE_NAMES = [
   // Ações destrutivas/diferenciais que ficam fora da barreira secundária
   'operacional.cancelarConsulta',
   'operacional.remarcarConsulta',
+  // Envios externos (atendimento): nunca ferramenta IA — E3 os trava com
+  // DENY absoluto no runAction; a allowlist é a primeira barreira.
+  'atendimento.enviarMensagem',
+  'atendimento.enviarMensagemDireta',
   // Desconhecidas
   'algum.acaoTotalmenteDesconhecida',
 ] as const;

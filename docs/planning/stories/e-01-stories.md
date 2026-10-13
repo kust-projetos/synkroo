@@ -1,5 +1,7 @@
 # Stories - Epic E-01: Atendimento Multicanal
 
+> **Nota 2026-10-05 (P0 vNext):** documento **histórico** de stories. Itens que citam "Claude Agent SDK (via OpenAI-compat)" **não refletem a implementação real** (agente em `src/core/ia-agent/` sobre bridge própria; provider atual zen/deepseek). Direção de WhatsApp no vNext: WAHA via adapter neutro (`ADR-BASE-08`).
+
 ---
 epic: E-01
 epic_name: Atendimento Multicanal

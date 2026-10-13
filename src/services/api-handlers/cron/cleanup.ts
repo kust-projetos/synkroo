@@ -32,39 +32,65 @@ export async function POST(request: NextRequest) {
 
     const db = getDb()
     const results: Record<string, unknown> = {}
+    const stepErrors: string[] = []
     const now = new Date()
+
+    async function cleanStep(name: string, run: () => Promise<unknown>) {
+      try {
+        await run()
+        results[name] = 'cleaned'
+      } catch (stepError) {
+        const message = stepError instanceof Error ? stepError.message : String(stepError)
+        results[name] = 'failed'
+        stepErrors.push(`${name}: ${message}`)
+      }
+    }
 
     // Clean up old reminders (> 30 days)
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-    const deletedReminders = await db
-      .delete(appointmentReminders)
-      .where(lt(appointmentReminders.createdAt, thirtyDaysAgo))
-    results.reminders = 'cleaned'
+    await cleanStep('reminders', async () => {
+      const deletedReminders = await db
+        .delete(appointmentReminders)
+        .where(lt(appointmentReminders.createdAt, thirtyDaysAgo))
+      void deletedReminders
+    })
 
     // Clean up old conversation states (> 7 days inactive)
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-    await db
-      .delete(conversationStates)
-      .where(lt(conversationStates.updatedAt, sevenDaysAgo))
-    results.conversationStates = 'cleaned'
+    await cleanStep('conversationStates', async () => {
+      await db
+        .delete(conversationStates)
+        .where(lt(conversationStates.updatedAt, sevenDaysAgo))
+    })
 
     // Clean up expired conversation sessions (> 30 minutes)
     const thirtyMinAgo = new Date(now.getTime() - 30 * 60 * 1000)
-    await db
-      .delete(conversationSessions)
-      .where(lt(conversationSessions.lastActivityAt, thirtyMinAgo))
-    results.conversationSessions = 'cleaned'
+    await cleanStep('conversationSessions', async () => {
+      await db
+        .delete(conversationSessions)
+        .where(lt(conversationSessions.lastActivityAt, thirtyMinAgo))
+    })
 
     // Clean up expired waitlist entries
-    await db
-      .delete(waitlist)
-      .where(lt(waitlist.createdAt, thirtyDaysAgo))
+    await cleanStep('waitlist', async () => {
+      await db
+        .delete(waitlist)
+        .where(lt(waitlist.createdAt, thirtyDaysAgo))
+    })
 
-    results.waitlist = 'cleaned'
+    // Contrato de lote: cada etapa reporta cleaned/failed; parcial nunca é
+    // success:true puro. Falha total → success:false.
+    const stepNames = Object.keys(results)
+    const failedSteps = stepErrors.length
+    const succeededSteps = stepNames.length - failedSteps
+    const success = failedSteps === 0
+    const status = failedSteps === 0 ? 'completed' : succeededSteps > 0 ? 'partial' : 'failed'
 
     return apiSuccess({
-      success: true,
+      success,
+      status,
       timestamp: now.toISOString(),
+      summary: { requested: stepNames.length, succeeded: succeededSteps, failed: failedSteps, skipped: 0, errors: stepErrors },
       results,
     })
   } catch (error) {

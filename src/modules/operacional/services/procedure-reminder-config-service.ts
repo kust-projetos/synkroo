@@ -99,16 +99,15 @@ export async function getProcedureTypes(_clinicId: string): Promise<Array<{ id: 
   }
 }
 
-export function validateTemplate(template: string): { valid: boolean; errors: string[] } {
-  const errors: string[] = [];
-  const placeholders = (template.match(/\{\{(\w+)\}\}/g) || []).map((match) => match.replace(/\{\{|\}\}/g, ''));
-  const supported = ['paciente_nome', 'data', 'horario', 'dentista', 'procedimento'];
-  for (const placeholder of placeholders) {
-    if (!/^[a-zA-Z0-9_]+$/.test(placeholder)) errors.push(`Placeholder inválido: {{${placeholder}}}`);
-    else if (!supported.includes(placeholder)) errors.push(`Placeholder não suportado: {{${placeholder}}}. Use: ${supported.join(', ')}`);
-  }
-  return { valid: errors.length === 0, errors };
-}
+// Validação canônica em @/lib/templates/reminder-template (regra do domínio
+// operacional; este módulo delega via re-export, nunca redefine).
+export {
+  validateTemplate,
+  SUPPORTED_TEMPLATE_PLACEHOLDERS,
+  REQUIRED_TEMPLATE_PLACEHOLDERS,
+  TEMPLATE_MAX_LENGTH,
+} from '@/lib/templates/reminder-template';
+export type { TemplateValidation } from '@/lib/templates/reminder-template';
 
 export function replacePlaceholders(template: string, values: {
   paciente_nome?: string;

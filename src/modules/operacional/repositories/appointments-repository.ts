@@ -54,6 +54,32 @@ export type AppointmentRow = {
   } | null;
 };
 
+/** Appointment statuses (§ appointment_status enum) — única fonte do domínio operacional. */
+export const APPOINTMENT_STATUSES = [
+  'scheduled',
+  'confirmed',
+  'in_progress',
+  'completed',
+  'cancelled',
+  'no_show',
+] as const;
+export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+
+export function isAppointmentStatus(value: unknown): value is AppointmentStatus {
+  return (
+    typeof value === 'string' &&
+    (APPOINTMENT_STATUSES as readonly string[]).includes(value)
+  );
+}
+
+/** Fail-closed: status fora do enum nunca chega ao SQL. */
+export function parseAppointmentStatus(value: unknown): AppointmentStatus {
+  if (!isAppointmentStatus(value)) {
+    throw new Error(`Invalid appointment status: ${String(value)}`);
+  }
+  return value;
+}
+
 export async function findById(clinicId: string, id: string) {
   const db = getDb();
   const rows = await db
@@ -168,7 +194,8 @@ export async function findByClinicWithJoins(
   if (opts?.dentistId)
     conditions.push(eq(appointments.dentistId, opts.dentistId));
   if (opts?.status)
-    conditions.push(eq(appointments.status, opts.status as any));
+    // P1: input de borda validado contra o enum — inválido é rejeitado (fail-closed).
+    conditions.push(eq(appointments.status, parseAppointmentStatus(opts.status)));
   if (opts?.dentistIds?.length)
     conditions.push(inArray(appointments.dentistId, opts.dentistIds));
 

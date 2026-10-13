@@ -70,11 +70,6 @@ jest.mock('@/lib/db/client', () => {
   }
 })
 
-jest.mock('@/services/appointments/confirmation-handler.service', () => ({
-  processConfirmationResponse: jest.fn().mockResolvedValue({ processed: false, responseMessage: null }),
-  processWaitlistConfirmation: jest.fn().mockResolvedValue({ processed: false, responseMessage: null }),
-}))
-
 jest.mock('@/modules/atendimento/repositories/conversations-repository', () => ({
   getClinicByPhoneNumber: jest.fn().mockResolvedValue('clinic-123'),
   getClinicByInstance: jest.fn().mockResolvedValue('clinic-123'),

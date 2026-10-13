@@ -1,5 +1,7 @@
 # MVP Checklist - Synkroo
 
+> **Nota 2026-10-05 (P0 vNext):** documento **histórico** de planejamento inicial. Itens que mencionam Supabase (projeto, auth, database, RLS, Dashboard) refletem uma stack **removida** — a stack real é PostgreSQL 17 + Drizzle + `pg` + NextAuth (ver `docs/superpowers/specs/2026-07-28-synkroo-canonical-product-architecture.md`). Não usar este checklist como fonte de verdade operacional.
+
 **Versão:** 1.5
 **Data:** 2026-03-28
 **Baseado em:** PRD v3.4 + Architecture v1.1
@@ -11,7 +13,7 @@
 ### Setup & Infraestrutura
 - [x] Criar repositório GitHub
 - [x] Setup Next.js 15 + App Router
-- [x] Configurar Supabase (projeto, auth, database)
+- [x] Configurar PostgreSQL + Drizzle (banco gerenciado, migrations em `src/lib/db/schema/`)
 - [x] Implementar RLS (Row-Level Security)
 - [x] Configurar variáveis de ambiente
 
@@ -124,7 +126,7 @@
 - [ ] Dashboard de analytics (UI)
 
 ### Memória do Agente
-- [x] RAG básico (pgvector) - Migration aplicada no Supabase
+- [x] RAG básico (pgvector) - Migration aplicada no PostgreSQL
 - [x] Contexto de conversas anteriores - RAG service
 - [x] Knowledge base com embeddings - 15 entradas seedadas
 - [x] Funções RPC para busca semântica - search_knowledge_base, etc

@@ -13,16 +13,44 @@ import {
 import { patients } from "@/modules/operacional/schema";
 
 /**
- * Hard-delete budget and its items.
+ * Hard-delete budget and its items (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `hardDeleteBudgetScoped(budgetId, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function hardDeleteBudget(budgetId: string): Promise<void> {
 	const db = getDb();
 	await db.delete(budgetItems).where(eq(budgetItems.budgetId, budgetId));
 	await db.delete(budgets).where(eq(budgets.id, budgetId));
+	console.warn(
+		"[P1] budgets.hardDeleteBudget without clinicId is deprecated; use hardDeleteBudgetScoped with clinic from auth context",
+	);
 }
 
 /**
- * Soft-delete budget: mark as expired.
+ * Hard-delete scoped to a clinic. Verifies ownership first; no-op when the
+ * budget does not belong to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function hardDeleteBudgetScoped(
+	budgetId: string,
+	clinicId: string,
+): Promise<boolean> {
+	const db = getDb();
+	const [owner] = await db
+		.select({ id: budgets.id })
+		.from(budgets)
+		.where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId)))
+		.limit(1);
+	if (!owner) return false;
+	await db.delete(budgetItems).where(eq(budgetItems.budgetId, budgetId));
+	await db.delete(budgets).where(eq(budgets.id, budgetId));
+	return true;
+}
+
+/**
+ * Soft-delete budget: mark as expired (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `softDeleteBudgetScoped(budgetId, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function softDeleteBudget(budgetId: string): Promise<void> {
 	const db = getDb();
@@ -30,6 +58,27 @@ export async function softDeleteBudget(budgetId: string): Promise<void> {
 		.update(budgets)
 		.set({ status: "expired", updatedAt: new Date() } as any)
 		.where(eq(budgets.id, budgetId));
+	console.warn(
+		"[P1] budgets.softDeleteBudget without clinicId is deprecated; use softDeleteBudgetScoped with clinic from auth context",
+	);
+}
+
+/**
+ * Soft-delete scoped to a clinic. No-op (returns false) when the budget
+ * does not belong to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function softDeleteBudgetScoped(
+	budgetId: string,
+	clinicId: string,
+): Promise<boolean> {
+	const db = getDb();
+	const [row] = await db
+		.update(budgets)
+		.set({ status: "expired", updatedAt: new Date() } as any)
+		.where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId)))
+		.returning({ id: budgets.id });
+	return row != null;
 }
 
 // ──────────────────────────────────────────────
@@ -228,7 +277,9 @@ export async function findNeedingFollowUp(
 }
 
 /**
- * Update follow-up fields for a budget.
+ * Update follow-up fields for a budget (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `updateFollowUpScoped(budgetId, clinicId, data)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function updateFollowUp(
 	budgetId: string,
@@ -243,11 +294,38 @@ export async function updateFollowUp(
 		.set({ ...data, updatedAt: new Date() } as any)
 		.where(eq(budgets.id, budgetId))
 		.returning();
+	console.warn(
+		"[P1] budgets.updateFollowUp without clinicId is deprecated; use updateFollowUpScoped with clinic from auth context",
+	);
 	return row ?? null;
 }
 
 /**
- * Find a single budget by ID with items and patient.
+ * Update follow-up fields scoped to a clinic. Returns null when the budget
+ * does not belong to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function updateFollowUpScoped(
+	budgetId: string,
+	clinicId: string,
+	data: {
+		followUpSequence?: number;
+		nextFollowUpAt?: Date | null;
+	},
+): Promise<BudgetRow | null> {
+	const db = getDb();
+	const [row] = await db
+		.update(budgets)
+		.set({ ...data, updatedAt: new Date() } as any)
+		.where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId)))
+		.returning();
+	return row ?? null;
+}
+
+/**
+ * Find a single budget by ID with items and patient (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `findByIdScoped(budgetId, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function findById(
 	budgetId: string,
@@ -284,6 +362,64 @@ export async function findById(
 		.from(budgets)
 		.leftJoin(patients, eq(patients.id, budgets.patientId))
 		.where(eq(budgets.id, budgetId))
+		.limit(1)) as unknown as [
+		| (BudgetRow & {
+				patient: { id: string; name: string; phone: string } | null;
+		  })
+		| null,
+	];
+
+	if (!row) return null;
+
+	const items = (await db
+		.select()
+		.from(budgetItems)
+		.where(eq(budgetItems.budgetId, budgetId))) as unknown as BudgetItemRow[];
+
+	return { ...row, items };
+}
+
+/**
+ * Tenant-scoped variant of `findById`. Returns null when the budget does
+ * not belong to the given clinic (no cross-tenant leak).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function findByIdScoped(
+	budgetId: string,
+	clinicId: string,
+): Promise<BudgetWithDetails | null> {
+	const db = getDb();
+
+	const [row] = (await db
+		.select({
+			id: budgets.id,
+			clinicId: budgets.clinicId,
+			patientId: budgets.patientId,
+			treatmentPlanId: budgets.treatmentPlanId,
+			appointmentId: budgets.appointmentId,
+			title: budgets.title,
+			description: budgets.description,
+			totalValue: budgets.totalValue,
+			discountPercent: budgets.discountPercent,
+			discountValue: budgets.discountValue,
+			finalValue: budgets.finalValue,
+			status: budgets.status,
+			validUntil: budgets.validUntil,
+			sentAt: budgets.sentAt,
+			respondedAt: budgets.respondedAt,
+			convertedAt: budgets.convertedAt,
+			conversionAppointmentId: budgets.conversionAppointmentId,
+			notes: budgets.notes,
+			followUpSequence: budgets.followUpSequence,
+			nextFollowUpAt: budgets.nextFollowUpAt,
+			createdBy: budgets.createdBy,
+			createdAt: budgets.createdAt,
+			updatedAt: budgets.updatedAt,
+			patient: { id: patients.id, name: patients.name, phone: patients.phone },
+		})
+		.from(budgets)
+		.leftJoin(patients, eq(patients.id, budgets.patientId))
+		.where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId)))
 		.limit(1)) as unknown as [
 		| (BudgetRow & {
 				patient: { id: string; name: string; phone: string } | null;
@@ -367,7 +503,9 @@ export async function findByClinic(params: {
 }
 
 /**
- * Update budget status and optional metadata fields.
+ * Update budget status and optional metadata fields (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `updateStatusScoped(budgetId, clinicId, data)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function updateStatus(
 	budgetId: string,
@@ -384,6 +522,34 @@ export async function updateStatus(
 		.update(budgets)
 		.set({ ...data, updatedAt: new Date() } as any)
 		.where(eq(budgets.id, budgetId))
+		.returning();
+	console.warn(
+		"[P1] budgets.updateStatus without clinicId is deprecated; use updateStatusScoped with clinic from auth context",
+	);
+	return row ?? null;
+}
+
+/**
+ * Update budget status scoped to a clinic. Returns null when the budget
+ * does not belong to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function updateStatusScoped(
+	budgetId: string,
+	clinicId: string,
+	data: {
+		status: string;
+		sentAt?: Date | null;
+		respondedAt?: Date | null;
+		convertedAt?: Date | null;
+		conversionAppointmentId?: string | null;
+	},
+): Promise<BudgetRow | null> {
+	const db = getDb();
+	const [row] = await db
+		.update(budgets)
+		.set({ ...data, updatedAt: new Date() } as any)
+		.where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId)))
 		.returning();
 	return row ?? null;
 }
@@ -405,7 +571,9 @@ export async function getStatsByClinic(
 }
 
 /**
- * Find budgets by treatment plan ID with items and patient.
+ * Find budgets by treatment plan ID with items and patient (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `findByTreatmentPlanScoped(treatmentPlanId, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function findByTreatmentPlan(
 	treatmentPlanId: string,
@@ -458,7 +626,9 @@ export async function findByTreatmentPlan(
 }
 
 /**
- * Find budget by ID with items and installments.
+ * Find budget by ID with items and installments (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `findByIdWithInstallmentsScoped(budgetId, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function findByIdWithInstallments(
 	budgetId: string,
@@ -519,4 +689,132 @@ export async function findByIdWithInstallments(
 	];
 
 	return { ...row, items, installments };
+}
+
+/**
+ * Tenant-scoped variant of `findByIdWithInstallments`. Returns null when
+ * the budget does not belong to the given clinic (no cross-tenant leak).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function findByIdWithInstallmentsScoped(
+	budgetId: string,
+	clinicId: string,
+): Promise<
+	(BudgetWithDetails & { installments: BudgetInstallmentRow[] }) | null
+> {
+	const db = getDb();
+
+	const [row] = (await db
+		.select({
+			id: budgets.id,
+			clinicId: budgets.clinicId,
+			patientId: budgets.patientId,
+			treatmentPlanId: budgets.treatmentPlanId,
+			appointmentId: budgets.appointmentId,
+			title: budgets.title,
+			description: budgets.description,
+			totalValue: budgets.totalValue,
+			discountPercent: budgets.discountPercent,
+			discountValue: budgets.discountValue,
+			finalValue: budgets.finalValue,
+			status: budgets.status,
+			validUntil: budgets.validUntil,
+			sentAt: budgets.sentAt,
+			respondedAt: budgets.respondedAt,
+			convertedAt: budgets.convertedAt,
+			conversionAppointmentId: budgets.conversionAppointmentId,
+			notes: budgets.notes,
+			followUpSequence: budgets.followUpSequence,
+			nextFollowUpAt: budgets.nextFollowUpAt,
+			createdBy: budgets.createdBy,
+			createdAt: budgets.createdAt,
+			updatedAt: budgets.updatedAt,
+			patient: { id: patients.id, name: patients.name, phone: patients.phone },
+		})
+		.from(budgets)
+		.leftJoin(patients, eq(patients.id, budgets.patientId))
+		.where(and(eq(budgets.id, budgetId), eq(budgets.clinicId, clinicId)))
+		.limit(1)) as unknown as [
+		| (BudgetRow & {
+				patient: { id: string; name: string; phone: string } | null;
+		  })
+		| null,
+	];
+
+	if (!row) return null;
+
+	const items = (await db
+		.select()
+		.from(budgetItems)
+		.where(eq(budgetItems.budgetId, budgetId))) as unknown as BudgetItemRow[];
+
+	const installments = (await db
+		.select()
+		.from(budgetInstallments)
+		.where(eq(budgetInstallments.budgetId, budgetId))) as unknown as [
+		BudgetInstallmentRow,
+	];
+
+	return { ...row, items, installments };
+}
+
+/**
+ * Tenant-scoped variant of `findByTreatmentPlan`. Returns [] when the plan
+ * has no budgets in the given clinic (no cross-tenant leak).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function findByTreatmentPlanScoped(
+	treatmentPlanId: string,
+	clinicId: string,
+): Promise<BudgetWithDetails[]> {
+	const db = getDb();
+
+	const rows = (await db
+		.select({
+			id: budgets.id,
+			clinicId: budgets.clinicId,
+			patientId: budgets.patientId,
+			treatmentPlanId: budgets.treatmentPlanId,
+			appointmentId: budgets.appointmentId,
+			title: budgets.title,
+			description: budgets.description,
+			totalValue: budgets.totalValue,
+			discountPercent: budgets.discountPercent,
+			discountValue: budgets.discountValue,
+			finalValue: budgets.finalValue,
+			status: budgets.status,
+			validUntil: budgets.validUntil,
+			sentAt: budgets.sentAt,
+			respondedAt: budgets.respondedAt,
+			convertedAt: budgets.convertedAt,
+			conversionAppointmentId: budgets.conversionAppointmentId,
+			notes: budgets.notes,
+			followUpSequence: budgets.followUpSequence,
+			nextFollowUpAt: budgets.nextFollowUpAt,
+			createdBy: budgets.createdBy,
+			createdAt: budgets.createdAt,
+			updatedAt: budgets.updatedAt,
+			patient: { id: patients.id, name: patients.name, phone: patients.phone },
+		})
+		.from(budgets)
+		.leftJoin(patients, eq(patients.id, budgets.patientId))
+		.where(
+			and(
+				eq(budgets.treatmentPlanId, treatmentPlanId),
+				eq(budgets.clinicId, clinicId),
+			),
+		)) as unknown as [
+		BudgetRow & { patient: { id: string; name: string; phone: string } | null },
+	];
+
+	const result: BudgetWithDetails[] = [];
+	for (const row of rows) {
+		const items = (await db
+			.select()
+			.from(budgetItems)
+			.where(eq(budgetItems.budgetId, row.id))) as unknown as BudgetItemRow[];
+		result.push({ ...row, items });
+	}
+
+	return result;
 }

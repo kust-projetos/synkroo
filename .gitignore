@@ -133,3 +133,6 @@ reports/mutation/
 
 # Database backup artifacts (scripts/db-backup.mjs)
 backups/
+
+# OpenCode loop runtime state (session JSONs — local only, never commit)
+.opencode/opencode-loop/

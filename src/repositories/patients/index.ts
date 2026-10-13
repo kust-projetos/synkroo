@@ -3,7 +3,7 @@
  * Provides Drizzle-based access to patients and related tables
  */
 
-import { eq, desc, and, inArray } from "drizzle-orm";
+import { eq, desc, and, inArray, isNull } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import {
 	patients,
@@ -43,7 +43,9 @@ export interface PatientRiskScoreRow {
 }
 
 /**
- * Get patient by ID
+ * Get patient by ID (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `findByIdScoped(patientId, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function findPatientById(
 	patientId: string,
@@ -70,7 +72,7 @@ export async function findPatientById(
 	return (row as PatientRow) ?? null;
 }
 
-/** Alias for findPatientById */
+/** Alias for findPatientById (UNSCOPED — deprecated, use findByIdScoped) */
 export const findById = findPatientById
 
 /**
@@ -181,7 +183,8 @@ export async function getRecentAppointments(
 }
 
 /**
- * Get patient by ID with clinic scoping (for API routes)
+ * Get patient by ID with clinic scoping (for API routes).
+ * P1: clinicId must come from trusted auth context.
  */
 export async function findByIdScoped(
 	patientId: string,
@@ -287,7 +290,7 @@ export async function findByClinic(
 	const rows = await db
 		.select()
 		.from(patients)
-		.where(eq(patients.clinicId, clinicId))
+		.where(and(eq(patients.clinicId, clinicId), isNull(patients.deletedAt)))
 		.limit(limit)
 		.offset(offset);
 	return rows as unknown as Array<PatientRow>;
@@ -324,7 +327,9 @@ export async function create(data: {
 }
 
 /**
- * Update a patient
+ * Update a patient (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `updateScoped(id, clinicId, data)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function update(
 	id: string,
@@ -351,11 +356,50 @@ export async function update(
 		.set(updateData as any)
 		.where(eq(patients.id, id))
 		.returning();
+	console.warn(
+		"[P1] patients.update without clinicId is deprecated; use updateScoped with clinic from auth context",
+	);
 	return (row as PatientRow) ?? null;
 }
 
 /**
- * Soft delete a patient
+ * Update a patient scoped to a clinic. Returns null when the id does not
+ * belong to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function updateScoped(
+	id: string,
+	clinicId: string,
+	data: Partial<{
+		name: string;
+		phone: string;
+		email: string | null;
+		cpf: string | null;
+		birthDate: string | null;
+		gender: string | null;
+		notes: string | null;
+		tags: string[];
+	}>,
+): Promise<PatientRow | null> {
+	const db = getDb();
+	const updateData: Record<string, unknown> = {
+		...data,
+		updatedAt: new Date(),
+	};
+	if (data.birthDate !== undefined)
+		updateData.birthDate = data.birthDate ? new Date(data.birthDate) : null;
+	const [row] = await db
+		.update(patients)
+		.set(updateData as any)
+		.where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)))
+		.returning();
+	return (row as PatientRow) ?? null;
+}
+
+/**
+ * Soft delete a patient (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `softDeleteScoped(id, clinicId)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function softDelete(id: string): Promise<void> {
 	const db = getDb();
@@ -363,6 +407,25 @@ export async function softDelete(id: string): Promise<void> {
 		.update(patients)
 		.set({ deletedAt: new Date(), updatedAt: new Date() } as any)
 		.where(eq(patients.id, id));
+	console.warn(
+		"[P1] patients.softDelete without clinicId is deprecated; use softDeleteScoped with clinic from auth context",
+	);
+}
+
+/**
+ * Soft delete a patient scoped to a clinic. No-op when the id does not
+ * belong to the given clinic (no cross-tenant write).
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function softDeleteScoped(
+	id: string,
+	clinicId: string,
+): Promise<void> {
+	const db = getDb();
+	await db
+		.update(patients)
+		.set({ deletedAt: new Date(), updatedAt: new Date() } as any)
+		.where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)));
 }
 
 /**
@@ -378,7 +441,7 @@ export async function findInactiveByClinic(
 	const rows = await db
 		.select()
 		.from(patients)
-		.where(eq(patients.clinicId, clinicId))
+		.where(and(eq(patients.clinicId, clinicId), isNull(patients.deletedAt)))
 		.limit(100);
 	return rows.filter(
 		(r) => r.lastVisitAt && r.lastVisitAt < cutoff,
@@ -386,7 +449,9 @@ export async function findInactiveByClinic(
 }
 
 /**
- * Bulk update tags for multiple patients
+ * Bulk update tags for multiple patients (UNSCOPED — cross-tenant risk).
+ * @deprecated Use `bulkUpdateTagsScoped(patientIds, clinicId, tags)` instead.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function bulkUpdateTags(
 	patientIds: string[],
@@ -397,4 +462,26 @@ export async function bulkUpdateTags(
 		.update(patients)
 		.set({ tags, updatedAt: new Date() } as any)
 		.where(and(inArray(patients.id, patientIds)));
+	console.warn(
+		"[P1] patients.bulkUpdateTags without clinicId is deprecated; use bulkUpdateTagsScoped with clinic from auth context",
+	);
+}
+
+/**
+ * Bulk update tags scoped to a clinic — only rows belonging to the clinic
+ * are touched.
+ * P1: clinicId must come from trusted auth context.
+ */
+export async function bulkUpdateTagsScoped(
+	patientIds: string[],
+	clinicId: string,
+	tags: string[],
+): Promise<void> {
+	const db = getDb();
+	await db
+		.update(patients)
+		.set({ tags, updatedAt: new Date() } as any)
+		.where(
+			and(inArray(patients.id, patientIds), eq(patients.clinicId, clinicId)),
+		);
 }

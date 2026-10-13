@@ -37,6 +37,12 @@ jest.mock('@/lib/rate-limit', () => ({
   rateLimitPresets: { api: { windowMs: 60000, maxRequests: 60 } },
 }));
 
+// getInactivityStats (fonte do atRiskRevenue em stats_only)
+const mockGetInactivityStats = jest.fn();
+jest.mock('@/services/followup/inactive-patient.service', () => ({
+  getInactivityStats: (...args: unknown[]) => mockGetInactivityStats(...args),
+}));
+
 // Module manifest — always enabled so withModuleRoute passes through
 jest.mock('@/core/modules/manifest', () => ({
   createManifest: () => ({
@@ -232,6 +238,11 @@ describe('GET /api/patients/inactive', () => {
     });
 
     it('returns stats_only without patient list', async () => {
+      mockGetInactivityStats.mockResolvedValueOnce({
+        totalInactive: 2,
+        bySegment: { inactive_30: 2, inactive_60: 1, inactive_90: 1, inactive_180: 0 },
+        atRiskRevenue: 3000,
+      });
       mockListarInativosHandler.mockResolvedValueOnce({
         patients: [
           mockInactivePatient({ patientName: 'Maria Souza' }),
@@ -247,7 +258,26 @@ describe('GET /api/patients/inactive', () => {
       const body = await res.json();
       expect(body.stats).toBeDefined();
       expect(body.stats.totalInactive).toBe(2);
+      expect(body.stats.atRiskRevenue).toBe(3000);
       expect(body.patients).toBeUndefined();
+      // Fonte real, scoped ao contexto autenticado — nunca hardcoded.
+      expect(mockGetInactivityStats).toHaveBeenCalledWith('test-clinic-id');
+    });
+
+    it('stats_only retorna 500 quando getInactivityStats falha (sem fake zero)', async () => {
+      mockGetInactivityStats.mockRejectedValueOnce(new Error('db down'));
+      mockListarInativosHandler.mockResolvedValueOnce({
+        patients: [mockInactivePatient()],
+        pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+      });
+
+      const req = makeReq('/api/patients/inactive?stats_only=true');
+      const res = await GET(req);
+
+      expect(res.status).toBe(500);
+      const body = await res.json();
+      expect(body.error).toBeDefined();
+      expect(body.stats).toBeUndefined();
     });
   });
 });

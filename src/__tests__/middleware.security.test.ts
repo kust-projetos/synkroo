@@ -89,6 +89,7 @@ describe('isPublicPath — PUBLIC_EXACT mínimo sem curingas (T1)', () => {
     expect(isPublicPath('/')).toBe(true);
     expect(isPublicPath('/login')).toBe(true);
     expect(isPublicPath('/api/health')).toBe(true);
+    // Evolution retirado: público APENAS para servir o 410 Gone estático (sem sessão).
     expect(isPublicPath('/api/whatsapp/evolution')).toBe(true);
     expect(isPublicPath('/api/financeiro/webhooks/asaas')).toBe(true);
   });
@@ -98,6 +99,13 @@ describe('isPublicPath — PUBLIC_EXACT mínimo sem curingas (T1)', () => {
     expect(isPublicPath('/api/instagram/webhook')).toBe(true);
     expect(isPublicPath('/api/widget/session')).toBe(true);
     expect(isPublicPath('/api/widget/messages')).toBe(true);
+  });
+
+  it('retorna true para o inbound WAHA exato (P3.3) e nada além dele', () => {
+    expect(isPublicPath('/api/whatsapp/waha')).toBe(true);
+    expect(isPublicPath('/api/whatsapp/waha/')).toBe(false);
+    expect(isPublicPath('/api/whatsapp/waha/anything')).toBe(false);
+    expect(isPublicPath('/api/whatsapp/wahaX')).toBe(false);
   });
 
   it('não libera curingas: /api/whatsapp/* e /api/widget/* fora da lista não são públicas', () => {
@@ -160,6 +168,16 @@ describe('middleware — transportes legítimos vs rota privada (T1)', () => {
     const res = await middleware(req);
     expect(res.status).not.toBe(307);
     expect(res.headers.get('location') ?? '').not.toContain('/login');
+  });
+
+  it('sem sessão, evolution retirado chega ao handler (410) sem 307 — GET e POST', async () => {
+    for (const method of ['GET', 'POST']) {
+      const req = makeRequest('/api/whatsapp/evolution', { method });
+      const res = await middleware(req);
+      expect(res.status).not.toBe(307);
+      expect(res.status).not.toBe(302);
+      expect(res.headers.get('location') ?? '').not.toContain('/login');
+    }
   });
 
   it('sem sessão, rota privada redireciona para /login (307)', async () => {

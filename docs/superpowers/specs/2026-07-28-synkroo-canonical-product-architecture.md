@@ -2,10 +2,12 @@
 
 **Versão:** 1.0  
 **Data:** 2026-07-28  
-**Status:** canônica e vigente por aprovação do owner; primeiro commit pós-contenção deve integrá-la  
+**Status:** baseline canônica v1; preservada como fundação técnica. A direção vNext é definida por `2026-10-05-synkroo-vnext-ai-native-business-os-design.md`.  
 **Owner:** Walis  
 **Substitui direção de:** roadmap 2026-06-17, PRDs antigos, MVP checklist e decisões verbais
 **Baseline auditado:** `f7be12f8a23b7519bfebbdf201b6e06a2bf92e1c`
+
+> **Nota 2026-10-05:** esta spec permanece como baseline da v1 e dos controles já validados. Para evolução de produto, AI Control Plane, WAHA, Growth Platform, Agency OS e migração Hostinger→Contabo, prevalece a spec vNext de 2026-10-05. Até cada migração ser implementada e validada, o código atual continua sendo a verdade operacional.
 
 ## 1. Autoridade e controle de mudança
 
@@ -163,7 +165,7 @@ contabilidade, contas a pagar, DRE, tesouraria e fluxo de caixa ficam fora.
 | ADR-BASE-05 | NextAuth v4 + `AUTH_SECRET` único >=32 bytes | elimina JWT/cookie paralelo | `JWT_SECRET`, auth manual |
 | ADR-BASE-06 | Action Layer como entrada de negócio | UI e IA compartilham policy | regra em route handler |
 | ADR-BASE-07 | Durable Object atual condicionado a smoke | evita migração sem dor real | Agents SDK preventivo |
-| ADR-BASE-08 | Evolution provider principal | operação compatível com Workers | browser no Worker |
+| ADR-BASE-08 | Evolution provider principal na baseline v1; migração vNext para WAHA via adapter neutro | operação atual preservada até cutover validado | acoplamento direto do domínio ao provider |
 | ADR-BASE-09 | Playwright sidecar entregue, default off | browser exige Node/processo persistente | bundle OpenNext |
 | ADR-BASE-10 | API `camelCase` com `{ data, meta? }` | contrato uniforme e tipado | snake_case/envelopes ad hoc |
 | ADR-BASE-11 | onboarding gerenciado | modelo de serviço e menor attack surface | signup público v1 |

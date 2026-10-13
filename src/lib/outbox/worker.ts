@@ -1,5 +1,5 @@
-import type { OutboxJob } from './outbox-repository';
-import { dispatchNextOutbox } from './dispatch-outbox';
+import type { OutboxJob, OutboxSuccessHook } from './outbox-repository';
+import { dispatchNextOutbox, type OutboxDispatchResult } from './dispatch-outbox';
 import { dispatchChargeJob } from '@/modules/financeiro/services/dispatch-charge-job';
 import { dispatchCampaignRecipientJob, markCampaignRecipientDeadLetter } from '@/modules/followup/services/dispatch-campaign-recipient';
 import { dispatchInboundMessageJob } from '@/modules/atendimento/services/dispatch-inbound-message';
@@ -10,7 +10,12 @@ import { OUTBOX_OPERATIONS, type OutboxOperation } from './operations';
 type OutboxHandlerDefinition = {
   operation: OutboxOperation;
   moduleId: string;
-  handle(job: OutboxJob): Promise<void>;
+  /**
+   * Pode devolver um `OutboxSuccessHook` (escrita adicional de liquidação de
+   * sucesso); o dispatcher só o invoca depois que o fence confirmar que esta
+   * execução é dona da linha. Handlers sem hook devolvem `void`.
+   */
+  handle(job: OutboxJob): Promise<void | OutboxSuccessHook>;
   onDeadLetter?(job: OutboxJob, error: unknown): Promise<void>;
 };
 
@@ -30,6 +35,17 @@ function isKnownOperation(operation: string): operation is OutboxOperation {
 }
 
 export async function processOutboxBatch(limit = 25, concurrency = 5) {
+  // Otimização de scheduler: o pause do consumo é AUTORIDADE do banco
+  // (`claimOutboxJob` + trigger `outbox_enforce_control_gate`). Falha ao
+  // consultar o status NÃO bloqueia o batch — apenas perde a otimização.
+  try {
+    const { getOutboxControlStatus } = await import('./control');
+    const control = await getOutboxControlStatus();
+    if (control.paused) return [];
+  } catch {
+    // Otimização apenas: sem status, o gate do claim/trigger decide.
+  }
+
   const { createManifest } = await import('@/core/modules/manifest');
   const manifest = createManifest();
   const enabled = await manifest.enabledModules();
@@ -50,7 +66,7 @@ export async function processOutboxBatch(limit = 25, concurrency = 5) {
     console.error('[outbox] diagnostic query failed:', err);
   }
 
-  const results: Array<{ status: string; jobId?: string }> = [];
+  const results: OutboxDispatchResult[] = [];
   let dispatched = 0;
   const takeSlot = (): boolean => {
     if (dispatched >= limit) return false;
@@ -66,7 +82,9 @@ export async function processOutboxBatch(limit = 25, concurrency = 5) {
         }
         const def = handlerMap.get(job.operation);
         if (!def) throw new Error(`UNKNOWN_OUTBOX_OPERATION:${job.operation}`);
-        await def.handle(job);
+        // Devolve o hook ao dispatcher em vez de descartá-lo: sem esse
+        // retorno, a liquidação do lembrete seria perdida aqui.
+        return def.handle(job);
       }, {
         operations: allowedOps,
         onDeadLetter: async (job, err) => {
@@ -75,6 +93,8 @@ export async function processOutboxBatch(limit = 25, concurrency = 5) {
         },
       });
       results.push(result);
+      // `lease_lost` NÃO é vazio: a fila continua e o próximo é reclamado
+      // normalmente (só `empty` encerra este worker).
       if (result.status === 'empty') break;
     }
   });
