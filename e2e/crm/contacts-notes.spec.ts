@@ -7,10 +7,15 @@ async function openContact(page: Page): Promise<void> {
   // Linhas de contato: button.w-full sem role (filtros Todos/Pacientes/Leads têm role="tab").
   const contactItem = page.locator('main button.w-full:not([role="tab"])').first()
   await expect(contactItem).toBeVisible({ timeout: 15000 })
-  await expect(async () => {
+  // Clique único + 1 retry limitado: clique durante a hidratação é no-op
+  // (handler ainda não anexado). Sem loop toPass; no máx. 2 cliques.
+  await contactItem.click()
+  try {
+    await expect(page).toHaveURL(/contact=/, { timeout: 8000 })
+  } catch {
     await contactItem.click()
-    await expect(page).toHaveURL(/contact=/)
-  }).toPass({ timeout: 15000 })
+    await expect(page).toHaveURL(/contact=/, { timeout: 15000 })
+  }
   // Detalhe exclusivo: tabs Notas/Timeline so existem com painel aberto
   // (data-testid no Panel desktop nao chega ao DOM; h1/h2 generico daria falso-positivo).
   const detailTab = page.getByRole('tab', { name: /Notas|Timeline/i }).first()
@@ -19,8 +24,11 @@ async function openContact(page: Page): Promise<void> {
 
 t.describe('CRM Contacts - Notes and Timeline', () => {
   t.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard/contatos')
-    await page.waitForLoadState('networkidle')
+    await page.goto('/dashboard/contatos', { waitUntil: 'domcontentloaded' })
+    // Gate determinístico: painel da lista renderizado (sem networkidle).
+    // O Panel desktop do react-resizable-panels expõe data-testid="list"
+    // (o id do painel); "contact-list" só existe no container mobile.
+    await expect(page.getByTestId('list')).toBeVisible({ timeout: 15000 })
   })
 
   t('renders contact detail panel', async ({ page }) => {
@@ -72,9 +80,11 @@ t.describe('CRM Contacts - Notes and Timeline', () => {
     const tabCount = Math.min(await tabs.count(), 4)
     expect(tabCount).toBeGreaterThan(0)
     for (let i = 0; i < tabCount; i++) {
-      await expect(tabs.nth(i)).toBeVisible()
-      await tabs.nth(i).click()
-      await page.waitForLoadState('networkidle')
+      const tab = tabs.nth(i)
+      await expect(tab).toBeVisible()
+      await tab.click()
+      // Gate determinístico: Radix marca a tab ativa via data-state (sem networkidle).
+      await expect(tab).toHaveAttribute('data-state', 'active')
     }
   })
 })

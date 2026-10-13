@@ -120,6 +120,38 @@ export default async function globalSetup(_config: FullConfig) {
       throw new Error("E2E setup did not produce a NextAuth session cookie");
     }
     await page.context().storageState({ path: AUTH_FILE });
+    // #61: sessão dedicada multi-clínica (usuário multiclinica@clinicademo.com
+    // do seed) p/ o spec do ClinicSelector — sem mutar a sessão do admin demo.
+    const multiPage = await browser.newPage();
+    const multiCsrf = await multiPage.request.get(`${BASE_URL}/api/auth/csrf`);
+    if (!multiCsrf.ok())
+      throw new Error(`E2E setup multi CSRF failed: ${multiCsrf.status()}`);
+    const { csrfToken: multiToken } = (await multiCsrf.json()) as {
+      csrfToken?: string;
+    };
+    if (!multiToken) throw new Error("E2E setup multi CSRF sem token");
+    const multiLogin = await multiPage.request.post(
+      `${BASE_URL}/api/auth/callback/credentials`,
+      {
+        form: {
+          csrfToken: multiToken,
+          email: "multiclinica@clinicademo.com",
+          password: testCredentials.password,
+          callbackUrl: `${BASE_URL}/dashboard`,
+          json: "true",
+        },
+      },
+    );
+    if (!multiLogin.ok()) {
+      const body = (await multiLogin.text()).slice(0, 300).replace(/\s+/g, " ");
+      throw new Error(
+        `E2E setup multi credentials failed: status=${multiLogin.status()}; body=${body}`,
+      );
+    }
+    await multiPage.context().storageState({
+      path: path.join(__dirname, ".auth", "multiclinica.json"),
+    });
+    await multiPage.close();
   } finally {
     await browser.close();
   }
