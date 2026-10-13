@@ -20,10 +20,30 @@
  *   tenant, com `occurred_at` dentro da janela de atribuição. Sem o fato,
  *   NÃO há atribuição (janela expirada ou sem evidência ⇒ `not_attributed`).
  *
- * Janela de atribuição: 48h a partir da entrega (`deliveredAt`, o
- * `updatedAt` da run após o receipt; injetável nos testes). Hipótese do
- * piloto para tempo de resolução de conversa — constante
- * `OUTCOME_WINDOW_MS`, sem auto-tuning.
+ * Janela de atribuição: 48h a partir da entrega. Âncora IMUTÁVEL:
+ * SOMENTE `receipt.executed_at` (gravado pelo executor no momento da
+ * execução, congelado — o UPDATE de outcome só adiciona a chave
+ * `outcome_telemetry`, nunca reescreve o receipt). Receipts legados sem o
+ * campo NÃO têm âncora verificável ⇒ `no_delivery_time` (nunca atribuído por
+ * janela incerta — `deliveredAt`/`updatedAt` mutável não ancora). Hipótese do
+ * piloto para tempo de resolução de conversa — constante `OUTCOME_WINDOW_MS`,
+ * sem auto-tuning.
+ *
+ * Vínculo verificável (anti-correlação espúria): atribuir SOMENTE quando o
+ * fato de negócio tem o MESMO sujeito da entrega — `subjectType+subjectId`
+ * do fato iguais aos do envelope de origem da run (linha de
+ * `business_events` com o mesmo `(clinicId, eventId)`, já no seam
+ * tenant-scoped). Fato de outra conversa do mesmo tenant/clínica/janela NÃO
+ * atribui (`subject_mismatch`); origem ausente/sem sujeito ⇒
+ * `no_subject_link` (fail-closed). O próprio gatilho (`eventId` da run)
+ * nunca conta como conversão. Sem fato vinculado dentro da janela: expirada
+ * (relógio passou do fim) ou ainda aguardando evidência / vínculo
+ * (transitório, NÃO persiste).
+ *
+ * Entrega exige receipt VÁLIDO correspondente: `execution_receipt` presente
+ * com `idempotency_key` e `action_id` não-vazios, além de
+ * `execution_outcome.status = 'business_success'`. Outcome sem receipt (só
+ * `execution_outcome`) ⇒ `not_delivered`, sem janela, sem escrita.
  *
  * Evidência exigida: o fato de negócio (identidade: `event_id`, `type`,
  * `occurred_at`, `subject_*` — nunca conteúdo). Custo: NUNCA medido neste
@@ -41,7 +61,8 @@
  * `no_delivery_time`) derivam SEM escrever. Re-derivação idêntica detectada
  * por deep-equal NÃO reescreve (nem tenta o UPDATE); o UPDATE de produção é
  * condicional (`outcome_telemetry IS NULL` — primeira escrita vence, replay
- * casa 0 linhas).
+ * casa 0 linhas) e adiciona SOMENTE a chave (`COALESCE(result,'{}') ||
+ * jsonb_build_object` — chaves de outros escritores preservadas).
  *
  * Persistência: reuso da coluna `result` jsonb — NENHUMA migration neste
  * slice. Justificativa: 1 outcome, volume do piloto, leitura sempre pelo
@@ -119,8 +140,9 @@ export interface OutcomeRunSnapshot {
   status: string;
   result: unknown;
   /**
-   * Instante da entrega (persistência do receipt) em ISO — ancora a janela.
-   * Em produção, o `updatedAt` da run; `null`/ausente ⇒ sem âncora.
+   * Legado: instante de persistência (`updatedAt`) — MANTIDO por compatibilidade
+   * de snapshot, mas IGNORADO na ancoragem (a âncora é SOMENTE
+   * `receipt.executed_at`; sem ela ⇒ `no_delivery_time`).
    */
   deliveredAt?: string | null;
 }
@@ -166,6 +188,26 @@ function readReceipt(result: unknown): Record<string, unknown> | null {
   const raw = (result as Record<string, unknown>).execution_receipt;
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
   return raw as Record<string, unknown>;
+}
+
+/** Âncora imutável da entrega: SOMENTE `receipt.executed_at` (ISO válido).
+ * Receipts legados sem o campo NÃO têm âncora verificável ⇒ `no_delivery_time`
+ * (nunca atribuído por janela incerta — `updatedAt`/`deliveredAt` mutável não
+ * ancora). */
+function readReceiptExecutedAt(result: unknown): number | null {
+  const receipt = readReceipt(result);
+  if (!receipt) return null;
+  return parseTimeMs(receipt.executed_at);
+}
+
+/** Receipt válido correspondente: presente, com identidade e ação da entrega. */
+function isValidDeliveryReceipt(result: unknown): boolean {
+  const receipt = readReceipt(result);
+  return (
+    receipt !== null
+    && isNonEmptyString(receipt.idempotency_key)
+    && isNonEmptyString(receipt.action_id)
+  );
 }
 
 /** Duração honesta: só quando o receipt mede (número finito ≥ 0). */
@@ -239,9 +281,11 @@ export function deriveOutcome(
     });
   }
 
-  // Sem entrega bem-sucedida, não há conversão a atribuir — e sem âncora,
-  // não há janela honesta a declarar.
-  if (execStatus !== 'business_success') {
+  // Sem entrega bem-sucedida COM receipt válido correspondente, não há
+  // conversão a atribuir — e sem âncora, não há janela honesta a declarar.
+  // Outcome sem receipt (só `execution_outcome`) NÃO atribui: sem a entrega
+  // verificável do executor, o status sozinho pode ser resíduo/legado.
+  if (execStatus !== 'business_success' || !isValidDeliveryReceipt(result)) {
     return withDuration({
       type: SUPPORTED_OUTCOME_TYPE,
       status: 'not_attributed',
@@ -253,7 +297,12 @@ export function deriveOutcome(
     });
   }
 
-  const deliveredMs = parseTimeMs(run.deliveredAt);
+  // Âncora imutável: SOMENTE `receipt.executed_at` (gravado pelo executor no
+  // momento da execução, congelado — o UPDATE de outcome nunca reescreve o
+  // receipt). Receipts legados sem o campo NÃO têm âncora verificável ⇒
+  // `no_delivery_time`: nunca atribuído por janela incerta (`deliveredAt` /
+  // `updatedAt` mutável não ancora).
+  const deliveredMs = readReceiptExecutedAt(result);
   if (deliveredMs === null) {
     return withDuration({
       type: SUPPORTED_OUTCOME_TYPE,
@@ -273,12 +322,25 @@ export function deriveOutcome(
   const endMs = deliveredMs + OUTCOME_WINDOW_MS;
 
   const list = Array.isArray(events) ? events : [];
+  // Envelope de origem da run: mesmo par (tenant, evento) em `business_events`.
+  // O sujeito da entrega vem daqui — dado do seam, sem leitura fora dele.
+  const origin = list.find(
+    (e) =>
+      e
+      && typeof e === 'object'
+      && e.clinicId === clinicId
+      && e.eventId === eventId
+      && isNonEmptyString(e.subjectType)
+      && isNonEmptyString(e.subjectId),
+  );
   let matchingTypeCount = 0;
   const candidates: { eventId: string; occurredMs: number; occurredAt: string; subjectType?: string; subjectId?: string }[] = [];
   for (const e of list) {
     if (!e || typeof e !== 'object') continue;
     // Tenant primeiro: fato de outra clínica NUNCA evidencia conversão aqui.
     if (e.clinicId !== clinicId) continue;
+    // O próprio gatilho da run não é conversão da entrega.
+    if (e.eventId === eventId) continue;
     if (e.type !== OUTCOME_EVIDENCE_EVENT_TYPE) continue;
     if (!isNonEmptyString(e.eventId)) continue;
     matchingTypeCount += 1;
@@ -293,10 +355,14 @@ export function deriveOutcome(
       ...(isNonEmptyString(e.subjectId) ? { subjectId: e.subjectId } : {}),
     });
   }
-  // Primeiro fato dentro da janela (atribuição conservadora: o mais próximo
-  // da entrega; fatos posteriores não re-atribuem — ver persistência).
+  // Vínculo verificável: só o fato com o MESMO sujeito da entrega converte.
+  // Primeiro fato vinculado dentro da janela (atribuição conservadora: o mais
+  // próximo da entrega; fatos posteriores não re-atribuem — ver persistência).
   candidates.sort((a, b) => a.occurredMs - b.occurredMs || (a.eventId < b.eventId ? -1 : 1));
-  const first = candidates[0];
+  const linked = origin
+    ? candidates.filter((c) => c.subjectType === origin.subjectType && c.subjectId === origin.subjectId)
+    : [];
+  const first = linked[0];
 
   if (first) {
     return withDuration({
@@ -317,16 +383,33 @@ export function deriveOutcome(
     });
   }
 
-  // Sem fato dentro da janela: expirada (relógio passou do fim) ou ainda
-  // aguardando evidência (janela aberta — transitório, NÃO persiste).
+  // Sem fato vinculado dentro da janela: expirada (relógio passou do fim —
+  // final, persiste) ou ainda aguardando evidência/vínculo (transitório, NÃO
+  // persiste). Sem origem identificável, fail-closed: `no_subject_link`.
   const expired = nowMs > endMs;
+  if (expired) {
+    return withDuration({
+      type: SUPPORTED_OUTCOME_TYPE,
+      status: 'not_attributed',
+      attributed_to: null,
+      window,
+      evidence: {
+        reason: 'window_expired',
+        window_start: window.start,
+        window_end: window.end,
+        matching_type_count: matchingTypeCount,
+      },
+      idempotency_key: buildOutcomeIdempotencyKey(clinicId, eventId, SUPPORTED_OUTCOME_TYPE),
+      outcome_policy_version: AI_CONTROL_OUTCOME_POLICY_VERSION,
+    });
+  }
   return withDuration({
     type: SUPPORTED_OUTCOME_TYPE,
     status: 'not_attributed',
     attributed_to: null,
     window,
     evidence: {
-      reason: expired ? 'window_expired' : 'no_evidence',
+      reason: candidates.length === 0 ? 'no_evidence' : !origin ? 'no_subject_link' : 'subject_mismatch',
       window_start: window.start,
       window_end: window.end,
       matching_type_count: matchingTypeCount,
@@ -460,11 +543,18 @@ async function defaultSaveOutcome(
   eventId: string,
   nextResult: Record<string, unknown>,
 ): Promise<number> {
-  // UPDATE idempotente e atômico: a primeira escrita vence; replay casa 0
-  // linhas (`affected=0` ⇒ `already_recorded`), sem duplicar outcome.
+  // UPDATE idempotente e atômico: adiciona SOMENTE a chave `outcome_telemetry`
+  // ao `result` ATUAL da linha (`COALESCE || jsonb_build_object`) — outro
+  // escritor que gravou outra chave entre o load e o save NÃO perde a
+  // alteração. A primeira escrita vence; replay casa 0 linhas (`affected=0`
+  // ⇒ `already_recorded`), sem duplicar outcome. Condição de ausência mantida.
+  const outcome = nextResult[OUTCOME_TELEMETRY_RESULT_KEY];
   const updated = await getDb()
     .update(agentRuns)
-    .set({ result: nextResult, updatedAt: new Date() })
+    .set({
+      result: sql`COALESCE(${agentRuns.result}, '{}'::jsonb) || jsonb_build_object('outcome_telemetry', ${JSON.stringify(outcome)}::jsonb)`,
+      updatedAt: new Date(),
+    })
     .where(and(
       eq(agentRuns.clinicId, clinicId),
       eq(agentRuns.eventId, eventId),
@@ -514,6 +604,15 @@ export async function recordOutcome(
 
   const guard = shouldPersistOutcome(run.result, derived);
   if (!guard.persist) {
+    // Replay devolve o outcome EXISTENTE idêntico (nunca uma re-derivação
+    // divergente — ex.: âncora mutável deslocada por outro escritor).
+    const existing = getOutcomeTelemetry(run.result);
+    if (
+      existing
+      && (guard.reason === 'already_recorded' || guard.reason === 'outcome_exists')
+    ) {
+      return { recorded: false, reason: guard.reason, outcome: existing };
+    }
     return { recorded: false, reason: guard.reason, outcome: derived };
   }
 
@@ -525,8 +624,14 @@ export async function recordOutcome(
   const saveOutcome = deps.saveOutcome ?? defaultSaveOutcome;
   const affected = await saveOutcome(clinicId, eventId, nextResult);
   if (affected === 0) {
-    // Segunda barreira: outro escritor registrou entre load e save — o
-    // registro existente prevalece; NÃO sobrescreve.
+    // Segunda barreira: outro escritor registrou entre load e save — recarrega
+    // a run e devolve o outcome EXISTENTE do banco (nunca o derived da
+    // perdedora, que pode divergir em conteúdo/janela). NÃO sobrescreve.
+    const fresh = await loadRun(clinicId, eventId);
+    const existingOutcome = getOutcomeTelemetry(fresh?.result);
+    if (existingOutcome) {
+      return { recorded: false, reason: 'already_recorded', outcome: existingOutcome };
+    }
     return { recorded: false, reason: 'already_recorded', outcome: derived };
   }
   return { recorded: true, outcome: derived, persisted: true };
