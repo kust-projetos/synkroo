@@ -44,32 +44,28 @@ describeIntegration('transactional outbox against PostgreSQL', () => {
   it('claims one pending job and retries it with bounded backoff', async () => {
     const db = getDb()
     const businessKey = `${keyPrefix}:claim`
-    await enqueueOutboxForTests(db, {
+    const enqueued = await enqueueOutboxForTests(db, {
       clinicId: clinicId,
       operation: 'integration.test',
       businessKey,
       payload: { safe: true },
     })
+    expect(enqueued?.id).toBeDefined()
+    const jobId = enqueued!.id
 
-    let claims = await Promise.all([
-      claimOutboxJob({ operations: ['integration.test'] }),
-      claimOutboxJob({ operations: ['integration.test'] }),
-    ])
-    let claimed = claims.filter(Boolean) as NonNullable<typeof claims[number]>[]
-    // CI flaky: ambos podem retornar null por race + visibility; retry uma vez
-    if (claimed.length === 0) {
-      await new Promise((r) => setTimeout(r, 120))
-      claims = await Promise.all([
-        claimOutboxJob({ operations: ['integration.test'] }),
-        claimOutboxJob({ operations: ['integration.test'] }),
+    let claimed = [] as NonNullable<Awaited<ReturnType<typeof claimOutboxJob>>>[]
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const claims = await Promise.all([
+        claimOutboxJob({ operations: ['integration.test'], jobId }),
+        claimOutboxJob({ operations: ['integration.test'], jobId }),
       ])
       claimed = claims.filter(Boolean) as NonNullable<typeof claims[number]>[]
+      if (claimed.length !== 0) break
+      if (attempt < 4) await new Promise((r) => setTimeout(r, 120))
     }
-    // Aceita 0 (flaky visibilidade) como skip sem falhar suite — registra retry se houver claim
     if (claimed.length === 0) {
       const pending = await pool.query('SELECT COUNT(*) FROM outbox_jobs WHERE business_key = $1 AND status = $2', [businessKey, 'pending'])
-      expect(Number(pending.rows[0].count)).toBeGreaterThanOrEqual(0)
-      return
+      throw new Error(`outbox claim never succeeded after 5 attempts (pending=${pending.rows[0]?.count} businessKey=${businessKey})`)
     }
     expect(claimed).toHaveLength(1)
     expect(claimed[0]?.status).toBe('processing')
