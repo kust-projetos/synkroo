@@ -49,10 +49,30 @@ export const agentRuns = pgTable('agent_runs', {
   clinicId: uuid('clinic_id').notNull().references(() => clinics.id, { onDelete: 'cascade' }),
   /** Ligação lógica ao envelope: mesmo par (tenant, evento), sem FK física. */
   eventId: text('event_id').notNull(),
-  /** OBSERVE: a run nasce e permanece `queued` — nenhum executor neste slice. */
+  /**
+   * OBSERVE: a run nasce `queued`. Slice 1B promove para `observed` (proposta
+   * materializada, sem efeito) ou `failed` (saída inválida / gate OFF /
+   * evento ausente) via UPDATE idempotente cercado por
+   * `clinic_id + event_id + status = 'queued'`. Nenhum executor neste slice.
+   */
   status: text('status').notNull().default('queued'),
   /** Modo de observação fixo; executores futuros decidem por gate próprio. */
   mode: text('mode').notNull().default('observe'),
+  /**
+   * P4 Slice 1B — proposta observável (JSON validado em Zod, sem LLM):
+   * `{ next_step: string }` ou `null` quando a run falha antes de propor.
+   */
+  result: jsonb('result'),
+  /**
+   * P4 Slice 1B — fontes rastreáveis da proposta (`[{ id, title }]` vindos do
+   * RAG tenant-scoped). Só identidade/título — nunca conteúdo clínico/PII.
+   */
+  sources: jsonb('sources'),
+  /**
+   * P4 Slice 1B — código sanitizado da falha (`AI_CONTROL_PREPARE_*`).
+   * `null` em runs `queued`/`observed`.
+   */
+  errorCode: text('error_code'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 }, (t) => ({

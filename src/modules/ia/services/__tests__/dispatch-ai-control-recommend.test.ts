@@ -204,6 +204,23 @@ describe('dispatchAiControlRecommendJob (consumidor OBSERVE)', () => {
     expect(run).toBeDefined();
     expect(run?.values.status).toBe('queued');
   });
+
+  it('hook encadeia o prepare 1B na MESMA transação (businessKey determinística)', async () => {
+    const hook = await dispatchAiControlRecommendJob(job(CLINIC_A, envelope()));
+    const tx = fakeTx();
+    await (hook as (t: unknown) => Promise<void>)(tx);
+    expect(mockEnqueueOutbox).toHaveBeenCalledTimes(1);
+    const [usedTx, usedJob] = mockEnqueueOutbox.mock.calls[0] as [unknown, Record<string, unknown>];
+    expect(usedTx).toBe(tx);
+    expect(usedJob.clinicId).toBe(CLINIC_A);
+    expect(usedJob.operation).toBe(OUTBOX_OPERATIONS.AI_CONTROL_PREPARE);
+    expect(usedJob.businessKey).toBe(`["prepare","${CLINIC_A}","evt-001"]`);
+    expect(usedJob.payload).toEqual({
+      eventId: 'evt-001',
+      clinicId: CLINIC_A,
+      version: AI_CONTROL_ENVELOPE_VERSION,
+    });
+  });
 });
 
 describe('OBSERVE estático: zero mutação, zero envio externo, zero LLM/RAG', () => {

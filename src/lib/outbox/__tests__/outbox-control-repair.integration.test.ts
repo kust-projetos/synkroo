@@ -10,7 +10,7 @@
  *    meio reverte o lote inteiro (nenhum gate parcialmente instalado);
  *  - o repair é idempotente e ainda REABILITA um trigger caído em DISABLED —
  *    `CREATE OR REPLACE TRIGGER` (PG14+) não tem janela de DROP+CREATE;
- *  - o ledger tem de casar EXATO com o journal: 37 (à frente) é recusado.
+ *  - o ledger tem de casar EXATO com o journal: journal+1 (à frente) é recusado.
  *
  * Rodar com o harness canônico (DB isolado `synkroo_test`, defaults locais
  * versionados — nunca `.env` privado):
@@ -282,7 +282,7 @@ describeIntegration('outbox control repair + readiness fail-closed against Postg
   });
 
   // ─── 6. Ledger EXATO: à frente do journal também é recusado ──────────────
-  it('repair recusa ledger à frente do journal (37 vs 36) e não muda nada', async () => {
+  it('repair recusa ledger à frente do journal (journal+1) e não muda nada', async () => {
     await dropGateObjects();
     await pool.query(
       `INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ($1, $2)`,

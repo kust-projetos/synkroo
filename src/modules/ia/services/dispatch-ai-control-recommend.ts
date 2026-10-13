@@ -4,7 +4,8 @@
  * Ingestão durável: valida envelope + tenant e materializa BusinessEvent +
  * Goal + AgentRun (queued) no hook de sucesso, cercado pelo lease do claim
  * (comita junto com o `delivered`; replay é idempotente via
- * `onConflictDoNothing` nas UNIQUEs `(clinic_id, event_id)`).
+ * `onConflictDoNothing` nas UNIQUEs `(clinic_id, event_id)`). O mesmo hook
+ * encadeia o prepare 1B (`ai.control.prepare`) na MESMA transação.
  *
  * OBSERVE por construção: nenhum LLM/RAG, nenhum handler de mutação, nenhum
  * envio externo — este módulo NÃO importa providers, RAG, gateways nem
@@ -16,6 +17,8 @@ import { PermanentOutboxError } from '@/lib/outbox/errors';
 import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
 import {
   OUTBOX_OPERATIONS,
+  buildAiControlPrepareBusinessKey,
+  type AiControlPreparePayload,
   type AiControlRecommendPayload,
 } from '@/lib/outbox/operations';
 import { agentRuns, businessEvents, goals } from '@/modules/ia/schema/observe';
@@ -139,7 +142,8 @@ export async function enqueueAiControlRecommend(
 
 /**
  * Consumidor OBSERVE: valida e devolve o hook de materialização. Nenhum
- * efeito além das três escritas do hook — sem LLM, sem RAG, sem envio.
+ * efeito além das três escritas do hook + o encadeamento do prepare — sem
+ * LLM, sem RAG, sem envio.
  */
 export async function dispatchAiControlRecommendJob(
   job: OutboxJob,
@@ -148,9 +152,20 @@ export async function dispatchAiControlRecommendJob(
   const clinicId = job.clinicId;
   const occurredAt = new Date(payload.occurredAt);
   const data = payload.data ?? {};
+  // Envelope do prepare (Slice 1B), derivado do fato validado — mesma
+  // versão, mesmo tenant, mesmo evento. Enfileirado na MESMA transação do
+  // hook: fato + prepare cometem ou desfazem juntos (zero prepare órfão de
+  // evento não materializado e zero evento sem prepare).
+  const preparePayload: AiControlPreparePayload = {
+    eventId: payload.eventId,
+    clinicId,
+    version: AI_CONTROL_ENVELOPE_VERSION,
+  };
+  const prepareBusinessKey = buildAiControlPrepareBusinessKey(clinicId, payload.eventId);
   return async (tx: any) => {
     // Replay idempotente: a segunda liquidação do mesmo envelope não cria
-    // nada (UNIQUEs `(clinic_id, event_id)` + `onConflictDoNothing`).
+    // nada (UNIQUEs `(clinic_id, event_id)` + `onConflictDoNothing`, e o
+    // prepare re-enfileirado colide na UNIQUE do outbox sem duplicar).
     await tx.insert(businessEvents).values({
       clinicId,
       eventId: payload.eventId,
@@ -172,5 +187,11 @@ export async function dispatchAiControlRecommendJob(
       status: 'queued',
       mode: 'observe',
     }).onConflictDoNothing();
+    await enqueueOutbox(tx, {
+      clinicId,
+      operation: OUTBOX_OPERATIONS.AI_CONTROL_PREPARE,
+      businessKey: prepareBusinessKey,
+      payload: preparePayload as unknown as Record<string, unknown>,
+    });
   };
 }

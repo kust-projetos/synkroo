@@ -7,6 +7,13 @@ export const OUTBOX_OPERATIONS = {
   CRM_CONTACT_CHANGED: 'crm.contact.changed',
   /** P4 Slice 1A — ingestão OBSERVE: materializa BusinessEvent + Goal + AgentRun, sem efeitos. */
   AI_CONTROL_RECOMMEND: 'ai.control.recommend',
+  /**
+   * P4 Slice 1B — preparo OBSERVÁVEL: monta contexto (interlocutor + conversa,
+   * só nome como PII), consulta o RAG tenant-scoped e materializa a proposta
+   * (`agent_runs` → `observed`/`failed`). Sem LLM, sem mutação de negócio, sem
+   * envio externo — a run nunca executa nada.
+   */
+  AI_CONTROL_PREPARE: 'ai.control.prepare',
 } as const;
 
 export type OutboxOperation = typeof OUTBOX_OPERATIONS[keyof typeof OUTBOX_OPERATIONS];
@@ -44,4 +51,31 @@ export interface AiControlRecommendPayload {
   subjectId: string;
   clinicId: string;
   data?: Record<string, unknown>;
+}
+
+/**
+ * Envelope P4 Slice 1B (preparo OBSERVÁVEL) — referência mínima ao fato já
+ * materializado pela 1A. O consumidor recarrega o `business_events` com o
+ * tenant da linha do outbox (`job.clinicId`); `clinicId` do envelope deve
+ * casar com ele — descasamento é falha permanente (DLQ), nunca leitura
+ * cross-tenant. `eventId`/`clinicId` determinísticos: replay re-enfileirado
+ * colide na UNIQUE (`clinic_id, operation, business_key`) e não duplica.
+ */
+export interface AiControlPreparePayload {
+  eventId: string;
+  clinicId: string;
+  version: number;
+}
+
+/**
+ * Chave de negócio DETERMINÍSTICA do prepare — tupla JSON
+ * `["prepare", clinicId, eventId]` (ordem fixa, sem ambiguidade de
+ * separador). Mesmo evento lógico re-enfileirado colide na UNIQUE do outbox
+ * e não duplica a fila. Função pura em `operations` (sem imports) para que o
+ * produtor 1A e o consumidor 1B compartilhem a mesma construção sem ciclo de
+ * imports (o 1B importa RAG; o 1A nunca pode importá-lo, nem transitivamente
+ * no texto — ver teste estático OBSERVE do 1A).
+ */
+export function buildAiControlPrepareBusinessKey(clinicId: string, eventId: string): string {
+  return JSON.stringify(['prepare', clinicId, eventId]);
 }
