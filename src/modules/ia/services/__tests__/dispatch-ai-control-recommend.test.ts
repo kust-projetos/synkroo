@@ -83,12 +83,27 @@ describe('parseAiControlRecommendPayload', () => {
     const j = job(CLINIC_A, envelope({ clinicId: CLINIC_B }));
     expect(() => parseAiControlRecommendPayload(j)).toThrow(InvalidAiControlRecommendError);
   });
+
+  it.each([
+    ['payload null', null],
+    ['payload string', 'not-an-object'],
+    ['payload number', 42],
+    ['payload array', [{ eventId: 'evt-001' }]],
+  ])('%s é permanente (DLQ imediata, sem retry)', (_label, payload) => {
+    const j = job(CLINIC_A, payload);
+    expect(() => parseAiControlRecommendPayload(j)).toThrow(InvalidAiControlRecommendError);
+    try {
+      parseAiControlRecommendPayload(j);
+    } catch (err) {
+      expect(isPermanentOutboxError(err)).toBe(true);
+    }
+  });
 });
 
 describe('buildAiControlBusinessKey', () => {
-  it('é determinística e segue lead:<id>:<eventId>', () => {
+  it('é determinística e segue JSON da tupla [subjectType, subjectId, eventId]', () => {
     const env = { subjectType: 'lead', subjectId: 'lead-123', eventId: 'evt-001' };
-    expect(buildAiControlBusinessKey(env)).toBe('lead:lead-123:evt-001');
+    expect(buildAiControlBusinessKey(env)).toBe('["lead","lead-123","evt-001"]');
     expect(buildAiControlBusinessKey(env)).toBe(buildAiControlBusinessKey({ ...env }));
   });
 
@@ -102,6 +117,12 @@ describe('buildAiControlBusinessKey', () => {
   it('eventos distintos geram chaves distintas (sem colisão lógica)', () => {
     const a = buildAiControlBusinessKey({ subjectType: 'lead', subjectId: 'x', eventId: 'e1' });
     const b = buildAiControlBusinessKey({ subjectType: 'lead', subjectId: 'x', eventId: 'e2' });
+    expect(a).not.toBe(b);
+  });
+
+  it('separadores embutidos não fundem fronteiras (x:y/z vs x/y:z colidiriam no join)', () => {
+    const a = buildAiControlBusinessKey({ subjectType: 'lead', subjectId: 'x:y', eventId: 'z' });
+    const b = buildAiControlBusinessKey({ subjectType: 'lead', subjectId: 'x', eventId: 'y:z' });
     expect(a).not.toBe(b);
   });
 });
@@ -121,7 +142,7 @@ describe('enqueueAiControlRecommend (produtor)', () => {
     expect(usedTx).toBe(tx);
     expect(usedJob.clinicId).toBe(CLINIC_A);
     expect(usedJob.operation).toBe(OUTBOX_OPERATIONS.AI_CONTROL_RECOMMEND);
-    expect(usedJob.businessKey).toBe('lead:lead-123:evt-001');
+    expect(usedJob.businessKey).toBe('["lead","lead-123","evt-001"]');
   });
 
   it('fail-fast: envelope malformado nunca entra na fila', async () => {

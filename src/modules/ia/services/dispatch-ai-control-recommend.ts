@@ -50,7 +50,14 @@ export function parseAiControlRecommendPayload(job: OutboxJob): AiControlRecomme
   if (job.operation !== OUTBOX_OPERATIONS.AI_CONTROL_RECOMMEND) {
     throw new InvalidAiControlRecommendError();
   }
-  const p = job.payload as Partial<AiControlRecommendPayload>;
+  const raw: unknown = job.payload;
+  // Payload nulo/primitivo/Array é permanente (DLQ imediata, sem retry):
+  // valida o contêiner ANTES de acessar qualquer campo para nunca vazar
+  // TypeError — só objeto plain segue para a validação de campos.
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new InvalidAiControlRecommendError();
+  }
+  const p = raw as Partial<AiControlRecommendPayload>;
   const occurredAt = p.occurredAt;
   if (
     !isNonEmptyString(p.eventId)
@@ -87,9 +94,15 @@ export function parseAiControlRecommendPayload(job: OutboxJob): AiControlRecomme
  * Chave de negócio DETERMINÍSTICA do job — derivada do envelope, nunca
  * `randomUUID`: o mesmo evento lógico re-enfileirado colide na UNIQUE
  * (`clinic_id, operation, business_key`) e não duplica a fila.
+ *
+ * Formato: `JSON.stringify` da tupla `[subjectType, subjectId, eventId]`
+ * (ordem fixa). A serialização JSON é não-ambígua — `:` dentro de
+ * `subjectId`/`eventId` nunca funde fronteiras de campo, ao contrário do
+ * `join(':')` (ex.: `["lead","x:y","z"]` vs `["lead","x","y:z"]` colidiriam
+ * como `lead:x:y:z`). Mesmo input ⇒ mesma key, sempre.
  */
 export function buildAiControlBusinessKey(envelope: Pick<AiControlRecommendPayload, 'subjectType' | 'subjectId' | 'eventId'>): string {
-  return `${envelope.subjectType}:${envelope.subjectId}:${envelope.eventId}`;
+  return JSON.stringify([envelope.subjectType, envelope.subjectId, envelope.eventId]);
 }
 
 export type AiControlRecommendEnvelopeInput = Omit<AiControlRecommendPayload, 'version' | 'clinicId'>;
