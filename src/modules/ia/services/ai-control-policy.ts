@@ -14,7 +14,7 @@
  * escreve (0 writes). Tenant é cercado por `(clinic_id, event_id)` em todas
  * as leituras/escritas.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { getAction } from '@/core/actions/registry';
 import { agentRuns } from '@/modules/ia/schema/observe';
@@ -263,10 +263,11 @@ async function defaultSaveDecision(
   eventId: string,
   nextResult: Record<string, unknown>,
 ): Promise<number> {
-  // UPDATE idempotente no DB: só promove `observed` sem decisão. A guarda
-  // `shouldPersistPolicyDecision` já barrou replay em memória; este
-  // predicado fecha a corrida (dois escritores gravam a mesma decisão
-  // determinística; o segundo casa 0 linhas).
+  // UPDATE idempotente e atômico no DB: só promove `observed` AINDA sem
+  // decisão (`result->>'policy_decision' IS NULL` no próprio WHERE). A guarda
+  // `shouldPersistPolicyDecision` barra replay sequencial em memória; este
+  // predicado de ausência fecha a corrida TOCTOU: a primeira escrita vence e
+  // a segunda casa 0 linhas (affected=0 → already_decided), sem sobrescrever.
   const updated = await getDb()
     .update(agentRuns)
     .set({ result: nextResult, updatedAt: new Date() })
@@ -274,6 +275,7 @@ async function defaultSaveDecision(
       eq(agentRuns.clinicId, clinicId),
       eq(agentRuns.eventId, eventId),
       eq(agentRuns.status, 'observed'),
+      sql`${agentRuns.result}->>'policy_decision' IS NULL`,
     ))
     .returning({ id: agentRuns.id });
   return updated.length;

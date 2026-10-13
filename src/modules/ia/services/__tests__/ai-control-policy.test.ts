@@ -82,6 +82,10 @@ function memoryStore(): PolicyDecisionStore & {
       const key = `${clinicId}:${eventId}`;
       const run = runs.get(key);
       if (!run || run.status !== 'observed') return 0;
+      // Predicado atômico de ausência (espelha o WHERE SQL real
+      // `result->>'policy_decision' IS NULL`): primeira escrita vence; a
+      // segunda casa 0 linhas, sem sobrescrever.
+      if (hasPolicyDecision(run.result)) return 0;
       (store as { writes: number }).writes += 1;
       runs.set(key, { ...run, result: nextResult });
       return 1;
@@ -291,6 +295,29 @@ describe('persistPolicyDecision — UPDATE idempotente em result.policy_decision
     expect(store.writes).toBe(1);
   });
 
+  it('corrida: dois writers simultâneos → exatamente 1 vence, outro recebe already_decided', async () => {
+    const store = memoryStore();
+    store.runs.set(`${CLINIC_A}:evt-race`, {
+      clinicId: CLINIC_A,
+      status: 'observed',
+      result: { next_step: 'Observar X.' },
+    });
+    const params = { clinicId: CLINIC_A, eventId: 'evt-race', decision: decidedRun() };
+    const [first, second] = await Promise.all([
+      persistPolicyDecision(params, store),
+      persistPolicyDecision({ ...params }, store),
+    ]);
+    const outcomes = [first, second];
+    expect(outcomes.filter((o) => o.updated)).toHaveLength(1);
+    expect(outcomes.filter((o) => !o.updated && o.reason === 'already_decided')).toHaveLength(1);
+    expect(store.writes).toBe(1);
+    // A decisão preservada é a primeira (sem sobrescrita pelo perdedor).
+    expect(store.runs.get(`${CLINIC_A}:evt-race`)?.result).toEqual({
+      next_step: 'Observar X.',
+      policy_decision: decidedRun(),
+    });
+  });
+
   it('só persiste quando status observed (queued/failed ⇒ skip sem escrita)', async () => {
     const store = memoryStore();
     for (const status of ['queued', 'failed']) {
@@ -375,7 +402,8 @@ describe('S2 estático: NENHUMA execução de Action neste slice', () => {
     expect(source).toMatch(/action_id.*catálogo|nunca.*string livre/i);
   });
 
-  it('persistência usa UPDATE condicional em observed (idempotente)', () => {
+  it('persistência usa UPDATE condicional em observed + ausência atômica (idempotente)', () => {
     expect(source).toMatch(/eq\(agentRuns\.status,\s*'observed'\)/);
+    expect(source).toMatch(/policy_decision.*IS NULL/);
   });
 });
