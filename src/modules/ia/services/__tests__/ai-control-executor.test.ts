@@ -14,13 +14,16 @@ import {
   AI_CONTROL_EXEC_ALLOWLIST,
   AI_CONTROL_EXEC_MODE,
   AI_CONTROL_EXEC_POLICY_VERSION,
+  EXECUTION_CLAIM_STALE_MS,
   buildExecutionIdempotencyKey,
   canExecuteDecision,
   executeDecidedRun,
+  getExecutionClaim,
   getExecutionReceipt,
   hasExecutionReceipt,
   isAiControlExecEnabled,
   isAllowlistedAction,
+  isExecutionClaimStale,
   mergeExecutionRecord,
   readAiControlExecMode,
   shouldPersistExecution,
@@ -63,9 +66,36 @@ function memoryStore() {
     runs,
     writes: 0,
     loads: 0,
+    claims: 0,
     loadRun: async (clinicId: string, eventId: string) => {
       store.loads += 1;
       return runs.get(`${clinicId}:${eventId}`) ?? null;
+    },
+    /**
+     * Reserva atômica em memória com a MESMA semântica do UPDATE condicional
+     * de produção: tenant + evento + `observed` + decisão AUTO + sem receipt
+     * + (sem claim ou claim stale >10min). Check-and-set sem `await` no meio
+     * ⇒ atômico no event loop (um vencedor por corrida).
+     */
+    claimExecution: async (clinicId: string, eventId: string, by: string) => {
+      const run = runs.get(`${clinicId}:${eventId}`);
+      if (!run) return 0;
+      if (run.clinicId !== clinicId) return 0;
+      if (run.status !== 'observed') return 0;
+      const result =
+        typeof run.result === 'object' && run.result !== null && !Array.isArray(run.result)
+          ? (run.result as Record<string, unknown>)
+          : {};
+      if (result.execution_receipt !== undefined && result.execution_receipt !== null) return 0;
+      if ((result.policy_decision as { decision?: unknown } | undefined)?.decision !== 'AUTO') return 0;
+      const existing = getExecutionClaim(run.result);
+      if (existing && !isExecutionClaimStale(existing.at, Date.now())) return 0;
+      store.claims += 1;
+      runs.set(`${clinicId}:${eventId}`, {
+        ...run,
+        result: { ...result, execution_claim: { by, at: new Date().toISOString() } },
+      });
+      return 1;
     },
     saveExecution: async (clinicId: string, eventId: string, next: Record<string, unknown>) => {
       const run = runs.get(`${clinicId}:${eventId}`);
@@ -100,6 +130,7 @@ describe('gate de modo: só auto_limitado executa (off/observe dispensam sem efe
           readMode: () => mode === '' ? '' : mode,
           loadRun: store.loadRun,
           saveExecution: store.saveExecution,
+          claimExecution: store.claimExecution,
           runAction: async () => { runs += 1; return { ok: true, data: { id: PATIENT_ID } }; },
         },
       );
@@ -148,6 +179,7 @@ describe('gate de decisão + allowlist estreita (1 action de leitura)', () => {
         readMode: () => 'auto_limitado',
         loadRun: store.loadRun,
         saveExecution: store.saveExecution,
+        claimExecution: store.claimExecution,
         runAction: async () => { runs += 1; return { ok: true, data: {} }; },
       },
     );
@@ -181,6 +213,7 @@ describe('idempotência: replay do mesmo run não re-executa', () => {
         readMode: () => 'auto_limitado',
         loadRun: store.loadRun,
         saveExecution: store.saveExecution,
+        claimExecution: store.claimExecution,
         runAction: async () => { runs += 1; return { ok: true, data: { id: PATIENT_ID } }; },
         readBack: async () => ({ id: PATIENT_ID }),
         ...extra,
@@ -218,19 +251,36 @@ describe('idempotência: replay do mesmo run não re-executa', () => {
     expect(buildExecutionIdempotencyKey(CLINIC_A, 'e2', ACTION_ID, AI_CONTROL_POLICY_VERSION)).not.toBe(k1);
   });
 
-  it('corrida: dois executores simultâneos → 1 persiste, outro vira already_executed sem re-efeito', async () => {
+  it('corrida com barreira: exatamente 1 runAction; perdedor não toca execução/verificação', async () => {
     const store = memoryStore();
     seedObserved(store, 'evt-race');
     let runs = 0;
-    // runAction único compartilhado: mesmo que ambos passem pelo load antes
-    // do save, o predicado de ausência garante 1 escrita; o perdedor NÃO
-    // desfaz nem duplica (o mock conta chamadas para evidenciar).
+    let readBacks = 0;
+    let verifies = 0;
+    // Barreira no load: segura o primeiro executor até AMBOS terem lido a run
+    // sem receipt (pior TOCTOU do check-then-act). Mesmo assim, só o vencedor
+    // da reserva atômica (claim PRÉ-execução) alcança runAction/readBack.
+    let loadsSeen = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const barrierLoad: typeof store.loadRun = async (clinicId, eventId) => {
+      const run = await store.loadRun(clinicId, eventId);
+      loadsSeen += 1;
+      if (loadsSeen >= 2) release();
+      else await gate;
+      return run;
+    };
     const deps = {
       readMode: () => 'auto_limitado',
-      loadRun: store.loadRun,
+      loadRun: barrierLoad,
       saveExecution: store.saveExecution,
+      claimExecution: store.claimExecution,
       runAction: async () => { runs += 1; return { ok: true, data: { id: PATIENT_ID } }; },
-      readBack: async () => ({ id: PATIENT_ID }),
+      readBack: async () => { readBacks += 1; return { id: PATIENT_ID }; },
+      verify: (_a: unknown, i: unknown, rb: unknown) => {
+        verifies += 1;
+        return verifyObterPaciente((i as { id: string }).id, rb);
+      },
     };
     const params = {
       clinicId: CLINIC_A,
@@ -240,10 +290,106 @@ describe('idempotência: replay do mesmo run não re-executa', () => {
       actionCtx: actionCtx(),
     };
     const [a, b] = await Promise.all([executeDecidedRun(params, deps), executeDecidedRun(params, deps)]);
+    // Ambos leram antes de qualquer reserva — a claim decidiu, não o load.
+    expect(loadsSeen).toBe(2);
+    expect(store.claims).toBe(1);
     expect(store.writes).toBe(1);
     const executed = [a, b].filter((o) => o.executed);
     expect(executed).toHaveLength(1);
-    expect(runs).toBeLessThanOrEqual(2);
+    expect([a, b].filter((o) => !o.executed && (o as { reason?: string }).reason === 'already_executed')).toHaveLength(1);
+    // Só o vencedor executou: 1 runAction, 1 readBack, 1 verify. O perdedor
+    // dispensou na claim, sem tocar execução nem verificação.
+    expect(runs).toBe(1);
+    expect(readBacks).toBe(1);
+    expect(verifies).toBe(1);
+  });
+
+  it('claim fresca bloqueia sem executar; claim stale (>10min) permite reclaim', async () => {
+    // Reserva fresca de outro candidato ⇒ dispensa sem executar/verificar.
+    const storeFresh = memoryStore();
+    seedObserved(storeFresh, 'evt-claim-fresh');
+    storeFresh.runs.set(`${CLINIC_A}:evt-claim-fresh`, {
+      clinicId: CLINIC_A,
+      status: 'observed',
+      result: {
+        next_step: 'Observar X.',
+        policy_decision: autoDecision(),
+        execution_claim: { by: 'outro-candidato', at: new Date().toISOString() },
+      },
+    });
+    let freshRuns = 0;
+    let freshReadBacks = 0;
+    const fresh = await executeDecidedRun(
+      {
+        clinicId: CLINIC_A,
+        eventId: 'evt-claim-fresh',
+        decision: autoDecision(),
+        input: { id: PATIENT_ID },
+        actionCtx: actionCtx(),
+      },
+      {
+        readMode: () => 'auto_limitado',
+        loadRun: storeFresh.loadRun,
+        saveExecution: storeFresh.saveExecution,
+        claimExecution: storeFresh.claimExecution,
+        runAction: async () => { freshRuns += 1; return { ok: true, data: { id: PATIENT_ID } }; },
+        readBack: async () => { freshReadBacks += 1; return { id: PATIENT_ID }; },
+      },
+    );
+    expect(fresh).toMatchObject({ executed: false, reason: 'already_executed' });
+    expect(freshRuns).toBe(0);
+    expect(freshReadBacks).toBe(0);
+    expect(storeFresh.writes).toBe(0);
+
+    // Reserva stale (crash órfão) ⇒ reclaim executa e verifica normalmente;
+    // a reconciliação cabe ao verifier (pós-condição lida do backend).
+    const storeStale = memoryStore();
+    seedObserved(storeStale, 'evt-claim-stale');
+    storeStale.runs.set(`${CLINIC_A}:evt-claim-stale`, {
+      clinicId: CLINIC_A,
+      status: 'observed',
+      result: {
+        next_step: 'Observar X.',
+        policy_decision: autoDecision(),
+        execution_claim: {
+          by: 'candidato-morto',
+          at: new Date(Date.now() - EXECUTION_CLAIM_STALE_MS - 60_000).toISOString(),
+        },
+      },
+    });
+    const stale = await executeDecidedRun(
+      {
+        clinicId: CLINIC_A,
+        eventId: 'evt-claim-stale',
+        decision: autoDecision(),
+        input: { id: PATIENT_ID },
+        actionCtx: actionCtx(),
+      },
+      {
+        readMode: () => 'auto_limitado',
+        loadRun: storeStale.loadRun,
+        saveExecution: storeStale.saveExecution,
+        claimExecution: storeStale.claimExecution,
+        runAction: async () => ({ ok: true, data: { id: PATIENT_ID } }),
+        readBack: async () => ({ id: PATIENT_ID }),
+      },
+    );
+    expect(stale.executed).toBe(true);
+    expect(storeStale.claims).toBe(1);
+    expect(storeStale.writes).toBe(1);
+  });
+
+  it('isExecutionClaimStale: janela de 10min, fail-closed sem `at` válido', () => {
+    const now = Date.now();
+    expect(isExecutionClaimStale(new Date(now).toISOString(), now)).toBe(false);
+    expect(isExecutionClaimStale(new Date(now - EXECUTION_CLAIM_STALE_MS - 1).toISOString(), now)).toBe(true);
+    expect(isExecutionClaimStale(new Date(now - EXECUTION_CLAIM_STALE_MS + 60_000).toISOString(), now)).toBe(false);
+    expect(isExecutionClaimStale(undefined, now)).toBe(false);
+    expect(isExecutionClaimStale(null, now)).toBe(false);
+    expect(isExecutionClaimStale('não-é-data', now)).toBe(false);
+    expect(getExecutionClaim({ execution_claim: { by: 'x', at: 'y' } })).toEqual({ by: 'x', at: 'y' });
+    expect(getExecutionClaim({ execution_claim: { by: 'x' } })).toBeNull();
+    expect(getExecutionClaim({})).toBeNull();
   });
 });
 
@@ -266,6 +412,7 @@ describe('verificação determinística pós-execução', () => {
       readMode: () => 'auto_limitado',
       loadRun: store.loadRun,
       saveExecution: store.saveExecution,
+      claimExecution: store.claimExecution,
       runAction: async () => ({ ok: true, data: { id: PATIENT_ID, name: 'Qualquer Nome (ignorado)' } }),
       readBack: async () => ({ id: PATIENT_ID }),
       verify: (a, i, rb) => { verifyCalls += 1; expect(a).toBe(ACTION_ID); return verifyObterPaciente((i as { id: string }).id, rb); },
@@ -295,6 +442,7 @@ describe('verificação determinística pós-execução', () => {
       readMode: () => 'auto_limitado',
       loadRun: store.loadRun,
       saveExecution: store.saveExecution,
+      claimExecution: store.claimExecution,
       runAction: async () => ({ ok: true, data: { id: PATIENT_ID } }),
       readBack: async () => ({ id: 'outro-id' }),
     });
@@ -316,6 +464,7 @@ describe('verificação determinística pós-execução', () => {
         readMode: () => 'auto_limitado',
         loadRun: store.loadRun,
         saveExecution: store.saveExecution,
+        claimExecution: store.claimExecution,
         runAction: async () => { runs += 1; return { ok: true, data: { id: PATIENT_ID } }; },
         readBack,
       });
@@ -336,6 +485,7 @@ describe('verificação determinística pós-execução', () => {
       readMode: () => 'auto_limitado',
       loadRun: store.loadRun,
       saveExecution: store.saveExecution,
+      claimExecution: store.claimExecution,
       runAction: async () => { runs += 1; return { ok: false, errorCode: 'unknown_effect', attemptId: 'attempt-123' }; },
       readBack: async () => { readBacks += 1; return { id: PATIENT_ID }; },
     });
@@ -356,6 +506,7 @@ describe('verificação determinística pós-execução', () => {
       readMode: () => 'auto_limitado',
       loadRun: store.loadRun,
       saveExecution: store.saveExecution,
+      claimExecution: store.claimExecution,
       runAction: async () => ({ ok: false, errorCode: 'not_found', attemptId: null }),
       readBack: async () => ({ id: PATIENT_ID }),
     });
@@ -387,6 +538,7 @@ describe('verificação determinística pós-execução', () => {
         readMode: () => 'auto_limitado',
         loadRun: store.loadRun,
         saveExecution: store.saveExecution,
+        claimExecution: store.claimExecution,
         runAction: async () => { runs += 1; return { ok: true, data: {} }; },
       },
     );

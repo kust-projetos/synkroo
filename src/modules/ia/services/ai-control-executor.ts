@@ -30,10 +30,16 @@
  * slices futuros) significa aguardando — nunca entregue: este módulo nunca
  * marca `delivered` nem liquida outbox.
  *
- * Persistência: reuso da coluna `result` jsonb (`execution_receipt` +
- * `execution_outcome`) — nenhuma migration neste slice. UPDATE condicional
- * com predicado de ausência (`result->>'execution_receipt' IS NULL`) fecha a
- * corrida TOCTOU igual ao Slice 2.
+ * Persistência: reuso da coluna `result` jsonb (`execution_claim` +
+ * `execution_receipt` + `execution_outcome`) — nenhuma migration neste slice.
+ * Reserva atômica PRÉ-execução (`execution_claim {by, at}` via UPDATE
+ * condicional: tenant + evento + `status='observed'` + decisão AUTO + sem
+ * receipt + sem claim ou claim stale >10min pelo relógio do banco): o
+ * vencedor executa; o perdedor dispensa SEM executar, SEM verificar e SEM
+ * escrever. O UPDATE final do receipt mantém o predicado de ausência como
+ * segunda barreira. Crash entre claim e receipt deixa a reserva órfã por até
+ * 10min; reclaim posterior exige reconciliação (o verifier decide; dúvida ⇒
+ * `suspended`, nunca sucesso presumido).
  *
  * Este módulo NÃO importa LLM, RAG, serviços de envio, gateways nem handlers
  * de mutação de domínio (coberto por teste estático). A execução real passa
@@ -68,6 +74,16 @@ export type ExecAllowlistedAction = (typeof AI_CONTROL_EXEC_ALLOWLIST)[number];
 /** Chaves jsonb sob as quais receipt/outcome vivem dentro de `agent_runs.result`. */
 export const EXECUTION_RECEIPT_RESULT_KEY = 'execution_receipt' as const;
 export const EXECUTION_OUTCOME_RESULT_KEY = 'execution_outcome' as const;
+
+/** Chave jsonb da reserva atômica pré-execução dentro de `agent_runs.result`. */
+export const EXECUTION_CLAIM_RESULT_KEY = 'execution_claim' as const;
+
+/**
+ * Janela de stale da reserva: sem receipt após esse tempo, outro executor pode
+ * reclamar (crash-safety). Relógio de referência: `now()` do banco em
+ * produção (`defaultClaimExecution`); `Date.now()` no store em memória.
+ */
+export const EXECUTION_CLAIM_STALE_MS = 10 * 60 * 1000;
 
 export type ExecutionOutcomeStatus = 'business_success' | 'suspended' | 'failed';
 
@@ -144,6 +160,36 @@ export function hasExecutionReceipt(result: unknown): boolean {
 export function getExecutionReceipt(result: unknown): ExecutionReceipt | null {
   if (!hasExecutionReceipt(result)) return null;
   return (result as Record<string, unknown>)[EXECUTION_RECEIPT_RESULT_KEY] as ExecutionReceipt;
+}
+
+/**
+ * Reserva pré-execução (`{ by, at }`): `by` é a chave de idempotência do
+ * candidato; `at` é o instante da reserva (texto de `now()` do banco em
+ * produção, ISO em testes). Ausente ou malformada ⇒ sem reserva válida.
+ */
+export interface ExecutionClaim {
+  by: string;
+  at: string;
+}
+
+export function getExecutionClaim(result: unknown): ExecutionClaim | null {
+  if (typeof result !== 'object' || result === null || Array.isArray(result)) return null;
+  const raw = (result as Record<string, unknown>)[EXECUTION_CLAIM_RESULT_KEY];
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  const claim = raw as Record<string, unknown>;
+  if (!isNonEmptyString(claim.by) || !isNonEmptyString(claim.at)) return null;
+  return { by: claim.by, at: claim.at };
+}
+
+/**
+ * Stale da reserva (`true` ⇒ reclamável). Fail-closed: `at` ausente ou
+ * inválido NUNCA é stale (não libera reserva que não entendemos).
+ */
+export function isExecutionClaimStale(claimedAt: unknown, nowMs: number): boolean {
+  if (typeof claimedAt !== 'string') return false;
+  const t = Date.parse(claimedAt);
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t > EXECUTION_CLAIM_STALE_MS;
 }
 
 export function mergeExecutionRecord(
@@ -258,6 +304,16 @@ export interface AiControlExecutorDeps {
   readMode?: () => string;
   /** Carga da run (default: `agent_runs` com predicado de tenant). */
   loadRun?: (clinicId: string, eventId: string) => Promise<ExecRunSnapshot | null>;
+  /**
+   * Reserva atômica pré-execução; devolve linhas afetadas (`0` = outro
+   * executor reservou/executou antes — o chamador dispensa SEM executar).
+   * `by` é a chave de idempotência do candidato.
+   */
+  claimExecution?: (
+    clinicId: string,
+    eventId: string,
+    by: string,
+  ) => Promise<number>;
   /** UPDATE condicional; devolve linhas afetadas (0 = replay venceu antes). */
   saveExecution?: (
     clinicId: string,
@@ -320,6 +376,40 @@ async function defaultSaveExecution(
   return updated.length;
 }
 
+async function defaultClaimExecution(
+  clinicId: string,
+  eventId: string,
+  idempotencyKey: string,
+): Promise<number> {
+  // Reserva atômica PRÉ-execução: o primeiro UPDATE vence; concorrentes veem
+  // `affected=0` e dispensam SEM executar nem verificar. O predicado fecha a
+  // corrida TOCTOU que o check-then-act do load deixava aberta (R6): sem
+  // receipt + sem claim válida, no par (tenant, evento) ainda `observed` com
+  // decisão AUTO gravada.
+  //
+  // Crash-safety: reserva stale (>10min pelo relógio do banco, `now()`) é
+  // reclamável. Reclaim após crash EXIGE reconciliação: quem reclama não sabe
+  // se o dono anterior executou fora da escrita — o verifier pós-execução
+  // (pós-condição lida do backend) decide o outcome; dúvida (`unknown`) ⇒
+  // `suspended` + reconciliação manual, nunca sucesso presumido.
+  const updated = await getDb()
+    .update(agentRuns)
+    .set({
+      result: sql`COALESCE(${agentRuns.result}, '{}'::jsonb) || jsonb_build_object('execution_claim', jsonb_build_object('by', ${idempotencyKey}, 'at', now()))`,
+      updatedAt: new Date(),
+    })
+    .where(and(
+      eq(agentRuns.clinicId, clinicId),
+      eq(agentRuns.eventId, eventId),
+      eq(agentRuns.status, 'observed'),
+      sql`${agentRuns.result}->>'execution_receipt' IS NULL`,
+      sql`${agentRuns.result}->'policy_decision'->>'decision' = 'AUTO'`,
+      sql`(${agentRuns.result}->>'execution_claim' IS NULL OR (${agentRuns.result}->'execution_claim'->>'at')::timestamptz < now() - interval '10 minutes')`,
+    ))
+    .returning({ id: agentRuns.id });
+  return updated.length;
+}
+
 async function defaultRunAction(
   actionId: ExecAllowlistedAction,
   input: unknown,
@@ -376,9 +466,10 @@ export type ExecuteDecidedRunOutcome =
  *
  * Ordem (fail-closed, sem retry cego em nenhum ponto):
  * modo ⇒ decisão/allowlist ⇒ receipt existente (replay ⇒ skip SEM re-executar)
- * ⇒ `runAction` ⇒ `unknown_effect` ⇒ `suspended` ⇒ releitura backend ⇒
- * verifier `ok` ⇒ `business_success` / `failed` / `unknown` ⇒ `suspended` ⇒
- * persiste receipt + outcome (reuso de `result` jsonb, sem migration).
+ * ⇒ reserva atômica da claim (`affected=0` ⇒ `already_executed` SEM executar
+ * nem verificar) ⇒ `runAction` ⇒ `unknown_effect` ⇒ `suspended` ⇒ releitura
+ * backend ⇒ verifier `ok` ⇒ `business_success` / `failed` / `unknown` ⇒
+ * `suspended` ⇒ persiste receipt + outcome (reuso de `result` jsonb, sem migration).
  */
 export async function executeDecidedRun(
   params: ExecuteDecidedRunParams,
@@ -422,6 +513,17 @@ export async function executeDecidedRun(
     actionId,
     (decision as ProposalPolicyDecision).policy_version,
   );
+
+  // 3b. Reserva atômica PRÉ-execução (R6): só o vencedor do UPDATE condicional
+  //     alcança `runAction`/`readBack`. Perdedor (`affected=0`) dispensa SEM
+  //     executar, SEM verificar e SEM escrever — o efeito nunca é duplicado,
+  //     mesmo que ambos tenham passado pelo load antes da reserva.
+  const claimExecution = deps.claimExecution ?? defaultClaimExecution;
+  const claimed = await claimExecution(clinicId, eventId, idempotencyKey);
+  if (claimed === 0) {
+    return { executed: false, reason: 'already_executed', receipt: getExecutionReceipt(run?.result) };
+  }
+
   const runAction = deps.runAction ?? defaultRunAction;
   const readBackFn = deps.readBack ?? defaultReadBack;
   const verify = deps.verify ?? defaultVerify;
@@ -437,8 +539,9 @@ export async function executeDecidedRun(
     const nextResult = mergeExecutionRecord(run?.result, receipt, outcome);
     const affected = await saveExecution(clinicId, eventId, nextResult);
     if (affected === 0) {
-      // Corrida: outro escritor registrou entre load e save — o registro
-      // existente prevalece; NÃO re-executa, NÃO sobrescreve.
+      // Segunda barreira: outro escritor registrou entre claim e save
+      // (ex.: reclaim de claim stale) — o registro existente prevalece;
+      // NÃO re-executa, NÃO sobrescreve.
       return { executed: false, reason: 'already_executed', receipt: getExecutionReceipt(run?.result) };
     }
     return { executed: true, receipt, outcome, persisted: true };
