@@ -1,4 +1,9 @@
-/** Installment Service — migrated to Drizzle */
+/**
+ * Installment Service — LEGADO (sem callers de produção; rotas usam
+ * `modules/financeiro/actions/*`). MANTIDO porque o guard de status
+ * fail-closed (parse/isInstallmentStatus + teste) não tem equivalente no
+ * módulo — migrar o guard antes de remover este arquivo.
+ */
 import { eq, and, asc, desc } from 'drizzle-orm'
 import { getDb } from '@/lib/db/client'
 import { budgetInstallments, budgets } from '@/lib/db/schema'
