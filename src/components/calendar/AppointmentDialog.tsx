@@ -122,6 +122,46 @@ export function AppointmentDialog() {
     }
   }, [form.procedureId, procedures])
 
+  const isCreate = dialog.mode === 'create'
+  const editId = !isCreate ? dialog.eventId : undefined
+
+  // Edit mode: load the existing appointment and pre-fill the form (read-only
+  // GET — no mutation). Create mode keeps slot/prefill behavior unchanged.
+  useEffect(() => {
+    if (!dialog.open || dialog.mode !== 'edit' || !dialog.eventId) return
+    let cancelled = false
+    const load = async () => {
+      try {
+        const res = await fetch(`/api/appointments/${dialog.eventId}`)
+        if (!res.ok) return
+        const json = await res.json().catch(() => ({}))
+        const appt = json?.data?.appointment ?? json?.appointment
+        if (!appt || cancelled) return
+        const scheduled = appt.scheduledAt ? new Date(appt.scheduledAt) : null
+        setForm((prev) => ({
+          ...prev,
+          patientName: appt.patient?.name ?? prev.patientName,
+          patientPhone: appt.patient?.phone ?? prev.patientPhone,
+          dentistId: appt.dentistId ?? appt.dentist?.id ?? prev.dentistId,
+          procedureId: appt.procedureId ?? appt.procedure?.id ?? prev.procedureId,
+          date: scheduled
+            ? `${scheduled.getFullYear()}-${String(scheduled.getMonth() + 1).padStart(2, '0')}-${String(scheduled.getDate()).padStart(2, '0')}`
+            : prev.date,
+          hour: scheduled ? String(scheduled.getHours()).padStart(2, '0') : prev.hour,
+          minute: scheduled ? String(scheduled.getMinutes()).padStart(2, '0') : prev.minute,
+          duration: appt.durationMinutes ?? prev.duration,
+          notes: appt.notes ?? prev.notes,
+        }))
+      } catch {
+        // Keep the empty form; save-time errors will surface to the user.
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [dialog])
+
   const handleSave = useCallback(async () => {
     if (!clinicId || !form.patientName || !form.date) return
 
@@ -162,18 +202,33 @@ export function AppointmentDialog() {
 
       if (!patientId) throw new Error('Failed to create/find patient')
 
-      // Create appointment — handle 409/500 without closing modal
-      const apptRes = await fetch('/api/appointments', {
-        method: 'POST',
+      // Save appointment — edit mode updates in place via PUT (never POSTs a
+      // duplicate); create mode POSTs to the collection. Handle 409/500
+      // without closing modal.
+      // PUT schema (atualizarConsulta) is camelCase; POST collection is snake_case.
+      const isEdit = !isCreate && !!editId
+      const apptRes = await fetch(isEdit ? `/api/appointments/${editId}` : '/api/appointments', {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          patient_id: patientId,
-          dentist_id: form.dentistId || undefined,
-          procedure_id: form.procedureId || undefined,
-          scheduled_at: scheduledAt.toISOString(),
-          duration_minutes: form.duration,
-          notes: form.notes || undefined,
-        }),
+        body: JSON.stringify(
+          isEdit
+            ? {
+                patientId,
+                dentistId: form.dentistId || null,
+                procedureId: form.procedureId || null,
+                scheduledAt: scheduledAt.toISOString(),
+                durationMinutes: form.duration,
+                notes: form.notes || null,
+              }
+            : {
+                patient_id: patientId,
+                dentist_id: form.dentistId || undefined,
+                procedure_id: form.procedureId || undefined,
+                scheduled_at: scheduledAt.toISOString(),
+                duration_minutes: form.duration,
+                notes: form.notes || undefined,
+              },
+        ),
       })
       const apptJson = await apptRes.json().catch(() => ({}))
       if (!apptRes.ok) {
@@ -192,11 +247,11 @@ export function AppointmentDialog() {
       // (status/data selecionados no ListView) não está disponível neste dialog.
       // SYN-CACHE-003: chaves de agendamento por paciente não adotadas sem
       // evidência medida de refetch — escopo por clínica é suficiente.
-      const createdId = apptJson?.data?.appointment?.id ?? apptJson?.appointment?.id
+      const createdId = apptJson?.data?.appointment?.id ?? apptJson?.appointment?.id ?? (isEdit ? editId : undefined)
       invalidateAppointmentChanged(queryClient, clinicId, createdId, form.date)
       toast({
-        title: 'Agendamento criado',
-        description: 'Consulta agendada com sucesso.',
+        title: isEdit ? 'Agendamento atualizado' : 'Agendamento criado',
+        description: isEdit ? 'Consulta atualizada com sucesso.' : 'Consulta agendada com sucesso.',
       })
       closeDialog()
     } catch (err: any) {
@@ -215,9 +270,7 @@ export function AppointmentDialog() {
     } finally {
       setSaving(false)
     }
-  }, [form, clinicId, closeDialog, toast, queryClient])
-
-  const isCreate = dialog.mode === 'create'
+  }, [form, clinicId, closeDialog, toast, queryClient, isCreate, editId])
 
   return (
     <Dialog open={dialog.open && (dialog.mode === 'create' || dialog.mode === 'edit')} onOpenChange={(open) => !open && closeDialog()}>
