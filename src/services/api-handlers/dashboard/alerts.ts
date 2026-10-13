@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { eq, and, gte, lt, desc, sql, isNull } from 'drizzle-orm'
 import { validateApiAuth } from '@/lib/auth/session'
 import { apiSuccess, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response'
+import { dbLogger } from '@/lib/logger'
 import { getDb } from '@/lib/db/client'
 import { conversations, appointments, patients } from '@/lib/db/schema'
 import { getIncompleteTreatmentAlerts } from '@/services/appointments/incomplete-treatment.service'
@@ -103,9 +104,18 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // 4. Unconverted budgets
-    const budgets = await findUnconvertedBudgets(clinicId)
-    for (const b of budgets.slice(0, 5)) {
+    // 4. Unconverted budgets — fail-closed (padrão stats.ts): falha de DB
+    // resolve para seção desconhecida (stale), nunca para lista vazia
+    // fabricada que apagaria o alerta silenciosamente.
+    let budgets: Awaited<ReturnType<typeof findUnconvertedBudgets>> | null = null
+    let budgetsStale = false
+    try {
+      budgets = await findUnconvertedBudgets(clinicId)
+    } catch (err) {
+      dbLogger.error('Dashboard alerts: unconvertedBudgets failed', { error: String(err) })
+      budgetsStale = true
+    }
+    for (const b of (budgets ?? []).slice(0, 5)) {
       alerts.push({
         id: `bf-${b.id}`,
         type: 'budget_followup',
@@ -203,6 +213,11 @@ export async function GET(request: NextRequest) {
         messagesThisWeek: thisWeekMsgs,
         messageChangePercent: messageChange,
       },
+      // Fail-closed: seção budgets desconhecida por falha técnica (stale),
+      // nunca vazia de forma legítima. Demais seções que falham caem no
+      // catch global (500) — nenhum zero fabricado chega ao cliente.
+      degraded: budgetsStale,
+      failedParts: budgetsStale ? ['unconvertedBudgets'] : [],
     })
   } catch (error) {
     return apiFailure('INTERNAL_ERROR', 'Internal server error', requestId, 500)

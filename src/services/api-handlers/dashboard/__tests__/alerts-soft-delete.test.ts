@@ -198,4 +198,17 @@ describe('GET /api/dashboard/alerts — soft-delete exclusion', () => {
       expect(w.params).toContain(CLINIC)
     }
   })
+
+  it('flags degraded (never silenced) when budget lookup fails', async () => {
+    ;(findUnconvertedBudgets as jest.Mock).mockRejectedValueOnce(new Error('db down'))
+    const res = await GET({ url: 'http://localhost/api/dashboard/alerts' } as any)
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.data.degraded).toBe(true)
+    expect(body.data.failedParts).toContain('unconvertedBudgets')
+    // nenhum alerta bf- fabricado nem ausência silenciosa sem sinalização
+    expect(
+      (body.data.alerts as Array<{ id: string }>).some((a) => a.id.startsWith('bf-')),
+    ).toBe(false)
+  })
 })
