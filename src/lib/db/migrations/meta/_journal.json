@@ -260,6 +260,13 @@
       "when": 1791912748213,
       "tag": "0037_ai_observe_ingest",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791917584605,
+      "tag": "0038_ai_observe_prepare",
+      "breakpoints": true
     }
   ]
 }

@@ -83,7 +83,7 @@ describe('health/db (ledger de migrations, sanitizado)', () => {
     expect(b.data).not.toHaveProperty('migrations_applied')
   })
 
-  it('ledger À FRENTE do journal (37 vs 36) não é complete', async () => {
+  it('ledger À FRENTE do journal (expected+1) não é complete', async () => {
     mdb.execute.mockResolvedValue({ rows: [{
       count: EXPECTED_MIGRATIONS + 1,
       control_table: true,
