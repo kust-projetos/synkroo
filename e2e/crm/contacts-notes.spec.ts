@@ -19,8 +19,10 @@ async function openContact(page: Page): Promise<void> {
 t.describe('CRM Contacts - Notes and Timeline', () => {
   t.beforeEach(async ({ page }) => {
     await page.goto('/dashboard/contatos', { waitUntil: 'domcontentloaded' })
-    // Gate determinístico: lista renderizada (sem networkidle — polling/websocket nunca estabiliza).
-    await expect(page.getByTestId('contact-list')).toBeVisible({ timeout: 15000 })
+    // Gate determinístico: painel da lista renderizado (sem networkidle).
+    // O Panel desktop do react-resizable-panels expõe data-testid="list"
+    // (o id do painel); "contact-list" só existe no container mobile.
+    await expect(page.getByTestId('list')).toBeVisible({ timeout: 15000 })
   })
 
   t('renders contact detail panel', async ({ page }) => {

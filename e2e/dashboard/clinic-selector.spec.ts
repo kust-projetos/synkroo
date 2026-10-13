@@ -22,7 +22,10 @@ t.describe('ClinicSelector multi-clínica (#61 / F4.09)', () => {
   })
 
   t('exibe data-testid="clinic-selector" com sessão multi-clínica', async ({ page }) => {
-    await expect(page.getByTestId('clinic-selector')).toBeVisible({ timeout: 15_000 })
-    await expect(page.getByTestId('clinic-selector-trigger')).toBeVisible()
+    // O layout monta o seletor nos headers mobile e desktop (2 elementos);
+    // ao menos um está visível em qualquer viewport com sessão multi-clínica.
+    await expect(page.getByTestId('clinic-selector')).toHaveCount(2)
+    await expect(page.locator('[data-testid="clinic-selector"]:visible')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('[data-testid="clinic-selector-trigger"]:visible')).toBeVisible()
   })
 })
