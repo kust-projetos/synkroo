@@ -121,6 +121,11 @@ async function handlePOST(_request: NextRequest): Promise<NextResponse> {
     const status = errorCodeToStatus[detectResult.error.code] ?? 500;
     return NextResponse.json({ error: detectResult.error.message }, { status });
   }
+  // A detecção encapsula falhas de negócio em data (ok:true com
+  // success:false/status partial): incorporá-las ao desfecho para não
+  // mascarar a etapa de tags como sucesso total.
+  const detection = detectResult.data;
+  const detectionFailed = detection.failed ?? 0;
 
   // 3. Paginate listarInativos (schema max limit=100)
   type PatientItem = Awaited<ReturnType<typeof listarInativos.handler>>['patients'][number];
@@ -167,15 +172,17 @@ async function handlePOST(_request: NextRequest): Promise<NextResponse> {
     updated++;
   }
 
-  // Fail-closed: sucesso só quando nenhuma reativação falhou; falha
-  // parcial é sinalizada explicitamente (nunca success:true mascarado).
-  const errors = skipped;
+  // Fail-closed: sucesso só quando nenhuma etapa falhou (detecção de
+  // tags + reativações); falha parcial é sinalizada explicitamente
+  // (nunca success:true mascarado) com contagens por etapa.
+  const errors = skipped + detectionFailed;
   return NextResponse.json({
     success: errors === 0,
     updated,
     errors,
     skipped,
     ...(errors > 0 ? { partial: true } : {}),
+    detection: { status: detection.status, failed: detectionFailed },
   });
 }
 

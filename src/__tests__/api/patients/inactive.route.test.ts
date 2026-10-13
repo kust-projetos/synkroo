@@ -348,4 +348,30 @@ describe('POST /api/patients/inactive (fail-closed)', () => {
     expect(body.skipped).toBe(1);
     expect(body.partial).toBe(true);
   });
+
+  it('returns success:false + partial:true when detection tags fail but reactivation succeeds', async () => {
+    // detectarInativos encapsula falha de negócio em data (ok:true +
+    // success:false): a rota não pode mascará-la como sucesso total.
+    mockDetectarInativosHandler.mockResolvedValue({
+      processed: 0,
+      failed: 1,
+      errors: ['Patient 123e4567-e89b-12d3-a456-426614174000: db down'],
+      success: false,
+      status: 'partial',
+    });
+    mockListarInativosHandler.mockResolvedValue({
+      patients: [mockPatient()],
+      pagination: { page: 1, limit: 100, total: 1, totalPages: 1 },
+    });
+
+    const res = await POST(makeReq('/api/patients/inactive', 'POST'));
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(false);
+    expect(body.updated).toBe(1);
+    expect(body.errors).toBe(1);
+    expect(body.partial).toBe(true);
+    expect(body.detection).toEqual({ status: 'partial', failed: 1 });
+  });
 });
