@@ -253,6 +253,13 @@
       "when": 1791575691758,
       "tag": "0036_outbox_claim_generation",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791912748213,
+      "tag": "0037_ai_observe_ingest",
+      "breakpoints": true
     }
   ]
 }

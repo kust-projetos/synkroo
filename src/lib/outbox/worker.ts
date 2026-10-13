@@ -5,6 +5,7 @@ import { dispatchCampaignRecipientJob, markCampaignRecipientDeadLetter } from '@
 import { dispatchInboundMessageJob } from '@/modules/atendimento/services/dispatch-inbound-message';
 import { dispatchOutboundMessageJob } from '@/modules/atendimento/services/dispatch-outbound-message';
 import { dispatchContactChangedJob } from '@/modules/crm/services/dispatch-contact-changed-job';
+import { dispatchAiControlRecommendJob } from '@/modules/ia/services/dispatch-ai-control-recommend';
 import { OUTBOX_OPERATIONS, type OutboxOperation } from './operations';
 
 type OutboxHandlerDefinition = {
@@ -26,6 +27,8 @@ const HANDLERS: OutboxHandlerDefinition[] = [
   { operation: OUTBOX_OPERATIONS.ATENDIMENTO_INBOUND_MESSAGE, moduleId: 'atendimento', handle: dispatchInboundMessageJob },
   { operation: OUTBOX_OPERATIONS.ATENDIMENTO_OUTBOUND_MESSAGE, moduleId: 'atendimento', handle: dispatchOutboundMessageJob },
   { operation: OUTBOX_OPERATIONS.CRM_CONTACT_CHANGED, moduleId: 'crm', handle: dispatchContactChangedJob },
+  // P4 Slice 1A — OBSERVE: ingestão durável sem efeitos (sem LLM/RAG/envio).
+  { operation: OUTBOX_OPERATIONS.AI_CONTROL_RECOMMEND, moduleId: 'ia', handle: dispatchAiControlRecommendJob },
 ];
 
 const handlerMap = new Map(HANDLERS.map((h) => [h.operation, h]));
