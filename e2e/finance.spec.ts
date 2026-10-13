@@ -6,7 +6,9 @@ test.describe('Financeiro smoke', () => {
     await page.waitForLoadState('networkidle')
 
     await expect(page).toHaveURL(/\/dashboard\/financeiro/)
-    await expect(page.getByText('Financeiro')).toBeVisible()
+    // heading (não getByText: 'Financeiro' casa também o link do sidebar →
+    // strict violation dependendo da hidratação; flake comprovado por snapshot).
+    await expect(page.getByRole('heading', { name: 'Financeiro' })).toBeVisible()
     await expect(page.getByText('Gestão de orçamentos, pagamentos e cobranças')).toBeVisible()
 
     await expect(page.getByRole('tab', { name: 'Orçamentos' })).toBeVisible()
