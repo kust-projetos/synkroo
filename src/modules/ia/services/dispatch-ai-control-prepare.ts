@@ -118,7 +118,9 @@ const AiControlProposalSchema = z.object({
   next_step: z.string().min(1),
   sources: z.array(z.object({
     id: z.string().min(1),
-    title: z.string(),
+    // Título derivado de `question || category`: nunca vazio — fonte sem
+    // título válido não vira plano (`failed` + OUTPUT_INVALID).
+    title: z.string().min(1),
   })),
 });
 
@@ -238,18 +240,32 @@ export async function dispatchAiControlPrepareJob(
   // Throw aqui = falha de infra → propaga para retry com backoff.
   const ragResults = await searchFn(clinicId, query);
 
-  // Proposta determinística (template, sem LLM). `ragResults` fora do
-  // contrato (não-array) ou fonte sem `id` NÃO valida → `failed`, nunca plano.
+  // Proposta determinística (template, sem LLM). Contrato das fontes
+  // validado ANTES de normalizar — sem coerção silenciosa: cada fonte
+  // precisa `id` string não-vazia e `question`/`category` strings (tipos
+  // válidos conforme `SearchResult`). Qualquer fonte inválida (tipo errado,
+  // `id` vazio, não-objeto) → `failed` + OUTPUT_INVALID, nunca plano.
   const rawSources = Array.isArray(ragResults) ? ragResults : null;
-  const proposal: unknown = rawSources === null ? { next_step: '', sources: [{ id: '', title: '' }] } : {
-    next_step: `Observar ${event.type} (${event.subjectType})${interlocutorContext ? ` para ${interlocutorContext}` : ''} com ${rawSources.length} fonte(s) de conhecimento${history.length ? ` e ${history.length} mensagem(ns) de contexto` : ''}.`,
-    sources: rawSources.map((r) => {
-      const rec = (r ?? {}) as Record<string, unknown>;
-      const id = typeof rec.id === 'string' ? rec.id : '';
-      const question = typeof rec.question === 'string' ? rec.question : '';
-      const category = typeof rec.category === 'string' ? rec.category : '';
-      return { id, title: question || category };
-    }),
+  let sourcesInvalid = rawSources === null;
+  const normalizedSources: Array<{ id: string; title: string }> = [];
+  if (rawSources !== null) {
+    for (const r of rawSources) {
+      if (typeof r !== 'object' || r === null || Array.isArray(r)) {
+        sourcesInvalid = true;
+        break;
+      }
+      const rec = r as Record<string, unknown>;
+      const { id, question, category } = rec;
+      if (!isNonEmptyString(id) || typeof question !== 'string' || typeof category !== 'string') {
+        sourcesInvalid = true;
+        break;
+      }
+      normalizedSources.push({ id, title: question || category });
+    }
+  }
+  const proposal: unknown = sourcesInvalid ? { next_step: '', sources: [{ id: '', title: '' }] } : {
+    next_step: `Observar ${event.type} (${event.subjectType})${interlocutorContext ? ` para ${interlocutorContext}` : ''} com ${rawSources!.length} fonte(s) de conhecimento${history.length ? ` e ${history.length} mensagem(ns) de contexto` : ''}.`,
+    sources: normalizedSources,
   };
   const parsed = AiControlProposalSchema.safeParse(proposal);
   if (!parsed.success) {

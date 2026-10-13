@@ -209,6 +209,18 @@ describe('dispatchAiControlPrepareJob (consumidor 1B)', () => {
     expect(tx.run.sources).toBeNull();
   });
 
+  it('fonte com tipos inválidos (question/category fora do contrato) nunca vira plano', async () => {
+    const { deps, searchFn } = baseDeps();
+    searchFn.mockResolvedValueOnce([{ id: 'k1', question: 42, category: {} }]);
+    const hook = await dispatchAiControlPrepareJob(job(CLINIC_A, preparePayload()), deps);
+    const tx = statefulTx();
+    await (hook as (t: unknown) => Promise<void>)(tx);
+    expect(tx.run.status).toBe('failed');
+    expect(tx.run.errorCode).toBe(AI_CONTROL_PREPARE_OUTPUT_INVALID_CODE);
+    expect(tx.run.result).toBeNull();
+    expect(tx.run.sources).toBeNull();
+  });
+
   it('RAG fora do contrato (não-array) também é saída inválida', async () => {
     const { deps, searchFn } = baseDeps();
     searchFn.mockResolvedValueOnce(null);
