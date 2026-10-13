@@ -27,6 +27,7 @@ function seed(...s: any[][]) { counter = 0; results = s }
 beforeEach(() => { counter = 0; results = []; jest.clearAllMocks() })
 
 import { searchContacts, getContactById, createContact, getContactNotes, addContactNote } from '../contacts.service'
+import { getDb } from '@/lib/db/client'
 
 const mkPatient = (over: any = {}) => ({ id: 'p1', clinicId: 'c1', name: 'João', phone: '119', email: null, cpf: null, birthDate: null, tags: [], status: 'active', notes: null, createdAt: new Date(), updatedAt: new Date(), ...over })
 const mkLead = (over: any = {}) => ({ id: 'l1', clinicId: 'c1', name: 'Maria', phone: '119', email: null, source: null, interest: null, tags: [], status: 'new', stageId: null, score: null, temperature: null, patientId: null, notes: null, createdAt: new Date(), updatedAt: new Date(), ...over })
@@ -40,6 +41,7 @@ describe('Contacts Service', () => {
   describe('getContactById', () => {
     it('gets patient', async () => { seed([mkPatient()]); const r = await getContactById('c1', 'p1', 'patient'); expect(r?.name).toBe('João') })
     it('returns null for missing', async () => { seed([]); const r = await getContactById('c1', 'x', 'patient'); expect(r).toBeNull() })
+    it('throws on DB error instead of masking with null (fail-closed)', async () => { (getDb() as any).select.mockImplementationOnce(() => { throw new Error('db down') }); await expect(getContactById('c1', 'p1', 'patient')).rejects.toThrow('db down') })
   })
   describe('createContact', () => {
     it('creates patient', async () => { seed([mkPatient()]); const r = await createContact('c1', { type: 'patient', name: 'João', phone: '119' } as any); expect(r.name).toBe('João') })
