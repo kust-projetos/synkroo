@@ -1,6 +1,8 @@
 # Product Requirements Document (PRD)
 # Clínica AI Platform
 
+> **Nota 2026-10-05 (P0 vNext):** documento **histórico** de requirements. Dependências e runtime citados (`@anthropic-ai/sdk`, `claude-agent-sdk`, "Claude Sonnet 4 + claude-agent-sdk") **não refletem a stack real** — multi-provider em `src/lib/llm/` + agente em `src/core/ia-agent/`, PostgreSQL/Drizzle (Supabase removido). Requisitos vigentes: spec canônica 2026-07-28; direção futura: spec vNext 2026-10-05.
+
 **Versão:** 3.0 - Full Vision Edition
 **Data:** 2026-03-23
 **Autor:** BMAD Master (com John - PM Agent)

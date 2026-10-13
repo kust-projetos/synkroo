@@ -163,31 +163,15 @@ export async function getProcedureTypes(
   }
 }
 
-// -- Validation ------------------------------------------------------------
+// -- Validation (canônica em @/lib/templates/reminder-template; aqui só delega) --
 
-export function validateTemplate(template: string): { valid: boolean; errors: string[] } {
-  const errors: string[] = []
-
-  const placeholderRegex = /\{\{(\w+)\}\}/g
-  const matches = template.match(placeholderRegex) || []
-  const placeholders = matches.map((m) => m.replace(/\{\{|\}\}/g, ''))
-
-  const validPattern = /^[a-zA-Z0-9_]+$/
-  for (const ph of placeholders) {
-    if (!ph.match(validPattern)) {
-      errors.push(`Placeholder inválido: {{${ph}}}`)
-    }
-  }
-
-  const supportedPlaceholders = ['paciente_nome', 'data', 'horario', 'dentista', 'procedimento']
-  for (const ph of placeholders) {
-    if (!supportedPlaceholders.includes(ph)) {
-      errors.push(`Placeholder não suportado: {{${ph}}}. Use: ${supportedPlaceholders.join(', ')}`)
-    }
-  }
-
-  return { valid: errors.length === 0, errors }
-}
+export {
+  validateTemplate,
+  SUPPORTED_TEMPLATE_PLACEHOLDERS,
+  REQUIRED_TEMPLATE_PLACEHOLDERS,
+  TEMPLATE_MAX_LENGTH,
+} from '@/lib/templates/reminder-template';
+export type { TemplateValidation } from '@/lib/templates/reminder-template';
 
 export function replacePlaceholders(
   template: string,

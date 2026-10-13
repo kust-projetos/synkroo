@@ -9,7 +9,7 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 | Framework | Next.js 15 (App Router) + React 19 + TypeScript 5.6 |
 | DB | PostgreSQL via Drizzle ORM + `pg` (Supabase removido — ver roadmap-mestre) |
 | Auth | NextAuth/Auth.js (JWT, edge middleware) |
-| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive + Vectorize — em migração |
+| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive — em migração (vector store único: pgvector, ADR-BASE-04) |
 | Workers auxiliares | `src/workers/ia-agent` (Cloudflare Agents SDK / Agent DO) + `src/workers/ia-bridge` |
 | State | Zustand 5 (local) + TanStack Query 5 (server) |
 | UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
@@ -60,8 +60,8 @@ SaaS odontológico: agendamento, CRM/leads, campanhas, analytics, WhatsApp bot, 
 ```
 src/
 ├── app/
-│   ├── api/          # 36 módulos de API (192 arquivos de rotas/handlers)
-│   ├── dashboard/    # 17 páginas protegidas
+│   ├── api/          # 36 módulos de API (144 route.ts + 26 shims strangler _handler.ts)
+│   ├── dashboard/    # 36 páginas protegidas (36 rotas)
 │   ├── login/        # Auth pages
 │   └── signup/
 ├── components/       # UI por 12 domínios (calendar, campaigns, charts, contacts, financeiro, lgpd, notifications, pi-finance, pipeline, reports, ui, whatsapp)
@@ -72,13 +72,14 @@ src/
 │   ├── validations/  # 11 Zod schemas por domínio
 │   ├── auth/         # Auth context (NextAuth)
 │   └── env.ts        # Validação de env vars (fail-fast em prod)
-├── modules/          # Arquitetura modular por bounded contexts
+├── modules/          # Arquitetura modular por bounded contexts (8)
 │   ├── atendimento/  # Mensageria, WhatsApp, Instagram, canais
 │   ├── comercial/    # Pipeline, leads, conversão, tasks
 │   ├── core/         # RBAC, tenant context, access, roles
 │   ├── crm/          # Contatos, notas, merge, dedup
 │   ├── financeiro/   # Orçamentos, cobranças, gateways, regras
 │   ├── followup/     # Inativos, campanhas de retenção
+│   ├── ia/           # Manifest/schema do agente (iaActions = []; agente em src/core/ia-agent)
 │   └── operacional/  # Consultas, dentistas, procedimentos, waitlist
 ├── repositories/     # Data access layer (Drizzle ORM)
 ├── services/         # 16 domínios de lógica de negócio (analytics, api-handlers, appointments, budgets, contacts, custom-fields, followup, installments, leads, patients, payments, pipeline, reminders, reports, treatment-plans, waitlist)
@@ -97,43 +98,46 @@ src/
 - **DB types:** `src/lib/db/types.ts` (inferidos do schema Drizzle; fonte: `src/lib/db/schema/*`)
 
 ## API Modules (36 módulos)
+
+> **Corrigido 2026-10-05 (P0 vNext):** a tabela anterior listava 8 módulos que não existem como diretórios (`agent`, `gateway`, `installments`, `notifications`, `payments`, `roles`, `routing`, `users`). RBAC é action-layer server-side; cobranças/parcelas vivem em `/api/financeiro/*`; o chat do agente é `/api/ia/chat`. Inventário completo: `docs/audit/2026-10-05-vnext-p0-capability-inventory.md`.
+
 | Módulo | Caminho | Descrição |
 |---|---|---|
-| Agent | `/api/agent/*` | Classificação, mensagens, pending actions, schedule flow |
+| Activities | `/api/activities` | Feed de atividades (timeline unificada) |
+| Admin | `/api/admin/*` | Provisionamento de cliente e run-migration (operador) |
 | Appointments | `/api/appointments/*` | CRUD, disponibilidade, confirmação, incomplete treatments |
-| Auth | `/api/auth/*` | Login, logout, signup, session, switch clinic |
-| Budgets | `/api/budgets/*` | Orçamentos, aceitação, follow-up, envio |
+| Auth | `/api/auth/*` | Login (NextAuth), logout, session, switch clinic, change-password |
+| Budgets | `/api/budgets/*` | Strangler legado de orçamentos (sem consumidor de UI — drenar) |
 | Campaigns | `/api/campaigns/*` | Campanhas, segmentação, preview |
 | Clinics | `/api/clinics/*` | Configurações da clínica e metadados |
-| Contacts | `/api/contacts/*` | CRM contatos e linha do tempo |
+| Consents | `/api/consents` | Consentimento LGPD |
+| Contacts | `/api/contacts/*` | CRM contatos (read-only por contrato), timeline, notas, tags, dedup/merge |
 | Conversations | `/api/conversations/*` | Chat conversas e mensagens |
-| Cron | `/api/cron/*` | Jobs: cleanup, followups, reminders, smart-triggers (CRON_SECRET + timingSafeEqual) |
+| Cron | `/api/cron/*` | Jobs: cleanup, followups, reminders, outbox, collections, hot-leads (CRON_SECRET + timingSafeEqual) |
 | CRM | `/api/crm/*` | Estatísticas de CRM e duplicidades |
+| Custom Fields | `/api/custom-fields/*` | Definições e valores de campos customizados |
 | Dashboard | `/api/dashboard/*` | Métricas, alertas e estatísticas |
 | Dentists | `/api/dentists/*` | Gestão de dentistas e agendas |
-| Financial | `/api/financial/*` | Resumo financeiro e fluxo de caixa |
-| Gateway | `/api/gateway/*` | Configuração de gateways de pagamento |
+| Financeiro | `/api/financeiro/*` | Orçamentos, parcelas, pagamentos, cobranças, gateways, webhooks |
 | Health | `/api/health/*` | Health checks de aplicação e banco |
-| Installments | `/api/installments/*` | Parcelamentos e conciliação |
+| IA | `/api/ia/*` | Chat do agente conversacional (ex-`/api/agent`) |
+| Instagram | `/api/instagram/*` | Webhook Meta (HMAC) para Instagram |
+| Internal | `/api/internal/*` | Readiness interno (workers/bridge) |
 | Knowledge | `/api/knowledge/*` | Base de conhecimento e RAG |
 | Leads | `/api/leads/*` | CRM leads, captura, qualificação, conversão |
 | LGPD | `/api/lgpd/*` | Exportação de dados e anonimização |
 | Messages | `/api/messages/*` | Inbound (WEBHOOK_SECRET), send (rate-limited), history |
-| Notifications | `/api/notifications/*` | Central de notificações e alertas |
 | Patients | `/api/patients/*` | Gestão pacientes, dedup, histórico, tags |
-| Payments | `/api/payments/*` | Processamento e webhook de pagamentos |
 | Pipeline | `/api/pipeline/*` | Funil de vendas e etapas |
 | Procedures | `/api/procedures/*` | Catálogo de procedimentos odontológicos |
-| Reminders | `/api/reminders/*` | Lembretes e confirmações automáticas |
+| Reminders | `/api/reminders/*` | Config de lembretes e confirmações automáticas |
 | Reports | `/api/reports/*` | Relatórios gerenciais e exportações |
-| Roles | `/api/roles/*` | Gestão de perfis e permissões RBAC |
-| Routing | `/api/routing/*` | Regras de roteamento de cobrança |
 | Seed | `/api/seed/*` | Endpoint de seed de ambiente local |
 | Tasks | `/api/tasks/*` | Tarefas e follow-ups |
 | Treatment Plans | `/api/treatment-plans/*` | Planos de tratamento e sessões |
-| Users | `/api/users/*` | Usuários da clínica e acessos |
 | Waitlist | `/api/waitlist/*` | Lista de espera inteligente |
 | WhatsApp | `/api/whatsapp/*` | Webhook, send, evolution, templates, QR |
+| Widget | `/api/widget/*` | Chat widget público (session token, origem allowlist) |
 | Analytics | `/api/analytics/*` | Métricas, no-show prediction, ROI |
 
 ## Env vars obrigatórias
@@ -165,6 +169,7 @@ src/
 ## Direção da Stack & Roadmap
 - Stack real: Drizzle ORM + `pg` + NextAuth + Cloudflare Workers (OpenNext) + Workers Auxiliares (`ia-agent`, `ia-bridge`).
 - Fonte de verdade: `docs/superpowers/specs/2026-06-17-produto-base-modular-cloudflare-roadmap-design.md`.
+- vNext (AI-native Business OS): spec `docs/superpowers/specs/2026-10-05-synkroo-vnext-ai-native-business-os-design.md` + plano `docs/superpowers/plans/2026-10-05-synkroo-vnext-ai-native-business-os-implementation.md`; inventário canônico P0 em `docs/inventory/` (Actions/catálogo, runtime, duplicação services×modules) e ADR-BASE-18 (AI Control Plane).
 - Roadmap 143: Ledger rigoroso de 143 itens (`records=143 unique=143 VERIFIED=126 DEFERRED=3 EXTERNAL=14`, pós-2026-08-26) — estado canônico em `docs/goals/roadmap-143-resume.md`, autoridade via `npm run roadmap:check`.
 - Supabase removido; migrations convertidas para Drizzle em `src/lib/db/schema/`.
 - Hardening V2 (2026-09-17): 20 commits (`73754a9..cc49648d`) — cache invalidation central, suíte negativa cross-tenant (gate de CI), idempotência com fingerprint/result_ref (migrations 0032-0033), precisão monetária em centavos, SHA-pinning de Actions + Dependabot + job migrations-from-zero, redaction LGPD exportada do logger, rate limiting nos gaps, evals IA offline, inventário LGPD, runbooks DR. Baseline: `docs/audit/hardening-v2-baseline.md`; relatório: `docs/audit/hardening2-progress-report.md`; pendências runtime: `docs/ops/cloudflare-runtime-checklist.md`.
@@ -176,8 +181,9 @@ src/
 - **Contrato de API (D2 — fechado 2026-09-14):** envelope canônico completo (`src/services/api-handlers/**` + waitlist/appointments/patients/cron/knowledge/widget); helper `apiRateLimited` em `src/lib/api/response.ts` (429 com `Retry-After` só em header); exceções deliberadas (liveness, probe cleanup, seed, budgets strangler, webhooks instagram/inbound) e remoção do shim `is_active` no `ADR-BASE-10`. 404 opaco em `dentists/[id]`/`procedures/[id]` fechado 2026-09-25 (`catalog-service` lança `not_found`; páginas alinhadas ao envelope `{data}`).
 - **Boundaries (F3 + R4 — fechados 2026-09-14):** `eslint-plugin-boundaries` v6 é a autoridade efetiva do gate `services → modules` (resolver `eslint-import-resolver-typescript`, allowlist de seams `index.ts`/`public.ts`/`schema/**`, isenção de testes; config em `eslint.config.mjs`, fonte única). Antigo `no-restricted-imports` de services e config morta removidos. Probes estático+dynamic em `scripts/__tests__/eslint-config.test.mjs`. `boundaries/dependencies` do compat ainda cobre `modules → modules` — unificar no bloco nativo é opcional. União discriminada em `checkRateLimit` concluída 2026-09-25 (`RateLimitAllowed | RateLimitBlocked`).
 - **Frontend (G1 — fechado 2026-09-14; residuais reauditados 2026-09-25):** 8 refinos de invalidação (contactId no composer, calendário por faixa com validação estrita de data e fallback conservador, key de payments unificada em `queryKeys.budgetPayments`, treatment-plans com keys exatas, consent no hook, derivados `financeDashboard`/`contacts`/`financial-summary`). Reauditoria 2026-09-25: RescheduleDialog JÁ invalida appointments (helper `invalidateAppointmentChanged`) e `useUpdateSession` JÁ usa `patient_id` server-derived — débitos fantasmas removidos. Único residual real: AppointmentDialog não tem branch de edição (invalidação por data já cobre create via `form.date`).
-- **Residuais API menores (fechados 2026-09-25):** `auth/change-password` já usa `checkRateLimit`+`apiRateLimited` (sem `X-RateLimit-*`); `handleApiError`/`RateLimitError` removidos de `src/lib/errors.ts` com mocks limpos. Rate-limit gaps fechados: `cron/outbox`, `cron/financeiro-collections`, `cron/hot-leads`, `lgpd/anonymize`, `[...nextauth]` (POST-only, preset 60/min). Débito consciente mantido: limiter in-memory por instância + identidade via headers de borda (contrato Cloudflare) — limiter distribuído DO/KV permanece com gatilho documentado. Floats legados drenados 2026-09-25 (reports/installments/payments/budgets/obter-dashboard/dispatch-charge-job → bigint centavos via seam `modules/financeiro/index`). Backups: `scripts/db-backup.mjs`/`db-restore.mjs` + runbook `docs/runbooks/database-recovery.md` §2.3; drill de restore EXECUTADO em 2026-09-25 (local + produção; evidências em `docs/runbooks/restore-tests/2026-09-25-local-drill.md` e `2026-09-25-prod-drill.md`); datapoint parcial de restore MEDIDO (local ~20s; prod <60s para 77 MiB; sem smoke/switch fim a fim) — RPO e RTO fim a fim NÃO medidos, A RATIFICAR pelo owner. Decisões do owner em 2026-09-25: rotação de secrets (F0.04/F0.07) CANCELADA; retenção LGPD DEFERIDA (implementação pós-fase de operação); go/no-go do piloto W12 segue PENDENTE (janela 2026-09-01 vencida).
+- **Residuais API menores (fechados 2026-09-25):** `auth/change-password` já usa `checkRateLimit`+`apiRateLimited` (sem `X-RateLimit-*`); `handleApiError`/`RateLimitError` removidos de `src/lib/errors.ts` com mocks limpos. Rate-limit gaps fechados: `cron/outbox`, `cron/financeiro-collections`, `cron/hot-leads`, `lgpd/anonymize`, `[...nextauth]` (POST-only, preset 60/min). Débito consciente mantido: limiter in-memory por instância + identidade via headers de borda (contrato Cloudflare) — limiter distribuído DO/KV permanece com gatilho documentado. Floats legados drenados 2026-09-25 (reports/installments/payments/budgets/obter-dashboard/dispatch-charge-job → bigint centavos via seam `modules/financeiro/index`). Backups: `scripts/db-backup.mjs`/`db-restore.mjs` + runbook `docs/runbooks/database-recovery.md` §2.3; drill de restore EXECUTADO em 2026-09-25 (local + produção; evidências em `docs/runbooks/restore-tests/2026-09-25-local-drill.md` e `2026-09-25-prod-drill.md`); datapoint parcial de restore MEDIDO (local ~20s; prod <60s para 77 MiB; sem smoke/switch fim a fim); drill local 2026-09-26 COMPLETO com alvo vivo + smoke 3/3 PASS e RTO fim-a-fim local MEDIDO ~114s (`docs/runbooks/restore-tests/2026-09-26-local-drill.md`) — pendem switch real em prod, drill mensal agendado e ratificação de RPO/RTO pelo owner. Decisões do owner em 2026-09-25: rotação de secrets (F0.04/F0.07) CANCELADA; retenção LGPD DEFERIDA (implementação pós-fase de operação); go/no-go do piloto W12 segue PENDENTE (janela 2026-09-01 vencida).
 
 ## VPS
 - Operação: `docs/ops/vps-access.md`.
-- Configuração privada: `../vps-hostinger/.env`; nunca copiar segredos para este repositório.
+- Scripts operacionais: definir `SYNKROO_VPS_ENV` para o caminho do `.env` privado fora deste repositório. Há apenas um fallback temporário e deprecated para `../vps-hostinger/.env`; nunca copiar segredos para este repositório.
+- Scripts mutadores (`migrate-vps.ts`, `update-hyperdrive.ts`, `setup-staging-db.ts`) aceitam `--side=source|target` (obrigatório) e `--dry-run` (plano sem mutação, sem secrets); escrita no `.env` é atômica com modo 0600; staging password nunca rotaciona em re-execução (probe + abort em inconsistência). P2: handoff de senha via stdin/env no wrangler, migração Contabo (NÃO declarar como concluída).

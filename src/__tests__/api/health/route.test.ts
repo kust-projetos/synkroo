@@ -21,11 +21,19 @@ beforeEach(() => {
   // Integração G4×F2: o mock "tudo aplicado" acompanha EXPECTED_MIGRATIONS
   // (31 após migration 0031) em vez de número fixo — nova migration não
   // quebra este teste; a sincronização com o journal é coberta pelo teste
-  // dedicado acima.
-  mdb.execute.mockResolvedValue({ rows: [{ count: EXPECTED_MIGRATIONS }] })
+  // dedicado acima. O gate de manutenção (0036 expandida) também vem no mock:
+  // shape dos objetos + linha singleton — sem eles o readiness falharia
+  // fechado por engano.
+  mdb.execute.mockResolvedValue({ rows: [{
+    count: EXPECTED_MIGRATIONS,
+    control_table: true,
+    gate_function: true,
+    gate_trigger: true,
+    claim_release_column: true,
+    control_row: true,
+  }] })
   mockGetDb.mockReturnValue(mdb)
 })
-
 describe('health (liveness puro)', () => {
   it('retorna ok sem tocar no banco', async () => {
     const r = await GET(new NextRequest('http://localhost'))
@@ -62,7 +70,7 @@ describe('health/db (ledger de migrations, sanitizado)', () => {
     expect(EXPECTED_MIGRATIONS).toBe(journal.entries.length)
   })
 
-  it('complete quando ledger aplicado >= esperado', async () => {
+  it('complete quando ledger aplicado == esperado (exato, nem a mais)', async () => {
     const r = await GET_DB(new NextRequest('http://localhost'))
     const b = await r.json()
     expect(r.status).toBe(200)
@@ -70,8 +78,79 @@ describe('health/db (ledger de migrations, sanitizado)', () => {
     expect(b.data.complete).toBe(true)
     expect(b.data.migrationsApplied).toBe(EXPECTED_MIGRATIONS)
     expect(b.data.migrationsExpected).toBe(EXPECTED_MIGRATIONS)
+    expect(b.data.maintenanceControl).toBe('present')
     expect(b.data).not.toHaveProperty('tables')
     expect(b.data).not.toHaveProperty('migrations_applied')
+  })
+
+  it('ledger À FRENTE do journal (37 vs 36) não é complete', async () => {
+    mdb.execute.mockResolvedValue({ rows: [{
+      count: EXPECTED_MIGRATIONS + 1,
+      control_table: true,
+      control_row: true,
+      gate_function: true,
+      gate_trigger: true,
+      claim_release_column: true,
+    }] })
+    const r = await GET_DB(new NextRequest('http://localhost'))
+    const b = await r.json()
+    expect(r.status).toBe(200)
+    expect(b.data.status).toBe('incomplete')
+    expect(b.data.complete).toBe(false)
+    expect(b.data.migrationsApplied).toBe(EXPECTED_MIGRATIONS + 1)
+    expect(b.data.maintenanceControl).toBe('present')
+  })
+
+  it('ledger cheio sem o shape do gate de manutenção (0036 original) NÃO é complete', async () => {
+    mdb.execute.mockResolvedValue({ rows: [{
+      count: EXPECTED_MIGRATIONS,
+      control_table: false,
+      control_row: false,
+      gate_function: false,
+      gate_trigger: false,
+      claim_release_column: false,
+    }] })
+    const r = await GET_DB(new NextRequest('http://localhost'))
+    const b = await r.json()
+    expect(r.status).toBe(200)
+    expect(b.data.status).toBe('incomplete')
+    expect(b.data.complete).toBe(false)
+    expect(b.data.migrationsApplied).toBe(EXPECTED_MIGRATIONS)
+    expect(b.data.maintenanceControl).toBe('missing')
+  })
+
+  it('shape presente SEM a linha singleton não é complete (gate sem estado)', async () => {
+    mdb.execute
+      .mockResolvedValueOnce({ rows: [{ count: EXPECTED_MIGRATIONS }] })
+      .mockResolvedValueOnce({ rows: [{
+        control_table: true,
+        gate_function: true,
+        gate_trigger: true,
+        claim_release_column: true,
+      }] })
+      .mockResolvedValueOnce({ rows: [{ control_row: false }] })
+    const r = await GET_DB(new NextRequest('http://localhost'))
+    const b = await r.json()
+    expect(r.status).toBe(200)
+    expect(b.data.status).toBe('incomplete')
+    expect(b.data.complete).toBe(false)
+    expect(b.data.maintenanceControl).toBe('missing')
+  })
+
+  it('shape presente com trigger DESABILITADO não é complete (objeto não decide)', async () => {
+    mdb.execute.mockResolvedValue({ rows: [{
+      count: EXPECTED_MIGRATIONS,
+      control_table: true,
+      control_row: true,
+      gate_function: true,
+      gate_trigger: false,
+      claim_release_column: true,
+    }] })
+    const r = await GET_DB(new NextRequest('http://localhost'))
+    const b = await r.json()
+    expect(r.status).toBe(200)
+    expect(b.data.maintenanceControl).toBe('missing')
+    expect(b.data.complete).toBe(false)
   })
 
   it('incomplete quando ledger aplicado < esperado, sem error.message', async () => {

@@ -13,6 +13,7 @@ import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';
 import { runAction } from '@/core/actions/run';
 import { detectarInativos, listarInativos, reativarPaciente } from '@/modules/followup/actions';
+import { getInactivityStats } from '@/services/followup/inactive-patient.service';
 
 const errorCodeToStatus: Record<string, number> = {
   unauthenticated: 401,
@@ -80,11 +81,22 @@ async function handleGET(request: NextRequest): Promise<NextResponse> {
     for (const p of patients) {
       bySegment[p.inactivitySegment] = (bySegment[p.inactivitySegment] || 0) + 1;
     }
+
+    // Receita em risco real (mesma fonte do dashboard, tenant-scoped).
+    // Estimativa cumulativa >=30d: count inativo x 2 visitas x valor medio.
+    let atRiskRevenue: number;
+    try {
+      atRiskRevenue = (await getInactivityStats(ctx.clinicId)).atRiskRevenue;
+    } catch {
+      // Fail-closed: erro de DB não pode ser reportado como receita-zero.
+      return NextResponse.json({ error: 'Failed to compute inactivity stats' }, { status: 500 });
+    }
+
     return NextResponse.json({
       stats: {
         totalInactive: patients.length,
         bySegment,
-        atRiskRevenue: 0,
+        atRiskRevenue,
       },
     });
   }

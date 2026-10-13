@@ -4,6 +4,12 @@ compatibility_date = "2026-06-23"
 compatibility_flags = ["nodejs_compat"]
 triggers = { crons = ["*/5 * * * *"] }
 
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+
+[observability]
+enabled = true
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
@@ -41,6 +47,7 @@ localConnectionString = "postgres://synkroo:change-me-local-dev-password@localho
 
 [vars]
 NODE_ENV = "production"
+CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates,followups,financeiro-collections"
 
 [env.staging]
 name = "synkroo-staging"
@@ -48,6 +55,10 @@ name = "synkroo-staging"
 [env.staging.vars]
 NODE_ENV = "production"
 ENVIRONMENT = "staging"
+CRON_JOBS_ENABLED = "cleanup,reminders,hot-leads,crm-duplicates,followups,financeiro-collections"
+
+[env.staging.version_metadata]
+binding = "CF_VERSION_METADATA"
 [[env.staging.services]]
 binding = "IA_HANDLE_ISSUER"
 service = "synkroo-ia-bridge-staging"

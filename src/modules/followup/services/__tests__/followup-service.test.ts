@@ -30,10 +30,13 @@ describe('followup-service', () => {
   });
 
   describe('executarAll', () => {
-    it('returns the stable processed envelope when there is no pending work', async () => {
+    it('returns the aggregated batch envelope when there is no pending work', async () => {
       setSelectResults([], []);
       const result = await executarAll('clinic-a');
-      expect(result).toEqual({ processed: 1 });
+      expect(result).toEqual({
+        requested: 0, processed: 0, succeeded: 0, sent: 0, failed: 0,
+        skipped: 0, errors: [], success: true, status: 'completed',
+      });
     });
   });
 
@@ -41,7 +44,7 @@ describe('followup-service', () => {
     it('returns post-consultation counters when there are no pending appointments', async () => {
       setSelectResults([]);
       const result = await executarPostConsulta('clinic-a');
-      expect(result).toEqual({ processed: 0, sent: 0, failed: 0 });
+      expect(result).toEqual({ processed: 0, sent: 0, failed: 0, errors: [] });
     });
   });
 
@@ -49,7 +52,7 @@ describe('followup-service', () => {
     it('returns return-reminder counters when there are no patients', async () => {
       setSelectResults([], []);
       const result = await executarLembretesRetorno('clinic-a');
-      expect(result).toEqual({ processed: 0, sent: 0, failed: 0 });
+      expect(result).toEqual({ processed: 0, sent: 0, failed: 0, errors: [] });
     });
   });
 

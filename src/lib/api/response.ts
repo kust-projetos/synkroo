@@ -135,6 +135,11 @@ const actionErrorMap: Record<ActionErrorCode, { status: number; code: string }> 
   invalid_input: { status: 422, code: 'INVALID_INPUT' },
   module_disabled: { status: 404, code: 'MODULE_DISABLED' },
   internal: { status: 500, code: 'INTERNAL_ERROR' },
+  // E3 — estados do contrato de efeito consequencial. `audit_incomplete`:
+  // nada foi executado (auditoria indisponível antes do efeito). `unknown_effect`:
+  // desfecho desconhecido; o cliente NÃO deve reenviar automaticamente.
+  audit_incomplete: { status: 503, code: 'AUDIT_INCOMPLETE' },
+  unknown_effect: { status: 500, code: 'UNKNOWN_EFFECT' },
 };
 
 export function mapActionError(code: ActionErrorCode): { status: number; code: string } {

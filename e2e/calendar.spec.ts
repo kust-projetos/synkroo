@@ -23,11 +23,25 @@ async function login(page: Page) {
 }
 
 // Helper to navigate to calendar
+// Data assertions belong to the tests: response-wait is best-effort (15s,
+// inside the 60s test budget alongside Hoje 15s) so navigation never fails
+// on network timing (query only fires with clinicId ready;
+// grid/slots tests don't need payload data).
 async function goToCalendar(page: Page) {
+  const appointmentsResponse = page
+    .waitForResponse(
+      (response) =>
+        response.ok() &&
+        response.url().includes("/api/appointments") &&
+        response.url().includes("start_date="),
+      { timeout: 15000 },
+    )
+    .catch(() => null);
   await page.goto(`${BASE_URL}/dashboard/agendamentos`);
-  await page.waitForSelector('button:has-text("Hoje")', { timeout: 15000 });
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(1000);
+  await expect(page.locator('button:has-text("Hoje")')).toBeVisible({
+    timeout: 15000,
+  });
+  await appointmentsResponse;
 }
 
 // Helper to switch view via toolbar — use URL params for reliable view switching
@@ -41,9 +55,20 @@ async function switchView(page: Page, viewName: string) {
   const viewValue = viewMap[viewName] || "week";
   const currentUrl = page.url();
   const baseUrl = currentUrl.split("?")[0];
+  const appointmentsResponse = page
+    .waitForResponse(
+      (response) =>
+        response.ok() &&
+        response.url().includes("/api/appointments") &&
+        response.url().includes("start_date="),
+      { timeout: 15000 },
+    )
+    .catch(() => null);
   await page.goto(`${baseUrl}?view=${viewValue}`);
-  await page.waitForSelector('button:has-text("Hoje")', { timeout: 10000 });
-  await page.waitForTimeout(500);
+  await expect(page.locator('button:has-text("Hoje")')).toBeVisible({
+    timeout: 15000,
+  });
+  await appointmentsResponse;
 }
 
 // Helper to click an empty slot using the rendered slot contract.
@@ -397,7 +422,7 @@ test.describe("Calendar - Event Interactions", () => {
     const firstEvent = page
       .locator('[role="button"][aria-label*="- "]')
       .first();
-    await expect(firstEvent).toBeVisible();
+    await expect(firstEvent).toBeVisible({ timeout: 15000 });
     await firstEvent.dblclick();
 
     await expect(page.locator('[role="dialog"]')).toBeVisible();
@@ -412,6 +437,7 @@ test.describe("Calendar - Event Interactions", () => {
     const firstEvent = page
       .locator('[role="button"][aria-label*="- "]')
       .first();
+    await expect(firstEvent).toBeVisible({ timeout: 15000 });
     const label = await firstEvent.getAttribute("aria-label");
     expect(label).toMatch(/.+-\s*\d{2}:\d{2}/);
   });
@@ -685,7 +711,15 @@ test.describe("Calendar - Data Loading", () => {
       await route.continue();
     });
 
+    // Strict waiter owned by this test (asserts the request URL, not status).
+    const responsePromise = page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/appointments") &&
+        r.url().includes("start_date="),
+      { timeout: 30000 },
+    );
     await goToCalendar(page);
+    await responsePromise;
 
     expect(capturedUrl).toContain("start_date=");
     expect(capturedUrl).toContain("end_date=");

@@ -73,8 +73,10 @@ describeIntegration('transactional outbox against PostgreSQL', () => {
     }
     expect(claimed).toHaveLength(1)
     expect(claimed[0]?.status).toBe('processing')
+    expect(claimed[0]?.claimGeneration).toBe(1)
 
-    await markOutboxRetry(claimed[0]!.id, claimed[0]!.attempts, 'TEST_FAILURE', new Date())
+    // Liquidação cercada pelo lease devolvido pelo claim.
+    await markOutboxRetry(claimed[0]!.id, claimed[0]!.claimGeneration, claimed[0]!.attempts, 'TEST_FAILURE', new Date())
     const row = await pool.query(
       'SELECT status, attempts, last_error_code, next_attempt_at > NOW() AS delayed FROM outbox_jobs WHERE business_key = $1',
       [businessKey],

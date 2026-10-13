@@ -1,5 +1,7 @@
 # Agente IA — Fronteira App-Side (Plano 1) Implementation Plan
 
+> **⚠️ Anotação 2026-10-05 (allowlist hardening):** o catálogo de tools deixou de ser "filtro só por ctx". Hoje `buildToolCatalog(ctx, actions?)` é **seletor de metadata owned pelo agent-bridge** e aplica a interseção `isAgentSafeAction(name)` ∧ `ctx.hasModule(module)` ∧ `ctx.can(requires)`; `buildToolCatalogFromList` virou serializador interno (não exportado) e `listToolsLogic` usa o mesmo seletor com `deps.getActions()`. Nenhuma camada fora do agent-bridge expõe tool executável à IA (ver [ADR-BASE-17](../../adr/ADR-BASE-17-llm-untrusted-data.md)). Texto abaixo é registro histórico.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Construir a fronteira app-side do Agente IA: um Worker dedicado `ia-bridge` (`AppService`, WorkerEntrypoint) que emite/valida handles opacos, expõe o catálogo de tools (Actions) e executa Actions com enforcement de segurança server-side — consumível por service binding, sem o Worker do agente ainda existir.
@@ -284,8 +286,9 @@ export function toRemoteTool(
   };
 }
 
-// Catálogo a partir de uma lista de actions já filtrada — reutilizável e testável
-// (consumido também por bridge-service com a lista injetada). Versionado pelo
+// Catálogo a partir de uma lista de actions já filtrada — HISTÓRICO: hoje este
+// serializador é privado (chamador único = buildToolCatalog, que aplica a
+// allowlist IA antes). (consumido também por bridge-service com a lista injetada). Versionado pelo
 // conjunto ordenado de aliases (detecta drift).
 export function buildToolCatalogFromList(actions: ActionDefinition<any, any>[]): ToolCatalog {
   const tools = actions.map(toRemoteTool);
@@ -296,6 +299,8 @@ export function buildToolCatalogFromList(actions: ActionDefinition<any, any>[]):
 }
 
 // Catálogo filtrado pelo ctx (manifesto + permissão), sobre o registry global.
+// ATUAL: assinatura buildToolCatalog(ctx, actions = getActions()) e filtro
+// isAgentSafeAction(a.name) && ctx.hasModule(a.module) && ctx.can(a.requires).
 export function buildToolCatalog(ctx: ActionContext): ToolCatalog {
   return buildToolCatalogFromList(getActions().filter((a) => ctx.hasModule(a.module) && ctx.can(a.requires)));
 }

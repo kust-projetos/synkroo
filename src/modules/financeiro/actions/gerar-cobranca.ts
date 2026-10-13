@@ -8,6 +8,8 @@ export const gerarCobranca = defineAction({
   module: 'financeiro',
   requires: 'financeiro:manage_budget',
   label: 'Gerar cobrança',
+  // Etapa 5.3: CONFIRM money emission — ids/valores não-sensíveis (ADR-BASE-12).
+  auditFields: ['budgetId', 'amount', 'dueDate'],
   input: z.object({
     budgetId: z.string().uuid(),
     dueDate: z.string(),

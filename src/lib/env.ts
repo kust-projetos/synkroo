@@ -34,7 +34,9 @@ const envSchema = z.object({
   INSTAGRAM_ACCESS_TOKEN: z.string().min(1).optional(),
   INSTAGRAM_ACCOUNT_ID: z.string().min(1).optional(),
 
-  // Evolution API (optional)
+  // Evolution API (optional, deprecated — WAHA-only, owner decision 3863c4f).
+  // Kept as optional parsing so existing envs still validate; never required.
+  // @deprecated Legacy provider — WAHA is the channel. Do not add new EVOLUTION_* vars.
   EVOLUTION_API_URL: z.string().url().optional(),
   EVOLUTION_API_KEY: z.string().min(1).optional(),
   EVOLUTION_INSTANCE_NAME: z.string().min(1).default('synkroo'),

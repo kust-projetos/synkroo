@@ -1,5 +1,7 @@
 # Product Brief: Synkroo
 
+> **Nota 2026-10-05 (P0 vNext):** documento **histórico**. O diagrama que cita `@anthropic-ai/sdk + Claude Agent SDK` **não reflete a stack implementada** — ver spec canônica 2026-07-28 e spec vNext 2026-10-05.
+
 **Versão:** 2.1 - Synkroo Edition
 **Data:** 2026-03-24
 **Autor:** Walis (com BMAD Master Mentor)

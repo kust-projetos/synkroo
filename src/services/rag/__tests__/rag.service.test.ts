@@ -27,11 +27,8 @@ jest.mock('@/lib/embeddings', () => ({
 
 jest.mock('@/repositories/knowledge', () => ({
   searchKnowledgeBase: (...args: any[]) => mockSearchKnowledgeBase(...args),
-  findKnowledgeById: jest.fn(),
   findKnowledgeByClinic: jest.fn(),
   createKnowledgeEntry: jest.fn(),
-  updateKnowledgeEntry: jest.fn(),
-  deleteKnowledgeEntry: jest.fn(),
 }));
 
 describe('RAG Service & Knowledge Base Lifecycle (F6.10)', () => {

@@ -122,40 +122,63 @@ export async function addCampaignRecipients(
 	return { success: true, added };
 }
 
+export type BatchStatus = 'completed' | 'partial' | 'failed' | 'skipped';
+
+export interface CampaignBatchResult {
+  success: boolean;
+  status?: BatchStatus;
+  /** Reexecução segura: campanha já havia sido executada antes (idempotente). */
+  alreadyProcessed?: boolean;
+  requested?: number;
+  succeeded?: number;
+  failed?: number;
+  skipped?: number;
+  errors?: string[];
+  error?: string;
+}
+
 export async function startCampaign(
 	campaignId: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<CampaignBatchResult> {
 	const outcome = await withIdempotency(
 		`campaign:run:${campaignId}`,
 		'campaign_execution',
 		() => executeCampaign(campaignId),
 	);
 
-	if (outcome.status === 'completed' && outcome.result) return outcome.result;
-	if (outcome.status === 'already_processed') return { success: true };
-	return { success: false, error: 'Campaign execution already in progress' };
+	if (outcome.status === 'completed' && outcome.result) return outcome.result as CampaignBatchResult;
+	// Reexecução idempotente: a campanha já foi executada antes — reexecutar é
+	// seguro (sem reenvio). Retorno explícito em vez de success genérico.
+	if (outcome.status === 'already_processed') return { success: true, status: 'skipped', alreadyProcessed: true };
+	return { success: false, status: 'failed', error: 'Campaign execution already in progress' };
 }
 
 async function executeCampaign(
 	campaignId: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<CampaignBatchResult> {
 	const campaign = await campaignRepo.findCampaignById(campaignId);
 	if (!campaign) {
-		return { success: false, error: "Campaign not found" };
+		return { success: false, status: 'failed', error: "Campaign not found" };
 	}
 
 	await campaignRepo.updateCampaignStatus(campaignId, "running");
 	const recipients = await campaignRepo.findPendingRecipients(campaignId);
+	const requested = recipients.length;
 	let sent = 0;
+	let failed = 0;
+	let skipped = 0;
+	const errors: string[] = [];
 
 	for (const recipient of recipients) {
 		if (recipient.optOutMarketing || recipient.optOutReminders) {
 			await campaignRepo.markRecipientSuppressed(recipient.id, 'opt-out');
+			skipped++;
 			continue;
 		}
 		const consented = await hasActiveConsent(campaign.clinicId, recipient.patientId, 'patient', 'marketing');
 		if (!consented) {
 			await campaignRepo.markRecipientSuppressed(recipient.id, 'missing-consent');
+			skipped++;
 			continue;
 		}
 		try {
@@ -167,15 +190,21 @@ async function executeCampaign(
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'CAMPAIGN_SEND_FAILED';
 			await campaignRepo.markRecipientError(recipient.id, message);
+			failed++;
+			errors.push(`Recipient ${recipient.id}: ${message}`);
 		}
 	}
 
   await campaignRepo.updateCampaignCounts(campaignId);
   if (sent === 0) {
     await campaignRepo.updateCampaignStatus(campaignId, 'failed');
-    return { success: false, error: 'No recipients delivered' };
+    return { success: false, status: 'failed', requested, succeeded: sent, failed, skipped, errors, error: 'No recipients delivered' };
   }
-  return { success: true };
+  if (failed > 0) {
+    await campaignRepo.updateCampaignStatus(campaignId, 'partial');
+    return { success: false, status: 'partial', requested, succeeded: sent, failed, skipped, errors, error: `${failed} of ${requested} recipients failed` };
+  }
+  return { success: true, status: 'completed', requested, succeeded: sent, failed, skipped, errors };
 }
 
 export async function getCampaigns(

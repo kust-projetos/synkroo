@@ -21,12 +21,37 @@ function toSegment(row: typeof campaignSegments.$inferSelect) {
   };
 }
 
-async function startCampaign(campaign: campaignRepo.CampaignRow): Promise<void> {
+export interface CampaignBatchResult {
+  requested: number;
+  /** Campanhas agendadas encontradas para a clínica. */
+  processed: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+  success: boolean;
+  status: 'completed' | 'partial' | 'failed';
+}
+
+interface CampaignEnqueueOutcome {
+  requested: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  errors: string[];
+}
+
+async function startCampaign(campaign: campaignRepo.CampaignRow): Promise<CampaignEnqueueOutcome> {
   await campaignRepo.updateCampaignStatus(campaign.id, 'running');
   const recipients = await campaignRepo.findPendingRecipients(campaign.id);
+  let succeeded = 0;
+  let failed = 0;
+  let skipped = 0;
+  const errors: string[] = [];
   for (const recipient of recipients) {
     if (recipient.optOutMarketing || recipient.optOutReminders) {
       await campaignRepo.markRecipientSuppressed(recipient.id, 'opt-out');
+      skipped++;
       continue;
     }
     try {
@@ -38,22 +63,37 @@ async function startCampaign(campaign: campaignRepo.CampaignRow): Promise<void> 
         phone: recipient.patientPhone ?? '',
         message: campaign.messageTemplate,
       });
+      succeeded++;
     } catch (error) {
-      await campaignRepo.markRecipientError(recipient.id, error instanceof Error ? error.message : 'CAMPAIGN_ENQUEUE_FAILED');
+      const message = error instanceof Error ? error.message : 'CAMPAIGN_ENQUEUE_FAILED';
+      await campaignRepo.markRecipientError(recipient.id, message);
+      failed++;
+      errors.push(`Campaign ${campaign.id} recipient ${recipient.id}: ${message}`);
     }
   }
   await campaignRepo.updateCampaignCounts(campaign.id);
+  return { requested: recipients.length, succeeded, failed, skipped, errors };
 }
 
-export async function processScheduledCampaigns(clinicId: string, now = new Date()): Promise<void> {
+export async function processScheduledCampaigns(clinicId: string, now = new Date()): Promise<CampaignBatchResult> {
   const scheduled = await campaignRepo.findScheduledCampaigns(clinicId, now);
-  for (const campaign of scheduled) await startCampaign(campaign);
+  const aggregate: CampaignEnqueueOutcome = { requested: 0, succeeded: 0, failed: 0, skipped: 0, errors: [] };
+  for (const campaign of scheduled) {
+    const outcome = await startCampaign(campaign);
+    aggregate.requested += outcome.requested;
+    aggregate.succeeded += outcome.succeeded;
+    aggregate.failed += outcome.failed;
+    aggregate.skipped += outcome.skipped;
+    aggregate.errors.push(...outcome.errors);
+  }
+  const success = aggregate.failed === 0;
+  const status = aggregate.failed === 0 ? 'completed' : aggregate.succeeded > 0 ? 'partial' : 'failed';
   dbLogger.info('scheduled campaigns processed', { clinicId, count: scheduled.length });
+  return { ...aggregate, processed: scheduled.length, success, status };
 }
 
-export async function executarCampanhas(clinicId: string): Promise<{ processed: number }> {
-  await processScheduledCampaigns(clinicId);
-  return { processed: 1 };
+export async function executarCampanhas(clinicId: string): Promise<CampaignBatchResult> {
+  return processScheduledCampaigns(clinicId);
 }
 
 export async function listarSegmentos(clinicId: string) {

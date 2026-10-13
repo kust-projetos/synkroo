@@ -60,4 +60,38 @@ describeIntegration('campaign delivery outbox against PostgreSQL', () => {
     await pool.query('DELETE FROM campaigns WHERE id IN ($1, $2)', [failedCampaignId, partialCampaignId]);
     await pool.query('DELETE FROM patients WHERE id IN ($1, $2, $3)', [failedPatientId, partialSentPatientId, partialFailedPatientId]);
   });
+
+  it('keeps updating counts for partial campaigns while outbox delivery is pending', async () => {
+    // P1-FIX-CANON(1): campanha marcada 'partial' no enqueue ainda recebe
+    // updates de counts do worker do outbox (WHERE running|partial).
+    const partialPendingCampaignId = '00000000-0000-0000-0000-00000000c103';
+    const sentPatientId = '00000000-0000-0000-0000-00000000c114';
+    const pendingPatientId = '00000000-0000-0000-0000-00000000c115';
+
+    await pool.query(`
+      INSERT INTO patients (id, clinic_id, name, phone, email) VALUES
+        ($1, $3, 'Partial Sent Patient 2', '+5511999900014', 'partial-sent-2@test.local'),
+        ($2, $3, 'Partial Pending Patient', '+5511999900015', 'partial-pending@test.local')
+      ON CONFLICT (id) DO NOTHING
+    `, [sentPatientId, pendingPatientId, clinicId]);
+    await pool.query(`
+      INSERT INTO campaigns (id, clinic_id, name, campaign_type, message_template, status, total_recipients, sent_count) VALUES
+        ($1, $2, 'Partial Pending', 'promotional', 'Test', 'partial', 2, 0)
+      ON CONFLICT (id) DO UPDATE SET status = 'partial', total_recipients = 2, sent_count = 0
+    `, [partialPendingCampaignId, clinicId]);
+    await pool.query('DELETE FROM campaign_recipients WHERE campaign_id = $1', [partialPendingCampaignId]);
+    await pool.query(`
+      INSERT INTO campaign_recipients (campaign_id, patient_id, status, sent_at) VALUES
+        ($1, $2, 'sent', NOW()),
+        ($1, $3, 'pending', NULL)
+    `, [partialPendingCampaignId, sentPatientId, pendingPatientId]);
+
+    await updateCampaignCounts(partialPendingCampaignId);
+
+    await expect(pool.query('SELECT status, sent_count FROM campaigns WHERE id = $1', [partialPendingCampaignId]))
+      .resolves.toMatchObject({ rows: [{ status: 'partial', sent_count: 1 }] });
+
+    await pool.query('DELETE FROM campaigns WHERE id = $1', [partialPendingCampaignId]);
+    await pool.query('DELETE FROM patients WHERE id IN ($1, $2)', [sentPatientId, pendingPatientId]);
+  });
 });

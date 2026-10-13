@@ -69,7 +69,7 @@ describe('campaign execution', () => {
   it('does not execute a campaign while another worker owns its claim', async () => {
     mockWithIdempotency.mockResolvedValueOnce({ status: 'conflict' })
 
-    await expect(startCampaign(campaign.id)).resolves.toEqual({
+    await expect(startCampaign(campaign.id)).resolves.toMatchObject({
       success: false,
       error: 'Campaign execution already in progress',
     })
@@ -79,7 +79,7 @@ describe('campaign execution', () => {
   it('marks campaign failed when no recipient is delivered (F7.06 100% falha → failed)', async () => {
     const result = await startCampaign(campaign.id)
 
-    expect(result).toEqual({ success: false, error: 'No recipients delivered' })
+    expect(result).toMatchObject({ success: false, status: 'failed', requested: 0, succeeded: 0, failed: 0, error: 'No recipients delivered' })
     expect(repo.updateCampaignStatus).toHaveBeenCalledWith(campaign.id, 'failed')
   })
 
@@ -121,7 +121,8 @@ describe('campaign execution', () => {
 
     const result = await startCampaign(campaign.id)
 
-    expect(result).toEqual({ success: true })
+    expect(result).toMatchObject({ success: true, status: 'completed', requested: 1, succeeded: 1, failed: 0 })
+    expect(result.errors).toEqual([])
     expect(repo.updateCampaignStatus).not.toHaveBeenCalledWith(campaign.id, 'completed')
   })
 })

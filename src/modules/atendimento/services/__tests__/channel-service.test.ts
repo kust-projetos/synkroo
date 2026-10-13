@@ -77,7 +77,7 @@ describe('channel-service unit tests', () => {
       expect(mockSend).toHaveBeenCalledWith('5511999999999', 'Olá via Evolution');
     });
 
-    it('falls back to the sidecar when Evolution reports a failed send', async () => {
+    it('does NOT fall back when Evolution reports an ambiguous failure (delivery unknown)', async () => {
       process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
       process.env.EVOLUTION_API_KEY = 'secret-key';
       process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
@@ -91,13 +91,18 @@ describe('channel-service unit tests', () => {
         json: async () => ({ success: true, messageId: 'sidecar-123' }),
       } as Response);
 
+      // E4: uma falha da Evolution pode ser PÓS-dispatch (ela converte erro de
+      // transporte em success:false) — ambígua. Sem confirmação de não-dispatch,
+      // o sidecar NÃO é chamado e o resultado é `delivery: 'unknown'`.
       await expect(sendWhatsAppMessage('5511999999999', 'Olá via fallback')).resolves.toEqual({
-        success: true,
-        messageId: 'sidecar-123',
+        success: false,
+        delivery: 'unknown',
+        error: 'Evolution unavailable',
       });
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
-    it('falls back to the sidecar when Evolution throws', async () => {
+    it('does NOT fall back when Evolution throws (ambiguous delivery)', async () => {
       process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
       process.env.EVOLUTION_API_KEY = 'secret-key';
       process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
@@ -111,10 +116,14 @@ describe('channel-service unit tests', () => {
         json: async () => ({ success: true, messageId: 'sidecar-456' }),
       } as Response);
 
+      // E4: exceção após possível dispatch é ambígua (a mensagem pode ter saido).
+      // NUNCA fallback — retorna unknown sem tocar o sidecar.
       await expect(sendWhatsAppMessage('5511999999999', 'Olá via fallback')).resolves.toEqual({
-        success: true,
-        messageId: 'sidecar-456',
+        success: false,
+        delivery: 'unknown',
+        error: 'Evolution timed out',
       });
+      expect(global.fetch).not.toHaveBeenCalled();
     });
 
     it('returns error when evolution provider is configured but getEvolutionService returns null', async () => {
@@ -225,7 +234,8 @@ describe('channel-service unit tests', () => {
       } as any);
 
       const res = await sendWhatsApp('11999999999', 'Texto');
-      expect(res).toEqual({ success: false, error: 'Connection timed out' });
+      // E4: exceção da Evolution (sem marcador de não-dispatch) é ambígua.
+      expect(res).toEqual({ success: false, delivery: 'unknown', error: 'Connection timed out' });
       expect(dbLogger.error).toHaveBeenCalledWith(
         'channel-service: evolution send failed',
         expect.any(Error),
@@ -238,7 +248,7 @@ describe('channel-service unit tests', () => {
       } as any);
 
       const res = await sendWhatsApp('11999999999', 'Texto');
-      expect(res).toEqual({ success: false, error: 'Fatal string error' });
+      expect(res).toEqual({ success: false, delivery: 'unknown', error: 'Fatal string error' });
       expect(dbLogger.error).toHaveBeenCalledWith(
         'channel-service: evolution send failed',
         'Fatal string error',
@@ -473,7 +483,7 @@ describe('channel-service unit tests', () => {
         );
       });
 
-      it('returns sidecar error when sidecar returns HTTP error (e.g. 503)', async () => {
+      it('returns delivery unknown when sidecar returns HTTP error (e.g. 503) — no non-dispatch proof', async () => {
         process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
         process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
 
@@ -486,10 +496,62 @@ describe('channel-service unit tests', () => {
         const service = new WhatsAppService();
         const res = await service.sendMessage('11999999999', 'Oi');
 
-        expect(res).toEqual({ success: false, error: 'WhatsApp session disconnected' });
+        // E4/HIGH-2: o POST pode ter sido despachado e o sidecar não tem
+        // contrato que prove não-dispatch → ambíguo, mensagem sanitizada.
+        expect(res).toEqual({
+          success: false,
+          delivery: 'unknown',
+          error: 'Resultado do envio não confirmado.',
+        });
+        expect(res.messageId).toBeUndefined();
+        // Nenhum detalhe do corpo do provider vaza para o resultado.
+        expect(res.error).not.toContain('WhatsApp session disconnected');
       });
 
-      it('returns error when fetch throws network exception', async () => {
+      it('returns delivery unknown when the sidecar response body is unparsable', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
+
+        global.fetch = jest.fn().mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => { throw new SyntaxError('Unexpected end of JSON input'); },
+        } as unknown as Response);
+
+        const service = new WhatsAppService();
+        const res = await service.sendMessage('11999999999', 'Oi');
+
+        expect(res).toEqual({
+          success: false,
+          delivery: 'unknown',
+          error: 'Resultado do envio não confirmado.',
+        });
+        expect(res.messageId).toBeUndefined();
+      });
+
+      it('returns delivery unknown when the sidecar reports success:false without non-dispatch proof', async () => {
+        process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
+        process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
+
+        global.fetch = jest.fn().mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => ({ success: false, error: 'device not connected' }),
+        } as Response);
+
+        const service = new WhatsAppService();
+        const res = await service.sendMessage('11999999999', 'Oi');
+
+        expect(res).toEqual({
+          success: false,
+          delivery: 'unknown',
+          error: 'Resultado do envio não confirmado.',
+        });
+        expect(res.messageId).toBeUndefined();
+        expect(res.error).not.toContain('device not connected');
+      });
+
+      it('returns delivery unknown when fetch throws (timeout/transport)', async () => {
         process.env.WHATSAPP_FALLBACK_URL = 'https://whatsapp-sidecar.example.com';
         process.env.WHATSAPP_FALLBACK_SECRET = 'secret-123';
         global.fetch = jest.fn().mockRejectedValueOnce(new Error('Network timeout'));
@@ -497,10 +559,25 @@ describe('channel-service unit tests', () => {
         const service = new WhatsAppService();
         const res = await service.sendMessage('11999999999', 'Oi');
 
-        // A2: POST sem retry; falha de transporte vira erro estruturado.
-        expect(res.success).toBe(false);
-        expect(res.error).toMatch(/External request/);
+        // A2: POST sem retry; a mensagem é fixa e sanitizada — URL, exceção e
+        // causa ficam só no log do servidor.
+        expect(res).toEqual({
+          success: false,
+          delivery: 'unknown',
+          error: 'Resultado do envio não confirmado.',
+        });
+        expect(res.messageId).toBeUndefined();
         expect(dbLogger.error).toHaveBeenCalledWith('channel-service: sidecar sendMessage failed', expect.any(Error));
+      });
+
+      it('keeps the deterministic config failure without delivery unknown (nothing dispatched)', async () => {
+        const service = new WhatsAppService();
+        const res = await service.sendMessage('11999999999', 'Oi');
+        expect(res).toEqual({
+          success: false,
+          error: 'WhatsApp fallback not configured: missing WHATSAPP_FALLBACK_URL or WHATSAPP_FALLBACK_SECRET',
+        });
+        expect(res.delivery).toBeUndefined();
       });
     });
 
