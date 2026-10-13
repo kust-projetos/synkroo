@@ -11,8 +11,26 @@
  *
  * Endpoint (partial update — preserves name/caching/mtls/limits):
  *   PATCH https://api.cloudflare.com/client/v4/accounts/{account_id}/hyperdrive/configs/{hyperdrive_id}
- *   { origin: { host, port, database, user, scheme, password } }
+ *   { origin: { host, port, database, user, scheme, password[, access_client_id, access_client_secret] } }
  * A total PUT is NEVER used by this module.
+ *
+ * Access + port are MUTUALLY EXCLUSIVE (proven against the real staging API:
+ * PATCH with access_client_id/secret AND an explicit port returns 400 with
+ * cf_code 2007 "access credentials cannot be used when a port is set", while
+ * the same PATCH without port returns 200). Therefore with Access the PATCH
+ * body OMITS the port key entirely; without Access the port is required
+ * exactly as before (legacy shape unchanged).
+ *
+ * Access-protected tunnel origin (D4): with --access the origin host is the
+ * tunnel hostname (--origin-host, e.g. stg-pg.synkroo.com.br — never the raw
+ * side IP) and the Access service-token pair travels inside the same HTTPS
+ * PATCH body (access_client_id + access_client_secret), read SOLELY from
+ * CLOUDFLARE_ACCESS_CLIENT_ID / CLOUDFLARE_ACCESS_CLIENT_SECRET in
+ * process.env — never argv, never the VPS .env file. With Access the PATCH
+ * body OMITS port (the real API rejects port + Access together with 400
+ * cf_code 2007); reconcile then skips the port and compares the access FLAG
+ * only (presence of access_client_id): the secret is write-only
+ * and a rotation keeping the same client id is not observable here.
  *
  * Auth (fail closed, outside the VPS .env file):
  *   CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_API_TOKEN from process.env.
@@ -44,6 +62,7 @@ export const HYPERDRIVE_TARGET_KEYS = ['staging', 'prod', 'both'];
 
 export const CF_ACCOUNT_MISSING_CODE = 'SYNKROO_CF_ACCOUNT_MISSING';
 export const CF_TOKEN_MISSING_CODE = 'SYNKROO_CF_TOKEN_MISSING';
+export const CF_ACCESS_MISSING_CODE = 'SYNKROO_CF_ACCESS_MISSING';
 export const CF_CONFIG_INVALID_CODE = 'SYNKROO_CF_CONFIG_INVALID';
 export const CF_HTTP_ERROR_CODE = 'SYNKROO_CF_HTTP_ERROR';
 export const CF_TIMEOUT_CODE = 'SYNKROO_CF_TIMEOUT';
@@ -131,6 +150,78 @@ export function resolveCloudflareAuth(options = {}) {
 }
 
 /**
+ * Resolves Cloudflare Access service-token authority for an Access-protected
+ * tunnel origin (D4). The client id/secret come SOLELY from process.env —
+ * never from argv, never from the private VPS .env file — so they can never
+ * appear in process listings, shell history or a VPS credential file.
+ *
+ * Fail-closed: when --access is requested but either variable is missing or
+ * empty, throws SYNKROO_CF_ACCESS_MISSING naming the variables (never values).
+ *
+ * @param {{env?: Record<string,string|undefined>}} [options] env defaults to
+ *   process.env; callers MUST pass process.env (or a test double) — never the
+ *   resolved VPS env-file values.
+ * @returns {{clientId: string, clientSecret: string}}
+ */
+export function resolveAccessCredentials(options = {}) {
+  const source = options.env ?? process.env;
+  const clientId = String(source?.CLOUDFLARE_ACCESS_CLIENT_ID ?? '').trim();
+  const clientSecret = String(source?.CLOUDFLARE_ACCESS_CLIENT_SECRET ?? '').trim();
+  if (!clientId || !clientSecret) {
+    const missing = [
+      !clientId ? 'CLOUDFLARE_ACCESS_CLIENT_ID' : null,
+      !clientSecret ? 'CLOUDFLARE_ACCESS_CLIENT_SECRET' : null,
+    ].filter(Boolean);
+    throw cfError(
+      CF_ACCESS_MISSING_CODE,
+      `${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} missing: set ` +
+        'CLOUDFLARE_ACCESS_CLIENT_ID and CLOUDFLARE_ACCESS_CLIENT_SECRET in process.env ' +
+        'when using --access. They are never read from the private VPS .env file ' +
+        'and never accepted via argv.',
+    );
+  }
+  return { clientId, clientSecret };
+}
+
+/**
+ * Resolves the effective Hyperdrive origin host for --access runs.
+ *
+ * Without --access the origin is always the side IP (byte-identical legacy
+ * behaviour). With --access the side IP is NOT usable (Cloudflare Access sits
+ * in front of the tunnel hostname), so --origin-host (e.g.
+ * stg-pg.synkroo.com.br) is REQUIRED — fail-closed when absent. With --access
+ * the PATCH body OMITS port (API cf_code 2007) and any supplied port is
+ * ignored; without --access the port comes from the side settings (no new
+ * port flag exists).
+ *
+ * @param {{access?: boolean, originHost?: string, sideHost?: string}} [options]
+ * @returns {{host: string, access: boolean}}
+ */
+export function resolveHyperdriveOrigin(options = {}) {
+  const access = options.access === true;
+  const originHost = String(options.originHost ?? '').trim();
+  const sideHost = String(options.sideHost ?? '').trim();
+  if (access) {
+    if (!originHost) {
+      throw cfError(
+        CF_CONFIG_INVALID_CODE,
+        '--origin-host is required together with --access: an Access-protected ' +
+          'tunnel origin makes no sense against the raw side IP. Pass the tunnel ' +
+          'hostname via --origin-host (e.g. --origin-host=stg-pg.synkroo.com.br).',
+      );
+    }
+    return { host: originHost, access: true };
+  }
+  if (originHost) {
+    throw cfError(
+      CF_CONFIG_INVALID_CODE,
+      '--origin-host requires --access: without --access the origin is always the side IP.',
+    );
+  }
+  return { host: sideHost, access: false };
+}
+
+/**
  * Validates --target. Default is staging-only so a staging run can never
  * touch production as a side effect.
  *
@@ -171,21 +262,55 @@ export function normalizeTimeoutMs(raw, fallback = DEFAULT_TIMEOUT_MS) {
  * Builds the PARTIAL PATCH body: { origin } only. The password travels here,
  * inside HTTPS JSON — never argv, never URL.
  *
- * @param {{host: string, port: string|number, database: string, user: string, password: string}} origin
- * @returns {{origin: {host: string, port: number, database: string, user: string, scheme: string, password: string}}}
+ * Access + port are MUTUALLY EXCLUSIVE (real staging API: port + access →
+ * 400 cf_code 2007; access without port → 200). When BOTH access_client_id
+ * and access_client_secret are supplied (non-empty), the body OMITS the port
+ * key entirely (any caller-supplied port is ignored, never sent). When both
+ * are absent the body is identical to the legacy shape (port required).
+ * Supplying only one of the pair fails closed — a half-configured Access
+ * origin would otherwise point Hyperdrive at an unreachable tunnel.
+ *
+ * @param {{host: string, port?: string|number, database: string, user: string, password: string, access_client_id?: string, access_client_secret?: string}} origin
+ * @returns {{origin: {host: string, port?: number, database: string, user: string, scheme: string, password: string, access_client_id?: string, access_client_secret?: string}}}
  */
 export function buildHyperdrivePatchBody(origin) {
   const host = String(origin?.host ?? '').trim();
   const database = String(origin?.database ?? '').trim();
   const user = String(origin?.user ?? '').trim();
   const password = origin?.password;
-  const port = Number(origin?.port);
   if (!host || !database || !user || typeof password !== 'string' || password.length === 0) {
     throw cfError(
       CF_CONFIG_INVALID_CODE,
       'hyperdrive origin is incomplete: host, database, user and password are required.',
     );
   }
+  const accessClientId = String(origin?.access_client_id ?? '').trim();
+  const accessClientSecret = typeof origin?.access_client_secret === 'string' ? origin.access_client_secret : '';
+  const hasId = accessClientId.length > 0;
+  const hasSecret = accessClientSecret.length > 0;
+  if (hasId !== hasSecret) {
+    throw cfError(
+      CF_CONFIG_INVALID_CODE,
+      'hyperdrive Access origin is incomplete: access_client_id and access_client_secret are required together.',
+    );
+  }
+  if (hasId && hasSecret) {
+    // Access run: port key OMITTED — the API rejects port + access together
+    // (400 cf_code 2007). A caller-supplied port (e.g. side PG_PORT) is
+    // ignored, never sent.
+    return {
+      origin: {
+        host,
+        database,
+        user,
+        scheme: 'postgres',
+        password,
+        access_client_id: accessClientId,
+        access_client_secret: accessClientSecret,
+      },
+    };
+  }
+  const port = Number(origin?.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw cfError(CF_CONFIG_INVALID_CODE, 'hyperdrive origin port is invalid: expected 1-65535.');
   }
@@ -215,36 +340,62 @@ export function redactApiSecrets(text, secrets = []) {
   }
   return redacted
     .replace(/"password"\s*:\s*"[^"\n]*"/g, '"password":"[REDACTED]"')
+    .replace(/"access_client_secret"\s*:\s*"[^"\n]*"/g, '"access_client_secret":"[REDACTED]"')
     .replace(/--password=\S+/g, '--password=[REDACTED]');
 }
 
-/** Non-sensitive origin fields only — safe to log, snapshot and reconcile. */
+/**
+ * Non-sensitive origin fields only — safe to log, snapshot and reconcile.
+ * `access` is a boolean flag (true when an Access client id is configured);
+ * secret VALUES are never carried here. With Access the API omits/defaults
+ * the port, so `port` is undefined when no valid port is present (instead of
+ * NaN) and safeOriginText renders the host without `:port`.
+ */
 export function toSafeOrigin(origin) {
+  const accessClientId = String(origin?.access_client_id ?? '').trim();
+  const access =
+    origin?.access === true || origin?.access === false ? origin.access : accessClientId.length > 0;
+  const portNum = Number(origin?.port);
   return {
     host: origin?.host,
-    port: Number(origin?.port),
+    port: Number.isInteger(portNum) && portNum >= 1 && portNum <= 65535 ? portNum : undefined,
     database: origin?.database,
     user: origin?.user,
     scheme: origin?.scheme ?? 'postgres',
+    access,
   };
 }
 
 /** One-line, secret-free origin summary for plans, snapshots and reports. */
 export function safeOriginText(origin) {
   const safe = toSafeOrigin(origin);
-  return `host=${safe.host}:${safe.port} db=${safe.database} user=${safe.user} scheme=${safe.scheme}`;
+  const portPart = Number.isInteger(safe.port) ? `:${safe.port}` : '';
+  return (
+    `host=${safe.host}${portPart} db=${safe.database} user=${safe.user} ` +
+    `scheme=${safe.scheme} access=${safe.access === true}`
+  );
 }
 
 /**
- * Compares desired vs observed non-sensitive origin fields. The password is
- * never comparable (the API does not return it) and never part of the diff.
+ * Compares desired vs observed non-sensitive origin fields. The password and
+ * the Access client secret are never comparable (the API does not return
+ * them) and never part of the diff. With Access on either side the port is
+ * NOT compared (the API omits/defaults it when Access credentials are set —
+ * PATCH with port + access is rejected with cf_code 2007). LIMIT: for Access
+ * only the configured FLAG is compared (access_client_id presence / access
+ * boolean) — a rotated secret with the same client id still reconciles as
+ * equal, so a secret rotation is not observable here and must be verified by
+ * connectivity.
  *
  * @returns {{equal: boolean, diffs: string[]}}
  */
 export function compareOrigins(want, got) {
-  const fields = ['host', 'port', 'database', 'user', 'scheme'];
   const left = toSafeOrigin(want);
   const right = toSafeOrigin(got);
+  const accessRun = left.access === true || right.access === true;
+  const fields = accessRun
+    ? ['host', 'database', 'user', 'scheme', 'access']
+    : ['host', 'port', 'database', 'user', 'scheme', 'access'];
   const diffs = fields.filter((field) => String(left[field]) !== String(right[field]));
   return { equal: diffs.length === 0, diffs };
 }
@@ -451,24 +602,56 @@ export async function patchHyperdriveOrigin({
 /**
  * Dry-run plan lines. Takes NO password/token/fetch by construction, so a
  * plan can neither mutate nor leak — redaction is structural, not textual.
+ * Access secrets are never plan inputs: only the access FLAG is shown
+ * (access=true/false), never ids or secret values.
  *
- * @param {{targets: Array<{key: string, label: string, hyperdriveId: string, database: string, user: string}>, side: string, host: string, port: number, accountId: string}} plan
+ * @param {{targets: Array<{key: string, label: string, hyperdriveId: string, database: string, user: string, accessClientId?: string, access?: boolean}>, side: string, host: string, port: number, accountId: string, access?: boolean}} plan
  * @returns {string[]}
  */
-export function planHyperdriveUpdates({ targets, side, host, port, accountId }) {
-  return (targets ?? []).map(
-    (target) =>
+export function planHyperdriveUpdates({ targets, side, host, port, accountId, access }) {
+  const planAccess =
+    access === true || access === false
+      ? access
+      : (targets ?? []).some(
+          (target) =>
+            target?.access === true || String(target?.accessClientId ?? target?.access_client_id ?? '').trim().length > 0,
+        );
+  return (targets ?? []).map((target) => {
+    // Access runs omit the port (API rejects port + access together with
+    // cf_code 2007); legacy runs keep the explicit port.
+    const planOrigin = planAccess
+      ? { host, database: target.database, user: target.user, access: planAccess }
+      : { host, port, database: target.database, user: target.user, access: planAccess };
+    return (
       `[dry-run] Would PATCH ${target.label} (${target.hyperdriveId}) ` +
-      `account=${accountId} ${safeOriginText({ host, port, database: target.database, user: target.user })} ` +
-      `[side=${side}]`,
-  );
+      `account=${accountId} ${safeOriginText(planOrigin)} ` +
+      `[side=${side}]`
+    );
+  });
+}
+
+/** Reads optional Access credentials off a target spec (camelCase canonical). */
+function targetAccess(target) {
+  const clientId = String(target?.accessClientId ?? target?.access_client_id ?? '').trim();
+  const clientSecret =
+    typeof (target?.accessClientSecret ?? target?.access_client_secret) === 'string'
+      ? target.accessClientSecret ?? target.access_client_secret
+      : '';
+  if (!clientId && !clientSecret) return {};
+  return { access_client_id: clientId, access_client_secret: clientSecret };
 }
 
 /**
  * Applies ONE target: snapshot (GET) → PATCH → reconcile (GET + compare).
  * The snapshot holds safe fields only; the password is never persisted.
  *
- * @param {{fetchImpl: Function, accountId: string, apiToken: string, target: HyperdriveTargetSpec, host: string, port: number|string, timeoutMs?: number}} options
+ * Access: pass clientId/clientSecret via the target spec
+ * (accessClientId/accessClientSecret) or via options.access
+ * ({clientId, clientSecret}); both are fail-closed as a pair by
+ * buildHyperdrivePatchBody. The reconcile compares the access FLAG only —
+ * the secret value is never observable (see compareOrigins limit).
+ *
+ * @param {{fetchImpl: Function, accountId: string, apiToken: string, target: HyperdriveTargetSpec, host: string, port: number|string, timeoutMs?: number, access?: {clientId?: string, clientSecret?: string}}} options
  * @returns {Promise<HyperdriveTargetOk>}
  */
 export async function applyHyperdriveTarget({
@@ -479,7 +662,14 @@ export async function applyHyperdriveTarget({
   host,
   port,
   timeoutMs,
+  access,
 }) {
+  const fromTarget = targetAccess(target);
+  const accessClientId = String(access?.clientId ?? fromTarget.access_client_id ?? '').trim();
+  const accessClientSecret =
+    typeof (access?.clientSecret ?? fromTarget.access_client_secret) === 'string'
+      ? (access?.clientSecret ?? fromTarget.access_client_secret)
+      : '';
   const want = {
     host,
     port,
@@ -487,6 +677,9 @@ export async function applyHyperdriveTarget({
     user: target.user,
     password: target.password,
     scheme: 'postgres',
+    ...(accessClientId || accessClientSecret
+      ? { access_client_id: accessClientId, access_client_secret: accessClientSecret }
+      : {}),
   };
   const snapshot = await getHyperdriveConfig({
     fetchImpl,
@@ -534,7 +727,7 @@ export async function applyHyperdriveTarget({
  * SYNKROO_CF_RESPONSE_ERROR) carrying the safe diffs and the pre-update
  * snapshot for rollback — and allOk is false so the CLI exits non-zero.
  *
- * @param {{fetchImpl: Function, accountId: string, apiToken: string, targets: HyperdriveTargetSpec[], host: string, port: number|string, timeoutMs?: number}} options
+ * @param {{fetchImpl: Function, accountId: string, apiToken: string, targets: HyperdriveTargetSpec[], host: string, port: number|string, timeoutMs?: number, access?: {clientId?: string, clientSecret?: string}}} options
  * @returns {Promise<{results: HyperdriveTargetResult[], allOk: boolean, partial: boolean}>}
  */
 export async function applyHyperdriveTargets({
@@ -545,6 +738,7 @@ export async function applyHyperdriveTargets({
   host,
   port,
   timeoutMs,
+  access,
 }) {
   const results = [];
   for (const target of targets ?? []) {
@@ -557,6 +751,7 @@ export async function applyHyperdriveTargets({
         host,
         port,
         timeoutMs,
+        ...(access === undefined ? {} : { access }),
       });
       if (!applied.match) {
         results.push({
@@ -595,8 +790,18 @@ export async function applyHyperdriveTargets({
  * Rollback: re-PATCHes a previously snapshotted safe origin together with the
  * supplied (previously valid) password, then reconciles. The snapshot never
  * contains a password — the caller re-supplies it from side settings.
+ * Access rollback needs the previously valid service-token pair as well
+ * (snapshot carries only the access FLAG, never values): pass
+ * access {clientId, clientSecret} when the snapshot has access=true.
  *
- * @param {{fetchImpl: Function, accountId: string, apiToken: string, snapshot: HyperdriveSnapshot, password: string, timeoutMs?: number}} options
+ * Fail-closed mode check BEFORE any PATCH (no fetch is issued on mismatch):
+ * an access=true snapshot REQUIRES the complete pair (missing/half pair
+ * throws naming the variables, never values — otherwise the rollback would
+ * silently convert an Access origin into a legacy IP:port origin); a legacy
+ * (access falsy) snapshot REJECTS any Access pair (otherwise the rollback
+ * would silently convert a legacy origin into an Access origin).
+ *
+ * @param {{fetchImpl: Function, accountId: string, apiToken: string, snapshot: HyperdriveSnapshot, password: string, timeoutMs?: number, access?: {clientId?: string, clientSecret?: string}}} options
  * @returns {Promise<{hyperdriveId: string, match: boolean, diffs: string[], meta: object}>}
  */
 export async function rollbackHyperdriveTarget({
@@ -606,16 +811,48 @@ export async function rollbackHyperdriveTarget({
   snapshot,
   password,
   timeoutMs,
+  access,
 }) {
   if (!snapshot || !snapshot.hyperdriveId || !snapshot.origin) {
     throw cfError(CF_CONFIG_INVALID_CODE, 'rollback needs a snapshot with hyperdriveId and origin.');
+  }
+  const snapshotAccess = snapshot.origin.access === true;
+  const accessClientId = String(access?.clientId ?? '').trim();
+  const accessClientSecret = typeof access?.clientSecret === 'string' ? access.clientSecret : '';
+  const hasId = accessClientId.length > 0;
+  const hasSecret = accessClientSecret.length > 0;
+  if (snapshotAccess) {
+    if (!hasId || !hasSecret) {
+      const missing = [
+        !hasId ? 'CLOUDFLARE_ACCESS_CLIENT_ID' : null,
+        !hasSecret ? 'CLOUDFLARE_ACCESS_CLIENT_SECRET' : null,
+      ].filter(Boolean);
+      throw cfError(
+        CF_ACCESS_MISSING_CODE,
+        `rollback needs the previously valid Access pair for an access=true snapshot: ${missing.join(' and ')} ${missing.length > 1 ? 'are' : 'is'} missing — ` +
+          'pass access {clientId, clientSecret}, read from CLOUDFLARE_ACCESS_CLIENT_ID and ' +
+          'CLOUDFLARE_ACCESS_CLIENT_SECRET in process.env (never argv, never the VPS .env file).',
+      );
+    }
+  } else if (hasId || hasSecret) {
+    throw cfError(
+      CF_CONFIG_INVALID_CODE,
+      'rollback rejects the Access pair for a legacy (access falsy) snapshot: pass no access ' +
+        'credentials to restore a non-Access origin.',
+    );
   }
   await patchHyperdriveOrigin({
     fetchImpl,
     accountId,
     apiToken,
     hyperdriveId: snapshot.hyperdriveId,
-    origin: { ...snapshot.origin, password },
+    origin: {
+      ...snapshot.origin,
+      password,
+      ...(accessClientId || accessClientSecret
+        ? { access_client_id: accessClientId, access_client_secret: accessClientSecret }
+        : {}),
+    },
     timeoutMs,
   });
   const observed = await getHyperdriveConfig({

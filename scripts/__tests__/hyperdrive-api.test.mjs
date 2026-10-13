@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
 import {
+  CF_ACCESS_MISSING_CODE,
   CF_CONFIG_INVALID_CODE,
   CF_HTTP_ERROR_CODE,
   CF_NETWORK_ERROR_CODE,
@@ -31,10 +32,13 @@ import {
   patchHyperdriveOrigin,
   planHyperdriveUpdates,
   redactApiSecrets,
+  resolveAccessCredentials,
   resolveCloudflareAuth,
+  resolveHyperdriveOrigin,
   resolveHyperdriveTargetKeys,
   rollbackHyperdriveTarget,
   safeOriginText,
+  toSafeOrigin,
 } from '../lib/hyperdrive-api.mjs';
 import { redactSecrets } from '../lib/wrangler-cli.mjs';
 
@@ -360,7 +364,7 @@ describe('snapshot seguro, reconcile e idempotência', () => {
       calls.map((call) => call.init.method ?? 'GET'),
       ['GET', 'PATCH', 'GET'],
     );
-    assert.deepEqual(applied.snapshot, { hyperdriveId: STAGING_ID, origin: old });
+    assert.deepEqual(applied.snapshot, { hyperdriveId: STAGING_ID, origin: { ...old, access: false } });
     assert.ok(!('password' in applied.snapshot.origin), 'snapshot nunca guarda senha');
     assert.equal(applied.match, true);
     assert.deepEqual(applied.diffs, []);
@@ -578,5 +582,420 @@ describe('auditoria: senha/token fora de argv, URL e logs', () => {
       '{"password":"[REDACTED]"}',
     );
     assert.equal(redactSecrets('a --password=abc b'), 'a --password=[REDACTED] b');
+  });
+
+  test('redactApiSecrets cobre JSON access_client_secret e valores exatos do par Access', () => {
+    const cid = 'cid-hostil-123';
+    const csec = 'csec-hostil-456';
+    assert.equal(
+      redactApiSecrets(`{"access_client_secret": "${csec}"}`, []),
+      '{"access_client_secret":"[REDACTED]"}',
+    );
+    assert.equal(redactApiSecrets(`id=${cid} sec=${csec}`, [cid, csec]), 'id=[REDACTED] sec=[REDACTED]');
+  });
+});
+
+describe('origem Access-protegida (túnel D4)', () => {
+  const ACCESS_ID = 'access-client-id-teste';
+  const ACCESS_SECRET = 'access-client-secret-teste';
+
+  test('PATCH sem access é idêntico ao legado (sem chaves access_*)', () => {
+    const body = buildHyperdrivePatchBody({ host: 'h', port: 5432, database: 'd', user: 'u', password: 'x' });
+    assert.deepEqual(Object.keys(body.origin).sort(), ['database', 'host', 'password', 'port', 'scheme', 'user']);
+  });
+
+  test('PATCH com access inclui o par dentro de {origin} e OMITE port (cf_code 2007)', async () => {
+    const { impl, calls } = mockFetch(() =>
+      jsonResponse({ body: { success: true, result: { id: STAGING_ID } } }),
+    );
+    await patchHyperdriveOrigin({
+      fetchImpl: impl,
+      accountId: ACCOUNT,
+      apiToken: TOKEN,
+      hyperdriveId: STAGING_ID,
+      origin: {
+        host: 'stg-pg.synkroo.com.br',
+        port: 5432,
+        database: 'd',
+        user: 'u',
+        password: 'x',
+        access_client_id: ACCESS_ID,
+        access_client_secret: ACCESS_SECRET,
+      },
+    });
+    const body = JSON.parse(calls[0].init.body);
+    assert.equal(body.origin.access_client_id, ACCESS_ID);
+    assert.equal(body.origin.access_client_secret, ACCESS_SECRET);
+    assert.deepEqual(Object.keys(body), ['origin']);
+    assert.ok(!('port' in body.origin), 'access + port explícita = 400 cf_code 2007: chave port omitida');
+    assert.deepEqual(Object.keys(body.origin).sort(), ['access_client_id', 'access_client_secret', 'database', 'host', 'password', 'scheme', 'user']);
+  });
+
+  test('buildHyperdrivePatchBody com access omite port mesmo quando port é passada (side PG_PORT ignorada)', () => {
+    const body = buildHyperdrivePatchBody({
+      host: 'stg-pg.synkroo.com.br',
+      port: 5432,
+      database: 'd',
+      user: 'u',
+      password: 'x',
+      access_client_id: ACCESS_ID,
+      access_client_secret: ACCESS_SECRET,
+    });
+    assert.ok(!('port' in body.origin), 'port nunca viaja com access');
+    // Sem port alguma: access também constrói sem exigir port.
+    const noPort = buildHyperdrivePatchBody({
+      host: 'stg-pg.synkroo.com.br',
+      database: 'd',
+      user: 'u',
+      password: 'x',
+      access_client_id: ACCESS_ID,
+      access_client_secret: ACCESS_SECRET,
+    });
+    assert.ok(!('port' in noPort.origin));
+  });
+
+  test('buildHyperdrivePatchBody legado exige port (ausente ou inválida falha fechado)', () => {
+    assert.throws(
+      () => buildHyperdrivePatchBody({ host: 'h', database: 'd', user: 'u', password: 'x' }),
+      (err) => err.code === CF_CONFIG_INVALID_CODE && /port is invalid/.test(err.message),
+    );
+    assert.throws(
+      () => buildHyperdrivePatchBody({ host: 'h', port: 0, database: 'd', user: 'u', password: 'x' }),
+      /port is invalid/,
+    );
+  });
+
+  test('par Access pela metade falha fechado sem ecoar valores', () => {
+    assert.throws(
+      () =>
+        buildHyperdrivePatchBody({
+          host: 'h',
+          port: 5432,
+          database: 'd',
+          user: 'u',
+          password: 'x',
+          access_client_id: ACCESS_ID,
+        }),
+      (err) => err.code === CF_CONFIG_INVALID_CODE && !err.message.includes(ACCESS_ID),
+    );
+    assert.throws(
+      () =>
+        buildHyperdrivePatchBody({
+          host: 'h',
+          port: 5432,
+          database: 'd',
+          user: 'u',
+          password: 'x',
+          access_client_secret: ACCESS_SECRET,
+        }),
+      (err) => err.code === CF_CONFIG_INVALID_CODE && !err.message.includes(ACCESS_SECRET),
+    );
+  });
+
+  test('resolveAccessCredentials: ok via env; fail-closed nomeando vars sem valores', () => {
+    assert.deepEqual(
+      resolveAccessCredentials({
+        env: { CLOUDFLARE_ACCESS_CLIENT_ID: ACCESS_ID, CLOUDFLARE_ACCESS_CLIENT_SECRET: ACCESS_SECRET },
+      }),
+      { clientId: ACCESS_ID, clientSecret: ACCESS_SECRET },
+    );
+    for (const env of [
+      {},
+      { CLOUDFLARE_ACCESS_CLIENT_ID: ACCESS_ID },
+      { CLOUDFLARE_ACCESS_CLIENT_SECRET: ACCESS_SECRET },
+    ]) {
+      assert.throws(
+        () => resolveAccessCredentials({ env }),
+        (err) => {
+          assert.equal(err.code, CF_ACCESS_MISSING_CODE);
+          assert.match(err.message, /CLOUDFLARE_ACCESS_CLIENT_ID/);
+          assert.match(err.message, /CLOUDFLARE_ACCESS_CLIENT_SECRET/);
+          assert.ok(!err.message.includes(ACCESS_ID));
+          assert.ok(!err.message.includes(ACCESS_SECRET));
+          return true;
+        },
+      );
+    }
+  });
+
+  test('resolveAccessCredentials: chaves VPS_* não autorizam nada', () => {
+    assert.throws(
+      () =>
+        resolveAccessCredentials({
+          env: { VPS_TARGET_IP: '10.0.0.1', CLOUDFLARE_ACCESS_CLIENT_ID: ACCESS_ID },
+        }),
+      (err) => err.code === CF_ACCESS_MISSING_CODE,
+    );
+  });
+
+  test('resolveHyperdriveOrigin: --access exige --origin-host; sem --access é o IP do side', () => {
+    assert.deepEqual(
+      resolveHyperdriveOrigin({ access: true, originHost: 'stg-pg.synkroo.com.br', sideHost: '10.0.0.1' }),
+      { host: 'stg-pg.synkroo.com.br', access: true },
+    );
+    assert.throws(
+      () => resolveHyperdriveOrigin({ access: true, originHost: '', sideHost: '10.0.0.1' }),
+      (err) => err.code === CF_CONFIG_INVALID_CODE && /--origin-host is required together with --access/.test(err.message),
+    );
+    assert.throws(
+      () => resolveHyperdriveOrigin({ access: false, originHost: 'stg-pg.synkroo.com.br', sideHost: '10.0.0.1' }),
+      (err) => err.code === CF_CONFIG_INVALID_CODE && /--origin-host requires --access/.test(err.message),
+    );
+    assert.deepEqual(
+      resolveHyperdriveOrigin({ access: false, sideHost: '10.0.0.1' }),
+      { host: '10.0.0.1', access: false },
+    );
+  });
+
+  test('toSafeOrigin/safeOriginText indicam access=true/false sem valores', () => {
+    assert.equal(toSafeOrigin({ host: 'h', port: 5432, database: 'd', user: 'u' }).access, false);
+    const withAccess = toSafeOrigin({
+      host: 'h',
+      port: 5432,
+      database: 'd',
+      user: 'u',
+      access_client_id: ACCESS_ID,
+    });
+    assert.equal(withAccess.access, true);
+    assert.ok(!('access_client_id' in withAccess), 'id nunca no snapshot seguro');
+    assert.ok(!('access_client_secret' in withAccess));
+    const text = safeOriginText({ host: 'h', port: 5432, database: 'd', user: 'u', access_client_id: ACCESS_ID, access_client_secret: ACCESS_SECRET });
+    assert.match(text, /access=true/);
+    assert.ok(!text.includes(ACCESS_ID));
+    assert.ok(!text.includes(ACCESS_SECRET));
+    assert.match(safeOriginText({ host: 'h', port: 5432, database: 'd', user: 'u' }), /access=false/);
+  });
+
+  test('safeOriginText com access omite :port e nunca inclui segredo', () => {
+    const text = safeOriginText({ host: 'stg-pg.synkroo.com.br', database: 'd', user: 'u', access_client_id: ACCESS_ID, access_client_secret: ACCESS_SECRET });
+    assert.match(text, /access=true/);
+    assert.ok(!text.includes(':5432'), 'porta omitida no texto com access');
+    assert.ok(!text.includes(ACCESS_ID));
+    assert.ok(!text.includes(ACCESS_SECRET));
+    assert.match(text, /host=stg-pg\.synkroo\.com\.br db=/);
+  });
+
+  test('compareOrigins com access ignora port (API omite/default)', () => {
+    // want leva a PG_PORT do side; a API omite a porta no GET observado.
+    assert.deepEqual(
+      compareOrigins(
+        { host: 'stg-pg.synkroo.com.br', port: 5432, database: 'd', user: 'u', scheme: 'postgres', access_client_id: 'a', access_client_secret: 's' },
+        { host: 'stg-pg.synkroo.com.br', database: 'd', user: 'u', scheme: 'postgres', access: true },
+      ),
+      { equal: true, diffs: [] },
+    );
+    // Portas divergentes também reconciliam com access.
+    assert.deepEqual(
+      compareOrigins(
+        { host: 'h', port: 5432, database: 'd', user: 'u', scheme: 'postgres', access_client_id: 'a', access_client_secret: 's' },
+        { host: 'h', port: 5433, database: 'd', user: 'u', scheme: 'postgres', access: true },
+      ),
+      { equal: true, diffs: [] },
+    );
+    // Sem access a porta continua comparada como antes.
+    const legacy = compareOrigins(
+      { host: 'h', port: 5432, database: 'd', user: 'u', scheme: 'postgres', password: 'x' },
+      { host: 'h', port: 5433, database: 'd', user: 'u', scheme: 'postgres' },
+    );
+    assert.equal(legacy.equal, false);
+    assert.deepEqual(legacy.diffs, ['port']);
+  });
+
+  test('compareOrigins compara o flag access; secret nunca entra no diff', () => {
+    assert.deepEqual(
+      compareOrigins(
+        { host: 'h', port: 5432, database: 'd', user: 'u', scheme: 'postgres', access_client_id: 'a' },
+        { host: 'h', port: 5432, database: 'd', user: 'u', scheme: 'postgres', access: true },
+      ),
+      { equal: true, diffs: [] },
+    );
+    const diverged = compareOrigins(
+      { host: 'h', port: 5432, database: 'd', user: 'u', scheme: 'postgres', access_client_id: 'a' },
+      { host: 'h', port: 5432, database: 'd', user: 'u', scheme: 'postgres' },
+    );
+    assert.equal(diverged.equal, false);
+    assert.deepEqual(diverged.diffs, ['access']);
+  });
+
+  test('dry-run com access mostra o flag sem segredos e sem fetch', () => {
+    const { calls } = mockFetch(() => jsonResponse({}));
+    const lines = planHyperdriveUpdates({
+      targets: [
+        {
+          key: 'staging',
+          label: 'Staging Hyperdrive',
+          hyperdriveId: STAGING_ID,
+          database: 'synkroo_staging',
+          user: 'synkroo_staging',
+          accessClientId: ACCESS_ID,
+          accessClientSecret: ACCESS_SECRET,
+        },
+      ],
+      side: 'source',
+      host: 'stg-pg.synkroo.com.br',
+      port: 5432,
+      accountId: ACCOUNT,
+      access: true,
+    });
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /access=true/);
+    assert.ok(!lines[0].includes(ACCESS_ID));
+    assert.ok(!lines[0].includes(ACCESS_SECRET));
+    assert.ok(!lines[0].includes(':5432'), 'dry-run access omite a porta (regra cf_code 2007)');
+    assert.match(lines[0], /host=stg-pg\.synkroo\.com\.br db=/);
+    assert.equal(calls.length, 0);
+    const legacy = planHyperdriveUpdates({
+      targets: [{ key: 'staging', label: 'Staging Hyperdrive', hyperdriveId: STAGING_ID, database: 'synkroo_staging', user: 'synkroo_staging' }],
+      side: 'source',
+      host: '10.0.0.1',
+      port: 5432,
+      accountId: ACCOUNT,
+    });
+    assert.match(legacy[0], /access=false/);
+    assert.match(legacy[0], /host=10\.0\.0\.1:5432/, 'dry-run legado mantém :port');
+  });
+
+  test('apply com access: PATCH leva o par; reconcile casa o flag', async () => {
+    const old = { host: 'old', port: 5432, database: 'synkroo_staging', user: 'synkroo_staging', scheme: 'postgres' };
+    const { impl, calls } = statefulCloudflare({ [STAGING_ID]: old });
+    const applied = await applyHyperdriveTarget({
+      fetchImpl: impl,
+      accountId: ACCOUNT,
+      apiToken: TOKEN,
+      target: { ...STAGING_TARGET, accessClientId: ACCESS_ID, accessClientSecret: ACCESS_SECRET },
+      host: 'stg-pg.synkroo.com.br',
+      port: 5432,
+    });
+    const patchBody = JSON.parse(calls.find((call) => call.init.method === 'PATCH').init.body);
+    assert.equal(patchBody.origin.access_client_id, ACCESS_ID);
+    assert.equal(patchBody.origin.access_client_secret, ACCESS_SECRET);
+    assert.ok(!('port' in patchBody.origin), 'PATCH access omite port (cf_code 2007)');
+    assert.equal(applied.match, true);
+    assert.deepEqual(applied.diffs, []);
+    assert.equal(applied.snapshot.origin.access, false);
+  });
+
+  test('reconcile access: flag divergente reprova sem vazar segredo', async () => {
+    const { impl } = statefulCloudflare({
+      [STAGING_ID]: { host: 'old', port: 5432, database: 'synkroo_staging', user: 'synkroo_staging', scheme: 'postgres' },
+    });
+    let phase = 0;
+    const drifting = async (url, init) => {
+      phase += 1;
+      if (phase === 3) {
+        return jsonResponse({
+          body: {
+            success: true,
+            result: {
+              id: STAGING_ID,
+              origin: { host: 'stg-pg.synkroo.com.br', port: 5432, database: 'synkroo_staging', user: 'synkroo_staging', scheme: 'postgres' },
+            },
+          },
+        });
+      }
+      return impl(url, init);
+    };
+    const outcome = await applyHyperdriveTargets({
+      fetchImpl: drifting,
+      accountId: ACCOUNT,
+      apiToken: TOKEN,
+      targets: [{ ...STAGING_TARGET, accessClientId: ACCESS_ID, accessClientSecret: ACCESS_SECRET }],
+      host: 'stg-pg.synkroo.com.br',
+      port: 5432,
+    });
+    assert.equal(outcome.allOk, false);
+    assert.deepEqual(outcome.results[0].diffs, ['access']);
+    assert.ok(!outcome.results[0].error.includes(ACCESS_SECRET));
+  });
+
+  test('rollback access=true sem o par falha fechado antes de qualquer PATCH', async () => {
+    const accessSnapshot = {
+      hyperdriveId: STAGING_ID,
+      origin: { host: 'stg-pg.synkroo.com.br', database: 'd', user: 'u', scheme: 'postgres', access: true },
+    };
+    const { impl, calls } = mockFetch(() => jsonResponse({ body: { success: true, result: {} } }));
+    await assert.rejects(
+      () => rollbackHyperdriveTarget({ fetchImpl: impl, accountId: ACCOUNT, apiToken: TOKEN, snapshot: accessSnapshot, password: 'x' }),
+      (err) => {
+        assert.equal(err.code, CF_ACCESS_MISSING_CODE);
+        assert.match(err.message, /CLOUDFLARE_ACCESS_CLIENT_ID/);
+        assert.match(err.message, /CLOUDFLARE_ACCESS_CLIENT_SECRET/);
+        assert.ok(!err.message.includes(ACCESS_ID));
+        assert.ok(!err.message.includes(ACCESS_SECRET));
+        return true;
+      },
+    );
+    assert.equal(calls.length, 0, 'fail-closed não emite PATCH');
+  });
+
+  test('rollback access=true com par incompleto falha fechado sem ecoar valores', async () => {
+    const accessSnapshot = {
+      hyperdriveId: STAGING_ID,
+      origin: { host: 'stg-pg.synkroo.com.br', database: 'd', user: 'u', scheme: 'postgres', access: true },
+    };
+    for (const access of [{ clientId: ACCESS_ID }, { clientSecret: ACCESS_SECRET }]) {
+      const { impl, calls } = mockFetch(() => jsonResponse({ body: { success: true, result: {} } }));
+      await assert.rejects(
+        () => rollbackHyperdriveTarget({ fetchImpl: impl, accountId: ACCOUNT, apiToken: TOKEN, snapshot: accessSnapshot, password: 'x', access }),
+        (err) => {
+          assert.equal(err.code, CF_ACCESS_MISSING_CODE);
+          assert.match(err.message, /CLOUDFLARE_ACCESS_CLIENT/);
+          assert.ok(!err.message.includes(ACCESS_ID));
+          assert.ok(!err.message.includes(ACCESS_SECRET));
+          return true;
+        },
+      );
+      assert.equal(calls.length, 0, 'fail-closed não emite PATCH');
+    }
+  });
+
+  test('rollback access=true com par completo: PATCH leva o par e omite port (ausente ou default)', async () => {
+    for (const snapshotOrigin of [
+      { host: 'stg-pg.synkroo.com.br', database: 'd', user: 'u', scheme: 'postgres', access: true },
+      { host: 'stg-pg.synkroo.com.br', port: 5432, database: 'd', user: 'u', scheme: 'postgres', access: true },
+    ]) {
+      const { impl, calls } = statefulCloudflare({
+        [STAGING_ID]: { host: '10.0.0.1', port: 5432, database: 'd', user: 'u', scheme: 'postgres' },
+      });
+      const rolled = await rollbackHyperdriveTarget({
+        fetchImpl: impl,
+        accountId: ACCOUNT,
+        apiToken: TOKEN,
+        snapshot: { hyperdriveId: STAGING_ID, origin: snapshotOrigin },
+        password: 'senha-anterior',
+        access: { clientId: ACCESS_ID, clientSecret: ACCESS_SECRET },
+      });
+      const patchBody = JSON.parse(calls.find((call) => call.init.method === 'PATCH').init.body);
+      assert.equal(patchBody.origin.access_client_id, ACCESS_ID);
+      assert.equal(patchBody.origin.access_client_secret, ACCESS_SECRET);
+      assert.ok(!('port' in patchBody.origin), 'rollback access ignora port (cf_code 2007)');
+      assert.equal(rolled.match, true);
+      assert.deepEqual(rolled.diffs, []);
+    }
+  });
+
+  test('rollback legado (access falsy) com par Access é rejeitado fail-closed', async () => {
+    const legacySnapshot = {
+      hyperdriveId: STAGING_ID,
+      origin: { host: '10.0.0.9', port: 5432, database: 'd', user: 'u', scheme: 'postgres', access: false },
+    };
+    const { impl, calls } = mockFetch(() => jsonResponse({ body: { success: true, result: {} } }));
+    await assert.rejects(
+      () => rollbackHyperdriveTarget({
+        fetchImpl: impl,
+        accountId: ACCOUNT,
+        apiToken: TOKEN,
+        snapshot: legacySnapshot,
+        password: 'x',
+        access: { clientId: ACCESS_ID, clientSecret: ACCESS_SECRET },
+      }),
+      (err) => {
+        assert.equal(err.code, CF_CONFIG_INVALID_CODE);
+        assert.ok(!err.message.includes(ACCESS_ID));
+        assert.ok(!err.message.includes(ACCESS_SECRET));
+        return true;
+      },
+    );
+    assert.equal(calls.length, 0, 'fail-closed não emite PATCH');
   });
 });

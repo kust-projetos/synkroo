@@ -1104,7 +1104,14 @@ describe('resolveVpsSideSettings — contrato source/target', () => {
         /VPS_SIDE_INVALID_CODE/.test(src),
         `${name} deve citar o code de side inválido na mensagem`,
       );
-      assert.match(src, /side=\$\{side\} host=/, `${name} deve rotular a execução com o side`);
+      if (name === 'update-hyperdrive.ts') {
+        // Banner com originBanner + flag access (túnel D4): sem `host=` literal
+        // adjacente a `side=` (ver operator-scripts-hardening.test.mjs, C9).
+        assert.match(src, /side=\$\{side\} \$\{originBanner\} target=/, `${name} deve rotular a execução com o side`);
+        assert.match(src, /access=\$\{accessMode \? 'true' : 'false'\}/, `${name} deve exibir o flag access sem segredos`);
+      } else {
+        assert.match(src, /side=\$\{side\} host=/, `${name} deve rotular a execução com o side`);
+      }
     }
   });
 });
