@@ -11,9 +11,14 @@ test.describe('Contacts mobile layout', () => {
 
     const contact = page.locator('[data-testid="contact-list"] button:not([role="tab"])').filter({ hasText: /Paciente|Lead/ }).first()
     await expect(contact).toBeVisible()
-    // Clique único: o toHaveURL aguarda a navegação pós-hidratação (sem loop toPass).
+    // Clique único + 1 retry limitado: clique durante a hidratação é no-op.
     await contact.click()
-    await expect(page).toHaveURL(/contact=/, { timeout: 15_000 })
+    try {
+      await expect(page).toHaveURL(/contact=/, { timeout: 8000 })
+    } catch {
+      await contact.click()
+      await expect(page).toHaveURL(/contact=/, { timeout: 15_000 })
+    }
 
     await expect(page.getByTestId('contact-detail')).toBeVisible({ timeout: 30_000 })
     await expect(page.getByRole('button', { name: 'Voltar para contatos' })).toBeVisible({ timeout: 30_000 })
