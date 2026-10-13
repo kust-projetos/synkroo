@@ -43,37 +43,10 @@ export interface PatientRiskScoreRow {
 }
 
 /**
- * Get patient by ID (UNSCOPED — cross-tenant risk).
- * @deprecated Use `findByIdScoped(patientId, clinicId)` instead.
- * P1: clinicId must come from trusted auth context.
+ * NOTE (T1.4): unscoped `findPatientById`/`findById` removed — cross-tenant
+ * risk. Use `findByIdScoped(patientId, clinicId)` with clinicId from trusted
+ * auth context.
  */
-export async function findPatientById(
-	patientId: string,
-): Promise<PatientRow | null> {
-	const db = getDb();
-	const [row] = await db
-		.select({
-			id: patients.id,
-			clinicId: patients.clinicId,
-			name: patients.name,
-			phone: patients.phone,
-			email: patients.email,
-			cpf: patients.cpf,
-			lastVisitAt: patients.lastVisitAt,
-			optOutMarketing: patients.optOutMarketing,
-			optOutReminders: patients.optOutReminders,
-			riskScore: patients.riskScore,
-			createdAt: patients.createdAt,
-			updatedAt: patients.updatedAt,
-		})
-		.from(patients)
-		.where(eq(patients.id, patientId))
-		.limit(1);
-	return (row as PatientRow) ?? null;
-}
-
-/** Alias for findPatientById (UNSCOPED — deprecated, use findByIdScoped) */
-export const findById = findPatientById
 
 /**
  * Get patient by phone within a clinic
@@ -108,10 +81,12 @@ export async function findPatientByPhone(
 }
 
 /**
- * Get patient preferences
+ * Get patient preferences — tenant-scoped.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function getPatientPreferences(
 	patientId: string,
+	clinicId: string,
 ): Promise<PatientPreferenceRow[]> {
 	const db = getDb();
 	const rows = await db
@@ -121,17 +96,32 @@ export async function getPatientPreferences(
 			category: patientPreferences.category,
 		})
 		.from(patientPreferences)
-		.where(eq(patientPreferences.patientId, patientId));
+		.where(
+			and(
+				eq(patientPreferences.patientId, patientId),
+				eq(patientPreferences.clinicId, clinicId),
+			),
+		);
 	return rows as PatientPreferenceRow[];
 }
 
 /**
- * Get latest patient risk score
+ * Get latest patient risk score — tenant-scoped.
+ * patient_risk_scores has no clinic_id column, so scope is enforced via a
+ * patient-ownership gate (no cross-tenant leak).
+ * P1: clinicId must come from trusted auth context.
  */
 export async function getLatestRiskScore(
 	patientId: string,
+	clinicId: string,
 ): Promise<PatientRiskScoreRow | null> {
 	const db = getDb();
+	const [owner] = await db
+		.select({ id: patients.id })
+		.from(patients)
+		.where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)))
+		.limit(1);
+	if (!owner) return null;
 	const [row] = await db
 		.select({
 			score: patientRiskScores.score,
@@ -145,10 +135,12 @@ export async function getLatestRiskScore(
 }
 
 /**
- * Get recent appointments for a patient
+ * Get recent appointments for a patient — tenant-scoped.
+ * P1: clinicId must come from trusted auth context.
  */
 export async function getRecentAppointments(
 	patientId: string,
+	clinicId: string,
 	limit = 10,
 ): Promise<
 	Array<{
@@ -169,7 +161,12 @@ export async function getRecentAppointments(
 			notes: appointments.notes,
 		})
 		.from(appointments)
-		.where(eq(appointments.patientId, patientId))
+		.where(
+			and(
+				eq(appointments.patientId, patientId),
+				eq(appointments.clinicId, clinicId),
+			),
+		)
 		.orderBy(desc(appointments.scheduledAt))
 		.limit(limit);
 	return rows.map((r) => ({
@@ -272,7 +269,12 @@ export async function findByIdWithAppointments(
 			notes: appointments.notes,
 		})
 		.from(appointments)
-		.where(eq(appointments.patientId, patientId))
+		.where(
+			and(
+				eq(appointments.patientId, patientId),
+				eq(appointments.clinicId, clinicId),
+			),
+		)
 		.orderBy(desc(appointments.scheduledAt))
 		.limit(20);
 	return { ...patient, appointments: apts } as unknown as ReturnType<typeof findByIdWithAppointments>;
@@ -327,40 +329,9 @@ export async function create(data: {
 }
 
 /**
- * Update a patient (UNSCOPED — cross-tenant risk).
- * @deprecated Use `updateScoped(id, clinicId, data)` instead.
- * P1: clinicId must come from trusted auth context.
+ * NOTE (T1.4): unscoped `update` removed — cross-tenant risk. Use
+ * `updateScoped(id, clinicId, data)` with clinicId from trusted auth context.
  */
-export async function update(
-	id: string,
-	data: Partial<{
-		name: string;
-		phone: string;
-		email: string | null;
-		cpf: string | null;
-		birthDate: string | null;
-		gender: string | null;
-		notes: string | null;
-		tags: string[];
-	}>,
-): Promise<PatientRow | null> {
-	const db = getDb();
-	const updateData: Record<string, unknown> = {
-		...data,
-		updatedAt: new Date(),
-	};
-	if (data.birthDate !== undefined)
-		updateData.birthDate = data.birthDate ? new Date(data.birthDate) : null;
-	const [row] = await db
-		.update(patients)
-		.set(updateData as any)
-		.where(eq(patients.id, id))
-		.returning();
-	console.warn(
-		"[P1] patients.update without clinicId is deprecated; use updateScoped with clinic from auth context",
-	);
-	return (row as PatientRow) ?? null;
-}
 
 /**
  * Update a patient scoped to a clinic. Returns null when the id does not
@@ -397,20 +368,9 @@ export async function updateScoped(
 }
 
 /**
- * Soft delete a patient (UNSCOPED — cross-tenant risk).
- * @deprecated Use `softDeleteScoped(id, clinicId)` instead.
- * P1: clinicId must come from trusted auth context.
+ * NOTE (T1.4): unscoped `softDelete` removed — cross-tenant risk. Use
+ * `softDeleteScoped(id, clinicId)` with clinicId from trusted auth context.
  */
-export async function softDelete(id: string): Promise<void> {
-	const db = getDb();
-	await db
-		.update(patients)
-		.set({ deletedAt: new Date(), updatedAt: new Date() } as any)
-		.where(eq(patients.id, id));
-	console.warn(
-		"[P1] patients.softDelete without clinicId is deprecated; use softDeleteScoped with clinic from auth context",
-	);
-}
 
 /**
  * Soft delete a patient scoped to a clinic. No-op when the id does not
@@ -449,23 +409,10 @@ export async function findInactiveByClinic(
 }
 
 /**
- * Bulk update tags for multiple patients (UNSCOPED — cross-tenant risk).
- * @deprecated Use `bulkUpdateTagsScoped(patientIds, clinicId, tags)` instead.
- * P1: clinicId must come from trusted auth context.
+ * NOTE (T1.4): unscoped `bulkUpdateTags` removed — cross-tenant risk. Use
+ * `bulkUpdateTagsScoped(patientIds, clinicId, tags)` with clinicId from
+ * trusted auth context.
  */
-export async function bulkUpdateTags(
-	patientIds: string[],
-	tags: string[],
-): Promise<void> {
-	const db = getDb();
-	await db
-		.update(patients)
-		.set({ tags, updatedAt: new Date() } as any)
-		.where(and(inArray(patients.id, patientIds)));
-	console.warn(
-		"[P1] patients.bulkUpdateTags without clinicId is deprecated; use bulkUpdateTagsScoped with clinic from auth context",
-	);
-}
 
 /**
  * Bulk update tags scoped to a clinic — only rows belonging to the clinic
