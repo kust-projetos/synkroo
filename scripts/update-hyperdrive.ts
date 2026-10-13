@@ -18,9 +18,13 @@
  * SOLELY from process.env (never argv, never the VPS .env file); missing vars
  * abort fail-closed naming the variables (never values). With --access,
  * --origin-host (tunnel hostname) is REQUIRED — the raw side IP is not a
- * usable Access origin — and the port still comes from the side settings
- * (no new port flag). Reconcile compares the access FLAG only, never the
- * secret value (a rotation keeping the same client id is not observable).
+ * usable Access origin — and the port is OMITTED from the PATCH body (the
+ * real API rejects port + Access together with 400 cf_code 2007; without
+ * port the same PATCH returns 200). The side PG_PORT is therefore ignored
+ * for --access runs; without --access the port is required exactly as
+ * before. Reconcile skips the port on Access runs and compares the access
+ * FLAG only, never the secret value (a rotation keeping the same client
+ * id is not observable).
  *
  * Usage:
  *   npx tsx scripts/update-hyperdrive.ts --side=source
@@ -40,7 +44,9 @@
  *          from CLOUDFLARE_ACCESS_CLIENT_ID / CLOUDFLARE_ACCESS_CLIENT_SECRET
  *          in process.env. Without --access behaviour is byte-identical legacy.
  *   --origin-host tunnel hostname for --access runs (e.g. stg-pg.synkroo.com.br).
- *          Requires --access; rejected without it.
+ *          Requires --access; rejected without it. With --access the PATCH
+ *          omits port (API cf_code 2007 rejects port + Access together), so
+ *          the side PG_PORT is ignored.
  *   --timeout-ms API budget per request (default 15000, range 1000-120000).
  *   --account-id Cloudflare account id (or CLOUDFLARE_ACCOUNT_ID in process.env).
  *   CLOUDFLARE_API_TOKEN (Hyperdrive Write scope) must be set in process.env:
@@ -180,7 +186,8 @@ async function main() {
   const port = requireVpsSideSetting(settings, 'pgPort', hint) as number;
   // Origin host: without --access this is always the side IP (legacy,
   // byte-identical); with --access the tunnel hostname from --origin-host is
-  // required and the side IP is never used. No new port flag exists.
+  // required and the side IP is never used. With --access the PATCH omits
+  // port (cf_code 2007); without --access the port below is required.
   let host: string;
   try {
     ({ host } = resolveHyperdriveOrigin({
@@ -233,8 +240,11 @@ async function main() {
     process.exit(1);
   }
 
+  // With --access the PATCH omits port (API cf_code 2007 rejects port +
+  // Access together), so the banner shows the host without :port.
+  const originBanner = accessMode ? `host=${host}` : `host=${host}:${port}`;
   console.log(
-    `side=${side} host=${host}:${port} target=${targetKeys} access=${accessMode ? 'true' : 'false'} ` +
+    `side=${side} ${originBanner} target=${targetKeys} access=${accessMode ? 'true' : 'false'} ` +
       `source_env=${hint}${dryRun ? ' [dry-run: no changes]' : ''}`,
   );
   if (settings.usedLegacyKeys.length > 0) {

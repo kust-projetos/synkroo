@@ -324,7 +324,9 @@ describe('contrato source/target nos scripts operacionais', () => {
     assert.match(src, /resolveHyperdriveTargetKeys\(/, 'staging e prod atualizáveis independentemente');
     assert.match(src, /resolveVpsSideSettings\(/);
     assert.match(src, /readCliFlag\(/);
-    assert.match(src, /side=\$\{side\} host=/);
+    assert.match(src, /side=\$\{side\} \$\{originBanner\} target=/, 'banner usa originBanner com flag access');
+    assert.match(src, /originBanner = accessMode \? `host=\$\{host\}` : `host=\$\{host\}:\$\{port\}`/);
+    assert.match(src, /access=\$\{accessMode \? 'true' : 'false'\}/);
   });
 });
 
