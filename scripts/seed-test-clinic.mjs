@@ -123,10 +123,11 @@ try {
      ON CONFLICT (user_id, clinic_id) DO UPDATE SET role_id = EXCLUDED.role_id, revoked_at = NULL, expires_at = NULL, grant_reason = EXCLUDED.grant_reason`,
     [USER_ID, CLINIC_ID, ownerRoleId],
   );
-  // #61 / GW02-B1: segunda membership p/ o admin demo — com 2 clínicas o
-  // ClinicSelector (F4.09, hidden quando availableClinics.length<=1) fica
-  // visível no E2E. Sem endpoint de criação de clínica em runtime, o seed
-  // (SQL direto, idempotente) é a única via — sem refactor de aplicação.
+  // #61 / GW02-B1: usuário DEDICADO multi-clínica — NÃO mutar o admin demo
+  // (toda a suíte E2E assume admin single-clinic; 2ª membership nele quebrou
+  // specs alheios, ex. axe em /login). Com 2 clínicas o ClinicSelector
+  // (F4.09, hidden quando availableClinics.length<=1) fica visível no spec
+  // dedicado que usa este usuário.
   let CLINIC_B_ID = "00000000-0000-0000-0000-000000000007";
   const existingClinicBResult = await client.query(
     "SELECT id FROM clinics WHERE slug = $1 LIMIT 1",
@@ -155,11 +156,33 @@ try {
       [CLINIC_B_OWNER_ROLE_ID, CLINIC_B_ID],
     );
   }
+  const MULTI_USER_ID = "00000000-0000-4000-8000-000000000003";
+  const MULTI_EMAIL = "multiclinica@clinicademo.com";
   await client.query(
-    `INSERT INTO user_clinic_access (user_id, clinic_id, role_id, grant_reason)
-     VALUES ($1, $2, $3, 'seed-test-clinic: demo admin segunda clinica (#61)')
-     ON CONFLICT (user_id, clinic_id) DO UPDATE SET role_id = EXCLUDED.role_id, revoked_at = NULL, expires_at = NULL, grant_reason = EXCLUDED.grant_reason`,
-    [USER_ID, CLINIC_B_ID, clinicBOwnerRoleId],
+    `INSERT INTO users (id, clinic_id, email, name, role, is_active)
+     VALUES ($1, $2, $3, 'Multi Clinica', 'owner', true)
+     ON CONFLICT (id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, email = EXCLUDED.email, role = EXCLUDED.role, is_active = true`,
+    [MULTI_USER_ID, CLINIC_ID, MULTI_EMAIL],
+  );
+  await client.query(
+    `INSERT INTO user_credentials (user_id, password_hash)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = now()`,
+    [MULTI_USER_ID, hashPassword(DEMO_PASSWORD)],
+  );
+  for (const [cid, rid] of [[CLINIC_ID, ownerRoleId], [CLINIC_B_ID, clinicBOwnerRoleId]]) {
+    await client.query(
+      `INSERT INTO user_clinic_access (user_id, clinic_id, role_id, grant_reason)
+       VALUES ($1, $2, $3, 'seed-test-clinic: usuario multi clinica (#61)')
+       ON CONFLICT (user_id, clinic_id) DO UPDATE SET role_id = EXCLUDED.role_id, revoked_at = NULL, expires_at = NULL, grant_reason = EXCLUDED.grant_reason`,
+      [MULTI_USER_ID, cid, rid],
+    );
+  }
+  // Higiene: revoga eventual 2ª membership legada do admin demo (versão
+  // anterior deste seed) para restaurar o invariante single-clinic da suíte.
+  await client.query(
+    `DELETE FROM user_clinic_access WHERE user_id = $1 AND clinic_id = $2`,
+    [USER_ID, CLINIC_B_ID],
   );
   await client.query(
     `INSERT INTO instance_modules (module_id, enabled)

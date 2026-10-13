@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
 import path from 'path'
 
-// #61: o seed (scripts/seed-test-clinic.mjs) dá ao admin demo membership em
-// 2 clínicas (clinica-demo + clinica-demo-filial); com availableClinics>1 o
+// #61: sessão DEDICADA multi-clínica (multiclinica@clinicademo.com, via
+// e2e/.auth/multiclinica.json do global-setup) — o admin demo permanece
+// single-clinic para não quebrar o resto da suíte. Com availableClinics>1 o
 // ClinicSelector (F4.09) deve renderizar no header do dashboard.
-const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json') })
+const t = test.extend({ storageState: path.join(__dirname, '../.auth/multiclinica.json') })
 
 t.describe('ClinicSelector multi-clínica (#61 / F4.09)', () => {
   t.beforeEach(async ({ page }) => {
