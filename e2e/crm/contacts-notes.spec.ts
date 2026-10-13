@@ -7,10 +7,9 @@ async function openContact(page: Page): Promise<void> {
   // Linhas de contato: button.w-full sem role (filtros Todos/Pacientes/Leads têm role="tab").
   const contactItem = page.locator('main button.w-full:not([role="tab"])').first()
   await expect(contactItem).toBeVisible({ timeout: 15000 })
-  await expect(async () => {
-    await contactItem.click()
-    await expect(page).toHaveURL(/contact=/)
-  }).toPass({ timeout: 15000 })
+  // Clique único: o toHaveURL aguarda a navegação pós-hidratação (sem loop toPass).
+  await contactItem.click()
+  await expect(page).toHaveURL(/contact=/, { timeout: 15000 })
   // Detalhe exclusivo: tabs Notas/Timeline so existem com painel aberto
   // (data-testid no Panel desktop nao chega ao DOM; h1/h2 generico daria falso-positivo).
   const detailTab = page.getByRole('tab', { name: /Notas|Timeline/i }).first()
@@ -19,8 +18,9 @@ async function openContact(page: Page): Promise<void> {
 
 t.describe('CRM Contacts - Notes and Timeline', () => {
   t.beforeEach(async ({ page }) => {
-    await page.goto('/dashboard/contatos')
-    await page.waitForLoadState('networkidle')
+    await page.goto('/dashboard/contatos', { waitUntil: 'domcontentloaded' })
+    // Gate determinístico: lista renderizada (sem networkidle — polling/websocket nunca estabiliza).
+    await expect(page.getByTestId('contact-list')).toBeVisible({ timeout: 15000 })
   })
 
   t('renders contact detail panel', async ({ page }) => {
@@ -72,9 +72,11 @@ t.describe('CRM Contacts - Notes and Timeline', () => {
     const tabCount = Math.min(await tabs.count(), 4)
     expect(tabCount).toBeGreaterThan(0)
     for (let i = 0; i < tabCount; i++) {
-      await expect(tabs.nth(i)).toBeVisible()
-      await tabs.nth(i).click()
-      await page.waitForLoadState('networkidle')
+      const tab = tabs.nth(i)
+      await expect(tab).toBeVisible()
+      await tab.click()
+      // Gate determinístico: Radix marca a tab ativa via data-state (sem networkidle).
+      await expect(tab).toHaveAttribute('data-state', 'active')
     }
   })
 })

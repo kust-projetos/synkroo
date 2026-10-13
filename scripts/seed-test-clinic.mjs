@@ -123,6 +123,44 @@ try {
      ON CONFLICT (user_id, clinic_id) DO UPDATE SET role_id = EXCLUDED.role_id, revoked_at = NULL, expires_at = NULL, grant_reason = EXCLUDED.grant_reason`,
     [USER_ID, CLINIC_ID, ownerRoleId],
   );
+  // #61 / GW02-B1: segunda membership p/ o admin demo — com 2 clínicas o
+  // ClinicSelector (F4.09, hidden quando availableClinics.length<=1) fica
+  // visível no E2E. Sem endpoint de criação de clínica em runtime, o seed
+  // (SQL direto, idempotente) é a única via — sem refactor de aplicação.
+  let CLINIC_B_ID = "00000000-0000-0000-0000-000000000007";
+  const existingClinicBResult = await client.query(
+    "SELECT id FROM clinics WHERE slug = $1 LIMIT 1",
+    ["clinica-demo-filial"],
+  );
+  if (existingClinicBResult.rows[0]) {
+    CLINIC_B_ID = existingClinicBResult.rows[0].id;
+  }
+  await client.query(
+    `INSERT INTO clinics (id, name, slug, phone, email)
+     VALUES ($1, 'Clinica Demo Filial', 'clinica-demo-filial', '+5500000000001', 'filial@clinicademo.com')
+     ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug, phone = EXCLUDED.phone, email = EXCLUDED.email, deleted_at = NULL`,
+    [CLINIC_B_ID],
+  );
+  const CLINIC_B_OWNER_ROLE_ID = "00000000-0000-4000-8000-000000000102";
+  const clinicBOwnerRows = await client.query(
+    `SELECT id FROM roles WHERE clinic_id = $1 AND name = 'Owner' AND is_system = true LIMIT 1`,
+    [CLINIC_B_ID],
+  );
+  const clinicBOwnerRoleId = clinicBOwnerRows.rows[0]?.id ?? CLINIC_B_OWNER_ROLE_ID;
+  if (!clinicBOwnerRows.rows[0]) {
+    await client.query(
+      `INSERT INTO roles (id, clinic_id, name, description, is_system)
+       VALUES ($1, $2, 'Owner', 'Dono da clínica (acesso total).', true)
+       ON CONFLICT (id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, name = EXCLUDED.name, description = EXCLUDED.description, is_system = true`,
+      [CLINIC_B_OWNER_ROLE_ID, CLINIC_B_ID],
+    );
+  }
+  await client.query(
+    `INSERT INTO user_clinic_access (user_id, clinic_id, role_id, grant_reason)
+     VALUES ($1, $2, $3, 'seed-test-clinic: demo admin segunda clinica (#61)')
+     ON CONFLICT (user_id, clinic_id) DO UPDATE SET role_id = EXCLUDED.role_id, revoked_at = NULL, expires_at = NULL, grant_reason = EXCLUDED.grant_reason`,
+    [USER_ID, CLINIC_B_ID, clinicBOwnerRoleId],
+  );
   await client.query(
     `INSERT INTO instance_modules (module_id, enabled)
      VALUES ('atendimento', true), ('comercial', true), ('core', true), ('crm', true), ('financeiro', true), ('followup', true), ('ia', true), ('operacional', true)
