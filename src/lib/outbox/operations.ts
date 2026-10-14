@@ -14,6 +14,12 @@ export const OUTBOX_OPERATIONS = {
    * envio externo — a run nunca executa nada.
    */
   AI_CONTROL_PREPARE: 'ai.control.prepare',
+  /**
+   * P7 Slice 1 — journey pós-consulta em OBSERVE: fato de conclusão de
+   * consulta para materialização da instância (`followup_journey_instances`)
+   * + run P4 OBSERVE. Sem envio, sem branches neste slice.
+   */
+  JOURNEY_APPOINTMENT_COMPLETED: 'journey.appointment.completed',
 } as const;
 
 export type OutboxOperation = typeof OUTBOX_OPERATIONS[keyof typeof OUTBOX_OPERATIONS];
@@ -78,4 +84,55 @@ export interface AiControlPreparePayload {
  */
 export function buildAiControlPrepareBusinessKey(clinicId: string, eventId: string): string {
   return JSON.stringify(['prepare', clinicId, eventId]);
+}
+
+/** Versão do envelope `journey.appointment.completed` (P7 Slice 1). */
+export const JOURNEY_APPOINTMENT_COMPLETED_VERSION = 1;
+
+/** Kind único de journey deste slice. */
+export const POST_VISIT_JOURNEY_KIND = 'post_visit';
+
+/**
+ * Envelope P7 Slice 1 (OBSERVE) — fato de conclusão de consulta.
+ *
+ * `eventId` é determinístico e fornecido pelo produtor (nunca `randomUUID`
+ * no consumo ou na chave de negócio): replay do mesmo envelope produz uma
+ * única instância via `onConflictDoNothing` na UNIQUE
+ * `(clinic_id, appointment_id, journey_kind)`. `clinicId` do envelope deve
+ * casar com o `clinicId` da linha do outbox — descasamento é falha permanente
+ * (DLQ), nunca escrita cross-tenant.
+ */
+export interface JourneyAppointmentCompletedPayload {
+  eventId: string;
+  kind: typeof POST_VISIT_JOURNEY_KIND;
+  version: typeof JOURNEY_APPOINTMENT_COMPLETED_VERSION;
+  occurredAt: string;
+  appointmentId: string;
+  clinicId: string;
+}
+
+/**
+ * Chave de negócio DETERMINÍSTICA do job — tupla JSON
+ * `[kind, clinicId, appointmentId]` (ordem fixa, sem ambiguidade de
+ * separador). A mesma conclusão lógica re-enfileirada colide na UNIQUE do
+ * outbox e não duplica a fila. Função pura em `operations` (sem imports).
+ */
+export function buildJourneyAppointmentCompletedBusinessKey(
+  kind: string,
+  clinicId: string,
+  appointmentId: string,
+): string {
+  return JSON.stringify([kind, clinicId, appointmentId]);
+}
+
+/**
+ * Id determinístico do evento de origem para a transição →completed de uma
+ * consulta: mesma conclusão lógica ⇒ mesmo evento ⇒ replay colide na UNIQUE
+ * da instância e na UNIQUE do outbox, sem duplicar. Nunca `randomUUID`.
+ * Função pura em `operations` (sem imports) para que o produtor (repo
+ * operacional) e os testes compartilhem a mesma construção sem importar o
+ * service da journey (fora de seam para o módulo operacional).
+ */
+export function buildJourneySourceEventId(appointmentId: string): string {
+  return `post_visit:${appointmentId}`;
 }

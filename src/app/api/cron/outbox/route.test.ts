@@ -23,6 +23,8 @@ describe('outbox worker', () => {
     expect(dispatchNextOutbox).toHaveBeenCalledTimes(2);
     expect(dispatchNextOutbox.mock.calls[0][1].operations).toEqual([
       'financeiro.charge.create', 'financeiro.charge.cancel', 'followup.campaign.recipient',
+      // P7 Slice 1 — journey pós-consulta em OBSERVE (módulo followup, sem envio).
+      'journey.appointment.completed',
     ]);
   });
 
