@@ -2,11 +2,34 @@
 
 import { ArrowPathIcon, CpuChipIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import { useIaActivity } from '@/lib/hooks/use-queries'
+import { journeyStateLabel, runStatusLabel } from '@/lib/dashboard/ia-activity'
 
 function formatWhen(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * R12: contadores separados por entidade/status — nunca somar entidades
+ * distintas como "eventos". Cada segmento usa o substantivo da entidade +
+ * rótulo pt-BR + literal do banco (ex.: "1 run em observação (queued)").
+ * Runs e goals compartilham o vocabulário P4 OBSERVE (`runStatusLabel`);
+ * journeys usam `journeyStateLabel` (P7 S1).
+ */
+function summarizeEntityCounts(
+  counts: Record<string, number>,
+  singular: string,
+  plural: string,
+  labelFn: (status: string) => string,
+): string | null {
+  const entries = Object.entries(counts)
+    .filter(([, n]) => n > 0)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+  if (entries.length === 0) return null
+  return entries
+    .map(([status, n]) => `${n} ${n === 1 ? singular : plural} ${labelFn(status)} (${status})`)
+    .join(', ')
 }
 
 /**
@@ -58,14 +81,17 @@ export function IaActivityPanel() {
     )
   }
 
-  const observed = data.counts.runs['observed'] ?? 0
+  const summaries = [
+    summarizeEntityCounts(data.counts.runs, 'run', 'runs', runStatusLabel),
+    summarizeEntityCounts(data.counts.goals, 'meta', 'metas', runStatusLabel),
+    summarizeEntityCounts(data.counts.journeys, 'jornada', 'jornadas', journeyStateLabel),
+  ].filter((s): s is string => s !== null)
 
   return (
     <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">
-        {data.counts.total} evento(s) observado(s)
-        {observed > 0 ? ` · ${observed} proposta(s) observada(s)` : ''}
-      </p>
+      {summaries.length > 0 ? (
+        <p className="text-xs text-muted-foreground">{summaries.join(' · ')}</p>
+      ) : null}
       <h3 className="text-sm font-bold text-foreground">Atualizações recentes</h3>
       <ul className="space-y-2">
         {data.recent.map((item) => (

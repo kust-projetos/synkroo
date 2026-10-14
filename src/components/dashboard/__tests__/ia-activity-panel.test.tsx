@@ -94,4 +94,31 @@ describe('IaActivityPanel', () => {
     expect(screen.getByText('observed')).toBeTruthy()
     expect(screen.getByText('aguardando retorno')).toBeTruthy()
   })
+
+  it('R12: 1 evento gerando goal+run queued → 1 goal queued + 1 run queued (nunca "2 eventos observados")', () => {
+    mockedHook.mockReturnValue(
+      state({
+        data: {
+          counts: { runs: { queued: 1 }, goals: { queued: 1 }, journeys: {}, total: 2 },
+          recent: [
+            {
+              key: 'run:r1',
+              kind: 'run',
+              status: 'queued',
+              label: 'em observação',
+              eventType: 'lead.created',
+              occurredAt: '2026-10-14T09:55:00.000Z',
+              createdAt: '2026-10-14T10:10:00.000Z',
+              detail: null,
+            },
+          ],
+        },
+      }),
+    )
+    render(<IaActivityPanel />)
+    expect(screen.getByText(/1 run em observação \(queued\)/)).toBeTruthy()
+    expect(screen.getByText(/1 meta em observação \(queued\)/)).toBeTruthy()
+    expect(screen.queryByText(/evento\(s\) observado\(s\)/)).toBeNull()
+    expect(screen.queryByText(/2 evento/)).toBeNull()
+  })
 })

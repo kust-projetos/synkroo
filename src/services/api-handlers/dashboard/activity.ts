@@ -161,6 +161,9 @@ export async function GET(request: NextRequest) {
     items.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0))
     const recent = items.slice(0, IA_ACTIVITY_RECENT_LIMIT)
 
+    // R12: soma transversal apenas informativa (runs + goals + journeys são
+    // entidades distintas — NUNCA rotular como "eventos observados" na UI;
+    // o painel exibe contadores separados por entidade/status).
     const total =
       Object.values(runCounts).reduce((acc, n) => acc + n, 0) +
       Object.values(goalCounts).reduce((acc, n) => acc + n, 0) +
