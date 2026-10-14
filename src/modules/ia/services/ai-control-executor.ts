@@ -101,6 +101,12 @@ export interface ExecutionReceipt {
   exec_policy_version: typeof AI_CONTROL_EXEC_POLICY_VERSION;
   /** Referência da tentativa do `runAction` (`null` p/ não-consequencial). */
   attempt_id: string | null;
+  /**
+   * Instante imutável da execução (ISO, relógio injetável) — âncora da
+   * janela de outcome do Slice 4 (`receipt.executed_at`). Gravado no momento
+   * da execução e congelado (o UPDATE de outcome nunca reescreve o receipt).
+   */
+  executed_at: string;
   duration_ms: number;
 }
 
@@ -342,6 +348,11 @@ export interface AiControlExecutorDeps {
   ) => Promise<unknown>;
   /** Verifier puro por Action (default: mapa `VERIFIERS`). */
   verify?: (actionId: ExecAllowlistedAction, input: unknown, readBack: unknown) => VerificationVerdict;
+  /**
+   * Relógio injetável da execução (default: `Date.now`). Fixa `startedAt`,
+   * `executed_at` do receipt e `duration_ms` — testes usam relógio fixo.
+   */
+  now?: () => number;
 }
 
 async function defaultLoadRun(clinicId: string, eventId: string): Promise<ExecRunSnapshot | null> {
@@ -506,7 +517,7 @@ export async function executeDecidedRun(
     return { executed: false, reason: guard.reason };
   }
 
-  const startedAt = Date.now();
+  const startedAt = (deps.now ?? Date.now)();
   const idempotencyKey = buildExecutionIdempotencyKey(
     clinicId,
     eventId,
@@ -530,12 +541,17 @@ export async function executeDecidedRun(
   const saveExecution = deps.saveExecution ?? defaultSaveExecution;
 
   const finish = async (
-    receiptBase: Omit<ExecutionReceipt, 'duration_ms'>,
+    receiptBase: Omit<ExecutionReceipt, 'duration_ms' | 'executed_at'>,
     outcomeBase: Omit<ExecutionOutcome, 'duration_ms'>,
   ): Promise<ExecuteDecidedRunOutcome> => {
-    const durationMs = Date.now() - startedAt;
-    const receipt: ExecutionReceipt = { ...receiptBase, duration_ms: durationMs };
-    const outcome: ExecutionOutcome = { ...outcomeBase, duration_ms: durationMs };
+    const nowFn = deps.now ?? Date.now;
+    const executedAtMs = nowFn();
+    const receipt: ExecutionReceipt = {
+      ...receiptBase,
+      executed_at: new Date(executedAtMs).toISOString(),
+      duration_ms: Math.max(0, executedAtMs - startedAt),
+    };
+    const outcome: ExecutionOutcome = { ...outcomeBase, duration_ms: receipt.duration_ms };
     const nextResult = mergeExecutionRecord(run?.result, receipt, outcome);
     const affected = await saveExecution(clinicId, eventId, nextResult);
     if (affected === 0) {

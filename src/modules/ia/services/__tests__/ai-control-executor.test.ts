@@ -558,13 +558,47 @@ describe('verificação determinística pós-execução', () => {
     expect(getExecutionReceipt({ next_step: 'x' })).toBeNull();
     const receipt = {
       idempotency_key: 'k', action_id: ACTION_ID, policy_version: AI_CONTROL_POLICY_VERSION,
-      exec_policy_version: AI_CONTROL_EXEC_POLICY_VERSION, attempt_id: null, duration_ms: 1,
+      exec_policy_version: AI_CONTROL_EXEC_POLICY_VERSION, attempt_id: null,
+      executed_at: new Date(0).toISOString(), duration_ms: 1,
     } as const;
     const outcome = { status: 'business_success' as const, evidence: {}, duration_ms: 1 };
     const merged = mergeExecutionRecord({ next_step: 'x', policy_decision: { a: 1 } }, receipt, outcome);
     expect(merged.next_step).toBe('x');
     expect(merged.policy_decision).toEqual({ a: 1 });
     expect(hasExecutionReceipt(merged)).toBe(true);
+  });
+
+  it('receipt grava executed_at imutável do relógio injetável (default Date.now)', async () => {
+    const FIXED = Date.parse('2026-10-01T10:00:00.000Z');
+    const store = memoryStore();
+    seedObserved(store, 'evt-anchor');
+    const out = await executeDecidedRun(
+      {
+        clinicId: CLINIC_A,
+        eventId: 'evt-anchor',
+        decision: autoDecision(),
+        input: { id: PATIENT_ID },
+        actionCtx: actionCtx(),
+      },
+      {
+        readMode: () => 'auto_limitado',
+        loadRun: store.loadRun,
+        saveExecution: store.saveExecution,
+        claimExecution: store.claimExecution,
+        runAction: async () => ({ ok: true, data: { id: PATIENT_ID } }),
+        readBack: async () => ({ id: PATIENT_ID }),
+        now: () => FIXED,
+      },
+    );
+    expect(out.executed).toBe(true);
+    if (!out.executed) throw new Error('expected execution');
+    // Âncora imutável: ISO do relógio injetável, congelada no receipt.
+    expect(out.receipt.executed_at).toBe(new Date(FIXED).toISOString());
+    expect(out.receipt.duration_ms).toBe(0);
+    const saved = store.runs.get(`${CLINIC_A}:evt-anchor`)?.result as Record<string, unknown>;
+    expect((saved.execution_receipt as ExecutionReceipt).executed_at).toBe(
+      new Date(FIXED).toISOString(),
+    );
   });
 });
 
