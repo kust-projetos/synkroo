@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth/context'
 import { useDashboardStats } from '@/lib/hooks/use-queries'
 import { ErrorState } from '@/components/ui/ErrorState'
+import { IaActivityPanel } from '@/components/dashboard/ia-activity-panel'
 import { StatsGrid } from '@/components/ui/stats-grid'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -219,9 +220,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-4 flex-1 space-y-4">
-              <div className="rounded-xl border border-border/50 bg-muted/30 p-4 text-sm text-muted-foreground">
-                Nenhuma atividade real disponível.
-              </div>
+              <IaActivityPanel />
 
               <div className="pt-2">
                 <Link

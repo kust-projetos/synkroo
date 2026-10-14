@@ -5,6 +5,7 @@ import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tansta
 import type { Query, QueryClient } from '@tanstack/react-query'
 import { isMockMode, getMockForUrl } from '@/lib/mocks'
 import { AuthContext } from '@/lib/auth/context'
+import type { IaActivity } from '@/lib/dashboard/ia-activity'
 
 /**
  * G1: multi-tenant query-key factory.
@@ -246,6 +247,7 @@ export const queryKeys = {
   gateways: (clinicId?: string) => clinicScope(clinicId, 'financeiro', 'gateways'),
   financeDashboard: (clinicId?: string) => clinicScope(clinicId, 'financeiro', 'dashboard'),
   tasks: (filters?: unknown, clinicId?: string) => clinicScope(clinicId, 'tasks', filters),
+  iaActivity: (clinicId?: string) => clinicScope(clinicId, 'dashboard', 'activity'),
   activities: (options?: unknown, clinicId?: string) => clinicScope(clinicId, 'activities', 'all', options),
   duplicates: (clinicId?: string) => clinicScope(clinicId, 'duplicates'),
   duplicateList: (params?: string, clinicId?: string) => clinicScope(clinicId, 'duplicates', 'list', params),
@@ -347,6 +349,19 @@ export function useDashboardStats(clinicId?: string) {
   return useQuery({
     queryKey: queryKeys.dashboardStats(resolved),
     queryFn: () => fetcher<DashboardStats>('/api/dashboard/stats'),
+  })
+}
+
+/**
+ * P8 Slice 1 — atividade IA real (runs/goals P4 + journeys P7), read-only.
+ * Key tenant-scoped: a troca de clínica invalida/recarrega isoladamente.
+ */
+export function useIaActivity(clinicId?: string) {
+  const resolved = useResolvedClinicId(clinicId)
+  return useQuery({
+    queryKey: queryKeys.iaActivity(resolved),
+    queryFn: () => fetcher<IaActivity>('/api/dashboard/activity'),
+    staleTime: 30 * 1000,
   })
 }
 

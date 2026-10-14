@@ -69,6 +69,7 @@ describe('G1 tenant-key gate (execution-based)', () => {
       queryKeys.financeDashboard(CLINIC),
       queryKeys.tasks({ status: 'pending' }, CLINIC),
       queryKeys.activities({ sourceFilter: 'sms' }, CLINIC),
+      queryKeys.iaActivity(CLINIC),
       queryKeys.duplicates(CLINIC),
       queryKeys.duplicateList('{}', CLINIC),
       duplicateKeys.all(CLINIC),
