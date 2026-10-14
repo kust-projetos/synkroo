@@ -15,7 +15,7 @@ cp .env.example .env.local
 # - PostgreSQL (DATABASE_URL)
 # - NextAuth (AUTH_SECRET, JWT_SECRET)
 # - MiniMax ou OpenAI API key
-# - WhatsApp integration (Evolution atual; WAHA é o alvo vNext)
+# - WhatsApp integration (WAHA — canal canônico; Evolution inbound aposentado 410)
 
 # Executar servidor de desenvolvimento
 npm run dev
@@ -26,7 +26,7 @@ npm run dev
 ```
 src/
 ├── app/                      # Next.js 15 App Router
-│   ├── api/                  # 36 módulos de API (192 arquivos de rotas/handlers)
+│   ├── api/                  # 36 módulos de API (145 route.ts + 25 shims strangler _handler.ts — remedido em main; remedir após nova rota — SYN-DOC-001)
 │   │   ├── agent/            # Endpoints do agente IA
 │   │   ├── appointments/     # Gestão e agendamentos de consultas
 │   │   ├── auth/             # Autenticação e sessão NextAuth
@@ -41,9 +41,9 @@ src/
 │   │   ├── payments/         # Processamento de cobranças e webhooks
 │   │   ├── pipeline/         # Funil de vendas e etapas
 │   │   ├── treatment-plans/  # Planos de tratamento e sessões
-│   │   ├── whatsapp/         # Webhooks e integração Evolution API
+│   │   ├── whatsapp/         # Webhooks e integração WAHA (Evolution inbound aposentado 410)
 │   │   └── analytics/        # Métricas, ROI e predição de no-show
-│   ├── dashboard/           # Painel administrativo protegido (17 páginas)
+│   ├── dashboard/           # Painel administrativo protegido (36 páginas)
 │   ├── login/                # Página de login
 │   └── signup/               # Página de cadastro (desabilitada em prod)
 ├── components/               # UI por 12 domínios (calendar, campaigns, charts, contacts, financeiro, lgpd, notifications, pi-finance, pipeline, reports, ui, whatsapp)
@@ -70,12 +70,12 @@ src/
 | Framework | Next.js 15 (App Router) + React 19 + TypeScript 5.6 |
 | DB | PostgreSQL 17 via Drizzle ORM + `pg` (Supabase removido) |
 | Auth | NextAuth/Auth.js (JWT, edge middleware) |
-| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive + Vectorize |
+| Runtime alvo | Cloudflare Workers (OpenNext) + Hyperdrive — vector store único: pgvector (ADR-BASE-04, sem Vectorize) |
 | Workers auxiliares | Cloudflare Agents SDK / Agent DO (`ia-agent`) + `ia-bridge` |
 | State | Zustand 5 (local) + TanStack Query 5 (server) |
 | UI | Tailwind CSS + Radix UI + CVA + Recharts 3 |
 | LLM | Multi-provider factory (MiniMax, OpenAI, OpenRouter) |
-| WhatsApp | Evolution API na baseline atual; migração vNext planejada para WAHA via provider adapter |
+| WhatsApp | WAHA (canal canônico, default do provider registry; Evolution inbound aposentado 410 Gone, outbound legado como fallback deprecated — ADR-BASE-08) |
 | Validação | Zod (11 schemas dedicados) |
 | Testes | Jest + Playwright (E2E) + Stryker (mutation) — contagens derivadas pela CI (`npx jest --listTests`, glob `e2e/**/*.spec.ts`) |
 
@@ -133,15 +133,14 @@ JWT_SECRET=sua-chave-jwt-com-pelo-menos-16-caracteres
 MINIMAX_API_KEY=
 OPENAI_API_KEY=
 
-# Integração WhatsApp — baseline atual
-EVOLUTION_API_URL=
-EVOLUTION_API_KEY=
+# Integração WhatsApp — WAHA (canal canônico; ADR-BASE-08)
+WAHA_API_URL=
+WAHA_API_KEY=
+WAHA_WEBHOOK_HMAC_KEY=
 
-# Alvo vNext (habilitar somente após implementação/cutover)
-# WHATSAPP_PROVIDER=waha
-# WAHA_API_URL=
-# WAHA_API_KEY=
-# WAHA_WEBHOOK_HMAC_KEY=
+# Legado deprecated (Evolution inbound aposentado 410; não usar em novas instalações)
+# EVOLUTION_API_URL=
+# EVOLUTION_API_KEY=
 
 # Segredos de Webhook e Cron
 WEBHOOK_SECRET=
