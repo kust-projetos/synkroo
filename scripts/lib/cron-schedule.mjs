@@ -4,6 +4,11 @@ export const CRON_JOBS = [
   { name: 'reminders', path: '/api/cron/reminders', everyMinutes: 5 },
   { name: 'cleanup', path: '/api/cron/cleanup', everyMinutes: 60 },
   { name: 'hot-leads', path: '/api/cron/hot-leads', everyMinutes: 60 },
+  // P7S1 journeys (tick OBSERVE post-visit): OPT-IN explícito — só dispara
+  // quando `journeys` consta em CRON_JOBS_ENABLED. DESABILITADO por default:
+  // NÃO listar em wrangler.toml sem decisão do owner. Crons legados intactos.
+  // everyMinutes 60 é compatível com o trigger */5 (sem trigger novo).
+  { name: 'journeys', path: '/api/cron/journeys?limit=25', everyMinutes: 60 },
   { name: 'followups', path: '/api/cron/followups', dailyAtMinute: 9 * 60 },
   { name: 'financeiro-collections', path: '/api/cron/financeiro-collections', dailyAtMinute: 3 * 60 },
   { name: 'crm-duplicates', path: '/api/cron/crm-duplicates', dailyAtMinute: 4 * 60 },

@@ -66,6 +66,14 @@ export const followupJourneyInstances = pgTable(
     dueAt: timestamp('due_at', { withTimezone: true }).notNull(),
     /** Congelado na materialização: `occurredAt + 48h` (nunca recalculado). */
     feedbackDeadline: timestamp('feedback_deadline', { withTimezone: true }).notNull(),
+    /**
+     * P7S1-R10 HIGH (fairness): última vez que o tick avaliou a linha
+     * (mesmo sem transição). `NULL` = nunca examinada. O tick seleciona por
+     * (`last_tick_at` NULLS FIRST, `due_at`, `id`) para rotação garantida do
+     * lote: linhas presas (ex. falha persistente de sinais) não bloqueiam as
+     * demais para sempre.
+     */
+    lastTickAt: timestamp('last_tick_at', { withTimezone: true }),
     /** Referência à run P4 OBSERVE (`agent_runs.event_id`, mesmo tenant). */
     runEventId: text('run_event_id'),
     /** `feedback_observed` | `expired_no_feedback` | `stopped` (só em terminal). */
@@ -80,6 +88,11 @@ export const followupJourneyInstances = pgTable(
     journeyDueStateIdx: index('followup_journey_due_state_idx').on(
       t.clinicId,
       t.state,
+      t.dueAt,
+    ),
+    journeyTickFairnessIdx: index('followup_journey_tick_fairness_idx').on(
+      t.state,
+      t.lastTickAt,
       t.dueAt,
     ),
   }),

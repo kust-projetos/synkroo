@@ -13,6 +13,11 @@
  * Stop conditions (prevalecem sobre qualquer avanço, inclusive feedback):
  * consulta excluída/ausente, consulta não-mais-concluída, opt-out do paciente.
  *
+ * Fairness (P7S1-R10 HIGH): seleção por (`last_tick_at` NULLS FIRST,
+ * `due_at`, `id`) e TODA linha avaliada é marcada (`last_tick_at=agora`),
+ * mesmo sem transição ou com falha — rotação garantida do lote, sem
+ * starvation por linhas presas.
+ *
  * Outcome (só em estado terminal, determinístico):
  * `feedback_observed` (rating não-nulo, mesma consulta + mesmo tenant —
  * linha vazia legada NUNCA conta) | `expired_no_feedback` (passou a deadline
@@ -63,6 +68,8 @@ export interface JourneyInstanceSnapshot {
   revision: number;
   dueAt: Date | string;
   feedbackDeadline: Date | string;
+  /** Última avaliação pelo tick (`null`/ausente = nunca examinada). */
+  lastTickAt?: Date | string | null;
 }
 
 /** Sinais lidos do backend (tenant-scoped) para decidir o passo. */
@@ -179,6 +186,13 @@ export interface PostVisitJourneyTickDeps {
    * dispensa SEM reescrever). Default: UPDATE atômico de produção.
    */
   saveStep?: (instance: JourneyInstanceSnapshot, step: Extract<JourneyStep, { advance: true }>) => Promise<number>;
+  /**
+   * Marca a linha como examinada (`last_tick_at=agora`, incondicional por
+   * id+tenant — sem fence, nunca bloqueia avanço). Chamada para TODA linha
+   * avaliada, mesmo sem transição ou com falha; erro é engolido pelo tick
+   * (best-effort, nunca altera contadores). Default: UPDATE de produção.
+   */
+  markExamined?: (instance: JourneyInstanceSnapshot) => Promise<void>;
 }
 
 async function defaultLoadDueInstances(
@@ -194,6 +208,7 @@ async function defaultLoadDueInstances(
       revision: followupJourneyInstances.revision,
       dueAt: followupJourneyInstances.dueAt,
       feedbackDeadline: followupJourneyInstances.feedbackDeadline,
+      lastTickAt: followupJourneyInstances.lastTickAt,
     })
     .from(followupJourneyInstances)
     .where(
@@ -202,7 +217,13 @@ async function defaultLoadDueInstances(
         lte(followupJourneyInstances.dueAt, now),
       ),
     )
-    .orderBy(followupJourneyInstances.dueAt)
+    // Fairness: nunca-examinadas primeiro, depois as há mais tempo sem
+    // avaliação; desempate estável por (due_at, id).
+    .orderBy(
+      sql`${followupJourneyInstances.lastTickAt} ASC NULLS FIRST`,
+      followupJourneyInstances.dueAt,
+      followupJourneyInstances.id,
+    )
     .limit(limit);
   return rows;
 }
@@ -272,6 +293,8 @@ async function defaultSaveStep(
       state: step.to,
       revision: sql`${followupJourneyInstances.revision} + 1`,
       ...(step.outcome !== null ? { outcome: step.outcome } : {}),
+      // Linha que avança também foi examinada (rotação do lote).
+      lastTickAt: new Date(),
       updatedAt: new Date(),
     })
     .where(
@@ -284,6 +307,23 @@ async function defaultSaveStep(
     )
     .returning({ id: followupJourneyInstances.id });
   return updated.length;
+}
+
+/**
+ * Marca a linha como examinada sem fence (id+tenant): rotação best-effort.
+ * Nunca compete com `saveStep` (que cerca por estado+revision) e nunca gera
+ * órfão — é só o carimbo de fairness do lote.
+ */
+async function defaultMarkExamined(instance: JourneyInstanceSnapshot): Promise<void> {
+  await getDb()
+    .update(followupJourneyInstances)
+    .set({ lastTickAt: new Date(), updatedAt: new Date() })
+    .where(
+      and(
+        eq(followupJourneyInstances.id, instance.id),
+        eq(followupJourneyInstances.clinicId, instance.clinicId),
+      ),
+    );
 }
 
 export interface PostVisitJourneyTickResult {
@@ -299,6 +339,8 @@ export interface PostVisitJourneyTickResult {
  * Executa uma varredura do tick: carrega o lote elegível, deriva o passo de
  * cada instância (stop prevalece) e persiste via UPDATE condicional. Falha ao
  * carregar sinais de UMA instância não aborta o lote (conta como `skipped`).
+ * TODA linha avaliada é marcada como examinada (`finally` best-effort, mesmo
+ * sem transição ou com falha) para rotação fair do lote.
  */
 export async function tickPostVisitJourney(
   deps: PostVisitJourneyTickDeps = {},
@@ -308,6 +350,7 @@ export async function tickPostVisitJourney(
   const loadDueInstances = deps.loadDueInstances ?? defaultLoadDueInstances;
   const loadSignals = deps.loadSignals ?? defaultLoadSignals;
   const saveStep = deps.saveStep ?? defaultSaveStep;
+  const markExamined = deps.markExamined ?? defaultMarkExamined;
 
   const result: PostVisitJourneyTickResult = {
     checked: 0,
@@ -321,34 +364,45 @@ export async function tickPostVisitJourney(
   const instances = await loadDueInstances(limit, new Date(nowMs));
   for (const instance of instances) {
     result.checked += 1;
-    let signals: JourneySignals;
     try {
-      signals = await loadSignals(instance);
-    } catch {
-      result.skipped += 1;
-      continue;
+      let signals: JourneySignals;
+      try {
+        signals = await loadSignals(instance);
+      } catch {
+        result.skipped += 1;
+        continue;
+      }
+      const step = deriveJourneyStep(instance, signals, nowMs);
+      if (!step.advance) {
+        result.skipped += 1;
+        continue;
+      }
+      let affected = 0;
+      try {
+        affected = await saveStep(instance, step);
+      } catch {
+        result.skipped += 1;
+        continue;
+      }
+      if (affected === 0) {
+        // Outro tick avançou antes (fence de revision): o perdedor dispensa.
+        result.skipped += 1;
+        continue;
+      }
+      result.advanced += 1;
+      if (step.to === 'completed') result.completed += 1;
+      else if (step.to === 'expired') result.expired += 1;
+      else if (step.to === 'stopped') result.stopped += 1;
+    } finally {
+      // Fairness: marca examined em TODA linha avaliada (mesmo sem
+      // transição ou com falha). Best-effort: falha aqui nunca altera
+      // contadores nem aborta o lote.
+      try {
+        await markExamined(instance);
+      } catch {
+        /* best-effort */
+      }
     }
-    const step = deriveJourneyStep(instance, signals, nowMs);
-    if (!step.advance) {
-      result.skipped += 1;
-      continue;
-    }
-    let affected = 0;
-    try {
-      affected = await saveStep(instance, step);
-    } catch {
-      result.skipped += 1;
-      continue;
-    }
-    if (affected === 0) {
-      // Outro tick avançou antes (fence de revision): o perdedor dispensa.
-      result.skipped += 1;
-      continue;
-    }
-    result.advanced += 1;
-    if (step.to === 'completed') result.completed += 1;
-    else if (step.to === 'expired') result.expired += 1;
-    else if (step.to === 'stopped') result.stopped += 1;
   }
   return result;
 }

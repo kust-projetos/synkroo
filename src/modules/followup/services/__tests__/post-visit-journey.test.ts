@@ -445,6 +445,142 @@ describe('tickPostVisitJourney (lote + fence de revision)', () => {
   });
 });
 
+describe('tick fairness (P7S1-R10 HIGH): last_tick_at + rotação)', () => {
+  const nowDue = new Date(OCCURRED).getTime() + 3 * 60 * 60 * 1000;
+
+  it('marca examined em TODA linha avaliada (avanço, sem transição, falha de sinais, falha de escrita)', async () => {
+    const due = [
+      instance({ id: 'adv' }),
+      instance({ id: 'wait', state: 'waiting_feedback' }),
+      instance({ id: 'sigfail' }),
+      instance({ id: 'savefail' }),
+    ];
+    const markExamined = jest.fn(async (_inst: JourneyInstanceSnapshot) => undefined);
+    const result = await tickPostVisitJourney({
+      now: () => nowDue,
+      loadDueInstances: async () => due,
+      loadSignals: async (inst) => {
+        if (inst.id === 'sigfail') throw new Error('sinais indisponíveis');
+        return signals();
+      },
+      saveStep: async (inst) => {
+        if (inst.id === 'savefail') throw new Error('escrita falhou');
+        return 1;
+      },
+      markExamined: markExamined as never,
+    });
+    expect(result).toEqual({
+      checked: 4,
+      advanced: 1,
+      completed: 0,
+      expired: 0,
+      stopped: 0,
+      skipped: 3,
+    });
+    // TODA linha avaliada marcada — inclusive sem transição e com falha.
+    expect(markExamined).toHaveBeenCalledTimes(4);
+    const markedIds = markExamined.mock.calls.map(
+      (args) => (args[0] as JourneyInstanceSnapshot).id,
+    ).sort();
+    expect(markedIds).toEqual(['adv', 'savefail', 'sigfail', 'wait']);
+  });
+
+  it('falha de markExamined (best-effort) não altera contadores nem propaga', async () => {
+    const result = await tickPostVisitJourney({
+      now: () => nowDue,
+      loadDueInstances: async () => [instance({ id: 'a' }), instance({ id: 'b', state: 'waiting_feedback' })],
+      loadSignals: async () => signals(),
+      saveStep: async () => 1,
+      markExamined: async () => {
+        throw new Error('carimbo indisponível');
+      },
+    });
+    expect(result).toEqual({
+      checked: 2,
+      advanced: 1,
+      completed: 0,
+      expired: 0,
+      stopped: 0,
+      skipped: 1,
+    });
+  });
+
+  it('rotação N+1/lote N: segunda chamada alcança a restante; falha persistente não bloqueia as demais', async () => {
+    // Store stateful que replica o contrato do default: seleção por
+    // (last_tick_at NULLS FIRST, due_at, id) + carimbo em toda avaliação.
+    const store = new Map<string, { snap: JourneyInstanceSnapshot; lastTickAt: number | null }>();
+    const base = new Date(OCCURRED).getTime();
+    for (const [id, dueOffsetMin] of [['r1', 0], ['r2', 1], ['r3', 2], ['rest', 3]] as const) {
+      const snap = instance({ id, dueAt: new Date(base + dueOffsetMin * 60_000) });
+      // dueAt precisa ser Date vencido: OCCURRED+2h é o due; nowDue=+3h ⇒ vencido.
+      store.set(id, { snap, lastTickAt: null });
+    }
+    let clock = 1000;
+    const order = () =>
+      [...store.values()].sort((a, b) => {
+        const la = a.lastTickAt;
+        const lb = b.lastTickAt;
+        if (la === null && lb === null) {
+          const da = a.snap.dueAt instanceof Date ? a.snap.dueAt.getTime() : Date.parse(a.snap.dueAt);
+          const db = b.snap.dueAt instanceof Date ? b.snap.dueAt.getTime() : Date.parse(b.snap.dueAt);
+          return da - db;
+        }
+        if (la === null) return -1;
+        if (lb === null) return 1;
+        if (la !== lb) return la - lb;
+        return a.snap.id < b.snap.id ? -1 : 1;
+      });
+    const servedBatches: string[][] = [];
+    const loadDueInstances = jest.fn(async (limit: number) => {
+      const batch = order().slice(0, limit).map((row) => row.snap);
+      servedBatches.push(batch.map((snap) => snap.id));
+      return batch;
+    });
+    const markExamined = jest.fn(async (inst: JourneyInstanceSnapshot) => {
+      store.get(inst.id)!.lastTickAt = clock;
+      clock += 1;
+    });
+    const tick = () =>
+      tickPostVisitJourney({
+        now: () => nowDue,
+        batchSize: 3,
+        loadDueInstances: loadDueInstances as never,
+        loadSignals: async (inst: JourneyInstanceSnapshot) => {
+          // 'r2' tem falha PERSISTENTE de sinais (sempre lança).
+          if (inst.id === 'r2') throw new Error('poison persistente');
+          return signals();
+        },
+        saveStep: async () => 1,
+        markExamined: markExamined as never,
+      });
+
+    const first = await tick();
+    expect(first.checked).toBe(3);
+    // r1 avança, r2 poison (skipped), r3 avança — 'rest' intocada.
+    expect(first).toMatchObject({ advanced: 2, skipped: 1 });
+    expect(store.get('rest')!.lastTickAt).toBeNull();
+    // Poison foi marcada (vai para o fim da fila) sem bloquear as demais.
+    expect(store.get('r2')!.lastTickAt).not.toBeNull();
+
+    const second = await tick();
+    expect(second.checked).toBe(3);
+    // A restante (nunca examinada) é alcançada na segunda chamada.
+    expect(servedBatches[1]).toContain('rest');
+    // E o lote continua andando: poison reavaliada segue skipped, sem throw.
+    expect(second.skipped).toBeGreaterThanOrEqual(1);
+  });
+
+  it('estático: seleção default ordena por last_tick_at NULLS FIRST + saveStep carimba', () => {
+    const tickSource = fs.readFileSync(
+      path.join(__dirname, '..', 'tick-post-visit-journey.ts'),
+      'utf8',
+    );
+    expect(tickSource).toMatch(/lastTickAt.*ASC NULLS FIRST/);
+    expect(tickSource).toMatch(/markExamined/);
+    expect(tickSource).toMatch(/lastTickAt: new Date\(\)/);
+  });
+});
+
 describe('OBSERVE estático: zero envio, allowlist P4 e legado intactos (AC)', () => {
   const dispatchSource = fs.readFileSync(
     path.join(__dirname, '..', 'dispatch-journey-appointment-completed.ts'),
