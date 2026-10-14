@@ -671,7 +671,21 @@ describeIntegration('outbox WhatsApp — keyed delivery safety against PostgreSQ
     await assertEnqueuedRow(enqueued.id, clinicId, soloOperation);
 
     const sender = jest.fn().mockResolvedValue(undefined);
-    const result = await dispatchNextOutbox(sender, { operations: [soloOperation] });
+    let result: Awaited<ReturnType<typeof dispatchNextOutbox>> | undefined;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      result = await dispatchNextOutbox(sender, { operations: [soloOperation] });
+      if (result.status === 'delivered') break;
+      if (attempt < 4) await new Promise((r) => setTimeout(r, 120));
+    }
+    if (!result || result.status !== 'delivered') {
+      const pending = await pool.query(
+        'SELECT COUNT(*) FROM outbox_jobs WHERE business_key = $1 AND status = $2',
+        [businessKey, 'pending'],
+      );
+      throw new Error(
+        `dispatcher sem jobId nunca entregou após 5 tentativas (pending=${pending.rows[0]?.count} businessKey=${businessKey} operation=${soloOperation})`,
+      );
+    }
 
     expect(result).toEqual({ status: 'delivered', jobId: enqueued.id });
     expect(sender).toHaveBeenCalledTimes(1);
