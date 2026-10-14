@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CRON_JOBS,
   dispatchScheduledJobs,
   runDueJobs,
   selectDueJobs,
@@ -220,4 +221,17 @@ test("dispatch: sem CRON_SECRET nenhum fetch é executado", async () => {
   } finally {
     restore();
   }
+});
+
+test("journeys (P7S1 tick OBSERVE): registrado, desabilitado por default, opt-in via CRON_JOBS_ENABLED", () => {
+  const job = CRON_JOBS.find((entry) => entry.name === "journeys");
+  assert.ok(job, "job journeys registrado no scheduler");
+  assert.equal(job.path, "/api/cron/journeys?limit=25");
+  assert.equal(job.everyMinutes, 60);
+  // Default vazio / CSV sem o nome: journeys NÃO dispara (opt-in explícito).
+  assert.deepEqual(selectDueJobs("", at1000), []);
+  assert.equal(names(selectDueJobs("reminders,cleanup", at1000)).includes("journeys"), false);
+  // Opt-in: dispara no minuto cheio de hora, não fora dele.
+  assert.deepEqual(names(selectDueJobs("journeys", at1000)), ["journeys"]);
+  assert.deepEqual(selectDueJobs("journeys", at0930), []);
 });

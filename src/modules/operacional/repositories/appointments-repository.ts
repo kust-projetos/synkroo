@@ -11,6 +11,15 @@
 
 import { desc, eq, and, gte, isNull, lte, asc, inArray, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
+import { enqueueOutbox } from '@/lib/outbox/outbox-repository';
+import {
+  OUTBOX_OPERATIONS,
+  POST_VISIT_JOURNEY_KIND,
+  JOURNEY_APPOINTMENT_COMPLETED_VERSION,
+  buildJourneyAppointmentCompletedBusinessKey,
+  buildJourneySourceEventId,
+  type JourneyAppointmentCompletedPayload,
+} from '@/lib/outbox/operations';
 import {
   appointments,
   patients,
@@ -422,6 +431,12 @@ export async function findByExactSlot(
 /**
  * Atomic update path (repo-owns-tx): atualiza o agendamento e o last_visit
  * do paciente na MESMA transação — nunca meio-aplicado.
+ *
+ * P7 Slice 1: SOMENTE na transição →completed (status anterior diferente de
+ * `completed` lido NA MESMA transação), enfileira `journey.appointment.completed`
+ * no mesmo `tx` — fato + job cometem ou desfazem juntos (zero job órfão).
+ * Re-PATCH de consulta já concluída NÃO é transição: nenhum job novo
+ * (idempotente por construção, além da UNIQUE do outbox).
  */
 export async function updateAppointmentAndTouchVisit(
   clinicId: string,
@@ -431,6 +446,18 @@ export async function updateAppointmentAndTouchVisit(
 ) {
   const db = getDb();
   return db.transaction(async (tx) => {
+    // Pré-imagem da transição DENTRO da transação: sem ela, um re-PATCH
+    // `completed → completed` geraria job duplicado (a UNIQUE do outbox
+    // deduparia, mas o fato lógico nem deve ser enfileirado).
+    const completing =
+      (patch as Record<string, unknown>).status === 'completed'
+        ? await tx
+            .select({ status: appointments.status })
+            .from(appointments)
+            .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)))
+            .limit(1)
+            .then((rows) => rows[0] ?? null)
+        : null;
     const [row] = await tx
       .update(appointments)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -443,6 +470,29 @@ export async function updateAppointmentAndTouchVisit(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .set({ lastVisitAt: visit.at, updatedAt: new Date() } as any)
         .where(and(eq(patients.id, visit.patientId), eq(patients.clinicId, clinicId)));
+    }
+    // Transição real →completed (linha existia, antes não era `completed`):
+    // o `eventId` é determinístico (`post_visit:{appointmentId}`) — replay da
+    // mesma conclusão colide na UNIQUE do outbox e não duplica a fila.
+    if (row && completing && completing.status !== 'completed') {
+      const payload: JourneyAppointmentCompletedPayload = {
+        eventId: buildJourneySourceEventId(id),
+        kind: POST_VISIT_JOURNEY_KIND,
+        version: JOURNEY_APPOINTMENT_COMPLETED_VERSION,
+        occurredAt: new Date().toISOString(),
+        appointmentId: id,
+        clinicId,
+      };
+      await enqueueOutbox(tx, {
+        clinicId,
+        operation: OUTBOX_OPERATIONS.JOURNEY_APPOINTMENT_COMPLETED,
+        businessKey: buildJourneyAppointmentCompletedBusinessKey(
+          POST_VISIT_JOURNEY_KIND,
+          clinicId,
+          id,
+        ),
+        payload: payload as unknown as Record<string, unknown>,
+      });
     }
     return row;
   });

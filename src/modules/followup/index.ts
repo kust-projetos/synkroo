@@ -38,6 +38,9 @@ export const followupActions = [
 export { executarFollowup } from './actions/executar-followup';
 export { detectarInativos } from './actions/detectar-inativos';
 export { executarCampanhas } from './actions/executar-campanhas';
+// P7S1 tick OBSERVE (cron /api/cron/journeys): seam R4 para api-handlers.
+export { tickPostVisitJourney, JOURNEY_TICK_BATCH_SIZE } from './services/tick-post-visit-journey';
+export type { PostVisitJourneyTickResult } from './services/tick-post-visit-journey';
 
 // ─── Manifest & Permissions ────────────────────────────────────────────────────
 export { followupManifest } from './manifest';

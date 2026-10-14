@@ -7,6 +7,7 @@ import { dispatchOutboundMessageJob } from '@/modules/atendimento/services/dispa
 import { dispatchContactChangedJob } from '@/modules/crm/services/dispatch-contact-changed-job';
 import { dispatchAiControlRecommendJob } from '@/modules/ia/services/dispatch-ai-control-recommend';
 import { dispatchAiControlPrepareJob } from '@/modules/ia/services/dispatch-ai-control-prepare';
+import { dispatchJourneyAppointmentCompletedJob } from '@/modules/followup/services/dispatch-journey-appointment-completed';
 import { OUTBOX_OPERATIONS, type OutboxOperation } from './operations';
 
 type OutboxHandlerDefinition = {
@@ -32,6 +33,8 @@ const HANDLERS: OutboxHandlerDefinition[] = [
   { operation: OUTBOX_OPERATIONS.AI_CONTROL_RECOMMEND, moduleId: 'ia', handle: dispatchAiControlRecommendJob },
   // P4 Slice 1B — preparo OBSERVÁVEL: contexto + RAG + proposta, sem LLM/execução.
   { operation: OUTBOX_OPERATIONS.AI_CONTROL_PREPARE, moduleId: 'ia', handle: dispatchAiControlPrepareJob },
+  // P7 Slice 1 — journey pós-consulta em OBSERVE: materializa instância + run P4, sem envio.
+  { operation: OUTBOX_OPERATIONS.JOURNEY_APPOINTMENT_COMPLETED, moduleId: 'followup', handle: dispatchJourneyAppointmentCompletedJob },
 ];
 
 const handlerMap = new Map(HANDLERS.map((h) => [h.operation, h]));
