@@ -6,6 +6,7 @@ import type { Query, QueryClient } from '@tanstack/react-query'
 import { isMockMode, getMockForUrl } from '@/lib/mocks'
 import { AuthContext } from '@/lib/auth/context'
 import type { IaActivity } from '@/lib/dashboard/ia-activity'
+import type { AiQueueResponse, AiQueueView } from '@/lib/dashboard/ai-queue'
 
 /**
  * G1: multi-tenant query-key factory.
@@ -248,6 +249,8 @@ export const queryKeys = {
   financeDashboard: (clinicId?: string) => clinicScope(clinicId, 'financeiro', 'dashboard'),
   tasks: (filters?: unknown, clinicId?: string) => clinicScope(clinicId, 'tasks', filters),
   iaActivity: (clinicId?: string) => clinicScope(clinicId, 'dashboard', 'activity'),
+  aiQueue: (view: AiQueueView, params: string, clinicId?: string) =>
+    clinicScope(clinicId, 'dashboard', 'ai-queue', view, params),
   activities: (options?: unknown, clinicId?: string) => clinicScope(clinicId, 'activities', 'all', options),
   duplicates: (clinicId?: string) => clinicScope(clinicId, 'duplicates'),
   duplicateList: (params?: string, clinicId?: string) => clinicScope(clinicId, 'duplicates', 'list', params),
@@ -361,6 +364,30 @@ export function useIaActivity(clinicId?: string) {
   return useQuery({
     queryKey: queryKeys.iaActivity(resolved),
     queryFn: () => fetcher<IaActivity>('/api/dashboard/activity'),
+    staleTime: 30 * 1000,
+  })
+}
+
+/**
+ * P8 Slice 2a — fila de exceções + Approval Inbox, SOMENTE LEITURA.
+ * Key tenant-scoped (clínica + view + params): a troca de clínica invalida e
+ * recarrega isoladamente; `staleTime` de 30s igual ao painel S1. Nunca emite
+ * mutação: só consome o GET com filtros no servidor.
+ */
+export function useAiQueue(
+  view: AiQueueView,
+  params?: { filter?: string; page?: number; pageSize?: number },
+  clinicId?: string,
+) {
+  const resolved = useResolvedClinicId(clinicId)
+  const qs = new URLSearchParams({ view })
+  if (params?.filter) qs.set('filter', params.filter)
+  if (params?.page != null) qs.set('page', String(params.page))
+  if (params?.pageSize != null) qs.set('pageSize', String(params.pageSize))
+  const query = qs.toString()
+  return useQuery({
+    queryKey: queryKeys.aiQueue(view, query, resolved),
+    queryFn: () => fetcher<AiQueueResponse>(`/api/dashboard/ai-queue?${query}`),
     staleTime: 30 * 1000,
   })
 }
