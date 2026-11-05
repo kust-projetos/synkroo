@@ -14,7 +14,7 @@
  */
 
 import { createHash } from 'crypto';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { eq, like } from 'drizzle-orm';
 
 // Falha injetada por operação (delega ao client real; nada de mock de dados).

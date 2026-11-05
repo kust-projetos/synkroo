@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { emailSchema, phoneSchema } from './common'
 
 // Conjunto REAL de fontes do produto (review D2D3): a UI envia

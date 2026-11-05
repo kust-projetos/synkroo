@@ -4,7 +4,7 @@
  * Bridges to the existing Instagram DM processing logic.
  * Preserves current behavior: 24h window check, message storage, conversation management.
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 

@@ -100,7 +100,7 @@
     "recharts": "^3.10.1",
     "tailwind-merge": "^3.7.0",
     "uuid": "^14.0.2",
-    "zod": "^3.23.8",
+    "zod": "^4.6.7",
     "zod-to-json-schema": "^3.25.2",
     "zustand": "^5.0.15"
   },
@@ -109,7 +109,7 @@
     "@cloudflare/workers-types": "^5.20261008.1",
     "@eslint/eslintrc": "^3.3.7",
     "@next/bundle-analyzer": "^16.3.6",
-    "@opennextjs/cloudflare": "^1.20.9",
+    "@opennextjs/cloudflare": "^1.20.16",
     "@playwright/test": "^1.64.0",
     "@stryker-mutator/core": "8.7.1",
     "@stryker-mutator/jest-runner": "8.7.1",

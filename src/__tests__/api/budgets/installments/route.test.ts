@@ -60,7 +60,7 @@ jest.mock('@/modules/financeiro/actions/salvar-parcelas', () => ({
     module: 'financeiro',
     requires: 'financeiro:manage_budget',
     label: 'Salvar parcelas',
-    input: require('zod').z.any(),
+    input: require('zod/v3').z.any(),
     handler: (...args: any[]) => mockSalvarParcelasHandler(...args),
   },
 }));

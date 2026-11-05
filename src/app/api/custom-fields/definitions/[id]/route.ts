@@ -8,7 +8,7 @@ import {
   deleteDefinition,
 } from '@/services/custom-fields/definitions.service'
 import { updateCustomFieldDefinitionSchema } from '@/lib/validations/custom-fields'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 type RouteParams = { params: Promise<{ id: string }> }
 

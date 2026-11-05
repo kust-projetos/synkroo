@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { defineAction, registerActions, getActions, getAction, clearRegistry } from '../registry';
 
 const sample = defineAction({

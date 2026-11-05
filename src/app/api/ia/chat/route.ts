@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { withModuleRoute } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { buildUserContext } from '@/core/actions/context';

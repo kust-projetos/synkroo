@@ -3,7 +3,7 @@
  *
  * Movidos verbatim de `src/app/api/consents/route.ts` sem alteração de regras.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const contactTypeSchema = z.enum(['patient', 'lead'])
 export const consentPurposeSchema = z.enum(['data_collection', 'marketing', 'whatsapp_communication'])

@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { handleCanonicalAction } from '@/lib/api/action-route';
 import { listarParcelas } from '@/modules/financeiro/actions/listar-parcelas';
 import { salvarParcelas } from '@/modules/financeiro/actions/salvar-parcelas';

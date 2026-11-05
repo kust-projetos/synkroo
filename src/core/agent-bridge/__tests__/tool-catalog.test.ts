@@ -1,5 +1,5 @@
 import { normalizeToolName, toRemoteTool } from '../tool-catalog';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 describe('normalizeToolName', () => {
   it('replaces dots with double underscore (Zen rejects dots)', () => {

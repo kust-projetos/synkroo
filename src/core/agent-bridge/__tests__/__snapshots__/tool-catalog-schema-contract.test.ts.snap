@@ -1,0 +1,72 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`tool-catalog schema contract (V3 characterization) locks the exact representative JSON Schema shape: representative-input-schema 1`] = `
+{
+  "additionalProperties": false,
+  "properties": {
+    "address": {
+      "additionalProperties": false,
+      "properties": {
+        "number": {
+          "type": "string",
+        },
+        "street": {
+          "type": "string",
+        },
+      },
+      "required": [
+        "street",
+      ],
+      "type": "object",
+    },
+    "channel": {
+      "enum": [
+        "whatsapp",
+        "instagram",
+        "web",
+      ],
+      "type": "string",
+    },
+    "dentistId": {
+      "format": "uuid",
+      "type": "string",
+    },
+    "durationMinutes": {
+      "default": 30,
+      "exclusiveMinimum": 0,
+      "type": "integer",
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "maxLength": 1000,
+          "type": "string",
+        },
+        {
+          "type": "null",
+        },
+      ],
+    },
+    "patientId": {
+      "format": "uuid",
+      "type": "string",
+    },
+    "scheduledAt": {
+      "format": "date-time",
+      "type": "string",
+    },
+    "tags": {
+      "items": {
+        "minLength": 1,
+        "type": "string",
+      },
+      "type": "array",
+    },
+  },
+  "required": [
+    "patientId",
+    "scheduledAt",
+  ],
+  "type": "object",
+}
+`;
