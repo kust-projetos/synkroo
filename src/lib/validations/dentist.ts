@@ -1,7 +1,7 @@
 /**
  * Dentist validation schemas
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const createDentistSchema = z.object({
   name: z.string().min(2).max(100),

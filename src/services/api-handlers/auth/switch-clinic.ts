@@ -7,7 +7,7 @@
  */
 
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { requireActiveProfile } from '@/lib/auth/session';
 import { findUserProfileById } from '@/repositories/auth';
 import { apiSuccess, apiFailure, generateRequestId } from '@/lib/api/response';

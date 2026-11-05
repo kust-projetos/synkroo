@@ -5,7 +5,7 @@ import { isAgentSafeAction } from '../tool-policy';
 import { bootstrapActions, resetBootstrapForTests } from '@/core/actions/bootstrap';
 import { clearRegistry, getActions } from '@/core/actions/registry';
 import type { ActionContext, ActionDefinition } from '@/core/actions/types';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 beforeEach(async () => {
   clearRegistry();

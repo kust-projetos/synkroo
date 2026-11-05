@@ -2,8 +2,7 @@
   "name": "ia-agent-worker",
   "private": true,
   "dependencies": {
-    "agents": "0.16.2",
-    "zod": "4.4.3"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "wrangler": "4.104.0",

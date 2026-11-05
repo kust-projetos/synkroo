@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { createHash } from 'crypto';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';

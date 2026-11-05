@@ -4,7 +4,7 @@
  * Bridges to the existing Instagram Graph API send flow.
  * Route-layer handles 24h window check; this action just sends.
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';

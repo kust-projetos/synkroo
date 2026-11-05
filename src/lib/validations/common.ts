@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 // Canonical tenant identity boundary: persist and compare e-mails trimmed and case-folded.
 export function normalizeEmail(email: string): string {

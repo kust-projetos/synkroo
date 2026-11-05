@@ -3,7 +3,7 @@
  *
  * Movidos verbatim de `src/app/api/treatment-plans/**` sem alteração de regras.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const treatmentPlanItemSchema = z.object({
   procedure_id: z.string().uuid().optional().nullable(),

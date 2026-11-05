@@ -1,7 +1,7 @@
 /**
  * Message sending validation
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const sendMessageSchema = z.object({
   to: z.string().regex(/^\+?\d{10,15}$/, 'Invalid phone number'),

@@ -6,7 +6,7 @@
  * payload inválido → null (a rota responde 400), objeto não-WhatsApp ou
  * sem mensagens → ignore em 200. Apenas estruturação, sem mudança de regra.
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 export type MetaMessageType = 'text' | 'image' | 'audio' | 'document';
 

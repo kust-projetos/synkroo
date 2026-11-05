@@ -28,7 +28,7 @@
  * Este módulo NÃO importa providers LLM, handlers de mutação de domínio nem
  * serviços de envio (coberto por teste estático de imports).
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { and, eq } from 'drizzle-orm';
 import type { OutboxJob, OutboxSuccessHook } from '@/lib/outbox/outbox-repository';
 import { PermanentOutboxError } from '@/lib/outbox/errors';

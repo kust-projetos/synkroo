@@ -3,7 +3,7 @@
  * Validates all required env vars at module load time.
  * App refuses to start if critical vars are missing.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { parseRuntimeEnv } from './runtime-env'
 
 const envSchema = z.object({

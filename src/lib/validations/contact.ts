@@ -4,7 +4,7 @@
  * Movidos verbatim de `src/app/api/contacts/[id]/tags|notes/route.ts`
  * sem alteração de regras.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 export const updateContactTagsSchema = z.object({
   type: z.enum(['patient', 'lead']),

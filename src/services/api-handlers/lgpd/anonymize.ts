@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { apiFailure, apiRateLimited, apiSuccess, generateRequestId } from '@/lib/api/response';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { ActionError } from '@/core/actions/types';
