@@ -1,15 +1,22 @@
 import { test, expect } from '@playwright/test'
 
+// Contrato de seletor: as branches desktop (hidden em mobile) e mobile coexistem
+// no DOM com o mesmo data-testid; o Panel desktop server-renderiza
+// data-testid="list" no 4.14.3 e data-testid="contact-list" no 4.14.6.
+// ":visible" resolve só a branch visível, em ambas as versões.
+const visibleList = '[data-testid="contact-list"]:visible, [data-testid="list"]:visible'
+const visibleDetail = '[data-testid="contact-detail"]:visible, [data-testid="detail"]:visible'
+
 test.describe('Contacts mobile layout', () => {
   test.use({ viewport: { width: 360, height: 800 } })
 
   test('uses list-to-detail navigation without horizontal overflow', async ({ page }) => {
     await page.goto('/dashboard/contatos', { waitUntil: 'domcontentloaded' })
 
-    await expect(page.getByTestId('contact-list')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator(visibleList)).toBeVisible({ timeout: 15_000 })
     await expect.poll(async () => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360)
 
-    const contact = page.locator('[data-testid="contact-list"] button:not([role="tab"])').filter({ hasText: /Paciente|Lead/ }).first()
+    const contact = page.locator(visibleList).locator('button:not([role="tab"]):visible').filter({ hasText: /Paciente|Lead/ }).first()
     await expect(contact).toBeVisible()
     // Clique único + 1 retry limitado: clique durante a hidratação é no-op.
     await contact.click()
@@ -20,7 +27,7 @@ test.describe('Contacts mobile layout', () => {
       await expect(page).toHaveURL(/contact=/, { timeout: 15_000 })
     }
 
-    await expect(page.getByTestId('contact-detail')).toBeVisible({ timeout: 30_000 })
+    await expect(page.locator(visibleDetail)).toBeVisible({ timeout: 30_000 })
     await expect(page.getByRole('button', { name: 'Voltar para contatos' })).toBeVisible({ timeout: 30_000 })
     await page.getByRole('button', { name: 'Voltar para contatos' }).click()
     try {
@@ -29,6 +36,6 @@ test.describe('Contacts mobile layout', () => {
       await page.getByRole('button', { name: 'Voltar para contatos' }).click()
       await expect(page).not.toHaveURL(/contact=/, { timeout: 15_000 })
     }
-    await expect(page.getByTestId('contact-list')).toBeVisible()
+    await expect(page.locator(visibleList)).toBeVisible()
   })
 })
