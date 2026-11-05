@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { defineAction } from '@/core/actions';
 import * as rolesService from '../services/roles-service';
 

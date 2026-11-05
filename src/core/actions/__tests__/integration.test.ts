@@ -17,7 +17,7 @@ jest.unmock('@/lib/db/client');
  *   5. success (handler retorna dados + log de auditoria)
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { runAction } from '../run';
 import { defineAction } from '../registry';
 import type { ActionContext } from '../types';

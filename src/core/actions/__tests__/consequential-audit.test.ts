@@ -9,7 +9,7 @@
  */
 
 import { createHash } from 'crypto';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { mockDb } from '@/test-utils/db-mock';
 import { runAction } from '../run';
 import { defineAction } from '../registry';

@@ -4,7 +4,7 @@
  * Movidos verbatim de `src/app/api/custom-fields/**` sem alteração de regras.
  * As rotas importam daqui; a fonte canônica passa a ser este arquivo.
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const customFieldOptionSchema = z.object({
   label: z.string(),

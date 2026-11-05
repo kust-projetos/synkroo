@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { executeActionLogic, type BridgeDeps } from '../bridge-service';
 import { issueHandle } from '../handle';
 import { normalizeToolName } from '../tool-catalog';

@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import { defineAction } from '@/core/actions';

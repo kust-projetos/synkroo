@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { apiFailure, apiRateLimited, apiSuccess, generateRequestId } from '@/lib/api/response';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { issueWidgetToken } from '@/lib/auth/widget-token';

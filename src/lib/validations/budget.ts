@@ -1,7 +1,7 @@
 /**
  * Budget validation schemas
  */
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 const budgetItemSchema = z.object({
   procedure_id: z.string().uuid(),

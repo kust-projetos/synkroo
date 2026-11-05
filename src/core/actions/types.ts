@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { z } from 'zod/v3';
 
 export type ContextSource = 'user' | 'agent_delegated' | 'system';
 

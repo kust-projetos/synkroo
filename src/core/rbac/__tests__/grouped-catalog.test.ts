@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { defineAction, registerActions, clearRegistry } from '@/core/actions';
 import { getGroupedCatalog } from '../grouped-catalog';
 

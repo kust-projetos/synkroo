@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { validateApiAuth } from '@/lib/auth/session';
 import { logger } from '@/lib/logger';
 import { apiCreated, apiFailure, apiAuthFailure, generateRequestId } from '@/lib/api/response';

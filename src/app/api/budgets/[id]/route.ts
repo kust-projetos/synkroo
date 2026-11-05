@@ -5,7 +5,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { handleCanonicalAction } from '@/lib/api/action-route';
 import { obterOrcamento, atualizarOrcamento, arquivarOrcamento } from '@/modules/financeiro';
 import { logger } from '@/lib/logger';
