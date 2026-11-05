@@ -7,7 +7,7 @@
  *
  * Route-level concerns (HMAC signature, rate limiting, dedup) stay in the route file.
  */
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 

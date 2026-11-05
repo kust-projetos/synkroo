@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { signupSchema } from '@/lib/validations';
 import { createUserWithClinic, findUserByEmail } from '@/repositories/auth';
 import { apiRateLimited, generateRequestId } from '@/lib/api/response';

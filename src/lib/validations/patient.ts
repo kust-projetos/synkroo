@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v3'
 import { emailSchema, phoneSchema, dateSchema } from './common'
 
 // --- Full patient schema ---

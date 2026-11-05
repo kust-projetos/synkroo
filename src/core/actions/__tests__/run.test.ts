@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { runAction } from '../run';
 import { defineAction } from '../registry';
 import { ActionError, type ActionContext } from '../types';

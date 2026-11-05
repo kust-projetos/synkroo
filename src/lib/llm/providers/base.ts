@@ -15,7 +15,7 @@ import type {
   ToolCall,
 } from '../types';
 import { LlmError } from '../errors';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 /**
  * B1 — envelope `chat/completions` validado com Zod em vez de guards manuais.

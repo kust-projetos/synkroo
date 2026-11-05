@@ -8,7 +8,7 @@ import {
   deleteValuesForContact,
 } from '@/services/custom-fields/values.service'
 import { upsertCustomFieldValuesSchema } from '@/lib/validations/custom-fields'
-import { z } from 'zod'
+import { z } from 'zod/v3'
 
 async function handleGET(request: NextRequest) {
   const requestId = generateRequestId()
