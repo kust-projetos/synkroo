@@ -75,6 +75,11 @@ jobs:
           TEST_DATABASE_URL: postgresql://synkroo:test@127.0.0.1:5432/synkroo_test
       - name: Security tests
         run: npm run test:security -- --runInBand
+      # Warm the exact nested-container image before the release suite's
+      # 20s disposable-Postgres setup hook. Pulling it inside that hook can
+      # exceed the parent test deadline on a cold Ubuntu runner.
+      - name: Pre-pull PostgreSQL image for release tests
+        run: docker pull postgres:17
       - name: Release contract tests
         run: npm run test:release
       - name: Production dependency audit
