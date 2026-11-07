@@ -158,8 +158,8 @@ async function seedStatic(): Promise<void> {
   for (const [id, clinic] of [[DENTIST_A1, CLINIC_A], [DENTIST_A2, CLINIC_A], [DENTIST_B1, CLINIC_B]] as const) {
     await pool.query(`DELETE FROM dentists WHERE id = $1`, [id]);
     await pool.query(
-      `INSERT INTO dentists (id, clinic_id, name, phone, email, cro) VALUES ($1, $2, 'Dent ' || $1, '+5511000000001', 'd@test.local', 'SP-1')`,
-      [id, clinic],
+      `INSERT INTO dentists (id, clinic_id, name, phone, email, cro) VALUES ($1, $2, $3, '+5511000000001', 'd@test.local', 'SP-1')`,
+      [id, clinic, `Dent ${id}`],
     );
   }
   await pool.query(`DELETE FROM patients WHERE id IN ($1, $2)`, [PATIENT_A, PATIENT_B]);
