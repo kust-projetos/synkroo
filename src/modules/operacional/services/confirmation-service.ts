@@ -1,6 +1,7 @@
 import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { appointmentConfirmationRequests, appointments, patients, waitlist } from '@/modules/operacional/schema';
+import { conversations as atendimentoConversations, messages as atendimentoMessages } from '@/lib/db/schema/conversations';
 import { clinics } from '@/lib/db/schema/core';
 import { resolveClinicTimezone } from '@/lib/timezone';
 import { getClinicTimezone } from './availability-service';
@@ -403,9 +404,9 @@ export async function createConfirmationRequest(input: {
       ORDER BY r.created_at ASC
       LIMIT 2
       FOR UPDATE`);
-    const comparedRows = ((((compared as any)?.rows ?? []) as Array<Record<string, unknown>)) as Array<{
+    const comparedRows = (((compared as any)?.rows ?? []) as Array<{
       id: string; appointmentId: string; conversationId: string; intentTimezone: string; intentScheduledAt: unknown; timeSame: boolean; patientSame: boolean;
-    }>;
+    }>);
     if (comparedRows.length > 1) {
       // Legacy corruption (multiple pendings predate the single-intent
       // unique index): never select, dedupe, or replace — handoff required.
@@ -1457,3 +1458,79 @@ export async function processTrustedWaitlistResponse(
   // booking. Escalate for a human with a concrete offer. No DB I/O, no writes.
   return { processed: false, reason: 'concrete_offer_required' };
 }
+export interface AuthenticInboundEvent {
+  messageId: string;
+  conversationId: string;
+  content: string;
+  externalProvider: string;
+  externalMessageId: string;
+  createdAt: Date | null;
+  eventTime: Date | null;
+  senderPhone: string;
+  messageType: string;
+  messageKind: 'text' | 'button';
+}
+
+const AUTHENTICATED_INBOUND_PROVIDERS = ['waha', 'meta'] as const;
+
+export async function findAuthenticInboundEvent(
+  clinicId: string,
+  conversationId: string,
+  externalMessageId: string,
+): Promise<AuthenticInboundEvent | null> {
+  if (!clinicId || !conversationId || !externalMessageId) return null;
+  const db = getDb();
+  const rows = await db
+    .select({
+      messageId: atendimentoMessages.id,
+      conversationId: atendimentoMessages.conversationId,
+      content: atendimentoMessages.content,
+      direction: atendimentoMessages.direction,
+      externalProvider: atendimentoMessages.externalProvider,
+      externalMessageId: atendimentoMessages.externalMessageId,
+      createdAt: atendimentoMessages.createdAt,
+      messageType: atendimentoMessages.messageType,
+      metadata: atendimentoMessages.metadata,
+      senderPhone: atendimentoConversations.externalId,
+      channel: atendimentoConversations.channel,
+      clinicId: atendimentoConversations.clinicId,
+    })
+    .from(atendimentoMessages)
+    .innerJoin(atendimentoConversations, eq(atendimentoConversations.id, atendimentoMessages.conversationId))
+    .where(and(
+      eq(atendimentoConversations.id, conversationId),
+      eq(atendimentoConversations.clinicId, clinicId),
+      eq(atendimentoMessages.conversationId, conversationId),
+      eq(atendimentoMessages.externalMessageId, externalMessageId),
+    ))
+    .limit(2);
+  if (rows.length !== 1) return null;
+  const r = rows[0] as any;
+  if (String(r.channel) !== 'whatsapp') return null;
+  if (String(r.direction) !== 'inbound') return null;
+  if (!(AUTHENTICATED_INBOUND_PROVIDERS as readonly string[]).includes(String(r.externalProvider))) return null;
+  if (String(r.clinicId) !== String(clinicId)) return null;
+  if (!r.content || typeof r.content !== 'string') return null;
+  if (!r.senderPhone || typeof r.senderPhone !== 'string' || !r.senderPhone) return null;
+  const meta = (r.metadata ?? {}) as Record<string, unknown>;
+  const rawEventTime = meta.authenticatedEventAt;
+  let eventTime: Date | null = null;
+  if (typeof rawEventTime === 'string' && rawEventTime.length > 0) {
+    const parsed = new Date(rawEventTime);
+    if (!Number.isNaN(parsed.getTime())) eventTime = parsed;
+  }
+  return {
+    messageId: String(r.messageId),
+    conversationId: String(r.conversationId),
+    content: r.content as string,
+    externalProvider: String(r.externalProvider),
+    externalMessageId: String(r.externalMessageId),
+    createdAt: (r.createdAt as Date | null) ?? null,
+    eventTime,
+    senderPhone: r.senderPhone as string,
+    messageType: typeof r.messageType === 'string' ? r.messageType : 'text',
+    messageKind: (r.metadata as Record<string, unknown> | null)?.button_response === true ? 'button' : 'text',
+  };
+}
+
+export const obterEventoInboundAutentico = findAuthenticInboundEvent;

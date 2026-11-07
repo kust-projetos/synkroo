@@ -19,6 +19,7 @@ export {
   isExactConfirmationText,
   isReplyLikeText,
   normalizeSenderPhone,
+  obterEventoInboundAutentico,
 } from './services/confirmation-service';
 export type { TrustedConfirmationInput, ConfirmationResult, ReplyDecision, ReplyMessageKind } from './services/confirmation-service';
 export {

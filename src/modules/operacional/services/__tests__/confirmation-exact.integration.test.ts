@@ -1321,6 +1321,7 @@ describeOrSkip('resolver replay-first + provider/pending/button guards (DB-backe
     const decision = await resolveInboundReply({
       clinicId: CLINIC_A, conversationId: conv, senderPhone: SENDER_A,
       content: 'SIM', externalProvider: 'evolution', externalMessageId: 'evt-leg-1',
+      messageType: 'text',
     });
     expect(decision.kind).toBe('escalate');
     expect(await appointmentStatus(appt)).toBe('scheduled');
@@ -1340,6 +1341,7 @@ describeOrSkip('resolver replay-first + provider/pending/button guards (DB-backe
     const directConfirm = await processTrustedConfirmation({
       clinicId: CLINIC_A, conversationId: conv, senderPhone: SENDER_A,
       content: 'SIM', externalProvider: 'evolution', externalMessageId: 'evt-direct-evo-1',
+      messageType: 'text',
     });
     expect(directConfirm).toMatchObject({ processed: false, reason: 'unauthenticated_provider' });
     expect(await appointmentStatus(appt)).toBe('scheduled');
@@ -1361,6 +1363,7 @@ describeOrSkip('resolver replay-first + provider/pending/button guards (DB-backe
     const directWl = await processTrustedWaitlistResponse({
       clinicId: CLINIC_A, conversationId: wlConv, senderPhone: phone,
       content: 'SIM', externalProvider: 'evolution', externalMessageId: 'evt-direct-evo-wl-1',
+      messageType: 'text',
     });
     expect(directWl).toMatchObject({ processed: false, reason: 'unauthenticated_provider' });
     const after = await pool.query(`SELECT COUNT(*)::int AS n FROM appointments WHERE clinic_id = $1`, [CLINIC_A]);

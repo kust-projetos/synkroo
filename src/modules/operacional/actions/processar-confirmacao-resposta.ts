@@ -1,8 +1,7 @@
 import { z } from 'zod/v3';
 import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
-import { processTrustedConfirmation } from '../services/confirmation-service';
-import { obterEventoInboundAutentico } from '@/modules/atendimento/public';
+import { processTrustedConfirmation, obterEventoInboundAutentico } from '../services/confirmation-service';
 
 export const processarConfirmacaoResposta = defineAction({
   name: 'operacional.processarConfirmacaoResposta',

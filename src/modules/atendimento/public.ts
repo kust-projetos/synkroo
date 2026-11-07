@@ -11,7 +11,7 @@ import { buscarPacientePorTelefone } from '@/modules/operacional/public';
 import { buscarLeadPorTelefone } from '@/modules/comercial/public';
 
 export { getConversationContext } from './repositories/conversations-repository';
-export { findAuthenticInboundEvent as obterEventoInboundAutentico } from './repositories/conversations-repository';
+export { obterEventoInboundAutentico } from '@/modules/operacional/public';
 export type { AuthenticInboundEvent } from './repositories/conversations-repository';
 export { findByIdForClinic as obterConversaPorId } from './repositories/conversations-repository';
 export { findAppointmentPatientPhone as obterTelefonePacienteConsulta } from './repositories/conversations-repository';
