@@ -561,7 +561,7 @@ describeOrSkip('exact confirmation (DB-backed)', () => {
 
     // A replayed event id in ANOTHER conversation cannot return this
     // conversation's outcome (scope is clinic+conversation+sender+event).
-    const otherConv = await makeConversation(CLINIC_A, SENDER_A);
+    const otherConv = await makeConversation(CLINIC_A, uniquePhone(SENDER_A));
     const crossConv = await reconcileConfirmationByEvent({
       clinicId: CLINIC_A, conversationId: otherConv, senderPhone: SENDER_A,
       externalProvider: 'waha', externalMessageId: 'evt-lost-1',
@@ -1237,7 +1237,7 @@ describeOrSkip('resolver replay-first + provider/pending/button guards (DB-backe
     expect(st[0].scheduled_appointment_id).toBeNull();
   });
 
-  it('waitlist same-event replay never schedules: resolver escalates concrete_offer_required twice', async () => {
+  it('waitlist same-event replay never schedules: first concrete_offer_required, replay ambiguous', async () => {
     const phone = uniquePhone(SENDER_A);
     const { rows: [wlPatient] } = await pool.query(
       `INSERT INTO patients (clinic_id, name, phone, email) VALUES ($1, 'WL Replay', $2, 'wlr@t.local') RETURNING id`,
@@ -1262,7 +1262,9 @@ describeOrSkip('resolver replay-first + provider/pending/button guards (DB-backe
       [CLINIC_A, wlPatient.id],
     );
     const replay = await resolveInboundReply({ ...trusted(phone, conv, 'SIM', 'evt-wl-replay-1') });
-    expect(replay).toMatchObject({ kind: 'escalate', reason: 'concrete_offer_required' });
+    // Two notified offers for the same patient are ambiguous preferences, not
+    // a concrete slot: escalate without scheduling (safe, no auto-book).
+    expect(replay).toMatchObject({ kind: 'escalate', reason: 'ambiguous' });
     const after = await pool.query(`SELECT COUNT(*)::int AS n FROM appointments WHERE clinic_id = $1`, [CLINIC_A]);
     expect(after.rows[0].n).toBe(before.rows[0].n);
 
@@ -1937,19 +1939,30 @@ describeOrSkip('authenticated HTTP webhook → outbox → dispatcher (DB-backed)
       senderPhone: phone, expiresAt: new Date('2030-06-09T10:00:00Z'),
     });
 
+    // The provider clock has second precision; place the prompt in the recent
+    // past so a reply arriving "now" is unambiguously later (not same-second
+    // stale). This is fixture timing, not a product timezone override.
+    await pool.query(
+      `UPDATE appointment_confirmation_requests SET created_at = NOW() - INTERVAL '5 seconds' WHERE appointment_id = $1`,
+      [appt],
+    );
+
     const messageId = `whtest-${convRow.id.slice(0, 8)}`;
     const res = await wahaPost(signedWahaRequest(phone, messageId, 'SIM'));
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ status: 'ok' });
 
     // The durable outbox work the route enqueued — dispatched for real.
-    const businessKey = `waha:${SESSION}:${messageId}`;
+    // Two distinct identities: the canonical persisted event id (used by
+    // persistence/consume/replay) and the outbox business key (dedup only).
+    const canonicalEventId = `${SESSION}:${messageId}`;
+    const businessKey = `waha:${canonicalEventId}`;
     const { rows: jobs } = await pool.query(
       `SELECT id, payload FROM outbox_jobs WHERE clinic_id = $1 AND business_key = $2`,
       [CLINIC_A, businessKey],
     );
     expect(jobs.length).toBe(1);
-    expect(jobs[0].payload.externalMessageId).toBe(businessKey);
+    expect(jobs[0].payload.externalMessageId).toBe(canonicalEventId);
 
     await dispatchInboundMessageJob({ id: jobs[0].id, payload: jobs[0].payload } as any);
 
@@ -1958,7 +1971,7 @@ describeOrSkip('authenticated HTTP webhook → outbox → dispatcher (DB-backed)
     const { rows: consumed } = await pool.query(
       `SELECT status FROM appointment_confirmation_requests
        WHERE clinic_id = $1 AND consumed_by_event = $2`,
-      [CLINIC_A, businessKey],
+      [CLINIC_A, canonicalEventId],
     );
     expect(consumed.length).toBe(1);
     expect(consumed[0].status).toBe('consumed');
@@ -1987,7 +2000,8 @@ describeOrSkip('authenticated HTTP webhook → outbox → dispatcher (DB-backed)
     const res = await wahaPost(signedWahaRequest(phone, messageId, 'SIM'));
     expect(res.status).toBe(200);
 
-    const businessKey = `waha:${SESSION}:${messageId}`;
+    const canonicalEventId = `${SESSION}:${messageId}`;
+    const businessKey = `waha:${canonicalEventId}`;
     const { rows: [job] } = await pool.query(
       `SELECT payload FROM outbox_jobs WHERE clinic_id = $1 AND business_key = $2`,
       [CLINIC_A, businessKey],
@@ -1999,10 +2013,11 @@ describeOrSkip('authenticated HTTP webhook → outbox → dispatcher (DB-backed)
     expect(Number.isNaN(receivedAt.getTime())).toBe(false);
     expect(Math.abs(receivedAt.getTime() - beforeMs)).toBeLessThan(120_000);
 
-    // The persisted row anchors the same instant in metadata.
+    // The persisted row anchors the same instant in metadata, keyed by the
+    // canonical event id that persistence/consume also use.
     const { rows: [msg] } = await pool.query(
       `SELECT created_at, metadata FROM messages WHERE external_provider = 'waha' AND external_message_id = $1`,
-      [businessKey],
+      [canonicalEventId],
     );
     expect(msg.metadata?.authenticatedEventAt).toBe(job.payload.receivedAt);
   });
@@ -2187,7 +2202,9 @@ describeOrSkip('schedule snapshot contract (DB-backed)', () => {
       trusted(SENDER_A, conv, 'SIM', 'evt-snap-retry-1', CLINIC_A, { receivedAt: freshEvent() }),
     );
     expect(first).toMatchObject({ processed: true, action: 'confirmed', appointmentId: appt });
-    expect(first.responseMessage).toContain('09:00');
+    // 10:00Z renders as 07:00 in the confirmation request's clinic timezone
+    // (America/Sao_Paulo, UTC-3), never the server's local time.
+    expect(first.responseMessage).toContain('07:00');
 
     // Reschedule AFTER the commit (send-failure window): the retry carries
     // the same event and must not echo a confirmation of the new time.
