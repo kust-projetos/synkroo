@@ -7,9 +7,20 @@ export {
   updatePatientTags as atualizarTagsPaciente,
 } from './services/patient-owner-service';
 export {
-  processConfirmationResponse,
-  processWaitlistConfirmation,
+  processTrustedConfirmation,
+  processTrustedWaitlistResponse,
+  resolveInboundReply,
+  createConfirmationRequest,
+  reconcileConfirmationByEvent,
+  reconcileWaitlistByEvent,
+  isAuthenticatedReplyProvider,
+  acquireClinicReplyLock,
+  normalizeConfirmationText,
+  isExactConfirmationText,
+  isReplyLikeText,
+  normalizeSenderPhone,
 } from './services/confirmation-service';
+export type { TrustedConfirmationInput, ConfirmationResult, ReplyDecision, ReplyMessageKind } from './services/confirmation-service';
 export {
   getEffectiveConfig,
 } from './services/procedure-reminder-config-service';

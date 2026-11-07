@@ -1,5 +1,13 @@
 # Plano operacional E2b — estabilização vNext (decision-ready; sem execução)
 
+> **Atualização do baseline do código (2026-11-05):** este plano registra
+> medições de produção/staging de 2026-10-11 com a cadeia de 36 migrations.
+> O código atual tem 40 entradas (`0000`–`0040`, gap `0017`; constante de health = 40)
+> após `0037`–`0040`. Os ledgers dos ambientes não foram reconsultados;
+> 33/36 permanece evidência histórica e não representa o estado atual. Antes
+> de qualquer execução, o operador deve reconciliar o ledger real em leitura
+> apenas com o código vigente. Nenhuma mutação produtiva é autorizada aqui.
+
 **Data:** 2026-10-11 · **Base documental:** `origin/main @ bda1d488` (pós-merge #52, CI `38164553952` PASS) · **Branch de trabalho:** `feat/e2b-outbox-maintenance-control`
 **Status:** CANDIDATE DECISION-READY — controle e ensaios isolados estão nesta branch; código/docs ainda não integrados. Nenhuma ação mutadora de produção foi executada ou autorizada por este documento.
 **Natureza:** isto é um **plano**, não execução e não aprovação. O gate E2b (aprovação humana explícita antes de alterar BD/Cloudflare de produção) continua externo e pendente; sem ele este plano permanece **READY FOR OPERATOR — nunca DONE**.
@@ -382,7 +390,7 @@ Validação dos PRs da fase 1: `npm run verify` e `npm run test:release` (cobrem
 - Não re-testar exposição de rede externamente.
 - Não criar rota/tunnel na Cloudflare nem fazer unpublish sem janela owner-approved.
 - Não restaurar backup de produção sem autorização de restore (A-RESTORE escrita, alvo isolado allowlisted).
-- Não exigir readiness 36/36 antes das migrations — em probe, gate de restore ou smoke; exigir 36/36 no alvo 33 é exigência circular (o ledger só chega a 36 na fase 5).
+- Não exigir readiness completo antes de aplicar migrations. Os probes pré-migration com baseline observado 33/36 e status `migrations-incomplete` são evidência histórica de 2026-10, não baseline atual; antes de qualquer janela, medir o ledger real. Pós-migration, o código de 2026-11-05 exige exatamente 40/40 e control shape funcional.
 - Não intercalar GRANTs entre 0035 e 0036: o runner canônico aplica todo o journal pendente numa invocação; provisionar papéis/default privileges antes e verificar depois. Em `outbox_control`, runtime só SELECT; mutação é administrativa — sem criar migrador segmentado.
 - Não tratar todas as operações mutadoras como cobertas pela aprovação E2b: `update-hyperdrive` é A-PAPEIS, `db-restore` é A-RESTORE, contenção de rede/unpublish é A-REDE, migrations e rollout de app/workers são E2b.
 - Não executar nenhuma operação antes da sua autorização específica (A-REDE / A-PAPEIS / A-RESTORE / E2b).
@@ -404,11 +412,23 @@ Sem nomeação registrada, qualquer gate que dependa de owner/operador permanece
 
 O plano só pode ser validado contra estes critérios — cada um verificável no próprio texto e na evidência citada:
 
-1. **Separação probe/gate:** probes das fases 2–3 aceitam ledger 33 com `migrations-incomplete`; gates das fases 5–7 exigem 36/36; nenhum probe exige o que só a fase 5 produz (sem exigência circular).
-2. **Ordem das migrations/grants:** 0034 → 0035 → 0036 explícita, um ambiente por execução; o runner aplica o journal numa chamada. Default privileges do dono exato são provisionados antes; depois, verificar `approval_tokens`, objetos 0034–0036 e `outbox_control`. Runtime recebe SELECT-only no singleton; a conexão administrativa muta pause/resume. Ledger e control shape são verificações independentes.
+1. **Separação probe/gate:** qualquer valor pré-migration tem de ser o baseline observado naquela janela; `migrations-incomplete` é aceitável somente quando a autenticação, `SELECT 1` e leitura do ledger passam. O baseline 33/36 deste plano é histórico. Após aplicar o journal atual, o gate exige 40/40 e control shape funcional; nenhum probe pré-migration exige o que só a própria fase de migration produz.
+2. **Ordem das migrations/grants:** o journal vigente (`0000`–`0040`) é aplicado integralmente, em uma execução por ambiente; as referências 0034→0036 acima descrevem a tranche histórica que originou este plano. Antes da janela, reconciliar objetos e grants de todas as migrations pendentes, inclusive `0037`–`0040`; verificar `approval_tokens`, `outbox_control` e a tabela de confirmação WhatsApp. Runtime recebe SELECT-only no singleton; a conexão administrativa muta pause/resume. Ledger e control shape são verificações independentes.
 3. **Quiescência verificável:** pausa PostgreSQL bloqueia claims de `/api/cron/outbox`, dispatchers diretos e versões legadas pelo trigger comum; scheduler pode continuar o poll sem dispatch. Produtores inline permanecem ativos e seus enqueues são duráveis/atômicos; não se afirma que foram pausados. `verify-drained` exige estado paused + `processing=0` + listagem completa; lease >5min não prova drain. Jobs de resultado ambíguo mantêm NO-GO até reconciliação de domínio, sem force/retry cego. Deploy é all-at-once para uma release; rollback repete pause/drain/verify.
-4. **Restore:** `--yes` nunca apresentado com `DATABASE_URL` herdada (a sobrescrita a partir da variável do alvo é fail-closed: alvo vazio aborta); alvo nomeado/allowlisted — produção e staging fora da allowlist —, identidade pré/pós e URL sintética em env separada exigidos; verificação do alvo restaurado no ledger **33** = exit 0 do `pg_restore`, catálogo, extensões e smoke estrutural via admin/`psql`, **sem** exigir readiness 36/36 antes das migrations (artefato 33-compatível identificado se a smoke usar o app antigo); drills classificados corretamente (10/07 = artefato real off-host do dia → DB isolado; 25/09 = backup real de produção → DB isolado `synkroo_drill`; 26/09 local = dev local → alvo vivo) e nenhum como prova do dump vigente; uso de backup atual permanece BLOQUEADO sem autorização escrita.
+4. **Restore:** `--yes` nunca apresentado com `DATABASE_URL` herdada (a sobrescrita a partir da variável do alvo é fail-closed: alvo vazio aborta); alvo nomeado/allowlisted — produção e staging fora da allowlist —, identidade pré/pós e URL sintética em env separada exigidos. Validar o ledger que realmente veio no dump (33 era o baseline histórico dos drills citados), catálogo, extensões e smoke estrutural via admin/`psql`; não exigir que um dump anterior já tenha ledger 40/40 antes de aplicar migrations, nem tratar o ledger do dump como o estado atual do runtime. Drills históricos não provam o dump vigente; uso de backup atual permanece bloqueado sem autorização escrita.
 5. **Fronteiras de aprovação:** A-REDE (rede) / A-PAPEIS (papéis + credenciais + Hyperdrive) / A-RESTORE (restore) / E2b (migrations + rollout de produção) distintas e em sequência; nenhuma operação antes da sua autorização específica e nenhuma aprovando outra (A-RESTORE não cobre migrations/rollout; E2b não cobre rede, papéis ou restore).
 6. **Cadeia 2→3→4 consistente:** DAG `0 → 1 → 2 → 3 → 4 → 5 → 6 → 7` e as declarações de fase concordam — papéis/credenciais são cortados sobre o caminho privado provado na fase 2, portanto 2 precede 3, e ambas bloqueiam 4.
 7. **Smoke:** smoke-deploy (GET-only, `workers` skipped) e smoke-staging (stateful synthetic-only, POSTs documentados, alvo sintético, nenhum envio real a provider) descritos sem tratar skip como prova.
 8. **Sem sobreposição com a evidência:** fases 5 e 6 não coincidem; probe pré-migration ≠ gate pós-migration; uma release única atende no resume; enqueues e backlog são preservados e revisados antes da retomada. Cada evidência é disjunta: nenhum drill histórico prova o dump vigente; leitura 33/33 antiga, lease expirado, check skipped ou troca de release isolada não comprovam restore, drain ou fence.
+
+## 14. Checklist mínimo para o operador (pré-janela, não é autorização)
+
+Preencher com evidência atual e identificadores redigidos. Caixas não preenchidas
+mantêm a operação em **NO-GO**. Issues #93/#94 continuam trilhas operacionais
+separadas; não bloqueiam correções nem testes locais.
+
+- [ ] **PostgreSQL / Contabo:** ambiente e database-alvo nomeados; `SELECT 1`, TLS/SCRAM e leitura do ledger executados por conexão autorizada; ledger real comparado ao journal vigente de 40 entradas; nenhuma migration produtiva aplicada por esta execução.
+- [ ] **Roles / conectividade:** identidade efetiva do app, grants/default privileges e caminho privado/ACL conferidos; gates de rede e menor privilégio registrados separadamente conforme issues #93 e #94; sem usar acesso Docker como autorização de mutação.
+- [ ] **Canal WAHA:** instalação→clínica→conversa verificada; HMAC/freshness/deduplicação e remetente observados em teste sintético; canal, sessão/engine e rota de webhook identificados; nenhum envio a paciente real como smoke.
+- [ ] **Backup / restauração:** artefato atual, hash/manifest e cópia off-host identificados; restore em alvo isolado nomeado e autorizado, seguido de smoke e ledger do próprio dump; drills históricos não substituem este teste.
+- [ ] **Clínica / contrato do piloto:** clínica e dados sintéticos definidos; owner/operador nomeados; contrato, janela, consentimentos, limites, contato de contingência e critérios de go/no-go aceitos antes de qualquer piloto.

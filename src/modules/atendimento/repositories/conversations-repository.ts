@@ -7,7 +7,7 @@
  * so that service no longer uses getDb() directly.
  */
 
-import { eq, and, desc, asc, sql } from 'drizzle-orm';
+import { eq, and, desc, asc, sql, inArray } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { conversations, messages } from '@/modules/atendimento/schema/conversations';
 import { whatsappInstances, channelInstallations } from '@/modules/atendimento/schema/integrations';
@@ -628,6 +628,135 @@ export async function findAppointmentById(appointmentId: string, clinicId: strin
     .limit(1);
 }
 
+/**
+ * Resolve the patient's raw phone for an appointment (tenant-scoped).
+ * Used to bind button/tap confirmations to the trusted webhook sender:
+ * the sender must exactly equal the appointment's patient phone.
+ */
+export async function findAppointmentPatientPhone(
+  appointmentId: string,
+  clinicId: string,
+): Promise<{ patientPhone: string | null } | null> {
+  const db = getDb();
+  const [row] = await db
+    .select({ patientPhone: patients.phone })
+    .from(appointments)
+    .innerJoin(patients, eq(patients.id, appointments.patientId))
+    .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Action-trust seam: resolve exactly one persisted authentic inbound
+ * WhatsApp event for (clinic, conversation, external event id).
+ *
+ * Qualifies ONLY when the conversation is `whatsapp`, the message is
+ * `inbound`, and the stored provider is an authenticated WhatsApp
+ * ingress (`waha` / `meta`). The deprecated unauthenticated `evolution`
+ * provider — and any outbound / non-whatsapp row — never qualifies.
+ *
+ * Returns the canonical persisted content/provider plus the AUTHENTICATED
+ * provider event time (`metadata.authenticatedEventAt`, set at ingress from
+ * the signed provider message clock) and the conversation sender
+ * (`conversations.externalId`). `messages.createdAt` is persistence time and
+ * is returned only as history — never as the event time — because a delayed
+ * SIM stored after a new pending intent would otherwise look fresh. Zero
+ * rows, more than one row, or any attribute mismatch yields null: the caller
+ * must make no mutation. The caller must use ONLY these DB-derived values —
+ * never caller-supplied text, sender, provider, appointment ids, and never
+ * a fallback timestamp.
+ */
+export interface AuthenticInboundEvent {
+  messageId: string;
+  conversationId: string;
+  content: string;
+  externalProvider: string;
+  externalMessageId: string;
+  /** DB insert time — history only, NEVER the event time for staleness checks. */
+  createdAt: Date | null;
+  /**
+   * Provider message clock from `messages.metadata.authenticatedEventAt`.
+   * Null when the row predates that marker or it failed validation: the
+   * caller must fail closed (escalate, never mutate).
+   */
+  eventTime: Date | null;
+  senderPhone: string;
+  /** Canonical persisted type (messages.message_type): only 'text' is consumable. */
+  messageType: string;
+  /**
+   * Button-tap marker re-derived from the persisted metadata flag
+   * (`button_response`), never from client-supplied ids.
+   */
+  messageKind: 'text' | 'button';
+}
+
+const AUTHENTICATED_INBOUND_PROVIDERS = ['waha', 'meta'] as const;
+
+export async function findAuthenticInboundEvent(
+  clinicId: string,
+  conversationId: string,
+  externalMessageId: string,
+): Promise<AuthenticInboundEvent | null> {
+  if (!clinicId || !conversationId || !externalMessageId) return null;
+  const db = getDb();
+  const rows = await db
+    .select({
+      messageId: messages.id,
+      conversationId: messages.conversationId,
+      content: messages.content,
+      direction: messages.direction,
+      externalProvider: messages.externalProvider,
+      externalMessageId: messages.externalMessageId,
+      createdAt: messages.createdAt,
+      messageType: messages.messageType,
+      metadata: messages.metadata,
+      senderPhone: conversations.externalId,
+      channel: conversations.channel,
+      clinicId: conversations.clinicId,
+    })
+    .from(messages)
+    .innerJoin(conversations, eq(conversations.id, messages.conversationId))
+    .where(and(
+      eq(conversations.id, conversationId),
+      eq(conversations.clinicId, clinicId),
+      eq(messages.conversationId, conversationId),
+      eq(messages.externalMessageId, externalMessageId),
+    ))
+    .limit(2);
+  if (rows.length !== 1) return null;
+  const r = rows[0] as any;
+  if (String(r.channel) !== 'whatsapp') return null;
+  if (String(r.direction) !== 'inbound') return null;
+  if (!(AUTHENTICATED_INBOUND_PROVIDERS as readonly string[]).includes(String(r.externalProvider))) return null;
+  if (String(r.clinicId) !== String(clinicId)) return null;
+  if (!r.content || typeof r.content !== 'string') return null;
+  if (!r.senderPhone || typeof r.senderPhone !== 'string' || !r.senderPhone) return null;
+  // The ONLY trustworthy event time is the provider message clock persisted
+  // at ingress (`metadata.authenticatedEventAt`). Insert time is history
+  // only; keep patient details hidden on any mismatch below by returning
+  // null here (caller fails closed with zero disclosure).
+  const meta = (r.metadata ?? {}) as Record<string, unknown>;
+  const rawEventTime = meta.authenticatedEventAt;
+  let eventTime: Date | null = null;
+  if (typeof rawEventTime === 'string' && rawEventTime.length > 0) {
+    const parsed = new Date(rawEventTime);
+    if (!Number.isNaN(parsed.getTime())) eventTime = parsed;
+  }
+  return {
+    messageId: String(r.messageId),
+    conversationId: String(r.conversationId),
+    content: r.content as string,
+    externalProvider: String(r.externalProvider),
+    externalMessageId: String(r.externalMessageId),
+    createdAt: (r.createdAt as Date | null) ?? null,
+    eventTime,
+    senderPhone: r.senderPhone as string,
+    messageType: typeof r.messageType === 'string' ? r.messageType : 'text',
+    messageKind: (r.metadata as Record<string, unknown> | null)?.button_response === true ? 'button' : 'text',
+  };
+}
+
 /** Update appointment status (button response handler) — tenant-scoped. */
 export async function updateAppointmentStatus(clinicId: string, appointmentId: string, status: string): Promise<void> {
   const db = getDb();
@@ -711,10 +840,18 @@ export async function appendInboundMessageDeduped(data: {
   externalMessageId?: string;
   messageType?: string;
   metadata?: Record<string, unknown>;
-}): Promise<{ deduped: true } | { deduped: false; id: string }> {
+  /**
+   * Provider message clock as ISO-8601. Persisted into
+   * `messages.metadata.authenticatedEventAt`; absent/invalid → no marker,
+   * and callers must fail closed downstream (never substitute insert time).
+   */
+  eventTimestamp?: string | null;
+}): Promise<{ deduped: true } | { deduped: false; id: string; createdAt: Date | null; receivedAt: Date | null }> {
+  const eventTime = parseAuthenticatedEventTime(data.eventTimestamp);
   const meta = {
     ...(data.metadata ?? {}),
     ...(data.externalMessageId ? { externalMessageId: data.externalMessageId } : {}),
+    ...(eventTime ? { authenticatedEventAt: eventTime.toISOString() } : {}),
   };
   const [msg] = await getDb()
     .insert(messages)
@@ -729,8 +866,21 @@ export async function appendInboundMessageDeduped(data: {
       isAi: false,
     } as any)
     .onConflictDoNothing({ target: [messages.externalProvider, messages.externalMessageId] })
-    .returning({ id: messages.id });
-  return msg ? { deduped: false, id: msg.id } : { deduped: true };
+    .returning({ id: messages.id, createdAt: messages.createdAt });
+  if (!msg) return { deduped: true };
+  return { deduped: false, id: msg.id, createdAt: msg.createdAt ?? null, receivedAt: eventTime };
+}
+
+/**
+ * Parse a caller-supplied authenticated event timestamp (ISO-8601 string,
+ * as validated at the webhook edge). Returns null when missing or
+ * unparseable — callers fail closed on null and MUST NOT substitute the
+ * DB insert time.
+ */
+function parseAuthenticatedEventTime(value: unknown): Date | null {
+  if (typeof value !== 'string' || value.length === 0) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 /**
@@ -746,7 +896,17 @@ export async function persistInboundMessage(input: {
   content: string;
   messageType: string;
   metadata: Record<string, unknown>;
-}): Promise<{ deduped: true; conversationId: string } | { deduped: false; conversationId: string; messageId: string }> {
+  /** Button-tap marker: persisted as a metadata flag and forwarded to the outbox. */
+  messageKind?: 'text' | 'button';
+  /**
+   * Provider message clock as ISO-8601 (converted + validated at the
+   * webhook edge from the signed provider timestamp). Persisted into
+   * `messages.metadata.authenticatedEventAt` and forwarded to the outbox.
+   * Absent/invalid → row persists without it and downstream mutation paths
+   * escalate; there is intentionally no fallback to insert time.
+   */
+  eventTimestamp?: string | null;
+}): Promise<{ deduped: true; conversationId: string } | { deduped: false; conversationId: string; messageId: string; receivedAt: Date | null }> {
   if (!input.externalMessageId) throw new Error('externalMessageId is required for inbound dedup');
   const db = getDb();
   return db.transaction(async (tx: any) => {
@@ -771,6 +931,10 @@ export async function persistInboundMessage(input: {
       }
     }
     // 2. Insert message with onConflictDoNothing
+    // The ONLY trustworthy inbound event time is the provider message
+    // clock (`authenticatedEventAt`), never the DB insert time: a delayed
+    // SIM persisted after a new pending intent would otherwise look fresh.
+    const eventTime = parseAuthenticatedEventTime(input.eventTimestamp);
     const [msg] = await tx.insert(messages).values({
       conversationId,
       direction: 'inbound' as any,
@@ -778,13 +942,21 @@ export async function persistInboundMessage(input: {
       messageType: input.messageType as any,
       externalProvider: input.externalProvider,
       externalMessageId: input.externalMessageId,
-      metadata: input.metadata ?? {},
+      metadata: {
+        ...(input.metadata ?? {}),
+        ...(input.messageKind === 'button' ? { button_response: true } : {}),
+        ...(eventTime ? { authenticatedEventAt: eventTime.toISOString() } : {}),
+      },
       isAi: false,
-    } as any).onConflictDoNothing({ target: [messages.externalProvider, messages.externalMessageId] }).returning({ id: messages.id });
+    } as any).onConflictDoNothing({ target: [messages.externalProvider, messages.externalMessageId] }).returning({ id: messages.id, createdAt: messages.createdAt });
     if (!msg) {
       // deduped — não alterar aggregate, não enfileirar side effects
       return { deduped: true as const, conversationId };
     }
+    // Forward ONLY the authenticated provider time. When absent/invalid the
+    // outbox carries no `receivedAt` and downstream mutation paths escalate
+    // instead of mutating — never fall back to insert time.
+    const receivedAt: Date | null = eventTime;
     // 4. Update aggregate atomically na mesma tx
     await tx.update(conversations).set({
       messageCount: sql`${conversations.messageCount} + 1`,
@@ -807,9 +979,13 @@ export async function persistInboundMessage(input: {
         externalMessageId: input.externalMessageId,
         content: input.content,
         messageType: input.messageType,
+        messageKind: input.messageKind ?? 'text',
+        // Absent on purpose when the provider clock is missing/invalid —
+        // the dispatcher treats a missing receivedAt as escalate-only.
+        ...(receivedAt ? { receivedAt: receivedAt.toISOString() } : {}),
         metadata: input.metadata,
       },
     });
-    return { deduped: false as const, conversationId, messageId: msg.id };
+    return { deduped: false as const, conversationId, messageId: msg.id, receivedAt };
   });
 }

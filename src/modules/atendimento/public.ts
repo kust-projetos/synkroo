@@ -11,6 +11,10 @@ import { buscarPacientePorTelefone } from '@/modules/operacional/public';
 import { buscarLeadPorTelefone } from '@/modules/comercial/public';
 
 export { getConversationContext } from './repositories/conversations-repository';
+export { findAuthenticInboundEvent as obterEventoInboundAutentico } from './repositories/conversations-repository';
+export type { AuthenticInboundEvent } from './repositories/conversations-repository';
+export { findByIdForClinic as obterConversaPorId } from './repositories/conversations-repository';
+export { findAppointmentPatientPhone as obterTelefonePacienteConsulta } from './repositories/conversations-repository';
 
 /**
  * Contexto NÃO-sensível do interlocutor por telefone (só o NOME circula —

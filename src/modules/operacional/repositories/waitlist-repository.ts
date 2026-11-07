@@ -5,7 +5,7 @@
 
 import { getDb } from '@/lib/db/client';
 import { waitlist, appointments } from '../schema/appointments';
-import { eq, and, isNull, gte, lte, desc, asc } from 'drizzle-orm';
+import { eq, and, isNull, gte, lte, desc, asc, sql } from 'drizzle-orm';
 import { ActionError } from '@/core/actions/types';
 
 /**
@@ -89,6 +89,14 @@ export async function insertWaitlist(data: {
   status?: string;
 }) {
   const db = getDb();
+  if (data.status !== undefined && data.status !== 'waiting') {
+    // No current caller creates entries in `notified` state (entrar-waitlist
+    // has no status input; seeds bypass the repository via direct SQL).
+    // Direct `notified` creation would open an unserialized intent outside
+    // the per-clinic reply lock, so it is rejected instead of silently
+    // allowed. Ordinary `waiting` inserts take no lock by design.
+    throw new ActionError('invalid_input', 'waitlist entries must be created as waiting; promotion to notified goes through the locked notify seam');
+  }
   const [row] = await db
     .insert(waitlist)
     .values({
@@ -107,6 +115,17 @@ export async function insertWaitlist(data: {
   return row;
 }
 
+/**
+ * Per-clinic advisory lock shared with the WhatsApp reply path (READ
+ * COMMITTED). Cooperative only: direct-SQL writers that skip this lock are
+ * not serialized (residual risk, documented in confirmation-service).
+ */
+async function acquireClinicLock(tx: any, clinicId: string): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${'synkroo:whatsapp-reply:' + clinicId}, 0))`,
+  );
+}
+
 export async function updateWaitlist(
   id: string,
   data: Partial<{
@@ -123,6 +142,30 @@ export async function updateWaitlist(
   }>,
 ) {
   const db = getDb();
+  // Promotions to `notified` contend with SIM consume: serialize on the
+  // same per-clinic lock. Other updates keep the legacy direct path.
+  if (data.status === 'notified') {
+    return db.transaction(async (tx: any) => {
+      // Universal lock order: advisory lock FIRST, business row locks after.
+      // The clinic lookup below takes NO row lock on purpose; the entry is
+      // re-selected FOR UPDATE after the advisory lock and revalidated
+      // (exists + same clinic) before the scoped write.
+      const [hint] = await tx.select({ clinicId: waitlist.clinicId })
+        .from(waitlist).where(eq(waitlist.id, id)).limit(1);
+      if (!hint) return null;
+      await acquireClinicLock(tx, (hint as any).clinicId);
+      const [entry] = await tx.select({ clinicId: waitlist.clinicId })
+        .from(waitlist).where(eq(waitlist.id, id)).limit(1).for('update');
+      if (!entry || (entry as any).clinicId !== (hint as any).clinicId) return null;
+      const [row] = await tx
+        .update(waitlist)
+        .set({ ...data, updatedAt: new Date() } as any)
+        .where(and(eq(waitlist.id, id), eq(waitlist.clinicId, (entry as any).clinicId)))
+        .returning();
+      console.warn('[P1] waitlist.updateWaitlist without clinicId is deprecated; use updateWaitlistScoped with clinic from auth context');
+      return row ?? null;
+    });
+  }
   const [row] = await db
     .update(waitlist)
     .set({ ...data, updatedAt: new Date() } as any)
@@ -154,6 +197,19 @@ export async function updateWaitlistScoped(
   }>,
 ) {
   const db = getDb();
+  // Same serialization as updateWaitlist: `notified` promotions share the
+  // per-clinic reply lock with SIM consume.
+  if (data.status === 'notified') {
+    return db.transaction(async (tx: any) => {
+      await acquireClinicLock(tx, clinicId);
+      const [row] = await tx
+        .update(waitlist)
+        .set({ ...data, updatedAt: new Date() } as any)
+        .where(and(eq(waitlist.id, id), eq(waitlist.clinicId, clinicId)))
+        .returning();
+      return row ?? null;
+    });
+  }
   const [row] = await db
     .update(waitlist)
     .set({ ...data, updatedAt: new Date() } as any)

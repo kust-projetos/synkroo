@@ -7,12 +7,13 @@
  * All DB access delegated to conversations-repository; no direct getDb() usage.
  */
 import { sendWhatsAppMessage } from './channel-service';
-import { processConfirmationResponse, processWaitlistConfirmation, buscarPacientePorTelefone } from '@/modules/operacional/public';
+import { resolveInboundReply, buscarPacientePorTelefone } from '@/modules/operacional/public';
 import { whatsappLogger } from '@/lib/logger';
 import * as repo from '../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
 import { buscarLeadPorTelefone } from '@/modules/comercial/public';
+import { parseProviderEventTimestamp } from '../integrations/event-timestamp';
 import { runAction } from '@/core/actions/run';
 import { buildSystemContext } from '@/core/actions/context';
 import { enviarMensagem } from '../actions/enviar-mensagem';
@@ -69,31 +70,51 @@ export async function processEvolutionMessage(data: Record<string, unknown>, ins
 
   // Store inbound message with dedup by externalMessageId (key.id)
   const messageId = key.id as string;
+  // Button taps are marked in the persisted context (metadata flag): a
+  // plain body:'SIM' inside a known button payload must not become regular
+  // text downstream. `selectedId` itself is never trusted (see below).
+  const isButtonTap = !!(data.message && (data.message as Record<string, unknown>).buttonsResponseMessage);
   const storeResult = await repo.appendInboundMessageDeduped({
     conversationId: conv.id,
     externalProvider: 'evolution',
     content,
     externalMessageId: messageId,
     messageType: messageType as string,
-    metadata: { whatsapp_message_id: messageId, instance: instanceName } as Record<string, unknown>,
+    metadata: {
+      whatsapp_message_id: messageId,
+      instance: instanceName,
+      ...(isButtonTap ? { button_response: true } : {}),
+    } as Record<string, unknown>,
   });
   if (storeResult.deduped) return [];
 
-  // Handle button responses
-  const buttonResult = await handleButtonResponse(data, clinicId, phone, conv.id);
-  if (buttonResult) {
-    results.push(buttonResult);
+  // Button taps: the client-supplied appointment id (`selectedId`) is
+  // IGNORED entirely — it never authorizes a status change and there is
+  // no pending-record-free mutation path. Only the display text goes
+  // through the trusted pending-confirmation resolver; anything it does
+  // not confirm escalates to a human (negative buttons never cancel).
+  if (data.message && (data.message as Record<string, unknown>).buttonsResponseMessage) {
+    const buttonResult = await handleButtonText(data, clinicId, phone, conv.id, 'evolution', messageId, storeResult.receivedAt ?? undefined);
+    if (buttonResult) {
+      results.push(buttonResult);
+      await repo.updateConversationTimestamp(clinicId, conv.id, new Date());
+      return results;
+    }
+    await repo.escalateConversation(conv.id, clinicId);
     await repo.updateConversationTimestamp(clinicId, conv.id, new Date());
-    return results;
+    return [{ from: phone, action: 'escalated' }];
   }
 
-  // Confirmation response
-  const confirmResult = await handleConfirmation(clinicId, phone, content, conv.id);
-  if (confirmResult) { results.push(confirmResult); await repo.updateConversationTimestamp(clinicId, conv.id, new Date()); return results; }
-
-  // Waitlist confirmation
-  const waitlistResult = await handleWaitlist(clinicId, phone, content, conv.id);
-  if (waitlistResult) { results.push(waitlistResult); await repo.updateConversationTimestamp(clinicId, conv.id, new Date()); return results; }
+  // Text reply through the single trusted decision point. Escalation
+  // stops here: no silent fallthrough to the waitlist parser or agent.
+  // (The deprecated evolution path carries no provider clock, so it
+  // escalates on missing event time — it can never mutate anyway.)
+  const replyResult = await handleTrustedReply(clinicId, phone, content, conv.id, 'evolution', messageId, false, {
+    receivedAt: storeResult.receivedAt ?? undefined,
+    messageType,
+    messageKind: 'text',
+  });
+  if (replyResult) { results.push(replyResult); await repo.updateConversationTimestamp(clinicId, conv.id, new Date()); return results; }
 
   // Lead capture via comercial action layer (best-effort)
   try {
@@ -190,13 +211,17 @@ async function storeAndProcessMetaMessage(
   const conv = await repo.findOrCreateConversation(cId, channel, from);
   if (!conv) return null;
 
-  // Store message with dedup by externalMessageId (msg.id from Meta)
+  // Store message with dedup by externalMessageId (msg.id from Meta).
+  // The ONLY trustworthy event time is the signed provider message clock
+  // (`msg.timestamp`, epoch seconds) — never the insert time.
+  const eventTimestamp = parseProviderEventTimestamp((msg as Record<string, unknown>).timestamp);
   const storeResult = await repo.appendInboundMessageDeduped({
     conversationId: conv.id,
     externalProvider: 'meta',
     content,
     externalMessageId: msgId,
     messageType: msgType,
+    eventTimestamp,
     metadata: { whatsapp_message_id: msgId, phone_number_id: phoneNumberId } as Record<string, unknown>,
   });
   if (storeResult.deduped) {
@@ -204,11 +229,17 @@ async function storeAndProcessMetaMessage(
     return null;
   }
 
-  // Check confirmation, waitlist
-  const confirmResult = await handleConfirmation(cId, from, content, conv.id);
-  if (confirmResult) { await repo.updateConversationTimestamp(cId, conv.id, new Date()); return confirmResult; }
-  const waitlistResult = await handleWaitlist(cId, from, content, conv.id);
-  if (waitlistResult) { await repo.updateConversationTimestamp(cId, conv.id, new Date()); return waitlistResult; }
+  // Text reply through the single trusted decision point. Escalation
+  // stops here: no silent fallthrough to the waitlist parser or agent.
+  // The ONLY trustworthy event time is the parsed provider clock above —
+  // never storeResult.createdAt (insert time) nor any other DB timestamp.
+  // Missing/invalid fails closed downstream (escalate, never mutate).
+  const replyResult = await handleTrustedReply(cId, from, content, conv.id, 'meta', msgId, false, {
+    receivedAt: eventTimestamp ? new Date(eventTimestamp) : undefined,
+    messageType: msgType,
+    messageKind: 'text',
+  });
+  if (replyResult) { await repo.updateConversationTimestamp(cId, conv.id, new Date()); return replyResult; }
 
   // Roteia para o agente IA
   const agentResult = await routeInboundToAgent({
@@ -238,75 +269,88 @@ async function storeAndProcessMetaMessage(
   return agentResult;
 }
 
-async function handleButtonResponse(
+async function handleButtonText(
   data: Record<string, unknown>,
   clinicId: string,
   phone: string,
   convId: string,
+  externalProvider: string,
+  externalMessageId: string,
+  receivedAt?: Date | null,
 ): Promise<{ from: string; action: string } | null> {
   const msg = data.message as Record<string, unknown> | undefined;
   const button = msg?.buttonsResponseMessage as Record<string, unknown> | undefined;
-  if (!button?.selectedId) return null;
-  const selectedId = button.selectedId as string;
-  if (!selectedId.startsWith('confirm_') && !selectedId.startsWith('cancel_')) return null;
-
-  const action = selectedId.startsWith('confirm_') ? 'confirm' : 'cancel';
-  const appointmentId = selectedId.split('_').slice(1).join('_');
-
-  const apptRows = await repo.findAppointmentById(appointmentId, clinicId);
-  if (apptRows.length === 0) return null;
-
-  const newStatus = action === 'confirm' ? 'confirmed' : 'cancelled';
-  await repo.updateAppointmentStatus(clinicId, appointmentId, newStatus);
-
-  const responseMsg = action === 'confirm'
-    ? '✅ Confirmado! Sua presença foi registrada.'
-    : '✅ Entendido. Sua consulta foi cancelada.';
-  await sendWhatsAppMessage(phone, responseMsg);
-
-  await repo.appendOutboundMessage(clinicId, {
-    conversationId: convId,
-    content: responseMsg,
+  const displayText = typeof button?.selectedDisplayText === 'string' ? button.selectedDisplayText : '';
+  if (!displayText) return null;
+  // `selectedId` is deliberately never read: a client-supplied appointment
+  // id cannot authorize anything. Only the display text is resolved, marked
+  // as a button tap so it can never schedule a waitlist offer.
+  return handleTrustedReply(clinicId, phone, displayText, convId, externalProvider, externalMessageId, true, {
+    allowWaitlist: false,
+    receivedAt,
     messageType: 'text',
+    messageKind: 'button',
   });
-
-  return { from: phone, action: `button_${action}` };
 }
 
-async function handleConfirmation(
+/**
+ * Single trusted reply path for both text and button display text.
+ *
+ * - confirmed / waitlist_scheduled → persist the outbound reply, send it,
+ *   and report the decision.
+ * - escalate → mark the conversation escalated (human handoff, status
+ *   only — no external send) and report it.
+ * - agent → null ONLY when the caller allows agent fallback (`false` for
+ *   plain text, never for button taps which always escalate instead).
+ * - Button taps pass `allowWaitlist: false`: a button SIM may consume only
+ *   a single valid pending confirmation, never a waitlist offer.
+ */
+async function handleTrustedReply(
   clinicId: string,
   phone: string,
   content: string,
   convId: string,
+  externalProvider: string,
+  externalMessageId: string,
+  buttonTap: boolean,
+  opts?: { allowWaitlist?: boolean; receivedAt?: Date | null; messageType?: string; messageKind?: 'text' | 'button' },
 ): Promise<{ from: string; action: string } | null> {
-  const result = await processConfirmationResponse(clinicId, phone, content);
-  if (!result.processed || !result.responseMessage) return null;
-  await repo.appendOutboundMessage(clinicId, {
+  const decision = await resolveInboundReply({
+    clinicId,
     conversationId: convId,
-    content: result.responseMessage,
-    messageType: 'text',
-    intent: result.action === 'confirmed' ? 'confirmacao' : 'cancelamento',
-  });
-  await sendWhatsAppMessage(phone, result.responseMessage);
-  return { from: phone, action: 'confirmation' };
-}
-
-async function handleWaitlist(
-  clinicId: string,
-  phone: string,
-  content: string,
-  convId: string,
-): Promise<{ from: string; action: string } | null> {
-  const result = await processWaitlistConfirmation(clinicId, phone, content);
-  if (!result.processed || !result.responseMessage) return null;
-  await repo.appendOutboundMessage(clinicId, {
-    conversationId: convId,
-    content: result.responseMessage,
-    messageType: 'text',
-    intent: 'agendamento',
-  });
-  await sendWhatsAppMessage(phone, result.responseMessage);
-  return { from: phone, action: 'waitlist' };
+    senderPhone: phone,
+    content,
+    externalProvider,
+    externalMessageId,
+    messageType: opts?.messageType ?? 'text',
+    messageKind: opts?.messageKind ?? (buttonTap ? 'button' : 'text'),
+    receivedAt: opts?.receivedAt,
+  }, opts);
+  if (decision.kind === 'confirmed') {
+    await repo.appendOutboundMessage(clinicId, {
+      conversationId: convId,
+      content: decision.responseMessage,
+      messageType: 'text',
+      intent: 'confirmacao',
+    });
+    await sendWhatsAppMessage(phone, decision.responseMessage);
+    return { from: phone, action: 'confirmation' };
+  }
+  if (decision.kind === 'waitlist_scheduled') {
+    await repo.appendOutboundMessage(clinicId, {
+      conversationId: convId,
+      content: decision.responseMessage,
+      messageType: 'text',
+      intent: 'agendamento',
+    });
+    await sendWhatsAppMessage(phone, decision.responseMessage);
+    return { from: phone, action: 'waitlist' };
+  }
+  if (decision.kind === 'escalate' || buttonTap) {
+    await repo.escalateConversation(convId, clinicId);
+    return { from: phone, action: 'escalated' };
+  }
+  return null;
 }
 
 async function processStatusUpdate(status: Record<string, unknown>) {

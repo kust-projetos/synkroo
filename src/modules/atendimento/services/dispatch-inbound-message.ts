@@ -1,7 +1,7 @@
 import { sendWhatsAppMessage } from './channel-service';
 import { buildOutboundIdempotencyKey, OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
 import { dbLogger, whatsappLogger } from '@/lib/logger';
-import { processConfirmationResponse, processWaitlistConfirmation } from '@/modules/operacional/public';
+import { resolveInboundReply } from '@/modules/operacional/public';
 import * as repo from '../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
@@ -19,6 +19,15 @@ export type InboundMessageJobPayload = {
   externalMessageId: string;
   content: string;
   messageType: string;
+  /** Button-tap marker persisted at ingress; absent (legacy jobs) means text. */
+  messageKind?: 'text' | 'button';
+  /**
+   * Authenticated inbound event time (ISO string of the provider message
+   * clock, e.g. `messages.metadata.authenticatedEventAt`). Absent/invalid
+   * (legacy jobs) → the reply path escalates instead of mutating. Never
+   * the DB insert time.
+   */
+  receivedAt?: string;
   metadata: Record<string, unknown>;
 };
 
@@ -43,23 +52,49 @@ export async function dispatchInboundMessageJob(job: OutboxJob): Promise<void> {
   // complete, but no browser history or outbound channel is exposed here.
   if (input.channel !== 'whatsapp') return;
 
-  const confirmation = await processConfirmationResponse(
-    input.clinicId,
-    input.externalConversationId,
-    input.content,
-  );
-  if (confirmation.processed && confirmation.responseMessage) {
-    await sendReply(input, confirmation.responseMessage, job.id, confirmation.action === 'confirmed' ? 'confirmacao' : 'cancelamento');
+  // Single routing point: exact "sim" consumes at most one unambiguous
+  // pending (or waitlist offer); missing/ambiguous/non-exact identity
+  // escalates the conversation to a human — never a blind mutation, and
+  // never a silent fallthrough to the waitlist parser or the agent.
+  // Button-kind jobs resolve through the button channel (no waitlist);
+  // a missing/invalid event time fails closed inside the resolver.
+  const decision = await resolveInboundReply({
+    clinicId: input.clinicId,
+    conversationId: input.conversationId,
+    senderPhone: input.externalConversationId,
+    content: input.content,
+    externalProvider: input.externalProvider,
+    externalMessageId: input.externalMessageId,
+    messageType: input.messageType,
+    messageKind: input.messageKind ?? 'text',
+    receivedAt: input.receivedAt,
+  }, { allowWaitlist: input.messageKind === 'button' ? false : undefined });
+  if (decision.kind === 'confirmed') {
+    const sent = await sendReply(input, decision.responseMessage, job.id, 'confirmacao');
+    if (!sent) {
+      // The mutation is already committed, but the user was never told:
+      // failing the job forces an outbox retry, and the redelivery replays
+      // the stored outcome instead of duplicating it. Generic message on
+      // purpose — no phone, content, or provider details.
+      throw new Error('INBOUND_REPLY_SEND_FAILED');
+    }
     return;
   }
-
-  const waitlist = await processWaitlistConfirmation(
-    input.clinicId,
-    input.externalConversationId,
-    input.content,
-  );
-  if (waitlist.processed && waitlist.responseMessage) {
-    await sendReply(input, waitlist.responseMessage, job.id, 'agendamento');
+  if (decision.kind === 'waitlist_scheduled') {
+    const sent = await sendReply(input, decision.responseMessage, job.id, 'agendamento');
+    if (!sent) {
+      // Same retryable-failure contract as the confirmation branch.
+      throw new Error('INBOUND_REPLY_SEND_FAILED');
+    }
+    return;
+  }
+  if (decision.kind === 'escalate') {
+    dbLogger.info('dispatch-inbound: reply escalated without mutation', {
+      conversationId: input.conversationId,
+      reason: decision.reason,
+    });
+    await repo.escalateConversation(input.conversationId, input.clinicId);
+    await repo.updateConversationTimestamp(input.clinicId, input.conversationId, new Date());
     return;
   }
 

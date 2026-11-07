@@ -15,6 +15,15 @@ export const receberMensagem = defineAction({
     message: z.string().min(1).max(32_000),
     channel: z.enum(['whatsapp', 'instagram', 'web']),
     messageType: z.enum(['text', 'image', 'audio', 'document']).default('text'),
+    messageKind: z.enum(['text', 'button']).default('text'),
+    /**
+     * Provider message clock as ISO-8601 (converted + validated at the
+     * webhook edge from the signed provider timestamp). Persisted into
+     * `messages.metadata.authenticatedEventAt` — never derived from
+     * `messages.createdAt` (insert time). Absent/invalid → persist anyway,
+     * but confirmation/waitlist paths escalate instead of mutating.
+     */
+    eventTimestamp: z.string().datetime({ offset: true }).optional(),
     metadata: z.record(z.unknown()).optional(),
   }).strict(),
   handler: async (input, ctx: ActionContext) => {
@@ -27,6 +36,8 @@ export const receberMensagem = defineAction({
         content: input.message,
         channel: input.channel,
         messageType: input.messageType,
+        messageKind: input.messageKind,
+        eventTimestamp: input.eventTimestamp,
         metadata: input.metadata ?? {},
       });
     } catch {

@@ -22,8 +22,7 @@ jest.mock('@/lib/logger', () => ({
 }));
 
 jest.mock('@/modules/operacional/public', () => ({
-  processConfirmationResponse: jest.fn(async () => ({ processed: false })),
-  processWaitlistConfirmation: jest.fn(async () => ({ processed: false })),
+  resolveInboundReply: jest.fn(async () => ({ kind: 'agent', reason: 'not_reply' })),
   buscarPacientePorTelefone: jest.fn(async () => null),
 }));
 
@@ -54,6 +53,7 @@ jest.mock('../../repositories/conversations-repository', () => ({
 
 import { dispatchInboundMessageJob } from '../dispatch-inbound-message';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
+import { resolveInboundReply } from '@/modules/operacional/public';
 import { OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
 
 function makeJob(id: string): any {
@@ -126,5 +126,58 @@ describe('dispatch-inbound sendReply idempotency wiring (A3)', () => {
       OutboundSendConflictError,
     );
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('confirmed + send falha → job rejeita com erro genérico retryable (sem PII), sem segundo envio', async () => {
+    outcomes.push('claimed');
+    // A decisão confirma (mutação já persistida pelo resolver); só o envio falha.
+    (resolveInboundReply as jest.Mock).mockResolvedValueOnce({
+      kind: 'confirmed',
+      appointmentId: 'appt-1',
+      responseMessage: 'Confirmado',
+    });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    });
+
+    const job = makeJob('job-sendfail');
+    const err = await dispatchInboundMessageJob(job).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe('INBOUND_REPLY_SEND_FAILED');
+    // Genérico: nenhuma PII (telefone, conteúdo, provedor) vaza na mensagem.
+    expect((err as Error).message).not.toContain('5511999990001');
+    expect((err as Error).message).not.toContain('Olá');
+    expect((err as Error).message).not.toContain('evolution');
+    // Uma única tentativa de envio; o job falha para a outbox tentar de novo,
+    // e a redelivery reconcilia pelo registro de consumo (sem duplo efeito).
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('waitlist_scheduled + send falha → job rejeita com erro genérico retryable (sem PII), sem segundo envio', async () => {
+    outcomes.push('claimed');
+    // A decisão agenda (mutação já persistida pelo resolver); só o envio falha.
+    (resolveInboundReply as jest.Mock).mockResolvedValueOnce({
+      kind: 'waitlist_scheduled',
+      responseMessage: 'Agendado',
+    });
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+    });
+
+    const job = makeJob('job-sendfail-wl');
+    const err = await dispatchInboundMessageJob(job).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe('INBOUND_REPLY_SEND_FAILED');
+    // Genérico: nenhuma PII (telefone, conteúdo, provedor) vaza na mensagem.
+    expect((err as Error).message).not.toContain('5511999990001');
+    expect((err as Error).message).not.toContain('Olá');
+    expect((err as Error).message).not.toContain('evolution');
+    // Uma única tentativa de envio; o job falha para a outbox tentar de novo,
+    // e a redelivery reconcilia pelo registro de consumo (sem duplo efeito).
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 });

@@ -205,6 +205,83 @@ describe('WhatsApp Webhook', () => {
       expect(data.processed).toBe(1)
     })
 
+    it('forwards the signed provider timestamp as eventTimestamp (never the insert time)', async () => {
+      const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
+      runAction.mockClear()
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              metadata: { phone_number_id: '123456789' },
+              messages: [{
+                id: 'wamid.ts-ok',
+                from: '5511999999999',
+                timestamp: '1711534800',
+                type: 'text',
+                text: { body: 'oi' },
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(200)
+      // 1711534800s UTC → ISO, derivada do carimbo assinado da Meta.
+      expect(runAction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ eventTimestamp: '2024-03-27T10:20:00.000Z' }),
+        expect.anything(),
+      )
+    })
+
+    it('persists without eventTimestamp when the provider clock is missing (fail closed downstream)', async () => {
+      const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
+      runAction.mockClear()
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              metadata: { phone_number_id: '123456789' },
+              messages: [{
+                id: 'wamid.no-ts',
+                from: '5511999999999',
+                type: 'text',
+                text: { body: 'oi' },
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+      expect(response.status).toBe(200)
+      const input = (runAction as jest.Mock).mock.calls[0][1] as Record<string, unknown>
+      expect(input).not.toHaveProperty('eventTimestamp')
+    })
+
     it('should ignore non-whatsapp objects', async () => {
       const payload = {
         object: 'other_object',
@@ -404,7 +481,7 @@ describe('WhatsApp Webhook', () => {
       )
     })
 
-    it('review D2D3 residual: action failure → 200 ignored + warn (sem 422/500, sem retry)', async () => {
+    it('review D2D3 residual: action failure → 503 retryable (mensagem válida não persistida, sem drop)', async () => {
       const { logger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } }
       logger.warn.mockClear()
       const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
@@ -440,12 +517,96 @@ describe('WhatsApp Webhook', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.status).toBe('ignored')
+      expect(response.status).toBe(503)
+      expect(data.error).toBe('Temporary failure')
       expect(logger.warn).toHaveBeenCalledWith(
-        'whatsapp webhook message ignored',
+        'whatsapp webhook message failed',
         expect.objectContaining({ event: 'action_failed' }),
       )
+    })
+
+    it('persistence exception → 503 retryable (throw da action não vira 200 ignore)', async () => {
+      const { logger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } }
+      logger.warn.mockClear()
+      const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
+      runAction.mockRejectedValueOnce(new Error('db unavailable'))
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              metadata: { phone_number_id: '123456789' },
+              messages: [{
+                id: 'wamid.actionthrow',
+                from: '5511999999999',
+                timestamp: '1711534800',
+                type: 'text',
+                text: { body: 'oi' },
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+
+      const request = new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const response = await POST(request)
+
+      expect(response.status).toBe(503)
+      expect(logger.warn).toHaveBeenCalledWith(
+        'whatsapp webhook message failed',
+        expect.objectContaining({ event: 'action_exception' }),
+      )
+    })
+
+    it('dedup redelivery após falha → 200 (segunda entrega encontra dedup, sem reprocessar)', async () => {
+      const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
+      // Primeira entrega falha na persistência (503); a redelivery encontra
+      // a mensagem já persistida (dedup) e é reconhecida com 200.
+      runAction.mockResolvedValueOnce({ ok: false, error: { code: 'internal', message: 'boom' } });
+      (runAction as jest.Mock).mockResolvedValueOnce({ ok: true, data: { deduped: true, conversationId: 'conv-123' } })
+      const payload = {
+        object: 'whatsapp_business_account',
+        entry: [{
+          changes: [{
+            value: {
+              metadata: { phone_number_id: '123456789' },
+              messages: [{
+                id: 'wamid.redelivery',
+                from: '5511999999999',
+                timestamp: '1711534800',
+                type: 'text',
+                text: { body: 'oi' },
+              }],
+            },
+          }],
+        }],
+      }
+      const body = JSON.stringify(payload)
+      const makeRequest = () => new NextRequest('http://localhost/api/whatsapp/webhook', {
+        method: 'POST',
+        body,
+        headers: {
+          'Content-Type': 'application/json',
+          'x-hub-signature-256': computeSignature(body),
+        },
+      })
+
+      const first = await POST(makeRequest())
+      expect(first.status).toBe(503)
+
+      const second = await POST(makeRequest())
+      const data = await second.json()
+      expect(second.status).toBe(200)
+      expect(data.deduped).toBe(1)
     })
 
     it('review D2D3 residual: structurally invalid JSON body → 400 (preservado, antes da identificação)', async () => {
@@ -508,10 +669,11 @@ describe('WhatsApp Webhook', () => {
       )
     })
 
-    it('review D2D3 definitivo: exceção da action → lote continua (2ª processada) e 200', async () => {
+    it('review D2D3 definitivo: exceção da action → lote continua (2ª processada) e 503 retryable', async () => {
       const { logger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } }
       logger.warn.mockClear()
       const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
+      runAction.mockClear()
       runAction.mockRejectedValueOnce(new Error('db down'))
       const payload = {
         object: 'whatsapp_business_account',
@@ -553,20 +715,22 @@ describe('WhatsApp Webhook', () => {
       const response = await POST(request)
       const data = await response.json()
 
-      expect(response.status).toBe(200)
-      expect(data.success).toBe(true)
-      expect(data.processed).toBe(1)
-      expect(data.ignored).toBe(1)
+      // Uma falha de persistência contamina o lote: 503 para retry da Meta,
+      // mas a segunda mensagem ainda é processada no mesmo lote.
+      expect(response.status).toBe(503)
+      expect(data.error).toBe('Temporary failure')
+      expect(runAction).toHaveBeenCalledTimes(2)
       expect(logger.warn).toHaveBeenCalledWith(
-        'whatsapp webhook message ignored',
+        'whatsapp webhook message failed',
         expect.objectContaining({ event: 'action_exception' }),
       )
     })
 
-    it('review D2D3 definitivo: warns sem phoneNumberId em nenhum warn do lote', async () => {
+    it('review D2D3 definitivo: warns sem phoneNumberId em nenhum warn do lote (com 503)', async () => {
       const { logger } = jest.requireMock('@/lib/logger') as { logger: { warn: jest.Mock } }
       logger.warn.mockClear()
       const { runAction } = jest.requireMock('@/core/actions/run') as { runAction: jest.Mock }
+      runAction.mockClear()
       runAction.mockRejectedValueOnce(new Error('db down'))
       const payload = {
         object: 'whatsapp_business_account',
@@ -613,7 +777,9 @@ describe('WhatsApp Webhook', () => {
       })
 
       const response = await POST(request)
-      expect(response.status).toBe(200)
+      // A exceção na segunda mensagem marca o lote como retryable (503),
+      // mas nenhum warn vaza phoneNumberId.
+      expect(response.status).toBe(503)
       expect(logger.warn.mock.calls.length).toBeGreaterThan(0)
       for (const call of logger.warn.mock.calls) {
         expect(call[1]).not.toHaveProperty('phoneNumberId')

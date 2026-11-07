@@ -3,10 +3,17 @@
  * All DB operations for waitlist table via Drizzle.
  */
 
-import { eq, and, lte, gte, lt, desc, asc } from "drizzle-orm";
+import { eq, and, lte, gte, lt, desc, asc, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db/client";
 import { waitlist, appointments, patients, dentists, procedures } from "@/lib/db/schema";
 import { ActionError } from "@/core/actions/types";
+
+/** Per-clinic advisory lock shared with the WhatsApp reply path. Cooperative only. */
+async function acquireClinicLock(tx: any, clinicId: string): Promise<void> {
+	await tx.execute(
+		sql`SELECT pg_advisory_xact_lock(hashtextextended(${'synkroo:whatsapp-reply:' + clinicId}, 0))`,
+	);
+}
 
 // Infer row type from Drizzle's select to match actual schema columns
 export type WaitlistRow = {
@@ -163,6 +170,30 @@ export async function updateEntry(
 	}>,
 ): Promise<boolean> {
 	const db = getDb();
+	// Promotions to `notified` contend with the WhatsApp reply path: take the
+	// same per-clinic advisory lock so notify vs consume serializes. Other
+	// field updates keep the legacy direct path.
+	if (data.status === 'notified') {
+		return db.transaction(async (tx: any) => {
+			// Universal lock order: advisory lock FIRST, business row locks
+			// after. The clinic lookup below takes NO row lock on purpose;
+			// the entry is re-selected FOR UPDATE after the advisory lock
+			// and revalidated before the write.
+			const [hint] = await tx.select({ clinicId: waitlist.clinicId })
+				.from(waitlist).where(eq(waitlist.id, id)).limit(1);
+			if (!hint) return false;
+			await acquireClinicLock(tx, (hint as any).clinicId);
+			const [entry] = await tx.select({ clinicId: waitlist.clinicId })
+				.from(waitlist).where(eq(waitlist.id, id)).limit(1).for('update');
+			if (!entry || (entry as any).clinicId !== (hint as any).clinicId) return false;
+			const [row] = await tx
+				.update(waitlist)
+				.set({ ...data, updatedAt: new Date() } as any)
+				.where(and(eq(waitlist.id, id), eq(waitlist.clinicId, (entry as any).clinicId)))
+				.returning({ id: waitlist.id });
+			return !!row;
+		});
+	}
 	const [row] = await db
 		.update(waitlist)
 		.set({ ...data, updatedAt: new Date() } as any)
@@ -293,17 +324,30 @@ export async function findMatchingEntries(params: {
 }
 
 // ─── Update status to notified ────────────────────────────────────────────────
-
+// Takes the same per-clinic advisory lock as the WhatsApp reply path so a
+// notify racing a SIM consume serializes (cooperative writers only).
+// Universal lock order: advisory lock FIRST, then the waitlist row lock.
+// The pre-lock read takes NO row lock; the entry is re-selected FOR UPDATE
+// after the advisory lock and revalidated (exists + same clinic) before update.
 export async function markNotified(waitlistId: string): Promise<void> {
 	const db = getDb();
-	await db
-		.update(waitlist)
-		.set({
-			status: "notified",
-			notifiedAt: new Date(),
-			updatedAt: new Date(),
-		} as any)
-		.where(eq(waitlist.id, waitlistId));
+	await db.transaction(async (tx: any) => {
+		const [hint] = await tx.select({ clinicId: waitlist.clinicId })
+			.from(waitlist).where(eq(waitlist.id, waitlistId)).limit(1);
+		if (!hint) return;
+		await acquireClinicLock(tx, (hint as any).clinicId);
+		const [entry] = await tx.select({ clinicId: waitlist.clinicId })
+			.from(waitlist).where(eq(waitlist.id, waitlistId)).limit(1).for('update');
+		if (!entry || (entry as any).clinicId !== (hint as any).clinicId) return;
+		await tx
+			.update(waitlist)
+			.set({
+				status: "notified",
+				notifiedAt: new Date(),
+				updatedAt: new Date(),
+			} as any)
+			.where(and(eq(waitlist.id, waitlistId), eq(waitlist.clinicId, (entry as any).clinicId)));
+	});
 }
 
 // ─── Update status to scheduled ──────────────────────────────────────────────

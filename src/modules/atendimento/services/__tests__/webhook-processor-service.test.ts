@@ -2,8 +2,7 @@ jest.mock('../channel-service', () => ({
   sendWhatsAppMessage: jest.fn(),
 }));
 jest.mock('@/modules/operacional/public', () => ({
-  processConfirmationResponse: jest.fn(),
-  processWaitlistConfirmation: jest.fn(),
+  resolveInboundReply: jest.fn(),
   buscarPacientePorTelefone: jest.fn(),
 }));
 jest.mock('@/lib/logger', () => ({
@@ -18,7 +17,9 @@ jest.mock('../../repositories/conversations-repository', () => ({
   updateConversationTimestamp: jest.fn(),
   appendOutboundMessage: jest.fn(),
   findAppointmentById: jest.fn(),
+  findAppointmentPatientPhone: jest.fn(),
   updateAppointmentStatus: jest.fn(),
+  escalateConversation: jest.fn(),
 }));
 jest.mock('@/core/ia-channel/webhook-router', () => ({
   routeInboundToAgent: jest.fn(),
@@ -45,18 +46,16 @@ import {
 } from '../webhook-processor-service';
 import * as repo from '../../repositories/conversations-repository';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
-import { processConfirmationResponse, processWaitlistConfirmation } from '@/modules/operacional/public';
+import { resolveInboundReply } from '@/modules/operacional/public';
 
 const mockRepo = repo as jest.Mocked<typeof repo>;
 const mockRouteInboundToAgent = routeInboundToAgent as jest.MockedFunction<typeof routeInboundToAgent>;
-const mockConfirmation = processConfirmationResponse as jest.MockedFunction<typeof processConfirmationResponse>;
-const mockWaitlist = processWaitlistConfirmation as jest.MockedFunction<typeof processWaitlistConfirmation>;
+const mockResolveReply = resolveInboundReply as jest.MockedFunction<typeof resolveInboundReply>;
 const { sendWhatsAppMessage } = jest.requireMock('../channel-service') as { sendWhatsAppMessage: jest.Mock };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockConfirmation.mockResolvedValue({ processed: false, responseMessage: '' });
-  mockWaitlist.mockResolvedValue({ processed: false, responseMessage: '' });
+  mockResolveReply.mockResolvedValue({ kind: 'agent', reason: 'not_reply' });
   mockRepo.appendInboundMessageDeduped.mockResolvedValue({ deduped: false } as never);
   mockRepo.updateConversationTimestamp.mockResolvedValue(undefined as never);
   mockRepo.findOrCreateConversation.mockResolvedValue({ id: 'conversation-1' } as never);
@@ -119,27 +118,105 @@ describe('processEvolutionMessage', () => {
       expect.any(Date),
     );
   });
-  it('handles button confirmation and cancellation responses', async () => {
+  it('routes button display text through the trusted resolver, ignoring selectedId', async () => {
     mockRepo.getClinicByInstance.mockResolvedValue('clinic-1' as never);
-    mockRepo.findAppointmentById.mockResolvedValue([{ id: 'appt-1' }] as never);
+    mockResolveReply.mockResolvedValue({ kind: 'confirmed', appointmentId: 'appt-1', responseMessage: 'Confirmado' } as never);
     const base = { key: { remoteJid: '5511999999999@s.whatsapp.net', fromMe: false, id: 'm1' } };
 
-    await expect(processEvolutionMessage({ ...base, message: { buttonsResponseMessage: { selectedId: 'confirm_appt-1', selectedDisplayText: 'Confirmar' } } }, 'instance-1'))
-      .resolves.toEqual([{ from: '5511999999999', action: 'button_confirm' }]);
-    await expect(processEvolutionMessage({ ...base, key: { ...base.key, id: 'm2' }, message: { buttonsResponseMessage: { selectedId: 'cancel_appt-1', selectedDisplayText: 'Cancelar' } } }, 'instance-1'))
-      .resolves.toEqual([{ from: '5511999999999', action: 'button_cancel' }]);
-    expect(sendWhatsAppMessage).toHaveBeenCalledTimes(2);
-    expect(mockRepo.updateAppointmentStatus).toHaveBeenCalledTimes(2);
+    await expect(processEvolutionMessage({ ...base, message: { buttonsResponseMessage: { selectedId: 'confirm_appt-1', selectedDisplayText: 'Sim' } } }, 'instance-1'))
+      .resolves.toEqual([{ from: '5511999999999', action: 'confirmation' }]);
+    expect(sendWhatsAppMessage).toHaveBeenCalledTimes(1);
+    expect(mockRepo.updateAppointmentStatus).not.toHaveBeenCalled();
+    expect(mockResolveReply).toHaveBeenCalledWith(expect.objectContaining({
+      clinicId: 'clinic-1',
+      conversationId: 'conversation-1',
+      senderPhone: '5511999999999',
+      content: 'Sim',
+      externalProvider: 'evolution',
+      externalMessageId: 'm1',
+      messageType: 'text',
+      messageKind: 'button',
+    }), expect.objectContaining({ allowWaitlist: false, messageKind: 'button' }));
+    // The tap is marked as a button response in the persisted context —
+    // a plain body:'SIM' inside a known button payload never becomes
+    // regular text downstream.
+    expect(mockRepo.appendInboundMessageDeduped).toHaveBeenCalledWith(expect.objectContaining({
+      externalProvider: 'evolution',
+      content: 'Sim',
+      metadata: expect.objectContaining({ button_response: true }),
+    }));
   });
 
-  it('handles confirmation and waitlist responses before agent routing', async () => {
+  it('escalates negative button taps without cancelling anything', async () => {
     mockRepo.getClinicByInstance.mockResolvedValue('clinic-1' as never);
-    mockConfirmation.mockResolvedValueOnce({ processed: true, responseMessage: 'Confirmado', action: 'confirmed' } as never);
+    mockResolveReply.mockResolvedValue({ kind: 'escalate', reason: 'reply_like' } as never);
+    const data = {
+      key: { remoteJid: '5511999999999@s.whatsapp.net', fromMe: false, id: 'm9' },
+      message: { buttonsResponseMessage: { selectedId: 'cancel_appt-1', selectedDisplayText: 'Cancelar' } },
+    };
+
+    await expect(processEvolutionMessage(data, 'instance-1')).resolves.toEqual([
+      { from: '5511999999999', action: 'escalated' },
+    ]);
+    expect(mockRepo.escalateConversation).toHaveBeenCalledWith('conversation-1', 'clinic-1');
+    expect(mockRepo.updateAppointmentStatus).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessage).not.toHaveBeenCalled();
+  });
+
+  it('escalates button taps the resolver does not confirm instead of routing to the agent', async () => {
+    mockRepo.getClinicByInstance.mockResolvedValue('clinic-1' as never);
+    mockResolveReply.mockResolvedValue({ kind: 'agent', reason: 'not_reply' } as never);
+    const data = {
+      key: { remoteJid: '5511999999999@s.whatsapp.net', fromMe: false, id: 'm10' },
+      message: { buttonsResponseMessage: { selectedId: 'confirm_appt-1', selectedDisplayText: 'Confirmar' } },
+    };
+
+    await expect(processEvolutionMessage(data, 'instance-1')).resolves.toEqual([
+      { from: '5511999999999', action: 'escalated' },
+    ]);
+    expect(mockRouteInboundToAgent).not.toHaveBeenCalled();
+    expect(mockRepo.updateAppointmentStatus).not.toHaveBeenCalled();
+  });
+
+  it('returns empty for a replayed button event without touching status', async () => {
+    mockRepo.getClinicByInstance.mockResolvedValue('clinic-1' as never);
+    mockRepo.appendInboundMessageDeduped.mockResolvedValue({ deduped: true } as never);
+    const data = {
+      key: { remoteJid: '5511999999999@s.whatsapp.net', fromMe: false, id: 'm1' },
+      message: { buttonsResponseMessage: { selectedId: 'confirm_appt-1', selectedDisplayText: 'Sim' } },
+    };
+
+    await expect(processEvolutionMessage(data, 'instance-1')).resolves.toEqual([]);
+    expect(mockResolveReply).not.toHaveBeenCalled();
+    expect(mockRepo.updateAppointmentStatus).not.toHaveBeenCalled();
+    expect(mockRepo.escalateConversation).not.toHaveBeenCalled();
+  });
+
+  it('escalates ambiguous or missing pending context for text replies without mutating', async () => {
+    mockRepo.getClinicByInstance.mockResolvedValue('clinic-1' as never);
+    mockResolveReply.mockResolvedValue({ kind: 'escalate', reason: 'ambiguous' } as never);
+    const data = {
+      key: { remoteJid: '5511999999999@s.whatsapp.net', fromMe: false, id: 'm1' },
+      message: { conversation: 'sim' },
+    };
+
+    await expect(processEvolutionMessage(data, 'instance-1')).resolves.toEqual([
+      { from: '5511999999999', action: 'escalated' },
+    ]);
+    expect(mockRepo.escalateConversation).toHaveBeenCalledWith('conversation-1', 'clinic-1');
+    expect(mockRouteInboundToAgent).not.toHaveBeenCalled();
+    expect(mockRepo.updateAppointmentStatus).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessage).not.toHaveBeenCalled();
+  });
+
+  it('routes text replies through the single decision point before agent routing', async () => {
+    mockRepo.getClinicByInstance.mockResolvedValue('clinic-1' as never);
+    mockResolveReply.mockResolvedValueOnce({ kind: 'confirmed', appointmentId: 'a1', responseMessage: 'Confirmado' } as never);
     const data = { key: { remoteJid: '5511999999999@s.whatsapp.net', fromMe: false, id: 'm1' }, message: { conversation: 'sim' } };
     await expect(processEvolutionMessage(data, 'instance-1')).resolves.toEqual([{ from: '5511999999999', action: 'confirmation' }]);
 
     mockRepo.appendInboundMessageDeduped.mockResolvedValue({ deduped: false } as never);
-    mockWaitlist.mockResolvedValueOnce({ processed: true, responseMessage: 'Há vaga', action: 'waitlist' } as never);
+    mockResolveReply.mockResolvedValueOnce({ kind: 'waitlist_scheduled', responseMessage: 'Há vaga' } as never);
     await expect(processEvolutionMessage({ ...data, key: { ...data.key, id: 'm2' } }, 'instance-1')).resolves.toEqual([{ from: '5511999999999', action: 'waitlist' }]);
     expect(mockRouteInboundToAgent).not.toHaveBeenCalled();
   });
@@ -179,7 +256,7 @@ describe('processMetaWebhookEntry', () => {
   });
 
   it('returns a confirmation action before agent routing', async () => {
-    mockConfirmation.mockResolvedValue({ processed: true, responseMessage: 'Confirmado', action: 'confirmed' } as never);
+    mockResolveReply.mockResolvedValue({ kind: 'confirmed', appointmentId: 'a1', responseMessage: 'Confirmado' } as never);
     mockRepo.getClinicByPhoneNumber.mockResolvedValue('clinic-1' as never);
     const entry = {
       changes: [{ value: { metadata: { phone_number_id: 'phone-1' }, messages: [{ from: '5511999999999', id: 'm1', type: 'text', text: { body: 'sim' } }] } }],
@@ -189,6 +266,64 @@ describe('processMetaWebhookEntry', () => {
       { from: '5511999999999', action: 'confirmation' },
     ]);
     expect(mockRouteInboundToAgent).not.toHaveBeenCalled();
+  });
+
+  it('escalates Meta replies the resolver does not confirm instead of routing to the agent', async () => {
+    mockResolveReply.mockResolvedValue({ kind: 'escalate', reason: 'no_pending' } as never);
+    mockRepo.getClinicByPhoneNumber.mockResolvedValue('clinic-1' as never);
+    const entry = {
+      changes: [{ value: { metadata: { phone_number_id: 'phone-1' }, messages: [{ from: '5511999999999', id: 'm2', type: 'text', text: { body: 'sim' } }] } }],
+    };
+
+    await expect(processMetaWebhookEntry(entry)).resolves.toEqual([
+      { from: '5511999999999', action: 'escalated' },
+    ]);
+    expect(mockRepo.escalateConversation).toHaveBeenCalledWith('conversation-1', 'clinic-1');
+    expect(mockRouteInboundToAgent).not.toHaveBeenCalled();
+    expect(sendWhatsAppMessage).not.toHaveBeenCalled();
+  });
+
+  it('forwards missing Meta event clock as undefined so the resolver fails closed (never insert time)', async () => {
+    mockRepo.getClinicByPhoneNumber.mockResolvedValue('clinic-1' as never);
+    const entry = {
+      changes: [{ value: { metadata: { phone_number_id: 'phone-1' }, messages: [{ from: '5511999999999', id: 'm3', type: 'text', text: { body: 'sim' } }] } }],
+    };
+
+    await processMetaWebhookEntry(entry);
+    // Normalized provider clock travels as eventTimestamp (absent here);
+    // persistence must not substitute DB insert time.
+    expect(mockRepo.appendInboundMessageDeduped).toHaveBeenCalledWith(expect.objectContaining({
+      externalProvider: 'meta',
+      externalMessageId: 'm3',
+      eventTimestamp: undefined,
+    }));
+    // Parsed clock (undefined when missing/invalid) is what reaches the
+    // trusted resolver — never storeResult.createdAt.
+    expect(mockResolveReply).toHaveBeenCalledWith(expect.objectContaining({
+      externalMessageId: 'm3',
+      receivedAt: undefined,
+    }), expect.anything());
+  });
+
+  it('forwards a valid Meta event clock as a Date and never uses insert time', async () => {
+    mockRepo.getClinicByPhoneNumber.mockResolvedValue('clinic-1' as never);
+    // Simulate a repo row carrying a DB insert time: the resolver must still
+    // receive the parsed provider clock, not createdAt.
+    mockRepo.appendInboundMessageDeduped.mockResolvedValue({ deduped: false, id: 'row-1', createdAt: new Date('2026-11-06T00:00:00.000Z'), receivedAt: new Date('2026-11-06T00:00:00.000Z') } as never);
+    const entry = {
+      changes: [{ value: { metadata: { phone_number_id: 'phone-1' }, messages: [{ from: '5511999999999', id: 'm4', type: 'text', text: { body: 'sim' }, timestamp: '1762380000' }] } }],
+    };
+
+    await processMetaWebhookEntry(entry);
+    const expectedIso = new Date(1762380000 * 1000).toISOString();
+    expect(mockRepo.appendInboundMessageDeduped).toHaveBeenCalledWith(expect.objectContaining({
+      externalMessageId: 'm4',
+      eventTimestamp: expectedIso,
+    }));
+    expect(mockResolveReply).toHaveBeenCalledWith(expect.objectContaining({
+      externalMessageId: 'm4',
+      receivedAt: new Date(expectedIso),
+    }), expect.anything());
   });
 });
 
