@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db/client';
 import { appointments, patients, appointmentConfirmationRequests } from '@/modules/operacional/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, gte, lte } from 'drizzle-orm';
 import { getOrCreateConversation } from '../repositories/conversations-repository';
 import { sendWhatsAppMessage } from './channel-service';
 import { createConfirmationRequest } from '@/modules/operacional/public';
@@ -111,17 +111,20 @@ export async function processAllConfirmationPrompts(): Promise<{ processed: numb
   try {
     const db = getDb();
     const now = new Date();
-    const windowStart = new Date(now.getTime() + 24 * 3_600_000);
-    const windowEnd = new Date(windowStart.getTime() + 5 * 60_000);
+    // Janela ampliada (23h..25h) para tolerar drift do cron de 5 min sem
+    // perder consultas elegíveis; a dedup de createConfirmationRequest evita
+    // reenvio. Filtro indexável por scheduledAt + status (sem varredura total).
+    const windowStart = new Date(now.getTime() + 23 * 3_600_000);
+    const windowEnd = new Date(now.getTime() + 25 * 3_600_000);
     const rows = await db
       .select({ id: appointments.id, clinicId: appointments.clinicId, scheduledAt: appointments.scheduledAt })
       .from(appointments)
       .where(and(
         eq(appointments.status, 'scheduled' as any),
+        gte(appointments.scheduledAt, windowStart),
+        lte(appointments.scheduledAt, windowEnd),
       ));
     for (const appt of rows) {
-      const scheduledAt = new Date((appt as any).scheduledAt);
-      if (scheduledAt < windowStart || scheduledAt > windowEnd) continue;
       try {
         const r = await emitConfirmationPrompt((appt as any).id, (appt as any).clinicId);
         if (r.ok) processed++;

@@ -52,6 +52,15 @@ describe('emitConfirmationPrompt', () => {
     const r = await emitConfirmationPrompt('appt-1', 'clinic-1');
     expect(r.ok).toBe(false);
     expect((r as any).reason).toBe('send_failed');
+    expect(mockDb.update).toHaveBeenCalled();
+  });
+
+  it('delivery unknown → sem reenvio automático e sem invalidação', async () => {
+    (sendWhatsAppMessage as jest.Mock).mockResolvedValue({ success: false, delivery: 'unknown' });
+    const r = await emitConfirmationPrompt('appt-1', 'clinic-1');
+    expect(r.ok).toBe(false);
+    expect((r as any).reason).toBe('delivery_unknown');
+    expect(mockDb.update).not.toHaveBeenCalled();
   });
 
   it('delivery unknown → sem reenvio automático', async () => {
