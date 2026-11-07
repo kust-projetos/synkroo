@@ -187,10 +187,17 @@ async function cleanupDynamic(): Promise<void> {
 async function makeConversation(clinicId: string, phone: string): Promise<string> {
   const { rows } = await pool.query(
     `INSERT INTO conversations (clinic_id, channel, external_id, status)
-     VALUES ($1, 'whatsapp', $2, 'active') RETURNING id`,
+     VALUES ($1, 'whatsapp', $2, 'active')
+     ON CONFLICT (clinic_id, channel, external_id) DO NOTHING
+     RETURNING id`,
     [clinicId, phone],
   );
-  return rows[0].id;
+  if (rows[0]?.id) return rows[0].id;
+  const { rows: existing } = await pool.query(
+    `SELECT id FROM conversations WHERE clinic_id = $1 AND channel = 'whatsapp' AND external_id = $2 LIMIT 1`,
+    [clinicId, phone],
+  );
+  return existing[0].id;
 }
 
 async function makeAppointment(clinicId: string, patientId: string, dentistId: string, scheduledAt: string, status = 'scheduled'): Promise<string> {
