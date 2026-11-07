@@ -7,8 +7,8 @@ import { createConfirmationRequest } from '@/modules/operacional/public';
 import { whatsappLogger } from '@/lib/logger';
 
 export type EmitConfirmationResult =
-  | { ok: true; requestId: string; conversationId: string }
-  | { ok: false; reason: string };
+  | { ok: true; requestId: string; conversationId: string; deduped: boolean }
+  | { ok: false; reason: string; delivery?: 'unknown' };
 
 export async function emitConfirmationPrompt(
   appointmentId: string,
@@ -44,8 +44,6 @@ export async function emitConfirmationPrompt(
 
   const conversationId = await getOrCreateConversation(clinicId, 'whatsapp', senderPhone, patient.phone);
 
-  const tz = 'America/Sao_Paulo';
-
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   let created: { id: string; deduped: boolean; appointmentScheduledAt: Date; clinicTimezone: string };
@@ -61,34 +59,78 @@ export async function emitConfirmationPrompt(
     return { ok: false, reason: 'confirmation_not_created' };
   }
 
-  const requestId = created.id;
+  // Reuse existing pending request: do not send a duplicate prompt.
+  if (created.deduped) {
+    return { ok: true, requestId: created.id, conversationId, deduped: true };
+  }
+
+  const tz = created.clinicTimezone || 'America/Sao_Paulo';
   const scheduledAt = created.appointmentScheduledAt ?? new Date(row.scheduledAt);
   const dateStr = scheduledAt.toLocaleDateString('pt-BR', { timeZone: tz });
   const timeStr = scheduledAt.toLocaleTimeString('pt-BR', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
   const message = `Sua consulta está marcada para ${dateStr} às ${timeStr}. Responda SIM para confirmar.`;
 
-  let sent = false;
+  const idempotencyKey = `confirmation-prompt:${clinicId}:${created.id}`;
+
+  const result = await sendWhatsAppMessage(senderPhone, message, idempotencyKey);
+
+  if (result.success === true) {
+    return { ok: true, requestId: created.id, conversationId, deduped: false };
+  }
+
+  // Delivery unknown: do NOT retry automatically; require reconciliation.
+  if (result.delivery === 'unknown') {
+    whatsappLogger.warn('Confirmation prompt delivery unknown — reconciliation required', {
+      event: 'CONFIRMATION_PROMPT_DELIVERY_UNKNOWN',
+      appointmentId,
+      requestId: created.id,
+    });
+    return { ok: false, reason: 'delivery_unknown', delivery: 'unknown' };
+  }
+
+  // Proven non-send failure: invalidate the pending so it does not stay active.
   try {
-    const res = await sendWhatsAppMessage(clinicId, senderPhone, message);
-    sent = !!res;
+    await db
+      .update(appointmentConfirmationRequests)
+      .set({ status: 'expired', outcome: 'send_failed', updatedAt: new Date() } as any)
+      .where(and(eq(appointmentConfirmationRequests.id, created.id), eq(appointmentConfirmationRequests.clinicId, clinicId)));
   } catch {
-    sent = false;
+    // best effort
   }
+  whatsappLogger.error('Confirmation prompt send failed', null, {
+    event: 'CONFIRMATION_PROMPT_SEND_FAILED',
+    appointmentId,
+    requestId: created.id,
+  });
+  return { ok: false, reason: 'send_failed' };
+}
 
-  if (!sent) {
-    // Invalidate the pending so it does not stay active without a delivered prompt.
-    try {
-      await db.update(appointmentConfirmationRequests).set({
-        status: 'expired',
-        outcome: 'send_failed',
-        updatedAt: new Date(),
-      } as any).where(eq(appointmentConfirmationRequests.id, requestId));
-    } catch {
-      // best effort
+export async function processAllConfirmationPrompts(): Promise<{ processed: number; errors: number }> {
+  let processed = 0;
+  let errors = 0;
+  try {
+    const db = getDb();
+    const now = new Date();
+    const windowStart = new Date(now.getTime() + 24 * 3_600_000);
+    const windowEnd = new Date(windowStart.getTime() + 5 * 60_000);
+    const rows = await db
+      .select({ id: appointments.id, clinicId: appointments.clinicId, scheduledAt: appointments.scheduledAt })
+      .from(appointments)
+      .where(and(
+        eq(appointments.status, 'scheduled' as any),
+      ));
+    for (const appt of rows) {
+      const scheduledAt = new Date((appt as any).scheduledAt);
+      if (scheduledAt < windowStart || scheduledAt > windowEnd) continue;
+      try {
+        const r = await emitConfirmationPrompt((appt as any).id, (appt as any).clinicId);
+        if (r.ok) processed++;
+      } catch {
+        errors++;
+      }
     }
-    whatsappLogger.error('Confirmation prompt send failed', null, { event: 'CONFIRMATION_PROMPT_SEND_FAILED', appointmentId, requestId });
-    return { ok: false, reason: 'send_failed' };
+  } catch {
+    errors++;
   }
-
-  return { ok: true, requestId, conversationId };
+  return { processed, errors };
 }

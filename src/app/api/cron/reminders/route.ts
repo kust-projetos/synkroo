@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { processAllReminders } from '@/modules/operacional/services/reminders-service';
+import { processAllConfirmationPrompts } from '@/modules/atendimento/services/confirmation-emitter';
 import { assertModuleForJob } from '@/core/modules/gates';
 import { createManifest } from '@/core/modules/manifest';
 import { checkRateLimit, rateLimitPresets } from '@/lib/rate-limit';
@@ -42,10 +43,13 @@ async function handlePOST(request: NextRequest): Promise<NextResponse> {
   }
 
   const result = await processAllReminders();
+  const confirm = await processAllConfirmationPrompts();
   return NextResponse.json({
     success: true,
-    processed: result.processed,
-    errors: result.errors,
+    processed: result.processed + confirm.processed,
+    errors: result.errors + confirm.errors,
+    reminders: result,
+    confirmations: confirm,
     timestamp: new Date().toISOString(),
   });
 }
