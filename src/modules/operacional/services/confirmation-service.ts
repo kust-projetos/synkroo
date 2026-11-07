@@ -1,7 +1,6 @@
 import { and, eq, gt, lte, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
 import { appointmentConfirmationRequests, appointments, patients, waitlist } from '@/modules/operacional/schema';
-import { conversations as atendimentoConversations, messages as atendimentoMessages } from '@/lib/db/schema/conversations';
 import { clinics } from '@/lib/db/schema/core';
 import { resolveClinicTimezone } from '@/lib/timezone';
 import { getClinicTimezone } from './availability-service';
@@ -1480,30 +1479,17 @@ export async function findAuthenticInboundEvent(
 ): Promise<AuthenticInboundEvent | null> {
   if (!clinicId || !conversationId || !externalMessageId) return null;
   const db = getDb();
-  const rows = await db
-    .select({
-      messageId: atendimentoMessages.id,
-      conversationId: atendimentoMessages.conversationId,
-      content: atendimentoMessages.content,
-      direction: atendimentoMessages.direction,
-      externalProvider: atendimentoMessages.externalProvider,
-      externalMessageId: atendimentoMessages.externalMessageId,
-      createdAt: atendimentoMessages.createdAt,
-      messageType: atendimentoMessages.messageType,
-      metadata: atendimentoMessages.metadata,
-      senderPhone: atendimentoConversations.externalId,
-      channel: atendimentoConversations.channel,
-      clinicId: atendimentoConversations.clinicId,
-    })
-    .from(atendimentoMessages)
-    .innerJoin(atendimentoConversations, eq(atendimentoConversations.id, atendimentoMessages.conversationId))
-    .where(and(
-      eq(atendimentoConversations.id, conversationId),
-      eq(atendimentoConversations.clinicId, clinicId),
-      eq(atendimentoMessages.conversationId, conversationId),
-      eq(atendimentoMessages.externalMessageId, externalMessageId),
-    ))
-    .limit(2);
+  const result = await db.execute(sql`
+    SELECT m.id AS "messageId", m.conversation_id AS "conversationId", m.content, m.direction,
+           m.external_provider AS "externalProvider", m.external_message_id AS "externalMessageId",
+           m.created_at AS "createdAt", m.message_type AS "messageType", m.metadata,
+           c.external_id AS "senderPhone", c.channel, c.clinic_id AS "clinicId"
+    FROM messages m
+    INNER JOIN conversations c ON c.id = m.conversation_id
+    WHERE c.id = ${conversationId} AND c.clinic_id = ${clinicId}
+      AND m.conversation_id = ${conversationId} AND m.external_message_id = ${externalMessageId}
+    LIMIT 2`);
+  const rows = (((result as any)?.rows ?? []) as Array<any>);
   if (rows.length !== 1) return null;
   const r = rows[0] as any;
   if (String(r.channel) !== 'whatsapp') return null;
