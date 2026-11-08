@@ -277,8 +277,61 @@ describe('WAHA inbound webhook — HMAC authentication (fail closed)', () => {
       message: 'Olá, quero um orçamento',
       channel: 'whatsapp',
       messageType: 'text',
+      // Provider message clock (payload.timestamp, epoch seconds) is
+      // forwarded as ISO; the signed root timestamp stays transport-only.
+      eventTimestamp: new Date(Math.floor(NOW_MS / 1000) * 1000).toISOString(),
     });
     expect(mockRunAtendimentoSystemActionResult.mock.calls[0][2]).toBe('clinic-real');
+  });
+
+  it('forwards a stale provider timestamp as-is (transport freshness is separate)', async () => {
+    // A delayed SIM carries an OLD provider clock while the transport stays
+    // fresh: the row must persist (200) with the old timestamp so the
+    // mutation path escalates instead of trusting the insert time.
+    const oldTs = Math.floor(NOW_MS / 1000) - 3600;
+    const res = await POST(signedRequest({
+      payload: {
+        ...(messageEnvelope().payload as Record<string, unknown>),
+        timestamp: oldTs,
+        body: 'SIM',
+      },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(actionInput()).toMatchObject({
+      message: 'SIM',
+      eventTimestamp: new Date(oldTs * 1000).toISOString(),
+    });
+  });
+
+  it('persists without eventTimestamp when the provider clock is missing', async () => {
+    const payload = { ...(messageEnvelope().payload as Record<string, unknown>) };
+    delete payload.timestamp;
+    const res = await POST(signedRequest({ payload }));
+
+    expect(res.status).toBe(200);
+    expect(actionInput()).not.toHaveProperty('eventTimestamp');
+  });
+
+  it('marks a known button payload as button kind (never plain text), ignoring ids', async () => {
+    // Representation contract: WAHA's real button payload shape is NOT
+    // verified in this repo — this covers only the documented Evolution-style
+    // marker. A plain body:'SIM' inside such a payload must not flow through
+    // the text channel (dispatcher would otherwise allow waitlist).
+    const res = await POST(signedRequest({
+      payload: {
+        ...(messageEnvelope().payload as Record<string, unknown>),
+        body: 'SIM',
+        buttonsResponseMessage: { selectedId: 'confirm_appt-1', selectedDisplayText: 'SIM' },
+      },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(actionInput()).toMatchObject({
+      message: 'SIM',
+      messageType: 'text',
+      messageKind: 'button',
+    });
   });
 
   it('parses nothing before the signature is valid — malformed body with a bad signature is 403, not 400', async () => {
@@ -1523,5 +1576,71 @@ describe('WAHA inbound webhook — module gate runs only after authentication', 
     expect(mockCreateManifest).not.toHaveBeenCalled();
     expect(mockResolveWahaInstallationStrict).not.toHaveBeenCalled();
     expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
+  });
+});
+
+describe('WAHA inbound webhook — transport freshness on the signed root timestamp', () => {
+  const originalKey = process.env.WAHA_WEBHOOK_HMAC_KEY;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    process.env.WAHA_WEBHOOK_HMAC_KEY = HMAC_KEY;
+    jest.mocked(checkRateLimit).mockReturnValue(RATE_LIMIT_ALLOWED);
+    mockCreateManifest.mockReturnValue({ isEnabled: mockIsEnabled });
+    mockIsEnabled.mockResolvedValue(true);
+    mockResolveWahaInstallationStrict.mockResolvedValue({ installationId: SESSION, clinicId: 'clinic-real' });
+    mockRunAtendimentoSystemActionResult.mockResolvedValue({ ok: true, data: { deduped: false } });
+  });
+
+  afterAll(() => {
+    if (originalKey === undefined) delete process.env.WAHA_WEBHOOK_HMAC_KEY;
+    else process.env.WAHA_WEBHOOK_HMAC_KEY = originalKey;
+  });
+
+  it('returns 409 without persistence/action for a stale signed root timestamp', async () => {
+    // Root transport clock is 1h old (> 600s freshness window) while the
+    // per-message clock stays fresh: the denial is about transport
+    // freshness, not the message clock.
+    const res = await POST(signedRequest({ timestamp: NOW_MS - 3_600_000 }));
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({ error: 'Stale webhook event' });
+    expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing root timestamp', { timestamp: undefined }],
+    ['non-numeric root timestamp', { timestamp: 'not-a-timestamp' }],
+    ['zero root timestamp', { timestamp: 0 }],
+    ['negative root timestamp', { timestamp: -1000 }],
+  ])('returns 409 without persistence/action for %s', async (_label, override) => {
+    const envelope = messageEnvelope(override as Record<string, unknown>);
+    if (override.timestamp === undefined) delete (envelope as Record<string, unknown>).timestamp;
+    const body = JSON.stringify(envelope);
+
+    const res = await POST(buildRequest({ body }));
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toEqual({ error: 'Stale webhook event' });
+    expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes root transport time from per-message time: old message + fresh root persists', async () => {
+    // Covered by the HMAC-block case: a delayed SIM carries an OLD provider
+    // clock while the signed root stays fresh — the row persists (200) so
+    // the mutation path can escalate on provider time instead of the
+    // insert time. This pins the boundary from the transport side.
+    const oldTs = Math.floor(NOW_MS / 1000) - 3600;
+    const res = await POST(signedRequest({
+      timestamp: NOW_MS,
+      payload: {
+        ...(messageEnvelope().payload as Record<string, unknown>),
+        timestamp: oldTs,
+        body: 'SIM',
+      },
+    }));
+
+    expect(res.status).toBe(200);
+    expect(mockRunAtendimentoSystemActionResult).toHaveBeenCalledTimes(1);
   });
 });

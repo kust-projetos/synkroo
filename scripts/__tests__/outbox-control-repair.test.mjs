@@ -26,7 +26,7 @@ const MISSING_OBJECTS = {
  * Cliente pg falso: ledger fixo, objetos que só passam a existir depois das
  * statements, e registro explícito de BEGIN/COMMIT/ROLLBACK + lock consultivo.
  */
-function fakeClient({ applied = 39, controlRow = true, failOnStatement } = {}) {
+function fakeClient({ applied = 40, controlRow = true, failOnStatement } = {}) {
   const state = { calls: [], objects: false, controlRow, committed: false, rolledBack: false, locked: false }
   return {
     state,
@@ -101,9 +101,9 @@ test('o DDL do gate não usa DROP TRIGGER (sem janela de gate ausente)', async (
   assert.ok(!statements.some((s) => /DROP\s+TRIGGER/i.test(s)))
 })
 
-test('expectedMigrations espelha o journal canônico (39 entradas)', async () => {
+test('expectedMigrations espelha o journal canônico (40 entradas)', async () => {
   const journal = JSON.parse(await readFile(new URL('../../src/lib/db/migrations/meta/_journal.json', import.meta.url), 'utf8'))
-  assert.equal(expectedMigrations(journal), 39)
+  assert.equal(expectedMigrations(journal), 40)
 })
 
 test('evaluateLedgerGate é EXATO: 38 passa, 33 incompleto, 39 à frente', () => {
@@ -130,7 +130,7 @@ test('parseShapeRow exige shape, linha singleton e trigger habilitado', () => {
 })
 
 test('runRepair: dry-run é o default e não muta', withDatabaseUrl(async () => {
-  const client = fakeClient({ applied: 39 })
+  const client = fakeClient({ applied: 40 })
   const result = await runRepair({ apply: false, statements: ['SELECT 1'], createClient: () => client })
   assert.equal(result.code, 'MISSING_DRY_RUN')
   assert.equal(client.state.objects, false) // nenhuma statement de DDL rodou
@@ -140,7 +140,7 @@ test('runRepair: dry-run é o default e não muta', withDatabaseUrl(async () => 
 }))
 
 test('runRepair --apply instala o DDL, reverifica e comita', withDatabaseUrl(async () => {
-  const client = fakeClient({ applied: 39 })
+  const client = fakeClient({ applied: 40 })
   const result = await runRepair({ apply: true, statements: ['SELECT 1', 'SELECT 2'], createClient: () => client })
   assert.equal(result.code, 'REPAIRED')
   assert.equal(result.changed, true)
@@ -161,8 +161,8 @@ test('runRepair recusa ledger incompleto (migrate pendente não é alvo de repai
   assert.equal(client.state.rolledBack, true)
 }))
 
-test('runRepair recusa ledger À FRENTE do journal (40 vs 39)', withDatabaseUrl(async () => {
-  const client = fakeClient({ applied: 40 })
+test('runRepair recusa ledger À FRENTE do journal (41 vs 40)', withDatabaseUrl(async () => {
+  const client = fakeClient({ applied: 41 })
   const result = await runRepair({ apply: true, statements: ['SELECT 1'], createClient: () => client })
   assert.equal(result.code, 'LEDGER_AHEAD')
   assert.equal(client.state.objects, false)
@@ -170,7 +170,7 @@ test('runRepair recusa ledger À FRENTE do journal (40 vs 39)', withDatabaseUrl(
 }))
 
 test('runRepair reverte (ROLLBACK) quando uma statement falha — nada parcial', withDatabaseUrl(async () => {
-  const client = fakeClient({ applied: 39 })
+  const client = fakeClient({ applied: 40 })
   const result = await runRepair({
     apply: true,
     statements: ['SELECT 1', 'BOOM STATEMENT'],
@@ -194,10 +194,10 @@ test('runRepair sem DATABASE_URL falha fechado', async () => {
 })
 
 test('runRepair: shape já presente não reaplica nada', withDatabaseUrl(async () => {
-  const client = fakeClient({ applied: 39 })
+  const client = fakeClient({ applied: 40 })
   client.query = async (query) => {
     const text = String(query)
-    if (text.includes('__drizzle_migrations')) return { rows: [{ count: 39 }] }
+    if (text.includes('__drizzle_migrations')) return { rows: [{ count: 40 }] }
     if (text.includes('relname')) return { rows: [PRESENT_OBJECTS] }
     if (text.includes('control_row')) return { rows: [{ control_row: true }] }
     return { rows: [] }
@@ -209,7 +209,7 @@ test('runRepair: shape já presente não reaplica nada', withDatabaseUrl(async (
 }))
 
 test('runRepair: objetos presentes SEM a linha singleton continuam precisando de repair', withDatabaseUrl(async () => {
-  const client = fakeClient({ applied: 39, controlRow: false })
+  const client = fakeClient({ applied: 40, controlRow: false })
   const result = await runRepair({ apply: true, statements: ['SELECT 1'], createClient: () => client })
   assert.equal(result.code, 'REPAIRED')
 }))

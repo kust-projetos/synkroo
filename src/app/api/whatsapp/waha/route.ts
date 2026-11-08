@@ -61,6 +61,7 @@ import { apiRateLimited, generateRequestId } from '@/lib/api/response';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { runAtendimentoSystemActionResult } from '@/modules/atendimento/ui/route-adapter';
 import { resolveWahaInstallationStrict } from '@/modules/atendimento/integrations/resolve-channel-installation';
+import { parseProviderEventTimestamp } from '@/modules/atendimento/integrations/event-timestamp';
 import { assertWebhookFreshness } from '@/modules/atendimento/integrations/webhook-freshness';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
 import { withModuleRoute } from '@/core/modules/gates';
@@ -156,7 +157,7 @@ type RawBody =
   | { ok: true; bytes: Uint8Array }
   | { ok: false; reason: 'too_large' | 'timeout' | 'unreadable' };
 
-type NormalizedContent = { content: string; messageType: MessageType };
+type NormalizedContent = { content: string; messageType: MessageType; messageKind: 'text' | 'button' };
 
 /** Minimal acks: no internal conversation/message identifier ever leaves here. */
 const ACK_OK = { status: 'ok' } as const;
@@ -392,13 +393,68 @@ function isHighSurrogate(code: number): boolean {
  * `media.url` is deliberately never read and `_data` is never inspected — no
  * media is downloaded in this slice, so the URL is dead weight that would only
  * become a stored third-party reference. An unsupported mimetype fails closed.
+ *
+ * Button/interactive responses: WAHA's button payload contract is NOT
+ * verified in this repo (no button fixtures exist), so this detects only the
+ * documented Evolution-style markers plus the common Baileys-derived
+ * `interactive`/`listResponse` shapes. A payload carrying any of those
+ * markers is normalized as kind 'button' (never plain text) so a "SIM" tap
+ * cannot flow through the text channel — and `selectedId`-style fields are
+ * never read here. RESIDUAL UNCERTAINTY: if WAHA delivers button taps as
+ * body-only payloads with none of these markers, they remain
+ * indistinguishable from typed text downstream (dispatcher treats them via
+ * the text channel; confirmation still requires a single valid pending, and
+ * waitlist scheduling still requires a single notified offer — but the
+ * button-specific `allowWaitlist: false` restriction would not apply).
  */
+const BUTTON_PAYLOAD_MARKERS = [
+  'buttonsResponseMessage',
+  'buttonResponse',
+  'interactive',
+  'listResponse',
+  'templateButtonReply',
+  'selectedButtonId',
+] as const;
+
+function detectButtonKind(payload: Record<string, unknown>): 'text' | 'button' {
+  for (const key of BUTTON_PAYLOAD_MARKERS) {
+    if (payload[key] !== undefined) return 'button';
+  }
+  const nested = payload.message;
+  if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+    for (const key of BUTTON_PAYLOAD_MARKERS) {
+      if ((nested as Record<string, unknown>)[key] !== undefined) return 'button';
+    }
+  }
+  return 'text';
+}
+
+function buttonDisplayText(payload: Record<string, unknown>): string {
+  const candidates: unknown[] = [
+    (payload.buttonsResponseMessage as Record<string, unknown> | undefined)?.selectedDisplayText,
+    (payload as Record<string, unknown>).selectedDisplayText,
+    (payload as Record<string, unknown>).body,
+  ];
+  for (const c of candidates) {
+    if (typeof c === 'string' && c.trim()) return c;
+  }
+  return '';
+}
+
 function normalizeMessageContent(payload: Record<string, unknown>): NormalizedContent | null {
+  const kind = detectButtonKind(payload);
+  // A known button payload must never become regular text — even when its
+  // body is a plain "SIM". Only the display text is kept; ids are ignored.
+  if (kind === 'button') {
+    const text = buttonDisplayText(payload);
+    if (!text) return null;
+    return { content: boundContent(text), messageType: 'text', messageKind: 'button' };
+  }
   const body = typeof payload.body === 'string' ? payload.body.trim() : '';
 
   if (payload.hasMedia !== true) {
     if (!body) return null;
-    return { content: boundContent(body), messageType: 'text' };
+    return { content: boundContent(body), messageType: 'text', messageKind: 'text' };
   }
 
   const media = payload.media && typeof payload.media === 'object' && !Array.isArray(payload.media)
@@ -407,10 +463,10 @@ function normalizeMessageContent(payload: Record<string, unknown>): NormalizedCo
   const mimetype = typeof media?.mimetype === 'string' ? media.mimetype.trim().toLowerCase() : '';
   const filename = typeof media?.filename === 'string' ? media.filename.trim() : '';
 
-  if (mimetype.startsWith('image/')) return { content: boundContent(body || '[Image]'), messageType: 'image' };
-  if (mimetype.startsWith('audio/')) return { content: boundContent(body || '[Audio]'), messageType: 'audio' };
+  if (mimetype.startsWith('image/')) return { content: boundContent(body || '[Image]'), messageType: 'image', messageKind: 'text' };
+  if (mimetype.startsWith('audio/')) return { content: boundContent(body || '[Audio]'), messageType: 'audio', messageKind: 'text' };
   if (DOCUMENT_MIMETYPES.has(mimetype)) {
-    return { content: boundContent(filename || body || '[Document]'), messageType: 'document' };
+    return { content: boundContent(filename || body || '[Document]'), messageType: 'document', messageKind: 'text' };
   }
   return null;
 }
@@ -493,6 +549,12 @@ async function handleAuthenticatedMessage(
 
   // Inbound Action with the RESOLVED clinic and an allowlisted metadata set
   // (session + WAHA message id) — no payload, no URL, no headers, no `_data`.
+  // The provider message clock (`payload.timestamp`, epoch seconds) travels
+  // as `eventTimestamp`; the signed root timestamp stays transport-only
+  // (freshness) and never becomes the event time. A missing/invalid provider
+  // clock persists the row without `authenticatedEventAt`, and downstream
+  // mutation paths escalate instead of mutating.
+  const eventTimestamp = parseProviderEventTimestamp(message.timestamp);
   try {
     const result = await runAtendimentoSystemActionResult(receberMensagem, {
       externalConversationId: phone,
@@ -501,6 +563,8 @@ async function handleAuthenticatedMessage(
       message: normalized.content,
       channel: 'whatsapp',
       messageType: normalized.messageType,
+      messageKind: normalized.messageKind,
+      ...(eventTimestamp !== undefined ? { eventTimestamp } : {}),
       metadata: { session: installation.installationId, waha_message_id: messageId },
     }, installation.clinicId);
 

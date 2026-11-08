@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 import { checkRateLimit, getClientIdentifier, rateLimitPresets } from '@/lib/rate-limit';
 import { logger } from '@/lib/logger';
 import { receberMensagem } from '@/modules/atendimento/actions/receber-mensagem';
+import { parseProviderEventTimestamp } from '@/modules/atendimento/integrations/event-timestamp';
 import { runAtendimentoSystemActionResult } from '@/modules/atendimento/ui/route-adapter';
 import { resolveMetaInstallation } from '@/modules/atendimento/integrations/resolve-channel-installation';
 import { parseMetaMessage } from '@/modules/atendimento/integrations/meta-message.schema';
@@ -51,6 +52,7 @@ async function handlePOST(request: NextRequest) {
   let processed = 0;
   let deduped = 0;
   let ignored = 0;
+  let failed = 0;
   for (const entry of entries as Array<Record<string, unknown>>) {
     const changes = Array.isArray(entry.changes) ? entry.changes : [];
     for (const change of changes as Array<Record<string, unknown>>) {
@@ -96,7 +98,16 @@ async function handlePOST(request: NextRequest) {
           ignored++;
           continue;
         }
-        // Exceção da action não aborta o lote: ignora a mensagem e segue.
+        // Exceção da action não aborta o lote: marca para retry e segue.
+        // A mensagem era válida, identificada e parseável, e a persistência
+        // falhou — responder 200 a descartaria. O lote pede retry no final;
+        // a redelivery é segura (dedup + outbox por business key).
+        //
+        // O relógio do evento é o carimbo assinado da Meta (`message.timestamp`,
+        // epoch seconds) — nunca o instante de inserção. Ausente/inválido, a
+        // linha persiste sem `authenticatedEventAt` e os caminhos de mutação
+        // escalonam em vez de mutar.
+        const eventTimestamp = parseProviderEventTimestamp((message as { timestamp?: unknown }).timestamp);
         let result;
         try {
           result = await runAtendimentoSystemActionResult(receberMensagem, {
@@ -106,33 +117,42 @@ async function handlePOST(request: NextRequest) {
             message: parsed.content,
             channel: 'whatsapp',
             messageType: parsed.messageType,
+            ...(eventTimestamp !== undefined ? { eventTimestamp } : {}),
             metadata: { phoneNumberId },
           }, installation.clinicId);
         } catch (error) {
-          logger.warn('whatsapp webhook message ignored', {
+          logger.warn('whatsapp webhook message failed', {
             event: 'action_exception',
             mid: externalMessageId,
             reason: error instanceof Error ? error.message.slice(0, 200) : 'unknown',
           });
-          ignored++;
+          failed++;
           continue;
         }
-        // Falha interna ao processar: retry da Meta não ajuda (inbound tem
-        // dedup, outbox cobre reprocessamento) → 200 ignore + warn. Infra
-        // continua visível em logs/metrics.
+        // Falha interna ao persistir: a mensagem era válida e identificada,
+        // mas NÃO foi duravelmente armazenada — o lote pede retry no final
+        // em vez de 200 ignore (que a descartaria). Visível em logs/metrics.
         if (!result.ok) {
-          logger.warn('whatsapp webhook message ignored', {
+          logger.warn('whatsapp webhook message failed', {
             event: 'action_failed',
             mid: externalMessageId,
             reason: result.error.code,
           });
-          ignored++;
+          failed++;
           continue;
         }
         if (result.data && typeof result.data === 'object' && 'deduped' in result.data && result.data.deduped) deduped++;
         else processed++;
       }
     }
+  }
+
+  // Qualquer mensagem válida cuja persistência falhou → 503 retryable APÓS
+  // o loop (o lote continua para as demais). A redelivery da Meta é segura:
+  // inbound tem dedup por (provider, event) e a outbox é idempotente por
+  // business key.
+  if (failed > 0) {
+    return NextResponse.json({ error: 'Temporary failure' }, { status: 503 });
   }
 
   // Lote só com mensagens ignoradas → semântica ignore, sem retry do provider.

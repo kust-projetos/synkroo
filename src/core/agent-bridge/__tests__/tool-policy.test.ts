@@ -37,6 +37,10 @@ const UNSAFE_NAMES = [
   // Ações destrutivas/diferenciais que ficam fora da barreira secundária
   'operacional.cancelarConsulta',
   'operacional.remarcarConsulta',
+  // Resposta de confirmação WhatsApp: decisão com mutação ancorada em
+  // evento inbound + conversa confiável; o modelo nunca a invoca com
+  // conversationId/eventId escolhidos por ele.
+  'operacional.processarConfirmacaoResposta',
   // Envios externos (atendimento): nunca ferramenta IA — E3 os trava com
   // DENY absoluto no runAction; a allowlist é a primeira barreira.
   'atendimento.enviarMensagem',

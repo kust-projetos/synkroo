@@ -78,10 +78,11 @@ describe('receberMensagem — persistence failure sanitization', () => {
       deduped: false,
       conversationId: 'conv-1',
       messageId: 'msg-1',
+      receivedAt: null,
     });
 
     await expect(receberMensagem.handler(validInput as never, systemCtx as never))
-      .resolves.toEqual({ deduped: false, conversationId: 'conv-1', messageId: 'msg-1' });
+      .resolves.toEqual({ deduped: false, conversationId: 'conv-1', messageId: 'msg-1', receivedAt: null });
   });
 
   it('wraps a persistence exception in an ActionError without cause and without raw content', async () => {
