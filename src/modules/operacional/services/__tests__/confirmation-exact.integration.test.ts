@@ -44,6 +44,7 @@ import {
 } from '../confirmation-service';
 import { persistInboundMessage } from '@/modules/atendimento/repositories/conversations-repository';
 import { sendWhatsAppMessage } from '@/modules/atendimento/services/channel-service';
+import { processAllConfirmationPrompts } from '@/modules/atendimento/services/confirmation-emitter';
 import { markNotified } from '@/repositories/waitlist';
 import { dispatchInboundMessageJob } from '@/modules/atendimento/services/dispatch-inbound-message';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
@@ -2020,6 +2021,106 @@ describeOrSkip('authenticated HTTP webhook → outbox → dispatcher (DB-backed)
       [canonicalEventId],
     );
     expect(msg.metadata?.authenticatedEventAt).toBe(job.payload.receivedAt);
+  });
+
+  it('emitter (cron path) → one prompt; SIM confirms once; replay has no second mutation', async () => {
+    const phone = uniquePhone(SENDER_A);
+    const patientId = await makePatient(CLINIC_A, phone, 'Emitter Patient');
+    const scheduledAt = new Date(Date.now() + 24 * 3_600_000 + 60_000).toISOString();
+    const appt = await makeAppointment(CLINIC_A, patientId, DENTIST_A1, scheduledAt);
+
+    mockSendWhatsAppMessage.mockClear();
+    const firstRun = await processAllConfirmationPrompts();
+    expect(firstRun.errors).toBe(0);
+    expect(firstRun.processed).toBeGreaterThanOrEqual(1);
+
+    const promptCalls = mockSendWhatsAppMessage.mock.calls.filter((c) => c[0] === phone);
+    expect(promptCalls.length).toBe(1);
+    expect(promptCalls[0][1]).toContain('Responda SIM');
+
+    const { rows: pending } = await pool.query(
+      `SELECT id FROM appointment_confirmation_requests WHERE clinic_id = $1 AND appointment_id = $2 AND status = 'pending'`,
+      [CLINIC_A, appt],
+    );
+    expect(pending.length).toBe(1);
+
+    // A second cron run reuses the pending request — never a duplicate prompt.
+    mockSendWhatsAppMessage.mockClear();
+    await processAllConfirmationPrompts();
+    expect(mockSendWhatsAppMessage.mock.calls.filter((c) => c[0] === phone).length).toBe(0);
+
+    // Provider clock is second-precision: keep the prompt in the recent past so
+    // the reply is unambiguously later (not same-second stale).
+    await pool.query(
+      `UPDATE appointment_confirmation_requests SET created_at = NOW() - INTERVAL '5 seconds' WHERE appointment_id = $1`,
+      [appt],
+    );
+
+    const messageId = `whtest-emitter-${appt.slice(0, 8)}`;
+    const res = await wahaPost(signedWahaRequest(phone, messageId, 'SIM'));
+    expect(res.status).toBe(200);
+
+    const canonicalEventId = `${SESSION}:${messageId}`;
+    const businessKey = `waha:${canonicalEventId}`;
+    const { rows: jobs } = await pool.query(
+      `SELECT id, payload FROM outbox_jobs WHERE clinic_id = $1 AND business_key = $2`,
+      [CLINIC_A, businessKey],
+    );
+    expect(jobs.length).toBe(1);
+
+    await dispatchInboundMessageJob({ id: jobs[0].id, payload: jobs[0].payload } as any);
+    expect(await appointmentStatus(appt)).toBe('confirmed');
+
+    const { rows: consumed } = await pool.query(
+      `SELECT status FROM appointment_confirmation_requests WHERE clinic_id = $1 AND consumed_by_event = $2`,
+      [CLINIC_A, canonicalEventId],
+    );
+    expect(consumed.length).toBe(1);
+    expect(consumed[0].status).toBe('consumed');
+
+    // Replaying the same authenticated event is idempotent: no second mutation.
+    await dispatchInboundMessageJob({ id: jobs[0].id, payload: jobs[0].payload } as any);
+    expect(await appointmentStatus(appt)).toBe('confirmed');
+    const { rows: requests } = await pool.query(
+      `SELECT status FROM appointment_confirmation_requests WHERE clinic_id = $1 AND appointment_id = $2`,
+      [CLINIC_A, appt],
+    );
+    expect(requests.length).toBe(1);
+  });
+
+  it('ambiguous reply (NÃO VOU) via webhook escalates without confirm/cancel', async () => {
+    const phone = uniquePhone(SENDER_A);
+    const patientId = await makePatient(CLINIC_A, phone, 'Emitter Ambiguous');
+    const scheduledAt = new Date(Date.now() + 24 * 3_600_000 + 120_000).toISOString();
+    const appt = await makeAppointment(CLINIC_A, patientId, DENTIST_A1, scheduledAt);
+
+    await processAllConfirmationPrompts();
+    const { rows: [req] } = await pool.query(
+      `SELECT id FROM appointment_confirmation_requests WHERE clinic_id = $1 AND appointment_id = $2`,
+      [CLINIC_A, appt],
+    );
+    expect(req).toBeDefined();
+    await pool.query(
+      `UPDATE appointment_confirmation_requests SET created_at = NOW() - INTERVAL '5 seconds' WHERE id = $1`,
+      [req.id],
+    );
+
+    const messageId = `whtest-amb-${appt.slice(0, 8)}`;
+    const res = await wahaPost(signedWahaRequest(phone, messageId, 'NÃO VOU'));
+    expect(res.status).toBe(200);
+
+    const canonicalEventId = `${SESSION}:${messageId}`;
+    const businessKey = `waha:${canonicalEventId}`;
+    const { rows: jobs } = await pool.query(
+      `SELECT id, payload FROM outbox_jobs WHERE clinic_id = $1 AND business_key = $2`,
+      [CLINIC_A, businessKey],
+    );
+    expect(jobs.length).toBe(1);
+    await dispatchInboundMessageJob({ id: jobs[0].id, payload: jobs[0].payload } as any);
+
+    // Neither confirmation nor cancellation: appointment unchanged, intent pending.
+    expect(await appointmentStatus(appt)).toBe('scheduled');
+    expect((await requestState(req.id)).status).toBe('pending');
   });
 });
 

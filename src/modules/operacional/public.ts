@@ -25,6 +25,7 @@ export type { TrustedConfirmationInput, ConfirmationResult, ReplyDecision, Reply
 export {
   getEffectiveConfig,
 } from './services/procedure-reminder-config-service';
+export { getAppointmentsNeedingReminders } from './services/reminders-service';
 export {
   detectIncompleteTreatments,
   getIncompleteTreatmentAlerts,
