@@ -716,6 +716,34 @@ describe('WAHA inbound webhook — event / sender allowlist', () => {
     expect(res.status).toBe(200);
     expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
   });
+
+  it('forwards an allowlisted sender when WAHA_WEBHOOK_SENDER_ALLOWLIST is set (positive)', async () => {
+    const originalAllowlist = process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST;
+    try {
+      process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST = PHONE;
+      const res = await POST(signedRequest());
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ status: 'ok' });
+      expect(mockRunAtendimentoSystemActionResult).toHaveBeenCalledTimes(1);
+    } finally {
+      if (originalAllowlist === undefined) delete process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST;
+      else process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST = originalAllowlist;
+    }
+  });
+
+  it('ignores a non-allowlisted sender without side effect when WAHA_WEBHOOK_SENDER_ALLOWLIST is set (negative)', async () => {
+    const originalAllowlist = process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST;
+    try {
+      process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST = '5511999990000';
+      const res = await POST(signedRequest());
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual({ status: 'ignored' });
+      expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
+    } finally {
+      if (originalAllowlist === undefined) delete process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST;
+      else process.env.WAHA_WEBHOOK_SENDER_ALLOWLIST = originalAllowlist;
+    }
+  });
 });
 
 describe('WAHA inbound webhook — dedup identity, normalization and metadata', () => {

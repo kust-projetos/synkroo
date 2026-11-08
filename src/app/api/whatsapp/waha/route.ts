@@ -192,6 +192,33 @@ function resolveHmacKey(env: NodeJS.ProcessEnv = process.env): string | null {
   return raw.length >= MIN_HMAC_KEY_LENGTH ? raw : null;
 }
 
+/**
+ * Temporary sender allowlist for staging (P6/P7 same-number pairing).
+ * `WAHA_WEBHOOK_SENDER_ALLOWLIST` is a comma-separated list of E.164 digit
+ * strings (normalized the same way as the sender). Unset/empty means no
+ * allowlist (prior behavior). When set, only listed senders reach the
+ * Action; others are acknowledged as `ignored` with no DB write. Read per
+ * request (Workers env is per-request).
+ */
+function resolveSenderAllowlist(env: NodeJS.ProcessEnv = process.env): Set<string> | null {
+  const raw = typeof env.WAHA_WEBHOOK_SENDER_ALLOWLIST === 'string' ? env.WAHA_WEBHOOK_SENDER_ALLOWLIST.trim() : '';
+  if (!raw) return null;
+  const set = new Set<string>();
+  for (const part of raw.split(',')) {
+    let digits = part.replace(/\D/g, '');
+    if (digits.startsWith('55') && digits.length > 11) digits = digits.substring(2);
+    if (digits) set.add(digits);
+  }
+  return set.size > 0 ? set : null;
+}
+
+function isSenderAllowlisted(phone: string, allowlist: Set<string> | null): boolean {
+  if (!allowlist) return true;
+  let digits = (phone || '').replace(/\D/g, '');
+  if (digits.startsWith('55') && digits.length > 11) digits = digits.substring(2);
+  return allowlist.has(digits);
+}
+
 /** Denies with a fixed, non-revealing category. Never logs the key. */
 function logDenied(reason: string): void {
   whatsappLogger.warn('waha webhook denied', { event: ALLOWED_EVENT, reason });
@@ -522,6 +549,14 @@ async function handleAuthenticatedMessage(
 
   const phone = extractDirectChatPhone(message.from);
   if (!phone) {
+    return NextResponse.json(ACK_IGNORED);
+  }
+
+  // Staging allowlist (P6/P7 same-number pairing): when configured, only
+  // listed senders reach the Action; others are ignored with no DB write.
+  const allowlist = resolveSenderAllowlist();
+  if (!isSenderAllowlisted(phone, allowlist)) {
+    logDenied('sender_not_allowlisted');
     return NextResponse.json(ACK_IGNORED);
   }
 
