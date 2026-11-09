@@ -291,6 +291,18 @@ async function readBoundedBody(
  * GOWS). `_data` is engine-internal and must never be read or exposed; a
  * missing/blank/non-string id is a hard failure — we never fabricate one.
  */
+/**
+ * Maps the provider payload to the provider message id.
+ *
+ * WAHA's sendText response format varies by engine and version:
+ *   - NOWEB (2025.10.1+): root `id` is a string ("true_...@c.us_...").
+ *   - GOWS/NOWEB (some versions): root `id` is an object with `_serialized`.
+ *   - NOWEB (older, issue #407): no root `id`; the id is in `key.id` and
+ *     must be combined as `{fromMe}_{remoteJid}_{id}`.
+ *
+ * `_data` is engine-internal and must never be read or exposed; a
+ * missing/blank/non-string id is a hard failure - we never fabricate one.
+ */
 function extractMessageId(rawBody: string): string {
   let parsed: unknown;
   try {
@@ -298,18 +310,62 @@ function extractMessageId(rawBody: string): string {
   } catch {
     parsed = null;
   }
-  const id =
-    parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>).id
-      : undefined;
-  if (typeof id !== 'string' || id.trim() === '') {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new WahaProviderError({
       code: 'invalid_response',
       message: 'waha: sendText response did not contain a usable message id',
       delivery: 'unknown',
     });
   }
-  return id;
+  const root = parsed as Record<string, unknown>;
+
+  // 1. Root `id` as a string (NOWEB Format A).
+  if (typeof root.id === 'string' && root.id.trim() !== '') {
+    return root.id.trim();
+  }
+
+  // 2. Root `id` as an object with `_serialized` (GOWS / some NOWEB versions).
+  if (root.id && typeof root.id === 'object' && !Array.isArray(root.id)) {
+    const idObj = root.id as Record<string, unknown>;
+    if (typeof idObj._serialized === 'string' && idObj._serialized.trim() !== '') {
+      return idObj._serialized.trim();
+    }
+    // Some versions put the id in `id.id` without `_serialized`.
+    if (typeof idObj.id === 'string' && idObj.id.trim() !== '') {
+      // Try to construct the full id from key parts if available.
+      const fromMe = idObj.fromMe === true ? 'true' : idObj.fromMe === false ? 'false' : null;
+      const remote = typeof idObj.remote === 'string' ? idObj.remote.trim() : '';
+      if (fromMe && remote) {
+        const chatId = remote.replace('@s.whatsapp.net', '@c.us');
+        return `${fromMe}_${chatId}_${idObj.id.trim()}`;
+      }
+      return idObj.id.trim();
+    }
+  }
+
+  // 3. `key` object with `_serialized` or `id` (NOWEB older format, issue #407).
+  const key = root.key;
+  if (key && typeof key === 'object' && !Array.isArray(key)) {
+    const keyObj = key as Record<string, unknown>;
+    if (typeof keyObj._serialized === 'string' && keyObj._serialized.trim() !== '') {
+      return keyObj._serialized.trim();
+    }
+    if (typeof keyObj.id === 'string' && keyObj.id.trim() !== '') {
+      const fromMe = keyObj.fromMe === true ? 'true' : keyObj.fromMe === false ? 'false' : null;
+      const remote = typeof keyObj.remoteJid === 'string' ? keyObj.remoteJid.trim() : '';
+      if (fromMe && remote) {
+        const chatId = remote.replace('@s.whatsapp.net', '@c.us');
+        return `${fromMe}_${chatId}_${keyObj.id.trim()}`;
+      }
+      return keyObj.id.trim();
+    }
+  }
+
+  throw new WahaProviderError({
+    code: 'invalid_response',
+    message: 'waha: sendText response did not contain a usable message id',
+    delivery: 'unknown',
+  });
 }
 
 export class WahaAdapter implements WhatsAppProviderAdapter {

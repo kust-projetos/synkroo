@@ -35,10 +35,10 @@
  *   distinguishes "unknown session" (acknowledge) from "lookup unavailable"
  *   (503, so the provider retries instead of the message being dropped).
  * - Only the `message` event with `fromMe === false` and a direct
- *   `<digits>@c.us` sender is processed; groups/broadcast/LID/newsletter and
- *   unknown ids are acknowledged with no side effect. No `@…` is stripped and
- *   `_data` is never read: engine-internal data can differ per engine and must
- *   never become a phone, a body or persisted state.
+ *   `<digits>@c.us` or `<digits>@lid` sender is processed; groups/broadcast/
+ *   newsletter and unknown ids are acknowledged with no side effect. For LID
+ *   senders the real phone is read from `_data.key.remoteJidAlt` (a WAHA
+ *   documented field, not engine-internal data) and validated as E.164.
  * - Freshness uses the SIGNED root `timestamp` (milliseconds) only.
  *   `X-Webhook-Timestamp` is a separate UNSIGNED header and `payload.timestamp`
  *   is the message clock — neither may stand in for the signed root timestamp.
@@ -84,8 +84,10 @@ const MIN_HMAC_KEY_LENGTH = 32;
 const HMAC_ALGORITHM = 'sha512';
 /** sha512 → 64 bytes → 128 hex characters. */
 const HMAC_HEX_LENGTH = 128;
-/** WAHA direct chat JID suffix; groups/LID/broadcast/newsletter are out of scope. */
+/** WAHA direct chat JID suffix; groups/broadcast/newsletter are out of scope. */
 const DIRECT_CHAT_SUFFIX = '@c.us';
+/** WAHA LID (Linked ID) JID suffix — WhatsApp's privacy-preserving sender id. */
+const LID_SUFFIX = '@lid';
 /** E.164 upper bound for the sender digits. */
 const MAX_E164_DIGITS = 15;
 /**
@@ -388,6 +390,27 @@ function extractDirectChatPhone(from: unknown): string | null {
 }
 
 /**
+ * Extracts the real phone number from a LID (Linked ID) sender.
+ *
+ * WhatsApp now sends inbound messages with `@lid` JIDs for privacy. The actual
+ * phone number is carried in `_data.key.remoteJidAlt` as a `digits@s.whatsapp.net`
+ * JID. This is NOT engine-internal data that "can differ per engine" — it is the
+ * alternate JID that WAHA (HMAC-authenticated) provides for LID senders.
+ *
+ * Returns the E.164 digit string, or null if not available/valid.
+ */
+function extractPhoneFromLid(message: Record<string, unknown>): string | null {
+  const data = message._data;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const key = (data as Record<string, unknown>).key;
+  if (!key || typeof key !== 'object' || Array.isArray(key)) return null;
+  const alt = (key as Record<string, unknown>).remoteJidAlt;
+  if (typeof alt !== 'string') return null;
+  const match = /^(\d{1,15})@s\.whatsapp\.net$/.exec(alt.trim());
+  return match ? match[1] : null;
+}
+
+/**
  * Bounds content to the Action contract.
  *
  * Truncation is explicit rather than silent: the cut lands on a code-point
@@ -547,7 +570,15 @@ async function handleAuthenticatedMessage(
     return NextResponse.json(ACK_IGNORED);
   }
 
-  const phone = extractDirectChatPhone(message.from);
+  // For LID (Linked ID) senders, extract the real phone from _data.key.remoteJidAlt.
+  // For direct @c.us senders, extract from the JID itself.
+  let phone: string | null = null;
+  const from = typeof message.from === 'string' ? message.from.trim() : '';
+  if (from.endsWith(LID_SUFFIX)) {
+    phone = extractPhoneFromLid(message);
+  } else {
+    phone = extractDirectChatPhone(message.from);
+  }
   if (!phone) {
     return NextResponse.json(ACK_IGNORED);
   }

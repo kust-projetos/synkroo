@@ -674,6 +674,48 @@ describe('WAHA inbound webhook — event / sender allowlist', () => {
     expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
   });
 
+  it('accepts a @lid sender when _data.key.remoteJidAlt carries a valid phone', async () => {
+    const res = await POST(signedRequest({
+      payload: {
+        ...(messageEnvelope().payload as Record<string, unknown>),
+        from: '125842558599202@lid',
+        _data: { key: { remoteJidAlt: `${PHONE}@s.whatsapp.net` } },
+      },
+    } as Record<string, unknown>));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ status: 'ok' });
+    expect(mockRunAtendimentoSystemActionResult).toHaveBeenCalledTimes(1);
+    expect(actionInput().externalConversationId).toBe(PHONE);
+  });
+
+  it('rejects a @lid sender when _data.key.remoteJidAlt is missing', async () => {
+    const res = await POST(signedRequest({
+      payload: {
+        ...(messageEnvelope().payload as Record<string, unknown>),
+        from: '125842558599202@lid',
+      },
+    } as Record<string, unknown>));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ status: 'ignored' });
+    expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
+  });
+
+  it('rejects a @lid sender when _data.key.remoteJidAlt is not a valid phone', async () => {
+    const res = await POST(signedRequest({
+      payload: {
+        ...(messageEnvelope().payload as Record<string, unknown>),
+        from: '125842558599202@lid',
+        _data: { key: { remoteJidAlt: 'not-a-phone@s.whatsapp.net' } },
+      },
+    } as Record<string, unknown>));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ status: 'ignored' });
+    expect(mockRunAtendimentoSystemActionResult).not.toHaveBeenCalled();
+  });
+
   it('rejects an over-long phone on an otherwise valid @c.us sender', async () => {
     const res = await POST(signedRequest({
       payload: { ...(messageEnvelope().payload as Record<string, unknown>), from: `${'9'.repeat(16)}@c.us` },
