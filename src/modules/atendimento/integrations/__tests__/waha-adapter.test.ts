@@ -255,7 +255,7 @@ describe('WahaAdapter (P3.2 — outbound text, WAHA default)', () => {
       const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
       expect(url).toBe('https://waha.internal.example.com/api/sendText');
       expect(init.method).toBe('POST');
-      expect(init.redirect).toBe('error');
+      expect(init.redirect).toBe('manual');
       expect(init.signal).toBeDefined();
       expect(init.headers).toMatchObject({
         'X-Api-Key': API_KEY,
@@ -497,7 +497,7 @@ describe('WahaAdapter (P3.2 — outbound text, WAHA default)', () => {
       await adapter().sendTextMessage(PHONE, TEXT);
 
       const [, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
-      expect(init.redirect).toBe('error');
+      expect(init.redirect).toBe('manual');
     });
 
     it('maps a fetch rejection to a sanitized network_error (single attempt)', async () => {

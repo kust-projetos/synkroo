@@ -437,12 +437,28 @@ export class WahaAdapter implements WhatsAppProviderAdapter {
             Accept: 'application/json',
           },
           body: JSON.stringify({ session, chatId, text }),
-          // Never forward api key + message to a redirect target.
-          redirect: 'error',
+          // Cloudflare Workers does not support redirect: 'error'; use 'manual'.
+          redirect: 'manual',
           signal: controller.signal,
         }),
         deadline,
       ]);
+
+      // Reject redirects explicitly so the API key and message body are never
+      // forwarded to a redirect target (defense in depth — redirect: 'manual'
+      // already prevents automatic following in Cloudflare Workers).
+      if (response.status >= 300 && response.status < 400) {
+        await Promise.race([
+          releaseBody((response as { body?: unknown }).body),
+          deadline,
+        ]);
+        throw new WahaProviderError({
+          code: 'http_error',
+          message: `waha: sendText failed (redirect: ${response.status})`,
+          status: response.status,
+          delivery: 'unknown',
+        });
+      }
 
       if (!response.ok) {
         // Release the error body WITHOUT an unbounded await: the cancel is raced
