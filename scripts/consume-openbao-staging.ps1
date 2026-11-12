@@ -74,59 +74,66 @@ function Invoke-Bao([string[]]$Arguments) {
 }
 
 $startedTunnel = $null
-$health = $null
-# Health check via curl.exe (avoids Invoke-WebRequest null-ref in this runspace)
-$startedTunnel = $null
-$code = & curl.exe -s -o NUL -w "%{http_code}" "$base/v1/sys/health" 2>$null
-if ($code -ne '200') {
-    $startedTunnel = Start-Process ssh -ArgumentList @('-N','-L','8200:127.0.0.1:8200','contabo-prod') -PassThru -WindowStyle Hidden
-    for ($i = 0; $i -lt 30; $i++) {
-        Start-Sleep -Seconds 1
-        $code = & curl.exe -s -o NUL -w "%{http_code}" "$base/v1/sys/health" 2>$null
-        if ($code -eq '200') { break }
+try {
+    # Health check via curl.exe (avoids Invoke-WebRequest null-ref in this runspace)
+    $code = & curl.exe -s -o NUL -w "%{http_code}" "$base/v1/sys/health" 2>$null
+    if ($code -ne '200') {
+        $startedTunnel = Start-Process ssh -ArgumentList @('-N','-L','8200:127.0.0.1:8200','contabo-prod') -PassThru -WindowStyle Hidden
+        for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Seconds 1
+            $code = & curl.exe -s -o NUL -w "%{http_code}" "$base/v1/sys/health" 2>$null
+            if ($code -eq '200') { break }
+        }
     }
-}
-if ($code -ne '200') { throw 'OpenBao tunnel/health check failed' }
+    if ($code -ne '200') { throw 'OpenBao tunnel/health check failed' }
 
-# Read the secret value in-process; never echo it.
-$value = Invoke-Bao @('kv','get','-mount=secret','-field=password',$Path)
-if ([string]::IsNullOrEmpty($value)) { throw 'Consumed credential is empty' }
-$length = [Text.Encoding]::UTF8.GetByteCount($value)
-$valueForChild = $value
-$value = $null
+    # Read the secret value in-process; never echo it.
+    $value = Invoke-Bao @('kv','get','-mount=secret','-field=password',$Path)
+    if ([string]::IsNullOrEmpty($value)) { throw 'Consumed credential is empty' }
+    $length = [Text.Encoding]::UTF8.GetByteCount($value)
+    $valueForChild = $value
+    $value = $null
 
-Write-Output "consume-openbao: read-ok path=$Path length=$length"
+    Write-Output "consume-openbao: read-ok path=$Path length=$length"
 
-if ($ProbeOnly) {
+    if ($ProbeOnly) {
+        $valueForChild = $null
+        Write-Output 'probe-only: no child spawned'
+        return
+    }
+
+    # Required target settings must come from the environment (never from this script).
+    foreach ($k in @('VPS_TARGET_IP','VPS_TARGET_PG_PORT','VPS_TARGET_POSTGRES_PASSWORD')) {
+        if (-not (Test-Path "Env:$k") -or [string]::IsNullOrEmpty((Get-Item "Env:$k").Value)) {
+            throw "Missing required env $k (provide via process env or private .env; not from OpenBao)"
+        }
+    }
+
+    $childEnv = [System.Collections.Hashtable]::new([System.Environment]::GetEnvironmentVariables())
+    $childEnv['VPS_TARGET_STAGING_PASSWORD'] = $valueForChild
     $valueForChild = $null
-    Write-Output 'probe-only: no child spawned'
-    return
-}
 
-# Required target settings must come from the environment (never from this script).
-foreach ($k in @('VPS_TARGET_IP','VPS_TARGET_PG_PORT','VPS_TARGET_POSTGRES_PASSWORD')) {
-    if (-not (Test-Path "Env:$k") -or [string]::IsNullOrEmpty((Get-Item "Env:$k").Value)) {
-        throw "Missing required env $k (provide via process env or private .env; not from OpenBao)"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = 'cmd.exe'
+    $psi.Arguments = ('/c npx tsx scripts/setup-staging-db.ts ' + ($SideArgs -join ' '))
+    $psi.WorkingDirectory = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+    $psi.UseShellExecute = $false
+    foreach ($k in $childEnv.Keys) { $psi.EnvironmentVariables[$k] = [string]$childEnv[$k] }
+
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    $proc.WaitForExit()
+    $exit = $proc.ExitCode
+    $proc.Dispose()
+
+    if ($exit -ne 0) { throw "setup-staging-db.ts exited with code $exit" }
+    Write-Output 'consume-openbao: child completed'
+} finally {
+    # Cleanup tunnel created by this script only.
+    if ($startedTunnel -and -not $startedTunnel.HasExited) {
+        try { Stop-Process -Id $startedTunnel.Id -Force -ErrorAction SilentlyContinue } catch { }
     }
+    # Cleanup temporary env vars defined by the wrapper.
+    Remove-Item Env:BAO_ADDR -ErrorAction SilentlyContinue
+    Remove-Item Env:BAO_TOKEN -ErrorAction SilentlyContinue
+    Remove-Item Env:VPS_TARGET_STAGING_PASSWORD -ErrorAction SilentlyContinue
 }
-
-$childEnv = [System.Collections.Hashtable]::new([System.Environment]::GetEnvironmentVariables())
-$childEnv['VPS_TARGET_STAGING_PASSWORD'] = $valueForChild
-$valueForChild = $null
-
-$psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = 'cmd.exe'
-$psi.Arguments = ('/c npx tsx scripts/setup-staging-db.ts ' + ($SideArgs -join ' '))
-$psi.WorkingDirectory = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$psi.UseShellExecute = $false
-foreach ($k in $childEnv.Keys) { $psi.EnvironmentVariables[$k] = [string]$childEnv[$k] }
-
-$proc = [System.Diagnostics.Process]::Start($psi)
-$proc.WaitForExit()
-$exit = $proc.ExitCode
-$proc.Dispose()
-
-if ($exit -ne 0) { throw "setup-staging-db.ts exited with code $exit" }
-Write-Output 'consume-openbao: child completed'
-Remove-Item Env:BAO_TOKEN -ErrorAction SilentlyContinue
-if ($startedTunnel -and -not $startedTunnel.HasExited) { Stop-Process -Id $startedTunnel.Id -Force }
