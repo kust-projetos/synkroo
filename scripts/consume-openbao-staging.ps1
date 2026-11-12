@@ -115,8 +115,8 @@ $childEnv['VPS_TARGET_STAGING_PASSWORD'] = $valueForChild
 $valueForChild = $null
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = 'npx'
-$psi.Arguments = ('tsx scripts/setup-staging-db.ts ' + ($SideArgs -join ' '))
+$psi.FileName = 'cmd.exe'
+$psi.Arguments = ('/c npx tsx scripts/setup-staging-db.ts ' + ($SideArgs -join ' '))
 $psi.WorkingDirectory = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $psi.UseShellExecute = $false
 foreach ($k in $childEnv.Keys) { $psi.EnvironmentVariables[$k] = [string]$childEnv[$k] }
