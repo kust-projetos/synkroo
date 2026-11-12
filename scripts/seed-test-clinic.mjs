@@ -156,6 +156,44 @@ try {
       [CLINIC_B_OWNER_ROLE_ID, CLINIC_B_ID],
     );
   }
+  // GW-02 critério #3: papéis distintos entre as clínicas para o usuário
+  // multi-clínica. Clínica A (primária) concede 'Recepcionista' (limitado a
+  // operacional+atendimento) e clínica B concede 'Owner' (acesso total). Assim
+  // uma rota que exija 'financeiro:view' é negada em A e permitida em B.
+  const RECEPCIONISTA_ROLE_ID = "00000000-0000-4000-8000-000000000103";
+  const recepRoleRows = await client.query(
+    `SELECT id FROM roles WHERE clinic_id = $1 AND name = 'Recepcionista' AND is_system = true LIMIT 1`,
+    [CLINIC_ID],
+  );
+  let clinicARecepcionistaRoleId = recepRoleRows.rows[0]?.id ?? RECEPCIONISTA_ROLE_ID;
+  if (!recepRoleRows.rows[0]) {
+    await client.query(
+      `INSERT INTO roles (id, clinic_id, name, description, is_system)
+       VALUES ($1, $2, 'Recepcionista', 'Recepcionista (acesso operacional + atendimento).', true)
+       ON CONFLICT (id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, name = EXCLUDED.name, description = EXCLUDED.description, is_system = true`,
+      [RECEPCIONISTA_ROLE_ID, CLINIC_ID],
+    );
+    clinicARecepcionistaRoleId = RECEPCIONISTA_ROLE_ID;
+  }
+  // Garante as linhas de permission (FK) para os módulos operacional+atendimento.
+  const recepPermKeys = [
+    'operacional:view','operacional:manage_appointments','operacional:manage_patients','operacional:manage_catalog','operacional:manage_waitlist','operacional:manage_reminders',
+    'atendimento:view','atendimento:manage_messages','atendimento:manage_conversations','atendimento:manage_webhooks','atendimento:manage_templates','atendimento:escalate',
+  ];
+  for (const key of recepPermKeys) {
+    const mod = key.split(':')[0];
+    await client.query(
+      `INSERT INTO permissions (key, module, label) VALUES ($1, $2, $1) ON CONFLICT (key) DO NOTHING`,
+      [key, mod],
+    );
+  }
+  // Vincula o role Recepcionista às permissões (idempotente).
+  for (const key of recepPermKeys) {
+    await client.query(
+      `INSERT INTO role_permissions (role_id, permission_key) VALUES ($1, $2) ON CONFLICT (role_id, permission_key) DO NOTHING`,
+      [clinicARecepcionistaRoleId, key],
+    );
+  }
   const MULTI_USER_ID = "00000000-0000-4000-8000-000000000003";
   const MULTI_EMAIL = "multiclinica@clinicademo.com";
   await client.query(
@@ -170,7 +208,7 @@ try {
      ON CONFLICT (user_id) DO UPDATE SET password_hash = EXCLUDED.password_hash, updated_at = now()`,
     [MULTI_USER_ID, hashPassword(DEMO_PASSWORD)],
   );
-  for (const [cid, rid] of [[CLINIC_ID, ownerRoleId], [CLINIC_B_ID, clinicBOwnerRoleId]]) {
+  for (const [cid, rid] of [[CLINIC_ID, clinicARecepcionistaRoleId], [CLINIC_B_ID, clinicBOwnerRoleId]]) {
     await client.query(
       `INSERT INTO user_clinic_access (user_id, clinic_id, role_id, grant_reason)
        VALUES ($1, $2, $3, 'seed-test-clinic: usuario multi clinica (#61)')

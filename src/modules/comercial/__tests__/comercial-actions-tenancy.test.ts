@@ -29,6 +29,10 @@ jest.mock('../repositories/leads-repository', () => ({
   updateLead: jest.fn().mockResolvedValue({ id: '00000000-0000-0000-0000-000000000020', status: 'converted' }),
 }))
 
+jest.mock('../repositories/activities-repository', () => ({
+  insertActivity: jest.fn().mockResolvedValue({ id: 'act-1' }),
+}))
+
 const ctxA: ActionContext = {
   source: 'user',
   clinicId: '00000000-0000-0000-0000-000000000001',

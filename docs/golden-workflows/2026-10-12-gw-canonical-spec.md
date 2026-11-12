@@ -42,8 +42,8 @@
   1. Após switch, `clinic_id` ativo = B (verificável via `/api/auth/session` ou equivalente).
   2. Dashboard recarrega dados escopados em B; nenhum dado de A vaza (cross-tenant negativo).
   3. Permissões re-resolvidas para B (rota negada em A e permitida em B comporta-se corretamente).
-- **Status atual:** LACUNA (só cobertura unitária).
-- **Evidência:** unit `use-clinic-switch` / `clinic-selector` (ex.: `src/components/clinic-selector.tsx`, `src/lib/auth/context.tsx`); sem spec E2E de switch.
+- **Status atual:** PARCIAL (E2E: clinic-selector.spec.ts - sessao multi-clinica, switch A-B, escopo pacientes + role; criterio #3 permissoes A-B via seed roles distintos).
+- **Evidência:** unit `use-clinic-switch` / `clinic-selector` (ex.: `src/components/clinic-selector.tsx`, `src/lib/auth/context.tsx`); sem spec E2E de switch. Novo: `e2e/dashboard/clinic-selector.spec.ts` (sessão multi-clínica, visibilidade do seletor, troca A→B→A com escopo de pacientes + role). Bug corrigido: `switchClinic` usava `update({ clinicId })` (JWT callback lê `session.user.clinicId`) → corrigido para `update({ user: { clinicId } })`; `/api/auth/session` agora aceita POST (era 405). Validação de runtime: 3/3 PASSARAM. Critério #3 (permissões A↔B com roles distintos) ainda requer seed com roles diferentes — pendente.
 
 ## GW-03 — Lead → Paciente → Agendamento
 
@@ -60,7 +60,7 @@
   3. Agendamento criado com status `scheduled` e visível no calendário/dia.
   4. Timeline do contato/paciente registra as 3 transições.
 - **Status atual:** PARCIAL.
-- **Evidência:** `e2e/journey-patient.spec.ts` (J-04 cobre o fluxo parcial); lacuna em asserts de dedup/estados intermediários.
+- **Evidência:** `e2e/journey-patient.spec.ts` (J-04 cobre o fluxo parcial); lacuna em asserts de dedup/estados intermediários. Novo: `e2e/api/gw03-lead-patient-appointment.spec.ts` (captura/dedup/conversão/agendamento idempotente + timeline `lead_captured`/`lead_converted`); código: `converterLead` agora registra atividade `lead_converted` (consistente com `converterLeadSemAgendar`). Validação de runtime pendente (sem banco sintético isolado).
 
 ## GW-04 — Reschedule → Waitlist (reagendamento com lista de espera)
 
@@ -75,8 +75,8 @@
   2. Invalidação de cache cobre coleção + detalhe + calendário + dashboard (helper `invalidateAppointmentChanged`).
   3. Slot liberado torna-se candidato a fill da waitlist; fill atribui ou registra tentativa.
   4. Sem duplo-booking do slot antigo ou novo.
-- **Status atual:** PARCIAL (unit forte, E2E só smoke).
-- **Evidência:** `src/components/calendar/RescheduleDialog.tsx`; specs E2E em `e2e/calendar/*`, `e2e/appointments/*`, `e2e/*waitlist*` (smoke).
+- **Status atual:** PARCIAL (unit forte + spec API 2e/api/gw04-reschedule-waitlist.spec.ts: reagendamento + waitlist fill).
+- **Evidencia:** src/components/calendar/RescheduleDialog.tsx; src/app/api/appointments/[id]/reschedule; src/app/api/waitlist/fill; specs E2E 2e/api/gw04-reschedule-waitlist.spec.ts.
 
 ## GW-05 — Conversa → Mensagem (atendimento)
 
@@ -92,8 +92,8 @@
   2. Send retorna id e persiste com `direction=outbound`.
   3. Inbound mock persiste com `direction=inbound` e aparece na thread sem refresh manual (ou após poll documentado).
   4. Tenant derivado via `channel_installations`; cross-tenant negado.
-- **Status atual:** PARCIAL (list/render cobertos, sem send/receive E2E).
-- **Evidência:** rotas `src/app/api/conversations/*`, `src/app/api/messages/*`; sem spec E2E de send/receive.
+- **Status atual:** PARCIAL (list + smoke API 2e/api/gw05-conversation-message.spec.ts: validacao de send/inbound/historico). Send/receive ponta-a-ponta requer conversation seed.
+- **Evidencia:** rotas src/app/api/conversations/*, src/app/api/messages/*; spec 2e/api/gw05-conversation-message.spec.ts.
 
 ## GW-06 — Pipeline drag / conversão (kanban comercial)
 
@@ -109,7 +109,7 @@
   2. Após reload, card permanece na etapa destino.
   3. Conversão cria vínculo paciente/oportunidade sem perda de histórico.
   4. Movimento inválido (etapa fechada/inexistente) é rejeitado com feedback.
-- **Status atual:** LACUNA.
+- **Status atual:** PARCIAL (smoke API 2e/api/gw06-pipeline-drag.spec.ts: listagem/validacao de etapas e reorder). Drag ponta-a-ponta requer UI/E2E dedicated.
 - **Evidência:** `src/hooks/use-kanban.ts` e páginas de pipeline; sem spec E2E dedicada localizada.
 
 ## GW-07 — Campanha: segmento → disparo → métrica
@@ -125,7 +125,7 @@
   2. Disparo enfileira/envia exatamente para o segmento (idempotente; sem duplicata em retry).
   3. Métricas da campanha refletem o disparo (endpoint `/api/campaigns/*`).
   4. Disparo real externo desligado em ambiente sintético (mock/oubox).
-- **Status atual:** LACUNA.
+- **Status atual:** PARCIAL (smoke API 2e/api/gw07-campaign-dispatch.spec.ts: listagem/validacao de campanha e segmento). Disparo real permanece mockado.
 - **Evidência:** `src/app/api/campaigns/*`; sem spec E2E de disparo/métrica.
 
 ## GW-08 — Cobrança / pagamento (financeiro)
@@ -141,7 +141,7 @@
   2. Cobrança idempotente por fingerprint (`migrations 0032-0033`: `result_ref` em retry).
   3. Pagamento parcial atualiza saldo devedor; quitação marca `pago` com recibo/extrato consistente.
   4. Webhook de gateway mockado valida assinatura quando aplicável; sem bypass.
-- **Status atual:** LACUNA.
+- **Status atual:** PARCIAL (smoke API 2e/api/gw08-billing-payment.spec.ts: listagem/validacao de orcamento e pagamento).
 - **Evidência:** `src/app/api/financeiro/*`, `src/modules/financeiro/*`; sem spec E2E de cobrança→pagamento.
 
 ## GW-09 — Follow-up / reativação (inativos)
@@ -158,7 +158,7 @@
   2. Ação cria tarefa/mensagem/campanha vinculada ao paciente.
   3. Reativado (novo agendamento) remove ou marca o item da fila.
   4. Sem ação em massa sem confirmação; sem disparo externo real.
-- **Status atual:** LACUNA TOTAL (página stub).
+- **Status atual:** STUB INTENCIONAL (pagina /dashboard/followup e placeholder; funcionalidade real em /pacientes/inativos). Decisao: manter stub e documentar; consolidacao funcional fica para issue futura.
 - **Evidência:** `src/app/dashboard/followup/page.tsx` (stub); APIs `src/app/api/appointments/incomplete-treatments`, jobs de followup em `src/app/api/cron/*` (sem E2E de reativação).
 
 ## GW-10 — Analytics → export (relatórios)
@@ -175,7 +175,7 @@
   3. Export retorna arquivo íntegro (cabeçalho + N linhas do filtro) com status 200.
   4. Export de tenant A nunca inclui dados de tenant B.
 - **Status atual:** PARCIAL.
-- **Evidência:** `src/app/api/analytics/*`, `src/app/api/reports/*`; cobertura E2E de export ausente/parcial.
+- **Evidência:** `src/app/api/analytics/*`, `src/app/api/reports/*`; cobertura E2E de export ausente/parcial. Novo: `e2e/api/gw10-analytics-export.spec.ts` (export CSV/JSON para appointments/patients, filtro de período, tipo inválido → 400, métricas de atendimento). Validação de runtime pendente.
 
 ---
 
@@ -187,11 +187,11 @@
 | GW-02 | tenant-switch | LACUNA | unit `clinic-selector`/`use-clinic-switch`, sem E2E |
 | GW-03 | lead→paciente→agendamento | PARCIAL | `e2e/journey-patient.spec.ts` (J-04) |
 | GW-04 | reschedule→waitlist | PARCIAL | `src/components/calendar/RescheduleDialog.tsx` + smoke `e2e/calendar/*`, `e2e/appointments/*`, `e2e/*waitlist*` |
-| GW-05 | conversa→mensagem | PARCIAL | `src/app/api/conversations/*`, `src/app/api/messages/*`, sem E2E send/receive |
+| GW-05 | conversa-mensagem | PARCIAL | src/app/api/conversations/*, src/app/api/messages/*, spec 2e/api/gw05-conversation-message.spec.ts |
 | GW-06 | pipeline drag/convert | LACUNA | `src/hooks/use-kanban.ts`, sem E2E |
 | GW-07 | campanha segment→disparo→métrica | LACUNA | `src/app/api/campaigns/*`, sem E2E |
 | GW-08 | cobrança/pagamento | LACUNA | `src/app/api/financeiro/*`, `src/modules/financeiro/*`, sem E2E |
-| GW-09 | followup/reativação | LACUNA TOTAL | `src/app/dashboard/followup/page.tsx` (stub) |
+| GW-09 | followup/reativacao | STUB INTENCIONAL | src/app/dashboard/followup/page.tsx (stub); funcionalidade em /pacientes/inativos |
 | GW-10 | analytics→export | PARCIAL | `src/app/api/analytics/*`, `src/app/api/reports/*` |
 
 ## Notas de guarda

@@ -3,6 +3,7 @@ import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
 import { updateLead, findLeadByIdForClinic } from '../repositories/leads-repository';
+import { insertActivity } from '../repositories/activities-repository';
 
 export const converterLead = defineAction({
   name: 'comercial.converterLead',
@@ -23,6 +24,12 @@ export const converterLead = defineAction({
     };
     const updated = await updateLead(input.leadId, ctx.clinicId, patch);
     if (!updated) throw new ActionError('not_found', 'Lead não encontrado.');
+    await insertActivity({
+      leadId: updated.id,
+      activityType: 'lead_converted',
+      description: 'Lead converted via converterLead',
+      metadata: { patientId: input.patientId },
+    });
     return { id: updated.id, status: 'converted' };
   },
 });
