@@ -76,8 +76,8 @@ function Invoke-Bao([string[]]$Arguments) {
 $startedTunnel = $null
 $health = $null
 # Health check via curl.exe (avoids Invoke-WebRequest null-ref in this runspace)
+$startedTunnel = $null
 $code = & curl.exe -s -o NUL -w "%{http_code}" "$base/v1/sys/health" 2>$null
-Write-Output "DEBUG_CURL_CODE=$code"
 if ($code -ne '200') {
     $startedTunnel = Start-Process ssh -ArgumentList @('-N','-L','8200:127.0.0.1:8200','contabo-prod') -PassThru -WindowStyle Hidden
     for ($i = 0; $i -lt 30; $i++) {
