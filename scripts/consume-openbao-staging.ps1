@@ -75,12 +75,12 @@ function Invoke-Bao([string[]]$Arguments) {
 
 $startedTunnel = $null
 $health = $null
-try { $health = Invoke-WebRequest "$base/v1/sys/health" -TimeoutSec 2 -SkipHttpErrorCheck } catch {}
+try { $health = Invoke-WebRequest "$base/v1/sys/health" -TimeoutSec 10 } catch { $health = $null }
 if (-not $health) {
     $startedTunnel = Start-Process ssh -ArgumentList @('-N','-L','8200:127.0.0.1:8200','contabo-prod') -PassThru -WindowStyle Hidden
     for ($i = 0; $i -lt 30; $i++) {
         Start-Sleep -Seconds 1
-        try { $health = Invoke-WebRequest "$base/v1/sys/health" -TimeoutSec 2 -SkipHttpErrorCheck; break } catch {}
+        try { $health = Invoke-WebRequest "$base/v1/sys/health" -TimeoutSec 5; break } catch { $health = $null }
     }
 }
 if (-not $health -or [int]$health.StatusCode -ne 200) { throw 'OpenBao tunnel/health check failed' }
