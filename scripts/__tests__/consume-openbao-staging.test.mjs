@@ -348,8 +348,10 @@ test('Stop-OwnedTunnel: encerra só o processo informado, é idempotente e toler
   withDir((dir) => {
     const res = runHarness(
       dir,
-      `$p = Start-Process pwsh -ArgumentList @('-NoProfile','-Command','Start-Sleep -Seconds 60') -PassThru -WindowStyle Hidden
-$other = Start-Process pwsh -ArgumentList @('-NoProfile','-Command','Start-Sleep -Seconds 60') -PassThru -WindowStyle Hidden
+      `$spArgs = @{ FilePath = 'pwsh'; ArgumentList = @('-NoProfile','-Command','Start-Sleep -Seconds 60'); PassThru = $true }
+if ($IsWindows -or $PSVersionTable.PSEdition -eq 'Desktop') { $spArgs['WindowStyle'] = 'Hidden' }
+$p = Start-Process @spArgs
+$other = Start-Process @spArgs
 try {
   Start-Sleep -Milliseconds 500
   Stop-OwnedTunnel $null
