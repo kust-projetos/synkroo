@@ -128,7 +128,5 @@ $proc.Dispose()
 
 if ($exit -ne 0) { throw "setup-staging-db.ts exited with code $exit" }
 Write-Output 'consume-openbao: child completed'
-finally {
-    Remove-Item Env:BAO_TOKEN -ErrorAction SilentlyContinue
-    if ($startedTunnel -and -not $startedTunnel.HasExited) { Stop-Process -Id $startedTunnel.Id -Force }
-}
+Remove-Item Env:BAO_TOKEN -ErrorAction SilentlyContinue
+if ($startedTunnel -and -not $startedTunnel.HasExited) { Stop-Process -Id $startedTunnel.Id -Force }
