@@ -75,15 +75,18 @@ function Invoke-Bao([string[]]$Arguments) {
 
 $startedTunnel = $null
 $health = $null
-try { $health = Invoke-WebRequest "$base/v1/sys/health" -TimeoutSec 10 } catch { $health = $null }
-if (-not $health) {
+# Health check via curl.exe (avoids Invoke-WebRequest null-ref in this runspace)
+$code = & curl.exe -s -o NUL -w "%{http_code}" "$base/v1/sys/health" 2>$null
+Write-Output "DEBUG_CURL_CODE=$code"
+if ($code -ne '200') {
     $startedTunnel = Start-Process ssh -ArgumentList @('-N','-L','8200:127.0.0.1:8200','contabo-prod') -PassThru -WindowStyle Hidden
     for ($i = 0; $i -lt 30; $i++) {
         Start-Sleep -Seconds 1
-        try { $health = Invoke-WebRequest "$base/v1/sys/health" -TimeoutSec 5; break } catch { $health = $null }
+        $code = & curl.exe -s -o NUL -w "%{http_code}" "$base/v1/sys/health" 2>$null
+        if ($code -eq '200') { break }
     }
 }
-if (-not $health -or [int]$health.StatusCode -ne 200) { throw 'OpenBao tunnel/health check failed' }
+if ($code -ne '200') { throw 'OpenBao tunnel/health check failed' }
 
 # Read the secret value in-process; never echo it.
 $value = Invoke-Bao @('kv','get','-mount=secret','-field=password',$Path)
