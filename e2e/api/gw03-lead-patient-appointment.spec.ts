@@ -51,6 +51,16 @@ t.describe('GW-03 lead → paciente → agendamento', () => {
       status: 'converted',
     })
 
+    const repeatedConversionResponse = await request.post(`/api/leads/${leadId}/convert`, {
+      data: { patient_id: patientId },
+      headers: { Origin: 'http://127.0.0.1:3003' },
+    })
+    expect(repeatedConversionResponse.status()).toBe(200)
+    expect((await repeatedConversionResponse.json()).data).toMatchObject({
+      id: leadId,
+      status: 'converted',
+    })
+
     const convertedLeadResponse = await request.get(`/api/leads/${leadId}`)
     expect(convertedLeadResponse.status()).toBe(200)
     expect((await convertedLeadResponse.json()).data).toMatchObject({
@@ -67,6 +77,7 @@ t.describe('GW-03 lead → paciente → agendamento', () => {
     expect(timeline.map((entry: { type: string }) => entry.type)).toEqual(
       expect.arrayContaining(['lead_captured', 'lead_converted']),
     )
+    expect(timeline.filter((entry: { type: string }) => entry.type === 'lead_converted')).toHaveLength(1)
 
     const scheduledAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     scheduledAt.setUTCHours(14, 0, 0, 0)

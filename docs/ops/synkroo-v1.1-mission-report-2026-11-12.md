@@ -35,19 +35,26 @@
 
 ## Marco 2 — Golden Workflows GW-01..GW-03
 
-- GW-01 (Login → Dashboard): coberto por specs existentes (`e2e/auth/*`); sem mudança.
-- GW-02 (Tenant Switch): fixture sintética multi-clínica já presente via seed de testes; spec `e2e/dashboard/clinic-selector.spec.ts`. Validação runtime completa requer DB descartável (não executada nesta rodada — dependência externa de infra local).
-- GW-03 (Lead → Paciente → Agendamento): spec `e2e/api/gw03-lead-patient-appointment.spec.ts`. Código de conversão corrigido para idempotência.
+- GW-01 (Login → Dashboard): production-mode contra PostgreSQL descartável local; `login.spec.ts` + `overview.spec.ts`: 9 passed.
+- GW-02 (Tenant Switch): `clinic-selector.spec.ts`: 4 passed em production-mode. Inclui fluxo A→B→A→B, exclusividade do paciente sintético B, métricas e permissões.
+- GW-02 API/GW-03: `tenant-switch.spec.ts` + `gw03-lead-patient-appointment.spec.ts`: 9 testes listados; 7 passed / 2 skips esperados no fluxo API single-clinic. Switch real coberto pela UI multi-clínica. GW-03 inclui conversão repetida/evento único e replay idempotente de agendamento.
+- Contatos: `contacts-notes.spec.ts`: 6 passed em produção local com DB descartável; nenhuma falha reproduzida nesta rodada.
+- PostgreSQL descartável local: migrations aplicadas, banco saudável e seed de teste executado. Nenhum E2E desta rodada foi executado em produção real.
 - GW-10 (analytics export): preservado, sem ampliação de escopo.
 
-**Resultado M2: PASS (código) / runtime pendente** — execução contra PostgreSQL 17 descartável requer orquestração de DB (contabo dev-exec) não automatizada nesta rodada.
+**Resultado M2: E2E local validado** — execução contra PostgreSQL descartável local; não equivale a validação em produção.
 
 ## Marco 3 — Correções operacionais
 
 ### 3.1 OpenBao
 - Arquivo: `scripts/consume-openbao-staging.ps1`.
-- Correção: envolvido em `try/finally` único; túnel iniciado pelo script é encerrado somente se criado por ele; variáveis temporárias (`BAO_ADDR`, `BAO_TOKEN`, `VPS_TARGET_STAGING_PASSWORD`) limpas em todos os caminhos (sucesso, ProbeOnly, falha de leitura, falha do filho).
-- ProbeOnly preservado.
+- Correção atual de ambiente/túnel/`ProcessStartInfo`: porta loopback efêmera e exclusiva; ownership de PID verificado antes do health check, após health check e antes de `bao kv get`. SSH usa `ExitOnForwardFailure`, `BatchMode` e `ConnectTimeout`; child via node + tsx local/`ArgumentList`, sem `cmd`/`npx`.
+- Harness mock efêmero passou ProbeOnly, falha Bao, sucesso/falha child, remoção de tokens do child e de SSH/curl, owner falso bloqueado antes de curl/bao, owner correto, restauração do ambiente e cleanup do túnel. Parser PowerShell PASS; `node --test scripts/__tests__/operator-scripts-hardening.test.mjs`: 38/38.
+- Contrato de persistência autorizado pelo usuário: o child `setup-staging-db` pode persistir, no `.env` privado, ambas as credenciais efetivas (staging e admin/Postgres) antes de qualquer mutação, sempre no caminho apontado por `SYNKROO_VPS_ENV`, que o operador deve definir fora do repositório. Modo `0600` vale somente em POSIX; no Windows a ACL é governada pelo próprio sistema.
+- Wrapper final: corrige o isolamento de `BAO_*`/`VAULT_*`/proxy, exige PowerShell 7, usa curl com timeouts e `-q`, força `--side=target`, valida o path do segredo, fecha o túnel após a leitura e não imprime segredos.
+- Revisão AppSec estática final: **APPROVED**. Foi estática: sem acesso a OpenBao/credenciais reais, `.env` real, Contabo, staging ou produção.
+- Verificações desta continuação: teste focado `scripts/__tests__/consume-openbao-staging.test.mjs` (arquivo novo) 16/16; parse PowerShell sem erros; `npm run test:release` 451 pass / 1 skip / 0 fail (452 total), incluindo o arquivo novo.
+- Nenhuma implantação nem alteração de produção foi realizada.
 
 ### 3.2 PostgreSQL — #93 e #94
 - Evidência coletada (read-only) em `contabo-prod`, container `synkroo-prod-postgres`.
@@ -55,7 +62,7 @@
 - #94: confirmado que a role de runtime `synkroo` é **superuser** em produção. Staging já possui `synkroo_staging_app` não-superuser. Criação da role de runtime em produção exige autorização A-PAPEIS.
 - Documento: `docs/ops/postgres-93-94-status-2026-11-12.md`.
 
-**Resultado M3: PASS (documentação + wrapper) / pendências externas identificadas.**
+**Resultado M3: validação mockada/testes locais e documentação concluídos; revisão AppSec estática final APPROVED (sem acesso real); nada implantado.**
 
 ## Marco 4 — Preparação do piloto
 
@@ -71,12 +78,12 @@
 | Marco | Resultado |
 |---|---|
 | M1 — CI e fixes | PASS (código) |
-| M2 — GW-01..03 | PASS (código) / runtime pendente |
-| M3 — Operacional | PASS (documentação + wrapper) |
+| M2 — GW-01..03 | E2E local validado contra PostgreSQL descartável |
+| M3 — Operacional | Validação mockada/testes locais e documentação concluídos; AppSec estática final APPROVED; sem acesso real nem implantação |
 | M4 — Piloto | AWAITING_INPUT |
 
 ### Commits/PRs
-- Branch de trabalho: a ser aberta como PR de consolidação a partir de `main`.
+- PR #111 aberto na branch `fix/synkroo-v1.1-consolidation` e permanece com as alterações locais (E2E/fixture/OpenBao, teste novo e esta atualização do relatório) não commitadas/não enviadas. A CI completa não foi reexecutada após essas alterações; não declarar o PR verde com base na CI anterior.
 - Commits identificáveis por correção: `fix(comercial): idempotência em converterLead`, `fix(contatos): Suspense boundary para useSearchParams`, `fix(openbao): try/finally para túnel e env temporárias`, `docs(ops): status #93/#94 e relatório de missão`.
 
 ### Bugs corrigidos
@@ -89,16 +96,24 @@
 - `npm run lint` — PASS
 - `npx jest src/modules/comercial` — 11 suites / 62 testes PASS
 - `npx jest src/components/contacts src/app/dashboard/contatos` — 6 suites / 33 testes PASS
+- GW-01 `login.spec.ts` + `overview.spec.ts` — 9 passed (production-mode, PostgreSQL descartável local)
+- GW-02 UI `clinic-selector.spec.ts` — 4 passed
+- GW-02 API/GW-03 `tenant-switch.spec.ts` + `gw03-lead-patient-appointment.spec.ts` — 7 passed / 2 skips esperados (9 testes listados)
+- `contacts-notes.spec.ts` — 6 passed
+- Parser PowerShell — PASS (sem erros); `node --test scripts/__tests__/operator-scripts-hardening.test.mjs` — 38/38 (rodada anterior)
+- Teste focado `scripts/__tests__/consume-openbao-staging.test.mjs` — 16/16 (continuação final)
+- `npm run test:release` — 451 pass / 1 skip / 0 fail (452 total), incluindo o arquivo novo (continuação final)
+- Os testes M1 e E2E acima são PASS histórico e não foram rerodados nesta continuação.
 
 ### Pendências externas restantes
 - #93: gates D4 de rede/ACL/ledger (A-REDE).
 - #94: criação de role de runtime não-superuser em produção (A-PAPEIS).
-- M2 runtime: execução GW-01..03 contra PostgreSQL 17 descartável (infra).
-- M4: insumos humanos do piloto (clínica, profissionais, WhatsApp, usuários, janela).
-- Issue #27: golden workflows — avanço de GW-04..GW-09 bloqueado até consolidação (conforme missão, não iniciados).
+- PR #111: alterações locais ainda não commitadas/não enviadas; CI completa não reexecutada após elas (a CI anterior as precede).
+- M4: insumos humanos do piloto (clínica, profissionais, WhatsApp, usuários, janela); estado `PILOT_AWAITING_HUMAN_INPUT`.
+- Issue #27: atualização publicada em [comentário de 2026-11-12](https://github.com/kust-projetos/synkroo/issues/27#issuecomment-6831840657); GW-04..GW-09 não iniciados e fora do escopo atual.
 
 ### Próxima ação necessária
-1. Abrir PR de consolidação e rodar CI completa.
+1. Commitar/enviar as alterações locais ao PR #111 (se autorizado) e executar a CI completa; só então avaliar o estado do PR. Para uso do wrapper OpenBao, o operador deve definir `SYNKROO_VPS_ENV` com caminho privado fora do repositório (execução real depende de autorização).
 2. Obter autorização A-REDE/A-PAPEIS para #93/#94.
 3. Confirmar insumos humanos do piloto ou registrar `PILOT_AWAITING_HUMAN_INPUT` (já registrado).
-4. Após CI verde e autorizações, executar GW-01..03 em runtime e avançar issue #27.
+4. Manter GW-04..GW-09 bloqueados; aguardar autorização e eventual definição de escopo posterior. Não declarar `PROD_READY`.

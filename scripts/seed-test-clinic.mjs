@@ -142,6 +142,13 @@ try {
      ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug, phone = EXCLUDED.phone, email = EXCLUDED.email, deleted_at = NULL`,
     [CLINIC_B_ID],
   );
+  // GW-02: deterministic, synthetic patient proves clinic-scoped metrics and reads.
+  await client.query(
+    `INSERT INTO patients (id, clinic_id, name, phone, email)
+     VALUES ('00000000-0000-4000-8000-000000000007', $1, 'Paciente Sintetico Filial', '+5500000000007', 'paciente.filial@example.test')
+     ON CONFLICT (id) DO UPDATE SET clinic_id = EXCLUDED.clinic_id, name = EXCLUDED.name, phone = EXCLUDED.phone, email = EXCLUDED.email, deleted_at = NULL`,
+    [CLINIC_B_ID],
+  );
   const CLINIC_B_OWNER_ROLE_ID = "00000000-0000-4000-8000-000000000102";
   const clinicBOwnerRows = await client.query(
     `SELECT id FROM roles WHERE clinic_id = $1 AND name = 'Owner' AND is_system = true LIMIT 1`,

@@ -25,6 +25,14 @@ async function readPatientRows(page: Page) {
   }>
 }
 
+async function readTotalPatients(page: Page) {
+  return page.evaluate(async () => {
+    const response = await fetch('/api/dashboard/stats')
+    const body = await response.json()
+    return { status: response.status, total: body.data?.metrics?.totalPatients }
+  }) as Promise<{ status: number; total: number }>
+}
+
 async function selectClinic(page: Page, clinicId: string) {
   await page.locator('[data-testid="clinic-selector-trigger"]:visible').click()
   await page.getByTestId(`clinic-option-${clinicId}`).click()
@@ -71,6 +79,9 @@ t.describe('ClinicSelector multi-clínica (#61 / F4.09)', () => {
     expect(patientsA.data.patients.length).toBeGreaterThan(0)
     expect(patientsA.data.patients.every((patient) => patient.clinicId === clinicA)).toBe(true)
     const patientIdsA = patientsA.data.patients.map((patient) => patient.id)
+    const statsA = await readTotalPatients(page)
+    expect(statsA.status).toBe(200)
+    expect(statsA.total).toBeGreaterThan(0)
 
     await selectClinic(page, clinicB!.id)
     await expect.poll(async () => (await readSession(page)).profile?.clinic_id, { timeout: 20_000 }).toBe(clinicB!.id)
@@ -81,9 +92,24 @@ t.describe('ClinicSelector multi-clínica (#61 / F4.09)', () => {
     expect(patientsB.status).toBe(200)
     expect(patientsB.data.patients.every((patient) => patient.clinicId === clinicB!.id)).toBe(true)
     expect(patientsB.data.patients.some((patient) => patientIdsA.includes(patient.id))).toBe(false)
+    expect(patientsB.data.patients.some((patient) => patient.id === '00000000-0000-4000-8000-000000000007')).toBe(true)
+    const statsB = await readTotalPatients(page)
+    expect(statsB.status).toBe(200)
+    expect(statsB.total).toBeGreaterThan(0)
+    expect(statsB.total).toBeLessThan(statsA.total)
 
     await selectClinic(page, clinicA!)
     await expect.poll(async () => (await readSession(page)).profile?.clinic_id, { timeout: 20_000 }).toBe(clinicA)
+    const patientsAAgain = await readPatientRows(page)
+    expect(patientsAAgain.status).toBe(200)
+    expect(patientsAAgain.data.patients.some((patient) => patient.id === '00000000-0000-4000-8000-000000000007')).toBe(false)
+    const statsAAgain = await readTotalPatients(page)
+    expect(statsAAgain.status).toBe(200)
+    expect(statsAAgain.total).toBe(statsA.total)
+
+    await selectClinic(page, clinicB!.id)
+    await expect.poll(async () => (await readSession(page)).profile?.clinic_id, { timeout: 20_000 }).toBe(clinicB!.id)
+    expect((await readTotalPatients(page)).total).toBe(statsB.total)
   })
 
   t('permissões re-resolvidas após switch (GW-02 critério #3)', async ({ page }) => {
