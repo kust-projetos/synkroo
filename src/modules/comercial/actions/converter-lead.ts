@@ -18,6 +18,12 @@ export const converterLead = defineAction({
     const existing = await findLeadByIdForClinic(input.leadId, ctx.clinicId);
     if (!existing) throw new ActionError('not_found', 'Lead não encontrado.');
 
+    // Idempotency: a lead that is already converted must not produce a
+    // duplicate `lead_converted` activity on re-execution.
+    if (existing.status === 'converted') {
+      return { id: existing.id, status: 'converted' };
+    }
+
     const patch: Record<string, unknown> = {
       status: 'converted',
       patientId: input.patientId,
