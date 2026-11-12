@@ -1,0 +1,25 @@
+name: agent-evals
+on:
+  pull_request:
+    paths: ['CLAUDE.md', '.claude/**', 'evals/**']
+  schedule:
+    - cron: '0 2 * * *'
+jobs:
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: npm install -g @anthropic-ai/claude-code
+      - name: Run evals
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          fail=0
+          for eval in evals/*.json; do
+            git stash -u -q || true
+            claude -p "$(jq -r .prompt "$eval")" --allowedTools "$(jq -r .allowedTools "$eval")" --output-format json > /dev/null
+            bash evals/check.sh "$eval" || fail=1
+            git checkout -q . && git clean -fdq
+          done
+          exit $fail

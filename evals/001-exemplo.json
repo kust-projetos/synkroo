@@ -1,0 +1,9 @@
+{
+  "id": "001",
+  "prompt": "Em src/status.ts, a função claimStatus retorna 'unknown' para sinistros fechados. Corrija: deve retornar 'closed'. Escreva o teste que falha antes do fix.",
+  "allowedTools": "Read,Edit,Bash(npm test)",
+  "checks": [
+    "npm test",
+    "npm run lint"
+  ]
+}

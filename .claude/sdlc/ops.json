@@ -1,0 +1,7 @@
+{
+  "repo": "kust-projetos/synkroo",
+  "ci_fail_max": 0.2,
+  "ci_sample": 20,
+  "pr_stale_days": 3,
+  "kaneo_project": null
+}
