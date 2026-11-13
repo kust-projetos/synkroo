@@ -1,0 +1,10 @@
+{
+  "_": "modelo por papel: id de perfil do claude-agent-kit (~/.claude-kit/profiles.json) ou \"claude\" para o env atual. pr_base = branch de onde nasce o worktree e alvo da PR (ex.: dev). project = nome curto do projeto nas sessões (<papel>-<projeto>); vazio = kebab da pasta",
+  "project": "",
+  "pr_base": "main",
+  "planner": "claude",
+  "dev": "claude",
+  "reviewer": "claude",
+  "tester-e2e": "claude",
+  "document": "claude"
+}

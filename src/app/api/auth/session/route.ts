@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getSession, requireActiveProfile } from '@/lib/auth/session'
 import { listUserClinics } from '@/repositories/auth'
 
@@ -62,4 +62,9 @@ export async function GET(request: Request) {
       { status: 200 },
     )
   }
+}
+
+export async function POST(request: NextRequest) {
+  const { POST: nextAuthPost } = await import('../[...nextauth]/route');
+  return nextAuthPost(request, { params: Promise.resolve({ nextauth: ['session'] }) });
 }

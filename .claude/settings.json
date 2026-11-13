@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(gh pr create*)",
+      "Bash(gh pr view*)",
+      "Bash(git *)",
+      "Bash(git push origin feat/*)",
+      "Bash(git push origin fix/*)",
+      "Bash(git push origin worktree-*)",
+      "Bash(git worktree*)",
+      "Bash(make *)",
+      "Bash(npm run *)",
+      "Bash(npm test*)",
+      "Edit",
+      "Read",
+      "Write"
+    ],
+    "deny": [
+      "Bash(curl *)",
+      "Bash(git push --force*)",
+      "Bash(git push origin main*)",
+      "Bash(git push origin master*)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ]
+  },
+  "crossSessionInbound": "accept",
+  "extraKnownMarketplaces": {
+    "sdlc": {
+      "source": {
+        "source": "github",
+        "repo": "giovani-junior-dev/sdlc"
+      }
+    },
+    "claude-agent-kit": {
+      "source": {
+        "source": "github",
+        "repo": "giovani-junior-dev/claude-agent-kit"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "sdlc@sdlc": true,
+    "claude-agent-kit@claude-agent-kit": true
+  }
+}

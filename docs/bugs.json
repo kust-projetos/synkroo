@@ -1,0 +1,11 @@
+{
+  "_schema": {
+    "id": "BUG-NNN",
+    "origem": "reviewer | code-review | tester-e2e | prod",
+    "repro": "passos exatos para reproduzir",
+    "evidencia": "saída, screenshot, log",
+    "status": "open | planned | approved | fixed | dismissed",
+    "fix_plan": "specs/<slug>.html (plano planf3 do fix)"
+  },
+  "bugs": []
+}

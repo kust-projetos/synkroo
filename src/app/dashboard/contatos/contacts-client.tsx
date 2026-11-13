@@ -10,8 +10,13 @@
  */
 'use client';
 
+import { Suspense } from 'react';
 import { ContactSplitView } from '@/components/contacts/contact-split-view';
 import { DuplicateQueuePanel } from '@/components/contacts/duplicate-queue-panel';
+
+function ContactSplitViewFallback() {
+  return <div className="flex h-full items-center justify-center text-muted-foreground">Carregando contatos…</div>;
+}
 
 export function ContactsClient() {
   return (
@@ -22,7 +27,9 @@ export function ContactsClient() {
       <div className="flex-1 grid grid-rows-[auto_1fr] gap-4 px-6 pb-6 min-h-0">
         <DuplicateQueuePanel />
         <div className="min-h-0">
-          <ContactSplitView />
+          <Suspense fallback={<ContactSplitViewFallback />}>
+            <ContactSplitView />
+          </Suspense>
         </div>
       </div>
     </div>

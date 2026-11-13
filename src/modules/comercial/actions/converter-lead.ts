@@ -3,6 +3,7 @@ import { defineAction } from '@/core/actions';
 import type { ActionContext } from '@/core/actions/types';
 import { ActionError } from '@/core/actions/types';
 import { updateLead, findLeadByIdForClinic } from '../repositories/leads-repository';
+import { insertActivity } from '../repositories/activities-repository';
 
 export const converterLead = defineAction({
   name: 'comercial.converterLead',
@@ -17,12 +18,24 @@ export const converterLead = defineAction({
     const existing = await findLeadByIdForClinic(input.leadId, ctx.clinicId);
     if (!existing) throw new ActionError('not_found', 'Lead não encontrado.');
 
+    // Idempotency: a lead that is already converted must not produce a
+    // duplicate `lead_converted` activity on re-execution.
+    if (existing.status === 'converted') {
+      return { id: existing.id, status: 'converted' };
+    }
+
     const patch: Record<string, unknown> = {
       status: 'converted',
       patientId: input.patientId,
     };
     const updated = await updateLead(input.leadId, ctx.clinicId, patch);
     if (!updated) throw new ActionError('not_found', 'Lead não encontrado.');
+    await insertActivity({
+      leadId: updated.id,
+      activityType: 'lead_converted',
+      description: 'Lead converted via converterLead',
+      metadata: { patientId: input.patientId },
+    });
     return { id: updated.id, status: 'converted' };
   },
 });

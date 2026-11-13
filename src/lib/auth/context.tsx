@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       body: JSON.stringify({ clinicId }),
     })
     if (!response.ok) return { error: 'Clínica indisponível' }
-    await update({ clinicId })
+    await update({ user: { clinicId } })
     // G1: cancel in-flight requests before dropping the cache so responses
     // from clinic A can never resolve into clinic B's scope.
     await queryClient.cancelQueries()

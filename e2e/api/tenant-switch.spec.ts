@@ -6,6 +6,8 @@ const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // UUID válido que nenhuma clínica real usa (apenas membership negativa).
 const UNKNOWN_CLINIC_ID = '00000000-0000-0000-0000-000000000000'
+// Fixture B provisioned by scripts/seed-test-clinic.mjs in a fresh disposable DB.
+const CLINIC_B_ID = '00000000-0000-0000-0000-000000000007'
 
 async function getSessionBody(request: APIRequestContext): Promise<any> {
   const res = await request.get('/api/auth/session')
@@ -137,6 +139,21 @@ t.describe('GW-02 tenant switch API', () => {
       expect(res.status()).toBe(403)
       const body = await res.json()
       expect(body.error.code).toBe('FORBIDDEN')
+    } finally {
+      await authed.dispose()
+    }
+  })
+
+  t('POST p/ fixture B sem membership → 403 FORBIDDEN', async ({ baseURL }) => {
+    const authed = await authedContext(baseURL)
+    try {
+      const session = await getSessionBody(authed)
+      expect(session.profile.available_clinics.map((clinic: { id: string }) => clinic.id))
+        .not.toContain(CLINIC_B_ID)
+
+      const res = await authed.post('/api/auth/switch-clinic', { data: { clinicId: CLINIC_B_ID } })
+      expect(res.status()).toBe(403)
+      expect((await res.json()).error.code).toBe('FORBIDDEN')
     } finally {
       await authed.dispose()
     }
