@@ -19,6 +19,22 @@ import { replaceInstallmentsAtomic } from '../repositories/installment-replaceme
 import { ActionError } from '@/core/actions/types';
 import { centsToDecimal, splitCentsExact, toCents } from './money';
 
+export type InstallmentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
+
+const INSTALLMENT_STATUSES: readonly InstallmentStatus[] = ['pending', 'paid', 'overdue', 'cancelled'];
+
+export function isInstallmentStatus(value: unknown): value is InstallmentStatus {
+  return typeof value === 'string' && (INSTALLMENT_STATUSES as readonly string[]).includes(value);
+}
+
+/** Fail-closed: status fora do enum nunca é persistido nem propagado (money-path). */
+export function parseInstallmentStatus(value: unknown): InstallmentStatus {
+  if (!isInstallmentStatus(value)) {
+    throw new Error(`Invalid installment status: ${String(value)}`);
+  }
+  return value;
+}
+
 export interface InstallmentInput {
   amount: number;
   dueDate: string;
