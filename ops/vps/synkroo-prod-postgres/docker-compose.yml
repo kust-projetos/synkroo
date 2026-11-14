@@ -1,3 +1,5 @@
+# LEGADO/ROLLBACK: banco migrado para db-central; manter esta definição
+# para rollback controlado. Não publicar novamente a porta 15433.
 services:
   postgres:
     image: pgvector/pgvector:pg17
