@@ -15,6 +15,7 @@ module.exports = {
     '**/modules/financeiro/services/__tests__/budget-scope-service.test.ts',
     '**/modules/financeiro/services/__tests__/collection-service.test.ts',
     '**/modules/financeiro/services/__tests__/installment-service.test.ts',
+    '**/services/installments/__tests__/installment-status-guard.test.ts',
     '**/modules/crm/__tests__/duplicate-execution-service.test.ts',
     '**/modules/operacional/services/__tests__/patient-merge-state-service.test.ts',
     '**/modules/comercial/services/__tests__/merge-state-service.test.ts',
