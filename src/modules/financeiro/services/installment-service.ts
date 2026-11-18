@@ -23,6 +23,7 @@ export type InstallmentStatus = 'pending' | 'paid' | 'overdue' | 'cancelled';
 
 const INSTALLMENT_STATUSES: readonly InstallmentStatus[] = ['pending', 'paid', 'overdue', 'cancelled'];
 
+/** Guard fail-closed usado por testes e disponível para futuros call sites; sem caller de produção nesta tranche. */
 export function isInstallmentStatus(value: unknown): value is InstallmentStatus {
   return typeof value === 'string' && (INSTALLMENT_STATUSES as readonly string[]).includes(value);
 }

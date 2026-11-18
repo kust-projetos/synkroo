@@ -50,7 +50,7 @@ Backfill de volume relevante **nunca** vai dentro de migration comum do
   ou re-expand + re-backfill. É por isso que contract tem as cinco
   condições acima.
 
-## Inventário atual (37 migrations, `0000`–`0037`)
+## Inventário atual (41 migrations, `0000`–`0041`)
 
 Verificação estática por `DROP`/`DELETE`/`TRUNCATE` ativos (não comentados):
 
@@ -62,20 +62,21 @@ Verificação estática por `DROP`/`DELETE`/`TRUNCATE` ativos (não comentados):
 | `0008_remarkable_gamma_corps.sql` | `DROP CONSTRAINT` de check redundante | Remoção de constraint, sem perda de dados. Histórico. |
 | `0036_outbox_claim_generation.sql` | `claim_generation`, `claim_release`, singleton `outbox_control`, função + trigger DB-side de claim/settlement | **Expand-only e re-rodável** — fence monotônica do lease (E4) mais pause/release gate do outbox. A readiness também valida a presença/forma funcional dos objetos, porque um banco que já aplicou a 0036 original não executa de novo a mesma entrada. Para esse caso, `maintenance-control-missing` exige repair explícito `scripts/outbox-control-repair.mjs` (dry-run por padrão; `--apply` mutador autorizado), nunca readiness presumido. DOWN é só comentário; rollback real = forward-fix/restore. |
 | `0037_ai_observe_ingest.sql` | Tabelas novas `business_events`, `goals`, `agent_runs` (P4 Slice 1A, OBSERVE) | **Expand-only e re-rodável** — só `CREATE TABLE IF NOT EXISTS` + `ADD CONSTRAINT` sob guarda de `pg_constraint` + `CREATE UNIQUE INDEX IF NOT EXISTS`; nenhuma tabela existente é tocada. UNIQUEs sempre com `clinic_id` (replay idempotente, anti-cross-tenant por construção). Sem DOWN destrutivo; rollback = forward-fix. |
+| `0041_goals.sql` | Criação de `business_goals` para objetivos de negócio | **Expand-only e re-rodável** — tabela separada para evitar colisão com `goals` criada pela 0037/OBSERVE; sem remoção de estruturas existentes; rollback = forward-fix. |
 | demais (`0001`, `0002`, `0004`–`0007`, `0034`, `0035` etc.) | `DROP` apenas em comentários `--` (DOWN notes) | Não executam nada. Sem efeito. |
 
-Nenhum `DELETE FROM` / `TRUNCATE` ativo em nenhuma das 37 migrations.
+Nenhum `DELETE FROM` / `TRUNCATE` ativo em nenhuma das 41 migrations.
 
-**Ledger esperado: 37** registros em `drizzle.__drizzle_migrations`
+**Ledger esperado: 41** registros em `drizzle.__drizzle_migrations`
 (`EXPECTED_MIGRATIONS` em `src/services/api-handlers/health/db.ts`, validado
 por `src/__tests__/api/health/route.test.ts` contra
-`src/lib/db/migrations/meta/_journal.json` — 37 entradas de journal, idx 0–37,
+`src/lib/db/migrations/meta/_journal.json` — 41 entradas de journal, idx 0–41,
 com o gap herdado `0017`).
 
 **Conclusão: nenhuma migration destrutiva PENDENTE.** Os contracts
 existentes já foram aplicados e não têm consumidores ativos. Próximo
 contract futuro deve seguir as cinco condições acima, e o job
-`migrations-from-zero` do CI garante que a cadeia `0000`→`0037` aplica
+`migrations-from-zero` do CI garante que a cadeia `0000`→`0041` aplica
 limpa a partir de banco vazio e é idempotente.
 
 ## Nota histórica (E0 — snapshot `d532ff6e`)
