@@ -12,7 +12,7 @@ import { goals } from '@/modules/core/schema/goals';
 import { dbLogger } from '@/lib/logger';
 
 type GoalSelect = typeof goals.$inferSelect;
-export interface GoalRow extends GoalSelect {}
+export type GoalRow = GoalSelect;
 
 export type GoalStatus = 'open' | 'in_progress' | 'done' | 'cancelled';
 
