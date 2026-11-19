@@ -8,6 +8,7 @@ import { resolveInterlocutor } from '@/core/ia-channel/interlocutor';
 import { buscarPacientePorTelefone } from '@/modules/operacional/public';
 import { buscarLeadPorTelefone } from '@/modules/comercial/public';
 import { invokeAgent } from '@/core/ia-channel/agent-invoker';
+import { analyzeClinicalSafety } from '@/core/ia-agent/clinical-safety';
 import type { OutboxJob } from '@/lib/outbox/outbox-repository';
 
 export type InboundMessageJobPayload = {
@@ -95,6 +96,11 @@ export async function dispatchInboundMessageJob(job: OutboxJob): Promise<void> {
     });
     await repo.escalateConversation(input.conversationId, input.clinicId);
     await repo.updateConversationTimestamp(input.clinicId, input.conversationId, new Date());
+    const handoff = analyzeClinicalSafety(input.content);
+    if (handoff.isTakeoverRequest && handoff.reply) {
+      const sent = await sendReply(input, handoff.reply, job.id, 'escalacao');
+      if (!sent) throw new Error('INBOUND_REPLY_SEND_FAILED');
+    }
     return;
   }
 

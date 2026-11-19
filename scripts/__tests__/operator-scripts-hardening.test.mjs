@@ -328,6 +328,17 @@ describe('contrato source/target nos scripts operacionais', () => {
     assert.match(src, /originBanner = accessMode \? `host=\$\{host\}` : `host=\$\{host\}:\$\{port\}`/);
     assert.match(src, /access=\$\{accessMode \? 'true' : 'false'\}/);
   });
+
+  test('update-hyperdrive preserva owner por default e planeja roles app sem expor segredos', () => {
+    const src = read('update-hyperdrive.ts');
+    assert.match(src, /readCliFlag\(args, 'db-role'\) \?\? 'owner'/);
+    assert.match(src, /dbRole === 'app' \? 'synkroo_app' : 'synkroo'/);
+    assert.match(src, /dbRole === 'app' \? 'synkroo_staging_app' : 'synkroo_staging'/);
+    assert.match(src, /VPS_\$\{side\.toUpperCase\(\)\}_STAGING_APP_PASSWORD/);
+    assert.match(src, /VPS_\$\{side\.toUpperCase\(\)\}_POSTGRES_APP_PASSWORD/);
+    assert.match(src, /if \(dryRun\)[\s\S]*planHyperdriveUpdates/);
+    assert.doesNotMatch(src, /console\.(?:log|error|warn)\([^)]*(?:stagingDbPassword|prodDbPassword)/);
+  });
 });
 
 describe('Wrangler argv — sem shell', () => {

@@ -103,6 +103,8 @@ const USAGE = [
   '  --side REQUIRED. source = current VPS, target = destination VPS.',
   '  --target staging (default), prod, or both. staging-only by default: production',
   '           is never touched unless explicitly requested.',
+  '  --db-role owner (default) or app; app passwords use VPS_<SIDE>_STAGING_APP_PASSWORD',
+  '           and VPS_<SIDE>_POSTGRES_APP_PASSWORD in the private VPS .env file.',
   '  --access point at the Access-protected tunnel hostname instead of the side IP.',
   '           Requires --origin-host; reads CLOUDFLARE_ACCESS_CLIENT_ID and',
   '           CLOUDFLARE_ACCESS_CLIENT_SECRET solely from process.env.',
@@ -145,6 +147,12 @@ async function main() {
     process.exit(1);
   }
   const originHostFlag = readCliFlag(args, 'origin-host');
+  const dbRole = readCliFlag(args, 'db-role') ?? 'owner';
+  if (dbRole !== 'owner' && dbRole !== 'app') {
+    console.error('--db-role must be owner or app.');
+    console.error(USAGE);
+    process.exit(1);
+  }
   const side = readCliFlag(args, 'side');
   if (side === undefined || !VPS_SIDES.includes(side)) {
     console.error(
@@ -172,9 +180,9 @@ async function main() {
   // exclusively from process.env or the resolved private env file.
   const requiredFields =
     targetKeys === 'staging'
-      ? ['IP', 'PG_PORT', 'STAGING_PASSWORD']
+      ? ['IP', 'PG_PORT', ...(dbRole === 'owner' ? ['STAGING_PASSWORD'] : [])]
       : targetKeys === 'prod'
-        ? ['IP', 'PG_PORT', 'POSTGRES_PASSWORD']
+        ? ['IP', 'PG_PORT', ...(dbRole === 'owner' ? ['POSTGRES_PASSWORD'] : [])]
         : undefined;
   const settings = resolveVpsSideSettings(side, {
     values,
@@ -215,10 +223,24 @@ async function main() {
       process.exit(1);
     }
   }
-  const stagingDbPassword =
-    targetKeys === 'prod' ? '' : (requireVpsSideSetting(settings, 'stagingPassword', hint) as string);
-  const prodDbPassword =
-    targetKeys === 'staging' ? '' : (requireVpsSideSetting(settings, 'postgresPassword', hint) as string);
+  // App credentials follow vps-env's VPS_<SIDE>_<FIELD> convention.
+  // Values remain private-file-only; missing-key errors expose names, never values.
+  const stagingAppPasswordKey = `VPS_${side.toUpperCase()}_STAGING_APP_PASSWORD`;
+  const prodAppPasswordKey = `VPS_${side.toUpperCase()}_POSTGRES_APP_PASSWORD`;
+  const stagingDbPassword = targetKeys === 'prod' ? '' : dbRole === 'owner'
+    ? (requireVpsSideSetting(settings, 'stagingPassword', hint) as string)
+    : String(values[stagingAppPasswordKey] ?? '').trim();
+  const prodDbPassword = targetKeys === 'staging' ? '' : dbRole === 'owner'
+    ? (requireVpsSideSetting(settings, 'postgresPassword', hint) as string)
+    : String(values[prodAppPasswordKey] ?? '').trim();
+  if (dbRole === 'app' && targetKeys !== 'prod' && !stagingDbPassword) {
+    console.error(`${stagingAppPasswordKey} is missing: set it in the private VPS .env file.`);
+    process.exit(1);
+  }
+  if (dbRole === 'app' && targetKeys !== 'staging' && !prodDbPassword) {
+    console.error(`${prodAppPasswordKey} is missing: set it in the private VPS .env file.`);
+    process.exit(1);
+  }
 
   let accountId: string;
   let apiToken: string;
@@ -263,7 +285,7 @@ async function main() {
             label: 'Staging Hyperdrive',
             hyperdriveId: STAGING_HYPERDRIVE_ID,
             database: 'synkroo_staging',
-            user: 'synkroo_staging',
+            user: dbRole === 'app' ? 'synkroo_staging_app' : 'synkroo_staging',
             password: stagingDbPassword,
             ...(accessMode ? { accessClientId, accessClientSecret } : {}),
           },
@@ -272,7 +294,7 @@ async function main() {
             label: 'Production Hyperdrive',
             hyperdriveId: PROD_HYPERDRIVE_ID,
             database: 'synkroo',
-            user: 'synkroo',
+            user: dbRole === 'app' ? 'synkroo_app' : 'synkroo',
             password: prodDbPassword,
             ...(accessMode ? { accessClientId, accessClientSecret } : {}),
           },
@@ -284,7 +306,7 @@ async function main() {
               label: 'Production Hyperdrive',
               hyperdriveId: PROD_HYPERDRIVE_ID,
               database: 'synkroo',
-              user: 'synkroo',
+              user: dbRole === 'app' ? 'synkroo_app' : 'synkroo',
               password: prodDbPassword,
               ...(accessMode ? { accessClientId, accessClientSecret } : {}),
             },
@@ -295,7 +317,7 @@ async function main() {
               label: 'Staging Hyperdrive',
               hyperdriveId: STAGING_HYPERDRIVE_ID,
               database: 'synkroo_staging',
-              user: 'synkroo_staging',
+              user: dbRole === 'app' ? 'synkroo_staging_app' : 'synkroo_staging',
               password: stagingDbPassword,
               ...(accessMode ? { accessClientId, accessClientSecret } : {}),
             },

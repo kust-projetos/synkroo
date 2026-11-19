@@ -22,6 +22,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { resolve } from 'path';
 import { dbLogger } from '@/lib/logger';
 import { getWhatsAppProviderAdapter } from '../integrations/whatsapp-provider-registry';
 import type {
@@ -194,6 +195,18 @@ function resolveEvolutionAdapter(): WhatsAppProviderAdapter | null {
  */
 const UNKNOWN_DELIVERY_ERROR = 'Resultado do envio não confirmado.';
 
+async function sendWithE2EStub(to: string, text: string): Promise<SendResult> {
+  if (process.env.E2E_PRODUCTION !== '1' || process.env.E2E_OUTBOUND_STUB !== '1') {
+    return { success: false, error: 'E2E_STUB_NOT_ACTIVE' };
+  }
+  const stubPath = resolve(process.cwd(), 'e2e/stubs/outbound-whatsapp-stub.cjs');
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const stub = require(stubPath) as {
+    sendWhatsAppMessage: (to: string, text: string) => Promise<SendResult>;
+  };
+  return stub.sendWhatsAppMessage(to, text);
+}
+
 /**
  * Executa `op` sob UM único claim de idempotência (REVIEW-A2A3): WAHA +
  * fallback sidecar contam como UMA operação lógica, e a chave é reivindicada
@@ -247,6 +260,9 @@ async function runIdempotentSend(
 export async function sendWhatsAppMessage(
   phone: string, message: string, idempotencyKey?: string,
 ): Promise<SendResult> {
+  if (process.env.E2E_PRODUCTION === '1' && process.env.E2E_OUTBOUND_STUB === '1') {
+    return runIdempotentSend(idempotencyKey, () => sendWithE2EStub(phone, message));
+  }
   const provider = detectProvider();
 
   if (provider === 'waha') {
@@ -332,6 +348,9 @@ export async function sendWhatsApp(
   idempotencyKey?: string,
   opts?: { completedTtlMs?: number },
 ): Promise<SendResult> {
+  if (process.env.E2E_PRODUCTION === '1' && process.env.E2E_OUTBOUND_STUB === '1') {
+    return runIdempotentSend(idempotencyKey, () => sendWithE2EStub(to, text), opts);
+  }
   // Claim único englobando WAHA (preferido) + Evolution legado + fallback
   // (sem repasse da chave aos leaves). WAHA-only (owner decision, 3863c4f):
   // com WAHA disponível o envio usa WAHA e NÃO recorre à Evolution; sem WAHA
