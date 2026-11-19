@@ -6,6 +6,9 @@ import { assertDisposableE2EDatabaseUrl } from '../../src/lib/e2e-database-safet
 
 test('inbound de pedido humano registra encaminhamento e escalonamento', async ({ request }) => {
   loadEnvConfig(process.cwd())
+  const origin = new URL(
+    test.info().project.use.baseURL ?? 'http://127.0.0.1:3003',
+  ).origin
   const databaseUrl = process.env.DATABASE_URL
   assertDisposableE2EDatabaseUrl(databaseUrl)
   const cronSecret = process.env.CRON_SECRET
@@ -47,7 +50,10 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
     }
 
     const inbound = await request.post('/api/messages/inbound', {
-      headers: { 'x-webhook-secret': webhookSecret },
+      headers: {
+        Origin: origin,
+        'x-webhook-secret': webhookSecret,
+      },
       data: {
         installationId,
         from: sender,
@@ -62,7 +68,10 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
     expect(conversationId).toBeTruthy()
 
     const cron = await request.post('/api/cron/outbox?limit=25', {
-      headers: { Authorization: `Bearer ${cronSecret}` },
+      headers: {
+        Origin: origin,
+        Authorization: `Bearer ${cronSecret}`,
+      },
     })
     expect(cron.ok()).toBeTruthy()
 
