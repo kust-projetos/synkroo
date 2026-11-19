@@ -2,7 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "path";
 
 export const E2E_CRON_SECRET = "e2e-cron-secret-not-for-production";
+// Release sintético, estável e exclusivo dos ambientes E2E.
+export const E2E_OUTBOX_RELEASE_ID = "e2e00000-0000-4000-8000-000000000001";
 process.env.CRON_SECRET = E2E_CRON_SECRET;
+process.env.OUTBOX_RELEASE_ID = E2E_OUTBOX_RELEASE_ID;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -51,6 +54,7 @@ export default defineConfig({
       ...process.env,
       NEXTAUTH_URL: "http://127.0.0.1:3003",
       CRON_SECRET: E2E_CRON_SECRET,
+      OUTBOX_RELEASE_ID: E2E_OUTBOX_RELEASE_ID,
     },
   },
 });
