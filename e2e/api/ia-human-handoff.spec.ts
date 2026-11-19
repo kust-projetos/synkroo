@@ -75,7 +75,34 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
         Authorization: `Bearer ${E2E_CRON_SECRET}`,
       },
     })
-    expect(cron.ok(), `cron outbox: ${cron.status()} ${await cron.text()}`).toBeTruthy()
+    const cronBody = await cron.text()
+    console.warn('[ia-human-handoff] cron response', { status: cron.status(), body: cronBody })
+
+    const outboxJobs = await pool.query(
+      `SELECT id, operation, status, attempts, last_error_code
+       FROM outbox_jobs
+       WHERE clinic_id = $1
+       ORDER BY created_at`,
+      [clinicId],
+    )
+    console.warn('[ia-human-handoff] clinic outbox jobs', outboxJobs.rows)
+
+    const allMessages = await pool.query(
+      `SELECT id, direction, content, created_at
+       FROM messages
+       WHERE conversation_id = $1
+       ORDER BY created_at`,
+      [conversationId],
+    )
+    console.warn('[ia-human-handoff] conversation messages', allMessages.rows)
+
+    const conversationRows = await pool.query(
+      'SELECT id, status FROM conversations WHERE id = $1',
+      [conversationId],
+    )
+    console.warn('[ia-human-handoff] conversation status', conversationRows.rows)
+
+    expect(cron.ok(), `cron outbox: ${cron.status()} ${cronBody}`).toBeTruthy()
 
     const history = await pool.query(
       `SELECT content FROM messages
