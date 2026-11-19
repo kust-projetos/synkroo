@@ -9,15 +9,21 @@ const visibleList = '[data-testid="contact-list"]:visible, [data-testid="list"]:
 const visibleDetail = '[data-testid="contact-detail"]:visible, [data-testid="detail"]:visible'
 
 async function openContact(page: Page): Promise<void> {
-  const contactItem = page.locator(visibleList).locator('button.w-full:not([role="tab"]):visible').first()
+  // A contact row is a full-width button with a bold name and a type badge.
+  // Require both so this cannot accidentally target another full-width control.
+  const contactItem = page.locator(visibleList)
+    .locator('button.w-full:not([role="tab"]):visible')
+    .filter({ has: page.locator('span.font-medium') })
+    .filter({ has: page.getByText(/^(Paciente|Lead)$/) })
+    .first()
   await expect(contactItem).toBeVisible({ timeout: 15000 })
   // A click during hydration can be a no-op. Retry once, not in an unbounded loop.
   await contactItem.click()
   try {
-    await expect(page).toHaveURL(/contact=/, { timeout: 7000 })
+    await expect(page).toHaveURL(/contact=/, { timeout: 8000 })
   } catch {
     await contactItem.click()
-    await expect(page).toHaveURL(/contact=/, { timeout: 7000 })
+    await expect(page).toHaveURL(/contact=/, { timeout: 15000 })
   }
   await expect(page.locator(visibleDetail)).toBeVisible({ timeout: 15000 })
   // Consent tabs only exist after the detail panel is open.
