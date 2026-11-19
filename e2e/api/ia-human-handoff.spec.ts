@@ -21,8 +21,6 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
   const externalMessageId = `e2e-handoff-${clinicId}`
   const sender = `5511${clinicId.replaceAll('-', '').slice(0, 10)}`
   const pool = new Pool({ connectionString: databaseUrl })
-  let priorAtendimentoModule: boolean | undefined
-  let moduleSettingCaptured = false
   try {
     await pool.query(
       `INSERT INTO clinics (id, name, slug, phone, email)
@@ -35,19 +33,23 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
        VALUES ($1, 'evolution', $2, $3, true)`,
       [clinicId, installationId, createHash('sha256').update(webhookSecret).digest('hex')],
     )
-    const moduleSetting = await pool.query(
-      'SELECT enabled FROM instance_modules WHERE module_id = $1',
-      ['atendimento'],
+    await pool.query(
+      `INSERT INTO permissions (key, module, label)
+       VALUES ('atendimento:manage_webhooks', 'atendimento', 'Gerenciar webhooks')
+       ON CONFLICT (key) DO NOTHING`,
     )
-    priorAtendimentoModule = moduleSetting.rows[0]?.enabled
-    moduleSettingCaptured = true
-    if (priorAtendimentoModule !== true) {
-      await pool.query(
-        `INSERT INTO instance_modules (module_id, enabled)
-         VALUES ('atendimento', true)
-         ON CONFLICT (module_id) DO UPDATE SET enabled = true`,
-      )
-    }
+    const agentRoleId = randomUUID()
+    await pool.query(
+      `INSERT INTO roles (id, clinic_id, name, description, is_system)
+       VALUES ($1, $2, 'Agente', 'E2E synthetic handoff role', true)`,
+      [agentRoleId, clinicId],
+    )
+    await pool.query(
+      `INSERT INTO role_permissions (role_id, permission_key)
+       VALUES ($1, 'atendimento:manage_webhooks')
+       ON CONFLICT (role_id, permission_key) DO NOTHING`,
+      [agentRoleId],
+    )
 
     const inbound = await request.post('/api/messages/inbound', {
       headers: {
@@ -91,16 +93,6 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
     )
     expect(status.rows[0]?.status).toBe('escalated')
   } finally {
-    if (moduleSettingCaptured) {
-      if (priorAtendimentoModule === undefined) {
-        await pool.query('DELETE FROM instance_modules WHERE module_id = $1', ['atendimento'])
-      } else {
-        await pool.query(
-          'UPDATE instance_modules SET enabled = $1 WHERE module_id = $2',
-          [priorAtendimentoModule, 'atendimento'],
-        )
-      }
-    }
     await pool.query('DELETE FROM clinics WHERE id = $1', [clinicId])
     await pool.end()
   }
