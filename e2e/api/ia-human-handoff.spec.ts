@@ -3,6 +3,7 @@ import { Pool } from 'pg'
 import { test, expect } from '@playwright/test'
 import { loadEnvConfig } from '@next/env'
 import { assertDisposableE2EDatabaseUrl } from '../../src/lib/e2e-database-safety'
+import { E2E_CRON_SECRET } from '../../playwright.config'
 
 test('inbound de pedido humano registra encaminhamento e escalonamento', async ({ request }) => {
   loadEnvConfig(process.cwd())
@@ -11,9 +12,7 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
   ).origin
   const databaseUrl = process.env.DATABASE_URL
   assertDisposableE2EDatabaseUrl(databaseUrl)
-  const cronSecret = process.env.CRON_SECRET
   expect(databaseUrl, 'DATABASE_URL do banco E2E').toBeTruthy()
-  expect(cronSecret, 'CRON_SECRET já configurado para o ambiente E2E').toBeTruthy()
 
   const clinicId = randomUUID()
   const installationId = `e2e-handoff-${clinicId}`
@@ -72,10 +71,10 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
     const cron = await request.post('/api/cron/outbox?limit=25', {
       headers: {
         Origin: origin,
-        Authorization: `Bearer ${cronSecret}`,
+        Authorization: `Bearer ${E2E_CRON_SECRET}`,
       },
     })
-    expect(cron.ok()).toBeTruthy()
+    expect(cron.ok(), `cron outbox: ${cron.status()} ${await cron.text()}`).toBeTruthy()
 
     const history = await pool.query(
       `SELECT content FROM messages
