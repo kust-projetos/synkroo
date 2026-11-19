@@ -1,15 +1,11 @@
 import { loadEnvConfig } from "@next/env";
-import { assertDisposableE2EDatabaseUrl } from "./src/lib/e2e-database-safety";
-import baseConfig, {
-  E2E_CRON_SECRET,
-  E2E_OUTBOX_RELEASE_ID,
-  E2E_OUTBOUND_STUB,
-} from "./playwright.config";
+import baseConfig from "./playwright.config";
 
 loadEnvConfig(process.cwd());
 
 // Sinaliza aos specs que rodam sob `next start` (NODE_ENV=production).
 // Usado para pular fluxos bloqueados de propósito em prod (ex.: /signup → 404, ADR-BASE-11).
+process.env.E2E_PRODUCTION = '1';
 
 function normalizeDatabaseUrl(value: string | undefined): string | undefined {
   if (!value) return value;
@@ -24,13 +20,7 @@ function normalizeDatabaseUrl(value: string | undefined): string | undefined {
 }
 
 const databaseUrl = normalizeDatabaseUrl(process.env.DATABASE_URL);
-// Valida o destino antes de habilitar flags que poderiam usar o transporte stub.
-assertDisposableE2EDatabaseUrl(databaseUrl);
 if (databaseUrl) process.env.DATABASE_URL = databaseUrl;
-process.env.E2E_PRODUCTION = '1';
-process.env.E2E_OUTBOUND_STUB = E2E_OUTBOUND_STUB;
-process.env.CRON_SECRET = E2E_CRON_SECRET;
-process.env.OUTBOX_RELEASE_ID = E2E_OUTBOX_RELEASE_ID;
 process.env.NEXTAUTH_URL = "http://127.0.0.1:3003";
 
 const productionConfig = {
@@ -42,11 +32,7 @@ const productionConfig = {
     timeout: 300000,
     env: {
       ...process.env,
-      E2E_PRODUCTION: '1',
-      E2E_OUTBOUND_STUB: E2E_OUTBOUND_STUB,
       NEXTAUTH_URL: "http://127.0.0.1:3003",
-      CRON_SECRET: E2E_CRON_SECRET,
-      OUTBOX_RELEASE_ID: E2E_OUTBOX_RELEASE_ID,
       ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
     },
   },
