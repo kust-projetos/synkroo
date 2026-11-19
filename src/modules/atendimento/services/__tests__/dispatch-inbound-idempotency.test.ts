@@ -50,12 +50,14 @@ jest.mock('@/core/ia-channel/webhook-router', () => ({
 jest.mock('../../repositories/conversations-repository', () => ({
   appendOutboundMessage: jest.fn(async () => ({ id: 'out-1' })),
   updateConversationTimestamp: jest.fn(async () => undefined),
+  escalateConversation: jest.fn(async () => undefined),
 }));
 
 import { dispatchInboundMessageJob } from '../dispatch-inbound-message';
 import { routeInboundToAgent } from '@/core/ia-channel/webhook-router';
 import { resolveInboundReply } from '@/modules/operacional/public';
 import { OutboundSendConflictError } from '@/lib/http/outbound-idempotency';
+import * as conversationsRepo from '../../repositories/conversations-repository';
 
 function makeJob(id: string): any {
   return {
@@ -91,6 +93,8 @@ describe('dispatch-inbound sendReply idempotency wiring (A3)', () => {
     process.env.EVOLUTION_API_KEY = 'evo-key';
     delete process.env.WHATSAPP_FALLBACK_URL;
     delete process.env.WHATSAPP_FALLBACK_SECRET;
+    delete process.env.E2E_OUTBOUND_STUB;
+    delete process.env.E2E_PRODUCTION;
     (global.fetch as unknown) = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -118,6 +122,33 @@ describe('dispatch-inbound sendReply idempotency wiring (A3)', () => {
     await dispatchInboundMessageJob(makeJob('job-b'));
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('pedido explícito de atendente escala e registra a resposta de encaminhamento', async () => {
+    outcomes.push('claimed');
+    (resolveInboundReply as jest.Mock).mockResolvedValueOnce({
+      kind: 'escalate',
+      reason: 'reply_like',
+    });
+
+    await dispatchInboundMessageJob({
+      ...makeJob('job-human-handoff'),
+      payload: {
+        ...makeJob('job-human-handoff').payload,
+        content: 'quero falar com um atendente humano',
+      },
+    });
+
+    expect(conversationsRepo.escalateConversation).toHaveBeenCalledWith('conv-1', 'clinic-1');
+    expect(conversationsRepo.appendOutboundMessage).toHaveBeenCalledWith(
+      'clinic-1',
+      expect.objectContaining({
+        conversationId: 'conv-1',
+        content: 'Com certeza! Estou transferindo o seu atendimento para um de nossos atendentes humanos da clínica. Um momento, por favor.',
+        intent: 'escalacao',
+      }),
+    );
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
   it('job com outra execução ativa → ConflictError, provider NÃO chamado (job falha p/ retry)', async () => {

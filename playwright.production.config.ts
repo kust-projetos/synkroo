@@ -33,6 +33,7 @@ const productionConfig = {
     env: {
       ...process.env,
       NEXTAUTH_URL: "http://127.0.0.1:3003",
+      E2E_OUTBOUND_STUB: "1",
       ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
     },
   },

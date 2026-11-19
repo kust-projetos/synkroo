@@ -55,6 +55,8 @@ describe('channel-service unit tests', () => {
     delete process.env.WHATSAPP_HEADLESS;
     delete process.env.WHATSAPP_FALLBACK_URL;
     delete process.env.WHATSAPP_FALLBACK_SECRET;
+    delete process.env.E2E_OUTBOUND_STUB;
+    delete process.env.E2E_PRODUCTION;
   });
 
   afterEach(() => {
@@ -63,6 +65,31 @@ describe('channel-service unit tests', () => {
   });
 
   describe('sendWhatsAppMessage facade & provider detection', () => {
+    it('requires the production-E2E marker as well as the stub flag', async () => {
+      process.env.E2E_OUTBOUND_STUB = '1';
+      process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
+      process.env.EVOLUTION_API_KEY = 'test-key';
+      const mockSend = jest.fn().mockResolvedValue({ success: true, messageId: 'real-path' });
+      mockEvolution.mockReturnValue({ sendTextMessage: mockSend } as any);
+      await expect(sendWhatsApp('5511999999999', 'synthetic')).resolves.toMatchObject({
+        messageId: 'real-path',
+      });
+      expect(mockSend).toHaveBeenCalledTimes(1);
+
+      process.env.E2E_PRODUCTION = '1';
+      process.env.DATABASE_URL = 'postgres://synthetic:synthetic@db.example.test:5432/synkroo';
+      await expect(sendWhatsAppMessage('5511999999999', 'synthetic')).rejects.toThrow(
+        'E2E outbound stub requires a disposable database target',
+      );
+      expect(mockSend).toHaveBeenCalledTimes(1);
+
+      process.env.DATABASE_URL = 'postgres://synthetic:synthetic@localhost:5432/synkroo';
+      await expect(sendWhatsAppMessage('5511999999999', 'synthetic')).resolves.toMatchObject({
+        success: true,
+        messageId: 'e2e-outbound-stub',
+      });
+    });
+
     it('uses evolution provider when EVOLUTION_API_URL and KEY are set', async () => {
       process.env.EVOLUTION_API_URL = 'https://evolution.example.com';
       process.env.EVOLUTION_API_KEY = 'secret-key';
