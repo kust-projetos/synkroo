@@ -1,5 +1,10 @@
 # Recuperação do banco de dados (backup & disaster recovery)
 
+> Estado atual: banco migrado para a stack centralizada `db-central` —
+> databases `synkroo` e `synkroo_staging` em `db-hml`, rede `dbcentral_net`.
+> A porta pública 15433 foi descontinuada por segurança; a instância antiga
+> permanece parada como rollback até validação. Procedimentos abaixo que citam o container são históricos/legado.
+
 > Etapa 9 do plano de hardening. Convenções herdadas da árvore existente em
 > `docs/runbooks/` (ver `staging-environment.md` e
 > `remediation-migration-rollback.md`).

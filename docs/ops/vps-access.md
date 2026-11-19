@@ -1,4 +1,9 @@
-# Acesso VPS — Synkroo
+# Acesso VPS - Synkroo
+
+> Migração do banco VPS: produção e staging usam agora a stack centralizada
+> `db-central` (`synkroo` e `synkroo_staging` em `db-hml`, rede `dbcentral_net`).
+> A publicação da porta 15433 foi descontinuada por segurança; a instância
+> `synkroo-prod-postgres` antiga permanece parada como rollback até validação.
 
 > **NOTA SUPERSESSORA — estado medido E2a (read-only, 2026-10-10):**
 > O compose versionado do repo (`ops/vps/synkroo-prod-postgres/docker-compose.yml`)
