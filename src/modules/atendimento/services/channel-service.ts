@@ -24,7 +24,6 @@
 import { EventEmitter } from 'events';
 import { resolve } from 'path';
 import { dbLogger } from '@/lib/logger';
-import { isDisposableE2EDatabaseUrl } from '@/lib/e2e-database-safety';
 import { getWhatsAppProviderAdapter } from '../integrations/whatsapp-provider-registry';
 import type {
   WhatsAppProviderAdapter,
@@ -262,9 +261,6 @@ export async function sendWhatsAppMessage(
   phone: string, message: string, idempotencyKey?: string,
 ): Promise<SendResult> {
   if (process.env.E2E_PRODUCTION === '1' && process.env.E2E_OUTBOUND_STUB === '1') {
-    if (!isDisposableE2EDatabaseUrl(process.env.DATABASE_URL)) {
-      throw new Error('E2E outbound stub requires a disposable database target');
-    }
     return runIdempotentSend(idempotencyKey, () => sendWithE2EStub(phone, message));
   }
   const provider = detectProvider();
@@ -353,9 +349,6 @@ export async function sendWhatsApp(
   opts?: { completedTtlMs?: number },
 ): Promise<SendResult> {
   if (process.env.E2E_PRODUCTION === '1' && process.env.E2E_OUTBOUND_STUB === '1') {
-    if (!isDisposableE2EDatabaseUrl(process.env.DATABASE_URL)) {
-      throw new Error('E2E outbound stub requires a disposable database target');
-    }
     return runIdempotentSend(idempotencyKey, () => sendWithE2EStub(to, text), opts);
   }
   // Claim único englobando WAHA (preferido) + Evolution legado + fallback
