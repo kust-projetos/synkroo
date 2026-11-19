@@ -13,7 +13,7 @@
 > **NADA FOI EXECUTADO.** Este plano foi escrito a partir do inventário
 > [`postgres-93-94-inventory-2026-11-19.md`](postgres-93-94-inventory-2026-11-19.md)
 > e do [ADR-BASE-21](../adr/ADR-BASE-21-contabo-postgres-private-connectivity.md),
-> sem acesso à VPS, ao GitHub ou à Cloudflare. Nenhum comando abaixo foi testado
+> acrescidos dos pré-checks somente leitura de 2026-11-19. Nenhum comando abaixo foi testado
 > contra o host real; todos devem ser revalidados em `DRY_RUN`/leitura antes de uso.
 > Nenhum `PROD_READY` é declarado.
 >
@@ -33,9 +33,27 @@ O plano/inventário de 2026-11-12 **não serve mais**:
 | Roles | owners eram superuser | `synkroo`/`synkroo_staging` **não** são superuser (f/f/f/f) | A parte "remover superuser" de #94 já está feita; resta migrar o runtime para as roles app |
 | Tabelas | 68 | **75** | Grants devem ser recontados em todas as 75 |
 | D3 v4 | `SYNKROO-D3` → container dedicado | `SYNKROO-D3` **órfã** (alvo `172.20.0.2`, contadores zerados); contenção real é `DBCENTRAL-HML` → `172.31.0.3`, com tráfego vivo | Não reaproveitar o script `ops/vps/synkroo-prod-postgres/apply-d3-firewall.sh` sem adaptá-lo |
-| D3 v6 | `SYNKROO-D3-V6` (DROP 5432) | continua só `SYNKROO-D3-V6`; **sem chain v6 para 15434** | Cobertura v6 real de 15434 **desconhecida** (ver §2.b) |
+| D3 v6 | `SYNKROO-D3-V6` (DROP 5432) | Pré-check de 2026-11-19 confirmou cenário **S1**: listener `[::]:15434` é `docker-proxy`, sem IPv6 global no container e sem DNAT v6 | Contenção v6 de 15434 deve atuar em **INPUT**; manter DROP-only e não remover `SYNKROO-D3-V6` sem prova |
 | Firewall persistente | unit `synkroo-d3-firewall` | duas units ativas: `synkroo-d3-firewall.service` e `dbcentral-hml-firewall.service` | A unit/script do `db-central` **não está versionada neste repo** e não foi lida |
 | UFW | allows para 15433 | 15 allows obsoletos para 15433, nenhum para 15434 | Limpeza possível, mas só após prova de não-uso |
+
+**Resolução dos pré-checks — 2026-11-19:** S1 confirmado (`docker inspect` sem
+`GlobalIPv6Address` em `db-central-hml`; `ss -ltnp`/`lsof` atribuem `[::]:15434`
+ao `docker-proxy`; `ip6tables -t nat -S` sem DNAT v6). Assim, a contenção v6
+deve ser em `INPUT`, não `DOCKER-USER`; `SYNKROO-D3-V6` está zerada e pode não
+ser a barreira efetiva. Foram observadas cinco conexões Hyperdrive por banco,
+`ssl=t`, todas IPv4 em `172.70.245.*`, `104.22.123.*` e `162.158.85.*`; nenhum
+egresso IPv6 foi observado. Produção e staging: `/api/health` ok,
+`/api/health/db` complete 40/40 com `maintenanceControl`, ledger 40/40. Os
+grants foram verificados: `synkroo_app` sem exceções CRUD nas 75 tabelas;
+`synkroo_staging_app` tem exceção intencional em `public.outbox_control`
+(SELECT apenas; sem INSERT/UPDATE/DELETE). `db-central-prod` é
+`pgvector/pgvector:pg17`, sem porta publicada, na rede `dbcentral_net`
+(`172.31.0.7`), Compose `db-central`/serviço `postgres-prod`, contendo
+`freelingo`, `kaneo` e `postgres`, nenhum banco Synkroo — divergência benigna,
+embora esteja na mesma rede. O log `backup.log` de 19/11 05:30 não confirma
+dump recente; dumps versionados disponíveis são de outubro. **Backup recente
+verificado continua pendente e bloqueia a janela.** Nada foi executado.
 
 Também mudou o ADR: o ADR-BASE-21 ainda descreve 15433/`synkroo-prod-postgres`; deve
 ser reescrito (fora deste plano, mas é entregável posterior).
@@ -170,6 +188,14 @@ contém hashes SCRAM) e `pg_dump --schema-only` com ACLs para reverter grants.
 totais > 80 do `max_connections=100`, ou diferença material entre inventário e estado
 atual não explicada → **não abrir a janela**.
 
+**Resultado dos checks de 2026-11-19:** checks de host/rede, conexões e família
+de IP, grants, health e ledger foram lidos; resultados resumidos na §0. 15433
+segue sem listener; UFW conserva 15 allows obsoletos; units de firewall seguem
+ativas; `DBCENTRAL-HML` v4 tem tráfego vivo e DROP com 12 pacotes. Permanecem
+pendentes confirmar com os donos os consumidores da porta compartilhada 15434
+e obter **backup recente verificado** antes da janela. O `backup.log` não satisfaz
+esse gate.
+
 ---
 
 ## §2 — A-REDE (#93) — passos
@@ -202,20 +228,18 @@ cp -a <CAMINHO_COMPOSE_DB_CENTRAL>/docker-compose*.yml "$S/" ; sha256sum "$S"/* 
 
 ### Passo 2.b — Confirmar IPv6 do container e como 15434 é publicada
 
-Decide **onde** a contenção v6 precisa atuar. Três cenários, ainda **não confirmados**:
+Decide **onde** a contenção v6 precisa atuar. O pré-check de 2026-11-19 confirmou **S1**:
 
 | Cenário | Evidência | Onde filtrar |
 |---|---|---|
-| **S1** — container sem IPv6, `[::]:15434` servida por `docker-proxy` | `GlobalIPv6Address` vazio; `ss -ltnp` mostra `docker-proxy` em `:::15434` | **INPUT** (ufw v6 / `ip6tables -I INPUT`), não `DOCKER-USER`; tráfego é recebido pelo host e reencaminhado pelo proxy |
+| **S1 — confirmado** — container sem IPv6, `[::]:15434` servida por `docker-proxy` | `GlobalIPv6Address` vazio; `ss -ltnp`/`lsof` mostram `docker-proxy`; `ip6tables -t nat -S` sem DNAT v6 | **INPUT**, não `DOCKER-USER`; tráfego é recebido pelo host e reencaminhado pelo proxy |
 | **S2** — `ip6tables` do daemon Docker ligado, container com IPv6 | `daemon.json` `ip6tables:true`, `GlobalIPv6Address` presente | `DOCKER-USER` v6 com `-d <IPV6_DO_CONTAINER>` (padrão de `DBCENTRAL-HML`) |
 | **S3** — v6 publicada mas encaminhada por DNAT v6 para o IPv4 | improvável; só admitir com evidência | decidir com o owner antes de seguir |
 
-**Hipótese a verificar, não afirmar:** a regra v6 existente `SYNKROO-D3-V6`
-(`DROP tcp --dport 5432`, qualquer destino) em `DOCKER-USER` **pode já bloquear** o
-caminho v6 de 15434 em S2, pois o DNAT leva a 5432. Os contadores dela
-(`ip6tables -L SYNKROO-D3-V6 -v -n`) antes/depois de um probe v6 externo (2.d) dizem
-se é o caso. Se for, **a remoção de `SYNKROO-D3-V6` no passo 2.f abriria v6 de novo**
-— por isso 2.f só ocorre depois da nova chain v6 provada.
+Não há DNAT v6 observado; S1 torna `INPUT` o ponto de contenção. Embora
+`SYNKROO-D3-V6` esteja zerada, isso não prova que seja dispensável ou a barreira
+efetiva. **Só remover após prova** de que a nova contenção está efetiva e de
+que a chain não é a única barreira v6.
 
 Comandos (leitura):
 ```bash
@@ -225,9 +249,9 @@ ip6tables -S INPUT | head -50; ufw status verbose | grep -i -E '15434|v6'
 ```
 
 - **Risco:** nenhum (leitura).
-- **Validação:** cenário S1/S2/S3 registrado com evidência.
+- **Validação:** cenário **S1 confirmado** em 2026-11-19; revalidar imediatamente antes da janela.
 - **Rollback:** n/a.
-- **Incerteza explícita:** o cenário real é **desconhecido** até este passo.
+- **Resultado:** cenário **S1 confirmado** em 2026-11-19.
 
 ### Passo 2.c — Criar a contenção v6 (somente se 15434 for alcançável por IPv6)
 
@@ -240,35 +264,30 @@ erro que derrubou staging em 2026-09-25. Se for necessário permitir v6 Cloudfla
 conjunto IPv6 **não é de 15 ranges** (os 15 são os IPv4); não copiar números deste
 documento.
 
-Cenário **S2** (DOCKER-USER), seguindo o padrão do script existente, em modo dry-run
-primeiro (`DRY_RUN=1` imprime sem executar):
+Cenário **S1 confirmado**: usar `INPUT` v6, escopado à porta publicada 15434,
+com DROP-only. Comando genérico (não executado; revalidar em leitura e dry-run
+antes da janela):
 ```bash
-M=dbcentral-hml-v6-<DATA>        # marcador próprio
-ip6tables -N DBCENTRAL-HML-V6
-# (opcional, só com egresso v6 observado) ACCEPT por range:
-#   ip6tables -A DBCENTRAL-HML-V6 -s <RANGE_V6_CF> -d <IPV6_CONTAINER> -p tcp --dport 5432 -m comment --comment $M -j ACCEPT
-ip6tables -A DBCENTRAL-HML-V6 -m comment --comment $M -j DROP
-ip6tables -C DOCKER-USER -d <IPV6_CONTAINER> -p tcp --dport 5432 -m comment --comment $M -j DBCENTRAL-HML-V6 2>/dev/null \
-  || ip6tables -I DOCKER-USER 1 -d <IPV6_CONTAINER> -p tcp --dport 5432 -m comment --comment $M -j DBCENTRAL-HML-V6
+ip6tables -C INPUT -p tcp --dport 15434 -m comment --comment <MARCADOR> -j DROP 2>/dev/null \
+  || ip6tables -I INPUT 1 -p tcp --dport 15434 -m comment --comment <MARCADOR> -j DROP
 ```
-Salto **por último** (fill-before-jump) e no **topo** (`-I … 1`), pois `DOCKER-USER`
-termina em `RETURN`. Cenário **S1**: regra equivalente em `INPUT` v6
-(`ip6tables -I INPUT 1 -p tcp --dport 15434 -m comment --comment $M -j DROP`) ou
-`ufw deny in 15434/tcp` para v6, **sem** afetar a regra IPv4.
+O egresso Hyperdrive observado é todo IPv4; sem egresso IPv6 observado, manter
+DROP-only e não criar ACCEPT v6. Gate bloqueante: antes da janela, confirmar
+com os donos dos outros projetos o impacto na porta compartilhada 15434 **e
+obter backup recente verificado** (§1.4). Sem ambas as confirmações, não executar.
 
 - **Risco:** se o Hyperdrive de fato conectar por IPv6, o DROP o derruba (outage de
   produção+staging). Mitigação: 1.2 prova a família; manter `ip6tables -D` pronto;
   executar com sessão SSH secundária aberta e verificar `/api/health/db` +
   contadores logo após. Também afeta **outros projetos** da instância que usem v6 em
   15434 (freelingo/kaneo/infisical/pi/iptv) → confirmar na §7 que o owner aceita.
-- **Validação:** `ip6tables -S DBCENTRAL-HML-V6`; contador do DROP aumenta no probe
+- **Validação:** `ip6tables -S INPUT`; contador do DROP aumenta no probe
   negativo; readiness e `pg_stat_activity` inalterados (5 conexões Hyperdrive cada).
 - **Rollback exato:**
   ```bash
-  ip6tables -D DOCKER-USER -d <IPV6_CONTAINER> -p tcp --dport 5432 -m comment --comment $M -j DBCENTRAL-HML-V6
-  ip6tables -F DBCENTRAL-HML-V6 && ip6tables -X DBCENTRAL-HML-V6
+  ip6tables -D INPUT -p tcp --dport 15434 -m comment --comment <MARCADOR> -j DROP
   ```
-  (desfaz **só** o que o passo criou; S1: `ip6tables -D INPUT -p tcp --dport 15434 -m comment --comment $M -j DROP`.)
+  (desfaz **só** a regra que o passo criou.)
 
 ### Passo 2.d — Probes externos (positivos e negativos, v4 e v6)
 
@@ -294,9 +313,8 @@ contadores de `DBCENTRAL-HML` crescendo nos ACCEPT de `162.158.0.0/15`, `104.16.
 1. **Ler** o script e a unit reais do host (`dbcentral-hml-firewall.service` e o que
    ela executa) — **não estão neste repo**. Trazer uma cópia sem segredos para
    `ops/vps/db-central-hml/` (PR separado) para que o estado fique versionado.
-2. Acrescentar ao **mesmo** script o bloco v6 (2.c) idempotente (`ensure_chain`,
-   `ensure`, `ensure_top`), sem `-F`/`-X` no caminho normal e com a guarda de troca de
-   IP fail-closed do padrão atual (IPv6 do container também pode mudar no recreate).
+2. Acrescentar ao **mesmo** script a regra v6 de INPUT (2.c) idempotente, sem
+   `-F`/`-X` no caminho normal. S1 não depende de IP IPv6 do container.
 3. Recarregar: `systemctl daemon-reload && systemctl restart dbcentral-hml-firewall.service`
    e checar `-C` idempotente (rodar duas vezes = no-op).
 - **Risco:** erro no script no boot → v6 sem contenção até correção manual; restart
@@ -317,11 +335,9 @@ Candidatas: chain v4 `SYNKROO-D3` (e o salto para `172.20.0.2`), 15 allows ufw d
   mantê-la:** se outro container receber `172.20.0.2`, o DROP final o afetaria; no
   boot a unit antiga recria os saltos.
 - ufw 15433: `ss` sem listener e nenhum container publicando 15433.
-- `SYNKROO-D3-V6`: remover **apenas** depois de `DBCENTRAL-HML-V6` (ou o equivalente
-  S1) provado em 2.d **e** com contadores indicando que ela não é a única barreira
-  v6. Caso o DROP v6 de 5432 seja hoje a proteção efetiva, **mantê-la** e documentar.
-  Se a decisão for mantê-la, nada a fazer (opção mais conservadora, recomendada
-  inicialmente).
+- `SYNKROO-D3-V6`: está zerada no pré-check, o que não prova que seja dispensável.
+  Remover **somente** após prova de que a contenção INPUT de S1 está efetiva e de
+  que esta chain não é a única barreira v6. Até essa prova, mantê-la.
 
 Procedimento (modelo do cabeçalho de `apply-d3-firewall.sh`): desabilitar a unit antes
 → remover salto com `-D` exato → só então `-F`/`-X` da chain **própria** → verificar
@@ -354,6 +370,11 @@ Após cada etapa: `DOCKER-USER` v4 **e** v6 com as chains, probes 2.d, readiness
 ---
 
 ## §3 — A-PAPEIS (#94) — passos
+
+O pré-check confirmou que `synkroo_app` não tem exceções CRUD nas 75 tabelas.
+Em staging, `public.outbox_control` concede SELECT a `synkroo_staging_app`, mas
+não INSERT/UPDATE/DELETE por design: é uma tabela de controle administrativa.
+**Essa exceção é intencional; não corrigir nem tratar como bloqueio de A-PAPEIS.**
 
 Objetivo: Hyperdrive de produção e de staging passam a conectar como `synkroo_app` e
 `synkroo_staging_app` (não-owner, sem DDL), mantendo as owners para migrations.
@@ -519,7 +540,7 @@ aprovação específica do owner e dos demais donos.**
 | Passo | Como desfazer | Evidência de que voltou ao estado anterior |
 |---|---|---|
 | 2.a snapshot | n/a (sem mutação) | `SHA256SUMS` íntegro |
-| 2.c chain v6 | `ip6tables -D DOCKER-USER … -j DBCENTRAL-HML-V6` + `-F`/`-X` da chain própria (ou `-D INPUT …` em S1) | `ip6tables-save` sem a chain; diff com `iptables.v6` do snapshot; readiness verde |
+| 2.c regra v6 INPUT | `ip6tables -D INPUT -p tcp --dport 15434 … -j DROP` (regra exata criada) | `ip6tables-save` sem a regra adicionada; diff com `iptables.v6` do snapshot; readiness verde |
 | 2.e script/unit | restaurar arquivos do snapshot + `daemon-reload` + restart | `sha256sum` igual ao snapshot; `systemctl is-active` |
 | 2.f remoção de órfãs | recriar regra a partir de `-S` salvo / `ufw allow` do `ufw.txt` | `iptables -S`/`ufw status numbered` iguais ao snapshot no trecho |
 | 2.g recreate/reboot | reaplicar bloco com o IP novo; restaurar compose do snapshot | contenção v4+v6 visível; readiness verde |
@@ -546,14 +567,15 @@ aprovação específica do owner e dos demais donos.**
 
 ## Limitações assumidas
 
-- Nenhum teste externo v4/v6 foi feito; o cenário S1/S2/S3 do IPv6 é **desconhecido**.
-- Host/porta/usuário reais do Hyperdrive não foram lidos pela API Cloudflare.
+- Nenhum teste externo v4/v6 foi feito; o cenário S1 foi confirmado, mas a eficácia da contenção ainda não foi provada por probe.
+- Host/porta/usuário reais do Hyperdrive não foram lidos pela API Cloudflare; as conexões observadas no banco foram todas IPv4.
 - O script/unit/compose de `db-central-hml` não foram lidos.
 - `log_connections=off`: sem trilha histórica de conexões; usar contadores e
   `pg_stat_activity` como evidência.
 - O host de teste externo com v4+v6 ainda precisa ser definido.
 - Não se sabe se existe senha conhecida de `synkroo_app`/`synkroo_staging_app`.
-- Todos os comandos são **proposta**; nenhum foi executado ou testado.
+- Backup recente não confirmado; é gate bloqueante para a janela.
+- Todos os comandos são **proposta**; nenhum foi executado ou testado. Nenhum `PROD_READY` é declarado.
 
 ---
 
@@ -565,6 +587,10 @@ passo correspondente):
 - [ ] Confirmo que a instância **compartilhada** `db-central-hml` pode receber
       mudança de firewall (chain v6 e limpeza), ciente do impacto em
       freelingo/kaneo/infisical/pi_financeiro_canonical/iptv.
+- [ ] Confirmo o impacto em outros consumidores da porta compartilhada 15434,
+      após consultar os donos dos projetos afetados.
+- [ ] Confirmo backup recente verificado de `synkroo` e `synkroo_staging`
+      antes da janela; sem essa confirmação a execução fica bloqueada.
 - [ ] Aprovo a política v6 **DROP-only** (sem allowlist de ranges IPv6) — ou indico
       que há egresso IPv6 observado e exijo allowlist.
 - [ ] Aprovo manter `SYNKROO-D3-V6` até prova de que não é a barreira v6 efetiva.
