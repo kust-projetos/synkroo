@@ -58,7 +58,8 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
       data: {
         installationId,
         from: sender,
-        message: 'quero falar com um atendente humano',
+        // "sim" torna a mensagem reply-like para chegar ao ramo de escalonamento.
+        message: 'sim, quero falar com um atendente humano',
         externalMessageId,
         channel: 'whatsapp',
       },
