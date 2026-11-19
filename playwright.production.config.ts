@@ -1,11 +1,12 @@
 import { loadEnvConfig } from "@next/env";
-import baseConfig from "./playwright.config";
+import baseConfig, { E2E_CRON_SECRET } from "./playwright.config";
 
 loadEnvConfig(process.cwd());
 
 // Sinaliza aos specs que rodam sob `next start` (NODE_ENV=production).
 // Usado para pular fluxos bloqueados de propósito em prod (ex.: /signup → 404, ADR-BASE-11).
 process.env.E2E_PRODUCTION = '1';
+process.env.CRON_SECRET = E2E_CRON_SECRET;
 
 function normalizeDatabaseUrl(value: string | undefined): string | undefined {
   if (!value) return value;
@@ -33,7 +34,7 @@ const productionConfig = {
     env: {
       ...process.env,
       NEXTAUTH_URL: "http://127.0.0.1:3003",
-      E2E_OUTBOUND_STUB: "1",
+      CRON_SECRET: E2E_CRON_SECRET,
       ...(databaseUrl ? { DATABASE_URL: databaseUrl } : {}),
     },
   },

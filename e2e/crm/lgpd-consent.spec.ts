@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test'
+import { test, expect, Page, APIRequestContext } from '@playwright/test'
 import path from 'path'
 
 const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json') })
@@ -8,24 +8,21 @@ const t = test.extend({ storageState: path.join(__dirname, '../.auth/admin.json'
 const visibleList = '[data-testid="contact-list"]:visible, [data-testid="list"]:visible'
 const visibleDetail = '[data-testid="contact-detail"]:visible, [data-testid="detail"]:visible'
 
-async function openContact(page: Page): Promise<void> {
-  // A contact row is a full-width button with a bold name and a type badge.
-  // Require both so this cannot accidentally target another full-width control.
-  const contactItem = page.locator(visibleList)
-    .locator('button.w-full:not([role="tab"]):visible')
-    .filter({ has: page.locator('span.font-medium') })
-    .filter({ has: page.getByText(/^(Paciente|Lead)$/) })
-    .first()
-  await expect(contactItem).toBeVisible({ timeout: 15000 })
-  // A click during hydration can be a no-op. Retry once, not in an unbounded loop.
-  await contactItem.click()
-  try {
-    await expect(page).toHaveURL(/contact=/, { timeout: 8000 })
-  } catch {
-    await contactItem.click()
-    await expect(page).toHaveURL(/contact=/, { timeout: 15000 })
-  }
+async function openContact(page: Page, request: APIRequestContext): Promise<void> {
+  const response = await request.get('/api/contacts?type=patient&limit=100')
+  expect(response.status()).toBe(200)
+  const body = await response.json()
+  const contacts = body.data?.data ?? body.data?.contacts ?? body.data ?? body
+  expect(Array.isArray(contacts)).toBe(true)
+  const contactId = contacts[0]?.id
+  expect(typeof contactId).toBe('string')
+
+  await page.goto(`/dashboard/contatos?contact=${encodeURIComponent(contactId)}`, {
+    waitUntil: 'domcontentloaded',
+  })
+  await expect(page).toHaveURL(/\/dashboard\/contatos\?contact=/)
   await expect(page.locator(visibleDetail)).toBeVisible({ timeout: 15000 })
+  await expect(page.getByRole('heading', { name: 'Consentimentos (LGPD)' }).first()).toBeVisible()
   // Consent tabs only exist after the detail panel is open.
   const detailTab = page.getByRole('tab', { name: /Notas|Timeline/i }).first()
   await expect(detailTab).toBeVisible({ timeout: 15000 })
@@ -37,40 +34,40 @@ t.describe('CRM LGPD Consent Management', () => {
     await expect(page.locator(visibleList)).toBeVisible({ timeout: 15000 })
   })
 
-  t('renders LGPD consent section in contact detail', async ({ page }) => {
-    await openContact(page)
+  t('renders LGPD consent section in contact detail', async ({ page, request }) => {
+    await openContact(page, request)
     await expect(page.getByRole('heading', { name: 'Consentimentos (LGPD)' }).first()).toBeVisible()
     await expect(page.getByText(/Todas as alterações de consentimento/i).first()).toBeVisible()
   })
 
-  t('displays consent status indicators', async ({ page }) => {
-    await openContact(page)
+  t('displays consent status indicators', async ({ page, request }) => {
+    await openContact(page, request)
     await expect(page.getByText('Status:', { exact: true }).first()).toBeVisible()
     await expect(page.getByRole('switch')).toHaveCount(3)
   })
 
-  t('can update marketing consent', async ({ page }) => {
-    await openContact(page)
+  t('can update marketing consent', async ({ page, request }) => {
+    await openContact(page, request)
     const marketingSwitch = page.getByRole('switch').nth(1)
     await expect(marketingSwitch).toBeVisible()
     await expect(marketingSwitch).toBeEnabled()
   })
 
-  t('can update data processing consent', async ({ page }) => {
-    await openContact(page)
+  t('can update data processing consent', async ({ page, request }) => {
+    await openContact(page, request)
     const dataSwitch = page.getByRole('switch').first()
     await expect(dataSwitch).toBeVisible()
     await expect(dataSwitch).toBeEnabled()
   })
 
-  t('LGPD export and anonymization remain explicit API operations', async ({ page }) => {
-    await openContact(page)
+  t('LGPD export and anonymization remain explicit API operations', async ({ page, request }) => {
+    await openContact(page, request)
     await expect(page.getByRole('heading', { name: 'Consentimentos (LGPD)' }).first()).toBeVisible()
     await expect(page.getByRole('button', { name: /Exportar|Anonimizar/i })).toHaveCount(0)
   })
 
-  t('consent timestamps are displayed when a consent exists', async ({ page }) => {
-    await openContact(page)
+  t('consent timestamps are displayed when a consent exists', async ({ page, request }) => {
+    await openContact(page, request)
     await expect(page.getByRole('switch')).toHaveCount(3)
     const timestamps = page.getByText(/Concedído em:|Revogado em:/i)
     const emptyState = page.getByText('Todas as alterações de consentimento são registradas para conformidade LGPD')

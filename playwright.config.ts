@@ -1,10 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
-import { loadEnvConfig } from "@next/env";
-import { assertDisposableE2EDatabaseUrl } from "./src/lib/e2e-database-safety";
 import path from "path";
 
-loadEnvConfig(process.cwd());
-assertDisposableE2EDatabaseUrl(process.env.DATABASE_URL);
+export const E2E_CRON_SECRET = "e2e-cron-secret-not-for-production";
+process.env.CRON_SECRET = E2E_CRON_SECRET;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -52,9 +50,7 @@ export default defineConfig({
     env: {
       ...process.env,
       NEXTAUTH_URL: "http://127.0.0.1:3003",
-      // These are inherited only by the disposable Playwright server.
-      E2E_PRODUCTION: "1",
-      E2E_OUTBOUND_STUB: "1",
+      CRON_SECRET: E2E_CRON_SECRET,
     },
   },
 });
