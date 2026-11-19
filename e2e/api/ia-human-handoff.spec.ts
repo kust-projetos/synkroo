@@ -18,6 +18,8 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
   const externalMessageId = `e2e-handoff-${clinicId}`
   const sender = `5511${clinicId.replaceAll('-', '').slice(0, 10)}`
   const pool = new Pool({ connectionString: databaseUrl })
+  let priorAtendimentoModule: boolean | undefined
+  let moduleSettingCaptured = false
   try {
     await pool.query(
       `INSERT INTO clinics (id, name, slug, phone, email)
@@ -30,6 +32,19 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
        VALUES ($1, 'evolution', $2, $3, true)`,
       [clinicId, installationId, createHash('sha256').update(webhookSecret).digest('hex')],
     )
+    const moduleSetting = await pool.query(
+      'SELECT enabled FROM instance_modules WHERE module_id = $1',
+      ['atendimento'],
+    )
+    priorAtendimentoModule = moduleSetting.rows[0]?.enabled
+    moduleSettingCaptured = true
+    if (priorAtendimentoModule !== true) {
+      await pool.query(
+        `INSERT INTO instance_modules (module_id, enabled)
+         VALUES ('atendimento', true)
+         ON CONFLICT (module_id) DO UPDATE SET enabled = true`,
+      )
+    }
 
     const inbound = await request.post('/api/messages/inbound', {
       headers: { 'x-webhook-secret': webhookSecret },
@@ -41,8 +56,8 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
         channel: 'whatsapp',
       },
     })
-    expect(inbound.status()).toBe(201)
     const inboundBody = await inbound.json()
+    expect(inbound.status(), JSON.stringify(inboundBody)).toBe(201)
     const conversationId = inboundBody.data?.conversationId ?? inboundBody.conversationId
     expect(conversationId).toBeTruthy()
 
@@ -67,6 +82,16 @@ test('inbound de pedido humano registra encaminhamento e escalonamento', async (
     )
     expect(status.rows[0]?.status).toBe('escalated')
   } finally {
+    if (moduleSettingCaptured) {
+      if (priorAtendimentoModule === undefined) {
+        await pool.query('DELETE FROM instance_modules WHERE module_id = $1', ['atendimento'])
+      } else {
+        await pool.query(
+          'UPDATE instance_modules SET enabled = $1 WHERE module_id = $2',
+          [priorAtendimentoModule, 'atendimento'],
+        )
+      }
+    }
     await pool.query('DELETE FROM clinics WHERE id = $1', [clinicId])
     await pool.end()
   }

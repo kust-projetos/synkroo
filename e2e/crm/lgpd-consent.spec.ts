@@ -22,10 +22,11 @@ async function openContact(page: Page, request: APIRequestContext): Promise<void
   })
   await expect(page).toHaveURL(/\/dashboard\/contatos\?contact=/)
   await expect(page.locator(visibleDetail)).toBeVisible({ timeout: 15000 })
-  await expect(page.getByRole('heading', { name: 'Consentimentos (LGPD)' }).first()).toBeVisible()
   // Consent tabs only exist after the detail panel is open.
   const detailTab = page.getByRole('tab', { name: /Notas|Timeline/i }).first()
   await expect(detailTab).toBeVisible({ timeout: 15000 })
+  await detailTab.click()
+  await expect(page.getByRole('heading', { name: 'Consentimentos (LGPD)' }).first()).toBeVisible()
 }
 
 t.describe('CRM LGPD Consent Management', () => {
