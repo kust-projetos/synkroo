@@ -1,5 +1,11 @@
 # Acesso VPS - Synkroo
 
+> **Inventário atual (read-only, 2026-11-18/19; substitui os snapshots abaixo):**
+> o estado vigente medido do PostgreSQL Contabo está em
+> [Inventário PostgreSQL Contabo — 2026-11-19](postgres-93-94-inventory-2026-11-19.md).
+> As notas datadas abaixo descrevem snapshots históricos e não devem ser
+> tratadas como inventário atual.
+
 > Migração do banco VPS: produção e staging usam agora a stack centralizada
 > `db-central` (`synkroo` e `synkroo_staging` em `db-hml`, rede `dbcentral_net`).
 > A publicação da porta 15433 foi descontinuada por segurança; a instância
